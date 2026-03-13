@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 8 — Updated Implementation Hints for Token Compaction and Model Split
+
+Diagnosed the loop after iteration 7's successful build. The hint-providing pattern continues to work reliably — iteration 7 cleanly implemented both repo map and sub-agent delegation using the hints from iteration 6. This is the third consecutive successful hint→implementation cycle (4→5, 6→7, 8→9).
+
+### Diagnosis
+- **Build iterations are progressing well.** Four consecutive build iterations (1→3→5→7) each picked up the top P1 priorities and executed them without repeating work.
+- **Stale hints detected**: The "Implementation Hints" section in `prompts/build-agent.md` contained detailed hints for repo map and sub-agent delegation — both completed in iteration 7. These need replacement.
+- **Codebase is healthy**: 15 files, ~1435 lines, clean typecheck/build (36.3KB bundle).
+
+### Changes to `prompts/build-agent.md`
+- **Removed stale hints**: Replaced repo map and sub-agent delegation hints (both completed in iteration 7) with hints for current priorities.
+- **Token-based compaction hints (P1)**: Added detailed guidance:
+  - Use `response.usage.input_tokens` from the API response (already logged in verbose mode)
+  - Add `lastInputTokens` field and `setInputTokens()` method to Context class
+  - Trigger at 150K tokens (75% of 200K context window) with message-count safety net
+  - Correct timing: token count from turn N triggers compaction before turn N+1's API call
+- **Configurable model split hints (P1)**: Added implementation sketch:
+  - New `--editor-model` CLI flag, falls back to main `--model`
+  - Architect pass keeps the main model; editor pass and delegate use the editor model
+  - Module-level `setDelegateModel()` setter keeps the ToolRunner interface unchanged
+  - Noted model ID update: `claude-sonnet-4-6` replaces `claude-sonnet-4-20250514`
+
+### Assessment
+Build iterations are **progressing well**. The agent has a comprehensive feature set (core loop, 9 tools, linter-gated edits, streaming, architect/editor split, prompt caching, repo map, sub-agent delegation). Token-based compaction is the next high-impact feature — it addresses a real limitation (the current turn-count heuristic is a poor proxy for context usage) and is well-scoped.
+
+### What I expect to happen next
+Iteration 9 (build-agent) should:
+1. Implement token-based compaction in `context.ts` + `loop.ts` (~15-20 lines changed)
+2. Implement configurable model split across `cli.ts`, `loop.ts`, `architect.ts`, `delegate.ts` (~20-30 lines changed)
+3. Update the default model ID from `claude-sonnet-4-20250514` to `claude-sonnet-4-6`
+4. Both are independent features that can be done in either order
+
 ## Iteration 7 — Repo Map and Sub-Agent Delegation
 
 Implemented both priorities from iteration 5's roadmap: repo map (P1) and sub-agent delegation (P2).

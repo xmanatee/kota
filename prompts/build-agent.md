@@ -70,51 +70,37 @@ Build in TypeScript/Node.js. The agent should have these modules:
 
 ### Implementation Hints for Current Priorities
 
-**Repo map (P1)** — a structural index of the codebase for better context:
+**Token-based compaction trigger (P1)** — replace turn-count heuristic with actual token counting:
 
-What it does: Scans project files and extracts a compact summary — file paths, exported functions/classes/constants, and their signatures. This lets the LLM understand the codebase structure without reading every file.
+Current state: `context.ts` triggers compaction at 60 message turns (`COMPACTION_TRIGGER = 60`). This is a rough proxy — a turn with a large file read uses far more tokens than a short text reply. The API response already provides exact token counts.
 
-How Aider does it (for reference, NOT to copy): Full AST parsing via tree-sitter, then ranks symbols by relevance using PageRank on reference graphs. This is ~500 lines and requires native tree-sitter bindings. Too complex for KOTA.
+How the API provides token counts:
+- `response.usage.input_tokens` — total input tokens sent this turn (from `stream.finalMessage()`)
+- This includes system prompt + all messages — the full context size
+- Already available in the code — logged in verbose mode at `loop.ts` line ~120
 
-Recommended approach for KOTA — regex-based extraction:
-- New file `src/repo-map.ts` (target: ~80-100 lines)
-- Scan `.ts`, `.js`, `.py` files (skip `node_modules`, `dist`, `.git`)
-- Extract signatures via regex patterns:
-  - TS/JS: `export function NAME(`, `export class NAME`, `export const NAME`, `export default`, `interface NAME`, `type NAME =`
-  - Python: `def NAME(`, `class NAME`
-- Output format: a compact tree grouped by file path, one line per symbol
-- Example output:
-  ```
-  src/loop.ts
-    export function runAgentLoop(prompt, options): Promise<string>
-    export type LoopOptions
-  src/tools/shell.ts
-    export function runShell(input): Promise<ToolResult>
-    export const shellTool: Anthropic.Tool
-  ```
+Recommended approach:
+- In `context.ts`: Add `lastInputTokens: number = 0` field and `setInputTokens(n: number)` method
+- Change `needsCompaction()` to: `this.lastInputTokens > 150_000` (75% of 200K context window)
+- Keep a message-count safety net: `|| this.messages.length > 100` (prevents runaway in edge cases)
+- In `loop.ts`: After `stream.finalMessage()`, call `context.setInputTokens(response.usage.input_tokens)` — this sets the token count so the NEXT iteration's `needsCompaction()` check at the top of the loop uses real data
+- Remove or rename `COMPACTION_TRIGGER` constant since it's replaced by the token threshold
+- Log the threshold comparison in verbose mode so users can see how close they are
 
-Integration — two uses:
-1. **New tool `repo_map`**: Takes optional `directory` and `glob` params. Returns the map as text. The agent can call it on demand to orient itself.
-2. **Context injection**: Optionally inject a compact version into the system prompt when the agent starts in a directory. Keep it short — just file names + top-level exports. Too much detail bloats the context.
+Key detail: The compaction check is at the TOP of the loop (before the API call). Token count from turn N triggers compaction before turn N+1's call. This is correct timing.
 
-Key design decisions:
-- Use the existing `glob` dependency to find files (already in package.json)
-- Read files with `fs.readFileSync` and regex — no new dependencies
-- Truncate output if the repo is huge (cap at ~100 files or ~200 symbols)
-- Unknown file types are silently skipped
+**Configurable model split (P1)** — different models for main loop vs editor/sub-agent:
 
-**Sub-agent delegation (P2)** — exploration without polluting main context:
+Current state: Everything uses the same model. Main loop model from CLI `--model` (default Sonnet). Architect and editor both use this. The delegate tool has a hardcoded `"claude-sonnet-4-20250514"`.
 
-What it does: Spawns a separate LLM call with read-only tools to explore the codebase, then returns just the summary to the main conversation. The main context only sees the question and answer, not the intermediate tool calls.
+Goal: Let users specify a cheaper/faster model for the editor pass and sub-agent, while keeping a stronger model for main loop reasoning.
 
-Implementation sketch:
-- New tool `delegate` in `src/tools/delegate.ts` (~80-100 lines)
-- Takes `{ task: string }` as input
-- Creates a fresh `Anthropic.messages.create()` call with a mini-loop (like the editor loop in architect.ts)
-- Available tools: only `file_read`, `grep`, `glob` (read-only exploration)
-- Max turns: 10 (exploration should be bounded)
-- Returns the sub-agent's final text response as the tool result
-- Main loop sees: `delegate({ task: "find all API endpoints" })` → `"Found 12 endpoints in src/routes/..."`
+Recommended approach:
+- In `cli.ts`: Add `--editor-model <model>` option (no default — falls back to `--model`)
+- In `loop.ts`: Add `editorModel?: string` to `LoopOptions`. Compute `const editorModel = options.editorModel || model`. Pass it to `runEditorLoop` and to `setDelegateModel`
+- In `architect.ts`: `runEditorLoop` already accepts a `model` param — just pass the editor model. `runArchitectPass` should keep using the main model (reasoning needs the strongest model)
+- In `delegate.ts`: Replace the hardcoded model with a module-level variable. Add `export function setDelegateModel(m: string): void` setter. Call it from `loop.ts` during init. This keeps the `ToolRunner` interface unchanged
+- Model ID update: the latest Sonnet is `claude-sonnet-4-6` (replaces `claude-sonnet-4-20250514`). Update the default while touching these files
 
 ### What Makes a Great Agent (aim for these)
 - Fresh context management (compaction at 75-92% capacity)
