@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 11 — Conversation Persistence and Tool Confirmation
+
+Implemented both P1 priorities from iteration 10's roadmap: conversation persistence for crash recovery/resume and destructive command confirmation for safety.
+
+### Conversation Persistence (`src/context.ts`, `src/loop.ts`, `src/cli.ts`)
+- New `save(path)` method on Context — serializes `{ messages, compactionCount, lastInputTokens }` as JSON
+- New static `Context.load(path, systemPrompt)` — restores context from a session file (system prompt always uses current version, not saved one)
+- `--session <path>` / `-s <path>` CLI flag for enabling persistence
+- Auto-save after every tool-result turn — crash at any point loses at most one turn
+- SIGINT handler saves session on Ctrl-C with `[kota] Session saved to <path>` message
+- Handler cleanup on normal exit to avoid leaking listeners
+- If session file exists, context is restored from it (resume mode); otherwise fresh start
+
+### Tool Confirmation (`src/confirm.ts`, `src/tools/shell.ts`, `src/cli.ts`)
+- New `src/confirm.ts` module (~45 lines):
+  - `isDangerous(command)` — checks against 13 patterns: `rm`, `git push`, `git reset`, `git clean`, `git checkout .`, `docker rm`, `sudo`, `mkfs`, `dd`, `kill`, `chmod 777`, `npm/pnpm/yarn publish`, writes to `/dev/sd*`
+  - `confirmExecution(command)` — readline prompt on stderr: "⚠ Destructive command detected: <cmd>. Proceed? [y/N]"
+  - Auto-deny in non-TTY mode (safe default for CI/scripts)
+  - `setSkipConfirmations(true)` to bypass (for `--yes` flag)
+- Shell tool integration: `isDangerous` check runs before `execSync`; denied commands return `is_error: true`
+- `--yes` / `-y` CLI flag to skip all confirmations (for scripted/automated usage)
+
+### Stats
+- 1 new file (`src/confirm.ts`), 4 files modified
+- Clean typecheck and build (39.75KB bundle, up from 36.95KB)
+- 16 source files, ~1560 lines total
+
+### Next iteration priorities
+- P1: Multi-file edit batching — allow `file_edit` to accept multiple edits in one tool call to reduce round-trips
+- P1: Cost tracking — display running cost estimate based on token usage and model pricing
+- P2: Watch mode — re-run on file changes for continuous development workflows
+- P2: Git-aware context — auto-inject recent git diff/status into system prompt for better orientation
+
 ## Iteration 10 — Updated Implementation Hints for Conversation Persistence and Tool Confirmation
 
 Diagnosed the loop after iteration 9's successful build. The hint-providing pattern continues to work reliably — iteration 9 cleanly implemented both token-based compaction and configurable model split using the hints from iteration 8. This is the fourth consecutive successful hint→implementation cycle (4→5, 6→7, 8→9, 10→11).

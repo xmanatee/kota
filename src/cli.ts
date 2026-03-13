@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { createInterface } from "node:readline";
 import { runAgentLoop } from "./loop.js";
+import { setSkipConfirmations } from "./confirm.js";
 
 const program = new Command();
 
@@ -19,14 +20,18 @@ program
   .option("-v, --verbose", "Show debug output")
   .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
   .option("-i, --interactive", "Interactive mode (REPL)")
+  .option("-s, --session <path>", "Session file for persistence/resume")
+  .option("-y, --yes", "Skip confirmation prompts for destructive commands")
   .action(async (promptWords: string[], opts) => {
     const prompt = promptWords.join(" ");
+    if (opts.yes) setSkipConfirmations(true);
     const options = {
       model: opts.model,
       editorModel: opts.editorModel,
       maxTokens: Number.parseInt(opts.maxTokens, 10),
       verbose: opts.verbose,
       architectMode: opts.architect,
+      sessionPath: opts.session,
     };
 
     if (opts.interactive || !prompt) {

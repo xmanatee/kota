@@ -1,7 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { readFileSync, writeFileSync } from "node:fs";
 import { getTodoState } from "./tools/index.js";
 
 type Message = Anthropic.MessageParam;
+
+type SessionData = {
+  messages: Message[];
+  compactionCount: number;
+  lastInputTokens: number;
+};
 
 const TOKEN_COMPACTION_THRESHOLD = 150_000; // 75% of 200K context window
 const MESSAGE_COMPACTION_SAFETY = 100; // Safety net for message count
@@ -142,5 +149,24 @@ export class Context {
       compactions: this.compactionCount,
       inputTokens: this.lastInputTokens,
     };
+  }
+
+  save(path: string): void {
+    const data: SessionData = {
+      messages: this.messages,
+      compactionCount: this.compactionCount,
+      lastInputTokens: this.lastInputTokens,
+    };
+    writeFileSync(path, JSON.stringify(data), "utf-8");
+  }
+
+  static load(path: string, systemPrompt: string): Context {
+    const raw = readFileSync(path, "utf-8");
+    const data: SessionData = JSON.parse(raw);
+    const ctx = new Context(systemPrompt);
+    ctx.messages = data.messages;
+    ctx.compactionCount = data.compactionCount;
+    ctx.lastInputTokens = data.lastInputTokens;
+    return ctx;
   }
 }

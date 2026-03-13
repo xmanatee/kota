@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { existsSync } from "node:fs";
 import { allTools, executeTool } from "./tools/index.js";
 import { Context } from "./context.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
@@ -35,6 +36,7 @@ export type LoopOptions = {
   maxTokens?: number;
   verbose?: boolean;
   architectMode?: boolean;
+  sessionPath?: string;
 };
 
 /** Build system prompt as cacheable content blocks */
@@ -54,8 +56,28 @@ export async function runAgentLoop(
   const verbose = options.verbose || false;
 
   const client = new Anthropic();
-  const context = new Context(SYSTEM_PROMPT);
-  context.addUserMessage(prompt);
+  const sessionPath = options.sessionPath;
+
+  // Load or create context
+  let context: Context;
+  if (sessionPath && existsSync(sessionPath)) {
+    context = Context.load(sessionPath, SYSTEM_PROMPT);
+    context.addUserMessage(prompt);
+    if (verbose) console.error(`[kota] Resumed session from ${sessionPath}`);
+  } else {
+    context = new Context(SYSTEM_PROMPT);
+    context.addUserMessage(prompt);
+  }
+
+  // SIGINT handler: save session before exit
+  const sigintHandler = () => {
+    if (sessionPath) {
+      context.save(sessionPath);
+      console.error(`\n[kota] Session saved to ${sessionPath}`);
+    }
+    process.exit(0);
+  };
+  process.on("SIGINT", sigintHandler);
 
   // Configure delegate sub-agent model
   setDelegateModel(editorModel);
@@ -168,6 +190,9 @@ export async function runAgentLoop(
       );
       context.addToolResults(validResults);
 
+      // Auto-save session after every turn
+      if (sessionPath) context.save(sessionPath);
+
       // Circuit breaker: detect repeated identical failures
       const failedResults = validResults.filter((r) => r.is_error);
       if (failedResults.length > 0) {
@@ -198,6 +223,10 @@ export async function runAgentLoop(
       break;
     }
   }
+
+  // Clean up SIGINT handler and save final state
+  process.removeListener("SIGINT", sigintHandler);
+  if (sessionPath) context.save(sessionPath);
 
   return lastResult;
 }

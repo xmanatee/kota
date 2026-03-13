@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { execSync } from "node:child_process";
 import type { ToolResult } from "./index.js";
+import { isDangerous, confirmExecution } from "../confirm.js";
 
 export const shellTool: Anthropic.Tool = {
   name: "shell",
@@ -32,6 +33,16 @@ export async function runShell(
 
   if (!command) {
     return { content: "Error: command is required", is_error: true };
+  }
+
+  if (isDangerous(command)) {
+    const confirmed = await confirmExecution(command);
+    if (!confirmed) {
+      return {
+        content: "Command blocked: user declined destructive operation",
+        is_error: true,
+      };
+    }
   }
 
   try {
