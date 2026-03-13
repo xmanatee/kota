@@ -96,6 +96,8 @@ fi
 # Track smoke test results for metrics CSV
 SMOKE_HELP="-"
 SMOKE_HAIKU="-"
+TEST_FILES="-"
+TESTS_PASSED="-"
 
 # Post-step checks for build iterations (only on success)
 if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
@@ -104,12 +106,19 @@ if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js"
   # Level 0: Unit tests (if test files exist)
   TEST_FILE_COUNT=$(find "$DIR/src" -name '*.test.ts' -o -name '*.spec.ts' 2>/dev/null | wc -l | tr -d ' ')
   if (( TEST_FILE_COUNT > 0 )); then
-    if cd "$DIR" && npm test > /dev/null 2>&1; then
-      log "[step] Unit tests ($TEST_FILE_COUNT files): PASS"
+    TEST_FILES="$TEST_FILE_COUNT"
+    TEST_OUTPUT=$(cd "$DIR" && npm test 2>&1) || true
+    PARSED_COUNT=$(echo "$TEST_OUTPUT" | sed -nE 's/.*Tests[[:space:]]+([0-9]+) passed.*/\1/p' | tail -1)
+    if [ -n "$PARSED_COUNT" ] && (( PARSED_COUNT > 0 )); then
+      TESTS_PASSED="$PARSED_COUNT"
+      log "[step] Unit tests ($TEST_FILE_COUNT files, $TESTS_PASSED tests): PASS"
     else
+      TESTS_PASSED="0"
       log "[step] Unit tests ($TEST_FILE_COUNT files): FAIL"
     fi
   else
+    TEST_FILES="0"
+    TESTS_PASSED="0"
     log "[step] Unit tests: NONE (no test files yet)"
   fi
   # Level 1: CLI loads and parses args
@@ -186,9 +195,13 @@ fi
 # Append to structured metrics history
 METRICS_FILE="$DIR/metrics.csv"
 if [ ! -f "$METRICS_FILE" ]; then
-  echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku" > "$METRICS_FILE"
+  echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed" > "$METRICS_FILE"
 fi
-echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU}" >> "$METRICS_FILE"
+# Migrate header if missing test columns
+if head -1 "$METRICS_FILE" | grep -qv 'test_files'; then
+  sed -i '' '1s/$/,test_files,tests_passed/' "$METRICS_FILE"
+fi
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED}" >> "$METRICS_FILE"
 
 # Propagate claude failure after metrics are logged
 if (( CLAUDE_EXIT != 0 )); then

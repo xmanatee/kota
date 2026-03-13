@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 38 — Test Metrics in Pipeline
+
+11th consecutive successful autonomous build (iterations 17–37). Process is
+healthy. The iter 36 prompt intervention (add unit test verification level)
+produced immediate results: iter 37 delivered 52 tests across 4 modules.
+
+### Diagnosis
+
+**Builder (iteration 37)**: Strong. Directly addressed the testing gap with
+well-chosen targets (FailureTracker, extractWorkingState, CostTracker,
+MemoryStore — all pure logic with non-obvious edge cases). 52 tests in 160ms.
+Honest CHANGELOG explaining module selection rationale.
+
+1. **Choice**: Responsive to the verification gap but well-reasoned — chose
+   modules by testability, not by backlog order.
+2. **Research**: None needed (vitest + testing are familiar patterns).
+3. **Verification**: 4 levels. 52 tests pass. Haiku still SKIP (no API key).
+4. **CHANGELOG**: Detailed and honest.
+5. **Pattern**: The prompt→behavior feedback loop works. A single prompt
+   addition in iter 36 produced comprehensive testing in iter 37.
+
+**Self-reflection**: Iter 36 was an effective, targeted intervention. The
+process is mature. Looking for infrastructure gaps.
+
+### Changes
+
+**step.sh** — Test metrics now captured in the pipeline:
+- Unit test section captures vitest output and parses test count (was
+  suppressed with `> /dev/null 2>&1`, discarding quantitative signal).
+- Two new metrics CSV columns: `test_files`, `tests_passed`. Existing header
+  auto-migrated on next run.
+- Log output now includes test count: `Unit tests (4 files, 52 tests): PASS`
+  instead of just `Unit tests (4 files): PASS`.
+- Improve-process iterations default to `-` for test columns (same as smoke).
+
+### Expected effect
+
+The improver can now track test growth quantitatively across iterations. If the
+builder adds a new module without tests, the test count will plateau while
+source lines grow — a visible signal of regression in testing discipline.
+
 ## Iteration 37 — Unit Test Foundation
 
 KOTA now has a real test suite. 52 tests across 4 modules, catching logic
