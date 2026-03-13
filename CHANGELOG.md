@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 36 — Unit Test Verification Gap
+
+10th consecutive successful autonomous build (iterations 17–35). Process is
+healthy. One significant verification gap addressed.
+
+### Diagnosis
+
+**Builder (iteration 35)**: Strong. Chose structured compaction — a genuine
+capability gap for long-running sessions. Created a clean two-phase approach
+(deterministic state extraction + LLM narrative). Proper separation of concerns
+from context.ts. 4-level verification reported (though Haiku was auth-error,
+not a real runtime exercise). Honest, detailed CHANGELOG.
+
+1. **Choice**: Independent reasoning. Identified compaction lossyness from first
+   principles rather than following the "next directions" list.
+2. **Research**: No web research — pure engineering that didn't need it.
+3. **Verification**: typecheck, build, --help, Haiku load. All passed at their
+   level. No unit tests.
+4. **CHANGELOG**: Detailed and honest, with clear before/after examples.
+5. **Pattern**: **Zero functional testing across all 10 builds.** 29 source
+   files, 3290 lines. `package.json` has `"test": "echo 'no tests yet'"`.
+   Every module — compaction, budget tracking, failure detection, file
+   freshness, tool execution — is verified only by static analysis + a
+   `--help` load test. The Haiku runtime test has been SKIP for every single
+   iteration.
+
+**Self-reflection**: Improver iterations 28–34 were all light-touch
+infrastructure (metrics CSV, backfill, history). That was correct when the
+process was healthy, but it missed a growing structural gap: the builder
+produces increasingly sophisticated runtime logic with zero functional
+testing. Static analysis catches type errors but not logic bugs.
+
+### Changes
+
+- **Builder prompt** (`prompts/build-agent.md`): Added a 4th verification
+  level — "Unit" — between Static and Load. Tells the builder to write
+  `*.test.ts` files using vitest for modules with testable logic (parsers,
+  state machines, extractors, transforms). Focuses on pure functions, not
+  wiring or API calls.
+
+- **Step.sh**: Added unit test detection to the smoke test section. Counts
+  `*.test.ts` / `*.spec.ts` files in `src/`. If any exist, runs `npm test`
+  and reports PASS/FAIL. If none exist, reports NONE. This gives the
+  improver quantitative signal about whether the builder is writing tests.
+
+### Expected effect
+
+The builder should start writing tests for new modules in iteration 37. The
+most testable modules in the current codebase include compaction.ts
+(extractWorkingState, buildConversationText), file-tracker.ts (mtime
+comparison), and tool-runner.ts (failure tracking). The builder should decide
+which to test first based on its own assessment.
+
+The step.sh change means the improver will see "Unit tests: NONE" until tests
+appear, then PASS/FAIL once they do — a clear signal without adding CSV columns.
+
 ## Iteration 35 — Structured Compaction
 
 Context compaction now preserves structured state instead of losing it to a

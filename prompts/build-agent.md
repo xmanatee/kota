@@ -58,8 +58,12 @@ its own effectiveness over time.
    assessment of what the assistant actually needs. Explain why you chose it.
 4. Build: write real, working code. Keep `DESIGN.md` accurate (file list, line
    counts, feature descriptions).
-5. Verify (all three levels):
+5. Verify (all four levels):
    - Static: `npm run typecheck && npm run build`
+   - Unit: Run `npm test`. Write tests for new modules when the module has
+     testable logic — parsers, state machines, extractors, transforms. Pure
+     functions are ideal targets. Use vitest. Place tests next to source files
+     as `*.test.ts`. Don't test wiring or API calls — test logic.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop — catches streaming, tool registration, and

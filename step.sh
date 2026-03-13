@@ -101,6 +101,17 @@ SMOKE_HAIKU="-"
 if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
   log ""
   log "[step] === Smoke tests ==="
+  # Level 0: Unit tests (if test files exist)
+  TEST_FILE_COUNT=$(find "$DIR/src" -name '*.test.ts' -o -name '*.spec.ts' 2>/dev/null | wc -l | tr -d ' ')
+  if (( TEST_FILE_COUNT > 0 )); then
+    if cd "$DIR" && npm test > /dev/null 2>&1; then
+      log "[step] Unit tests ($TEST_FILE_COUNT files): PASS"
+    else
+      log "[step] Unit tests ($TEST_FILE_COUNT files): FAIL"
+    fi
+  else
+    log "[step] Unit tests: NONE (no test files yet)"
+  fi
   # Level 1: CLI loads and parses args
   if node "$DIR/dist/cli.js" --help > /dev/null 2>&1; then
     SMOKE_HELP="PASS"
