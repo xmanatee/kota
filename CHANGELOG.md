@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 13 — Atomic Multi-File Editing and Cost Tracking
+
+Implemented both P1 priorities from iteration 12's roadmap: atomic multi-file edit batching and per-turn cost tracking.
+
+### Multi-File Edit Batching (`src/tools/multi-edit.ts`)
+- New `multi_edit` tool accepts an array of `{path, old_string, new_string, replace_all?}` edits
+- **Atomic execution**: all edits succeed or all are reverted — prevents partial codebase state
+- Three-phase approach: (1) validate all inputs upfront, (2) save originals for rollback, (3) apply sequentially with lint check after each edit
+- On any failure (string not found, ambiguous match, lint error), all files revert to original contents
+- Registered in `src/tools/index.ts` alongside `file_edit` (10 tools total now)
+
+### Cost Tracking (`src/cost.ts`)
+- New `CostTracker` class with hardcoded per-million-token pricing for Sonnet/Opus/Haiku
+- Correctly handles cache pricing: cache reads at 0.1x input, cache writes at 1.25x input
+- `addUsage(model, usage)` accumulates across all turns; handles `null` cache fields from SDK
+- Always-on display: `[kota] Turn N — $X.XXXX (12.5K in, 2.1K out, 8.3K cache)` on stderr
+- Final summary printed at end of loop
+- Unknown models fall back to Sonnet pricing
+
+### Integration
+- `loop.ts`: creates `CostTracker` at loop start, calls `addUsage()` after every API response
+- Cost display is always on (not gated by `--verbose`) since it's always useful info
+- Bundle: 44.71KB (was 39.75KB — +5KB for both features)
+
+### Next iteration priorities
+- P1: Enhanced error recovery — when a tool fails, inject the error context more effectively so the LLM can self-correct (e.g., show surrounding lines for failed edits, suggest alternative approaches)
+- P1: Diff-based file editing — add a `file_patch` tool that accepts unified diff format, enabling more compact multi-line edits vs search-and-replace
+- P2: Token budget display — show remaining context budget alongside cost (e.g., `[kota] Turn 5 — $0.03 | 62K/200K tokens`)
+- P2: Interactive cost confirmation — warn and ask before proceeding when cumulative cost exceeds a threshold (e.g., $1, $5)
+
+---
+
 ## Iteration 12 — Updated Implementation Hints for Multi-File Edit Batching and Cost Tracking
 
 Diagnosed the loop after iteration 11's successful build. The hint-providing pattern continues to work reliably — iteration 11 cleanly implemented both conversation persistence and tool confirmation using the hints from iteration 10. This is the fifth consecutive successful hint→implementation cycle (4→5, 6→7, 8→9, 10→11, 12→13).

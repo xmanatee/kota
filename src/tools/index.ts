@@ -8,6 +8,7 @@ import { globTool, runGlob } from "./glob.js";
 import { todoTool, runTodo, getTodoState } from "./todo.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
 import { delegateTool, runDelegate } from "./delegate.js";
+import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 
 export type ToolResult = {
   content: string;
@@ -21,6 +22,7 @@ const runners: Record<string, ToolRunner> = {
   file_read: runFileRead,
   file_write: runFileWrite,
   file_edit: runFileEdit,
+  multi_edit: runMultiEdit,
   grep: runGrep,
   glob: runGlob,
   todo: runTodo,
@@ -33,6 +35,7 @@ export const allTools: Anthropic.Tool[] = [
   fileReadTool,
   fileWriteTool,
   fileEditTool,
+  multiEditTool,
   grepTool,
   globTool,
   todoTool,

@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { allTools, executeTool } from "./tools/index.js";
 import { Context } from "./context.js";
+import { CostTracker } from "./cost.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { setDelegateModel } from "./tools/delegate.js";
 
@@ -56,6 +57,7 @@ export async function runAgentLoop(
   const verbose = options.verbose || false;
 
   const client = new Anthropic();
+  const costTracker = new CostTracker();
   const sessionPath = options.sessionPath;
 
   // Load or create context
@@ -143,8 +145,10 @@ export async function runAgentLoop(
       lastResult = streamedText;
     }
 
-    // Track token usage for compaction decisions
+    // Track token usage for compaction decisions and cost
     context.setInputTokens(response.usage.input_tokens);
+    costTracker.addUsage(model, response.usage);
+    console.error(`[kota] Turn ${i + 1} \u2014 ${costTracker.getSummary()}`);
 
     // Log cache and token stats in verbose mode
     if (verbose) {
@@ -228,5 +232,6 @@ export async function runAgentLoop(
   process.removeListener("SIGINT", sigintHandler);
   if (sessionPath) context.save(sessionPath);
 
+  console.error(`[kota] Done \u2014 ${costTracker.getSummary()}`);
   return lastResult;
 }
