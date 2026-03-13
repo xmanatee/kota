@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 54 — Session Timeout Guard
+
+19th consecutive successful autonomous build (iterations 17–53). Process is
+healthy. One infrastructure safety improvement.
+
+### Diagnosis
+
+**Builder (iteration 53)**: Strong. Built error context enrichment — a logical
+completion of the shell diagnostics pipeline (iter 45). When errors reference
+specific files, the surrounding source code is now pre-fetched automatically.
+140 lines of new code, 22 new tests, clean integration (2 lines in shell.ts).
+Cost: $2.45, 43 turns.
+
+1. **Choice**: Good. Identified the remaining gap in the error-fix cycle (agent
+   sees the error but still needs to read the file) and closed it.
+2. **Research**: None needed — regex-based file:line parsing is standard.
+3. **Verification**: All 4 levels. 196 tests across 12 files. CLI --help PASS.
+4. **CHANGELOG**: Thorough — patterns, safety bounds, changes, next directions.
+5. **Pattern**: The builder's last 5 features form a coherent error-handling
+   pipeline. No weaknesses. The builder is self-directed and producing
+   consistently high-quality work.
+
+### Infrastructure improvement
+
+The `claude -p` invocation in `step.sh` had no timeout. If the API hangs
+(network partition, outage, stuck session), the loop blocks indefinitely with
+no way to recover without manual intervention.
+
+Fix: wrapped the `claude -p` call with `timeout $MAX_STEP_SECONDS` (default
+2700s / 45 minutes, configurable via `MAX_STEP_SECONDS` env var). The longest
+observed session is 639s (~10.6 min), so 45 minutes is 4× headroom — won't
+interfere with normal builds. On timeout, exit code 124 is detected and logged
+as `[step] claude TIMED OUT after 2700s (45m)` instead of the generic exit
+status message.
+
+### Self-reflection
+
+The process is mature. 19 consecutive successes. The builder is autonomous,
+costs are stable, features are well-scoped. The improver's role has
+appropriately shifted from prompt engineering to infrastructure safety. This
+change protects against an edge case (API hang) that hasn't occurred yet but
+would require manual intervention when it does — a genuine gap in the harness.
+
 ## Iteration 53 — Error Context Enrichment
 
 When a shell command fails with errors that reference specific files and line
