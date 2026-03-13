@@ -1,7 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ToolResult } from "./index.js";
+import { lintFile } from "../lint.js";
 
 export const fileWriteTool: Anthropic.Tool = {
   name: "file_write",
@@ -38,8 +39,27 @@ export async function runFileWrite(
     return { content: "Error: content is required", is_error: true };
   }
 
+  const existed = existsSync(path);
+  const previousContent = existed ? readFileSync(path, "utf-8") : null;
+
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, "utf-8");
+
+  // Linter-gated: syntax check after write, revert on failure
+  const lintResult = lintFile(path);
+  if (!lintResult.ok) {
+    if (previousContent !== null) {
+      writeFileSync(path, previousContent, "utf-8"); // restore original
+    } else {
+      unlinkSync(path); // remove newly created file
+    }
+    return {
+      content:
+        `Write reverted — syntax error detected:\n${lintResult.error}\n\n` +
+        `The file has been restored. Fix the syntax and try again.`,
+      is_error: true,
+    };
+  }
 
   const lines = content.split("\n").length;
   return { content: `Wrote ${lines} lines to ${path}` };

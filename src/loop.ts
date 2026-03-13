@@ -60,7 +60,9 @@ export async function runAgentLoop(
       console.error(`[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`);
     }
 
-    const response = await client.messages.create({
+    // Stream the response for real-time text output
+    let streamedText = "";
+    const stream = client.messages.stream({
       model,
       max_tokens: maxTokens,
       system: context.getSystemPrompt(),
@@ -68,19 +70,20 @@ export async function runAgentLoop(
       messages: context.getMessages(),
     });
 
+    stream.on("text", (text) => {
+      process.stdout.write(text);
+      streamedText += text;
+    });
+
+    const response = await stream.finalMessage();
+    if (streamedText) {
+      process.stdout.write("\n");
+      lastResult = streamedText;
+    }
+
     context.addAssistantMessage(response);
 
-    // Extract text and tool use blocks
-    const textBlocks = response.content.filter((b) => b.type === "text");
     const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
-
-    // Print text output
-    for (const block of textBlocks) {
-      if (block.type === "text" && block.text) {
-        console.log(block.text);
-        lastResult = block.text;
-      }
-    }
 
     // If no tool calls, we're done
     if (toolUseBlocks.length === 0 || response.stop_reason === "end_turn") {

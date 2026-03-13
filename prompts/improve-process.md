@@ -40,7 +40,7 @@ This is the hardest part to get right, so think carefully.
 
 You are NOT building the agent. The odd iterations do that. Your job is to make the odd iterations MORE EFFECTIVE. The difference matters:
 
-- **Bad**: You rewrite `src/loop.ts` to add a better tool. (That's the build-agent's job.)
+- **Bad**: You rewrite `src/loop.ts` to add a better tool.
 - **Bad**: You add a new feature to the agent code. (Scope violation.)
 - **Bad**: You rewrite the build prompt to be completely different. (Destroys working context.)
 - **Good**: You notice the build-agent keeps redesigning things it already designed, so you add a "read existing DESIGN.md first" instruction to the build prompt.

@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
+import { lintFile } from "../lint.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",
@@ -81,6 +82,18 @@ export async function runFileEdit(
     : content.replace(oldStr, newStr);
 
   writeFileSync(path, updated, "utf-8");
+
+  // Linter-gated: syntax check after edit, revert on failure
+  const lintResult = lintFile(path);
+  if (!lintResult.ok) {
+    writeFileSync(path, content, "utf-8"); // revert
+    return {
+      content:
+        `Edit reverted — syntax error detected:\n${lintResult.error}\n\n` +
+        `The file has been restored. Fix the syntax in your replacement and try again.`,
+      is_error: true,
+    };
+  }
 
   const replacements = replaceAll ? count : 1;
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };

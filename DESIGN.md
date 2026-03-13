@@ -94,9 +94,26 @@ From Aider's research: separating "what to do" from "how to edit" improves resul
 - **Phase 1 (this iteration)**: Single-model loop with all tools
 - **Phase 2**: Architect call (reasoning model, no tools) → Editor call (fast model, edit tools only)
 
-### Linter-Gated Edits (Future — P1)
+### Linter-Gated Edits (`src/lint.ts`)
 
-From SWE-agent: after each `file_edit`, run a syntax check. If it fails, auto-revert and tell the agent what went wrong. This prevents cascading errors from bad edits.
+From SWE-agent: after each `file_edit` or `file_write`, run a syntax check. If it fails, auto-revert and tell the agent what went wrong. This prevents cascading errors from bad edits.
+
+**Supported file types:**
+| Extension | Checker | Notes |
+|-----------|---------|-------|
+| `.json` | `JSON.parse()` | Built-in, always available |
+| `.js`, `.cjs`, `.mjs` | `node --check` | Built-in, always available |
+| `.ts`, `.tsx`, `.jsx`, `.mts`, `.cts` | esbuild `transformSync` | Gracefully skips if esbuild not installed |
+| `.py` | `ast.parse()` via python3 | Gracefully skips if python3 not available |
+
+**Behavior:**
+- On lint failure: file is reverted to its previous state (or deleted if newly created)
+- Error message includes the syntax error details to guide the agent's retry
+- Unknown file types pass without checking (no false negatives)
+
+### Streaming Output
+
+Real-time text streaming via `client.messages.stream()`. Text appears token-by-token as the model generates it, instead of waiting for the full response. Tool calls are still collected and executed after the stream completes.
 
 ### Circuit Breaker
 
@@ -106,29 +123,32 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 
 ```
 src/
-  cli.ts          — Entry point, Commander.js (~60 lines)
-  loop.ts         — Core agent loop (~120 lines)
-  context.ts      — Conversation + compaction (~100 lines)
+  cli.ts          — Entry point, Commander.js (~100 lines)
+  loop.ts         — Core agent loop with streaming (~140 lines)
+  context.ts      — Conversation + compaction (~130 lines)
+  lint.ts         — Syntax checking for linter-gated edits (~95 lines)
   tools/
-    index.ts      — Tool registry + executor (~40 lines)
-    shell.ts      — Shell command execution (~50 lines)
-    file-read.ts  — Read file with line numbers (~40 lines)
-    file-write.ts — Create/overwrite file (~30 lines)
-    file-edit.ts  — Search-and-replace edit (~60 lines)
-    grep.ts       — Content search via ripgrep (~50 lines)
-    glob.ts       — File pattern matching (~40 lines)
-    todo.ts       — Task tracking (~50 lines)
+    index.ts      — Tool registry + executor (~50 lines)
+    shell.ts      — Shell command execution (~70 lines)
+    file-read.ts  — Read file with line numbers (~65 lines)
+    file-write.ts — Create/overwrite file with lint gate (~60 lines)
+    file-edit.ts  — Search-and-replace edit with lint gate (~100 lines)
+    grep.ts       — Content search via ripgrep (~85 lines)
+    glob.ts       — File pattern matching (~60 lines)
+    todo.ts       — Task tracking (~95 lines)
 ```
 
-Total: ~640 lines across 11 files. Each file ≤ 150 lines.
+Total: ~1050 lines across 12 files. Each file ≤ 150 lines.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~640 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~1050 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: Each tool designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
-3. **Prompt caching**: Static system prompt enables efficient caching — cost scales linearly not quadratically.
-4. **Task tracking**: TodoWrite-style tracking injected as system context so the agent always knows what's done and what's left.
-5. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
+3. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
+4. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
+5. **Prompt caching**: Static system prompt enables efficient caching — cost scales linearly not quadratically.
+6. **Task tracking**: TodoWrite-style tracking injected as system context so the agent always knows what's done and what's left.
+7. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
 
 ## Dependencies
 

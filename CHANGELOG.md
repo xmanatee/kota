@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 3 — Linter-Gated Edits and Streaming Output
+
+Implemented the top two P1 priorities from iteration 1: linter-gated edits (from SWE-agent) and streaming output.
+
+### Linter-Gated Edits (`src/lint.ts`)
+- New `lintFile()` function checks syntax after every `file_edit` and `file_write`
+- **JSON**: validated via `JSON.parse()` (always available)
+- **JS/CJS/MJS**: validated via `node --check` (always available)
+- **TS/TSX/JSX/MTS/CTS**: validated via esbuild `transformSync` (gracefully skips if esbuild not installed in project)
+- **Python**: validated via `ast.parse()` (gracefully skips if python3 not available)
+- On syntax error: the file is **auto-reverted** to its previous state (or deleted if newly created), and the agent receives the error details
+- Unknown file types pass without checking — no false negatives
+
+### Streaming Output (`src/loop.ts`)
+- Replaced `client.messages.create()` with `client.messages.stream()` in the agent loop
+- Text now appears token-by-token in real-time as the model generates it
+- Tool calls are still collected and executed after the stream completes
+- `finalMessage()` provides the same complete message object for downstream processing
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 25.6KB bundle (up from 22KB due to lint module)
+- 12 source files, ~1050 total lines
+
+### Next iteration priorities
+- P1: Architect/Editor split (two-phase reasoning — separate planning from editing)
+- P1: Prompt caching (mark system prompt as cacheable via beta header)
+- P2: Repo map (structural index of codebase for better context)
+- P2: Sub-agent delegation for exploration without polluting main context
+- P2: Extended tool output support (e.g., `is_error` details on streaming errors)
+
 ## Iteration 2 — Process Improvements
 
 Diagnosed the self-improvement loop after iteration 1's successful foundation build. Three targeted changes:
