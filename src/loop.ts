@@ -5,6 +5,7 @@ import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { setDelegateModel } from "./tools/delegate.js";
+import { loadProjectContext } from "./project-context.js";
 
 const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with software engineering, research, analysis, and problem-solving.
 
@@ -101,12 +102,19 @@ export class AgentSession {
     this.client = new Anthropic({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
+    // Build system prompt with project context
+    const projectContext = loadProjectContext();
+    const systemPrompt = SYSTEM_PROMPT + projectContext;
+    if (projectContext && this.verbose) {
+      console.error("[kota] Loaded project context from .kota.md");
+    }
+
     // Load or create context
     if (this.sessionPath && existsSync(this.sessionPath)) {
-      this.context = Context.load(this.sessionPath, SYSTEM_PROMPT);
+      this.context = Context.load(this.sessionPath, systemPrompt);
       if (this.verbose) console.error(`[kota] Resumed session from ${this.sessionPath}`);
     } else {
-      this.context = new Context(SYSTEM_PROMPT);
+      this.context = new Context(systemPrompt);
     }
 
     setDelegateModel(this.editorModel);

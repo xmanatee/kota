@@ -56,13 +56,8 @@ export async function runFileEdit(
   const count = content.split(oldStr).length - 1;
 
   if (count === 0) {
-    // Help the agent debug: show what's near their intended edit
-    const lines = content.split("\n");
-    const preview = lines.slice(0, 20).join("\n");
     return {
-      content:
-        `Error: old_string not found in ${path}.\n` +
-        `First 20 lines of the file:\n${preview}`,
+      content: buildNotFoundMessage(path, content, oldStr),
       is_error: true,
     };
   }
@@ -97,4 +92,97 @@ export async function runFileEdit(
 
   const replacements = replaceAll ? count : 1;
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };
+}
+
+/**
+ * Compute similarity between two strings using bigram overlap (Dice coefficient).
+ * Fast, no dependencies, good enough for finding near-matches.
+ */
+function similarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+
+  const bigrams = new Map<string, number>();
+  for (let i = 0; i < a.length - 1; i++) {
+    const bi = a.slice(i, i + 2);
+    bigrams.set(bi, (bigrams.get(bi) || 0) + 1);
+  }
+
+  let overlap = 0;
+  for (let i = 0; i < b.length - 1; i++) {
+    const bi = b.slice(i, i + 2);
+    const count = bigrams.get(bi) || 0;
+    if (count > 0) {
+      bigrams.set(bi, count - 1);
+      overlap++;
+    }
+  }
+
+  return (2 * overlap) / (a.length - 1 + b.length - 1);
+}
+
+/**
+ * Build an error message when old_string is not found.
+ * Finds the most similar region in the file and shows it with context.
+ */
+function buildNotFoundMessage(path: string, content: string, oldStr: string): string {
+  const lines = content.split("\n");
+  const searchLines = oldStr.split("\n");
+  const windowSize = searchLines.length;
+
+  // Slide a window over the file lines, score each window against the search
+  let bestScore = 0;
+  let bestLineIdx = 0;
+
+  for (let i = 0; i <= lines.length - windowSize; i++) {
+    const window = lines.slice(i, i + windowSize).join("\n");
+    const score = similarity(window, oldStr);
+    if (score > bestScore) {
+      bestScore = score;
+      bestLineIdx = i;
+    }
+  }
+
+  // Also check single-line matches if old_string is one line
+  if (windowSize === 1) {
+    const trimmedSearch = oldStr.trim();
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(trimmedSearch) || lines[i].trim() === trimmedSearch) {
+        bestScore = 0.9;
+        bestLineIdx = i;
+        break;
+      }
+    }
+  }
+
+  const CONTEXT_LINES = 5;
+  const startLine = Math.max(0, bestLineIdx - CONTEXT_LINES);
+  const endLine = Math.min(lines.length, bestLineIdx + windowSize + CONTEXT_LINES);
+
+  if (bestScore > 0.4) {
+    const contextPreview = lines
+      .slice(startLine, endLine)
+      .map((line, idx) => {
+        const lineNum = startLine + idx + 1;
+        const marker =
+          lineNum > bestLineIdx && lineNum <= bestLineIdx + windowSize ? ">>>" : "   ";
+        return `${marker} ${String(lineNum).padStart(4)}: ${line}`;
+      })
+      .join("\n");
+
+    return (
+      `Error: old_string not found in ${path}.\n\n` +
+      `Closest match (${Math.round(bestScore * 100)}% similar) near line ${bestLineIdx + 1}:\n` +
+      `${contextPreview}\n\n` +
+      `Check for whitespace/indentation differences, or re-read the file to get exact content.`
+    );
+  }
+
+  // Low similarity — fall back to showing file structure
+  const preview = lines.slice(0, 30).map((l, i) => `${String(i + 1).padStart(4)}: ${l}`).join("\n");
+  return (
+    `Error: old_string not found in ${path} (no close match found).\n\n` +
+    `File has ${lines.length} lines. First 30:\n${preview}\n\n` +
+    `Re-read the file with file_read to get the exact content before editing.`
+  );
 }

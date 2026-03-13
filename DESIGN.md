@@ -127,6 +127,26 @@ From Aider's research: separating "what to do" from "how to edit" improves resul
 - Architect output goes to stderr, editor output goes to stdout
 - The existing single-pass loop remains the default (no `--architect` = standard mode)
 
+### Project Context (`src/project-context.ts`)
+
+Makes KOTA project-aware by reading `.kota.md` files from the working directory up to the filesystem root (like Claude Code's `CLAUDE.md`).
+
+- Walks up directory tree collecting `.kota.md` files (max 10 levels)
+- Returns root-first ordering: general context first, specific project context last
+- Content injected into the system prompt on session start
+- Per-file truncation at 8000 chars to prevent context bloat
+- Verbose mode logs when project context is loaded
+
+### Smart Edit Error Recovery (`src/tools/file-edit.ts`)
+
+When `file_edit`'s `old_string` is not found, instead of showing only the first 20 lines (which is useless when the target is line 150), KOTA now finds the closest-matching region:
+
+- **Bigram similarity** (Dice coefficient): fast, zero-dependency fuzzy matching
+- **Sliding window**: scores every region of the file that matches the search's line count
+- **Context display**: shows the best match with 5 lines of surrounding context, line numbers, and `>>>` markers on the matched lines
+- **Similarity threshold**: shows the match at >40% similarity; below that, shows first 30 lines with a suggestion to re-read the file
+- Dramatically reduces wasted turns — the agent can see exactly what the actual content looks like near where it expected to edit
+
 ### Linter-Gated Edits (`src/lint.ts`)
 
 From SWE-agent: after each `file_edit` or `file_write`, run a syntax check. If it fails, auto-revert and tell the agent what went wrong. This prevents cascading errors from bad edits.
@@ -185,19 +205,20 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 
 ```
 src/
-  cli.ts          — Entry point, Commander.js (~115 lines)
-  loop.ts         — AgentSession class + core agent loop (~340 lines)
-  architect.ts    — Architect/Editor two-pass flow (~135 lines)
-  context.ts      — Conversation + compaction + persistence (~175 lines)
-  confirm.ts      — Destructive command confirmation (~50 lines)
-  cost.ts         — Per-turn cost tracking (~65 lines)
-  lint.ts         — Syntax checking for linter-gated edits (~100 lines)
+  cli.ts              — Entry point, Commander.js (~115 lines)
+  loop.ts             — AgentSession class + core agent loop (~350 lines)
+  architect.ts        — Architect/Editor two-pass flow (~135 lines)
+  context.ts          — Conversation + compaction + persistence (~175 lines)
+  confirm.ts          — Destructive command confirmation (~50 lines)
+  cost.ts             — Per-turn cost tracking (~65 lines)
+  lint.ts             — Syntax checking for linter-gated edits (~100 lines)
+  project-context.ts  — .kota.md file discovery and loading (~65 lines)
   tools/
     index.ts      — Tool registry + executor (~65 lines)
     shell.ts      — Shell command execution (~80 lines)
     file-read.ts  — Read file with line numbers (~65 lines)
     file-write.ts — Create/overwrite file with lint gate (~65 lines)
-    file-edit.ts  — Search-and-replace edit with lint gate (~100 lines)
+    file-edit.ts  — Search-and-replace edit with fuzzy error recovery (~190 lines)
     multi-edit.ts — Atomic multi-file edits (~115 lines)
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
@@ -207,25 +228,27 @@ src/
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
 ```
 
-Total: ~2070 lines across 19 files.
+Total: ~2230 lines across 20 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2070 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~2230 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 11 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
-3. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
-4. **Stream resilience**: Mid-stream API failures are retried with exponential backoff and jitter. Permanent errors (auth, bad request) fail fast; transient errors (network, overload) retry up to 3 times. SDK-level retries increased from default 2 to 5.
-5. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
-6. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
-7. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
-8. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
-9. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
-10. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
-11. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
-12. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
-13. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
-14. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
-15. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
+3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
+4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
+5. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
+6. **Stream resilience**: Mid-stream API failures are retried with exponential backoff and jitter. Permanent errors (auth, bad request) fail fast; transient errors (network, overload) retry up to 3 times. SDK-level retries increased from default 2 to 5.
+7. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
+8. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
+9. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
+10. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
+11. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
+12. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
+13. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
+14. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
+15. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
+16. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
+17. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
 
 ## Dependencies
 

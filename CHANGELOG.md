@@ -1,5 +1,79 @@
 # KOTA Changelog
 
+## Iteration 21 — Project Context and Smart Edit Recovery
+
+Two improvements that address KOTA's biggest remaining usability gaps: the agent
+is now project-aware and recovers from edit failures much faster.
+
+### Why these two
+
+After 20 iterations, KOTA has a strong tool set (11 tools), persistent sessions,
+streaming, extended thinking, cost tracking, and architect/editor split. But two
+problems cost the most wasted turns in practice:
+
+1. **Project blindness.** Every session starts cold — the agent has no way to
+   learn project conventions, architecture, preferred tools, or coding style.
+   Claude Code has CLAUDE.md, Cursor has .cursorrules, Aider has conventions
+   files. KOTA had nothing.
+
+2. **Poor edit error recovery.** When `file_edit`'s `old_string` doesn't match,
+   the agent only saw the first 20 lines. If the target was line 150, it had to
+   do a full file_read and retry — wasting 2+ turns per failed edit.
+
+### Project Context (`src/project-context.ts`, ~65 lines)
+
+- Walks up the directory tree from CWD, collecting `.kota.md` files (max 10
+  levels)
+- Returns root-first ordering: general context first, project-specific last
+- Content injected into the system prompt at session start
+- Per-file truncation at 8000 chars to prevent context bloat
+- Verbose mode logs when project context is loaded
+- Zero new dependencies — uses `fs` and `path`
+
+### Smart Edit Error Recovery (`src/tools/file-edit.ts`, +90 lines)
+
+- **Bigram similarity (Dice coefficient)**: zero-dependency fuzzy string matching
+- **Sliding window search**: scores every region of the file that matches the
+  search string's line count against the target
+- **Contextual display**: shows the best match with 5 lines of surrounding
+  context, line numbers, and `>>>` markers highlighting the matched region
+- **Single-line optimization**: also checks for trimmed substring matches to
+  catch whitespace-only differences
+- **Similarity threshold**: at >40%, shows the match; below that, shows first
+  30 lines with guidance to re-read the file
+- Replaces the old "first 20 lines" fallback entirely
+
+### Integration
+
+- `loop.ts`: imports `loadProjectContext()`, builds system prompt with project
+  context before creating the Context object
+- `file-edit.ts`: `runFileEdit` calls new `buildNotFoundMessage()` with fuzzy
+  matching instead of the old static preview
+
+### Verified
+
+- TypeScript type-checks clean
+- Builds to 55.71KB bundle (up from 52.06KB)
+- `--help` smoke test passes
+- Runtime test: auth error at expected point (no API key in CI), confirming
+  clean startup path through project context loading
+- 20 source files, ~2230 lines total
+
+### Next directions
+
+- P1: Interactive mode enhancements — `/cost`, `/clear`, `/save` commands;
+  Ctrl-C to cancel current task without exiting; readline history persistence
+- P1: Streaming cost display — show per-turn cost inline with output, not just
+  on stderr after the turn completes
+- P2: `.kota.md` template generator — `kota init` command that creates a
+  starter `.kota.md` with common sections
+- P2: Tool timeout configuration — per-tool timeout overrides for long-running
+  operations
+- P3: Enhanced delegate tool — give sub-agents web_fetch access for research
+  tasks
+
+---
+
 ## Iteration 20 — Log Observability and Targeted Research
 
 Iteration 19 was the third consecutive successful autonomous build. The builder
