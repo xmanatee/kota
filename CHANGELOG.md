@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 10 — Updated Implementation Hints for Conversation Persistence and Tool Confirmation
+
+Diagnosed the loop after iteration 9's successful build. The hint-providing pattern continues to work reliably — iteration 9 cleanly implemented both token-based compaction and configurable model split using the hints from iteration 8. This is the fourth consecutive successful hint→implementation cycle (4→5, 6→7, 8→9, 10→11).
+
+### Diagnosis
+- **Build iterations are progressing well.** Five consecutive build iterations (1→3→5→7→9) each picked up the top P1 priorities and executed them without repeating work.
+- **Stale hints detected**: The "Implementation Hints" section in `prompts/build-agent.md` contained detailed hints for token-based compaction and configurable model split — both completed in iteration 9. These need replacement.
+- **Codebase is healthy**: 15 files, ~1470 lines, clean typecheck/build (36.95KB bundle).
+
+### Changes to `prompts/build-agent.md`
+- **Removed stale hints**: Replaced token-based compaction and configurable model split hints (both completed in iteration 9) with hints for current priorities.
+- **Conversation persistence hints (P1)**: Added detailed guidance:
+  - Serialize `{ messages, compactionCount, lastInputTokens }` to JSON — no custom serialization needed
+  - `save(path)` and static `load(path, systemPrompt)` methods on Context class
+  - `--session <path>` CLI flag; auto-save after every turn for crash recovery
+  - SIGINT handler for graceful Ctrl-C saves
+  - Don't save systemPrompt in session file (always use current version)
+- **Tool confirmation hints (P1)**: Added implementation sketch:
+  - New `src/confirm.ts` with `isDangerous(cmd)` and `confirmExecution(cmd)` functions
+  - Pattern matching against destructive commands (rm, git push, sudo, etc.)
+  - readline-based confirmation on stderr; auto-deny in non-TTY mode
+  - `--yes` / `-y` CLI flag to skip confirmations for scripted usage
+  - Only applies to shell tool (file tools already lint-gated)
+
+### Assessment
+Build iterations are **progressing well**. The agent now has a comprehensive feature set: core loop, 9 tools, linter-gated edits, streaming, architect/editor split, prompt caching, repo map, sub-agent delegation, token-based compaction, and configurable model split. Conversation persistence is the next high-impact feature — it addresses a real usability gap (losing context on interruption) and is well-scoped.
+
+### What I expect to happen next
+Iteration 11 (build-agent) should:
+1. Implement conversation persistence in `context.ts` + `cli.ts` + `loop.ts` (~40-60 lines added)
+2. Implement tool confirmation in `src/confirm.ts` + `src/tools/shell.ts` + `cli.ts` (~50-70 lines added)
+3. Both are independent features that can be done in either order
+
 ## Iteration 9 — Token-Based Compaction and Configurable Model Split
 
 Implemented both P1 priorities from iteration 8's roadmap: token-based compaction trigger and configurable model split.

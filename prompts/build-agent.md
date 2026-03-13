@@ -70,37 +70,44 @@ Build in TypeScript/Node.js. The agent should have these modules:
 
 ### Implementation Hints for Current Priorities
 
-**Token-based compaction trigger (P1)** — replace turn-count heuristic with actual token counting:
+**Conversation persistence (P1)** — save/restore conversation state to disk for resuming interrupted sessions:
 
-Current state: `context.ts` triggers compaction at 60 message turns (`COMPACTION_TRIGGER = 60`). This is a rough proxy — a turn with a large file read uses far more tokens than a short text reply. The API response already provides exact token counts.
+Current state: When the agent process exits (user Ctrl-C, crash, or normal completion), all conversation context is lost. There's no way to resume a partially completed task.
 
-How the API provides token counts:
-- `response.usage.input_tokens` — total input tokens sent this turn (from `stream.finalMessage()`)
-- This includes system prompt + all messages — the full context size
-- Already available in the code — logged in verbose mode at `loop.ts` line ~120
+What to serialize: The `Context` class holds all state — `messages[]`, `compactionCount`, `lastInputTokens`. The system prompt is reconstructed at startup, so it doesn't need to be saved.
 
 Recommended approach:
-- In `context.ts`: Add `lastInputTokens: number = 0` field and `setInputTokens(n: number)` method
-- Change `needsCompaction()` to: `this.lastInputTokens > 150_000` (75% of 200K context window)
-- Keep a message-count safety net: `|| this.messages.length > 100` (prevents runaway in edge cases)
-- In `loop.ts`: After `stream.finalMessage()`, call `context.setInputTokens(response.usage.input_tokens)` — this sets the token count so the NEXT iteration's `needsCompaction()` check at the top of the loop uses real data
-- Remove or rename `COMPACTION_TRIGGER` constant since it's replaced by the token threshold
-- Log the threshold comparison in verbose mode so users can see how close they are
+- In `context.ts`: Add `save(path: string)` and static `load(path: string, systemPrompt: string)` methods
+  - `save()` writes `{ messages: this.messages, compactionCount, lastInputTokens }` as JSON to disk
+  - `load()` reads the JSON, creates a new Context, and restores the fields. The `systemPrompt` comes from the caller (it's always the same constant from `loop.ts`)
+  - Use `fs.writeFileSync` and `fs.readFileSync` — no async needed for small JSON files
+- In `cli.ts`: Add `--session <path>` option (no default). When provided:
+  - If the file exists, load the context from it (resume mode)
+  - Auto-save after every turn (after tool results are added to context)
+  - On clean completion, optionally delete the session file (or keep it for history)
+- In `loop.ts`: Add `sessionPath?: string` to `LoopOptions`. If set:
+  - At startup: if file exists, load Context from it instead of creating fresh
+  - After every turn's tool results: call `context.save(sessionPath)`
+  - This gives crash recovery: the session file always has the latest state
+- Signal handling: Register `process.on('SIGINT', ...)` in `loop.ts` or `cli.ts` to save session before exit. This ensures Ctrl-C doesn't lose work. Use `process.on('SIGINT', () => { context.save(sessionPath); process.exit(0); })` — synchronous writeFileSync is fine here since it's small data.
+- The messages array is already plain objects (Anthropic SDK `MessageParam[]`) — `JSON.stringify` handles it natively. No custom serialization needed.
 
-Key detail: The compaction check is at the TOP of the loop (before the API call). Token count from turn N triggers compaction before turn N+1's call. This is correct timing.
+Key detail: The `systemPrompt` should NOT be saved in the session file. It's a constant defined in `loop.ts` and should always use the current version. This avoids stale prompts when resuming old sessions.
 
-**Configurable model split (P1)** — different models for main loop vs editor/sub-agent:
+**Tool confirmation (P1)** — add confirmation prompt for destructive operations:
 
-Current state: Everything uses the same model. Main loop model from CLI `--model` (default Sonnet). Architect and editor both use this. The delegate tool has a hardcoded `"claude-sonnet-4-20250514"`.
-
-Goal: Let users specify a cheaper/faster model for the editor pass and sub-agent, while keeping a stronger model for main loop reasoning.
+Current state: The `shell` tool executes any command without asking. Destructive commands like `rm -rf`, `git push --force`, `docker rm` run silently.
 
 Recommended approach:
-- In `cli.ts`: Add `--editor-model <model>` option (no default — falls back to `--model`)
-- In `loop.ts`: Add `editorModel?: string` to `LoopOptions`. Compute `const editorModel = options.editorModel || model`. Pass it to `runEditorLoop` and to `setDelegateModel`
-- In `architect.ts`: `runEditorLoop` already accepts a `model` param — just pass the editor model. `runArchitectPass` should keep using the main model (reasoning needs the strongest model)
-- In `delegate.ts`: Replace the hardcoded model with a module-level variable. Add `export function setDelegateModel(m: string): void` setter. Call it from `loop.ts` during init. This keeps the `ToolRunner` interface unchanged
-- Model ID update: the latest Sonnet is `claude-sonnet-4-6` (replaces `claude-sonnet-4-20250514`). Update the default while touching these files
+- Create a new file `src/confirm.ts` (~40 lines):
+  - `isDangerous(command: string): boolean` — checks against patterns: `/\brm\b/`, `/\bgit\s+push\b/`, `/\bgit\s+reset\b/`, `/\bgit\s+clean\b/`, `/\bdocker\s+rm\b/`, `/\bsudo\b/`, `/\bmkfs\b/`, `/\bdd\b/`, `/\bkill\b/`, `/\bchmod\b.*777/`
+  - `confirmExecution(command: string): Promise<boolean>` — uses Node.js `readline.createInterface` to ask "⚠ Destructive command detected: <cmd>. Proceed? [y/N]". Returns true only on explicit 'y' or 'yes'.
+  - If `!process.stdin.isTTY`, always return false (deny in non-interactive mode — safe default)
+- In `src/tools/shell.ts`: Before `execSync`/`exec`, call `isDangerous(command)`. If true, call `confirmExecution(command)`. If denied, return `{ content: "Command blocked: user declined destructive operation", is_error: true }`.
+- In `cli.ts`: Add `--yes` / `-y` flag to skip confirmations (for scripted usage). Pass it through `LoopOptions` to the shell tool.
+- The readline prompt should use stderr (`output: process.stderr`) to avoid mixing with tool output on stdout.
+
+Key detail: The confirmation only applies to the `shell` tool, not to `file_write` or `file_edit` (those are already lint-gated). The dangerous-command list should be conservative — false positives are worse than false negatives for UX.
 
 ### What Makes a Great Agent (aim for these)
 - Fresh context management (compaction at 75-92% capacity)
