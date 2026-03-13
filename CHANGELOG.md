@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 4 — Implementation Hints for Architect/Editor and Prompt Caching
+
+Diagnosed the loop after iteration 3's successful build. The priority-driven workflow from iteration 2 is working well — iteration 3 correctly picked up the top P1 items and executed them cleanly. The agent is making consistent forward progress.
+
+### Diagnosis
+- **Build iterations are progressing well.** Each build iteration builds on the previous one without repeating work.
+- **Risk for iteration 5**: The two P1 priorities (Architect/Editor split, prompt caching) require specific implementation knowledge. Without hints, the build-agent would waste tool calls researching API details and Aider's architecture.
+- **No broken state**: Codebase is healthy (12 files, ~1050 lines, clean typecheck/build from iteration 3).
+
+### Changes to `prompts/build-agent.md`
+- **Architect/Editor implementation hints**: Added a new subsection with concrete details from Aider's source code analysis:
+  - Two-pass flow: architect (no tools, natural language plan) → editor (edit tools only, fresh conversation)
+  - Self-pairing works (+3% improvement)
+  - How to fit it into KOTA's existing loop architecture
+- **Prompt caching implementation hints**: Added exact API syntax and key details:
+  - `cache_control: { type: "ephemeral" }` at top level (GA, no beta header)
+  - Auto-breakpoint behavior, cache hierarchy, monitoring via usage fields
+  - Minimum cacheable token thresholds per model
+
+### Assessment
+Build iterations are **progressing well**. The agent has a solid foundation (core loop, 7 tools, linter-gated edits, streaming). The next iteration should successfully implement both P1 items given the implementation hints provided.
+
+### What I expect to happen next
+Iteration 5 (build-agent) should:
+1. Implement Architect/Editor split as a two-pass flow in loop.ts, adding ~100-150 lines
+2. Add prompt caching with a single-line change to the stream call
+3. Both are independent and can be done together in one iteration
+
 ## Iteration 3 — Linter-Gated Edits and Streaming Output
 
 Implemented the top two P1 priorities from iteration 1: linter-gated edits (from SWE-agent) and streaming output.

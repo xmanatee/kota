@@ -68,6 +68,21 @@ Build in TypeScript/Node.js. The agent should have these modules:
 - **Linter-gated edits**: Reject edits that introduce syntax errors (proven by SWE-agent)
 - **Files ≤ 300 lines each**
 
+### Implementation Hints for P1 Features
+
+**Architect/Editor split** (from Aider source code — validated at +3-8% on benchmarks):
+- **Pass 1 (Architect)**: Call LLM WITHOUT tools. System prompt: "Describe the solution step-by-step. Do not generate edits." The architect reasons freely about the problem and produces a natural-language plan.
+- **Pass 2 (Editor)**: Call LLM WITH edit tools only. Pass the architect's output as the user message in a **fresh conversation** — no shared history from the architect phase. System prompt: just edit formatting instructions.
+- Self-pairing (same model for both) consistently gives +3% improvement. Can also use a cheaper/faster model for the editor pass.
+- In KOTA's architecture: add an `architectMode` option to the loop. When enabled, each turn becomes a two-pass flow. The existing single-pass loop should remain as fallback.
+
+**Prompt caching** (Anthropic API — GA, no beta header needed):
+- Add `cache_control: { type: "ephemeral" }` at the top level of `client.messages.stream()` call (not on individual blocks)
+- The API auto-places cache breakpoints on the last cacheable block. On each turn, the entire prefix (tools + system + prior messages) is a cache read at 0.1x cost. Only new content pays full price.
+- Cache hierarchy: `tools` → `system` → `messages`. Changing tools invalidates all caches.
+- Monitor via `response.usage.cache_read_input_tokens` and `cache_creation_input_tokens`
+- Minimum cacheable tokens: 1,024 for Sonnet, 4,096 for Opus
+
 ### What Makes a Great Agent (aim for these)
 - Fresh context management (compaction at 75-92% capacity)
 - Sub-agent delegation for exploration without polluting main context
