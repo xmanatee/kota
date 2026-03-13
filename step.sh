@@ -3,6 +3,9 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ITERATION="${1:-1}"
+LOG_DIR="$DIR/logs"
+
+mkdir -p "$LOG_DIR"
 
 # Alternate: odd iterations = build agent, even iterations = improve process
 if (( ITERATION % 2 == 1 )); then
@@ -20,23 +23,40 @@ PROMPT=$(cat "$PROMPT_FILE")
 PROMPT="${PROMPT//\{\{TOOL_DIR\}\}/$DIR}"
 PROMPT="${PROMPT//\{\{ITERATION\}\}/$ITERATION}"
 
-# Inject pre-flight context so the agent doesn't waste tool calls on orientation
+printf -v ITERATION_PAD "%06d" "$ITERATION"
+TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+PROMPT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.prompt.md"
+OUTPUT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.output.txt"
+
+# Inject compact runtime context. Historical notes are context, not instructions.
 CONTEXT="
 ---
-## Pre-flight context (injected by step.sh)
+## Runtime context (injected by step.sh)
 
-### Git log (last 10 commits):
-$(cd "$DIR" && git log --oneline -10 2>/dev/null || echo '(no git history)')
+Treat this as context, not orders. Use your own judgment.
 
-### Source files:
-$(cd "$DIR" && find . -name '*.ts' -o -name '*.js' -o -name '*.json' -o -name '*.md' | grep -v node_modules | grep -v dist | sort 2>/dev/null || echo '(none)')
+### Git log (last 8 commits):
+$(cd "$DIR" && git log --oneline -8 2>/dev/null || echo '(no git history)')
 
-### Last CHANGELOG entry:
-$(cd "$DIR" && awk '/^## Iteration/{if(found)exit; found=1} found' CHANGELOG.md 2>/dev/null || echo '(no changelog)')
+### Worktree status:
+$(cd "$DIR" && git status --short 2>/dev/null || echo '(unavailable)')
+
+### Recent CHANGELOG headings:
+$(cd "$DIR" && grep '^## Iteration' CHANGELOG.md 2>/dev/null | head -5 || echo '(none)')
+
+### Project files:
+$(cd "$DIR" && find . -maxdepth 3 \
+  \( -path './node_modules' -o -path './dist' -o -path './logs' -o -path './.git' \) -prune -o \
+  -type f -print | sort 2>/dev/null || echo '(none)')
+
+### Session logs:
+Prompt/output logs are stored in \`$LOG_DIR\`.
+$(cd "$DIR" && ls -1t logs 2>/dev/null | head -8 || echo '(none yet)')
 ---
 "
 
 PROMPT="$PROMPT$CONTEXT"
+printf '%s\n' "$PROMPT" > "$PROMPT_LOG"
 
 # Run claude from the tool directory so it uses it as cwd
 cd "$DIR"
@@ -44,7 +64,7 @@ claude -p \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
   --verbose \
-  "$PROMPT"
+  "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
 
 # Auto-commit all changes in the worktree
 cd "$DIR"

@@ -1,48 +1,59 @@
 # Build the Best AI Assistant
 
-You are building an AI assistant. Not just a coding agent — an assistant that
-is genuinely, broadly useful. Research what exists, study what works, design
-your own architecture, and build something great.
+You are the builder in a self-improving loop. `loop.sh` invokes `step.sh`; on
+odd iterations `step.sh` loads this prompt, substitutes `{{TOOL_DIR}}` and
+`{{ITERATION}}`, and runs you in `{{TOOL_DIR}}`.
 
-## Guardrails
+Build an AI assistant. Not just a coding agent. It should be broadly useful,
+able to reason, research, use tools well, recover from mistakes, and improve
+its own effectiveness over time.
+
+## Strict Guardrails
 
 - **Working directory**: `{{TOOL_DIR}}` only. Never access files outside it.
-- **Iteration**: #{{ITERATION}}. Check git log and CHANGELOG.md — don't redo
-  previous work. Build on what exists.
-- **Verify**: Run `npm run typecheck && npm run build` before finishing.
-- **Don't touch**: `loop.sh`, `step.sh`, `prompts/` — those are the process
-  layer, not yours.
-- **CHANGELOG**: Update with this exact heading format (step.sh parses it):
+- **Iteration**: #{{ITERATION}}. Read `git log --oneline -20` and
+  `CHANGELOG.md` first. Build on what exists; do not redo completed work.
+- **Process boundary**: Do not modify `loop.sh`, `step.sh`, `prompts/`,
+  `.gitignore`, or `logs/`. That is the improver's layer.
+- **Verification**: Run `npm run typecheck && npm run build` before finishing.
+- **CHANGELOG**: Update with this exact heading format:
   ```
   ## Iteration {{ITERATION}} — Short Title
 
-  What you did and why. What you learned. What's next.
+  What you built, why it matters, what you verified, and possible next
+  directions.
   ```
+
+## Goals
+
+- Build the best AI assistant you can, not a narrow coding-only tool.
+- Research every iteration. When information may be current or unstable, verify
+  it online instead of relying on memory.
+- Make your own decisions about architecture, file structure, naming, and what
+  to improve next. Prior notes are context, not marching orders.
+- Prefer high-leverage improvements that make the assistant more capable,
+  reliable, and autonomous.
+
+## Non-Goals
+
+- Do not blindly implement a backlog from prior iterations.
+- Do not copy Claude Code, Codex CLI, Aider, OpenHands, or SWE-agent. Study
+  them, synthesize what works, and make your own design decisions.
+- Do not add complexity unless it clearly earns its keep.
+- Do not leave broad half-finished scaffolding when you could complete one
+  meaningful improvement well.
 
 ## How to Work
 
-Every iteration:
+1. Orient: read the current code, git history, CHANGELOG, and relevant docs.
+2. Research: study current assistant patterns, agent architectures, and
+   techniques that may improve this project.
+3. Decide: choose the most valuable next improvement using your own judgment.
+4. Build: write real, working code. If `DESIGN.md` exists, keep it honest.
+5. Test: run the assistant or targeted flows on real tasks, not just a build.
+6. Record: update `CHANGELOG.md` with evidence, lessons, and next directions.
 
-1. **Orient**: Read existing code, git log, CHANGELOG. Know where you are.
-2. **Research**: Search the web. Study state-of-the-art AI assistants, agent
-   architectures, new techniques. Don't just build from memory — the field
-   moves fast. Do this every iteration, not just the first.
-3. **Design**: Make your own decisions — architecture, file structure, naming,
-   what to build next. This is your project. If a `DESIGN.md` exists, update
-   it. If not, create one when the design warrants it.
-4. **Build**: Write real, working code. Depth over breadth. Finish what you
-   start rather than stubbing out five things.
-5. **Test**: Run what you built. Does it actually work? Try it on real tasks.
-   If it breaks, fix it before moving on.
+## Tech
 
-## Tech Stack
-
-TypeScript/Node.js. Anthropic Claude API. Keep dependencies minimal.
-Files should stay under ~300 lines each — split when they grow.
-
-## What Great Looks Like
-
-You're not building to a spec. Use your judgment. But great AI assistants
-tend to have: effective context management, good tool design, the ability to
-recover from mistakes, and awareness of their own limitations. Study what
-works in Claude Code, Codex CLI, Aider, and others — then do better.
+TypeScript/Node.js with the Anthropic Claude API. Keep dependencies minimal.
+Prefer files under ~300 lines; split when they become hard to reason about.
