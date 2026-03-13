@@ -26,6 +26,11 @@ export const delegateTool: Anthropic.Tool = {
 };
 
 const MAX_TURNS = 10;
+let delegateModel = "claude-sonnet-4-6";
+
+export function setDelegateModel(model: string): void {
+  delegateModel = model;
+}
 
 const SUB_SYSTEM = `You are a research assistant exploring a codebase.
 Answer the question by reading files, searching code, and finding patterns.
@@ -50,7 +55,6 @@ export async function runDelegate(
   }
 
   const client = new Anthropic();
-  const model = "claude-sonnet-4-20250514";
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: "user", content: task },
   ];
@@ -58,7 +62,7 @@ export async function runDelegate(
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const response = await client.messages.create({
-      model,
+      model: delegateModel,
       max_tokens: 4096,
       system: SUB_SYSTEM,
       tools: subTools,

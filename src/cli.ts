@@ -13,7 +13,8 @@ program
   .command("run", { isDefault: true })
   .description("Run KOTA with a prompt")
   .argument("[prompt...]", "The task to perform")
-  .option("-m, --model <model>", "Model to use", "claude-sonnet-4-20250514")
+  .option("-m, --model <model>", "Model to use", "claude-sonnet-4-6")
+  .option("--editor-model <model>", "Model for editor pass and sub-agents (defaults to --model)")
   .option("--max-tokens <n>", "Max tokens per response", "8192")
   .option("-v, --verbose", "Show debug output")
   .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
@@ -22,6 +23,7 @@ program
     const prompt = promptWords.join(" ");
     const options = {
       model: opts.model,
+      editorModel: opts.editorModel,
       maxTokens: Number.parseInt(opts.maxTokens, 10),
       verbose: opts.verbose,
       architectMode: opts.architect,
@@ -81,7 +83,7 @@ async function checkPipeMode() {
     const piped = chunks.join("").trim();
     if (piped) {
       await runAgentLoop(piped, {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         maxTokens: 8192,
       });
       return true;

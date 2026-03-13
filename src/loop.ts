@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { allTools, executeTool } from "./tools/index.js";
 import { Context } from "./context.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
+import { setDelegateModel } from "./tools/delegate.js";
 
 const SYSTEM_PROMPT = `You are KOTA, an expert AI coding agent. You help users with software engineering tasks: writing code, fixing bugs, refactoring, exploring codebases, and more.
 
@@ -26,9 +27,11 @@ const SYSTEM_PROMPT = `You are KOTA, an expert AI coding agent. You help users w
 
 const MAX_ITERATIONS = 200;
 const CIRCUIT_BREAKER_THRESHOLD = 3;
+const TOKEN_THRESHOLD = 150_000; // For verbose display — matches context.ts threshold
 
 export type LoopOptions = {
   model?: string;
+  editorModel?: string;
   maxTokens?: number;
   verbose?: boolean;
   architectMode?: boolean;
@@ -45,13 +48,17 @@ export async function runAgentLoop(
   prompt: string,
   options: LoopOptions = {},
 ): Promise<string> {
-  const model = options.model || "claude-sonnet-4-20250514";
+  const model = options.model || "claude-sonnet-4-6";
+  const editorModel = options.editorModel || model;
   const maxTokens = options.maxTokens || 8192;
   const verbose = options.verbose || false;
 
   const client = new Anthropic();
   const context = new Context(SYSTEM_PROMPT);
   context.addUserMessage(prompt);
+
+  // Configure delegate sub-agent model
+  setDelegateModel(editorModel);
 
   let lastResult = "";
 
@@ -63,7 +70,7 @@ export async function runAgentLoop(
     );
     if (plan) {
       const editorResult = await runEditorLoop(
-        client, model, maxTokens, plan, verbose,
+        client, editorModel, maxTokens, plan, verbose,
       );
       lastResult = editorResult || plan;
       // Inject summary so the verification loop knows what happened
@@ -114,15 +121,17 @@ export async function runAgentLoop(
       lastResult = streamedText;
     }
 
-    // Log cache stats in verbose mode
+    // Track token usage for compaction decisions
+    context.setInputTokens(response.usage.input_tokens);
+
+    // Log cache and token stats in verbose mode
     if (verbose) {
       const u = response.usage;
-      if (u.cache_read_input_tokens || u.cache_creation_input_tokens) {
-        console.error(
-          `[kota] Cache: read=${u.cache_read_input_tokens ?? 0}, ` +
-          `created=${u.cache_creation_input_tokens ?? 0}, input=${u.input_tokens}`,
-        );
-      }
+      console.error(
+        `[kota] Tokens: input=${u.input_tokens}/${TOKEN_THRESHOLD}` +
+        (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
+        (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
+      );
     }
 
     context.addAssistantMessage(response);

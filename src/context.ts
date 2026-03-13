@@ -3,16 +3,25 @@ import { getTodoState } from "./tools/index.js";
 
 type Message = Anthropic.MessageParam;
 
-const MAX_TURNS = 100;
-const COMPACTION_TRIGGER = 60; // Compact when we exceed this many turns
+const TOKEN_COMPACTION_THRESHOLD = 150_000; // 75% of 200K context window
+const MESSAGE_COMPACTION_SAFETY = 100; // Safety net for message count
 
 export class Context {
   private systemPrompt: string;
   private messages: Message[] = [];
   private compactionCount = 0;
+  private lastInputTokens = 0;
 
   constructor(systemPrompt: string) {
     this.systemPrompt = systemPrompt;
+  }
+
+  setInputTokens(tokens: number): void {
+    this.lastInputTokens = tokens;
+  }
+
+  getInputTokens(): number {
+    return this.lastInputTokens;
   }
 
   getSystemPrompt(): string {
@@ -58,7 +67,10 @@ export class Context {
   }
 
   needsCompaction(): boolean {
-    return this.messages.length > COMPACTION_TRIGGER;
+    return (
+      this.lastInputTokens > TOKEN_COMPACTION_THRESHOLD ||
+      this.messages.length > MESSAGE_COMPACTION_SAFETY
+    );
   }
 
   /**
@@ -124,7 +136,11 @@ export class Context {
     return this.messages.length;
   }
 
-  getStats(): { turns: number; compactions: number } {
-    return { turns: this.messages.length, compactions: this.compactionCount };
+  getStats(): { turns: number; compactions: number; inputTokens: number } {
+    return {
+      turns: this.messages.length,
+      compactions: this.compactionCount,
+      inputTokens: this.lastInputTokens,
+    };
   }
 }

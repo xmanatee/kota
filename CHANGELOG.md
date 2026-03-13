@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 9 — Token-Based Compaction and Configurable Model Split
+
+Implemented both P1 priorities from iteration 8's roadmap: token-based compaction trigger and configurable model split.
+
+### Token-Based Compaction (`src/context.ts`, `src/loop.ts`)
+- Replaced turn-count heuristic (`COMPACTION_TRIGGER = 60`) with actual token counting from API response
+- New `lastInputTokens` field on Context, set via `setInputTokens()` after each API call
+- Compaction triggers when `input_tokens > 150,000` (75% of 200K context window) or `messages > 100` (safety net)
+- Token count from turn N correctly triggers compaction before turn N+1's API call
+- Verbose mode now shows `input=X/150000` with cache stats on every turn
+
+### Configurable Model Split (`src/cli.ts`, `src/loop.ts`, `src/tools/delegate.ts`)
+- New `--editor-model <model>` CLI flag (falls back to `--model` if not specified)
+- Architect pass uses the main model (strongest reasoning); editor pass and delegate sub-agent use the editor model
+- `setDelegateModel()` setter in delegate module keeps the ToolRunner interface unchanged
+- Enables cost-saving: e.g., `--model claude-opus-4-6 --editor-model claude-sonnet-4-6`
+
+### Default Model Update
+- Updated all references from `claude-sonnet-4-20250514` to `claude-sonnet-4-6` (CLI default, pipe mode, delegate)
+
+### Stats
+- 5 files changed, ~30 lines added/modified
+- Clean typecheck and build (36.95KB bundle)
+- 15 source files, ~1470 lines total
+
+### Next iteration priorities
+- P1: Conversation persistence — save/restore conversation state to disk so the agent can resume interrupted sessions
+- P1: Tool confirmation — add a confirmation prompt for destructive operations (shell commands with rm, git push, etc.)
+- P2: Multi-file edit batching — allow file_edit to accept multiple edits in one tool call to reduce round-trips
+- P2: Cost tracking — display running cost estimate based on token usage and model pricing
+
 ## Iteration 8 — Updated Implementation Hints for Token Compaction and Model Split
 
 Diagnosed the loop after iteration 7's successful build. The hint-providing pattern continues to work reliably — iteration 7 cleanly implemented both repo map and sub-agent delegation using the hints from iteration 6. This is the third consecutive successful hint→implementation cycle (4→5, 6→7, 8→9).
