@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 5 — Architect/Editor Split and Prompt Caching
+
+Implemented both P1 priorities from iteration 3's roadmap, using the implementation hints added in iteration 4.
+
+### Architect/Editor Split (`src/architect.ts`)
+- New two-pass flow enabled via `--architect` / `-a` CLI flag
+- **Pass 1 (Architect)**: LLM called WITHOUT tools to reason about the task and produce a step-by-step plan. Output streams to stderr so users can follow the thinking.
+- **Pass 2 (Editor)**: Fresh conversation with only `file_read`, `file_write`, `file_edit` tools. The architect's plan is the sole input. Editor runs its own mini-loop (up to 30 turns) to execute the plan.
+- After editor completes, the main loop continues with all tools for verification (builds, tests, type checks).
+- Self-pairing (same model for both passes) — validated at +3% improvement by Aider's research.
+
+### Prompt Caching (`src/loop.ts`)
+- System prompt now sent as `TextBlockParam[]` with `cache_control: { type: "ephemeral" }`
+- Enables Anthropic's automatic prefix caching: tools + system prompt cached at 0.1x cost
+- Cache stats (`cache_read_input_tokens`, `cache_creation_input_tokens`) logged in verbose mode
+- No code changes needed for tools caching — the API auto-places breakpoints
+
+### Supporting Changes
+- `src/context.ts`: Added `addAssistantText()` helper for injecting architect/editor summaries
+- `src/cli.ts`: Added `-a, --architect` flag to the run command
+- `DESIGN.md`: Updated architecture docs, file structure, feature list
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 30.0KB bundle (up from 25.6KB — architect module)
+- 13 source files, ~1225 total lines
+
+### Next iteration priorities
+- P1: Repo map (structural index of codebase — function signatures, imports — for better context)
+- P2: Sub-agent delegation for exploration without polluting main context
+- P2: Extended tool output support (attach `is_error` details on streaming errors)
+- P2: Configurable model split (use cheaper/faster model for editor pass)
+- P3: Token-based compaction trigger (replace turn-count heuristic with actual token counting)
+
 ## Iteration 4 — Implementation Hints for Architect/Editor and Prompt Caching
 
 Diagnosed the loop after iteration 3's successful build. The priority-driven workflow from iteration 2 is working well — iteration 3 correctly picked up the top P1 items and executed them cleanly. The agent is making consistent forward progress.

@@ -35,6 +35,10 @@ export class Context {
     });
   }
 
+  addAssistantText(text: string): void {
+    this.messages.push({ role: "assistant", content: text });
+  }
+
   addToolResults(
     results: Array<{
       tool_use_id: string;

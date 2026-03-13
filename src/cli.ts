@@ -16,6 +16,7 @@ program
   .option("-m, --model <model>", "Model to use", "claude-sonnet-4-20250514")
   .option("--max-tokens <n>", "Max tokens per response", "8192")
   .option("-v, --verbose", "Show debug output")
+  .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
   .option("-i, --interactive", "Interactive mode (REPL)")
   .action(async (promptWords: string[], opts) => {
     const prompt = promptWords.join(" ");
@@ -23,6 +24,7 @@ program
       model: opts.model,
       maxTokens: Number.parseInt(opts.maxTokens, 10),
       verbose: opts.verbose,
+      architectMode: opts.architect,
     };
 
     if (opts.interactive || !prompt) {

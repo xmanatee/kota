@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { allTools, executeTool } from "./tools/index.js";
 import { Context } from "./context.js";
+import { runArchitectPass, runEditorLoop } from "./architect.js";
 
 const SYSTEM_PROMPT = `You are KOTA, an expert AI coding agent. You help users with software engineering tasks: writing code, fixing bugs, refactoring, exploring codebases, and more.
 
@@ -30,7 +31,15 @@ export type LoopOptions = {
   model?: string;
   maxTokens?: number;
   verbose?: boolean;
+  architectMode?: boolean;
 };
+
+/** Build system prompt as cacheable content blocks */
+function systemBlocks(text: string): Anthropic.Messages.TextBlockParam[] {
+  return [
+    { type: "text", text, cache_control: { type: "ephemeral" } },
+  ];
+}
 
 export async function runAgentLoop(
   prompt: string,
@@ -45,6 +54,30 @@ export async function runAgentLoop(
   context.addUserMessage(prompt);
 
   let lastResult = "";
+
+  // Architect/Editor split: two-pass before the main verification loop
+  if (options.architectMode) {
+    const plan = await runArchitectPass(
+      client, model, maxTokens,
+      context.getSystemPrompt(), context.getMessages(), verbose,
+    );
+    if (plan) {
+      const editorResult = await runEditorLoop(
+        client, model, maxTokens, plan, verbose,
+      );
+      lastResult = editorResult || plan;
+      // Inject summary so the verification loop knows what happened
+      context.addAssistantText(
+        `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
+        (editorResult ? `\n\nEditor result: ${editorResult}` : ""),
+      );
+      context.addUserMessage(
+        "The architect/editor has made changes. " +
+        "Verify they are correct: run builds, tests, or type checks as appropriate.",
+      );
+    }
+  }
+
   let consecutiveFailures = 0;
   let lastFailureSignature = "";
 
@@ -60,12 +93,12 @@ export async function runAgentLoop(
       console.error(`[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`);
     }
 
-    // Stream the response for real-time text output
+    // Stream the response with prompt caching enabled
     let streamedText = "";
     const stream = client.messages.stream({
       model,
       max_tokens: maxTokens,
-      system: context.getSystemPrompt(),
+      system: systemBlocks(context.getSystemPrompt()),
       tools: allTools,
       messages: context.getMessages(),
     });
@@ -79,6 +112,17 @@ export async function runAgentLoop(
     if (streamedText) {
       process.stdout.write("\n");
       lastResult = streamedText;
+    }
+
+    // Log cache stats in verbose mode
+    if (verbose) {
+      const u = response.usage;
+      if (u.cache_read_input_tokens || u.cache_creation_input_tokens) {
+        console.error(
+          `[kota] Cache: read=${u.cache_read_input_tokens ?? 0}, ` +
+          `created=${u.cache_creation_input_tokens ?? 0}, input=${u.input_tokens}`,
+        );
+      }
     }
 
     context.addAssistantMessage(response);

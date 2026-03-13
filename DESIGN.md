@@ -87,12 +87,21 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `glob` | Find files by pattern | Fast file discovery |
 | `todo` | Track task progress | Injected into system prompt, TodoWrite-style |
 
-### Architect/Editor Split (Future — P1)
+### Architect/Editor Split (`src/architect.ts`)
 
 From Aider's research: separating "what to do" from "how to edit" improves results by 3-8%.
 
-- **Phase 1 (this iteration)**: Single-model loop with all tools
-- **Phase 2**: Architect call (reasoning model, no tools) → Editor call (fast model, edit tools only)
+**Two-pass flow** (enabled via `--architect` / `-a` flag):
+
+1. **Architect pass**: LLM called WITHOUT tools. System prompt instructs it to analyze the task and produce a step-by-step implementation plan in natural language. Reasoning streams to stderr so the user can follow the thinking process.
+2. **Editor pass**: LLM called in a FRESH conversation with only `file_read`, `file_write`, `file_edit` tools. The architect's plan is the sole user message. The editor executes the plan literally, running its own mini-loop (up to 30 turns) until all changes are made.
+3. **Verification**: After the editor completes, the main loop continues with all tools available for builds, tests, and type checks.
+
+**Key design decisions:**
+- Self-pairing (same model for both passes) gives +3% improvement over single-pass
+- Editor gets a fresh context — no shared history from the architect phase
+- Architect output goes to stderr, editor output goes to stdout
+- The existing single-pass loop remains the default (no `--architect` = standard mode)
 
 ### Linter-Gated Edits (`src/lint.ts`)
 
@@ -111,6 +120,15 @@ From SWE-agent: after each `file_edit` or `file_write`, run a syntax check. If i
 - Error message includes the syntax error details to guide the agent's retry
 - Unknown file types pass without checking (no false negatives)
 
+### Prompt Caching
+
+System prompt is sent as a `TextBlockParam[]` with `cache_control: { type: "ephemeral" }`. This enables Anthropic's automatic prompt caching:
+
+- The static prefix (tools + system prompt) is cached across turns at 0.1x cost
+- Only new content (latest messages) pays full input token price
+- Cache stats (`cache_read_input_tokens`, `cache_creation_input_tokens`) logged in verbose mode
+- No beta headers needed — prompt caching is GA
+
 ### Streaming Output
 
 Real-time text streaming via `client.messages.stream()`. Text appears token-by-token as the model generates it, instead of waiting for the full response. Tool calls are still collected and executed after the stream completes.
@@ -123,32 +141,34 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 
 ```
 src/
-  cli.ts          — Entry point, Commander.js (~100 lines)
-  loop.ts         — Core agent loop with streaming (~140 lines)
-  context.ts      — Conversation + compaction (~130 lines)
-  lint.ts         — Syntax checking for linter-gated edits (~95 lines)
+  cli.ts          — Entry point, Commander.js (~105 lines)
+  loop.ts         — Core agent loop with caching + architect integration (~175 lines)
+  architect.ts    — Architect/Editor two-pass flow (~115 lines)
+  context.ts      — Conversation + compaction (~135 lines)
+  lint.ts         — Syntax checking for linter-gated edits (~100 lines)
   tools/
-    index.ts      — Tool registry + executor (~50 lines)
+    index.ts      — Tool registry + executor (~55 lines)
     shell.ts      — Shell command execution (~70 lines)
     file-read.ts  — Read file with line numbers (~65 lines)
-    file-write.ts — Create/overwrite file with lint gate (~60 lines)
+    file-write.ts — Create/overwrite file with lint gate (~65 lines)
     file-edit.ts  — Search-and-replace edit with lint gate (~100 lines)
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
 ```
 
-Total: ~1050 lines across 12 files. Each file ≤ 150 lines.
+Total: ~1225 lines across 13 files. Each file ≤ 175 lines.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~1050 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~1225 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: Each tool designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
 4. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
-5. **Prompt caching**: Static system prompt enables efficient caching — cost scales linearly not quadratically.
-6. **Task tracking**: TodoWrite-style tracking injected as system context so the agent always knows what's done and what's left.
-7. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
+5. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
+6. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
+7. **Task tracking**: TodoWrite-style tracking injected as system context so the agent always knows what's done and what's left.
+8. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
 
 ## Dependencies
 
