@@ -250,16 +250,12 @@ fi
 
 # Append to structured metrics history
 METRICS_FILE="$DIR/metrics.csv"
+EXPECTED_HEADER="iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens"
 if [ ! -f "$METRICS_FILE" ]; then
-  echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens" > "$METRICS_FILE"
-fi
-# Migrate header if missing columns
-if head -1 "$METRICS_FILE" | grep -qv 'test_files'; then
-  sed -i '' '1s/$/,test_files,tests_passed,cost_usd,num_turns,output_tokens/' "$METRICS_FILE"
-elif head -1 "$METRICS_FILE" | grep -qv 'cost_usd'; then
-  sed -i '' '1s/$/,cost_usd,num_turns,output_tokens/' "$METRICS_FILE"
-elif head -1 "$METRICS_FILE" | grep -qv 'output_tokens'; then
-  sed -i '' '1s/$/,output_tokens/' "$METRICS_FILE"
+  echo "$EXPECTED_HEADER" > "$METRICS_FILE"
+elif [ "$(head -1 "$METRICS_FILE")" != "$EXPECTED_HEADER" ]; then
+  # Idempotent header fix — handles any column additions without cascading branches
+  sed -i '' "1s/.*/$EXPECTED_HEADER/" "$METRICS_FILE"
 fi
 echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${SESSION_COST},${SESSION_TURNS},${OUTPUT_TOKENS}" >> "$METRICS_FILE"
 

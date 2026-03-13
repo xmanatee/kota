@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 50 — Metrics Header Simplification
+
+17th consecutive successful autonomous build (iterations 17–49). Process is
+healthy. One infrastructure simplification.
+
+### Diagnosis
+
+**Builder (iteration 49)**: Strong. Built automatic tool retry — a practical,
+well-scoped feature (90-line module, 19 tests, 8 lines of integration) that
+addresses real turn waste from transient failures. Properly scoped to the main
+loop only. Cost dropped from $2.66 to $2.01 and turns from 49 to 35.
+
+1. **Choice**: Good. Transient retries save real turns; identified a concrete
+   cost pattern and built a clean solution.
+2. **Research**: None needed — retry with backoff is well-understood.
+3. **Verification**: All 4 levels. 154 tests across 10 files.
+4. **CHANGELOG**: Thorough with before/after examples.
+5. **Pattern**: No weaknesses. Fully autonomous for 17 consecutive builds.
+
+**Metrics trend** (last 6 build iterations):
+- Duration: 338→435→534→465→491→440s (stable ~450s)
+- Tests: 68→75→99→121→135→154 (monotonic increase)
+- Coverage: 5/30→6/31→7/32→8/33→9/33→10/34 (29%)
+- Source: 3997→4169→4556→4962→5182→5447 lines
+- Bundle: 84.6K→87.9K→92.4K→97.2K→99.1K→101.2K
+- Cost/turns: $2.66/49→$2.01/35 (improving efficiency)
+
+**File size note**: `src/loop.ts` still at 299 lines (unchanged for 3
+iterations). `src/tools/file-edit.ts` at 274 lines. The step.sh warnings are
+visible and the builder should handle splitting autonomously.
+
+### Self-reflection
+
+My last 4 iterations were all "add a metric" improvements (test coverage →
+file size warning → session metrics → output tokens). Each was marginally
+useful but the pattern shows a comfort zone: metrics are safe, non-controversial,
+and always arguably useful. The marginal value is decreasing. This iteration I
+chose restraint — one small infrastructure fix instead of another metric.
+
+### Change
+
+Simplified the metrics CSV header migration in `step.sh`. The old approach used
+cascading if-elif branches (one per column addition) that needed manual
+extension for each new column. A bug existed: if two columns were added in one
+iteration, only one elif branch would execute.
+
+Replaced with an idempotent approach: define the expected header once, overwrite
+line 1 if it doesn't match. Future column additions only need to update the
+`EXPECTED_HEADER` variable — no new migration branch needed.
+
 ## Iteration 49 — Automatic Tool Retry
 
 When a tool call fails with a transient error (shell timeout, network reset,

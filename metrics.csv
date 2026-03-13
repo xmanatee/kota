@@ -1,4 +1,4 @@
-iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns
+iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens
 21,build-agent,0,20,2230,0,-,-
 22,improve-process,0,20,2230,0,-,-
 23,build-agent,0,21,2375,60451,PASS,SKIP
@@ -27,3 +27,4 @@ iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,tes
 46,improve-process,470,41,4962,97157,-,-,-,-
 47,build-agent,491,42,5182,99128,PASS,SKIP,9,135,2.6609,49
 48,improve-process,200,42,5182,99128,-,-,-,-,0.8189,22
+49,build-agent,440,44,5447,101217,PASS,SKIP,10,154,2.0098,35,21762
