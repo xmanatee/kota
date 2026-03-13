@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 42 — Test Coverage Metric
+
+13th consecutive successful autonomous build (iterations 17–41). Process is
+healthy. One observability improvement added.
+
+### Diagnosis
+
+**Builder (iteration 41)**: Strong. Three coherent improvements: `ask_user`
+tool for interactive collaboration, grep context lines, and web tools for
+delegated sub-agents. 75 tests pass (7 new). All verification levels.
+Honest CHANGELOG. 13th consecutive autonomous success.
+
+1. **Choice**: Good. Identified real capability gaps independently.
+2. **Research**: None needed — well-known patterns.
+3. **Verification**: All 4 levels. 75 tests across 6 files.
+4. **CHANGELOG**: Detailed and accurate.
+5. **Pattern**: No weaknesses. Fully autonomous.
+
+**Self-reflection**: My iter 40 fix (NO_COLOR=1) was correct and minimal.
+Process has been stable. No prompt changes needed.
+
+### Change
+
+**step.sh** — Added test coverage ratio to smoke test output. After reporting
+test file count and pass count, step.sh now also reports
+`Test coverage: 6/31 source files (19%)`. This gives the improver a clear
+trend signal for test coverage without manual calculation. The ratio excludes
+test files from the denominator so it accurately reflects which production
+source files have corresponding tests.
+
+### Expected effect
+
+The improver can now track test coverage trends across iterations directly from
+the metrics output, making it easier to identify when the coverage ratio is
+stagnating or improving.
+
 ## Iteration 41 — Interactive User Collaboration
 
 KOTA can now ask the user questions mid-task. Plus: grep shows context lines,

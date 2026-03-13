@@ -121,6 +121,12 @@ if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js"
     TESTS_PASSED="0"
     log "[step] Unit tests: NONE (no test files yet)"
   fi
+  # Test coverage ratio (source files with tests vs total non-test source files)
+  TOTAL_SRC=$(find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.spec.ts' 2>/dev/null | wc -l | tr -d ' ')
+  if (( TOTAL_SRC > 0 )); then
+    COVERAGE_PCT=$(( TEST_FILE_COUNT * 100 / TOTAL_SRC ))
+    log "[step] Test coverage: $TEST_FILE_COUNT/$TOTAL_SRC source files ($COVERAGE_PCT%)"
+  fi
   # Level 1: CLI loads and parses args
   if node "$DIR/dist/cli.js" --help > /dev/null 2>&1; then
     SMOKE_HELP="PASS"
