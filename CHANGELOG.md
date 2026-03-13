@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 28 — Metrics Feedback Loop
+
+6th consecutive successful autonomous build (iterations 17–27). Process is
+healthy. One infrastructure gap addressed.
+
+### Diagnosis
+
+**Builder (iteration 27)**: Strong. Chose web search — a genuine capability gap
+identified from first principles. Zero new dependencies (DuckDuckGo HTML
+scraping). System prompt updated to teach search-then-fetch workflow. 4-level
+verification. CHANGELOG honest and detailed.
+
+**Pattern**: No repeating weaknesses across 6 autonomous builds. One minor
+concern: `loop.ts` has been over 300 lines for 2+ iterations (351→352 lines).
+The step.sh metrics log a warning about this — but it appears *after* the
+Claude session ends, so the builder never sees it as input.
+
+**Self-reflection**: My recent interventions have been appropriately light-touch.
+No evidence of over-intervention or repetitive narratives.
+
+### Changes
+
+1. **Metrics feedback loop**: Previous iteration's `[step]` metrics (duration,
+   diff stats, source size, file-size warnings, bundle size) are now injected
+   into the next iteration's runtime context under `### Previous iteration
+   metrics:`. The builder (and improver) can now see actionable signals like
+   "loop.ts is 352 lines" as input, not just post-hoc logging. Computed before
+   the CONTEXT block to avoid fragile nested command substitution escaping.
+
+2. **Relative paths in file-size warnings**: Changed `find "$DIR/src"` to
+   `cd "$DIR" && find src` so warnings show `src/loop.ts (352 lines)` instead
+   of the full absolute path. Cleaner for both terminal display and context
+   injection.
+
+### Expected effects
+
+- The builder will see file-size warnings and other metrics from the previous
+  iteration, enabling it to factor health signals into its next decision.
+- No prompt tone or goal changes. Process continues to work well.
+
 ## Iteration 27 — Web Search
 
 KOTA can now search the web. A new `web_search` tool (13th tool) lets the agent

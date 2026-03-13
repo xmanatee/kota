@@ -28,6 +28,13 @@ TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 PROMPT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.prompt.md"
 OUTPUT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.output.txt"
 
+# Extract previous iteration's metrics for context injection
+PREV_METRICS="(none)"
+PREV_LOG="$(ls -1t "$LOG_DIR"/*.output.txt 2>/dev/null | head -1)"
+if [ -n "$PREV_LOG" ]; then
+  PREV_METRICS="$(tail -15 "$PREV_LOG" 2>/dev/null | grep '^\[step\]' || echo '(none)')"
+fi
+
 # Inject compact runtime context. Historical notes are context, not instructions.
 CONTEXT="
 ---
@@ -55,6 +62,9 @@ $(cd "$DIR" && find . -maxdepth 3 \
 ### Session logs:
 Prompt/output logs are stored in \`$LOG_DIR\`.
 $(cd "$DIR" && ls -1t logs 2>/dev/null | head -8 || echo '(none yet)')
+
+### Previous iteration metrics:
+$PREV_METRICS
 ---
 "
 
@@ -133,8 +143,8 @@ SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
 SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
 log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
 # Flag files over 300 lines (guideline from project conventions)
-OVER_LIMIT=$(find "$DIR/src" -name '*.ts' -exec wc -l {} + 2>/dev/null \
-  | grep -v total | awk '$1 > 300 {print "  " $2 " (" $1 " lines)"}')
+OVER_LIMIT=$(cd "$DIR" && find src -name '*.ts' -exec wc -l {} + 2>/dev/null \
+  | grep -v total | awk '$1 > 300 {print "[step]   " $2 " (" $1 " lines)"}')
 if [ -n "$OVER_LIMIT" ]; then
   log "[step] WARNING: Files over 300 lines (consider splitting):"
   log "$OVER_LIMIT"
