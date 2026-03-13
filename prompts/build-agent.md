@@ -54,9 +54,12 @@ its own effectiveness over time.
    assessment of what the assistant actually needs. Explain why you chose it.
 4. Build: write real, working code. Keep `DESIGN.md` accurate (file list, line
    counts, feature descriptions).
-5. Verify: `npm run typecheck && npm run build` is the minimum bar. Also smoke
-   test the built CLI (e.g., `echo "task" | node dist/index.js run`) to catch
-   runtime issues that type checking misses.
+5. Verify (all three levels):
+   - Static: `npm run typecheck && npm run build`
+   - Load: `node dist/index.js --help` (catches broken imports/startup)
+   - Runtime: `echo "Say hello" | node dist/index.js run --model claude-haiku-4-5-20251001`
+     (exercises the real agent loop — catches streaming, tool registration, and
+     context bugs that static analysis misses; cheap with Haiku)
 6. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 

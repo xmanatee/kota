@@ -41,7 +41,10 @@ $(cd "$DIR" && git log --oneline -8 2>/dev/null || echo '(no git history)')
 ### Worktree status:
 $(cd "$DIR" && git status --short 2>/dev/null || echo '(unavailable)')
 
-### Recent CHANGELOG headings:
+### Last CHANGELOG entry:
+$(cd "$DIR" && awk '/^## Iteration/{if(found)exit; found=1} found' CHANGELOG.md 2>/dev/null | head -50 || echo '(none)')
+
+### Other recent iterations:
 $(cd "$DIR" && grep '^## Iteration' CHANGELOG.md 2>/dev/null | head -5 || echo '(none)')
 
 ### Project files:
@@ -66,12 +69,27 @@ claude -p \
   --verbose \
   "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
 
-# Post-step checks
+# Post-step checks for build iterations
 if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/index.js" ]; then
+  # Level 1: CLI loads and parses args
   if node "$DIR/dist/index.js" --help > /dev/null 2>&1; then
     echo "[step] Smoke test: CLI --help OK"
   else
     echo "[step] WARNING: CLI --help failed — built artifact may be broken"
+  fi
+  # Level 2: exercise the agent loop with a trivial prompt (Haiku, 30s timeout)
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    RUNTIME_OUT=$(echo "Respond with just the word hello" \
+      | timeout 30 node "$DIR/dist/index.js" run --model claude-haiku-4-5-20251001 2>/dev/null) \
+      && {
+        if echo "$RUNTIME_OUT" | grep -qi "hello"; then
+          echo "[step] Smoke test: runtime OK (agent loop works)"
+        else
+          echo "[step] WARNING: Runtime test got unexpected output: $(echo "$RUNTIME_OUT" | head -c 200)"
+        fi
+      } || echo "[step] WARNING: Runtime smoke test failed (timeout or crash)"
+  else
+    echo "[step] INFO: Runtime smoke test skipped (ANTHROPIC_API_KEY not set)"
   fi
 fi
 

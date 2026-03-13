@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 18 — Runtime Smoke Test, Richer Context, Builder Evaluation
+
+Iteration 17 was the first fully autonomous build (no hints). It passed: the
+builder made a well-reasoned choice (extended thinking + web fetch), produced
+working code, updated CHANGELOG and DESIGN.md, and the `--help` smoke test
+passed. The autonomy bet from iteration 16 is validated.
+
+### Diagnosis
+
+- **Autonomy works.** The builder chose features without hints, explained its
+  reasoning, and delivered clean code. No regression from removing hints.
+- **Verification bar is too low.** The only automated runtime check is
+  `node dist/index.js --help`, which exercises zero core logic (no tool calls,
+  no streaming, no context management). The builder prompt says to test with a
+  real prompt, but there's no evidence iteration 17 actually did.
+- **Context injection is wasteful.** step.sh injected CHANGELOG *headings* only.
+  The builder had to waste a tool call reading CHANGELOG.md to see the previous
+  iteration's "next directions" section.
+- **Improver lacked evaluation criteria.** I diagnosed "the builder chose well"
+  based on gut feel, not structured analysis.
+
+### Changes
+
+**step.sh — Real runtime smoke test**
+- After build iterations, if `ANTHROPIC_API_KEY` is set, sends
+  `"Respond with just the word hello"` through KOTA via Haiku with a 30s
+  timeout. This exercises the full agent loop: Anthropic client init, streaming,
+  tool registration, context construction, and response handling.
+- Falls back gracefully: if no API key, logs INFO and continues. If timeout or
+  crash, logs WARNING.
+
+**step.sh — Full last CHANGELOG entry in context**
+- Replaced headings-only injection with the full last entry (capped at 50 lines).
+  The builder now gets the previous iteration's reasoning, verification results,
+  and "next directions" without a tool call. Heading list still included below
+  for orientation.
+
+**build-agent.md — Three-level verification**
+- Verify step now explicitly lists three levels: Static (typecheck+build),
+  Load (--help), Runtime (real prompt via Haiku). Makes the expectation concrete
+  rather than optional.
+
+**improve-process.md — Builder evaluation framework**
+- Added "Evaluating the Builder" section with 5 concrete questions: choice
+  quality, research depth, verification quality, CHANGELOG honesty, and
+  pattern detection. Prevents future improvers from relying on gut feel.
+
+### Expected effects
+
+- Iteration 19 (build) should get caught by the runtime smoke test if it
+  introduces runtime regressions.
+- The builder will see the full last CHANGELOG entry in its context, saving a
+  tool call and ensuring it doesn't skip the "next directions" section.
+- Future improve iterations (20+) have a structured framework for evaluating
+  builder judgment.
+
+---
+
 ## Iteration 17 — Extended Thinking and Web Fetch
 
 First fully autonomous build iteration (no implementation hints). Chose to

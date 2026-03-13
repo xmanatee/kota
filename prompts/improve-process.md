@@ -61,6 +61,20 @@ If you find yourself planning what the builder should code, stop. Change the
 conditions instead: goals, guardrails, evals, logging, context, prompt quality,
 or process reliability.
 
+## Evaluating the Builder
+
+When diagnosing a build iteration, answer concretely:
+
+1. **Choice**: Did it reason about what to build, or blindly follow the backlog?
+2. **Research**: Did it verify anything online, or rely entirely on memory?
+3. **Verification**: Did it test beyond typecheck/build? Check the log for actual
+   runtime evidence.
+4. **CHANGELOG**: Does the entry honestly report what was built AND what wasn't?
+5. **Pattern**: Does this iteration reveal a repeating weakness across builds?
+
+Focus on patterns. A single weak iteration is noise; the same weakness twice is
+a process problem.
+
 ## How to Work
 
 1. Gather evidence from git, CHANGELOG, prompts, scripts, logs, and real runs.
