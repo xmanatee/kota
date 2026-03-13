@@ -27,6 +27,10 @@ export const grepTool: Anthropic.Tool = {
         type: "number",
         description: "Maximum number of matching lines to return (default: 50)",
       },
+      context_lines: {
+        type: "number",
+        description: "Lines of context to show around each match (default: 0)",
+      },
     },
     required: ["pattern"],
   },
@@ -39,6 +43,7 @@ export async function runGrep(
   const path = (input.path as string) || ".";
   const fileGlob = input.file_glob as string | undefined;
   const maxResults = (input.max_results as number) || 50;
+  const contextLines = (input.context_lines as number) || 0;
 
   if (!pattern) {
     return { content: "Error: pattern is required", is_error: true };
@@ -57,11 +62,13 @@ export async function runGrep(
   let cmd: string;
   if (hasRg) {
     cmd = `rg -n --no-heading -m ${maxResults}`;
+    if (contextLines > 0) cmd += ` -C ${contextLines}`;
     if (fileGlob) cmd += ` --glob '${fileGlob}'`;
     cmd += ` '${pattern.replace(/'/g, "'\\''")}' '${path}'`;
   } else {
     cmd = `grep -rn --include='${fileGlob || "*"}'`;
     cmd += ` -m ${maxResults}`;
+    if (contextLines > 0) cmd += ` -C ${contextLines}`;
     cmd += ` '${pattern.replace(/'/g, "'\\''")}' '${path}'`;
   }
 

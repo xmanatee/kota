@@ -117,6 +117,7 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `web_fetch` | Fetch web pages | HTML stripping, truncation, timeout |
 | `memory` | Persistent cross-session memory | Save/search/list/delete facts, preferences, conventions |
 | `web_search` | Web search via DuckDuckGo | No API key needed, returns titles/URLs/snippets |
+| `ask_user` | Ask user a question | Interactive via /dev/tty, graceful non-TTY fallback |
 
 ### Web Search (`src/tools/web-search.ts`)
 
@@ -128,6 +129,16 @@ Enables the agent to search the web autonomously using DuckDuckGo — no API key
 - Returns compact numbered results (default 5, max 10) to save tokens
 - 15-second timeout, proper User-Agent, clean error messages
 - Pairs with `web_fetch`: search discovers URLs, fetch reads full pages
+
+### Ask User (`src/tools/ask-user.ts`)
+
+Interactive collaboration tool — the agent can ask questions mid-task.
+
+- Opens `/dev/tty` directly to read from the terminal (works even when stdin is piped)
+- Visual separator and bold prompt on stderr for clear user attention
+- Graceful degradation: when no TTY is available (CI, containers), returns a message telling the agent to proceed with its best judgment
+- Override hook (`setPromptOverride`) for testing without a terminal
+- System prompt guides usage: ask only when the agent genuinely cannot proceed without user input
 
 ### Session Warmup (`src/init.ts`)
 
@@ -164,11 +175,11 @@ Inspired by Aider's repo map but drastically simplified — regex extraction ins
 
 Inspired by Claude Code's Agent tool — spawns a separate LLM call for exploration tasks.
 
-- Creates a fresh Anthropic API call with read-only tools: `file_read`, `grep`, `glob`, `repo_map`
+- Creates a fresh Anthropic API call with read-only tools: `file_read`, `grep`, `glob`, `repo_map`, `web_search`, `web_fetch`
 - Runs a mini-loop (max 10 turns) — enough for thorough exploration, bounded to prevent runaway
 - Main context only sees the task and final answer, not intermediate tool calls
 - Sub-agent uses Sonnet for cost efficiency
-- No file modification tools — exploration only
+- No file modification tools — exploration and research only
 
 ### Architect/Editor Split (`src/architect.ts`)
 
@@ -344,22 +355,24 @@ src/
     file-write.ts — Create/overwrite file with lint gate + diff (~70 lines)
     file-edit.ts  — Search-and-replace with fuzzy recovery + freshness check + path suggestions (~200 lines)
     multi-edit.ts — Atomic multi-file edits + diff (~120 lines)
-    grep.ts       — Content search via ripgrep (~85 lines)
+    grep.ts       — Content search via ripgrep, context lines (~90 lines)
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
     repo-map.ts   — Structural codebase index (~125 lines)
-    delegate.ts   — Sub-agent exploration (~125 lines)
+    delegate.ts   — Sub-agent exploration + web research (~130 lines)
     memory.ts     — Persistent cross-session memory tool (~90 lines)
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
+    ask-user.ts   — Interactive user questions via /dev/tty (~95 lines)
+    ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~3915 lines across 35 files (including 5 test files with ~525 lines).
+Total: ~4170 lines across 37 files (including 6 test files with ~585 lines).
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~3290 lines total vs thousands in competitors. Easy to understand, modify, extend.
-2. **Best-of-breed tools**: 13 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
+1. **Simplicity**: ~4170 lines total vs thousands in competitors. Easy to understand, modify, extend.
+2. **Best-of-breed tools**: 14 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
 5. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
@@ -382,8 +395,11 @@ Total: ~3915 lines across 35 files (including 5 test files with ~525 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 68 tests across 5 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, and file path similarity.
+25. **Unit test suite**: 75 tests across 6 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, and interactive tool behavior.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
+27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
+28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
+29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation.
 
 ## Dependencies
 

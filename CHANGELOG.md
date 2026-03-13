@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 41 — Interactive User Collaboration
+
+KOTA can now ask the user questions mid-task. Plus: grep shows context lines,
+and delegated sub-agents can search the web.
+
+### Why these improvements
+
+The agent had no way to interact with the user during task execution. When
+uncertain about a decision, ambiguous requirements, or missing information, it
+had to either guess or stop entirely. Every major agent (Claude Code, Copilot)
+supports mid-task questions. Adding `ask_user` transforms KOTA from
+"guess-or-abort" to "collaborate."
+
+The grep context lines fix addresses a common pattern: search for a symbol,
+get file:line, then `file_read` to see surrounding code. With `context_lines`,
+the agent gets the context in one call.
+
+The delegate web tools fix a gap where sub-agents could explore code but
+couldn't research online — making `delegate("research how X library works")`
+actually work.
+
+### Changes
+
+- **New tool: `ask_user`** (`src/tools/ask-user.ts`, ~95 lines):
+  - Opens `/dev/tty` directly for terminal access (works even when stdin is piped)
+  - Visual separator + bold prompt on stderr for clear attention
+  - Graceful fallback when no TTY (CI, Docker): returns actionable message
+    telling the agent to proceed with best judgment
+  - `setPromptOverride()` for testing without a terminal
+  - System prompt guides: "only ask when you genuinely cannot proceed"
+  - Error recovery section updated: "use ask_user" instead of "explain and stop"
+
+- **New test file: `src/tools/ask-user.test.ts`** (~60 lines, 7 tests):
+  - Input validation, prompt override, empty response, error fallback
+
+- **`src/tools/grep.ts`**: New `context_lines` parameter, passed as `-C` to
+  both ripgrep and grep fallback
+
+- **`src/tools/delegate.ts`**: Sub-agents now have `web_search` and `web_fetch`
+  tools, enabling online research delegation
+
+- **`src/tools/index.ts`**: Registered `ask_user` in tool registry (14 tools total)
+
+- **`src/loop.ts`**: System prompt updated — mentions `ask_user` in tool strategy
+  and error recovery sections
+
+### Verification
+
+1. **Static**: `npm run typecheck && npm run build` — clean
+2. **Unit**: `npm test` — 75 tests pass across 6 files (68 existing + 7 new)
+3. **Load**: `node dist/cli.js --help` — works
+4. **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+   — auth error expected (no API key), loop starts correctly
+
+### Possible next directions
+
+- Add multi-line input support to `ask_user` (for pasting code snippets)
+- Add `lint.ts` and `diff.ts` test coverage
+- Consider auto-verification after file edits (run project's test command)
+- Add project-wide file index at startup for faster path resolution
+
 ## Iteration 40 — Fix Test Metric Parsing
 
 12th consecutive successful autonomous build (iterations 17–39). Process is

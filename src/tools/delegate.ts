@@ -4,14 +4,16 @@ import { fileReadTool, runFileRead } from "./file-read.js";
 import { grepTool, runGrep } from "./grep.js";
 import { globTool, runGlob } from "./glob.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
+import { webFetchTool, runWebFetch } from "./web-fetch.js";
+import { webSearchTool, runWebSearch } from "./web-search.js";
 
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
   description:
     "Delegate a research/exploration task to a sub-agent. The sub-agent gets " +
-    "read-only tools (file_read, grep, glob, repo_map) and returns a summary. " +
-    "Use this to explore unfamiliar parts of the codebase without cluttering " +
-    "your main context with intermediate tool calls.",
+    "read-only tools (file_read, grep, glob, repo_map, web_search, web_fetch) " +
+    "and returns a summary. Use this to explore codebases, research APIs, " +
+    "or look up documentation without cluttering your main context.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -32,18 +34,22 @@ export function setDelegateModel(model: string): void {
   delegateModel = model;
 }
 
-const SUB_SYSTEM = `You are a research assistant exploring a codebase.
-Answer the question by reading files, searching code, and finding patterns.
+const SUB_SYSTEM = `You are a research assistant. You can explore codebases and search the web.
+Answer the question by reading files, searching code, finding patterns, and looking up documentation online.
 Be thorough but concise in your final answer.
 You have read-only access — you cannot modify files.`;
 
-const subTools: Anthropic.Tool[] = [fileReadTool, grepTool, globTool, repoMapTool];
+const subTools: Anthropic.Tool[] = [
+  fileReadTool, grepTool, globTool, repoMapTool, webFetchTool, webSearchTool,
+];
 
 const subRunners: Record<string, (input: Record<string, unknown>) => Promise<ToolResult>> = {
   file_read: runFileRead,
   grep: runGrep,
   glob: runGlob,
   repo_map: runRepoMap,
+  web_fetch: runWebFetch,
+  web_search: runWebSearch,
 };
 
 export async function runDelegate(
