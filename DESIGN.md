@@ -209,7 +209,21 @@ Makes KOTA project-aware by reading `.kota.md` files from the working directory 
 
 ### Smart Edit Error Recovery (`src/tools/file-edit.ts`)
 
-When `file_edit`'s `old_string` is not found, instead of showing only the first 20 lines (which is useless when the target is line 150), KOTA now finds the closest-matching region:
+Two-tier recovery when `file_edit`'s `old_string` is not found:
+
+**Tier 1 — Whitespace-tolerant auto-fix**: Before reporting an error, the tool tries
+whitespace-normalized matching. If the non-whitespace content matches exactly (same
+tokens, different indentation/trailing spaces), the edit is applied automatically:
+
+- Normalizes both search and file content: trims each line, collapses blank lines
+- Requires at least 10 non-whitespace characters (prevents trivially short matches like `}`)
+- Must be unambiguous: exactly one region in the file matches after normalization
+- Tries variable window sizes to handle blank-line differences between search and file
+- Reports "Applied with whitespace correction" so the agent knows what happened
+- Still runs lint gate — reverts if the corrected edit breaks syntax
+
+**Tier 2 — Fuzzy match display**: When whitespace-tolerant matching also fails, finds
+the closest-matching region using bigram similarity:
 
 - **Bigram similarity** (Dice coefficient): fast, zero-dependency fuzzy matching
 - **Sliding window**: scores every region of the file that matches the search's line count
@@ -353,7 +367,7 @@ Addresses the #1 agent failure mode: making file changes without verifying they 
 ```
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
-  loop.ts             — AgentSession class + core agent loop (~295 lines)
+  loop.ts             — AgentSession class + core agent loop (~300 lines)
   tool-runner.ts      — Parallel tool execution + failure tracking (~110 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
@@ -382,7 +396,7 @@ src/
     shell.ts      — Async shell with streaming output (~130 lines)
     file-read.ts  — Read file with line numbers + freshness tracking + path suggestions (~70 lines)
     file-write.ts — Create/overwrite file with lint gate + diff (~70 lines)
-    file-edit.ts  — Search-and-replace with fuzzy recovery + freshness check + path suggestions (~200 lines)
+    file-edit.ts  — Search-and-replace with whitespace-tolerant auto-fix + fuzzy recovery (~275 lines)
     multi-edit.ts — Atomic multi-file edits + diff (~120 lines)
     grep.ts       — Content search via ripgrep, context lines (~90 lines)
     glob.ts       — File pattern matching (~60 lines)
@@ -393,17 +407,18 @@ src/
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
     ask-user.ts   — Interactive user questions via /dev/tty (~95 lines)
+    file-edit.test.ts — Whitespace-tolerant matching unit tests (~135 lines)
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~4900 lines across 41 files (including 8 test files with ~1035 lines).
+Total: ~5100 lines across 42 files (including 9 test files with ~1170 lines).
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~4900 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~5100 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 14 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
-4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
+4. **Smart error recovery**: Two-tier edit recovery. First, whitespace-tolerant auto-fix: if the content matches after normalizing indentation/trailing spaces, the edit is applied automatically (saving 1-2 turns). If that fails, fuzzy matching (bigram Dice coefficient) finds the closest region and shows it with line numbers and context.
 5. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
 6. **Stream resilience**: Mid-stream API failures are retried with exponential backoff and jitter. Permanent errors (auth, bad request) fail fast; transient errors (network, overload) retry up to 3 times. SDK-level retries increased from default 2 to 5.
 7. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
@@ -424,7 +439,7 @@ Total: ~4900 lines across 41 files (including 8 test files with ~1035 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 121 tests across 8 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, and error extraction patterns.
+25. **Unit test suite**: 135 tests across 9 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, and whitespace-tolerant matching.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.

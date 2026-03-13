@@ -61,6 +61,33 @@ export async function runFileEdit(
   const count = content.split(oldStr).length - 1;
 
   if (count === 0) {
+    // Try whitespace-tolerant match before falling to fuzzy error
+    const wsMatch = tryWhitespaceMatch(content, oldStr);
+    if (wsMatch) {
+      const updated = content.replace(wsMatch, newStr);
+      writeFileSync(path, updated, "utf-8");
+
+      const lintResult = lintFile(path);
+      if (!lintResult.ok) {
+        writeFileSync(path, content, "utf-8");
+        return {
+          content:
+            `Edit reverted — syntax error detected:\n${lintResult.error}\n\n` +
+            `The file has been restored. Fix the syntax in your replacement and try again.`,
+          is_error: true,
+        };
+      }
+
+      recordModification(path);
+      const line = content.slice(0, content.indexOf(wsMatch)).split("\n").length;
+      printEditDiff(path, content, wsMatch, newStr);
+      return {
+        content:
+          `Applied with whitespace correction at line ${line} in ${path}. ` +
+          `(Indentation/whitespace in old_string didn't match exactly, but content matched.)`,
+      };
+    }
+
     const msg = buildNotFoundMessage(path, content, oldStr);
     return {
       content: staleWarning ? `${staleWarning}\n\n${msg}` : msg,
@@ -100,6 +127,57 @@ export async function runFileEdit(
   const replacements = replaceAll ? count : 1;
   printEditDiff(path, content, oldStr, newStr);
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };
+}
+
+/**
+ * Normalize whitespace for tolerant matching: trim each line, collapse blank lines.
+ * Preserves the non-whitespace content for comparison.
+ */
+export function normalizeWhitespace(s: string): string {
+  return s
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+/**
+ * Try to find old_string in content using whitespace-tolerant matching.
+ * Returns the exact matched region from the file if found (so it can be replaced),
+ * or null if no match / ambiguous (multiple matches).
+ *
+ * Only matches when the non-whitespace content is identical — prevents false
+ * positives from semantically different code that happens to look similar.
+ * Requires at least 10 non-whitespace characters to avoid trivial matches.
+ */
+export function tryWhitespaceMatch(content: string, oldStr: string): string | null {
+  const normOld = normalizeWhitespace(oldStr);
+  // Skip trivially short searches — too high risk of false match
+  if (normOld.replace(/\s/g, "").length < 10) return null;
+
+  const lines = content.split("\n");
+  // Use normalized line count — blank lines in the search collapse during normalization
+  const normLineCount = normOld.split("\n").length;
+
+  // Try window sizes from normLineCount up to normLineCount+4
+  // to handle cases where the file has blank lines the search doesn't (or vice versa).
+  // Return as soon as one window size yields exactly one unambiguous match.
+  for (let ws = normLineCount; ws <= normLineCount + 4 && ws <= lines.length; ws++) {
+    let count = 0;
+    let region = "";
+    for (let i = 0; i <= lines.length - ws; i++) {
+      const window = lines.slice(i, i + ws).join("\n");
+      if (normalizeWhitespace(window) === normOld) {
+        count++;
+        if (count > 1) break; // Ambiguous at this window size
+        region = window;
+      }
+    }
+    if (count === 1) return region;
+  }
+
+  return null;
 }
 
 /**

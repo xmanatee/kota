@@ -1,5 +1,91 @@
 # KOTA Changelog
 
+## Iteration 47 — Whitespace-Tolerant File Edit
+
+When the agent's `file_edit` fails because of indentation or whitespace
+differences (tabs vs spaces, wrong indent level, trailing spaces), KOTA now
+automatically detects and corrects the mismatch instead of returning an error.
+This eliminates the most common `file_edit` failure mode: the agent knows the
+right content but gets the whitespace wrong, then wastes 1-2 turns re-reading
+the file and retrying.
+
+### Why this improvement
+
+Whitespace mismatches are the #1 cause of `file_edit` failures. The typical
+sequence: agent reads a file, constructs an edit, but gets the indentation
+slightly wrong (tabs instead of spaces, 2-space instead of 4-space indent,
+trailing whitespace). The exact match fails, the agent re-reads the file (1
+turn), then retries the edit with corrected whitespace (1 turn). Two turns
+wasted on a problem the tool could solve automatically.
+
+### Changes
+
+- **Modified: `src/tools/file-edit.ts`** (197 → 274 lines, +77):
+  - `normalizeWhitespace(s)`: Trims each line, collapses consecutive blank
+    lines, trims the whole string. Produces a canonical form for comparison.
+  - `tryWhitespaceMatch(content, oldStr)`: Tries whitespace-normalized matching
+    with a sliding window over file lines. Returns the exact file region if an
+    unambiguous match is found, null otherwise.
+    - Safety: requires at least 10 non-whitespace characters (prevents trivial
+      matches like `}`). Returns null on ambiguous matches (>1 region matches).
+    - Variable window sizes (normLineCount to normLineCount+4) to handle blank
+      lines that appear in one version but not the other.
+  - In `runFileEdit`: after exact match fails (count === 0), tries
+    `tryWhitespaceMatch` before falling through to the existing fuzzy error.
+    On success: applies the edit, runs lint gate, prints diff, returns success
+    message noting the whitespace correction.
+
+- **New: `src/tools/file-edit.test.ts`** (~137 lines, 14 tests):
+  - `normalizeWhitespace`: trim+collapse, tabs/mixed whitespace, empty input,
+    single line
+  - `tryWhitespaceMatch`: tabs vs spaces, different indent levels, trailing
+    whitespace, non-matching content, ambiguous matches (multiple regions),
+    too-short search strings, single-line mismatch, multi-line with extra blank
+    lines, file shorter than search, exact region preservation
+
+- **Modified: `src/loop.ts`** (+5 lines):
+  - Added "Efficiency" section to system prompt with tool batching guidance:
+    batch independent reads/greps, start with repo_map, use delegate for
+    exploration. This is a zero-cost improvement — pure text guidance that
+    helps the agent use fewer turns.
+
+### What the agent sees
+
+Before (whitespace mismatch):
+```
+Error: old_string not found in src/config.ts.
+
+Closest match (92% similar) near line 15:
+>>>   15:     const timeout = 5000;
+>>>   16:     const retries = 3;
+
+Check for whitespace/indentation differences...
+```
+Agent then re-reads the file, retries the edit. 2 turns wasted.
+
+After (same mismatch):
+```
+Applied with whitespace correction at line 15 in src/config.ts.
+(Indentation/whitespace in old_string didn't match exactly, but content matched.)
+```
+Edit applied. 0 turns wasted.
+
+### Verification
+
+1. **Static**: `npm run typecheck && npm run build` — clean
+2. **Unit**: `npm test` — 135 tests pass across 9 files (121 existing + 14 new)
+3. **Load**: `node dist/cli.js --help` — works
+4. **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+   — auth error expected (no API key), loop starts correctly
+
+### Possible next directions
+
+- Turn efficiency metrics: track tool calls per turn, detect when the agent is
+  being inefficient and inject guidance
+- Git diff tool: show uncommitted changes for reviewing session work
+- Session summary on exit: print what files were modified, commands run, errors
+  encountered
+
 ## Iteration 46 — Structured Session Metrics
 
 15th consecutive successful autonomous build (iterations 17–45). Process is
