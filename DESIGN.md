@@ -91,6 +91,18 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `multi_edit` | Atomic multi-file edits | All succeed or all revert |
 | `web_fetch` | Fetch web pages | HTML stripping, truncation, timeout |
 | `memory` | Persistent cross-session memory | Save/search/list/delete facts, preferences, conventions |
+| `web_search` | Web search via DuckDuckGo | No API key needed, returns titles/URLs/snippets |
+
+### Web Search (`src/tools/web-search.ts`)
+
+Enables the agent to search the web autonomously using DuckDuckGo — no API key required.
+
+- Scrapes `html.duckduckgo.com/html/` with result parsing via regex
+- Extracts title, URL (with DuckDuckGo redirect decoding), and snippet per result
+- Two-tier parser: structured block parsing with fallback to global regex extraction
+- Returns compact numbered results (default 5, max 10) to save tokens
+- 15-second timeout, proper User-Agent, clean error messages
+- Pairs with `web_fetch`: search discovers URLs, fetch reads full pages
 
 ### Persistent Memory (`src/memory.ts`, `src/tools/memory.ts`)
 
@@ -261,20 +273,21 @@ src/
     delegate.ts   — Sub-agent exploration (~125 lines)
     memory.ts     — Persistent cross-session memory tool (~75 lines)
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
+    web-search.ts — Web search via DuckDuckGo scraping (~155 lines)
 ```
 
-Total: ~2550 lines across 23 files.
+Total: ~2700 lines across 24 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2550 lines total vs thousands in competitors. Easy to understand, modify, extend.
-2. **Best-of-breed tools**: 12 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
+1. **Simplicity**: ~2700 lines total vs thousands in competitors. Easy to understand, modify, extend.
+2. **Best-of-breed tools**: 13 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
 5. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
 6. **Stream resilience**: Mid-stream API failures are retried with exponential backoff and jitter. Permanent errors (auth, bad request) fail fast; transient errors (network, overload) retry up to 3 times. SDK-level retries increased from default 2 to 5.
 7. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
-8. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
+8. **Web search + fetch**: `web_search` discovers URLs via DuckDuckGo (no API key), `web_fetch` reads full pages. The agent can autonomously research errors, find documentation, and verify current information.
 9. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
 10. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes. Shell commands also stream their output to stderr, so users see build/test progress live.
 11. **Diff display**: Every file edit/write prints a colored unified diff to stderr — the user sees exactly what changed without reading tool results.

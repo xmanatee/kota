@@ -11,6 +11,7 @@ import { delegateTool, runDelegate } from "./delegate.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { webFetchTool, runWebFetch } from "./web-fetch.js";
 import { memoryTool, runMemory } from "./memory.js";
+import { webSearchTool, runWebSearch } from "./web-search.js";
 
 export type ToolResult = {
   content: string;
@@ -32,6 +33,7 @@ const runners: Record<string, ToolRunner> = {
   delegate: runDelegate,
   web_fetch: runWebFetch,
   memory: runMemory,
+  web_search: runWebSearch,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -47,6 +49,7 @@ export const allTools: Anthropic.Tool[] = [
   delegateTool,
   webFetchTool,
   memoryTool,
+  webSearchTool,
 ];
 
 export async function executeTool(

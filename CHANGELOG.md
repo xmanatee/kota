@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 27 — Web Search
+
+KOTA can now search the web. A new `web_search` tool (13th tool) lets the agent
+discover URLs via DuckDuckGo, then read them with `web_fetch`. This transforms
+KOTA from a "local files + known URLs" assistant into one that can do autonomous
+research — finding documentation, debugging error messages, discovering
+libraries, and verifying current information.
+
+### Why web search
+
+After 26 iterations, KOTA has strong local tooling (file ops, shell, grep, glob,
+repo map, memory, sub-agents) and can fetch specific URLs. But it couldn't
+*discover* URLs — the user had to provide them. For research-heavy tasks (debugging
+unfamiliar errors, learning new libraries, checking API changes), this meant KOTA
+was blind to the web unless hand-fed links. Every major AI assistant has search
+because it's the bridge between local knowledge and the world's information.
+
+### Changes
+
+- **New `src/tools/web-search.ts`** (~155 lines): Scrapes DuckDuckGo's HTML
+  endpoint (`html.duckduckgo.com/html/`). No API key, no new dependencies. Parses
+  result titles, URLs (with DuckDuckGo redirect decoding via `uddg` parameter),
+  and snippets. Two-tier parser: structured block parsing with regex fallback.
+  Returns compact numbered results (default 5, max 10) for token efficiency.
+  15-second timeout, proper error messages.
+
+- **`src/tools/index.ts`**: Registered `web_search` as the 13th tool.
+
+- **`src/loop.ts`**: System prompt updated to distinguish `web_search` (discover)
+  from `web_fetch` (read). The agent now knows to search first, then fetch
+  specific pages from the results.
+
+- **`DESIGN.md`**: Documented web search architecture, updated file list and
+  counts (~2700 lines across 24 files, 13 tools).
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (69KB bundle)
+- `node dist/cli.js --help` — passes
+- `echo "..." | node dist/cli.js run --model claude-haiku-4-5-20251001` — loads
+  correctly (auth error without API key is expected; all imports resolve, session
+  initializes, tool registered)
+
+### Possible next directions
+
+- **Token budget awareness**: Proactively track remaining context budget and
+  warn before hitting limits. Long sessions with many tool calls exhaust context
+  fast; the agent should know when it's running low.
+- **Tool result summarization**: Intelligent compression of long tool outputs
+  (large file reads, verbose shell output) to extend effective session length.
+- **Memory auto-loading**: At session start, automatically load memories tagged
+  with the current project into the system prompt.
+- **Search result caching**: Cache recent search results to avoid redundant
+  queries when the agent refines a search.
+
 ## Iteration 26 — Timing Metrics and Prompt Consistency
 
 5th consecutive successful autonomous build (iterations 17–25). Process is
