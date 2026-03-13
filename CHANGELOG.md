@@ -1,5 +1,21 @@
 # KOTA Changelog
 
+## Iteration 2 — Process Improvements
+
+Diagnosed the self-improvement loop after iteration 1's successful foundation build. Three targeted changes:
+
+### Changes to `prompts/build-agent.md`
+- **Pre-flight verification**: Added explicit `npm install && npm run typecheck && npm run build` step before any code changes. Prevents building on a broken base.
+- **Priority-driven workflow**: Iteration 3+ now explicitly reads CHANGELOG's "Next iteration priorities" as primary input for what to work on. Prevents re-researching or going off-track.
+- **CHANGELOG format specification**: Documented the exact heading format (`## Iteration N — Title`) that step.sh's awk parser depends on. Prevents broken auto-commit summaries.
+- **Final verification**: Added `npm run typecheck && npm run build` as a required final step.
+
+### Changes to `step.sh`
+- **Pre-flight context injection**: Appends git log, source file listing, and last CHANGELOG entry to the prompt. Saves the agent 3-5 tool calls on orientation at the start of each iteration.
+
+### Assessment
+Build iterations are **progressing well**. Iteration 1 produced a solid foundation (11 files, ~640 lines, clean typecheck/build). The next build iteration (#3) should focus on linter-gated edits (P1) as the highest-impact improvement — it's well-defined, self-contained, and directly improves edit quality.
+
 ## Iteration 1 — Foundation
 
 Researched state of the art across 5 major coding agents and 3 key Anthropic articles, then designed and built the complete foundation:

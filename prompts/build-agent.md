@@ -39,10 +39,11 @@ Before writing ANY code, research the state of the art. You MUST:
 4. **Then implement** the minimal core — CLI entry point, agent loop, 2-3 essential tools.
 
 **If code already exists (iteration 3+):**
-1. Read ALL existing source files in `{{TOOL_DIR}}` to understand current state
-2. Run any existing tests or build scripts to see what works
-3. Identify the single most impactful improvement to make
-4. Implement it, test it, verify it works
+1. **Pre-flight**: Run `npm install && npm run typecheck && npm run build` to confirm the codebase is healthy before touching anything. If something is broken, fix it first.
+2. **Orient**: Read ALL existing source files in `{{TOOL_DIR}}/src/` to understand current state. Read `CHANGELOG.md` — look for the "Next iteration priorities" section from the most recent iteration. Those priorities are your primary input for what to work on.
+3. **Pick the highest-impact priority**: Choose the top P1 item from the previous iteration's priorities. If closely related improvements can be done together, tackle 2-3, but prefer depth over breadth.
+4. **Implement**: Write the code, then verify with `npm run typecheck && npm run build`.
+5. **Update CHANGELOG.md**: Document what you built and list the next priorities for the following iteration.
 
 ## Architecture Requirements
 
@@ -79,5 +80,14 @@ Build in TypeScript/Node.js. The agent should have these modules:
 
 - Write real, working code (not pseudocode, not plans-only)
 - Every file must be syntactically valid
-- Update `CHANGELOG.md` with what you did this iteration
-- If you created `package.json`, run `npm install` or note that it needs to be run
+- Run `npm run typecheck && npm run build` before finishing to confirm nothing is broken
+- Update `CHANGELOG.md` — use this exact heading format (step.sh parses it):
+  ```
+  ## Iteration {{ITERATION}} — Short Title
+
+  What you did...
+
+  ### Next iteration priorities
+  - P1: ...
+  - P2: ...
+  ```

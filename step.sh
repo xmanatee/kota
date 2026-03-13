@@ -20,6 +20,24 @@ PROMPT=$(cat "$PROMPT_FILE")
 PROMPT="${PROMPT//\{\{TOOL_DIR\}\}/$DIR}"
 PROMPT="${PROMPT//\{\{ITERATION\}\}/$ITERATION}"
 
+# Inject pre-flight context so the agent doesn't waste tool calls on orientation
+CONTEXT="
+---
+## Pre-flight context (injected by step.sh)
+
+### Git log (last 10 commits):
+$(cd "$DIR" && git log --oneline -10 2>/dev/null || echo '(no git history)')
+
+### Source files:
+$(cd "$DIR" && find . -name '*.ts' -o -name '*.js' -o -name '*.json' -o -name '*.md' | grep -v node_modules | grep -v dist | sort 2>/dev/null || echo '(none)')
+
+### Last CHANGELOG entry:
+$(cd "$DIR" && awk '/^## Iteration/{if(found)exit; found=1} found' CHANGELOG.md 2>/dev/null || echo '(no changelog)')
+---
+"
+
+PROMPT="$PROMPT$CONTEXT"
+
 # Run claude from the tool directory so it uses it as cwd
 cd "$DIR"
 claude -p \
