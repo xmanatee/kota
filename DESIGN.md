@@ -186,7 +186,7 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 ```
 src/
   cli.ts          — Entry point, Commander.js (~115 lines)
-  loop.ts         — Core agent loop with caching, thinking, architect integration (~275 lines)
+  loop.ts         — AgentSession class + core agent loop (~340 lines)
   architect.ts    — Architect/Editor two-pass flow (~135 lines)
   context.ts      — Conversation + compaction + persistence (~175 lines)
   confirm.ts      — Destructive command confirmation (~50 lines)
@@ -207,23 +207,25 @@ src/
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
 ```
 
-Total: ~2000 lines across 19 files. Each file ≤ 275 lines.
+Total: ~2070 lines across 19 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2000 lines total vs thousands in competitors. Easy to understand, modify, extend.
-2. **Best-of-breed tools**: 12 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
-3. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
-4. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
-5. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
-6. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
-7. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
-8. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
-9. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
-10. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
-11. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
-12. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
-13. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
+1. **Simplicity**: ~2070 lines total vs thousands in competitors. Easy to understand, modify, extend.
+2. **Best-of-breed tools**: 11 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
+3. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
+4. **Stream resilience**: Mid-stream API failures are retried with exponential backoff and jitter. Permanent errors (auth, bad request) fail fast; transient errors (network, overload) retry up to 3 times. SDK-level retries increased from default 2 to 5.
+5. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
+6. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
+7. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
+8. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
+9. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
+10. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
+11. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
+12. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
+13. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
+14. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
+15. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
 
 ## Dependencies
 

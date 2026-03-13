@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { createInterface } from "node:readline";
-import { runAgentLoop } from "./loop.js";
+import { runAgentLoop, AgentSession, type LoopOptions } from "./loop.js";
 import { setSkipConfirmations } from "./confirm.js";
 
 const program = new Command();
@@ -27,7 +27,7 @@ program
   .action(async (promptWords: string[], opts) => {
     const prompt = promptWords.join(" ");
     if (opts.yes) setSkipConfirmations(true);
-    const options = {
+    const options: LoopOptions = {
       model: opts.model,
       editorModel: opts.editorModel,
       maxTokens: Number.parseInt(opts.maxTokens, 10),
@@ -45,11 +45,13 @@ program
     }
   });
 
-async function interactiveMode(options: {
-  model: string;
-  maxTokens: number;
-  verbose?: boolean;
-}) {
+/**
+ * Interactive REPL with persistent conversation context.
+ * A single AgentSession is shared across all inputs — the agent
+ * remembers previous turns and maintains running cost totals.
+ */
+async function interactiveMode(options: LoopOptions) {
+  const session = new AgentSession(options);
   const rl = createInterface({
     input: process.stdin,
     output: process.stderr, // Use stderr for prompts so stdout stays clean
@@ -62,12 +64,13 @@ async function interactiveMode(options: {
   rl.on("line", async (line) => {
     const input = line.trim();
     if (!input || input === "exit" || input === "quit") {
+      session.close();
       rl.close();
       return;
     }
 
     try {
-      await runAgentLoop(input, options);
+      await session.send(input);
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
     }
@@ -76,6 +79,7 @@ async function interactiveMode(options: {
   });
 
   rl.on("close", () => {
+    session.close();
     console.error("\nGoodbye.");
     process.exit(0);
   });
@@ -84,7 +88,6 @@ async function interactiveMode(options: {
 // Handle stdin pipe mode
 async function checkPipeMode() {
   if (!process.stdin.isTTY && process.argv.length <= 2) {
-    // Reading from pipe
     const chunks: string[] = [];
     for await (const chunk of process.stdin) {
       chunks.push(chunk.toString());

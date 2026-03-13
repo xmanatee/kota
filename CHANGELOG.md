@@ -1,5 +1,80 @@
 # KOTA Changelog
 
+## Iteration 19 — Persistent Sessions and Stream Resilience
+
+Two improvements that make KOTA usable as a real multi-turn assistant rather
+than a one-shot tool.
+
+### Why these two
+
+Prior iterations built a solid tool set (12 tools, architect/editor split,
+extended thinking, web fetch, cost tracking). But two fundamental issues
+remained: (1) interactive mode created a fresh context per line, making
+multi-turn conversations impossible — every follow-up question lost all prior
+context; (2) mid-stream API failures crashed the agent with no recovery. These
+are the two most impactful reliability/usability gaps.
+
+### AgentSession class (`src/loop.ts`)
+
+Refactored the monolithic `runAgentLoop` function into an `AgentSession` class
+that maintains persistent state across multiple `send()` calls:
+
+- **Constructor**: initializes Anthropic client (maxRetries: 5), context,
+  cost tracker, SIGINT handler, and optionally loads a saved session
+- **`send(prompt)`**: adds the prompt to the existing context and runs the
+  agent loop to completion. Conversation history, cost totals, and context
+  compaction state all persist between sends
+- **`close()`**: saves session, removes SIGINT handler, prints final cost.
+  Idempotent (safe to call multiple times via `closed` flag)
+- **`runAgentLoop()`**: preserved as a convenience wrapper that creates a
+  session, sends one prompt, and closes — backward-compatible for single-shot
+  and pipe modes
+
+### Interactive mode fix (`src/cli.ts`)
+
+- `interactiveMode` now creates a single `AgentSession` shared across all
+  REPL inputs. The agent remembers previous turns, maintains running cost
+  totals, and benefits from prompt caching across the conversation
+- Previously: each line created a fresh `runAgentLoop` → fresh context →
+  no memory of previous turns, no cumulative cost, no caching benefit
+- On exit/quit: `session.close()` properly cleans up and prints final cost
+
+### Stream retry with smart backoff (`src/loop.ts`)
+
+- New `streamWithRetry()` method wraps the streaming API call with up to 3
+  retries for mid-stream failures (network drops, server timeouts)
+- **Exponential backoff with jitter**: delays of ~1s, ~2s, ~4s (capped at 10s)
+  to avoid thundering herd on shared rate limits
+- **Smart retry classification via `isRetryable()`**: auth errors, 4xx client
+  errors (except 429 rate limits) fail immediately. Only transient errors
+  (network, 429, 5xx) are retried
+- **SDK-level retries**: increased from default 2 to 5 via `maxRetries`
+  constructor option — handles connection-level failures before stream opens
+
+### Verified
+
+- TypeScript type-checks clean
+- Builds to 52.06KB bundle (up from 49.57KB)
+- `--help` smoke test passes
+- Runtime test: auth error correctly identified as non-retryable (no wasted
+  retry attempts), agent exits cleanly
+- 19 source files, ~2070 lines total
+
+### Next directions
+
+- P1: Enhanced file_edit error recovery — show closest match and surrounding
+  context when old_string not found (reduces wasted turns on failed edits)
+- P1: Project context injection — read `.kota.md` or similar project config
+  file and inject into system prompt (makes KOTA project-aware)
+- P2: Streaming cost display — show per-turn cost inline with output, not just
+  on stderr after the turn completes
+- P2: Interactive mode enhancements — Ctrl-C to cancel current task without
+  exiting, history persistence, `/commands` for inline control
+- P3: Tool timeout configuration — per-tool timeout overrides for long-running
+  operations
+
+---
+
 ## Iteration 18 — Runtime Smoke Test, Richer Context, Builder Evaluation
 
 Iteration 17 was the first fully autonomous build (no hints). It passed: the

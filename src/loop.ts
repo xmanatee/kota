@@ -36,7 +36,7 @@ const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with softw
 
 const MAX_ITERATIONS = 200;
 const CIRCUIT_BREAKER_THRESHOLD = 3;
-const TOKEN_THRESHOLD = 150_000; // For verbose display — matches context.ts threshold
+const STREAM_MAX_RETRIES = 3;
 
 export type LoopOptions = {
   model?: string;
@@ -56,182 +56,165 @@ function systemBlocks(text: string): Anthropic.Messages.TextBlockParam[] {
   ];
 }
 
-export async function runAgentLoop(
-  prompt: string,
-  options: LoopOptions = {},
-): Promise<string> {
-  const model = options.model || "claude-sonnet-4-6";
-  const editorModel = options.editorModel || model;
-  const maxTokens = options.maxTokens || 8192;
-  const verbose = options.verbose || false;
-  const thinkingBudget = options.thinkingBudget || 10_000;
+/** Sleep with jittered exponential backoff for retries */
+function backoff(attempt: number): Promise<void> {
+  const delay = Math.min(1000 * 2 ** attempt, 10_000) + Math.random() * 1000;
+  return new Promise((r) => setTimeout(r, delay));
+}
 
-  // Build thinking config
-  const thinkingConfig: Anthropic.Messages.ThinkingConfigParam | undefined =
-    options.thinkingEnabled ? { type: "enabled", budget_tokens: thinkingBudget } : undefined;
-  // When thinking is enabled, max_tokens must exceed budget_tokens
-  const effectiveMaxTokens = options.thinkingEnabled
-    ? thinkingBudget + maxTokens
-    : maxTokens;
+/**
+ * Persistent agent session that maintains context across multiple prompts.
+ * Used by both single-shot mode and interactive REPL.
+ */
+export class AgentSession {
+  private client: Anthropic;
+  private context: Context;
+  private costTracker: CostTracker;
+  private model: string;
+  private editorModel: string;
+  private maxTokens: number;
+  private effectiveMaxTokens: number;
+  private verbose: boolean;
+  private architectMode: boolean;
+  private sessionPath?: string;
+  private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  private sigintHandler: () => void;
+  private closed = false;
 
-  const client = new Anthropic();
-  const costTracker = new CostTracker();
-  const sessionPath = options.sessionPath;
+  constructor(options: LoopOptions = {}) {
+    this.model = options.model || "claude-sonnet-4-6";
+    this.editorModel = options.editorModel || this.model;
+    this.maxTokens = options.maxTokens || 8192;
+    this.verbose = options.verbose || false;
+    this.architectMode = options.architectMode || false;
+    this.sessionPath = options.sessionPath;
 
-  // Load or create context
-  let context: Context;
-  if (sessionPath && existsSync(sessionPath)) {
-    context = Context.load(sessionPath, SYSTEM_PROMPT);
-    context.addUserMessage(prompt);
-    if (verbose) console.error(`[kota] Resumed session from ${sessionPath}`);
-  } else {
-    context = new Context(SYSTEM_PROMPT);
-    context.addUserMessage(prompt);
+    const thinkingBudget = options.thinkingBudget || 10_000;
+    this.thinkingConfig = options.thinkingEnabled
+      ? { type: "enabled", budget_tokens: thinkingBudget }
+      : undefined;
+    this.effectiveMaxTokens = options.thinkingEnabled
+      ? thinkingBudget + this.maxTokens
+      : this.maxTokens;
+
+    // SDK auto-retries 429, 500, 502, 503, 504 on connection failures
+    this.client = new Anthropic({ maxRetries: 5 });
+    this.costTracker = new CostTracker();
+
+    // Load or create context
+    if (this.sessionPath && existsSync(this.sessionPath)) {
+      this.context = Context.load(this.sessionPath, SYSTEM_PROMPT);
+      if (this.verbose) console.error(`[kota] Resumed session from ${this.sessionPath}`);
+    } else {
+      this.context = new Context(SYSTEM_PROMPT);
+    }
+
+    setDelegateModel(this.editorModel);
+
+    // SIGINT handler: save session before exit
+    this.sigintHandler = () => {
+      if (this.sessionPath) {
+        this.context.save(this.sessionPath);
+        console.error(`\n[kota] Session saved to ${this.sessionPath}`);
+      }
+      process.exit(0);
+    };
+    process.on("SIGINT", this.sigintHandler);
   }
 
-  // SIGINT handler: save session before exit
-  const sigintHandler = () => {
-    if (sessionPath) {
-      context.save(sessionPath);
-      console.error(`\n[kota] Session saved to ${sessionPath}`);
-    }
-    process.exit(0);
-  };
-  process.on("SIGINT", sigintHandler);
+  /** Send a prompt and run the agent loop until the agent stops. */
+  async send(prompt: string): Promise<string> {
+    this.context.addUserMessage(prompt);
+    let lastResult = "";
 
-  // Configure delegate sub-agent model
-  setDelegateModel(editorModel);
-
-  let lastResult = "";
-
-  // Architect/Editor split: two-pass before the main verification loop
-  if (options.architectMode) {
-    const plan = await runArchitectPass(
-      client, model, effectiveMaxTokens,
-      context.getSystemPrompt(), context.getMessages(), verbose,
-      thinkingConfig,
-    );
-    if (plan) {
-      const editorResult = await runEditorLoop(
-        client, editorModel, maxTokens, plan, verbose,
+    // Architect/Editor split: two-pass before the main verification loop
+    if (this.architectMode) {
+      const plan = await runArchitectPass(
+        this.client, this.model, this.effectiveMaxTokens,
+        this.context.getSystemPrompt(), this.context.getMessages(), this.verbose,
+        this.thinkingConfig,
       );
-      lastResult = editorResult || plan;
-      // Inject summary so the verification loop knows what happened
-      context.addAssistantText(
-        `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
-        (editorResult ? `\n\nEditor result: ${editorResult}` : ""),
-      );
-      context.addUserMessage(
-        "The architect/editor has made changes. " +
-        "Verify they are correct: run builds, tests, or type checks as appropriate.",
-      );
-    }
-  }
-
-  let consecutiveFailures = 0;
-  let lastFailureSignature = "";
-
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    // Compact if needed
-    if (context.needsCompaction()) {
-      if (verbose) console.error("[kota] Compacting context...");
-      await context.compact(client, model);
+      if (plan) {
+        const editorResult = await runEditorLoop(
+          this.client, this.editorModel, this.maxTokens, plan, this.verbose,
+        );
+        lastResult = editorResult || plan;
+        this.context.addAssistantText(
+          `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
+          (editorResult ? `\n\nEditor result: ${editorResult}` : ""),
+        );
+        this.context.addUserMessage(
+          "The architect/editor has made changes. " +
+          "Verify they are correct: run builds, tests, or type checks as appropriate.",
+        );
+      }
     }
 
-    if (verbose) {
-      const stats = context.getStats();
-      console.error(`[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`);
-    }
+    let consecutiveFailures = 0;
+    let lastFailureSignature = "";
 
-    // Stream the response with prompt caching and optional thinking
-    let streamedText = "";
-    const stream = client.messages.stream({
-      model,
-      max_tokens: effectiveMaxTokens,
-      system: systemBlocks(context.getSystemPrompt()),
-      tools: allTools,
-      messages: context.getMessages(),
-      ...(thinkingConfig && { thinking: thinkingConfig }),
-    });
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      if (this.context.needsCompaction()) {
+        if (this.verbose) console.error("[kota] Compacting context...");
+        await this.context.compact(this.client, this.model);
+      }
 
-    // Stream thinking output to stderr (visible in verbose mode, indicator in normal mode)
-    if (thinkingConfig) {
-      let thinkingStarted = false;
-      stream.on("thinking", (delta) => {
-        if (!thinkingStarted) {
-          thinkingStarted = true;
-          if (verbose) {
-            process.stderr.write("[thinking] ");
-          } else {
-            process.stderr.write("[kota] Thinking...\n");
-          }
-        }
-        if (verbose) process.stderr.write(delta);
-      });
-    }
+      if (this.verbose) {
+        const stats = this.context.getStats();
+        console.error(
+          `[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`,
+        );
+      }
 
-    stream.on("text", (text) => {
-      process.stdout.write(text);
-      streamedText += text;
-    });
+      // Stream the response with retry for mid-stream failures
+      const { response, streamedText } = await this.streamWithRetry();
+      if (streamedText) {
+        process.stdout.write("\n");
+        lastResult = streamedText;
+      }
 
-    const response = await stream.finalMessage();
-    if (streamedText) {
-      process.stdout.write("\n");
-      lastResult = streamedText;
-    }
+      // Track token usage for compaction decisions and cost
+      this.context.setInputTokens(response.usage.input_tokens);
+      this.costTracker.addUsage(this.model, response.usage);
+      console.error(`[kota] Turn ${i + 1} \u2014 ${this.costTracker.getSummary()}`);
 
-    // Track token usage for compaction decisions and cost
-    context.setInputTokens(response.usage.input_tokens);
-    costTracker.addUsage(model, response.usage);
-    console.error(`[kota] Turn ${i + 1} \u2014 ${costTracker.getSummary()}`);
+      if (this.verbose) {
+        const u = response.usage;
+        console.error(
+          `[kota] Tokens: input=${u.input_tokens}/150000` +
+          (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
+          (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
+        );
+      }
 
-    // Log cache and token stats in verbose mode
-    if (verbose) {
-      const u = response.usage;
-      console.error(
-        `[kota] Tokens: input=${u.input_tokens}/${TOKEN_THRESHOLD}` +
-        (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
-        (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
-      );
-    }
+      this.context.addAssistantMessage(response);
 
-    context.addAssistantMessage(response);
+      const toolBlocks = response.content.filter((b) => b.type === "tool_use");
+      if (toolBlocks.length === 0) break;
 
-    const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
-
-    // If no tool calls, we're done
-    if (toolUseBlocks.length === 0 || response.stop_reason === "end_turn") {
-      if (toolUseBlocks.length === 0) break;
-    }
-
-    // Execute tool calls (in parallel when possible)
-    if (toolUseBlocks.length > 0) {
+      // Execute tool calls in parallel
       const results = await Promise.all(
-        toolUseBlocks.map(async (block) => {
+        toolBlocks.map(async (block) => {
           if (block.type !== "tool_use") return null;
-          if (verbose) {
-            console.error(`[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`);
+          if (this.verbose) {
+            console.error(
+              `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
+            );
           }
           const result = await executeTool(
             block.name,
             block.input as Record<string, unknown>,
           );
-          return {
-            tool_use_id: block.id,
-            content: result.content,
-            is_error: result.is_error,
-          };
+          return { tool_use_id: block.id, content: result.content, is_error: result.is_error };
         }),
       );
 
       const validResults = results.filter(
         (r): r is NonNullable<typeof r> => r !== null,
       );
-      context.addToolResults(validResults);
+      this.context.addToolResults(validResults);
 
-      // Auto-save session after every turn
-      if (sessionPath) context.save(sessionPath);
+      if (this.sessionPath) this.context.save(this.sessionPath);
 
       // Circuit breaker: detect repeated identical failures
       const failedResults = validResults.filter((r) => r.is_error);
@@ -243,7 +226,7 @@ export async function runAgentLoop(
             console.error(
               `[kota] Circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} identical failures. Stopping.`,
             );
-            context.addUserMessage(
+            this.context.addUserMessage(
               "You have failed the same way 3 times in a row. " +
               "Stop and explain what's going wrong.",
             );
@@ -258,16 +241,101 @@ export async function runAgentLoop(
       }
     }
 
-    // If stop_reason is "end_turn" with no pending tool calls, done
-    if (response.stop_reason === "end_turn" && toolUseBlocks.length === 0) {
-      break;
-    }
+    if (this.sessionPath) this.context.save(this.sessionPath);
+    return lastResult;
   }
 
-  // Clean up SIGINT handler and save final state
-  process.removeListener("SIGINT", sigintHandler);
-  if (sessionPath) context.save(sessionPath);
+  /** Check if an error is worth retrying (transient) vs permanent. */
+  private isRetryable(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Auth/config errors are permanent
+    if (msg.includes("authentication") || msg.includes("apiKey") || msg.includes("authToken")) {
+      return false;
+    }
+    // 4xx client errors (except 429 rate limit) are permanent
+    const status = (err as { status?: number }).status;
+    if (typeof status === "number" && status >= 400 && status < 500 && status !== 429) {
+      return false;
+    }
+    return true;
+  }
 
-  console.error(`[kota] Done \u2014 ${costTracker.getSummary()}`);
-  return lastResult;
+  /** Stream an API call with retry for mid-stream failures. */
+  private async streamWithRetry(): Promise<{
+    response: Anthropic.Message;
+    streamedText: string;
+  }> {
+    for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
+      try {
+        let streamedText = "";
+        const stream = this.client.messages.stream({
+          model: this.model,
+          max_tokens: this.effectiveMaxTokens,
+          system: systemBlocks(this.context.getSystemPrompt()),
+          tools: allTools,
+          messages: this.context.getMessages(),
+          ...(this.thinkingConfig && { thinking: this.thinkingConfig }),
+        });
+
+        if (this.thinkingConfig) {
+          let thinkingStarted = false;
+          stream.on("thinking", (delta) => {
+            if (!thinkingStarted) {
+              thinkingStarted = true;
+              if (this.verbose) {
+                process.stderr.write("[thinking] ");
+              } else {
+                process.stderr.write("[kota] Thinking...\n");
+              }
+            }
+            if (this.verbose) process.stderr.write(delta);
+          });
+        }
+
+        stream.on("text", (text) => {
+          process.stdout.write(text);
+          streamedText += text;
+        });
+
+        const response = await stream.finalMessage();
+        return { response, streamedText };
+      } catch (err) {
+        if (attempt === STREAM_MAX_RETRIES || !this.isRetryable(err)) throw err;
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `\n[kota] Stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg}`,
+        );
+        await backoff(attempt);
+        console.error("[kota] Retrying...");
+      }
+    }
+    throw new Error("unreachable");
+  }
+
+  /** Get cumulative cost summary string. */
+  getCostSummary(): string {
+    return this.costTracker.getSummary();
+  }
+
+  /** Clean up handlers and save final state. */
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    process.removeListener("SIGINT", this.sigintHandler);
+    if (this.sessionPath) this.context.save(this.sessionPath);
+    console.error(`[kota] Done \u2014 ${this.costTracker.getSummary()}`);
+  }
+}
+
+/** Convenience wrapper: create a session, send one prompt, close. */
+export async function runAgentLoop(
+  prompt: string,
+  options: LoopOptions = {},
+): Promise<string> {
+  const session = new AgentSession(options);
+  try {
+    return await session.send(prompt);
+  } finally {
+    session.close();
+  }
 }
