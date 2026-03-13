@@ -336,6 +336,19 @@ When a tool call fails with a transient error, the tool runner automatically ret
 - **Transparent**: On success, appends "(Succeeded on auto-retry: reason)". On double failure, appends both error messages so the agent has full context.
 - **Scoped to main loop**: Retry only applies in the tool runner (main agent loop), not in delegate sub-agents where bounded execution is preferred.
 
+### Selective Message Pruning (`src/message-pruning.ts`)
+
+A pre-compaction step that extends the useful context window by trimming large read-only tool results from older messages. Runs before full compaction and at a lower threshold (50% vs 75%), reducing token usage without losing conversation structure.
+
+- **Read-only tools only**: Prunes results from `file_read`, `grep`, `glob`, `repo_map`, `web_fetch`, `web_search`, `delegate` — tools whose results are reproducible by re-running
+- **Never prunes**: Error results, write/edit results, shell output, or any result still within the recent message window
+- **Summary replacement**: Each pruned result is replaced with a compact summary that tells the agent what was there (e.g., `[Previously read: src/foo.ts — 150 lines. Re-read if needed.]`), so it knows it can re-run the tool if needed
+- **Threshold**: Activates when context budget exceeds 50%, only prunes messages older than the most recent 20
+- **Size filter**: Only prunes results larger than 1500 characters (small results aren't worth the disruption)
+- **Idempotent**: Pruned summaries are short enough that subsequent calls skip them
+- **Deterministic**: No LLM call needed — pure pattern matching and string replacement
+- **Two-phase context lifecycle**: Pruning runs first (50%), then full compaction (75%) if still needed. This gives the agent more usable turns before the more lossy LLM-based compaction kicks in
+
 ### Smart File Path Resolution (`src/path-resolver.ts`)
 
 When `file_read` or `file_edit` receives a path that doesn't exist, instead of returning a bare "file not found" error, KOTA searches the project for alternatives:
@@ -379,13 +392,15 @@ Addresses the #1 agent failure mode: making file changes without verifying they 
 ```
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
-  loop.ts             — AgentSession class + core agent loop (~300 lines)
+  loop.ts             — AgentSession class + core agent loop (~270 lines)
+  system-prompt.ts    — System prompt constant (~35 lines)
   tool-runner.ts      — Parallel tool execution + failure tracking (~115 lines)
   tool-retry.ts       — Automatic retry for transient tool failures (~90 lines)
+  message-pruning.ts  — Selective pruning of old tool results (~145 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
   compaction.ts       — Structured context compaction (~170 lines)
-  context.ts          — Conversation + budget tracking (~180 lines)
+  context.ts          — Conversation + budget tracking + pruning (~190 lines)
   confirm.ts          — Destructive command confirmation (~50 lines)
   cost.ts             — Per-turn cost tracking (~65 lines)
   diff.ts             — Diff display for file edits (~90 lines)
@@ -397,6 +412,7 @@ src/
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
   shell-diagnostics.ts — Smart error extraction from shell output (~165 lines)
   verify-tracker.ts   — Verification nudge system (~155 lines)
+  message-pruning.test.ts — Message pruning unit tests (~265 lines)
   shell-diagnostics.test.ts — Error extraction unit tests (~175 lines)
   path-resolver.test.ts — Path resolution + similarity unit tests (~80 lines)
   tool-runner.test.ts — FailureTracker unit tests (~95 lines)
@@ -425,7 +441,7 @@ src/
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~5400 lines across 44 files (including 10 test files with ~1310 lines).
+Total: ~5880 lines across 47 files (including 11 test files with ~1575 lines).
 
 ## What Makes KOTA Better
 
@@ -461,6 +477,7 @@ Total: ~5400 lines across 44 files (including 10 test files with ~1310 lines).
 30. **Verification nudge system**: Tracks which files have been edited but not verified via tests/builds. Detects available verification commands from project config (package.json, Makefile, Cargo.toml, pyproject.toml) and surfaces them in the dynamic system prompt. Escalating urgency: after 3 turns of edits without verification, a stronger nudge appears. Resets when the agent runs a verification command.
 31. **Shell error diagnostics**: When shell commands fail with long output (>8K chars), smart extraction finds the diagnostic-relevant lines instead of naive head+tail truncation. Detects TypeScript compiler errors, test runner failures (vitest/jest), lint errors (ESLint/Biome), and generic error patterns. The agent sees extracted errors + output tail, not a random slice of verbose logs.
 32. **Automatic tool retry**: Transient tool failures (shell timeouts, web network errors, HTTP 429/5xx) are automatically retried once with adjusted parameters — shell gets 2× the timeout, web tools get a 1.5s delay. Saves 1-2 turns per transient failure without agent involvement. Bounded to 1 retry, scoped to the main loop only.
+33. **Selective message pruning**: Two-phase context lifecycle extends the agent's effective working memory. At 50% context usage, large read-only tool results (file_read, grep, glob, web_fetch, etc.) from older messages are replaced with compact summaries — preserving conversation structure while recovering tokens. Full LLM-based compaction only triggers at 75%, giving the agent more useful turns before losing detailed context. Deterministic, no LLM call needed, idempotent.
 
 ## Dependencies
 

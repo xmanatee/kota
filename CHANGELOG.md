@@ -1,5 +1,108 @@
 # KOTA Changelog
 
+## Iteration 51 — Selective Message Pruning
+
+KOTA now has a two-phase context lifecycle: selective pruning at 50% context
+usage, then full LLM-based compaction at 75%. This extends the agent's
+effective working memory for complex tasks.
+
+### Why this improvement
+
+The existing compaction system is all-or-nothing. When context hits 75%, ALL
+old messages get summarized via an LLM call, losing detailed tool results
+forever. For complex tasks with many file reads, grep searches, and web
+lookups, this means the agent loses specific information it might need shortly
+after — forcing re-reads that waste turns and tokens.
+
+The gap: between "full context" and "compacted summary" there was no
+intermediate step. Now there is.
+
+### How it works
+
+When context budget exceeds 50%, the pruning pass scans messages older than
+the most recent 20 for large (>1500 char) read-only tool results:
+- `file_read`, `grep`, `glob`, `repo_map`, `web_fetch`, `web_search`,
+  `delegate`
+
+Each eligible result is replaced with a compact summary:
+```
+[Previously read: src/auth.ts — 150 lines. Re-read if needed.]
+[Previous grep for "handleLogin" — ~12 lines. Re-grep if needed.]
+[Previously fetched: https://docs.example.com. Re-fetch if needed.]
+```
+
+The agent knows what was there and can re-run the tool if needed. The
+conversation structure stays intact — tool_use/tool_result pairs remain
+valid. Only the content changes.
+
+What pruning does NOT touch:
+- Error results (diagnostic context is always preserved)
+- Write/edit results (the agent needs to know what it changed)
+- Shell output (builds, tests, commands — always preserved)
+- Recent messages (within the last 20)
+- Small results (<1500 chars — not worth the disruption)
+
+### Changes
+
+- **New: `src/message-pruning.ts`** (~145 lines):
+  - `buildToolCallMap()`: Correlates tool_result IDs to tool names by scanning
+    assistant messages for tool_use blocks
+  - `generateSummary()`: Per-tool compact summaries with relevant metadata
+    (path, pattern, URL, task)
+  - `pruneMessages()`: Main function — identifies eligible results, replaces
+    content, returns stats (count + chars saved)
+  - Configurable via options: `keepRecent` (default 20), `minLength`
+    (default 1500) for testability
+
+- **New: `src/message-pruning.test.ts`** (~265 lines, 20 tests):
+  - `buildToolCallMap`: extraction from assistant messages, skips user/string
+  - `generateSummary`: per-tool summaries (file_read, grep, glob, web_fetch,
+    web_search, delegate, repo_map), long pattern truncation
+  - `pruneMessages`: threshold behavior, file_read pruning, error preservation,
+    non-pruneable tool preservation, small result skip, recent message
+    protection, multi-result stats, idempotency, batched tool results,
+    mixed pruneable/non-pruneable in same message
+
+- **New: `src/system-prompt.ts`** (~35 lines):
+  - Extracted the `SYSTEM_PROMPT` constant from `loop.ts` to resolve the
+    3-iteration-old file size warning (was 299 lines, now 271)
+
+- **Modified: `src/context.ts`** (+13 lines):
+  - New `maybePrune()` method: checks budget > 50%, delegates to
+    `pruneMessages()`
+
+- **Modified: `src/loop.ts`** (-28 lines net):
+  - Calls `context.maybePrune()` before each turn's compaction check
+  - Logs pruning stats when results are pruned
+  - System prompt extracted to `system-prompt.ts` (271 lines, down from 299)
+
+### Verification
+
+- **Static**: `npm run typecheck && npm run build` — clean
+- **Unit**: 174 tests pass (154 existing + 20 new) across 11 test files
+- **Load**: `node dist/cli.js --help` — starts correctly
+- **Runtime**: No API key available in environment; CLI handles gracefully
+
+### What this means in practice
+
+Before: An agent working on a 30-file refactoring hits 75% context after ~25
+turns. Full compaction triggers, and the agent loses all file contents it read.
+It spends 3-5 turns re-reading files it needs.
+
+After: At 50%, pruning replaces old file_read/grep/glob results with one-line
+summaries. This recovers enough tokens to push compaction back by 5-10 turns.
+When compaction finally triggers, fewer details are lost because old results
+were already trimmed. The agent gets more useful working turns.
+
+### Next directions
+
+- Track pruning metrics (how many tokens saved, how much compaction was
+  delayed) to validate the improvement empirically
+- Consider priority-based pruning: prune web_fetch/web_search first (least
+  likely to be re-needed), then grep/glob, then file_read last
+- Adaptive threshold: lower the 50% trigger if the agent's task looks
+  long-running (many todos, many files to modify)
+
 ## Iteration 50 — Metrics Header Simplification
 
 17th consecutive successful autonomous build (iterations 17–49). Process is

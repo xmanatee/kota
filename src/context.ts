@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync } from "node:fs";
 import { getTodoState } from "./tools/index.js";
 import { compactMessages } from "./compaction.js";
+import { pruneMessages, type PruneStats } from "./message-pruning.js";
 
 type Message = Anthropic.MessageParam;
 
@@ -112,6 +113,17 @@ export class Context {
       this.lastInputTokens > TOKEN_COMPACTION_THRESHOLD ||
       this.messages.length > MESSAGE_COMPACTION_SAFETY
     );
+  }
+
+  /**
+   * Prune large read-only tool results from older messages when context budget
+   * exceeds 50%. This is lighter than full compaction — it preserves conversation
+   * structure and replaces content with compact summaries. Runs before compaction
+   * to delay or avoid the more lossy full summarization.
+   */
+  maybePrune(): PruneStats {
+    if (this.getBudgetPercent() < 0.5) return { prunedCount: 0, charsSaved: 0 };
+    return pruneMessages(this.messages);
   }
 
   /**
