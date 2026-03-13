@@ -62,7 +62,10 @@ Inspired by Claude Code's compaction strategy:
 - **Static prefix**: System prompt + tool definitions (cacheable, never changes)
 - **Dynamic suffix**: Conversation turns (grows with each interaction)
 - **Compaction trigger**: When token count exceeds 75% of context window
-- **Compaction method**: Summarize older turns into a single "context so far" message, keep recent turns intact
+- **Structured compaction** (`src/compaction.ts`): Two-phase approach preserves more context than naive summarization:
+  1. **Deterministic state extraction**: Scans old messages for file modifications, shell commands run, and errors — produces exact facts no LLM summary could reliably preserve
+  2. **Rich LLM narrative**: Builds detailed conversation representation (extracts text, tool call signatures, and result previews from structured blocks instead of showing "(structured content)"), then asks the LLM to summarize goals, decisions, progress, and gotchas
+  3. **Combined output**: The compacted context includes both the structured working state block and the narrative summary, so the agent knows exactly which files it modified and what commands it ran, plus the reasoning context
 - **Event-sourced**: Each turn is an immutable event; compaction creates a new "snapshot" event
 
 ### Token Budget Awareness
@@ -301,7 +304,8 @@ src/
   tool-runner.ts      — Parallel tool execution + failure tracking (~110 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
-  context.ts          — Conversation + compaction + budget tracking (~220 lines)
+  compaction.ts       — Structured context compaction (~170 lines)
+  context.ts          — Conversation + budget tracking (~180 lines)
   confirm.ts          — Destructive command confirmation (~50 lines)
   cost.ts             — Per-turn cost tracking (~65 lines)
   diff.ts             — Diff display for file edits (~90 lines)
@@ -327,11 +331,11 @@ src/
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
 ```
 
-Total: ~3160 lines across 28 files.
+Total: ~3290 lines across 29 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~3160 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~3290 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 13 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -354,6 +358,7 @@ Total: ~3160 lines across 28 files.
 21. **Session warmup**: At session start, KOTA auto-detects the project type (Node.js, Python, Rust, Go), reads git state (branch, dirty files, recent commits), and recalls relevant memories from previous sessions. The agent starts oriented from turn 1 instead of spending turns on discovery.
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
+24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
 
 ## Dependencies
 

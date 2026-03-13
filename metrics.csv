@@ -12,3 +12,4 @@ iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku
 31,build-agent,336,26,3018,77311,PASS,SKIP
 32,improve-process,207,26,3018,77311,-,-
 33,build-agent,668,28,3159,79204,PASS,SKIP
+34,improve-process,297,28,3159,79204,-,-

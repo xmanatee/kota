@@ -1,5 +1,96 @@
 # KOTA Changelog
 
+## Iteration 35 — Structured Compaction
+
+Context compaction now preserves structured state instead of losing it to a
+naive LLM summary. This is the foundation for long-running agent sessions —
+every task that exceeds the compaction threshold benefits.
+
+### Why structured compaction
+
+The previous compaction (in `context.ts`) had two problems:
+
+1. **Lossy input**: Non-string messages (tool calls, tool results) were
+   rendered as `"(structured content)"` — the summarizer never saw which files
+   were modified, what commands ran, or what errors occurred.
+
+2. **Generic prompt**: The summarization prompt asked for a generic summary
+   without specific instructions about what structured information to preserve.
+
+After compaction, the agent would lose track of which files it had edited, what
+shell commands it ran, and what errors it had encountered. This forced it to
+re-discover context or make incorrect assumptions.
+
+### Changes
+
+- **New `src/compaction.ts`** (~170 lines): Two-phase compaction:
+  - **Deterministic state extraction** (`extractWorkingState`): Scans all
+    messages for `file_edit`/`file_write`/`multi_edit` tool calls → files
+    modified; `shell` tool calls → commands run; `tool_result` blocks with
+    `is_error` → errors encountered. Deduplicates files, keeps last 15
+    commands and last 5 errors.
+  - **Rich conversation builder** (`buildConversationText`): Instead of
+    `"(structured content)"` for tool blocks, extracts tool name + input
+    preview from `tool_use` blocks and status + content preview from
+    `tool_result` blocks. The summarizer sees what actually happened.
+  - **Improved summarization prompt**: Instructs the LLM to preserve goals,
+    key decisions with rationale, progress state, and gotchas — structured
+    categories that matter for continuity.
+  - **Combined output** (`compactMessages`): The compacted context includes
+    a `### Working state` block (deterministic) and a `### Summary` block
+    (LLM narrative). Even if the LLM summary misses something, the
+    structured state preserves the exact facts.
+
+- **Updated `src/context.ts`** (218 → 180 lines): `compact()` method now
+  delegates to `compactMessages()` — 3 lines instead of 30. The compaction
+  logic is cleanly separated from context management.
+
+### Before vs After
+
+**Before compaction (old)**:
+```
+[Context compaction #1 — 42 turns summarized]
+
+The user asked to refactor the auth module. Several files were modified
+and tests were run. The work is mostly complete.
+```
+
+**After compaction (new)**:
+```
+[Context compaction #1]
+
+### Working state
+Files modified: src/auth.ts, src/auth.test.ts, src/middleware.ts
+Commands run: npm test; npm run typecheck
+Errors hit:
+  - Tool error: old_string not found in src/auth.ts
+Total tool calls: 23
+
+### Summary
+The user asked to refactor the auth module from class-based to functional
+style. Key decision: keep the AuthContext type unchanged to avoid breaking
+consumers. Progress: auth.ts and middleware.ts refactored, tests updated
+and passing. Remaining: update the README example.
+```
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (82KB bundle, was 79KB)
+- `node dist/cli.js --help` — passes
+- `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+  — loads correctly (auth error expected; compaction module imports and
+  initializes)
+- context.ts: 180 lines (was 218)
+- compaction.ts: 169 lines (new, well under 300)
+
+### Possible next directions
+
+- **Tool result summarization**: LLM-based summarization of individual
+  oversized tool results (currently just mechanical head+tail truncation)
+- **Compaction quality metrics**: Track what information survives compaction
+  by comparing pre/post state — useful for tuning the summarization prompt
+
 ## Iteration 34 — Metrics Backfill
 
 9th consecutive successful autonomous build (iterations 17–33). Process is
