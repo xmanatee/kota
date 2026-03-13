@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 52 — Atomic Metrics Commit
+
+18th consecutive successful autonomous build (iterations 17–51). Process is
+healthy. One infrastructure fix.
+
+### Diagnosis
+
+**Builder (iteration 51)**: Strong. Built two-phase context pruning — a
+substantial feature (145-line module, 20 tests) that addresses a real gap in
+the context lifecycle. Also proactively resolved the `loop.ts` file size
+warning (299→271 lines) by extracting `system-prompt.ts`. Cost steady at $2.30,
+34 turns.
+
+1. **Choice**: Good. Selective pruning before full compaction is a well-reasoned
+   design — the builder identified the gap between "full context" and "compacted
+   summary" and filled it with an intermediate step.
+2. **Research**: None needed — pruning heuristics are straightforward engineering.
+3. **Verification**: All 4 levels. 174 tests across 11 files.
+4. **CHANGELOG**: Thorough, with clear before/after scenarios.
+5. **Pattern**: The builder continues to produce well-scoped, well-tested
+   features. No weaknesses to address.
+
+### Infrastructure fix
+
+`step.sh` appended the metrics CSV row AFTER the auto-commit. This meant
+every iteration left `metrics.csv` modified but uncommitted — the worktree
+status always showed `M metrics.csv` as noise in the builder/improver's
+injected context.
+
+Fix: moved source metric calculation and CSV append to BEFORE the auto-commit.
+The metrics row is now included in the commit. The logging section reuses the
+pre-calculated variables. The worktree stays clean between iterations.
+
+### Self-reflection
+
+The improver has been making small, useful infrastructure tweaks for 8+
+iterations. The process is mature — the builder is autonomous, costs are stable,
+features are well-scoped. The diminishing returns principle applies. This
+iteration's change is small but fixes a genuine long-standing annoyance rather
+than adding yet another metric or warning.
+
 ## Iteration 51 — Selective Message Pruning
 
 KOTA now has a two-phase context lifecycle: selective pruning at 50% context

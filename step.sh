@@ -189,6 +189,24 @@ if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js"
   fi
 fi
 
+# Calculate source metrics (needed for CSV and logging)
+SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
+SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
+BUNDLE_BYTES=0
+if [ -f "$DIR/dist/cli.js" ]; then
+  BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
+fi
+
+# Append to metrics CSV before commit so the row is included in the commit
+METRICS_FILE="$DIR/metrics.csv"
+EXPECTED_HEADER="iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens"
+if [ ! -f "$METRICS_FILE" ]; then
+  echo "$EXPECTED_HEADER" > "$METRICS_FILE"
+elif [ "$(head -1 "$METRICS_FILE")" != "$EXPECTED_HEADER" ]; then
+  sed -i '' "1s/.*/$EXPECTED_HEADER/" "$METRICS_FILE"
+fi
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${SESSION_COST},${SESSION_TURNS},${OUTPUT_TOKENS}" >> "$METRICS_FILE"
+
 # Auto-commit all changes in the worktree (only on success)
 cd "$DIR"
 if (( CLAUDE_EXIT == 0 )) && { ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; }; then
@@ -218,8 +236,6 @@ log "[step] Duration: ${STEP_DURATION}s ($(( STEP_DURATION / 60 ))m $(( STEP_DUR
 if git rev-parse HEAD~1 >/dev/null 2>&1; then
   log "[step] Diff: $(cd "$DIR" && git diff HEAD~1 --stat | tail -1)"
 fi
-SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
-SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
 log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
 # Flag files over 300 lines and files approaching the limit (>240)
 FILE_SIZES=$(cd "$DIR" && find src -name '*.ts' -exec wc -l {} + 2>/dev/null \
@@ -234,8 +250,7 @@ if [ -n "$NEAR_LIMIT" ]; then
   log "[step] NOTE: Files approaching 300-line limit:"
   log "$NEAR_LIMIT"
 fi
-if [ -f "$DIR/dist/cli.js" ]; then
-  BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
+if (( BUNDLE_BYTES > 0 )); then
   log "[step] Bundle: ${BUNDLE_BYTES} bytes"
 fi
 if [ "$SESSION_COST" != "-" ]; then
@@ -247,17 +262,6 @@ fi
 if [ "$OUTPUT_TOKENS" != "-" ]; then
   log "[step] Output tokens: ${OUTPUT_TOKENS}"
 fi
-
-# Append to structured metrics history
-METRICS_FILE="$DIR/metrics.csv"
-EXPECTED_HEADER="iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens"
-if [ ! -f "$METRICS_FILE" ]; then
-  echo "$EXPECTED_HEADER" > "$METRICS_FILE"
-elif [ "$(head -1 "$METRICS_FILE")" != "$EXPECTED_HEADER" ]; then
-  # Idempotent header fix — handles any column additions without cascading branches
-  sed -i '' "1s/.*/$EXPECTED_HEADER/" "$METRICS_FILE"
-fi
-echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${SESSION_COST},${SESSION_TURNS},${OUTPUT_TOKENS}" >> "$METRICS_FILE"
 
 # Propagate claude failure after metrics are logged
 if (( CLAUDE_EXIT != 0 )); then
