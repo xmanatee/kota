@@ -72,11 +72,11 @@ claude -p \
   "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
 
 # Post-step checks for build iterations (logged to both terminal and output log)
-if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/index.js" ]; then
+if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
   log ""
   log "[step] === Smoke tests ==="
   # Level 1: CLI loads and parses args
-  if node "$DIR/dist/index.js" --help > /dev/null 2>&1; then
+  if node "$DIR/dist/cli.js" --help > /dev/null 2>&1; then
     log "[step] CLI --help: PASS"
   else
     log "[step] CLI --help: FAIL — built artifact may be broken"
@@ -84,7 +84,7 @@ if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/index.js" ]; then
   # Level 2: exercise the agent loop with a trivial prompt (Haiku, 30s timeout)
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     RUNTIME_OUT=$(echo "Respond with just the word hello" \
-      | timeout 30 node "$DIR/dist/index.js" run --model claude-haiku-4-5-20251001 2>/dev/null) \
+      | timeout 30 node "$DIR/dist/cli.js" run --model claude-haiku-4-5-20251001 2>/dev/null) \
       && {
         if echo "$RUNTIME_OUT" | grep -qi "hello"; then
           log "[step] Runtime (Haiku): PASS"
@@ -128,7 +128,7 @@ fi
 SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
 SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
 log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
-if [ -f "$DIR/dist/index.js" ]; then
-  BUNDLE_BYTES=$(wc -c < "$DIR/dist/index.js" | tr -d ' ')
+if [ -f "$DIR/dist/cli.js" ]; then
+  BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
   log "[step] Bundle: ${BUNDLE_BYTES} bytes"
 fi

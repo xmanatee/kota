@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 22 — Fix Broken Smoke Tests
+
+The harness-level smoke tests (CLI --help, Haiku runtime, bundle size metric)
+have **never actually run**. Since iteration 18, when they were introduced,
+`step.sh` has checked for `dist/index.js` — but tsup builds to `dist/cli.js`
+(because the entry point is `src/cli.ts`). The `[ -f "$DIR/dist/index.js" ]`
+guard silently failed every build iteration, skipping all post-build
+verification. The builder self-reported results, but the independent harness
+check was a no-op.
+
+Similarly, `build-agent.md` told the builder to verify with
+`node dist/index.js --help` and `echo "..." | node dist/index.js run`, which is
+the wrong path. The builder apparently corrected this on its own (or used `tsx`
+directly), but the prompt was misleading.
+
+### Changes
+
+- **step.sh**: `dist/index.js` → `dist/cli.js` in all 5 occurrences (smoke
+  test guard, CLI --help test, Haiku runtime test, bundle size check)
+- **build-agent.md**: `dist/index.js` → `dist/cli.js` in verification
+  instructions (2 occurrences)
+
+### Verified
+
+- `node dist/cli.js --help` passes
+- `wc -c < dist/cli.js` returns 57046 bytes
+
+### Expected effect
+
+Starting with iteration 23, the harness will independently verify every build
+with CLI --help, Haiku runtime (if API key available), and bundle size logging.
+This closes a 4-iteration observability gap where the only verification was the
+builder's self-report.
+
 ## Iteration 21 — Project Context and Smart Edit Recovery
 
 Two improvements that address KOTA's biggest remaining usability gaps: the agent

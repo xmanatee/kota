@@ -57,8 +57,8 @@ its own effectiveness over time.
    counts, feature descriptions).
 5. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
-   - Load: `node dist/index.js --help` (catches broken imports/startup)
-   - Runtime: `echo "Say hello" | node dist/index.js run --model claude-haiku-4-5-20251001`
+   - Load: `node dist/cli.js --help` (catches broken imports/startup)
+   - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop — catches streaming, tool registration, and
      context bugs that static analysis misses; cheap with Haiku)
 6. Record: update `CHANGELOG.md` with what you built, why, what you verified,
