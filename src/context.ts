@@ -10,7 +10,8 @@ type SessionData = {
   lastInputTokens: number;
 };
 
-const TOKEN_COMPACTION_THRESHOLD = 150_000; // 75% of 200K context window
+export const CONTEXT_WINDOW = 200_000;
+const TOKEN_COMPACTION_THRESHOLD = 150_000; // 75% of context window
 const MESSAGE_COMPACTION_SAFETY = 100; // Safety net for message count
 
 export class Context {
@@ -34,6 +35,38 @@ export class Context {
   getSystemPrompt(): string {
     const todoState = getTodoState();
     return this.systemPrompt + todoState;
+  }
+
+  /** Base system prompt without dynamic state — cacheable across turns. */
+  getStaticPrompt(): string {
+    return this.systemPrompt;
+  }
+
+  /** Dynamic state (todos + budget) — changes per turn, not cached. */
+  getDynamicState(): string {
+    const todoState = getTodoState();
+    const pct = this.getBudgetPercent();
+    if (pct <= 0.5) return todoState;
+    const usedK = Math.round(this.lastInputTokens / 1000);
+    const maxK = Math.round(CONTEXT_WINDOW / 1000);
+    const pctStr = Math.round(pct * 100);
+    const severity = pct > 0.75
+      ? "CRITICAL: finish current task, avoid large reads"
+      : "be concise, use targeted file reads with offset/limit";
+    return todoState + `\n\n[Context budget: ${pctStr}% used (${usedK}K/${maxK}K tokens) — ${severity}]`;
+  }
+
+  getBudgetPercent(): number {
+    if (this.lastInputTokens === 0) return 0;
+    return this.lastInputTokens / CONTEXT_WINDOW;
+  }
+
+  /** Max chars for a single tool result based on remaining budget. */
+  getToolResultLimit(): number {
+    const pct = this.getBudgetPercent();
+    if (pct > 0.75) return 5_000;
+    if (pct > 0.50) return 15_000;
+    return 50_000;
   }
 
   getMessages(): Message[] {
@@ -169,4 +202,17 @@ export class Context {
     ctx.lastInputTokens = data.lastInputTokens;
     return ctx;
   }
+}
+
+/** Truncate a tool result when context budget is tight. Keeps head + tail with notice. */
+export function truncateToolResult(content: string, limit: number): string {
+  if (content.length <= limit) return content;
+  const keepStart = Math.floor(limit * 0.6);
+  const keepEnd = Math.floor(limit * 0.3);
+  const omitted = content.length - keepStart - keepEnd;
+  return (
+    content.slice(0, keepStart) +
+    `\n\n[... ${omitted} chars omitted — context budget tight, re-read with offset/limit for specific sections ...]\n\n` +
+    content.slice(-keepEnd)
+  );
 }

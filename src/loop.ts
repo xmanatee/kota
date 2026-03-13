@@ -1,11 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { allTools, executeTool } from "./tools/index.js";
-import { Context } from "./context.js";
+import { Context, CONTEXT_WINDOW, truncateToolResult } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { setDelegateModel } from "./tools/delegate.js";
 import { loadProjectContext } from "./project-context.js";
+import { streamMessage } from "./streaming.js";
 
 const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with software engineering, research, analysis, and problem-solving.
 
@@ -40,7 +41,6 @@ const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with softw
 
 const MAX_ITERATIONS = 200;
 const CIRCUIT_BREAKER_THRESHOLD = 3;
-const STREAM_MAX_RETRIES = 3;
 
 export type LoopOptions = {
   model?: string;
@@ -52,19 +52,6 @@ export type LoopOptions = {
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
 };
-
-/** Build system prompt as cacheable content blocks */
-function systemBlocks(text: string): Anthropic.Messages.TextBlockParam[] {
-  return [
-    { type: "text", text, cache_control: { type: "ephemeral" } },
-  ];
-}
-
-/** Sleep with jittered exponential backoff for retries */
-function backoff(attempt: number): Promise<void> {
-  const delay = Math.min(1000 * 2 ** attempt, 10_000) + Math.random() * 1000;
-  return new Promise((r) => setTimeout(r, delay));
-}
 
 /**
  * Persistent agent session that maintains context across multiple prompts.
@@ -177,8 +164,27 @@ export class AgentSession {
         );
       }
 
+      // Build system blocks: static prompt (cached) + dynamic state (uncached)
+      const system: Anthropic.Messages.TextBlockParam[] = [
+        { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
+      ];
+      const dynamicState = this.context.getDynamicState();
+      if (dynamicState) {
+        system.push({ type: "text", text: dynamicState });
+      }
+
       // Stream the response with retry for mid-stream failures
-      const { response, streamedText } = await this.streamWithRetry();
+      const { response, streamedText } = await streamMessage({
+        client: this.client,
+        model: this.model,
+        maxTokens: this.effectiveMaxTokens,
+        system,
+        messages: this.context.getMessages(),
+        tools: allTools,
+        thinkingConfig: this.thinkingConfig,
+        verbose: this.verbose,
+      });
+
       if (streamedText) {
         process.stdout.write("\n");
         lastResult = streamedText;
@@ -187,12 +193,15 @@ export class AgentSession {
       // Track token usage for compaction decisions and cost
       this.context.setInputTokens(response.usage.input_tokens);
       this.costTracker.addUsage(this.model, response.usage);
-      console.error(`[kota] Turn ${i + 1} \u2014 ${this.costTracker.getSummary()}`);
+      const budgetPct = Math.round(this.context.getBudgetPercent() * 100);
+      console.error(
+        `[kota] Turn ${i + 1} \u2014 ${this.costTracker.getSummary()} \u2014 context: ${budgetPct}%`,
+      );
 
       if (this.verbose) {
         const u = response.usage;
         console.error(
-          `[kota] Tokens: input=${u.input_tokens}/150000` +
+          `[kota] Tokens: input=${u.input_tokens}/${CONTEXT_WINDOW}` +
           (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
           (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
         );
@@ -220,9 +229,14 @@ export class AgentSession {
         }),
       );
 
-      const validResults = results.filter(
-        (r): r is NonNullable<typeof r> => r !== null,
-      );
+      // Truncate large tool results based on remaining context budget
+      const resultLimit = this.context.getToolResultLimit();
+      const validResults = results
+        .filter((r): r is NonNullable<typeof r> => r !== null)
+        .map((r) => ({
+          ...r,
+          content: truncateToolResult(r.content, resultLimit),
+        }));
       this.context.addToolResults(validResults);
 
       if (this.sessionPath) this.context.save(this.sessionPath);
@@ -254,73 +268,6 @@ export class AgentSession {
 
     if (this.sessionPath) this.context.save(this.sessionPath);
     return lastResult;
-  }
-
-  /** Check if an error is worth retrying (transient) vs permanent. */
-  private isRetryable(err: unknown): boolean {
-    const msg = err instanceof Error ? err.message : String(err);
-    // Auth/config errors are permanent
-    if (msg.includes("authentication") || msg.includes("apiKey") || msg.includes("authToken")) {
-      return false;
-    }
-    // 4xx client errors (except 429 rate limit) are permanent
-    const status = (err as { status?: number }).status;
-    if (typeof status === "number" && status >= 400 && status < 500 && status !== 429) {
-      return false;
-    }
-    return true;
-  }
-
-  /** Stream an API call with retry for mid-stream failures. */
-  private async streamWithRetry(): Promise<{
-    response: Anthropic.Message;
-    streamedText: string;
-  }> {
-    for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
-      try {
-        let streamedText = "";
-        const stream = this.client.messages.stream({
-          model: this.model,
-          max_tokens: this.effectiveMaxTokens,
-          system: systemBlocks(this.context.getSystemPrompt()),
-          tools: allTools,
-          messages: this.context.getMessages(),
-          ...(this.thinkingConfig && { thinking: this.thinkingConfig }),
-        });
-
-        if (this.thinkingConfig) {
-          let thinkingStarted = false;
-          stream.on("thinking", (delta) => {
-            if (!thinkingStarted) {
-              thinkingStarted = true;
-              if (this.verbose) {
-                process.stderr.write("[thinking] ");
-              } else {
-                process.stderr.write("[kota] Thinking...\n");
-              }
-            }
-            if (this.verbose) process.stderr.write(delta);
-          });
-        }
-
-        stream.on("text", (text) => {
-          process.stdout.write(text);
-          streamedText += text;
-        });
-
-        const response = await stream.finalMessage();
-        return { response, streamedText };
-      } catch (err) {
-        if (attempt === STREAM_MAX_RETRIES || !this.isRetryable(err)) throw err;
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `\n[kota] Stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg}`,
-        );
-        await backoff(attempt);
-        console.error("[kota] Retrying...");
-      }
-    }
-    throw new Error("unreachable");
   }
 
   /** Get cumulative cost summary string. */

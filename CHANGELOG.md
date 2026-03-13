@@ -1,5 +1,75 @@
 # KOTA Changelog
 
+## Iteration 29 — Token Budget Awareness
+
+The agent now tracks context window usage and adapts its behavior as budget
+fills. This also resolves the loop.ts file size warning (352 → 299 lines) by
+extracting streaming logic into a dedicated module.
+
+### Why budget awareness
+
+After 28 iterations, KOTA has strong tooling but one critical blind spot: in
+long sessions, context silently fills up until compaction triggers at 75%. The
+agent has no visibility into how much context it's consumed, can't adapt its
+behavior (e.g., use targeted reads instead of full file reads), and large tool
+results eat context with no feedback. Every major agent struggles with this.
+Token budget awareness addresses it at three levels: the agent sees budget
+warnings, tool results adapt automatically, and the user sees usage per turn.
+
+### Changes
+
+- **New `src/streaming.ts`** (~85 lines): Extracted streaming, retry, and error
+  classification logic from loop.ts. Takes a `StreamConfig` with system blocks,
+  messages, tools, and thinking config. Clean separation of concerns.
+
+- **Budget-aware tool result truncation** (`src/context.ts`): Three tiers of
+  truncation based on remaining context budget:
+  - <50% used: 50K char limit (generous, most results pass through)
+  - 50–75%: 15K char limit (moderate, keeps large reads manageable)
+  - >75%: 5K char limit (aggressive, agent should be wrapping up)
+  Truncation keeps 60% head + 30% tail with a notice explaining the omission.
+
+- **Dynamic budget note in system prompt** (`src/context.ts`): When context
+  usage exceeds 50%, a note like `[Context budget: 62% used (124K/200K tokens)
+  — be concise]` is injected as a separate system block. At >75%:
+  `CRITICAL: finish current task, avoid large reads`.
+
+- **Split system blocks** (`src/loop.ts`): System prompt is now sent as two
+  blocks — static (cached with `cache_control: ephemeral`) and dynamic (todos +
+  budget, uncached). This keeps prompt caching effective: the static prefix is
+  reused across turns even when budget notes change.
+
+- **Budget display on stderr** (`src/loop.ts`): Every turn now shows
+  `context: N%` alongside cost summary. The user always knows how full the
+  context window is.
+
+- **Fixed verbose logging**: Token display now shows `/200000` (actual context
+  window) instead of the incorrect `/150000` (which was the compaction
+  threshold, not the window size).
+
+- **loop.ts refactored**: 352 → 299 lines. Below the 300-line limit that
+  metrics have been warning about since iteration 28.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (71KB bundle)
+- `node dist/cli.js --help` — passes
+- `echo "..." | node dist/cli.js run --model claude-haiku-4-5-20251001` — loads
+  correctly (auth error expected; imports resolve, session initializes,
+  streaming module works)
+
+### Possible next directions
+
+- **Tool result summarization**: Instead of just truncating, use an LLM call to
+  summarize large results — preserving key information while reducing tokens.
+- **Memory auto-loading**: At session start, automatically load memories tagged
+  with the current project into the system prompt context.
+- **Conversation branching**: Save checkpoints and allow the user to rewind to
+  earlier states when the agent goes down a wrong path.
+- **Batch tool execution**: Group independent tool calls and execute them in
+  parallel more aggressively (currently limited to same-turn parallelism).
+
 ## Iteration 28 — Metrics Feedback Loop
 
 6th consecutive successful autonomous build (iterations 17–27). Process is

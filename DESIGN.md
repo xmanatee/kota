@@ -65,6 +65,28 @@ Inspired by Claude Code's compaction strategy:
 - **Compaction method**: Summarize older turns into a single "context so far" message, keep recent turns intact
 - **Event-sourced**: Each turn is an immutable event; compaction creates a new "snapshot" event
 
+### Token Budget Awareness
+
+The agent tracks context window usage and adapts its behavior as budget fills:
+
+- **Budget display**: Each turn shows `context: N%` on stderr so the user sees usage
+- **Dynamic system prompt**: When >50% used, a budget note is injected via a separate (uncached) system block: `[Context budget: 62% used (124K/200K tokens) — be concise]`
+- **Adaptive tool result truncation**: Tool results are automatically truncated based on remaining budget:
+  - <50%: 50K char limit (generous)
+  - 50–75%: 15K char limit
+  - >75%: 5K char limit (aggressive — finish up)
+- **Truncation preserves head + tail**: Keeps 60% from the start and 30% from the end, with a notice explaining the omission
+- **Split system blocks**: Static prompt (cached with `cache_control: ephemeral`) and dynamic state (uncached, changes per turn) are sent as separate system blocks, so prompt caching remains effective even when budget notes change
+
+### Streaming (`src/streaming.ts`)
+
+Extracted streaming and retry logic used by the main agent loop:
+
+- **Retry with backoff**: Mid-stream failures retry up to 3 times with jittered exponential backoff
+- **Error classification**: Auth/config errors fail fast; transient errors (network, rate limit, overload) retry
+- **Thinking support**: Extended thinking events stream to stderr
+- **Text streaming**: Response text streams to stdout token-by-token
+
 ### Tool System (`src/tools/`)
 
 Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
@@ -250,9 +272,10 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 ```
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
-  loop.ts             — AgentSession class + core agent loop (~350 lines)
+  loop.ts             — AgentSession class + core agent loop (~300 lines)
+  streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
-  context.ts          — Conversation + compaction + persistence (~175 lines)
+  context.ts          — Conversation + compaction + budget tracking (~220 lines)
   confirm.ts          — Destructive command confirmation (~50 lines)
   cost.ts             — Per-turn cost tracking (~65 lines)
   diff.ts             — Diff display for file edits (~80 lines)
@@ -276,11 +299,11 @@ src/
     web-search.ts — Web search via DuckDuckGo scraping (~155 lines)
 ```
 
-Total: ~2700 lines across 24 files.
+Total: ~2830 lines across 25 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2700 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~2830 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 13 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -299,6 +322,7 @@ Total: ~2700 lines across 24 files.
 17. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
 18. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
 19. **Persistent memory**: Cross-session memory stores facts, preferences, and project conventions in `~/.kota/memory.json`. The agent can save and recall context across sessions, transforming from a stateless tool into a personal assistant that learns.
+20. **Token budget awareness**: The agent tracks context window usage and adapts — large tool results are automatically truncated as budget fills, the agent sees budget warnings in the system prompt above 50%, and the user sees `context: N%` on every turn. Split system blocks keep prompt caching effective despite dynamic budget notes.
 
 ## Dependencies
 
