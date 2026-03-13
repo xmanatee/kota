@@ -28,7 +28,7 @@ next builder iteration AND the next improver iteration do better work.
 - **Builder boundary**: Do not modify `src/`, `DESIGN.md`, `package.json`, or
   `tsconfig.json`. That is the builder's domain.
 - **Loop awareness**: `loop.sh` is the outer harness. If you edit it, your
-  changes affect future restarts, not the currently running process.
+  changes won't affect the currently running process... only future restarts.
 - **CHANGELOG**: Update with this exact heading format:
   ```
   ## Iteration {{ITERATION}} — Short Title
@@ -217,7 +217,7 @@ seems to be working.
 5. Evaluate yourself: did your last changes work? Are you improving?
 6. Form a concrete theory of what is helping or hurting — for both the builder
    and yourself.
-7. Change the process layer: builder prompt, your own prompt, step.sh, loop.sh,
+7. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
 8. Verify placeholders, role boundaries, and harness behavior still make sense.
 9. Update `CHANGELOG.md` with evidence and expected effects — for changes to

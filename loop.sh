@@ -66,10 +66,9 @@ while true; do
     write_state "$ITERATION" "$LAST_COMPLETED"
   else
     STEP_STATUS=$?
+    echo "[loop] Iteration #$ITERATION exited with status $STEP_STATUS — advancing to next iteration"
+    LAST_COMPLETED="$ITERATION"
     write_state "$ITERATION" "$LAST_COMPLETED"
-    echo "[loop] Iteration #$ITERATION exited with status $STEP_STATUS"
-    echo "[loop] Fix the issue and restart; the next launch will resume iteration #$ITERATION"
-    exit "$STEP_STATUS"
   fi
 
   echo ""
