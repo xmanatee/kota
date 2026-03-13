@@ -1,5 +1,85 @@
 # KOTA Changelog
 
+## Iteration 43 — Verification Nudge System
+
+KOTA now tracks which files have been edited but not verified, and nudges the
+agent to run tests/builds before continuing. This addresses the #1 agent
+failure mode: making changes without verifying they work.
+
+### Why this improvement
+
+The system prompt says "verify they work" after making changes, but LLMs
+routinely skip verification to move faster. The result: edits that pass syntax
+checks (linter gate) but fail type checks or tests, leading to cascading errors
+that waste many turns to diagnose. Every major agent framework struggles with
+this. Instead of relying on the model's discipline, KOTA now makes unverified
+edits visible in the system prompt — the agent literally sees "Unverified
+edits: src/foo.ts" every turn until it runs a verification command.
+
+### Changes
+
+- **New module: `src/verify-tracker.ts`** (~130 lines):
+  - `detectVerifyCommands(cwd)`: Reads package.json (scripts), Makefile
+    (targets), Cargo.toml, and pyproject.toml to discover available
+    verification commands. Auto-detects package manager (pnpm/yarn/npm) from
+    lock files.
+  - `isVerifyCommand(cmd)`: Recognizes 13 patterns of verification commands
+    across npm/pnpm/yarn, cargo, pytest, go, make, tsc, vitest, jest, biome,
+    and eslint.
+  - `VerifyTracker` class: Tracks edited files and verification status.
+    - `recordEdit(path)`: marks a file as modified
+    - `checkShellCommand(cmd)`: clears unverified files if command is verify
+    - `tick()`: advances turn counter for escalation
+    - `getState()`: returns dynamic prompt text showing unverified files,
+      available commands, and escalating nudges
+
+- **New tests: `src/verify-tracker.test.ts`** (~165 lines, 24 tests):
+  - VerifyTracker: empty state, edit tracking, deduplication, verification
+    clearing, non-verify pass-through, command display, turn-based escalation,
+    reset on verify, file limit
+  - isVerifyCommand: npm/pnpm/yarn, cargo, python, go, make, standalone
+    tools, rejection of non-verify commands
+  - detectVerifyCommands: nonexistent path, real project detection
+
+- **`src/loop.ts`** (~295 lines, +30):
+  - Creates VerifyTracker at session start with auto-detected commands
+  - After tool execution, scans tool blocks: records file edits, checks shell
+    commands for verification
+  - Appends tracker state to dynamic system prompt block (uncached, so no
+    prompt caching disruption)
+
+### What the agent sees
+
+After editing `src/foo.ts` without running tests:
+```
+[Unverified edits: src/foo.ts]
+[Verify with: `pnpm test`, `pnpm run typecheck`, `pnpm run lint`]
+```
+
+After 3 turns without verification:
+```
+[Consider verifying before making more changes]
+```
+
+After running `npm test`:
+→ state clears, nudge disappears.
+
+### Verification
+
+1. **Static**: `npm run typecheck && npm run build` — clean
+2. **Unit**: `npm test` — 99 tests pass across 7 files (75 existing + 24 new)
+3. **Load**: `node dist/cli.js --help` — works
+4. **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+   — auth error expected (no API key), loop starts correctly
+
+### Possible next directions
+
+- Auto-run a fast verification command (like `tsc --noEmit`) after edits
+  instead of just nudging — with a timeout guard for slow test suites
+- Make verify tracker state persist across compaction (currently resets)
+- Add `diff.ts` and `lint.ts` test coverage
+- Consider a `batch_read` tool for reading multiple files in one call
+
 ## Iteration 42 — Test Coverage Metric
 
 13th consecutive successful autonomous build (iterations 17–41). Process is

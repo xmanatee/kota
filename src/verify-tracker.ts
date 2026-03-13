@@ -1,0 +1,155 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+export type VerifyCommand = {
+  label: string;
+  command: string;
+};
+
+/** Detect available verification commands from project config files. */
+export function detectVerifyCommands(cwd?: string): VerifyCommand[] {
+  const dir = cwd || process.cwd();
+  const commands: VerifyCommand[] = [];
+
+  const pkgPath = join(dir, "package.json");
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+      const scripts = pkg.scripts || {};
+
+      // Detect package manager from lock file
+      const pm = existsSync(join(dir, "pnpm-lock.yaml"))
+        ? "pnpm"
+        : existsSync(join(dir, "yarn.lock"))
+          ? "yarn"
+          : "npm";
+
+      const targets: Array<[string, string]> = [
+        ["test", "test"],
+        ["typecheck", "run typecheck"],
+        ["type-check", "run type-check"],
+        ["lint", "run lint"],
+        ["check", "run check"],
+        ["build", "run build"],
+      ];
+
+      for (const [script, suffix] of targets) {
+        if (scripts[script]) {
+          commands.push({ label: script, command: `${pm} ${suffix}` });
+        }
+      }
+    } catch {
+      /* ignore malformed package.json */
+    }
+  }
+
+  if (existsSync(join(dir, "Makefile"))) {
+    try {
+      const content = readFileSync(join(dir, "Makefile"), "utf-8");
+      for (const target of ["test", "lint", "check", "build"]) {
+        if (new RegExp(`^${target}\\s*:`, "m").test(content)) {
+          commands.push({ label: target, command: `make ${target}` });
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (existsSync(join(dir, "Cargo.toml"))) {
+    commands.push(
+      { label: "check", command: "cargo check" },
+      { label: "test", command: "cargo test" },
+    );
+  }
+
+  if (existsSync(join(dir, "pyproject.toml"))) {
+    commands.push({ label: "test", command: "pytest" });
+  }
+
+  return commands;
+}
+
+const VERIFY_PATTERNS = [
+  /\bnpm (run )?(test|lint|build|typecheck|type-check|check)\b/,
+  /\bpnpm (run )?(test|lint|build|typecheck|type-check|check)\b/,
+  /\byarn (run )?(test|lint|build|typecheck|type-check|check)\b/,
+  /\bcargo (test|check|clippy|build)\b/,
+  /\bpytest\b/,
+  /\bpython -m pytest\b/,
+  /\bgo (test|vet|build)\b/,
+  /\bmake (test|lint|check|build)\b/,
+  /\btsc\b/,
+  /\bvitest\b/,
+  /\bjest\b/,
+  /\bbiome (check|lint)\b/,
+  /\beslint\b/,
+];
+
+/** Check if a shell command is a verification command. */
+export function isVerifyCommand(command: string): boolean {
+  return VERIFY_PATTERNS.some((p) => p.test(command));
+}
+
+/**
+ * Tracks file modifications and verification status during a session.
+ * Injects nudges into the dynamic system prompt when edits accumulate
+ * without verification — preventing the #1 agent failure mode.
+ */
+export class VerifyTracker {
+  private editedFiles = new Set<string>();
+  private turnsSinceLastVerify = 0;
+  private commands: VerifyCommand[];
+
+  constructor(commands: VerifyCommand[] = []) {
+    this.commands = commands;
+  }
+
+  /** Record that a file was modified by an edit/write tool. */
+  recordEdit(path: string): void {
+    if (path) this.editedFiles.add(path);
+  }
+
+  /** Check if a shell command is verification. If so, clear unverified edits. */
+  checkShellCommand(command: string): void {
+    if (isVerifyCommand(command)) {
+      this.editedFiles.clear();
+      this.turnsSinceLastVerify = 0;
+    }
+  }
+
+  /** Advance the turn counter. Call once per agent loop iteration. */
+  tick(): void {
+    if (this.editedFiles.size > 0) {
+      this.turnsSinceLastVerify++;
+    }
+  }
+
+  /** Dynamic state string for injection into system prompt. Empty if nothing to report. */
+  getState(): string {
+    if (this.editedFiles.size === 0) return "";
+
+    const files = [...this.editedFiles].slice(-10);
+    const parts: string[] = [];
+    parts.push(`[Unverified edits: ${files.join(", ")}]`);
+
+    if (this.commands.length > 0) {
+      const cmds = this.commands
+        .slice(0, 3)
+        .map((c) => `\`${c.command}\``)
+        .join(", ");
+      parts.push(`[Verify with: ${cmds}]`);
+    }
+
+    if (this.turnsSinceLastVerify >= 3) {
+      parts.push("[Consider verifying before making more changes]");
+    }
+
+    return "\n\n" + parts.join("\n");
+  }
+
+  /** Number of files edited but not yet verified. */
+  getUnverifiedCount(): number {
+    return this.editedFiles.size;
+  }
+}

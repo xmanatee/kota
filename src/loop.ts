@@ -9,6 +9,7 @@ import { loadProjectContext } from "./project-context.js";
 import { streamMessage } from "./streaming.js";
 import { buildSessionWarmup } from "./init.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
+import { VerifyTracker, detectVerifyCommands } from "./verify-tracker.js";
 
 const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with software engineering, research, analysis, and problem-solving.
 
@@ -71,6 +72,7 @@ export class AgentSession {
   private architectMode: boolean;
   private sessionPath?: string;
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  private verifyTracker: VerifyTracker;
   private sigintHandler: () => void;
   private closed = false;
 
@@ -112,6 +114,8 @@ export class AgentSession {
     } else {
       this.context = new Context(systemPrompt);
     }
+
+    this.verifyTracker = new VerifyTracker(detectVerifyCommands());
 
     setDelegateModel(this.editorModel);
 
@@ -173,7 +177,7 @@ export class AgentSession {
       const system: Anthropic.Messages.TextBlockParam[] = [
         { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
       ];
-      const dynamicState = this.context.getDynamicState();
+      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState();
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }
@@ -223,6 +227,28 @@ export class AgentSession {
       const resultLimit = this.context.getToolResultLimit();
       const validResults = await executeToolCalls(toolBlocks, resultLimit, this.verbose);
       this.context.addToolResults(validResults);
+
+      // Track edits and verifications for nudge system
+      for (const block of toolBlocks) {
+        const result = validResults.find((r) => r.tool_use_id === block.id);
+        const input = block.input as Record<string, unknown>;
+        if (result && !result.is_error) {
+          if (block.name === "file_edit" || block.name === "file_write") {
+            this.verifyTracker.recordEdit((input.path as string) || "");
+          } else if (block.name === "multi_edit") {
+            const edits = input.edits as Array<{ file_path?: string }> | undefined;
+            if (edits) {
+              for (const e of edits) {
+                if (e.file_path) this.verifyTracker.recordEdit(e.file_path);
+              }
+            }
+          }
+        }
+        if (block.name === "shell") {
+          this.verifyTracker.checkShellCommand((input.command as string) || "");
+        }
+      }
+      this.verifyTracker.tick();
 
       if (this.sessionPath) this.context.save(this.sessionPath);
 

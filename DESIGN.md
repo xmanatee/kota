@@ -323,12 +323,24 @@ Detects when files change between a `file_read` and a subsequent `file_edit`, pr
 - **Warning injection**: On stale detection, prepends a warning to the tool result suggesting the agent re-read the file
 - **Self-updating**: Records new mtime after every read, edit, or write — avoids false positives from the agent's own modifications
 
+### Verification Nudge System (`src/verify-tracker.ts`)
+
+Addresses the #1 agent failure mode: making file changes without verifying they work. The system detects unverified edits and nudges the agent to run tests/builds.
+
+- **Project-aware command detection**: Reads `package.json` scripts, `Makefile` targets, `Cargo.toml`, and `pyproject.toml` to discover available verification commands (`test`, `typecheck`, `lint`, `build`)
+- **Package manager detection**: Automatically uses `pnpm`, `yarn`, or `npm` based on which lock file exists
+- **Edit tracking**: Records every successful `file_edit`, `file_write`, and `multi_edit` operation
+- **Verification detection**: Recognizes shell commands that are verification (test, lint, build, typecheck, tsc, vitest, jest, pytest, cargo check, go test, etc.) and clears the unverified list
+- **Dynamic system prompt injection**: Unverified files and available commands are shown in the dynamic (uncached) system prompt block, so the agent sees them every turn
+- **Escalating urgency**: After 3 turns of edits without verification, a stronger nudge appears: "Consider verifying before making more changes"
+- **Zero overhead when clean**: When no files are pending verification, the tracker adds nothing to the system prompt
+
 ## File Structure
 
 ```
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
-  loop.ts             — AgentSession class + core agent loop (~265 lines)
+  loop.ts             — AgentSession class + core agent loop (~295 lines)
   tool-runner.ts      — Parallel tool execution + failure tracking (~110 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
@@ -343,11 +355,13 @@ src/
   memory.ts           — Persistent memory store (~110 lines)
   path-resolver.ts    — Smart file path suggestions on not-found (~100 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
+  verify-tracker.ts   — Verification nudge system (~155 lines)
   path-resolver.test.ts — Path resolution + similarity unit tests (~80 lines)
   tool-runner.test.ts — FailureTracker unit tests (~95 lines)
   compaction.test.ts  — extractWorkingState unit tests (~130 lines)
   cost.test.ts        — CostTracker unit tests (~120 lines)
   memory.test.ts      — MemoryStore unit tests (~100 lines)
+  verify-tracker.test.ts — VerifyTracker + command detection unit tests (~205 lines)
   tools/
     index.ts      — Tool registry + executor (~70 lines)
     shell.ts      — Async shell with streaming output (~130 lines)
@@ -367,11 +381,11 @@ src/
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~4170 lines across 37 files (including 6 test files with ~585 lines).
+Total: ~4560 lines across 39 files (including 7 test files with ~860 lines).
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~4170 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~4560 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 14 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -395,11 +409,12 @@ Total: ~4170 lines across 37 files (including 6 test files with ~585 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 75 tests across 6 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, and interactive tool behavior.
+25. **Unit test suite**: 99 tests across 7 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, and verification nudge logic.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
 29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation.
+30. **Verification nudge system**: Tracks which files have been edited but not verified via tests/builds. Detects available verification commands from project config (package.json, Makefile, Cargo.toml, pyproject.toml) and surfaces them in the dynamic system prompt. Escalating urgency: after 3 turns of edits without verification, a stronger nudge appears. Resets when the agent runs a verification command.
 
 ## Dependencies
 
