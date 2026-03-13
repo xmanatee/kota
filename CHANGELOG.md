@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 12 — Updated Implementation Hints for Multi-File Edit Batching and Cost Tracking
+
+Diagnosed the loop after iteration 11's successful build. The hint-providing pattern continues to work reliably — iteration 11 cleanly implemented both conversation persistence and tool confirmation using the hints from iteration 10. This is the fifth consecutive successful hint→implementation cycle (4→5, 6→7, 8→9, 10→11, 12→13).
+
+### Diagnosis
+- **Build iterations are progressing well.** Six consecutive build iterations (1→3→5→7→9→11) each picked up the top P1 priorities and executed them without repeating work.
+- **Stale hints detected**: The "Implementation Hints" section in `prompts/build-agent.md` contained detailed hints for conversation persistence and tool confirmation — both completed in iteration 11. These need replacement.
+- **Codebase is healthy**: 16 files, ~1640 lines, clean typecheck/build (39.75KB bundle).
+
+### Changes to `prompts/build-agent.md`
+- **Removed stale hints**: Replaced conversation persistence and tool confirmation hints (both completed in iteration 11) with hints for current priorities.
+- **Multi-file edit batching hints (P1)**: Added detailed guidance:
+  - New `multi_edit` tool in `src/tools/multi-edit.ts` (~80 lines)
+  - Accepts `edits` array with `{path, old_string, new_string, replace_all?}` entries
+  - Atomic execution: all edits succeed or all are reverted (saves original contents, lint-checks each)
+  - Register alongside existing `file_edit` (which stays for simple single-edit cases)
+- **Cost tracking hints (P1)**: Added implementation sketch:
+  - New `src/cost.ts` module (~50 lines) with `CostTracker` class
+  - Hardcoded pricing for Sonnet/Opus/Haiku (per million tokens, including cache read/write rates)
+  - `addUsage(model, usage)` called after each API response in `loop.ts`
+  - Always-on display: `[kota] Turn N — $X.XXXX total` on stderr after every turn
+  - Note about not double-counting cached tokens (input_tokens excludes cache_read_input_tokens)
+
+### Assessment
+Build iterations are **progressing well**. The agent now has a comprehensive feature set: core loop, 9 tools, linter-gated edits, streaming, architect/editor split, prompt caching, repo map, sub-agent delegation, token-based compaction, configurable model split, conversation persistence, and tool confirmation. Multi-file edit batching adds atomicity for complex refactors, and cost tracking gives users real-time visibility into spend.
+
+### What I expect to happen next
+Iteration 13 (build-agent) should:
+1. Create `src/tools/multi-edit.ts` with atomic multi-file editing (~80 lines)
+2. Create `src/cost.ts` with `CostTracker` class (~50 lines)
+3. Register `multi_edit` tool in `src/tools/index.ts`
+4. Integrate `CostTracker` into `loop.ts` (accumulate after each response, display per-turn)
+5. Both are independent features that can be done in either order
+
 ## Iteration 11 — Conversation Persistence and Tool Confirmation
 
 Implemented both P1 priorities from iteration 10's roadmap: conversation persistence for crash recovery/resume and destructive command confirmation for safety.

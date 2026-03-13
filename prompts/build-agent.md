@@ -70,44 +70,73 @@ Build in TypeScript/Node.js. The agent should have these modules:
 
 ### Implementation Hints for Current Priorities
 
-**Conversation persistence (P1)** — save/restore conversation state to disk for resuming interrupted sessions:
+**Multi-file edit batching (P1)** — allow multiple edits in a single tool call to reduce round-trips:
 
-Current state: When the agent process exits (user Ctrl-C, crash, or normal completion), all conversation context is lost. There's no way to resume a partially completed task.
+Current state: `file_edit` in `src/tools/file-edit.ts` accepts one `{path, old_string, new_string, replace_all}` per call. When the agent needs to make 5 related edits across 3 files, that's 5 separate tool calls, each costing a full LLM round-trip. While the loop already executes tool calls in parallel via `Promise.all`, the LLM still has to enumerate each one in its response (token overhead per tool_use block).
 
-What to serialize: The `Context` class holds all state — `messages[]`, `compactionCount`, `lastInputTokens`. The system prompt is reconstructed at startup, so it doesn't need to be saved.
+Recommended approach — create a new `multi_edit` tool alongside the existing `file_edit` (keep `file_edit` for simple single-edit cases):
 
-Recommended approach:
-- In `context.ts`: Add `save(path: string)` and static `load(path: string, systemPrompt: string)` methods
-  - `save()` writes `{ messages: this.messages, compactionCount, lastInputTokens }` as JSON to disk
-  - `load()` reads the JSON, creates a new Context, and restores the fields. The `systemPrompt` comes from the caller (it's always the same constant from `loop.ts`)
-  - Use `fs.writeFileSync` and `fs.readFileSync` — no async needed for small JSON files
-- In `cli.ts`: Add `--session <path>` option (no default). When provided:
-  - If the file exists, load the context from it (resume mode)
-  - Auto-save after every turn (after tool results are added to context)
-  - On clean completion, optionally delete the session file (or keep it for history)
-- In `loop.ts`: Add `sessionPath?: string` to `LoopOptions`. If set:
-  - At startup: if file exists, load Context from it instead of creating fresh
-  - After every turn's tool results: call `context.save(sessionPath)`
-  - This gives crash recovery: the session file always has the latest state
-- Signal handling: Register `process.on('SIGINT', ...)` in `loop.ts` or `cli.ts` to save session before exit. This ensures Ctrl-C doesn't lose work. Use `process.on('SIGINT', () => { context.save(sessionPath); process.exit(0); })` — synchronous writeFileSync is fine here since it's small data.
-- The messages array is already plain objects (Anthropic SDK `MessageParam[]`) — `JSON.stringify` handles it natively. No custom serialization needed.
+- New file `src/tools/multi-edit.ts` (~80 lines):
+  - Tool name: `multi_edit`
+  - Description: "Apply multiple edits across one or more files atomically. All edits succeed or all are reverted."
+  - Input schema:
+    ```
+    edits: Array<{ path: string, old_string: string, new_string: string, replace_all?: boolean }>
+    ```
+  - Implementation:
+    1. Validate all inputs upfront (paths exist, old_strings found, uniqueness checks)
+    2. Save original contents of all affected files in a `Map<string, string>`
+    3. Apply edits sequentially — for each edit, do the same logic as `runFileEdit` (find, replace, lint)
+    4. If ANY edit fails (not found, ambiguous match, lint failure): revert ALL files from the saved map
+    5. Return a summary: "Applied N edits across M files" or the first error with all reverts noted
+  - This gives atomicity — partial edits don't leave the codebase in a broken state
+  - The lint check runs after each individual edit (not just at the end) so the error message is specific
 
-Key detail: The `systemPrompt` should NOT be saved in the session file. It's a constant defined in `loop.ts` and should always use the current version. This avoids stale prompts when resuming old sessions.
+- In `src/tools/index.ts`: Import and register `multiEditTool` and `runMultiEdit` alongside existing tools (10 tools total)
 
-**Tool confirmation (P1)** — add confirmation prompt for destructive operations:
+- Keep `file_edit` unchanged — it's simpler for single edits and the LLM can choose which to use
 
-Current state: The `shell` tool executes any command without asking. Destructive commands like `rm -rf`, `git push --force`, `docker rm` run silently.
+Key detail: The atomicity is the main value-add over multiple parallel `file_edit` calls. If edit 3 of 5 breaks a lint check, edits 1 and 2 are reverted too. This prevents cascading errors from partial multi-file changes.
 
-Recommended approach:
-- Create a new file `src/confirm.ts` (~40 lines):
-  - `isDangerous(command: string): boolean` — checks against patterns: `/\brm\b/`, `/\bgit\s+push\b/`, `/\bgit\s+reset\b/`, `/\bgit\s+clean\b/`, `/\bdocker\s+rm\b/`, `/\bsudo\b/`, `/\bmkfs\b/`, `/\bdd\b/`, `/\bkill\b/`, `/\bchmod\b.*777/`
-  - `confirmExecution(command: string): Promise<boolean>` — uses Node.js `readline.createInterface` to ask "⚠ Destructive command detected: <cmd>. Proceed? [y/N]". Returns true only on explicit 'y' or 'yes'.
-  - If `!process.stdin.isTTY`, always return false (deny in non-interactive mode — safe default)
-- In `src/tools/shell.ts`: Before `execSync`/`exec`, call `isDangerous(command)`. If true, call `confirmExecution(command)`. If denied, return `{ content: "Command blocked: user declined destructive operation", is_error: true }`.
-- In `cli.ts`: Add `--yes` / `-y` flag to skip confirmations (for scripted usage). Pass it through `LoopOptions` to the shell tool.
-- The readline prompt should use stderr (`output: process.stderr`) to avoid mixing with tool output on stdout.
+**Cost tracking (P1)** — display running cost estimate based on token usage and model pricing:
 
-Key detail: The confirmation only applies to the `shell` tool, not to `file_write` or `file_edit` (those are already lint-gated). The dangerous-command list should be conservative — false positives are worse than false negatives for UX.
+Current state: `loop.ts` already has `response.usage` with `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`. These are logged in verbose mode but not translated to dollars.
+
+Recommended approach — new `src/cost.ts` module (~50 lines):
+
+- Define pricing as a simple record (per million tokens):
+  ```typescript
+  const PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+    "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    "claude-opus-4-6": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+    "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
+  };
+  ```
+  - Cache reads = 0.1x input price, cache writes = 1.25x input price
+  - Unknown models: fall back to Sonnet pricing with a warning
+
+- `CostTracker` class:
+  - `addUsage(model: string, usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }): void`
+  - `getTotalCost(): number` — returns total in dollars
+  - `getSummary(): string` — returns formatted string like `"$0.0342 (12.5K in, 2.1K out, 8.3K cache)"`
+  - Accumulate totals across all turns for running cost
+
+- In `loop.ts`:
+  - Create `CostTracker` instance at the top of `runAgentLoop`
+  - After each `response`, call `tracker.addUsage(model, response.usage)`
+  - Display cost after every turn (not just in verbose mode — cost is always useful):
+    ```
+    [kota] Turn 5 — $0.0342 total
+    ```
+  - At end of loop, print final cost summary to stderr
+
+- In `cli.ts`: No changes needed — cost tracking is always on (it's small overhead and always valuable information)
+
+Key detail: The `response.usage.input_tokens` already EXCLUDES `cache_read_input_tokens` — cached tokens are reported separately. So the cost calculation is:
+```
+cost = (input_tokens * inputPrice + output_tokens * outputPrice + cache_read * cacheReadPrice + cache_creation * cacheWritePrice) / 1_000_000
+```
+Don't double-count cached tokens.
 
 ### What Makes a Great Agent (aim for these)
 - Fresh context management (compaction at 75-92% capacity)
