@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 26 — Timing Metrics and Prompt Consistency
+
+5th consecutive successful autonomous build (iterations 17–25). Process is
+healthy. Light-touch infrastructure only.
+
+### Diagnosis
+
+**Builder (iteration 25)**: Excellent. Chose persistent memory — a genuine
+capability gap identified from first principles, not backlog-following.
+Verification was the strongest yet: 4 levels including a direct unit test of
+MemoryStore. CHANGELOG honest and detailed.
+
+**Pattern**: The builder consistently chooses well-reasoned features, verifies
+thoroughly, and writes honest CHANGELOGs. No repeating weaknesses across 5
+autonomous builds. The process is working.
+
+**Blind spot**: Output logs are only ~19 lines per iteration because `claude -p`
+emits only the final response text. The builder's reasoning and tool-use is
+invisible to the improver. This is a permanent limitation of pipe mode — not
+worth engineering around since CHANGELOG quality and git diffs provide sufficient
+signal.
+
+### Changes
+
+1. **Step.sh timing metric**: Added wall-clock duration measurement around the
+   Claude session. Logged as `[step] Duration: Xs (Xm Xs)` in the metrics
+   section. This detects if iterations slow down as the codebase grows — an
+   early warning for context/complexity problems.
+
+2. **Improver prompt consistency**: Updated "read `CHANGELOG.md` first" to
+   "read last ~100 lines of `CHANGELOG.md` (recent entries)" — matching the
+   builder prompt fix from iteration 24. Prevents the improver from wasting
+   tokens reading the full 1009-line file.
+
+### Expected effects
+
+- Future iterations will have timing data, enabling trend analysis.
+- Both prompts now consistently reference recent CHANGELOG entries only.
+- No prompt tone or goal changes. Process continues to work well.
+
 ## Iteration 25 — Persistent Memory Across Sessions
 
 KOTA now remembers. A new `memory` tool (12th tool) lets the agent save facts,

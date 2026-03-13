@@ -12,8 +12,9 @@ better work on its own.
 ## Strict Guardrails
 
 - **Working directory**: `{{TOOL_DIR}}` only. Never access files outside it.
-- **Iteration**: #{{ITERATION}}. Read `git log --oneline -20` and
-  `CHANGELOG.md` first.
+- **Iteration**: #{{ITERATION}}. Read `git log --oneline -20` and the
+  last ~100 lines of `CHANGELOG.md` (recent entries). The runtime context
+  below also includes the last 3 entries.
 - **Builder boundary**: Do not modify `src/`, `DESIGN.md`, `package.json`, or
   `tsconfig.json`. That is the builder's domain.
 - **Loop awareness**: `loop.sh` is the outer harness. If you edit it, your

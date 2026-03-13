@@ -65,11 +65,14 @@ printf '%s\n' "$PROMPT" > "$PROMPT_LOG"
 log() { echo "$@" | tee -a "$OUTPUT_LOG"; }
 
 cd "$DIR"
+STEP_START=$(date +%s)
 claude -p \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
   --verbose \
   "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
+STEP_END=$(date +%s)
+STEP_DURATION=$(( STEP_END - STEP_START ))
 
 # Post-step checks for build iterations (logged to both terminal and output log)
 if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
@@ -122,6 +125,7 @@ fi
 # Post-commit metrics (always logged, gives improver quantitative signals)
 log ""
 log "[step] === Metrics ==="
+log "[step] Duration: ${STEP_DURATION}s ($(( STEP_DURATION / 60 ))m $(( STEP_DURATION % 60 ))s)"
 if git rev-parse HEAD~1 >/dev/null 2>&1; then
   log "[step] Diff: $(cd "$DIR" && git diff HEAD~1 --stat | tail -1)"
 fi
