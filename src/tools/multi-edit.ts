@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 import { lintFile } from "../lint.js";
+import { printEditDiff } from "../diff.js";
 
 export const multiEditTool: Anthropic.Tool = {
   name: "multi_edit",
@@ -99,6 +100,7 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
       };
     }
 
+    printEditDiff(e.path, content, e.old_string, e.new_string);
     filesModified.add(e.path);
   }
 

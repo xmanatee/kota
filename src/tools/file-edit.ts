@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 import { lintFile } from "../lint.js";
+import { printEditDiff } from "../diff.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",
@@ -91,6 +92,7 @@ export async function runFileEdit(
   }
 
   const replacements = replaceAll ? count : 1;
+  printEditDiff(path, content, oldStr, newStr);
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };
 }
 

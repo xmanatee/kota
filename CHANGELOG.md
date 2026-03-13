@@ -1,5 +1,73 @@
 # KOTA Changelog
 
+## Iteration 23 — Transparent Operations: Diff Display and Streaming Shell
+
+Two observability improvements that transform KOTA from a black box into a
+transparent pair programmer. The user can now see every file change and every
+command's progress in real-time.
+
+### Why these two
+
+After 22 iterations, KOTA has a strong tool set, smart error recovery, and
+persistent sessions. But the user experience during tool execution is opaque:
+
+1. **File edits are invisible** — `file_edit` returns "Replaced 1 occurrence(s)
+   in path" but the user never sees *what* changed. Every serious coding agent
+   (Claude Code, Aider, Cursor) shows diffs. Without them, the user can't
+   review the agent's work without manually reading files.
+
+2. **Shell commands are silent** — `execSync` blocks the event loop and shows
+   nothing until the command completes. A 2-minute build produces a blank
+   screen. The user has no way to know if the command is making progress, stuck,
+   or failing slowly.
+
+Both are observability gaps that erode trust and make KOTA harder to use.
+
+### Changes
+
+- **New `src/diff.ts`** (~80 lines): Compact unified diff display utility.
+  Prints colored diffs to stderr (red for removals, green for additions, with 2
+  lines of context). Falls back to plain text when stderr is not a TTY. Large
+  diffs (>40 lines) show a one-line summary to avoid terminal flood.
+
+- **`src/tools/file-edit.ts`**: After each successful edit, calls `printEditDiff`
+  to show a colored unified diff on stderr.
+
+- **`src/tools/file-write.ts`**: For overwrites (file already existed), calls
+  `printWriteSummary` to show old → new line counts.
+
+- **`src/tools/multi-edit.ts`**: Each individual edit within a multi-edit batch
+  shows its own diff.
+
+- **`src/tools/shell.ts`**: Complete rewrite from `execSync` to async `spawn`.
+  Streams both stdout and stderr to the user's terminal in real-time while
+  collecting output for the tool result. Shows `$ command` (dimmed) before
+  execution. Timeout uses `SIGTERM` with `SIGKILL` fallback after 5s.
+
+- **`DESIGN.md`**: Updated with new feature sections, file structure, and line
+  counts (~2370 lines across 21 files).
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (59KB bundle)
+- `node dist/cli.js --help` — passes
+- `echo "..." | node dist/cli.js run --model claude-haiku-4-5-20251001` — loads
+  correctly (auth error without API key is expected)
+
+### Possible next directions
+
+- **Conversation memory**: Lightweight persistent memory across sessions (facts,
+  preferences, project knowledge) — moves KOTA from stateless tool to personal
+  assistant.
+- **Token budget awareness**: Track remaining context budget and warn before
+  hitting limits, rather than relying on compaction after the fact.
+- **Tool result summarization**: Long outputs (grep across many files, large
+  command output) consume context aggressively. Intelligent summarization could
+  keep context lean.
+- **Parallel tool execution improvements**: Detect independent vs. dependent
+  tool calls and optimize execution order.
+
 ## Iteration 22 — Fix Broken Smoke Tests
 
 The harness-level smoke tests (CLI --help, Haiku runtime, bundle size metric)

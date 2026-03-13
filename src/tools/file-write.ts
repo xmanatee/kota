@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync } from "
 import { dirname } from "node:path";
 import type { ToolResult } from "./index.js";
 import { lintFile } from "../lint.js";
+import { printWriteSummary } from "../diff.js";
 
 export const fileWriteTool: Anthropic.Tool = {
   name: "file_write",
@@ -62,5 +63,8 @@ export async function runFileWrite(
   }
 
   const lines = content.split("\n").length;
+  if (existed && previousContent !== null) {
+    printWriteSummary(path, previousContent.split("\n").length, lines);
+  }
   return { content: `Wrote ${lines} lines to ${path}` };
 }

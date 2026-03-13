@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import type { ToolResult } from "./index.js";
 import { isDangerous, confirmExecution } from "../confirm.js";
 
@@ -25,6 +25,16 @@ export const shellTool: Anthropic.Tool = {
   },
 };
 
+/** Truncate collected output to save tokens in the tool result. */
+function truncateOutput(text: string): string {
+  if (text.length <= 20_000) return text;
+  return (
+    text.slice(0, 10_000) +
+    `\n\n... [truncated — output was ${text.length} chars] ...\n\n` +
+    text.slice(-5_000)
+  );
+}
+
 export async function runShell(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
@@ -45,37 +55,76 @@ export async function runShell(
     }
   }
 
-  try {
-    const output = execSync(command, {
-      timeout,
-      encoding: "utf-8",
-      maxBuffer: 1024 * 1024, // 1MB
-      stdio: ["pipe", "pipe", "pipe"],
-      cwd: process.cwd(),
-    });
-    const trimmed = output.trim();
-    if (!trimmed) return { content: "(no output)" };
+  return new Promise((resolve) => {
+    const chunks: string[] = [];
+    let killed = false;
 
-    // Truncate if too long to save tokens
-    if (trimmed.length > 20_000) {
-      return {
-        content:
-          trimmed.slice(0, 10_000) +
-          "\n\n... [truncated — output was " +
-          trimmed.length +
-          " chars] ...\n\n" +
-          trimmed.slice(-5_000),
-      };
-    }
-    return { content: trimmed };
-  } catch (err: unknown) {
-    const e = err as { stderr?: string; stdout?: string; message?: string };
-    const stderr = (e.stderr || "").trim();
-    const stdout = (e.stdout || "").trim();
-    const parts = [stderr, stdout].filter(Boolean).join("\n");
-    return {
-      content: parts || e.message || "Command failed",
-      is_error: true,
-    };
-  }
+    // Show the command being run (dimmed)
+    const dim = process.stderr.isTTY ? "\x1b[2m" : "";
+    const reset = process.stderr.isTTY ? "\x1b[0m" : "";
+    process.stderr.write(`${dim}$ ${command}${reset}\n`);
+
+    const proc = spawn("sh", ["-c", command], {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    const timer = setTimeout(() => {
+      killed = true;
+      proc.kill("SIGTERM");
+      // Force kill after 5s if SIGTERM doesn't work
+      setTimeout(() => proc.kill("SIGKILL"), 5_000);
+    }, timeout);
+
+    proc.stdout.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      chunks.push(text);
+      process.stderr.write(text);
+    });
+
+    proc.stderr.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      chunks.push(text);
+      process.stderr.write(text);
+    });
+
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      const output = chunks.join("").trim();
+
+      if (killed) {
+        resolve({
+          content: output
+            ? `${truncateOutput(output)}\n\n(killed: timeout after ${timeout}ms)`
+            : `Command timed out after ${timeout}ms`,
+          is_error: true,
+        });
+        return;
+      }
+
+      if (code !== 0 && code !== null) {
+        resolve({
+          content: truncateOutput(output || `Command failed with exit code ${code}`),
+          is_error: true,
+        });
+        return;
+      }
+
+      if (!output) {
+        resolve({ content: "(no output)" });
+        return;
+      }
+
+      resolve({ content: truncateOutput(output) });
+    });
+
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      resolve({ content: `Command error: ${err.message}`, is_error: true });
+    });
+
+    // Close stdin immediately — commands don't read from it
+    proc.stdin.end();
+  });
 }

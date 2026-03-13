@@ -197,6 +197,26 @@ Enables the agent to access web pages for research, documentation lookup, and ve
 - Response truncation to configurable `max_length` (default 20000 chars) for token efficiency
 - 30-second timeout, redirect following, clean error messages
 
+### Diff Display (`src/diff.ts`)
+
+Every file modification (edit, write, multi-edit) prints a compact diff to stderr so the user can see what changed without reading tool results.
+
+- **`file_edit`**: colored unified diff with 2 lines of context around the change
+- **`file_write` (overwrite)**: one-line summary showing old → new line count
+- **`multi_edit`**: per-edit diffs for each file modified
+- Large diffs (>40 lines) show a one-line summary instead of flooding the terminal
+- Colors (red/green) when stderr is a TTY, plain text otherwise
+
+### Streaming Shell Output (`src/tools/shell.ts`)
+
+Shell commands stream output to stderr in real-time via async `spawn`, instead of blocking silently with `execSync`.
+
+- User sees build/test progress as it happens, not after completion
+- Command echoed before execution: `$ command` (dimmed)
+- Both stdout and stderr stream to the user's terminal and are collected for the tool result
+- Timeout via `SIGTERM` with `SIGKILL` fallback after 5s
+- Output truncation unchanged (first 10K + last 5K for results over 20K chars)
+
 ### Circuit Breaker
 
 Stop after 3 identical consecutive tool failures. Prevents infinite loops where the agent keeps trying the same broken approach.
@@ -211,15 +231,16 @@ src/
   context.ts          — Conversation + compaction + persistence (~175 lines)
   confirm.ts          — Destructive command confirmation (~50 lines)
   cost.ts             — Per-turn cost tracking (~65 lines)
+  diff.ts             — Diff display for file edits (~80 lines)
   lint.ts             — Syntax checking for linter-gated edits (~100 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
   tools/
     index.ts      — Tool registry + executor (~65 lines)
-    shell.ts      — Shell command execution (~80 lines)
+    shell.ts      — Async shell with streaming output (~110 lines)
     file-read.ts  — Read file with line numbers (~65 lines)
-    file-write.ts — Create/overwrite file with lint gate (~65 lines)
-    file-edit.ts  — Search-and-replace edit with fuzzy error recovery (~190 lines)
-    multi-edit.ts — Atomic multi-file edits (~115 lines)
+    file-write.ts — Create/overwrite file with lint gate + diff (~70 lines)
+    file-edit.ts  — Search-and-replace with fuzzy recovery + diff (~195 lines)
+    multi-edit.ts — Atomic multi-file edits + diff (~120 lines)
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
@@ -228,11 +249,11 @@ src/
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
 ```
 
-Total: ~2230 lines across 20 files.
+Total: ~2370 lines across 21 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2230 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~2370 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 11 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -241,14 +262,15 @@ Total: ~2230 lines across 20 files.
 7. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
 8. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
 9. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
-10. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
-11. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
-12. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
-13. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
-14. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
-15. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
-16. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
-17. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
+10. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes. Shell commands also stream their output to stderr, so users see build/test progress live.
+11. **Diff display**: Every file edit/write prints a colored unified diff to stderr — the user sees exactly what changed without reading tool results.
+12. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
+13. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
+14. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
+15. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
+16. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
+17. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
+18. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
 
 ## Dependencies
 
