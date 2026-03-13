@@ -86,6 +86,28 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `grep` | Search file contents | Regex support, ripgrep-style |
 | `glob` | Find files by pattern | Fast file discovery |
 | `todo` | Track task progress | Injected into system prompt, TodoWrite-style |
+| `repo_map` | Structural codebase index | Regex-extracted exports, grouped by file |
+| `delegate` | Sub-agent exploration | Read-only mini-loop, returns summary |
+
+### Repo Map (`src/tools/repo-map.ts`)
+
+Inspired by Aider's repo map but drastically simplified — regex extraction instead of tree-sitter AST parsing.
+
+- Scans `.ts`, `.tsx`, `.js`, `.jsx`, `.py` files via glob (skips `node_modules`, `dist`, `.git`, `.d.ts`)
+- Extracts exported symbols via regex: functions, classes, constants, interfaces, types, enums
+- Python: extracts top-level `def` and `class` definitions
+- Output grouped by file path, one line per symbol with compact signatures
+- Capped at 100 files / 200 symbols to prevent context bloat
+
+### Sub-Agent Delegation (`src/tools/delegate.ts`)
+
+Inspired by Claude Code's Agent tool — spawns a separate LLM call for exploration tasks.
+
+- Creates a fresh Anthropic API call with read-only tools: `file_read`, `grep`, `glob`, `repo_map`
+- Runs a mini-loop (max 10 turns) — enough for thorough exploration, bounded to prevent runaway
+- Main context only sees the task and final answer, not intermediate tool calls
+- Sub-agent uses Sonnet for cost efficiency
+- No file modification tools — exploration only
 
 ### Architect/Editor Split (`src/architect.ts`)
 
@@ -155,20 +177,24 @@ src/
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
+    repo-map.ts   — Structural codebase index (~105 lines)
+    delegate.ts   — Sub-agent exploration (~105 lines)
 ```
 
-Total: ~1225 lines across 13 files. Each file ≤ 175 lines.
+Total: ~1435 lines across 15 files. Each file ≤ 175 lines.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~1225 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~1435 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: Each tool designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
 4. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
 5. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
 6. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
 7. **Task tracking**: TodoWrite-style tracking injected as system context so the agent always knows what's done and what's left.
-8. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
+8. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file (inspired by Aider, simplified from tree-sitter to regex).
+9. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean (inspired by Claude Code's Agent tool).
+10. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
 
 ## Dependencies
 

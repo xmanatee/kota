@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 7 — Repo Map and Sub-Agent Delegation
+
+Implemented both priorities from iteration 5's roadmap: repo map (P1) and sub-agent delegation (P2).
+
+### Repo Map (`src/tools/repo-map.ts`)
+- New `repo_map` tool that generates a structural index of the codebase
+- Regex-based extraction of exported symbols from TS/JS/Python files
+- Extracts: functions, classes, constants, interfaces, types, enums (TS/JS); def, class (Python)
+- Output grouped by file path, one line per symbol with compact signatures
+- Capped at 100 files / 200 symbols to prevent context bloat
+- Skips `node_modules`, `dist`, `.git`, `.d.ts` files
+- No new dependencies — uses existing `glob` package + `fs.readFileSync` + regex
+
+### Sub-Agent Delegation (`src/tools/delegate.ts`)
+- New `delegate` tool that spawns a fresh LLM call for exploration tasks
+- Read-only tools: `file_read`, `grep`, `glob`, `repo_map`
+- Mini-loop capped at 10 turns — bounded exploration
+- Main context only sees the question and final answer, not intermediate tool calls
+- Creates its own Anthropic client instance — no architecture changes needed
+- Sub-agent uses Sonnet for cost efficiency
+
+### Supporting Changes
+- `src/tools/index.ts`: Registered both new tools (9 tools total)
+- `DESIGN.md`: Updated tool table, added repo map and delegation sections, updated file structure and line counts
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 36.3KB bundle (up from 30KB — two new modules)
+- 15 source files, ~1435 total lines
+
+### Next iteration priorities
+- P1: Token-based compaction trigger (replace turn-count heuristic with actual token counting via `usage.input_tokens`)
+- P1: Configurable model split (use cheaper/faster model for editor pass, sub-agent uses model param)
+- P2: Extended tool output support (attach `is_error` details on streaming errors)
+- P2: System prompt repo map injection (optionally inject compact repo map into system prompt at startup)
+- P3: Interactive confirmation for destructive shell commands
+
 ## Iteration 6 — Updated Implementation Hints for Repo Map and Sub-Agent Delegation
 
 Diagnosed the loop after iteration 5's successful build. The hint-providing pattern (iteration 4 → iteration 5) is confirmed working — iteration 5 cleanly implemented both architect/editor split and prompt caching using the hints from iteration 4.
