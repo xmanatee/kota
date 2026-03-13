@@ -25,9 +25,11 @@ PROMPT="${PROMPT//\{\{ITERATION\}\}/$ITERATION}"
 
 printf -v ITERATION_PAD "%06d" "$ITERATION"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-PROMPT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.prompt.md"
-OUTPUT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.output.txt"
-JSON_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.json"
+LOG_PREFIX="${ITERATION_PAD}-${TASK}-${TIMESTAMP}"
+PROMPT_LOG="$LOG_DIR/${LOG_PREFIX}.prompt.md"
+OUTPUT_LOG="$LOG_DIR/${LOG_PREFIX}.output.txt"
+JSON_LOG="$LOG_DIR/${LOG_PREFIX}.json"
+SESSION_LOG="$LOG_DIR/${LOG_PREFIX}.session.jsonl"
 
 # Extract previous iteration's metrics for context injection
 PREV_METRICS="(none)"
@@ -61,8 +63,9 @@ $(cd "$DIR" && find . -maxdepth 3 \
   -type f -print | sort 2>/dev/null || echo '(none)')
 
 ### Session logs:
-Prompt/output logs are stored in \`$LOG_DIR\`.
-$(cd "$DIR" && ls -1t logs 2>/dev/null | head -8 || echo '(none yet)')
+Full conversation transcripts (\`.session.jsonl\`) are in \`$LOG_DIR\` alongside prompts and outputs.
+Each \`.session.jsonl\` contains every tool call, response, and reasoning step from the session.
+$(cd "$DIR" && ls -1t logs 2>/dev/null | head -12 || echo '(none yet)')
 
 ### Previous iteration metrics:
 $PREV_METRICS
@@ -85,35 +88,54 @@ CLAUDE_EXIT=0
 timeout "$MAX_STEP_SECONDS" claude -p \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
-  --output-format json \
-  "$PROMPT" > "$JSON_LOG" 2>/dev/null || CLAUDE_EXIT=$?
+  --output-format stream-json \
+  "$PROMPT" > "$SESSION_LOG" 2>/dev/null || CLAUDE_EXIT=$?
 STEP_END=$(date +%s)
 STEP_DURATION=$(( STEP_END - STEP_START ))
 
-# Extract result text and session metrics from JSON output
+# Extract result event from session stream and parse metrics
 SESSION_COST="-"
 SESSION_TURNS="-"
 SESSION_ID="-"
 OUTPUT_TOKENS="-"
-if [ -f "$JSON_LOG" ] && [ -s "$JSON_LOG" ]; then
+if [ -f "$SESSION_LOG" ] && [ -s "$SESSION_LOG" ]; then
   EXTRACT=$(node -e "
     const fs = require('fs');
     try {
-      const j = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
-      fs.writeFileSync(process.argv[2], j.result || '');
-      const c = j.cost_usd ?? j.total_cost_usd ?? null;
-      const t = j.num_turns ?? null;
-      const s = j.session_id ?? null;
-      const o = j.usage?.output_tokens ?? null;
+      const lines = fs.readFileSync(process.argv[1], 'utf8').trim().split('\n');
+      // Search backward for the result event
+      let result = null;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const obj = JSON.parse(lines[i]);
+          if (obj.type === 'result' || obj.result !== undefined) {
+            result = obj;
+            break;
+          }
+        } catch(e) {}
+      }
+      if (!result) {
+        // Fallback: try last line
+        try { result = JSON.parse(lines[lines.length - 1]); } catch(e) { result = {}; }
+      }
+      // Write result JSON for backward compat
+      fs.writeFileSync(process.argv[3], JSON.stringify(result, null, 2));
+      // Write result text
+      fs.writeFileSync(process.argv[2], result.result || '');
+      const c = result.cost_usd ?? result.total_cost_usd ?? null;
+      const t = result.num_turns ?? null;
+      const s = result.session_id ?? null;
+      const o = result.usage?.output_tokens ?? null;
       console.log(c !== null ? Number(c).toFixed(4) : '-');
       console.log(t !== null ? String(t) : '-');
       console.log(s !== null ? String(s) : '-');
       console.log(o !== null ? String(o) : '-');
     } catch(e) {
-      fs.writeFileSync(process.argv[2], '(failed to parse JSON output)');
+      fs.writeFileSync(process.argv[2], '(failed to parse session stream)');
+      fs.writeFileSync(process.argv[3], '{}');
       console.log('-'); console.log('-'); console.log('-'); console.log('-');
     }
-  " "$JSON_LOG" "$OUTPUT_LOG" 2>/dev/null) || EXTRACT=$'-\n-\n-\n-'
+  " "$SESSION_LOG" "$OUTPUT_LOG" "$JSON_LOG" 2>/dev/null) || EXTRACT=$'-\n-\n-\n-'
   SESSION_COST=$(echo "$EXTRACT" | sed -n '1p')
   SESSION_TURNS=$(echo "$EXTRACT" | sed -n '2p')
   SESSION_ID=$(echo "$EXTRACT" | sed -n '3p')
@@ -121,6 +143,7 @@ if [ -f "$JSON_LOG" ] && [ -s "$JSON_LOG" ]; then
   cat "$OUTPUT_LOG"
 else
   echo "(no output captured)" > "$OUTPUT_LOG"
+  echo "{}" > "$JSON_LOG"
   cat "$OUTPUT_LOG"
 fi
 
