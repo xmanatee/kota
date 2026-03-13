@@ -301,6 +301,7 @@ Shell commands stream output to stderr in real-time via async `spawn`, instead o
 - Timeout via `SIGTERM` with `SIGKILL` fallback after 5s
 - Successful output truncated at 20K chars (first 10K + last 5K)
 - Failed commands use smart error extraction (see Shell Error Diagnostics below)
+- Failed commands get automatic source context enrichment (see Error Context Enrichment below)
 
 ### Shell Error Diagnostics (`src/shell-diagnostics.ts`)
 
@@ -313,6 +314,18 @@ When shell commands fail with long output, naive head+tail truncation often lose
 - **Generic**: Matches `Error:`, `FAILED`, `fatal:`, `panic:`, `command not found`, `Permission denied` with 1 line before + 3 after for context
 - **Fallback**: If no extractor matches, falls back to head+tail truncation
 - **Output format**: Extracted diagnostics prepended with count, followed by the output tail (last 20 lines) for summary context
+
+### Error Context Enrichment (`src/error-context.ts`)
+
+When a shell command fails with errors that reference specific files and line numbers, the agent normally has to spend a turn reading those files before it can fix the issue. This module automatically pre-fetches the surrounding source code and appends it to the error output, saving that turn.
+
+- **Pattern detection**: Extracts file:line references from TypeScript compiler errors (`file(line,col)` and `file:line:col` formats), ESLint/Biome output, Node.js stack traces, and Python tracebacks
+- **Source context**: Reads ±5 lines around each referenced line, with a `>` marker on the target line
+- **Project-scoped**: Only reads files that exist on disk; skips `node_modules`, `dist`, `.git`, `coverage`, `__pycache__`, and URLs
+- **Deduplication**: Merges nearby references to the same file (within 10 lines) into one context block
+- **Bounded**: Max 5 file references per error to prevent context bloat
+- **Integration**: Runs after `smartErrorTruncate` in the shell tool, so the agent sees both extracted diagnostics and the relevant source code in one tool result
+- **Transparent**: Appended as a clearly labeled `--- Referenced source ---` section
 
 ### Tool Runner (`src/tool-runner.ts`)
 
@@ -411,8 +424,10 @@ src/
   path-resolver.ts    — Smart file path suggestions on not-found (~100 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
   shell-diagnostics.ts — Smart error extraction from shell output (~165 lines)
+  error-context.ts    — Source context enrichment for shell errors (~140 lines)
   verify-tracker.ts   — Verification nudge system (~155 lines)
   message-pruning.test.ts — Message pruning unit tests (~265 lines)
+  error-context.test.ts — Error context enrichment unit tests (~225 lines)
   shell-diagnostics.test.ts — Error extraction unit tests (~175 lines)
   path-resolver.test.ts — Path resolution + similarity unit tests (~80 lines)
   tool-runner.test.ts — FailureTracker unit tests (~95 lines)
@@ -423,7 +438,7 @@ src/
   verify-tracker.test.ts — VerifyTracker + command detection unit tests (~205 lines)
   tools/
     index.ts      — Tool registry + executor (~70 lines)
-    shell.ts      — Async shell with streaming output (~130 lines)
+    shell.ts      — Async shell with streaming output + error enrichment (~135 lines)
     file-read.ts  — Read file with line numbers + freshness tracking + path suggestions (~70 lines)
     file-write.ts — Create/overwrite file with lint gate + diff (~70 lines)
     file-edit.ts  — Search-and-replace with whitespace-tolerant auto-fix + fuzzy recovery (~275 lines)
@@ -441,7 +456,7 @@ src/
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~5880 lines across 47 files (including 11 test files with ~1575 lines).
+Total: ~6250 lines across 49 files (including 13 test files with ~1800 lines).
 
 ## What Makes KOTA Better
 
@@ -469,7 +484,7 @@ Total: ~5880 lines across 47 files (including 11 test files with ~1575 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 154 tests across 10 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit, tool-retry) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, whitespace-tolerant matching, and retry policy logic.
+25. **Unit test suite**: 196 tests across 12 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit, tool-retry, message-pruning, error-context) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, whitespace-tolerant matching, retry policy logic, message pruning, and error context enrichment.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
@@ -478,6 +493,7 @@ Total: ~5880 lines across 47 files (including 11 test files with ~1575 lines).
 31. **Shell error diagnostics**: When shell commands fail with long output (>8K chars), smart extraction finds the diagnostic-relevant lines instead of naive head+tail truncation. Detects TypeScript compiler errors, test runner failures (vitest/jest), lint errors (ESLint/Biome), and generic error patterns. The agent sees extracted errors + output tail, not a random slice of verbose logs.
 32. **Automatic tool retry**: Transient tool failures (shell timeouts, web network errors, HTTP 429/5xx) are automatically retried once with adjusted parameters — shell gets 2× the timeout, web tools get a 1.5s delay. Saves 1-2 turns per transient failure without agent involvement. Bounded to 1 retry, scoped to the main loop only.
 33. **Selective message pruning**: Two-phase context lifecycle extends the agent's effective working memory. At 50% context usage, large read-only tool results (file_read, grep, glob, web_fetch, etc.) from older messages are replaced with compact summaries — preserving conversation structure while recovering tokens. Full LLM-based compaction only triggers at 75%, giving the agent more useful turns before losing detailed context. Deterministic, no LLM call needed, idempotent.
+34. **Error context enrichment**: When shell commands fail with errors that reference specific file paths and line numbers (TypeScript errors, test failures, lint errors, stack traces), the surrounding source code is automatically pre-fetched and appended. Supports TypeScript, ESLint/Biome, Node.js stack traces, and Python tracebacks. Bounded to 5 references with ±5 lines each. Saves the agent 1 turn per error cycle — it can diagnose and fix without a separate `file_read`.
 
 ## Dependencies
 

@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import type { ToolResult } from "./index.js";
 import { isDangerous, confirmExecution } from "../confirm.js";
 import { smartErrorTruncate } from "../shell-diagnostics.js";
+import { enrichWithSourceContext } from "../error-context.js";
 
 export const shellTool: Anthropic.Tool = {
   name: "shell",
@@ -105,8 +106,9 @@ export async function runShell(
       }
 
       if (code !== 0 && code !== null) {
+        const truncated = smartErrorTruncate(output || `Command failed with exit code ${code}`);
         resolve({
-          content: smartErrorTruncate(output || `Command failed with exit code ${code}`),
+          content: enrichWithSourceContext(truncated),
           is_error: true,
         });
         return;

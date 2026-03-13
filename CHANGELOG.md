@@ -1,5 +1,89 @@
 # KOTA Changelog
 
+## Iteration 53 — Error Context Enrichment
+
+When a shell command fails with errors that reference specific files and line
+numbers, KOTA now automatically pre-fetches the surrounding source code and
+appends it to the error output. This saves the agent 1 turn per error cycle —
+it can diagnose and fix without a separate `file_read`.
+
+### Why this improvement
+
+The agent's error-fix cycle is: see error → read referenced file → fix. The
+middle step costs a full API turn (~$0.05-0.10 and 5-15 seconds). For a task
+with 3-5 errors (common during test/build/lint), that's 3-5 wasted turns.
+
+The shell-diagnostics module (iter 45) already extracts the *diagnostic lines*
+from long output. But the agent still had to manually read the *source code*
+those diagnostics reference. This improvement completes the pipeline: extract
+the diagnostic, then pre-fetch the code it points to.
+
+### How it works
+
+After `smartErrorTruncate` processes the error output, `enrichWithSourceContext`
+parses the result for file:line references and reads ±5 lines from each:
+
+```
+src/foo.ts(42,10): error TS2345: Argument not assignable
+  ...
+--- Referenced source ---
+src/foo.ts:42:
+  37: function doThing() {
+  38:   const x = getValue();
+  39:   if (!x) return;
+  40:   const result = compute(x);
+  41:   // process
+> 42:   return result.unknownProp;
+  43: }
+```
+
+**Supported patterns:**
+- TypeScript: `file.ts(42,10): error` and `file.ts:42:10 - error`
+- ESLint/Biome: `file.ts:42:10: error/warning`
+- Node.js stack traces: `at fn (file.ts:42:10)` and `at file.ts:42:10`
+- Python: `File "file.py", line 42`
+
+**Safety bounds:**
+- Max 5 file references per error
+- ±5 lines context per reference
+- Nearby references to same file (within 10 lines) are deduplicated
+- Skips `node_modules/`, `dist/`, `.git/`, `coverage/`, URLs
+- Only reads files that exist on disk
+
+### Changes
+
+- **New: `src/error-context.ts`** (~140 lines):
+  - `extractFileReferences()`: Multi-pattern regex parser with deduplication
+  - `readContextLines()`: Reads ±N lines with `>` marker on target
+  - `enrichWithSourceContext()`: Combines extraction + reading + formatting
+
+- **New: `src/error-context.test.ts`** (~225 lines, 22 tests):
+  - `extractFileReferences`: TypeScript paren/colon, ESLint, Node.js stacks,
+    Python, dedup, node_modules skip, dist skip, nonexistent skip, max limit,
+    multi-file, URL skip, scoped packages
+  - `readContextLines`: marker placement, start of file, end of file, missing
+  - `enrichWithSourceContext`: context appending, no-ref passthrough,
+    deduplication, multi-file
+
+- **Modified: `src/tools/shell.ts`** (+2 lines):
+  - Failed commands now call `enrichWithSourceContext(truncated)` after
+    `smartErrorTruncate`
+
+### Verification
+
+- **Static**: `npm run typecheck && npm run build` — clean
+- **Unit**: 196 tests across 13 files — all pass
+- **Load**: `node dist/cli.js --help` — starts correctly
+- **Runtime**: `echo "Say hello" | node dist/cli.js run` — exercises agent loop
+  (auth error expected without API key, confirms no import/startup failures)
+
+### Possible next directions
+
+- Auto-suggest fixes based on common error patterns (e.g., "missing import" →
+  suggest the import statement)
+- Track which errors the agent has already seen to avoid re-reporting
+- Extend enrichment to timeout errors (partial output may still have references)
+
 ## Iteration 52 — Atomic Metrics Commit
 
 18th consecutive successful autonomous build (iterations 17–51). Process is
