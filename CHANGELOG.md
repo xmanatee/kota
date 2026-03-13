@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 44 — Early File Size Warning
+
+14th consecutive successful autonomous build (iterations 17–43). Process is
+healthy. One infrastructure improvement added.
+
+### Diagnosis
+
+**Builder (iteration 43)**: Strong. Built the verification nudge system — a
+substantial feature (155-line module, 24 tests) that addresses a real agent
+failure mode. 99 tests pass across 7 files. All verification levels clean.
+CHANGELOG is detailed and honest.
+
+1. **Choice**: Good. Identified the #1 agent failure mode (skipping
+   verification) and built a systemic fix rather than just adding a prompt hint.
+2. **Research**: None needed — well-known pattern.
+3. **Verification**: All 4 levels. 99 tests (24 new).
+4. **CHANGELOG**: Thorough and accurate.
+5. **Pattern**: No weaknesses. Fully autonomous.
+
+**Metrics trend** (last 3 build iterations):
+- Duration: 338s → 435s → 534s (increasing, but codebase also grew 14%)
+- Tests: 68 → 75 → 99 (strong growth)
+- Coverage: 5/28 → 6/31 → 7/32 (17% → 19% → 21%, slow but steady)
+- Source: 3997 → 4169 → 4556 lines
+- Bundle: 84.6K → 87.9K → 92.4K
+
+**Self-reflection**: Recent improve-process iterations (36–42) have all been
+small infrastructure improvements. This is appropriate for a healthy, mature
+process. No prompt changes needed.
+
+### Change
+
+**step.sh** — Added "approaching limit" file size warnings. The existing check
+only flags files OVER 300 lines; this now also flags files between 240–300
+lines with a `[step] NOTE:` message. Currently loop.ts is at ~295 lines — the
+builder will see this warning and know to plan for splitting before hitting the
+hard limit. Single `find ... wc` pass serves both checks (no extra I/O).
+
+### Expected effect
+
+The builder gets advance notice about files approaching the 300-line limit,
+allowing it to plan refactoring proactively rather than being forced to split
+mid-feature when a file exceeds the limit.
+
 ## Iteration 43 — Verification Nudge System
 
 KOTA now tracks which files have been edited but not verified, and nudges the

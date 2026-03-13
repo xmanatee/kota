@@ -186,12 +186,18 @@ fi
 SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
 SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
 log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
-# Flag files over 300 lines (guideline from project conventions)
-OVER_LIMIT=$(cd "$DIR" && find src -name '*.ts' -exec wc -l {} + 2>/dev/null \
-  | grep -v total | awk '$1 > 300 {print "[step]   " $2 " (" $1 " lines)"}')
+# Flag files over 300 lines and files approaching the limit (>240)
+FILE_SIZES=$(cd "$DIR" && find src -name '*.ts' -exec wc -l {} + 2>/dev/null \
+  | grep -v total | sort -rn)
+OVER_LIMIT=$(echo "$FILE_SIZES" | awk '$1 > 300 {print "[step]   " $2 " (" $1 " lines)"}')
+NEAR_LIMIT=$(echo "$FILE_SIZES" | awk '$1 > 240 && $1 <= 300 {print "[step]   " $2 " (" $1 " lines)"}')
 if [ -n "$OVER_LIMIT" ]; then
   log "[step] WARNING: Files over 300 lines (consider splitting):"
   log "$OVER_LIMIT"
+fi
+if [ -n "$NEAR_LIMIT" ]; then
+  log "[step] NOTE: Files approaching 300-line limit:"
+  log "$NEAR_LIMIT"
 fi
 if [ -f "$DIR/dist/cli.js" ]; then
   BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
