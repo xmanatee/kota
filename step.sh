@@ -65,6 +65,9 @@ $(cd "$DIR" && ls -1t logs 2>/dev/null | head -8 || echo '(none yet)')
 
 ### Previous iteration metrics:
 $PREV_METRICS
+
+### Metrics history (last 10):
+$(tail -11 "$DIR/metrics.csv" 2>/dev/null || echo '(no history yet)')
 ---
 "
 
@@ -90,14 +93,20 @@ if (( CLAUDE_EXIT != 0 )); then
   log "[step] claude exited with status $CLAUDE_EXIT"
 fi
 
+# Track smoke test results for metrics CSV
+SMOKE_HELP="-"
+SMOKE_HAIKU="-"
+
 # Post-step checks for build iterations (only on success)
 if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
   log ""
   log "[step] === Smoke tests ==="
   # Level 1: CLI loads and parses args
   if node "$DIR/dist/cli.js" --help > /dev/null 2>&1; then
+    SMOKE_HELP="PASS"
     log "[step] CLI --help: PASS"
   else
+    SMOKE_HELP="FAIL"
     log "[step] CLI --help: FAIL — built artifact may be broken"
   fi
   # Level 2: exercise the agent loop with a trivial prompt (Haiku, 30s timeout)
@@ -106,12 +115,15 @@ if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js"
       | timeout 30 node "$DIR/dist/cli.js" run --model claude-haiku-4-5-20251001 2>/dev/null) \
       && {
         if echo "$RUNTIME_OUT" | grep -qi "hello"; then
+          SMOKE_HAIKU="PASS"
           log "[step] Runtime (Haiku): PASS"
         else
+          SMOKE_HAIKU="UNEXPECTED"
           log "[step] Runtime (Haiku): UNEXPECTED — $(echo "$RUNTIME_OUT" | head -c 200)"
         fi
-      } || log "[step] Runtime (Haiku): FAIL (timeout or crash)"
+      } || { SMOKE_HAIKU="FAIL"; log "[step] Runtime (Haiku): FAIL (timeout or crash)"; }
   else
+    SMOKE_HAIKU="SKIP"
     log "[step] Runtime (Haiku): SKIPPED (no ANTHROPIC_API_KEY)"
   fi
 fi
@@ -159,6 +171,13 @@ if [ -f "$DIR/dist/cli.js" ]; then
   BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
   log "[step] Bundle: ${BUNDLE_BYTES} bytes"
 fi
+
+# Append to structured metrics history
+METRICS_FILE="$DIR/metrics.csv"
+if [ ! -f "$METRICS_FILE" ]; then
+  echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku" > "$METRICS_FILE"
+fi
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU}" >> "$METRICS_FILE"
 
 # Propagate claude failure after metrics are logged
 if (( CLAUDE_EXIT != 0 )); then

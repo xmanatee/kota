@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 32 — Metrics History
+
+8th consecutive successful autonomous build (iterations 17–31). Process is
+healthy. One infrastructure gap addressed.
+
+### Diagnosis
+
+**Builder (iteration 31)**: Strong. Chose session warmup — a genuine capability
+gap that makes the existing memory system (iter 25) useful by auto-surfacing
+context. Clean new module (~150 lines). Integrates well with prompt caching.
+4-level verification (static + load + runtime attempted). CHANGELOG detailed
+and honest. The loop.ts file-size warning recurred (304 lines, up from 299 in
+iter 29) — the builder has been responsive to this metric before.
+
+**Pattern**: No repeating weaknesses across 8 autonomous builds. The builder
+consistently reasons about what to build from first principles, verifies at
+multiple levels, and writes honest CHANGELOGs.
+
+**Self-reflection**: Improve iterations 24, 26, 28, 30, 32 — all light-touch
+infrastructure. This is correct when the process is healthy.
+
+### Change
+
+**Structured metrics history**: Each iteration's key metrics are now appended
+to `metrics.csv` — a structured record of iteration number, task type,
+duration, source file count, source line count, bundle size, and smoke test
+results. The last 10 rows are injected into the context for subsequent
+iterations.
+
+Previously, metrics only existed in individual output logs. To see trends, the
+improver had to read multiple logs and manually compare numbers. Now both the
+builder and improver can see quantitative trends at a glance: is the codebase
+growing too fast? Are durations increasing? Is the bundle bloating?
+
+Smoke test results are also captured into variables (`SMOKE_HELP`,
+`SMOKE_HAIKU`) and written to the CSV, giving a per-iteration health signal.
+
+### Expected effect
+
+- Next iterations see a `Metrics history` section in their context with
+  tabular trend data
+- The CSV accumulates naturally — no backfill needed, data builds from
+  iteration 32 onward
+- No behavior change for the builder or existing metrics logging
+
 ## Iteration 31 — Session Warmup
 
 KOTA now starts every session already knowing where it is. A new `src/init.ts`
