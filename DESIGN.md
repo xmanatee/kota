@@ -285,7 +285,20 @@ Shell commands stream output to stderr in real-time via async `spawn`, instead o
 - Command echoed before execution: `$ command` (dimmed)
 - Both stdout and stderr stream to the user's terminal and are collected for the tool result
 - Timeout via `SIGTERM` with `SIGKILL` fallback after 5s
-- Output truncation unchanged (first 10K + last 5K for results over 20K chars)
+- Successful output truncated at 20K chars (first 10K + last 5K)
+- Failed commands use smart error extraction (see Shell Error Diagnostics below)
+
+### Shell Error Diagnostics (`src/shell-diagnostics.ts`)
+
+When shell commands fail with long output, naive head+tail truncation often loses the critical error messages buried in the middle. This module detects common output formats and extracts the most diagnostic-relevant lines.
+
+- **Threshold**: Only activates for outputs >8K chars; short outputs returned as-is
+- **TypeScript compiler**: Extracts `error TSxxxx` lines from both `file(line,col)` and `file:line:col` formats, deduplicates
+- **Test runners**: Detects vitest/jest/mocha patterns — `FAIL` markers, `×`/`✗`/`●` bullets, assertion errors, `Expected`/`Received` blocks. Captures failure regions with context and summary lines
+- **Lint tools**: Extracts ESLint `file:line:col: error` format and Biome `×` markers. Prioritizes errors over warnings
+- **Generic**: Matches `Error:`, `FAILED`, `fatal:`, `panic:`, `command not found`, `Permission denied` with 1 line before + 3 after for context
+- **Fallback**: If no extractor matches, falls back to head+tail truncation
+- **Output format**: Extracted diagnostics prepended with count, followed by the output tail (last 20 lines) for summary context
 
 ### Tool Runner (`src/tool-runner.ts`)
 
@@ -355,7 +368,9 @@ src/
   memory.ts           — Persistent memory store (~110 lines)
   path-resolver.ts    — Smart file path suggestions on not-found (~100 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
+  shell-diagnostics.ts — Smart error extraction from shell output (~165 lines)
   verify-tracker.ts   — Verification nudge system (~155 lines)
+  shell-diagnostics.test.ts — Error extraction unit tests (~175 lines)
   path-resolver.test.ts — Path resolution + similarity unit tests (~80 lines)
   tool-runner.test.ts — FailureTracker unit tests (~95 lines)
   compaction.test.ts  — extractWorkingState unit tests (~130 lines)
@@ -381,11 +396,11 @@ src/
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~4560 lines across 39 files (including 7 test files with ~860 lines).
+Total: ~4900 lines across 41 files (including 8 test files with ~1035 lines).
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~4560 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~4900 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 14 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -409,12 +424,13 @@ Total: ~4560 lines across 39 files (including 7 test files with ~860 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 99 tests across 7 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, and verification nudge logic.
+25. **Unit test suite**: 121 tests across 8 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, and error extraction patterns.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
 29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation.
 30. **Verification nudge system**: Tracks which files have been edited but not verified via tests/builds. Detects available verification commands from project config (package.json, Makefile, Cargo.toml, pyproject.toml) and surfaces them in the dynamic system prompt. Escalating urgency: after 3 turns of edits without verification, a stronger nudge appears. Resets when the agent runs a verification command.
+31. **Shell error diagnostics**: When shell commands fail with long output (>8K chars), smart extraction finds the diagnostic-relevant lines instead of naive head+tail truncation. Detects TypeScript compiler errors, test runner failures (vitest/jest), lint errors (ESLint/Biome), and generic error patterns. The agent sees extracted errors + output tail, not a random slice of verbose logs.
 
 ## Dependencies
 

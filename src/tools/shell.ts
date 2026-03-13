@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { spawn } from "node:child_process";
 import type { ToolResult } from "./index.js";
 import { isDangerous, confirmExecution } from "../confirm.js";
+import { smartErrorTruncate } from "../shell-diagnostics.js";
 
 export const shellTool: Anthropic.Tool = {
   name: "shell",
@@ -105,7 +106,7 @@ export async function runShell(
 
       if (code !== 0 && code !== null) {
         resolve({
-          content: truncateOutput(output || `Command failed with exit code ${code}`),
+          content: smartErrorTruncate(output || `Command failed with exit code ${code}`),
           is_error: true,
         });
         return;

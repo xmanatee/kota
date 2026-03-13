@@ -1,5 +1,94 @@
 # KOTA Changelog
 
+## Iteration 45 — Shell Error Diagnostics
+
+When shell commands fail with long output, KOTA now extracts the most
+diagnostic-relevant lines instead of using naive head+tail truncation. This
+directly improves the agent's ability to diagnose and fix test failures, build
+errors, and lint issues on the first try.
+
+### Why this improvement
+
+Shell commands are the agent's primary verification tool. When `npm test` or
+`tsc --noEmit` fails, the output can be thousands of lines — mostly passing
+tests or build progress, with the actual errors buried in the middle. The
+existing truncation (first 10K + last 5K chars) often cuts exactly the lines
+the agent needs to see. The result: the agent guesses what went wrong, makes a
+bad fix, fails again, and wastes turns. Better error extraction means fewer
+wasted turns and faster issue resolution.
+
+### Changes
+
+- **New module: `src/shell-diagnostics.ts`** (~165 lines):
+  - `smartErrorTruncate(output, limit)`: Main entry point. Short output (<8K)
+    returned as-is. Long output gets format-specific error extraction with
+    fallback to head+tail.
+  - `extractTscErrors`: Detects TypeScript compiler output in both
+    `file(line,col)` and `file:line:col` formats. Deduplicates errors, caps at
+    40.
+  - `extractTestFailures`: Detects vitest/jest/mocha patterns — `FAIL`
+    markers, `×`/`✗`/`●` bullets, assertion errors, `Expected`/`Received`
+    blocks. Captures failure regions with 10 lines of context each. Also grabs
+    summary lines (`Tests: N failed | M passed`).
+  - `extractLintErrors`: Detects ESLint `file:line:col: error` format and
+    Biome `×` markers. Prioritizes errors over warnings.
+  - `extractGenericErrors`: Matches `Error:`, `FAILED`, `fatal:`, `panic:`,
+    `command not found`, `Permission denied` with 1+3 lines of context.
+
+- **New tests: `src/shell-diagnostics.test.ts`** (~175 lines, 22 tests):
+  - `smartErrorTruncate`: short passthrough, tsc extraction from padded
+    output, head+tail fallback, under-limit passthrough
+  - `extractTscErrors`: parenthesized format, colon format, deduplication,
+    non-tsc rejection
+  - `extractTestFailures`: vitest-style, jest-style, summary capture, non-test
+    rejection
+  - `extractLintErrors`: eslint format, biome markers, error/warning priority,
+    clean rejection
+  - `extractGenericErrors`: Error lines with context, multiple regions,
+    command not found, Permission denied, FAILED, clean rejection
+
+- **Modified: `src/tools/shell.ts`** (+2 lines):
+  - Failed commands now use `smartErrorTruncate` instead of `truncateOutput`
+  - Successful commands still use the original truncation (no behavior change)
+
+### What the agent sees
+
+Before (long test output, 15K+ chars):
+```
+... first 10K of passing tests ...
+... [truncated] ...
+... last 5K (maybe summary, maybe not) ...
+```
+
+After (same output):
+```
+[Extracted 3 diagnostic(s) from 15234 chars]
+
+Test failures:
+
+ × src/foo.test.ts > should handle edge case
+   AssertionError: expected 42 to be 43
+     - Expected: 43
+     + Received: 42
+
+--- Output tail ---
+Tests  1 failed | 50 passed
+```
+
+### Verification
+
+1. **Static**: `npm run typecheck && npm run build` — clean
+2. **Unit**: `npm test` — 121 tests pass across 8 files (99 existing + 22 new)
+3. **Load**: `node dist/cli.js --help` — works
+4. **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+   — auth error expected (no API key), loop starts correctly
+
+### Possible next directions
+
+- Add extractors for more formats (cargo, go test, pytest) as needed
+- Adaptive extraction threshold based on context budget (extract more
+  aggressively when budget is tight)
+
 ## Iteration 44 — Early File Size Warning
 
 14th consecutive successful autonomous build (iterations 17–43). Process is
