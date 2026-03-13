@@ -126,6 +126,16 @@ Enables the agent to search the web autonomously using DuckDuckGo — no API key
 - 15-second timeout, proper User-Agent, clean error messages
 - Pairs with `web_fetch`: search discovers URLs, fetch reads full pages
 
+### Session Warmup (`src/init.ts`)
+
+Automatic context gathering at session start — KOTA knows where it is before the first turn.
+
+- **Project detection**: Reads `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `requirements.txt`, or `Makefile` — extracts project name, key frameworks, test runner, available scripts
+- **Git state**: Branch name, working tree status (N modified, N untracked), last 5 commit subjects — via synchronous `execSync` (fast, ~10ms)
+- **Memory recall**: Searches persistent memory for entries matching the current directory name, shows top 5 matches
+- All detection is synchronous, zero-dependency, and gracefully degrades (no git → skip, no config file → skip, no memories → skip)
+- Context injected into the static system prompt at session start; persists across turns via prompt caching
+
 ### Persistent Memory (`src/memory.ts`, `src/tools/memory.ts`)
 
 Cross-session memory that persists facts, preferences, and project knowledge in `~/.kota/memory.json`.
@@ -272,13 +282,14 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 ```
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
-  loop.ts             — AgentSession class + core agent loop (~300 lines)
+  loop.ts             — AgentSession class + core agent loop (~305 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
   context.ts          — Conversation + compaction + budget tracking (~220 lines)
   confirm.ts          — Destructive command confirmation (~50 lines)
   cost.ts             — Per-turn cost tracking (~65 lines)
   diff.ts             — Diff display for file edits (~80 lines)
+  init.ts             — Session warmup: project/git/memory detection (~150 lines)
   lint.ts             — Syntax checking for linter-gated edits (~100 lines)
   memory.ts           — Persistent memory store (~105 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
@@ -299,11 +310,11 @@ src/
     web-search.ts — Web search via DuckDuckGo scraping (~155 lines)
 ```
 
-Total: ~2830 lines across 25 files.
+Total: ~3020 lines across 26 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2830 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~3020 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 13 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -323,6 +334,7 @@ Total: ~2830 lines across 25 files.
 18. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
 19. **Persistent memory**: Cross-session memory stores facts, preferences, and project conventions in `~/.kota/memory.json`. The agent can save and recall context across sessions, transforming from a stateless tool into a personal assistant that learns.
 20. **Token budget awareness**: The agent tracks context window usage and adapts — large tool results are automatically truncated as budget fills, the agent sees budget warnings in the system prompt above 50%, and the user sees `context: N%` on every turn. Split system blocks keep prompt caching effective despite dynamic budget notes.
+21. **Session warmup**: At session start, KOTA auto-detects the project type (Node.js, Python, Rust, Go), reads git state (branch, dirty files, recent commits), and recalls relevant memories from previous sessions. The agent starts oriented from turn 1 instead of spending turns on discovery.
 
 ## Dependencies
 

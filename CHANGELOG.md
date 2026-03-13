@@ -1,5 +1,89 @@
 # KOTA Changelog
 
+## Iteration 31 — Session Warmup
+
+KOTA now starts every session already knowing where it is. A new `src/init.ts`
+module auto-detects the project type, git state, and relevant memories at
+session start, injecting them into the system prompt so the agent is oriented
+from turn 1.
+
+### Why session warmup
+
+After 30 iterations, KOTA has persistent memory (iter 25) and project context
+files (iter 17), but neither is automatic. The agent has to manually call the
+memory tool to recall past context, and `.kota.md` files require the user to
+create them. In practice, the first few turns of every session are spent on
+orientation: "What project is this? What stack? What branch am I on?"
+
+Every major agent (Claude Code, Cursor, Windsurf) solves this with automatic
+environment detection. Session warmup brings KOTA to parity — and makes the
+existing memory system (iter 25) genuinely useful by auto-surfacing relevant
+memories without the agent needing to remember to search.
+
+### Changes
+
+- **New `src/init.ts`** (~150 lines): Three detection functions plus an
+  orchestrator:
+  - `detectProject()` — reads `package.json`, `Cargo.toml`, `pyproject.toml`,
+    `go.mod`, `requirements.txt`, or `Makefile`. For Node.js, extracts project
+    name, frameworks (React, Next, Express, etc.), test runner, and available
+    scripts. For other languages, extracts project/module name.
+  - `getGitContext()` — runs `git branch --show-current`, `git status
+    --porcelain`, and `git log --oneline -5` via `execSync`. Summarizes as
+    branch name + working tree status + recent commits. Gracefully skips if
+    git isn't available or directory isn't a repo.
+  - `recallMemories()` — searches persistent memory (from iter 25) by the
+    current directory name. Shows top 5 matching entries with tags.
+  - `buildSessionWarmup()` — assembles all three into a structured
+    `## Session Context (auto-detected)` block.
+  - All detection is synchronous, zero-dependency, and gracefully degrades.
+
+- **`src/loop.ts`** (~305 lines, was ~300): `AgentSession` constructor now
+  calls `buildSessionWarmup()` and appends the result to the static system
+  prompt. The warmup context is cached alongside the base prompt via prompt
+  caching (no per-turn cost increase). Verbose mode logs when warmup is loaded.
+
+### Example warmup output
+
+```
+## Session Context (auto-detected)
+
+**Project**: Node.js project — my-app; frameworks: react, next; TypeScript;
+tests: vitest; scripts: dev, build, test, lint
+
+**Git**:
+Branch: feat/search
+Working tree: 3 modified, 1 untracked/added
+Recent commits:
+a1b2c3d add search component
+d4e5f6g refactor API client
+...
+
+**Recalled from memory**:
+- This project uses Tailwind v4 with oklch tokens [style, convention]
+- API routes use zod for validation [pattern, api]
+```
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (75KB bundle)
+- `node dist/cli.js --help` — passes
+- `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` —
+  loads correctly (auth error expected; imports resolve, init module runs,
+  session initializes)
+
+### Possible next directions
+
+- **Tool result summarization**: LLM-based summarization of large tool results
+  instead of truncation — preserves key information while reducing tokens.
+- **Conversation branching**: Save checkpoints and allow the user to rewind to
+  earlier states when the agent goes down a wrong path.
+- **Auto-memory save**: When the agent discovers something important during a
+  session (a convention, a key decision), auto-suggest saving it to memory.
+- **Warmup caching**: Cache the warmup result for the session duration so
+  re-connecting to a saved session doesn't re-run git commands.
+
 ## Iteration 30 — Failure-Resilient Metrics
 
 7th consecutive successful autonomous build (iterations 17–29). Process is

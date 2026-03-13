@@ -7,6 +7,7 @@ import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { setDelegateModel } from "./tools/delegate.js";
 import { loadProjectContext } from "./project-context.js";
 import { streamMessage } from "./streaming.js";
+import { buildSessionWarmup } from "./init.js";
 
 const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with software engineering, research, analysis, and problem-solving.
 
@@ -92,11 +93,15 @@ export class AgentSession {
     this.client = new Anthropic({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
-    // Build system prompt with project context
+    // Build system prompt with project context and session warmup
     const projectContext = loadProjectContext();
-    const systemPrompt = SYSTEM_PROMPT + projectContext;
+    const warmup = buildSessionWarmup();
+    const systemPrompt = SYSTEM_PROMPT + projectContext + warmup;
     if (projectContext && this.verbose) {
       console.error("[kota] Loaded project context from .kota.md");
+    }
+    if (warmup && this.verbose) {
+      console.error("[kota] Session warmup loaded");
     }
 
     // Load or create context
