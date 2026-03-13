@@ -41,11 +41,11 @@ $(cd "$DIR" && git log --oneline -8 2>/dev/null || echo '(no git history)')
 ### Worktree status:
 $(cd "$DIR" && git status --short 2>/dev/null || echo '(unavailable)')
 
-### Last CHANGELOG entry:
-$(cd "$DIR" && awk '/^## Iteration/{if(found)exit; found=1} found' CHANGELOG.md 2>/dev/null | head -50 || echo '(none)')
+### Recent CHANGELOG entries (last 3):
+$(cd "$DIR" && awk '/^## Iteration/{count++; if(count>3)exit} count>0' CHANGELOG.md 2>/dev/null | head -120 || echo '(none)')
 
 ### Other recent iterations:
-$(cd "$DIR" && grep '^## Iteration' CHANGELOG.md 2>/dev/null | head -5 || echo '(none)')
+$(cd "$DIR" && grep '^## Iteration' CHANGELOG.md 2>/dev/null | head -8 || echo '(none)')
 
 ### Project files:
 $(cd "$DIR" && find . -maxdepth 3 \
@@ -128,6 +128,13 @@ fi
 SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
 SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
 log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
+# Flag files over 300 lines (guideline from project conventions)
+OVER_LIMIT=$(find "$DIR/src" -name '*.ts' -exec wc -l {} + 2>/dev/null \
+  | grep -v total | awk '$1 > 300 {print "  " $2 " (" $1 " lines)"}')
+if [ -n "$OVER_LIMIT" ]; then
+  log "[step] WARNING: Files over 300 lines (consider splitting):"
+  log "$OVER_LIMIT"
+fi
 if [ -f "$DIR/dist/cli.js" ]; then
   BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
   log "[step] Bundle: ${BUNDLE_BYTES} bytes"

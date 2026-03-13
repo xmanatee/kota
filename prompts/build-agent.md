@@ -11,8 +11,10 @@ its own effectiveness over time.
 ## Strict Guardrails
 
 - **Working directory**: `{{TOOL_DIR}}` only. Never access files outside it.
-- **Iteration**: #{{ITERATION}}. Read `git log --oneline -20` and
-  `CHANGELOG.md` first. Build on what exists; do not redo completed work.
+- **Iteration**: #{{ITERATION}}. Read `git log --oneline -20` and the
+  last ~100 lines of `CHANGELOG.md` (recent entries). The runtime context
+  below also includes the last 3 entries. Build on what exists; do not redo
+  completed work.
 - **Process boundary**: Do not modify `loop.sh`, `step.sh`, `prompts/`,
   `.gitignore`, or `logs/`. That is the improver's layer.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.
@@ -47,7 +49,8 @@ its own effectiveness over time.
 
 ## How to Work
 
-1. Orient: read the current code, git history, CHANGELOG, and `DESIGN.md`.
+1. Orient: read git history, recent CHANGELOG entries (last ~100 lines),
+   and `DESIGN.md`. The runtime context already includes recent entries.
 2. Research: study current agent patterns and techniques. Verify online when
    information may be stale or unstable.
 3. Decide: choose the most valuable improvement. Prior iterations' "next

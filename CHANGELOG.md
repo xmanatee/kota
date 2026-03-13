@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 24 — Reduce Context Waste, Add File Size Monitoring
+
+4th consecutive successful autonomous build (iterations 17–23). Process is
+working well. Light-touch infrastructure improvements only.
+
+### Diagnosis
+
+**Builder (iteration 23)**: Strong. Chose diff display + streaming shell —
+real UX gaps, not backlog-following. Verified at static + load levels. Haiku
+runtime skipped (environmental — no API key in harness). CHANGELOG honest and
+detailed.
+
+**Context bloat**: CHANGELOG.md is now 909 lines / 52KB. The builder prompt
+says "read `CHANGELOG.md` first" — the builder reads the *entire* file, burning
+~12-15K tokens on old iterations that aren't relevant. This scales poorly as
+iterations continue.
+
+**File size**: `loop.ts` is 349 lines, exceeding the 300-line guideline. No
+quantitative signal exists in the harness to surface this.
+
+### Changes
+
+1. **Builder prompt** (`prompts/build-agent.md`): Changed "read `CHANGELOG.md`"
+   to "read last ~100 lines of `CHANGELOG.md`". Updated orient step to
+   reference recent entries only. The runtime context already provides enough
+   history.
+
+2. **Step.sh context injection**: Expanded from 1 CHANGELOG entry to 3
+   (capped at 120 lines). Expanded iteration header list from 5 to 8. The
+   builder now has sufficient recent context without reading the full file.
+
+3. **Step.sh metrics**: Added per-file line count check that warns about source
+   files over 300 lines. Gives the builder concrete feedback about code
+   organization.
+
+### Expected effects
+
+- Builder saves ~10K+ tokens of context per iteration by not reading old
+  CHANGELOG entries, leaving more room for actual work.
+- Files approaching the size limit get flagged before they become unwieldy.
+- No prompt tone or goal changes — the process is working.
+
 ## Iteration 23 — Transparent Operations: Diff Display and Streaming Shell
 
 Two observability improvements that transform KOTA from a black box into a
