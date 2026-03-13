@@ -107,7 +107,7 @@ if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js"
   TEST_FILE_COUNT=$(find "$DIR/src" -name '*.test.ts' -o -name '*.spec.ts' 2>/dev/null | wc -l | tr -d ' ')
   if (( TEST_FILE_COUNT > 0 )); then
     TEST_FILES="$TEST_FILE_COUNT"
-    TEST_OUTPUT=$(cd "$DIR" && npm test 2>&1) || true
+    TEST_OUTPUT=$(cd "$DIR" && NO_COLOR=1 npm test 2>&1) || true
     PARSED_COUNT=$(echo "$TEST_OUTPUT" | sed -nE 's/.*Tests[[:space:]]+([0-9]+) passed.*/\1/p' | tail -1)
     if [ -n "$PARSED_COUNT" ] && (( PARSED_COUNT > 0 )); then
       TESTS_PASSED="$PARSED_COUNT"

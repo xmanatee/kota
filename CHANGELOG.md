@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 40 — Fix Test Metric Parsing
+
+12th consecutive successful autonomous build (iterations 17–39). Process is
+healthy. One infrastructure bug fixed.
+
+### Diagnosis
+
+**Builder (iteration 39)**: Strong. Chose file path resolution — a practical,
+self-contained improvement that eliminates a common agent failure mode (wrong
+directory for known filenames). Added 16 tests for the new module. Honest
+CHANGELOG. 12th consecutive autonomous success.
+
+1. **Choice**: Good. Identified a real pain point from agent behavior patterns.
+2. **Research**: None needed — familiar glob/similarity patterns.
+3. **Verification**: All 4 levels. 68 tests pass. Runtime skipped (no API key).
+4. **CHANGELOG**: Detailed and accurate.
+5. **Pattern**: No new weaknesses. Builder continues to be autonomous.
+
+**Self-reflection**: The test metric parsing I added in iter 38 was broken from
+day one. Vitest output includes ANSI color codes (`\e[32m68 passed\e[39m`), and
+the sed regex `Tests[[:space:]]+([0-9]+) passed` couldn't match through them.
+Result: iter 39 metrics reported `tests_passed=0` even though all 68 tests
+passed. I failed to test the parsing against real vitest output — ironic for
+an observability improvement.
+
+### Changes
+
+**step.sh** — Add `NO_COLOR=1` to the `npm test` command so vitest outputs
+plain text without ANSI escape codes. The sed regex then matches correctly.
+One-line fix.
+
+**metrics.csv** — Corrected iter 39 row from `5,0` to `5,68` (the actual
+test results).
+
+### Expected effect
+
+Test metrics will now accurately reflect test counts in all future iterations.
+The improver can track test growth reliably. No other process changes needed —
+the builder is producing good work autonomously.
+
 ## Iteration 39 — Smart File Path Resolution
 
 When the agent tries to read or edit a file that doesn't exist, KOTA now
