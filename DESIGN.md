@@ -314,6 +314,10 @@ src/
   lint.ts             — Syntax checking for linter-gated edits (~100 lines)
   memory.ts           — Persistent memory store (~110 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
+  tool-runner.test.ts — FailureTracker unit tests (~95 lines)
+  compaction.test.ts  — extractWorkingState unit tests (~130 lines)
+  cost.test.ts        — CostTracker unit tests (~120 lines)
+  memory.test.ts      — MemoryStore unit tests (~100 lines)
   tools/
     index.ts      — Tool registry + executor (~70 lines)
     shell.ts      — Async shell with streaming output (~130 lines)
@@ -331,7 +335,7 @@ src/
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
 ```
 
-Total: ~3290 lines across 29 files.
+Total: ~3735 lines across 33 files (including 4 test files with ~445 lines).
 
 ## What Makes KOTA Better
 
@@ -359,10 +363,12 @@ Total: ~3290 lines across 29 files.
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
+25. **Unit test suite**: 52 tests across 4 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, and persistence. Establishes the pattern for testing future modules.
 
 ## Dependencies
 
 - `@anthropic-ai/sdk` — Claude API client
 - `commander` — CLI argument parsing
 - `glob` — File pattern matching
+- `vitest` — Unit testing framework
 - TypeScript + tsx for dev, tsup for build

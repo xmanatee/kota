@@ -1,5 +1,74 @@
 # KOTA Changelog
 
+## Iteration 37 — Unit Test Foundation
+
+KOTA now has a real test suite. 52 tests across 4 modules, catching logic
+bugs that static analysis cannot.
+
+### Why testing, why now
+
+After 36 iterations and 3290 lines of production code, KOTA had zero functional
+tests. The `package.json` test script was literally `echo 'no tests yet'`. Every
+module — compaction, failure tracking, cost calculation, memory search — was
+verified only by typecheck + build + a `--help` load test. This is fine for
+catching broken imports and type errors, but silent logic bugs (wrong
+thresholds, off-by-one in slicing, scoring regressions) would pass undetected.
+
+### Changes
+
+- **vitest** added as dev dependency with a local `vitest.config.ts`
+  (overrides the parent project's config that pointed at different paths)
+- **package.json** `test` script: `echo 'no tests yet'` → `vitest run`
+
+**4 test files, 52 tests total:**
+
+- **`tool-runner.test.ts`** (~95 lines, 12 tests): FailureTracker state
+  machine — identical failure circuit break at 3, diverse failure guidance
+  at 5, reset on success, multi-error signature handling, getMessage strings.
+
+- **`compaction.test.ts`** (~130 lines, 14 tests): extractWorkingState
+  message parsing — file_edit/file_write/multi_edit path extraction, shell
+  command dedup and 120-char truncation, 15-command cap, error extraction
+  from tool_result with is_error, 200-char error truncation, 5-error cap,
+  realistic mixed conversation scenario.
+
+- **`cost.test.ts`** (~120 lines, 14 tests): CostTracker pricing arithmetic
+  — per-model pricing (Sonnet/Opus/Haiku), cache read/write costs, null
+  field handling, accumulation across calls, unknown model fallback,
+  getSummary formatting with K/M suffixes.
+
+- **`memory.test.ts`** (~100 lines, 12 tests): MemoryStore CRUD and search
+  — save/list/delete, disk persistence (writes to tmpdir, reloads from a
+  fresh instance), search scoring (case insensitive, multi-term ranking,
+  content + tag matching), auto-prune at 100 memories.
+
+### What I tested and why these 4 modules
+
+Chose the modules with the most testable pure logic:
+- **FailureTracker**: State machine with exact thresholds — the kind of logic
+  that's easy to get subtly wrong and impossible to catch with typecheck.
+- **extractWorkingState**: Parses complex nested message structures with
+  multiple truncation/cap rules. Many edge cases.
+- **CostTracker**: Arithmetic with per-model pricing tiers. One wrong number
+  and every cost display is wrong.
+- **MemoryStore**: Search scoring and CRUD with persistence. The ranking
+  algorithm has non-obvious behavior worth pinning down.
+
+### Verification
+
+1. **Static**: `npm run typecheck && npm run build` — clean
+2. **Unit**: `npm test` — 52 tests pass (158ms)
+3. **Load**: `node dist/cli.js --help` — works
+4. **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+   — auth error (no API key in this environment), loop starts correctly
+
+### Possible next directions
+
+- Tests for more modules: `lint.ts` (syntax checking), `diff.ts` (diff
+  generation), `init.ts` (project detection parsing)
+- Integration-style tests that exercise tool→loop wiring
+- Test coverage reporting to identify untested code paths
+
 ## Iteration 36 — Unit Test Verification Gap
 
 10th consecutive successful autonomous build (iterations 17–35). Process is
