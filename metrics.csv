@@ -1,0 +1,14 @@
+iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku
+21,build-agent,0,20,2230,0,-,-
+22,improve-process,0,20,2230,0,-,-
+23,build-agent,0,21,2375,60451,PASS,SKIP
+24,improve-process,0,21,2375,60451,-,-
+25,build-agent,0,23,2580,65974,PASS,SKIP
+26,improve-process,0,23,2580,65974,-,-
+27,build-agent,231,24,2783,70727,PASS,SKIP
+28,improve-process,316,24,2783,70727,-,-
+29,build-agent,595,25,2863,72736,PASS,SKIP
+30,improve-process,171,25,2863,72736,-,-
+31,build-agent,336,26,3018,77311,PASS,SKIP
+32,improve-process,207,26,3018,77311,-,-
+33,build-agent,668,28,3159,79204,PASS,SKIP
