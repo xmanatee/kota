@@ -1,0 +1,147 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { allTools, executeTool } from "./tools/index.js";
+import { Context } from "./context.js";
+
+const SYSTEM_PROMPT = `You are KOTA, an expert AI coding agent. You help users with software engineering tasks: writing code, fixing bugs, refactoring, exploring codebases, and more.
+
+## How you work
+- You have access to tools for reading, writing, editing files, running shell commands, searching code, and tracking tasks.
+- Break complex tasks into steps using the todo tool.
+- Read files before editing them. Understand existing code before modifying.
+- After making changes, verify they work (run tests, type checks, builds).
+- Be concise. Lead with the answer, not the reasoning.
+
+## Tool usage
+- Use file_read to read files (not shell + cat).
+- Use file_edit for modifying existing files (search-and-replace).
+- Use file_write only for creating new files.
+- Use grep to search code content, glob to find files by pattern.
+- Use shell for builds, tests, git commands, installs.
+
+## Safety
+- Never run destructive commands without confirming.
+- Never modify files outside the project directory.
+- If you're stuck after 3 attempts, explain the situation and ask for help.`;
+
+const MAX_ITERATIONS = 200;
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+
+export type LoopOptions = {
+  model?: string;
+  maxTokens?: number;
+  verbose?: boolean;
+};
+
+export async function runAgentLoop(
+  prompt: string,
+  options: LoopOptions = {},
+): Promise<string> {
+  const model = options.model || "claude-sonnet-4-20250514";
+  const maxTokens = options.maxTokens || 8192;
+  const verbose = options.verbose || false;
+
+  const client = new Anthropic();
+  const context = new Context(SYSTEM_PROMPT);
+  context.addUserMessage(prompt);
+
+  let lastResult = "";
+  let consecutiveFailures = 0;
+  let lastFailureSignature = "";
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // Compact if needed
+    if (context.needsCompaction()) {
+      if (verbose) console.error("[kota] Compacting context...");
+      await context.compact(client, model);
+    }
+
+    if (verbose) {
+      const stats = context.getStats();
+      console.error(`[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`);
+    }
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system: context.getSystemPrompt(),
+      tools: allTools,
+      messages: context.getMessages(),
+    });
+
+    context.addAssistantMessage(response);
+
+    // Extract text and tool use blocks
+    const textBlocks = response.content.filter((b) => b.type === "text");
+    const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+
+    // Print text output
+    for (const block of textBlocks) {
+      if (block.type === "text" && block.text) {
+        console.log(block.text);
+        lastResult = block.text;
+      }
+    }
+
+    // If no tool calls, we're done
+    if (toolUseBlocks.length === 0 || response.stop_reason === "end_turn") {
+      if (toolUseBlocks.length === 0) break;
+    }
+
+    // Execute tool calls (in parallel when possible)
+    if (toolUseBlocks.length > 0) {
+      const results = await Promise.all(
+        toolUseBlocks.map(async (block) => {
+          if (block.type !== "tool_use") return null;
+          if (verbose) {
+            console.error(`[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`);
+          }
+          const result = await executeTool(
+            block.name,
+            block.input as Record<string, unknown>,
+          );
+          return {
+            tool_use_id: block.id,
+            content: result.content,
+            is_error: result.is_error,
+          };
+        }),
+      );
+
+      const validResults = results.filter(
+        (r): r is NonNullable<typeof r> => r !== null,
+      );
+      context.addToolResults(validResults);
+
+      // Circuit breaker: detect repeated identical failures
+      const failedResults = validResults.filter((r) => r.is_error);
+      if (failedResults.length > 0) {
+        const sig = failedResults.map((r) => r.content).join("|");
+        if (sig === lastFailureSignature) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+            console.error(
+              `[kota] Circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} identical failures. Stopping.`,
+            );
+            context.addUserMessage(
+              "You have failed the same way 3 times in a row. " +
+              "Stop and explain what's going wrong.",
+            );
+          }
+        } else {
+          consecutiveFailures = 1;
+          lastFailureSignature = sig;
+        }
+      } else {
+        consecutiveFailures = 0;
+        lastFailureSignature = "";
+      }
+    }
+
+    // If stop_reason is "end_turn" with no pending tool calls, done
+    if (response.stop_reason === "end_turn" && toolUseBlocks.length === 0) {
+      break;
+    }
+  }
+
+  return lastResult;
+}

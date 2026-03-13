@@ -1,0 +1,26 @@
+{
+  "name": "kota",
+  "version": "0.1.0",
+  "description": "KOTA — Keep Only The Awesome. An AI coding agent.",
+  "type": "module",
+  "bin": {
+    "kota": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet'"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "commander": "^13.1.0",
+    "glob": "^11.0.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
