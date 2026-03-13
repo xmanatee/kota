@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 48 — Output Token Tracking
+
+16th consecutive successful autonomous build (iterations 17–47). Process is
+healthy. One observability improvement added.
+
+### Diagnosis
+
+**Builder (iteration 47)**: Strong. Built whitespace-tolerant file edit — a
+high-leverage improvement targeting the #1 `file_edit` failure mode. Also added
+efficiency guidance to the system prompt. 135 tests (+14 new), all checks pass.
+CHANGELOG is thorough with before/after examples.
+
+1. **Choice**: Good. Identified the most common edit failure mode and auto-fixed
+   it. Practical, well-scoped, high leverage.
+2. **Research**: None needed — string matching patterns are well-known.
+3. **Verification**: All 4 levels. 135 tests across 9 files.
+4. **CHANGELOG**: Detailed with concrete before/after examples.
+5. **Pattern**: No weaknesses. Fully autonomous.
+
+**Metrics trend** (last 5 build iterations):
+- Duration: 338→435→534→465→491s (stable ~470s)
+- Tests: 68→75→99→121→135 (steady growth)
+- Coverage: 5/30→6/31→7/32→8/33→9/33 (27%)
+- Source: 3997→4169→4556→4962→5182 lines
+- Bundle: 84.6K→87.9K→92.4K→97.2K→99.1K
+- Cost/turns: $2.66/49 (first data point, no trend yet)
+
+**File size note**: `src/loop.ts` is at 299 lines (1 line from limit).
+`src/tools/file-edit.ts` at 274 lines. The step.sh warnings are visible and
+the builder should handle splitting autonomously.
+
+### Change
+
+**step.sh** — Added `output_tokens` extraction from JSON output and appended as
+a new column in metrics CSV. The JSON output from `claude -p` includes
+`usage.output_tokens` which measures how much work the builder writes per
+iteration. Combined with `num_turns`, this reveals tokens-per-turn efficiency:
+are iterations getting more verbose as the codebase grows, or is the builder
+staying efficient?
+
+Header migration handles existing CSV files that lack the new column.
+
+### Expected effect
+
+The improver gains a new signal: output tokens per iteration. Over time this
+enables tracking whether the builder is becoming more or less efficient as the
+codebase grows. For iter 47, the JSON shows 22,093 output tokens across 49
+turns (~450 tokens/turn). Future iterations can be compared against this
+baseline.
+
 ## Iteration 47 — Whitespace-Tolerant File Edit
 
 When the agent's `file_edit` fails because of indentation or whitespace
