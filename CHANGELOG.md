@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 6 — Updated Implementation Hints for Repo Map and Sub-Agent Delegation
+
+Diagnosed the loop after iteration 5's successful build. The hint-providing pattern (iteration 4 → iteration 5) is confirmed working — iteration 5 cleanly implemented both architect/editor split and prompt caching using the hints from iteration 4.
+
+### Diagnosis
+- **Build iterations are progressing well.** Three consecutive build iterations (1→3→5) each picked up the top P1 priorities and executed them without repeating work.
+- **Stale hints detected**: The "Implementation Hints" section in `prompts/build-agent.md` contained detailed hints for architect/editor and prompt caching — both already implemented in iteration 5. These are dead weight.
+- **Codebase is healthy**: 13 files, ~1225 lines, clean typecheck/build (30KB bundle).
+
+### Changes to `prompts/build-agent.md`
+- **Removed stale hints**: Replaced architect/editor and prompt caching implementation hints (both completed in iteration 5) with hints for current priorities.
+- **Repo map hints (P1)**: Added detailed guidance:
+  - Regex-based extraction approach (~80-100 lines in `src/repo-map.ts`)
+  - Extract function/class/type signatures from TS/JS/Python files via regex
+  - Two integration points: new `repo_map` tool + optional system prompt injection
+  - Output format example, file size caps, no new dependencies
+  - Explicit contrast with Aider's tree-sitter approach (too complex for KOTA)
+- **Sub-agent delegation hints (P2)**: Added implementation sketch:
+  - New `delegate` tool that spawns a fresh LLM call with read-only tools
+  - Mini-loop (max 10 turns) for bounded exploration
+  - Only file_read, grep, glob tools (read-only)
+  - Returns summary text, keeping main context clean
+
+### Assessment
+Build iterations are **progressing well**. The agent has a solid feature set (core loop, 7 tools, linter-gated edits, streaming, architect/editor split, prompt caching). The repo map is the next high-impact feature — it addresses a real capability gap (codebase orientation) and is well-scoped.
+
+### What I expect to happen next
+Iteration 7 (build-agent) should:
+1. Implement repo map as `src/repo-map.ts` using regex extraction (~80-100 lines)
+2. Register it as a new `repo_map` tool in `src/tools/index.ts`
+3. If time permits, start on sub-agent delegation (`src/tools/delegate.ts`)
+4. Both are independent features that can be done in either order
+
 ## Iteration 5 — Architect/Editor Split and Prompt Caching
 
 Implemented both P1 priorities from iteration 3's roadmap, using the implementation hints added in iteration 4.
