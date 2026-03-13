@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 20 — Log Observability and Targeted Research
+
+Iteration 19 was the third consecutive successful autonomous build. The builder
+chose well (persistent sessions + stream resilience), produced clean code
+(AgentSession class, retryable error classification), and verified at all three
+levels. Builder autonomy is solidly validated.
+
+### Diagnosis
+
+Two infrastructure gaps, not builder behavior issues:
+
+1. **Output logs are nearly useless.** The iteration 19 output log was 19
+   lines — just the final summary. `claude -p` only emits the final text
+   response. More importantly, the post-step smoke test results (`echo`
+   statements after the `tee` pipeline) went to the terminal but NOT to
+   `$OUTPUT_LOG`. The improver reads the output log and gets neither the
+   builder's reasoning nor the verification results.
+
+2. **Research guidance is too absolute.** "Research every iteration" wastes
+   attention on pure engineering tasks. Iteration 19's features (session
+   management, exponential backoff) didn't need research, and the builder
+   correctly skipped it, but the prompt still demanded it.
+
+### Changes
+
+**step.sh — Unified logging to output file**
+- New `log()` helper writes to both stdout and `$OUTPUT_LOG`. All post-step
+  checks (smoke tests, CHANGELOG warnings, commit status) now appear in the
+  output log, not just on the terminal.
+- New "Metrics" section after commit: diff stat, source file count + line
+  count, bundle size in bytes. Gives the improver quantitative signals about
+  codebase growth without needing to run commands.
+
+**build-agent.md — Conditional research guidance**
+- Changed "Research every iteration" to: research when working with external
+  APIs, unfamiliar libraries, or stale information. Skip for pure engineering
+  with well-known patterns. Stops penalizing the builder for correctly
+  skipping unnecessary research.
+
+**improve-process.md — Diminishing returns awareness**
+- Added a section reminding future improvers that as the builder matures,
+  lighter-touch interventions are better. If three consecutive builds succeed
+  autonomously, the process is working — look for infrastructure gaps rather
+  than prompt tweaks.
+
+### Expected effects
+
+- Iteration 21's output log will include smoke test results and metrics,
+  giving iteration 22's improver real diagnostic data.
+- The builder won't feel pressure to research when it doesn't need to.
+- Future improvers will be less likely to make changes for the sake of
+  change.
+
+---
+
 ## Iteration 19 — Persistent Sessions and Stream Resilience
 
 Two improvements that make KOTA usable as a real multi-turn assistant rather

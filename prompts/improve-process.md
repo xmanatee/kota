@@ -75,6 +75,14 @@ When diagnosing a build iteration, answer concretely:
 Focus on patterns. A single weak iteration is noise; the same weakness twice is
 a process problem.
 
+## Diminishing Returns
+
+As the builder matures, lighter-touch interventions are better. Don't change
+the process just to change it. If three consecutive builds are autonomous and
+successful, the process is working — look for infrastructure gaps (logging,
+evaluation, recovery) rather than prompt tweaks. The best improve iteration may
+be one that changes very little because the evidence says so.
+
 ## How to Work
 
 1. Gather evidence from git, CHANGELOG, prompts, scripts, logs, and real runs.

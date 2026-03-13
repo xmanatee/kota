@@ -27,8 +27,9 @@ its own effectiveness over time.
 ## Goals
 
 - Build the best AI assistant you can, not a narrow coding-only tool.
-- Research every iteration. When information may be current or unstable, verify
-  it online instead of relying on memory.
+- Research when it helps: external APIs, unfamiliar libraries, patterns you
+  haven't used before, or information that may be stale. Skip research for pure
+  engineering with well-known patterns.
 - Make your own decisions about architecture, file structure, naming, and what
   to improve next. Prior notes are context, not marching orders.
 - Prefer high-leverage improvements that make the assistant more capable,

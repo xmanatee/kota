@@ -61,7 +61,9 @@ $(cd "$DIR" && ls -1t logs 2>/dev/null | head -8 || echo '(none yet)')
 PROMPT="$PROMPT$CONTEXT"
 printf '%s\n' "$PROMPT" > "$PROMPT_LOG"
 
-# Run claude from the tool directory so it uses it as cwd
+# Helper: log to both stdout and the output log file
+log() { echo "$@" | tee -a "$OUTPUT_LOG"; }
+
 cd "$DIR"
 claude -p \
   --model claude-opus-4-6 \
@@ -69,13 +71,15 @@ claude -p \
   --verbose \
   "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
 
-# Post-step checks for build iterations
+# Post-step checks for build iterations (logged to both terminal and output log)
 if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/index.js" ]; then
+  log ""
+  log "[step] === Smoke tests ==="
   # Level 1: CLI loads and parses args
   if node "$DIR/dist/index.js" --help > /dev/null 2>&1; then
-    echo "[step] Smoke test: CLI --help OK"
+    log "[step] CLI --help: PASS"
   else
-    echo "[step] WARNING: CLI --help failed — built artifact may be broken"
+    log "[step] CLI --help: FAIL — built artifact may be broken"
   fi
   # Level 2: exercise the agent loop with a trivial prompt (Haiku, 30s timeout)
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
@@ -83,13 +87,13 @@ if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/index.js" ]; then
       | timeout 30 node "$DIR/dist/index.js" run --model claude-haiku-4-5-20251001 2>/dev/null) \
       && {
         if echo "$RUNTIME_OUT" | grep -qi "hello"; then
-          echo "[step] Smoke test: runtime OK (agent loop works)"
+          log "[step] Runtime (Haiku): PASS"
         else
-          echo "[step] WARNING: Runtime test got unexpected output: $(echo "$RUNTIME_OUT" | head -c 200)"
+          log "[step] Runtime (Haiku): UNEXPECTED — $(echo "$RUNTIME_OUT" | head -c 200)"
         fi
-      } || echo "[step] WARNING: Runtime smoke test failed (timeout or crash)"
+      } || log "[step] Runtime (Haiku): FAIL (timeout or crash)"
   else
-    echo "[step] INFO: Runtime smoke test skipped (ANTHROPIC_API_KEY not set)"
+    log "[step] Runtime (Haiku): SKIPPED (no ANTHROPIC_API_KEY)"
   fi
 fi
 
@@ -99,7 +103,7 @@ if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)"
   git add -A
   # Warn if CHANGELOG was not updated
   if ! git diff --cached --name-only | grep -q 'CHANGELOG.md'; then
-    echo "[step] WARNING: CHANGELOG.md was not updated in iteration #$ITERATION"
+    log "[step] WARNING: CHANGELOG.md was not updated in iteration #$ITERATION"
   fi
   # Build commit message from CHANGELOG.md last entry if available
   SUMMARY=""
@@ -110,7 +114,21 @@ if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)"
     SUMMARY="automated changes"
   fi
   git commit -m "iter #$ITERATION ($TASK): $SUMMARY"
-  echo "[step] Committed changes for iteration #$ITERATION"
+  log "[step] Committed changes for iteration #$ITERATION"
 else
-  echo "[step] No changes to commit for iteration #$ITERATION"
+  log "[step] No changes to commit for iteration #$ITERATION"
+fi
+
+# Post-commit metrics (always logged, gives improver quantitative signals)
+log ""
+log "[step] === Metrics ==="
+if git rev-parse HEAD~1 >/dev/null 2>&1; then
+  log "[step] Diff: $(cd "$DIR" && git diff HEAD~1 --stat | tail -1)"
+fi
+SRC_COUNT=$(find "$DIR/src" -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
+SRC_LINES=$(find "$DIR/src" -name '*.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
+log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
+if [ -f "$DIR/dist/index.js" ]; then
+  BUNDLE_BYTES=$(wc -c < "$DIR/dist/index.js" | tr -d ' ')
+  log "[step] Bundle: ${BUNDLE_BYTES} bytes"
 fi
