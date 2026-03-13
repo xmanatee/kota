@@ -52,7 +52,6 @@ Build in TypeScript/Node.js. The agent should have these modules:
 | Module | Purpose | Priority |
 |--------|---------|----------|
 | `src/cli.ts` | Entry point, argument parsing (Commander.js) | P0 |
-| `src/loop.ts` | Core agent loop: reason → act → observe | P0 |
 | `src/tools/` | Tool implementations (read, write, edit, shell, grep) | P0 |
 | `src/context.ts` | Conversation history + compaction | P1 |
 | `src/planner.ts` | Task decomposition, TodoWrite-style tracking | P1 |
