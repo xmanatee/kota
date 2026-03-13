@@ -1,6 +1,6 @@
 # KOTA — Keep Only The Awesome
 
-A coding agent that synthesizes the best ideas from Claude Code, Codex CLI, Aider, SWE-agent, and OpenHands into a simple, powerful architecture.
+An AI assistant that synthesizes the best ideas from Claude Code, Codex CLI, Aider, SWE-agent, and OpenHands into a simple, powerful architecture.
 
 ## Research Summary
 
@@ -88,6 +88,8 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `todo` | Track task progress | Injected into system prompt, TodoWrite-style |
 | `repo_map` | Structural codebase index | Regex-extracted exports, grouped by file |
 | `delegate` | Sub-agent exploration | Read-only mini-loop, returns summary |
+| `multi_edit` | Atomic multi-file edits | All succeed or all revert |
+| `web_fetch` | Fetch web pages | HTML stripping, truncation, timeout |
 
 ### Repo Map (`src/tools/repo-map.ts`)
 
@@ -155,6 +157,26 @@ System prompt is sent as a `TextBlockParam[]` with `cache_control: { type: "ephe
 
 Real-time text streaming via `client.messages.stream()`. Text appears token-by-token as the model generates it, instead of waiting for the full response. Tool calls are still collected and executed after the stream completes.
 
+### Extended Thinking (`--think`)
+
+Leverages Claude's extended thinking API for deeper reasoning before acting.
+
+- **`--think` / `-t`**: Enables extended thinking on the main loop and architect pass
+- **`--think-budget <tokens>`**: Configurable budget (default 10000, min 1024)
+- `max_tokens` automatically increases to `budget_tokens + max_tokens` to leave room for output
+- Thinking content streams to stderr: full text in verbose mode, "[kota] Thinking..." indicator otherwise
+- Thinking blocks are preserved in conversation history for multi-turn consistency
+- Not enabled for editor pass (mechanical execution) or delegate sub-agents (quick exploration)
+
+### Web Fetch (`src/tools/web-fetch.ts`)
+
+Enables the agent to access web pages for research, documentation lookup, and verification.
+
+- Built-in Node.js `fetch` API — zero additional dependencies
+- HTML tag stripping: removes `<script>`, `<style>`, converts block elements to newlines, decodes HTML entities
+- Response truncation to configurable `max_length` (default 20000 chars) for token efficiency
+- 30-second timeout, redirect following, clean error messages
+
 ### Circuit Breaker
 
 Stop after 3 identical consecutive tool failures. Prevents infinite loops where the agent keeps trying the same broken approach.
@@ -163,38 +185,45 @@ Stop after 3 identical consecutive tool failures. Prevents infinite loops where 
 
 ```
 src/
-  cli.ts          — Entry point, Commander.js (~105 lines)
-  loop.ts         — Core agent loop with caching + architect integration (~175 lines)
-  architect.ts    — Architect/Editor two-pass flow (~115 lines)
-  context.ts      — Conversation + compaction (~135 lines)
+  cli.ts          — Entry point, Commander.js (~115 lines)
+  loop.ts         — Core agent loop with caching, thinking, architect integration (~275 lines)
+  architect.ts    — Architect/Editor two-pass flow (~135 lines)
+  context.ts      — Conversation + compaction + persistence (~175 lines)
+  confirm.ts      — Destructive command confirmation (~50 lines)
+  cost.ts         — Per-turn cost tracking (~65 lines)
   lint.ts         — Syntax checking for linter-gated edits (~100 lines)
   tools/
-    index.ts      — Tool registry + executor (~55 lines)
-    shell.ts      — Shell command execution (~70 lines)
+    index.ts      — Tool registry + executor (~65 lines)
+    shell.ts      — Shell command execution (~80 lines)
     file-read.ts  — Read file with line numbers (~65 lines)
     file-write.ts — Create/overwrite file with lint gate (~65 lines)
     file-edit.ts  — Search-and-replace edit with lint gate (~100 lines)
+    multi-edit.ts — Atomic multi-file edits (~115 lines)
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
-    repo-map.ts   — Structural codebase index (~105 lines)
-    delegate.ts   — Sub-agent exploration (~105 lines)
+    repo-map.ts   — Structural codebase index (~125 lines)
+    delegate.ts   — Sub-agent exploration (~125 lines)
+    web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
 ```
 
-Total: ~1435 lines across 15 files. Each file ≤ 175 lines.
+Total: ~2000 lines across 19 files. Each file ≤ 275 lines.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~1435 lines total vs thousands in competitors. Easy to understand, modify, extend.
-2. **Best-of-breed tools**: Each tool designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
-3. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
-4. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
-5. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
-6. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
-7. **Task tracking**: TodoWrite-style tracking injected as system context so the agent always knows what's done and what's left.
-8. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file (inspired by Aider, simplified from tree-sitter to regex).
-9. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean (inspired by Claude Code's Agent tool).
-10. **Extensible architecture**: Adding a new tool = one file + one registry entry. No framework, no abstractions.
+1. **Simplicity**: ~2000 lines total vs thousands in competitors. Easy to understand, modify, extend.
+2. **Best-of-breed tools**: 12 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
+3. **Extended thinking**: Optional deep reasoning via `--think` flag — the model thinks through complex problems before acting, improving plan quality and reducing wasted tool calls.
+4. **Web access**: Built-in `web_fetch` tool enables the agent to research documentation, APIs, and current information — making it useful beyond local-file-only tasks.
+5. **Linter-gated edits**: Every file write/edit is syntax-checked. Broken edits are auto-reverted with clear error messages, preventing cascading failures (from SWE-agent).
+6. **Streaming output**: Text appears in real-time as the model generates it, not after the full response completes.
+7. **Architect/Editor split**: Optional two-pass flow separates reasoning from editing. Same technique that gives Aider +3-8% on benchmarks.
+8. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
+9. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
+10. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
+11. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
+12. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
+13. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
 
 ## Dependencies
 

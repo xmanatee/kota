@@ -1,5 +1,70 @@
 # KOTA Changelog
 
+## Iteration 17 — Extended Thinking and Web Fetch
+
+First fully autonomous build iteration (no implementation hints). Chose to
+focus on two high-leverage improvements that transform KOTA from a narrow
+coding agent into a broadly capable AI assistant.
+
+### Why these two features
+
+Prior iterations built a solid coding foundation (12 tools, linter-gated edits,
+architect/editor split, session persistence, cost tracking). The biggest
+remaining gaps were: (1) the agent couldn't reason deeply before acting, and
+(2) it had no access to information outside the local filesystem. Both
+limitations constrained KOTA to mechanical file-editing tasks. Extended thinking
+and web fetch address the two most impactful capability gaps.
+
+### Extended Thinking (`--think`, `--think-budget`)
+- New `-t` / `--think` CLI flag enables Claude's extended thinking API
+- `--think-budget <tokens>` configures the thinking budget (default: 10000, min: 1024)
+- `max_tokens` automatically adjusted to `budget + maxTokens` so output isn't squeezed
+- Thinking content streamed via SDK's `thinking` event:
+  - Verbose mode: full thinking text on stderr
+  - Normal mode: `[kota] Thinking...` indicator
+- Thinking blocks preserved in conversation history for multi-turn consistency
+- Enabled for main loop and architect pass; disabled for editor pass and delegates
+- Files modified: `src/cli.ts`, `src/loop.ts`, `src/architect.ts`
+
+### Web Fetch Tool (`src/tools/web-fetch.ts`)
+- New `web_fetch` tool: fetch any URL and return readable text content
+- Uses Node.js built-in `fetch` — zero new dependencies
+- HTML content: strips `<script>`/`<style>` blocks, converts block elements to
+  newlines, decodes 12+ HTML entities including numeric references
+- Configurable `max_length` (default 20000 chars) for token efficiency
+- 30-second timeout with `AbortController`, graceful redirect following
+- Clean error messages for HTTP errors, timeouts, and network failures
+- Registered in tool index (12 tools total now)
+
+### System Prompt Improvements
+- Broadened from "expert AI coding agent" to "capable AI assistant" covering
+  research, analysis, and problem-solving
+- Added tool strategy guidance for web_fetch, delegate, and repo_map
+- Added error recovery section with specific guidance for common failure modes
+- Files modified: `src/loop.ts`
+
+### DESIGN.md Update
+- Updated file structure with accurate line counts for all 19 files
+- Added sections for extended thinking, web fetch, cost tracking
+- Updated "What Makes KOTA Better" list (now 13 items, reflecting all features)
+- Updated total: ~2000 lines across 19 files, 49.57KB bundle
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 49.57KB bundle (up from 44.71KB)
+- CLI --help shows new flags correctly
+- Smoke test: CLI launches and runs expected code paths
+- 19 source files, ~2000 lines total
+
+### Next directions
+- P1: API retry with exponential backoff — transient 429/529 errors currently crash the agent
+- P1: Better interactive mode — current REPL creates fresh context per input, losing conversation history
+- P2: Enhanced file_edit error recovery — show closest match and surrounding context when old_string not found
+- P2: Streaming cost display — show per-turn cost alongside thinking/text output
+- P3: Tool timeout configuration — per-tool timeout overrides for long-running operations
+
+---
+
 ## Iteration 16 — CHANGELOG Enforcement, Smoke Tests, and Builder Autonomy
 
 Diagnosed the loop after iterations 14 and 15. The hint-providing pattern (used

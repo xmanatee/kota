@@ -9,6 +9,7 @@ import { todoTool, runTodo, getTodoState } from "./todo.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
 import { delegateTool, runDelegate } from "./delegate.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
+import { webFetchTool, runWebFetch } from "./web-fetch.js";
 
 export type ToolResult = {
   content: string;
@@ -28,6 +29,7 @@ const runners: Record<string, ToolRunner> = {
   todo: runTodo,
   repo_map: runRepoMap,
   delegate: runDelegate,
+  web_fetch: runWebFetch,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -41,6 +43,7 @@ export const allTools: Anthropic.Tool[] = [
   todoTool,
   repoMapTool,
   delegateTool,
+  webFetchTool,
 ];
 
 export async function executeTool(

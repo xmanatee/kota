@@ -22,6 +22,8 @@ program
   .option("-i, --interactive", "Interactive mode (REPL)")
   .option("-s, --session <path>", "Session file for persistence/resume")
   .option("-y, --yes", "Skip confirmation prompts for destructive commands")
+  .option("-t, --think", "Enable extended thinking for deeper reasoning")
+  .option("--think-budget <tokens>", "Thinking budget in tokens (default: 10000, min: 1024)", "10000")
   .action(async (promptWords: string[], opts) => {
     const prompt = promptWords.join(" ");
     if (opts.yes) setSkipConfirmations(true);
@@ -32,6 +34,8 @@ program
       verbose: opts.verbose,
       architectMode: opts.architect,
       sessionPath: opts.session,
+      thinkingEnabled: opts.think,
+      thinkingBudget: opts.think ? Math.max(1024, Number.parseInt(opts.thinkBudget, 10)) : undefined,
     };
 
     if (opts.interactive || !prompt) {

@@ -6,26 +6,33 @@ import { CostTracker } from "./cost.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { setDelegateModel } from "./tools/delegate.js";
 
-const SYSTEM_PROMPT = `You are KOTA, an expert AI coding agent. You help users with software engineering tasks: writing code, fixing bugs, refactoring, exploring codebases, and more.
+const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with software engineering, research, analysis, and problem-solving.
 
 ## How you work
-- You have access to tools for reading, writing, editing files, running shell commands, searching code, and tracking tasks.
 - Break complex tasks into steps using the todo tool.
 - Read files before editing them. Understand existing code before modifying.
 - After making changes, verify they work (run tests, type checks, builds).
+- When uncertain about current APIs, libraries, or best practices, use web_fetch to verify.
 - Be concise. Lead with the answer, not the reasoning.
 
-## Tool usage
+## Tool strategy
 - Use file_read to read files (not shell + cat).
 - Use file_edit for modifying existing files (search-and-replace).
 - Use file_write only for creating new files.
 - Use grep to search code content, glob to find files by pattern.
 - Use shell for builds, tests, git commands, installs.
+- Use web_fetch to look up documentation, APIs, or current information.
+- Use delegate for exploring unfamiliar codebases without polluting context.
+- Use repo_map to orient yourself in a new codebase.
+
+## Error recovery
+- When file_edit fails (string not found), re-read the file to get exact content.
+- When a shell command fails, read the error, adjust, and retry with a different approach.
+- If stuck after 3 attempts, explain the situation and ask for help.
 
 ## Safety
 - Never run destructive commands without confirming.
-- Never modify files outside the project directory.
-- If you're stuck after 3 attempts, explain the situation and ask for help.`;
+- Never modify files outside the project directory.`;
 
 const MAX_ITERATIONS = 200;
 const CIRCUIT_BREAKER_THRESHOLD = 3;
@@ -38,6 +45,8 @@ export type LoopOptions = {
   verbose?: boolean;
   architectMode?: boolean;
   sessionPath?: string;
+  thinkingEnabled?: boolean;
+  thinkingBudget?: number;
 };
 
 /** Build system prompt as cacheable content blocks */
@@ -55,6 +64,15 @@ export async function runAgentLoop(
   const editorModel = options.editorModel || model;
   const maxTokens = options.maxTokens || 8192;
   const verbose = options.verbose || false;
+  const thinkingBudget = options.thinkingBudget || 10_000;
+
+  // Build thinking config
+  const thinkingConfig: Anthropic.Messages.ThinkingConfigParam | undefined =
+    options.thinkingEnabled ? { type: "enabled", budget_tokens: thinkingBudget } : undefined;
+  // When thinking is enabled, max_tokens must exceed budget_tokens
+  const effectiveMaxTokens = options.thinkingEnabled
+    ? thinkingBudget + maxTokens
+    : maxTokens;
 
   const client = new Anthropic();
   const costTracker = new CostTracker();
@@ -89,8 +107,9 @@ export async function runAgentLoop(
   // Architect/Editor split: two-pass before the main verification loop
   if (options.architectMode) {
     const plan = await runArchitectPass(
-      client, model, maxTokens,
+      client, model, effectiveMaxTokens,
       context.getSystemPrompt(), context.getMessages(), verbose,
+      thinkingConfig,
     );
     if (plan) {
       const editorResult = await runEditorLoop(
@@ -124,15 +143,32 @@ export async function runAgentLoop(
       console.error(`[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`);
     }
 
-    // Stream the response with prompt caching enabled
+    // Stream the response with prompt caching and optional thinking
     let streamedText = "";
     const stream = client.messages.stream({
       model,
-      max_tokens: maxTokens,
+      max_tokens: effectiveMaxTokens,
       system: systemBlocks(context.getSystemPrompt()),
       tools: allTools,
       messages: context.getMessages(),
+      ...(thinkingConfig && { thinking: thinkingConfig }),
     });
+
+    // Stream thinking output to stderr (visible in verbose mode, indicator in normal mode)
+    if (thinkingConfig) {
+      let thinkingStarted = false;
+      stream.on("thinking", (delta) => {
+        if (!thinkingStarted) {
+          thinkingStarted = true;
+          if (verbose) {
+            process.stderr.write("[thinking] ");
+          } else {
+            process.stderr.write("[kota] Thinking...\n");
+          }
+        }
+        if (verbose) process.stderr.write(delta);
+      });
+    }
 
     stream.on("text", (text) => {
       process.stdout.write(text);

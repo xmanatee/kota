@@ -29,6 +29,7 @@ export async function runArchitectPass(
   systemContext: string,
   messages: Anthropic.Messages.MessageParam[],
   verbose: boolean,
+  thinking?: Anthropic.Messages.ThinkingConfigParam,
 ): Promise<string> {
   if (verbose) console.error("[kota] Architect pass — reasoning...");
 
@@ -37,9 +38,15 @@ export async function runArchitectPass(
     max_tokens: maxTokens,
     system: `${ARCHITECT_SYSTEM}\n\nProject context:\n${systemContext}`,
     messages,
+    ...(thinking && { thinking }),
   });
 
   let plan = "";
+  if (thinking) {
+    stream.on("thinking", (delta) => {
+      if (verbose) process.stderr.write(delta);
+    });
+  }
   stream.on("text", (text) => {
     process.stderr.write(text);
     plan += text;
