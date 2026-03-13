@@ -286,6 +286,23 @@ Extracted tool execution and failure tracking, keeping `loop.ts` focused on orch
   - **Identical failures** (same error signature): hard circuit break after 3 — the agent is repeating the exact same broken operation
   - **Diverse failures** (different errors): soft guidance after 5 consecutive failures — the agent is trying variations that all fail, injected message tells it to step back and reconsider
 
+### Smart File Path Resolution (`src/path-resolver.ts`)
+
+When `file_read` or `file_edit` receives a path that doesn't exist, instead of returning a bare "file not found" error, KOTA searches the project for alternatives:
+
+- **Exact basename match**: Globs for `**/<filename>` — catches the common case where the agent has the right filename but wrong directory
+- **Fuzzy basename match**: If no exact match, searches files with the same extension and ranks by bigram (Dice coefficient) similarity — catches typos and name variations
+- **Bounded search**: Ignores `node_modules`, `dist`, `.git`, etc.; caps depth and results to stay fast
+- **Zero cost on hit**: The glob search only runs when the file doesn't exist — no overhead for valid paths
+- Both `file_read` and `file_edit` use the shared `fileNotFoundError()` formatter, producing error messages like:
+  ```
+  Error: file not found: src/utils/helper.ts
+
+  Similar files found:
+    - src/lib/helper.ts
+    - tests/helper.ts
+  ```
+
 ### File Freshness Tracking (`src/file-tracker.ts`)
 
 Detects when files change between a `file_read` and a subsequent `file_edit`, preventing a common class of stale-content failures:
@@ -313,7 +330,9 @@ src/
   init.ts             — Session warmup: project/git/memory detection (~150 lines)
   lint.ts             — Syntax checking for linter-gated edits (~100 lines)
   memory.ts           — Persistent memory store (~110 lines)
+  path-resolver.ts    — Smart file path suggestions on not-found (~100 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
+  path-resolver.test.ts — Path resolution + similarity unit tests (~80 lines)
   tool-runner.test.ts — FailureTracker unit tests (~95 lines)
   compaction.test.ts  — extractWorkingState unit tests (~130 lines)
   cost.test.ts        — CostTracker unit tests (~120 lines)
@@ -321,9 +340,9 @@ src/
   tools/
     index.ts      — Tool registry + executor (~70 lines)
     shell.ts      — Async shell with streaming output (~130 lines)
-    file-read.ts  — Read file with line numbers + freshness tracking (~65 lines)
+    file-read.ts  — Read file with line numbers + freshness tracking + path suggestions (~70 lines)
     file-write.ts — Create/overwrite file with lint gate + diff (~70 lines)
-    file-edit.ts  — Search-and-replace with fuzzy recovery + freshness check (~195 lines)
+    file-edit.ts  — Search-and-replace with fuzzy recovery + freshness check + path suggestions (~200 lines)
     multi-edit.ts — Atomic multi-file edits + diff (~120 lines)
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
@@ -335,7 +354,7 @@ src/
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
 ```
 
-Total: ~3735 lines across 33 files (including 4 test files with ~445 lines).
+Total: ~3915 lines across 35 files (including 5 test files with ~525 lines).
 
 ## What Makes KOTA Better
 
@@ -363,7 +382,8 @@ Total: ~3735 lines across 33 files (including 4 test files with ~445 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 52 tests across 4 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, and persistence. Establishes the pattern for testing future modules.
+25. **Unit test suite**: 68 tests across 5 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, and file path similarity.
+26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 
 ## Dependencies
 

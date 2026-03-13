@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 import { recordRead } from "../file-tracker.js";
+import { fileNotFoundError } from "../path-resolver.js";
 
 export const fileReadTool: Anthropic.Tool = {
   name: "file_read",
@@ -41,7 +42,7 @@ export async function runFileRead(
   }
 
   if (!existsSync(path)) {
-    return { content: `Error: file not found: ${path}`, is_error: true };
+    return { content: fileNotFoundError(path), is_error: true };
   }
 
   const raw = readFileSync(path, "utf-8");

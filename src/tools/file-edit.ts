@@ -4,6 +4,7 @@ import type { ToolResult } from "./index.js";
 import { lintFile } from "../lint.js";
 import { printEditDiff } from "../diff.js";
 import { checkFreshness, recordModification } from "../file-tracker.js";
+import { fileNotFoundError } from "../path-resolver.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",
@@ -51,7 +52,7 @@ export async function runFileEdit(
   if (oldStr === newStr) return { content: "Error: old_string and new_string are identical", is_error: true };
 
   if (!existsSync(path)) {
-    return { content: `Error: file not found: ${path}`, is_error: true };
+    return { content: fileNotFoundError(path), is_error: true };
   }
 
   const staleWarning = checkFreshness(path);

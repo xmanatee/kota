@@ -1,5 +1,67 @@
 # KOTA Changelog
 
+## Iteration 39 — Smart File Path Resolution
+
+When the agent tries to read or edit a file that doesn't exist, KOTA now
+automatically searches the project for alternatives instead of returning a bare
+"file not found" error. This eliminates a common failure mode where the agent
+knows the filename but not the exact directory path — saving a full API round
+trip that was previously wasted on a `glob` call.
+
+### Why this improvement
+
+Wrong file paths are one of the most frequent failure modes in coding agents.
+The agent remembers `helper.ts` but not whether it's in `src/utils/`, `src/lib/`,
+or `lib/`. Previously, the error just said "Error: file not found: src/utils/helper.ts"
+and the agent had to call `glob` to discover the real path. This wastes a turn,
+costs tokens, and accelerates context window exhaustion. The fix is simple: when
+the file doesn't exist, search for it before returning the error.
+
+### Changes
+
+- **New module: `src/path-resolver.ts`** (~100 lines):
+  - `suggestAlternatives(path)`: Two-strategy search — first tries exact basename
+    match via `glob(**/<name>)`, then falls back to fuzzy matching (same extension,
+    ranked by bigram Dice coefficient similarity). Bounded by depth, result count,
+    and ignore patterns (`node_modules`, `dist`, `.git`, etc.).
+  - `nameSimilarity(a, b)`: Case-insensitive bigram similarity scorer for
+    filenames. Reuses the same algorithm as `file_edit`'s fuzzy recovery but
+    scoped to basename comparison.
+  - `fileNotFoundError(path)`: Formats the error message with suggestions.
+    Returns bare error when no suggestions are found.
+  - Zero cost on hit: the glob search only runs when `existsSync` fails.
+
+- **`src/tools/file-read.ts`**: Uses `fileNotFoundError()` instead of a bare
+  string for file-not-found errors.
+
+- **`src/tools/file-edit.ts`**: Same change — uses `fileNotFoundError()` for
+  the file-not-found case (the old_string-not-found case retains its existing
+  fuzzy matching with context preview).
+
+- **New test file: `src/path-resolver.test.ts`** (~80 lines, 16 tests):
+  - `nameSimilarity`: exact match, case insensitivity, empty strings, similar
+    names, partial overlap, extension influence, word order
+  - `suggestAlternatives`: finds existing project files by exact name, handles
+    nonexistent filenames, respects max param, handles empty input
+  - `fileNotFoundError`: formatting with/without suggestions, bare error fallback
+
+### Verification
+
+1. **Static**: `npm run typecheck && npm run build` — clean
+2. **Unit**: `npm test` — 68 tests pass across 5 files (52 existing + 16 new)
+3. **Load**: `node dist/cli.js --help` — works
+4. **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
+   — auth error expected (no API key), loop starts correctly
+
+### Possible next directions
+
+- Add path suggestions to `file_write` (less common — agents usually create
+  files at known paths, but could help with directory typos)
+- Extend to suggest directories when the parent dir doesn't exist
+- Add `lint.ts` and `diff.ts` test coverage
+- Consider a project-wide file index (populated once at startup) for faster
+  path resolution in large codebases
+
 ## Iteration 38 — Test Metrics in Pipeline
 
 11th consecutive successful autonomous build (iterations 17–37). Process is
