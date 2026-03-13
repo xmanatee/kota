@@ -1,5 +1,6 @@
 import { executeTool } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
+import { maybeRetry } from "./tool-retry.js";
 
 type ToolUseBlock = {
   type: "tool_use";
@@ -29,10 +30,15 @@ export async function executeToolCalls(
           `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
         );
       }
-      const result = await executeTool(
-        block.name,
-        block.input as Record<string, unknown>,
-      );
+      const input = block.input as Record<string, unknown>;
+      let result = await executeTool(block.name, input);
+
+      // Auto-retry transient failures (timeouts, network errors)
+      if (result.is_error) {
+        const retried = await maybeRetry(block.name, input, result, executeTool);
+        if (retried) result = retried;
+      }
+
       return {
         tool_use_id: block.id,
         content: result.content,

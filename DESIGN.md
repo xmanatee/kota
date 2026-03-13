@@ -320,9 +320,21 @@ Extracted tool execution and failure tracking, keeping `loop.ts` focused on orch
 
 - **Parallel execution**: Tool calls execute via `Promise.all` with verbose logging
 - **Result truncation**: Budget-aware truncation applied before returning to the agent loop
+- **Auto-retry**: Transient failures are retried once via the retry module (see below) before being reported to the agent
 - **Progressive failure tracking** (`FailureTracker` class): Two levels of stuck-loop detection:
   - **Identical failures** (same error signature): hard circuit break after 3 — the agent is repeating the exact same broken operation
   - **Diverse failures** (different errors): soft guidance after 5 consecutive failures — the agent is trying variations that all fail, injected message tells it to step back and reconsider
+
+### Automatic Tool Retry (`src/tool-retry.ts`)
+
+When a tool call fails with a transient error, the tool runner automatically retries once with adjusted parameters — saving the agent a wasted turn.
+
+- **Shell timeouts**: Retries with 2× the timeout (up to 300s max). Catches builds/tests that are slow but not stuck.
+- **Web fetch transient errors**: Retries after 1.5s delay for ECONNRESET, ETIMEDOUT, ECONNREFUSED, socket hang up, HTTP 429/500/502/503/504.
+- **Web search transient errors**: Same pattern as web fetch.
+- **Bounded**: Maximum 1 retry per tool call. No retry for permanent errors (404, file not found, syntax errors, etc.).
+- **Transparent**: On success, appends "(Succeeded on auto-retry: reason)". On double failure, appends both error messages so the agent has full context.
+- **Scoped to main loop**: Retry only applies in the tool runner (main agent loop), not in delegate sub-agents where bounded execution is preferred.
 
 ### Smart File Path Resolution (`src/path-resolver.ts`)
 
@@ -368,7 +380,8 @@ Addresses the #1 agent failure mode: making file changes without verifying they 
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
   loop.ts             — AgentSession class + core agent loop (~300 lines)
-  tool-runner.ts      — Parallel tool execution + failure tracking (~110 lines)
+  tool-runner.ts      — Parallel tool execution + failure tracking (~115 lines)
+  tool-retry.ts       — Automatic retry for transient tool failures (~90 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
   compaction.ts       — Structured context compaction (~170 lines)
@@ -387,6 +400,7 @@ src/
   shell-diagnostics.test.ts — Error extraction unit tests (~175 lines)
   path-resolver.test.ts — Path resolution + similarity unit tests (~80 lines)
   tool-runner.test.ts — FailureTracker unit tests (~95 lines)
+  tool-retry.test.ts  — Retry policy + maybeRetry unit tests (~135 lines)
   compaction.test.ts  — extractWorkingState unit tests (~130 lines)
   cost.test.ts        — CostTracker unit tests (~120 lines)
   memory.test.ts      — MemoryStore unit tests (~100 lines)
@@ -411,11 +425,11 @@ src/
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~5100 lines across 42 files (including 9 test files with ~1170 lines).
+Total: ~5400 lines across 44 files (including 10 test files with ~1310 lines).
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~5100 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~5400 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 14 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: Two-tier edit recovery. First, whitespace-tolerant auto-fix: if the content matches after normalizing indentation/trailing spaces, the edit is applied automatically (saving 1-2 turns). If that fails, fuzzy matching (bigram Dice coefficient) finds the closest region and shows it with line numbers and context.
@@ -439,13 +453,14 @@ Total: ~5100 lines across 42 files (including 9 test files with ~1170 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 135 tests across 9 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, and whitespace-tolerant matching.
+25. **Unit test suite**: 154 tests across 10 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit, tool-retry) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, whitespace-tolerant matching, and retry policy logic.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
 29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation.
 30. **Verification nudge system**: Tracks which files have been edited but not verified via tests/builds. Detects available verification commands from project config (package.json, Makefile, Cargo.toml, pyproject.toml) and surfaces them in the dynamic system prompt. Escalating urgency: after 3 turns of edits without verification, a stronger nudge appears. Resets when the agent runs a verification command.
 31. **Shell error diagnostics**: When shell commands fail with long output (>8K chars), smart extraction finds the diagnostic-relevant lines instead of naive head+tail truncation. Detects TypeScript compiler errors, test runner failures (vitest/jest), lint errors (ESLint/Biome), and generic error patterns. The agent sees extracted errors + output tail, not a random slice of verbose logs.
+32. **Automatic tool retry**: Transient tool failures (shell timeouts, web network errors, HTTP 429/5xx) are automatically retried once with adjusted parameters — shell gets 2× the timeout, web tools get a 1.5s delay. Saves 1-2 turns per transient failure without agent involvement. Bounded to 1 retry, scoped to the main loop only.
 
 ## Dependencies
 

@@ -1,5 +1,93 @@
 # KOTA Changelog
 
+## Iteration 49 — Automatic Tool Retry
+
+When a tool call fails with a transient error (shell timeout, network reset,
+HTTP 429/5xx), KOTA now automatically retries once with adjusted parameters
+instead of reporting the error to the LLM. This saves 1-2 turns per transient
+failure — the agent gets the result in the same turn without having to diagnose
+the failure and manually retry.
+
+### Why this improvement
+
+Transient failures are a common turn-waster. The typical sequence: a build
+command times out at the default 120s limit, the error goes back to the LLM,
+the LLM decides to retry with a longer timeout (1 turn), the retry succeeds
+(1 turn). Two turns spent on a problem the tool runner could handle
+automatically. Same pattern for web fetches hitting a transient 502 or network
+reset — the agent wastes a turn re-issuing the same request.
+
+### Changes
+
+- **New: `src/tool-retry.ts`** (~90 lines):
+  - Per-tool retry policies with error pattern matching and input adjustment
+  - **Shell**: Retries on timeout patterns with 2× the timeout (capped at 300s).
+    Only retries when the doubled timeout fits within the cap — if the agent
+    already set a long timeout, it won't be doubled further.
+  - **Web fetch/search**: Retries on transient network errors (ECONNRESET,
+    ETIMEDOUT, ECONNREFUSED, socket hang up) and transient HTTP codes
+    (429, 500, 502, 503, 504) after a 1.5s delay.
+  - No retry for permanent errors: 404, file not found, syntax errors, auth
+    failures, input validation errors.
+  - `maybeRetry()` function: takes the tool name, input, failed result, and a
+    runner function. Returns the retry result or null if no retry applies.
+  - On retry success: appends "(Succeeded on auto-retry: reason)" to the result.
+  - On double failure: appends both errors so the agent has full context.
+
+- **New: `src/tool-retry.test.ts`** (~135 lines, 19 tests):
+  - Shell policy: timeout detection (multiple message formats), timeout cap
+    enforcement, non-timeout rejection, input doubling, custom timeout doubling
+  - Web fetch policy: transient network errors, transient HTTP codes, permanent
+    error rejection (404, 403, validation errors)
+  - Web search policy: same pattern coverage
+  - `maybeRetry` integration: no-policy tools return null, non-matching errors
+    return null, successful retry, double failure with combined message,
+    web retry with delay (using fake timers), input passthrough for web tools
+
+- **Modified: `src/tool-runner.ts`** (+8 lines):
+  - After tool execution, if the result is an error, passes it through
+    `maybeRetry`. If retry succeeds, the retried result replaces the original.
+  - Retry is scoped to the main loop only — delegate sub-agents use
+    `executeTool` directly without retry, preserving their bounded behavior.
+
+### What the agent sees
+
+Before (shell timeout):
+```
+output...\n\n(killed: timeout after 120000ms)
+```
+Agent spends 1-2 turns deciding to retry with a longer timeout.
+
+After (auto-retry):
+```
+[kota] Auto-retrying shell (timeout → 240s)...
+$ npm test
+... all tests pass ...
+
+(Succeeded on auto-retry: timeout → 240s)
+```
+The agent gets the result immediately. Zero turns wasted.
+
+### Verification
+
+- **Static**: `npm run typecheck && npm run build` — clean
+- **Unit**: 154 tests across 10 files — all pass (19 new tests)
+- **Load**: `node dist/cli.js --help` — starts without errors
+- **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` — auth error expected (no key), but no import/startup crashes
+- **Bundle**: 98.8KB (slight decrease from 99.1KB — build variance)
+
+### Possible next directions
+
+- **Package manager rewriting**: When the agent runs `npm test` but the project
+  uses pnpm, auto-rewrite the command. The verify-tracker already detects the
+  package manager.
+- **Split `loop.ts`**: At 299 lines, one line from the limit. System prompt
+  could move to a dedicated module to free space.
+- **File read deduplication**: Track recent reads and annotate duplicates to
+  save tokens during compaction.
+- **Tool usage analytics**: Track per-tool success rates and latency to identify
+  bottlenecks and inform system prompt improvements.
+
 ## Iteration 48 — Output Token Tracking
 
 16th consecutive successful autonomous build (iterations 17–47). Process is
