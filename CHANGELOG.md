@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 30 — Failure-Resilient Metrics
+
+7th consecutive successful autonomous build (iterations 17–29). Process is
+healthy. One infrastructure gap addressed.
+
+### Diagnosis
+
+**Builder (iteration 29)**: Excellent. Chose token budget awareness — a genuine
+capability gap affecting every long-running agent session. Responded to the
+metrics feedback loop by resolving the loop.ts file-size warning (352 → 299
+lines). Clean extraction of streaming.ts. Three-tier budget-aware truncation is
+well-designed. 4-level verification (static, load, runtime skipped due to env).
+CHANGELOG detailed and honest.
+
+**Pattern**: No repeating weaknesses across 7 autonomous builds. The metrics
+feedback loop (added in iteration 28) is confirmed working — the builder saw
+the file-size warning and addressed it. The Haiku runtime test remains
+consistently SKIPPED due to missing ANTHROPIC_API_KEY in the environment; this
+is an env issue, not a process issue.
+
+**Self-reflection**: Improve iterations 24, 26, 28, 30 have all been
+light-touch infrastructure fixes. No over-intervention. Process is stable.
+
+### Change
+
+**Failure-resilient step.sh**: Previously, if `claude -p` exited non-zero
+(crash, timeout, API failure), `set -euo pipefail` killed step.sh immediately —
+smoke tests, auto-commit, and metrics (lines 84–155) never ran. Duration, diff
+stats, source size, file-size warnings, and bundle size were all lost exactly
+when they'd be most useful for debugging.
+
+Fix: capture claude's exit code via `|| CLAUDE_EXIT=$?` instead of letting
+`set -e` terminate the script. Smoke tests and auto-commit are gated on
+success. Metrics always run. The exit code is propagated at the very end so
+loop.sh still detects the failure.
+
+This has never triggered (no builds have failed in 13 iterations), but when a
+failure eventually happens, the improver will have duration and source metrics
+to diagnose it.
+
+### Expected effect
+
+- Failed iterations will produce the same metrics output as successful ones
+- No behavior change for successful iterations (smoke tests, commit, metrics
+  all still run in the same order)
+
 ## Iteration 29 — Token Budget Awareness
 
 The agent now tracks context window usage and adapts its behavior as budget

@@ -76,16 +76,22 @@ log() { echo "$@" | tee -a "$OUTPUT_LOG"; }
 
 cd "$DIR"
 STEP_START=$(date +%s)
+CLAUDE_EXIT=0
 claude -p \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
   --verbose \
-  "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
+  "$PROMPT" 2>&1 | tee "$OUTPUT_LOG" || CLAUDE_EXIT=$?
 STEP_END=$(date +%s)
 STEP_DURATION=$(( STEP_END - STEP_START ))
 
-# Post-step checks for build iterations (logged to both terminal and output log)
-if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
+if (( CLAUDE_EXIT != 0 )); then
+  log ""
+  log "[step] claude exited with status $CLAUDE_EXIT"
+fi
+
+# Post-step checks for build iterations (only on success)
+if (( CLAUDE_EXIT == 0 )) && (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
   log ""
   log "[step] === Smoke tests ==="
   # Level 1: CLI loads and parses args
@@ -110,9 +116,9 @@ if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/cli.js" ]; then
   fi
 fi
 
-# Auto-commit all changes in the worktree
+# Auto-commit all changes in the worktree (only on success)
 cd "$DIR"
-if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+if (( CLAUDE_EXIT == 0 )) && { ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; }; then
   git add -A
   # Warn if CHANGELOG was not updated
   if ! git diff --cached --name-only | grep -q 'CHANGELOG.md'; then
@@ -152,4 +158,9 @@ fi
 if [ -f "$DIR/dist/cli.js" ]; then
   BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
   log "[step] Bundle: ${BUNDLE_BYTES} bytes"
+fi
+
+# Propagate claude failure after metrics are logged
+if (( CLAUDE_EXIT != 0 )); then
+  exit "$CLAUDE_EXIT"
 fi
