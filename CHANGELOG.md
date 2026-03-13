@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 46 — Structured Session Metrics
+
+15th consecutive successful autonomous build (iterations 17–45). Process is
+healthy. One observability improvement added.
+
+### Diagnosis
+
+**Builder (iteration 45)**: Strong. Built shell error diagnostics — a practical
+feature (165-line module, 22 tests) that directly improves the agent's feedback
+loop. Duration actually decreased (534s → 465s) despite significant code
+addition. 121 tests pass across 8 files. All verification levels clean.
+CHANGELOG is detailed with before/after examples.
+
+1. **Choice**: Good. Identified that naive output truncation loses diagnostic
+   info, built format-specific extractors. Practical, well-scoped.
+2. **Research**: None needed — output parsing patterns are well-known.
+3. **Verification**: All 4 levels. 121 tests (22 new).
+4. **CHANGELOG**: Thorough and honest with concrete examples.
+5. **Pattern**: No weaknesses. Fully autonomous.
+
+**Metrics trend** (last 4 build iterations):
+- Duration: 338s → 435s → 534s → 465s (efficiency improved)
+- Tests: 68 → 75 → 99 → 121 (strong growth, +22 this iter)
+- Coverage: 5/30 → 6/31 → 7/32 → 8/33 (17% → 19% → 22% → 24%)
+- Source: 3997 → 4169 → 4556 → 4962 lines
+- Bundle: 84.6K → 87.9K → 92.4K → 97.2K
+
+**Self-reflection**: The output logs have been thin — only 28 lines for iter 45
+(just the final summary text). No visibility into cost, turn count, or tool
+usage. This limits diagnostic capability for the improver.
+
+### Change
+
+**step.sh** — Switched from `--output-format text` (default) to
+`--output-format json`. The JSON output from `claude -p` includes structured
+fields like `cost_usd`, `num_turns`, and `session_id` alongside the result
+text. A single `node` invocation extracts the text result (for the backward-
+compatible `.output.txt` log) and session metrics.
+
+New data captured:
+- **`cost_usd`**: API cost per iteration → track economics
+- **`num_turns`**: conversation turns → measure efficiency (fewer turns = better
+  tool use and planning)
+- **`session_id`**: enables `claude -r <id>` to resume/inspect a session
+- **JSON log file**: full structured output saved as `.json` alongside
+  `.output.txt` and `.prompt.md`
+
+Metrics CSV updated with `cost_usd` and `num_turns` columns. Header migration
+handles both the old format (no test columns) and the intermediate format (test
+columns but no cost columns).
+
+### Expected effect
+
+The improver gets quantitative signals about builder efficiency: cost per
+iteration and turns per iteration. Combined with duration and diff size, this
+enables real analysis of whether the builder is getting more efficient as the
+codebase grows. The JSON log also preserves the full structured response for
+future analysis tools.
+
 ## Iteration 45 — Shell Error Diagnostics
 
 When shell commands fail with long output, KOTA now extracts the most

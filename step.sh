@@ -27,6 +27,7 @@ printf -v ITERATION_PAD "%06d" "$ITERATION"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 PROMPT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.prompt.md"
 OUTPUT_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.output.txt"
+JSON_LOG="$LOG_DIR/${ITERATION_PAD}-${TASK}-${TIMESTAMP}.json"
 
 # Extract previous iteration's metrics for context injection
 PREV_METRICS="(none)"
@@ -83,10 +84,40 @@ CLAUDE_EXIT=0
 claude -p \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
-  --verbose \
-  "$PROMPT" 2>&1 | tee "$OUTPUT_LOG" || CLAUDE_EXIT=$?
+  --output-format json \
+  "$PROMPT" > "$JSON_LOG" 2>/dev/null || CLAUDE_EXIT=$?
 STEP_END=$(date +%s)
 STEP_DURATION=$(( STEP_END - STEP_START ))
+
+# Extract result text and session metrics from JSON output
+SESSION_COST="-"
+SESSION_TURNS="-"
+SESSION_ID="-"
+if [ -f "$JSON_LOG" ] && [ -s "$JSON_LOG" ]; then
+  EXTRACT=$(node -e "
+    const fs = require('fs');
+    try {
+      const j = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      fs.writeFileSync(process.argv[2], j.result || '');
+      const c = j.cost_usd ?? j.total_cost_usd ?? null;
+      const t = j.num_turns ?? null;
+      const s = j.session_id ?? null;
+      console.log(c !== null ? Number(c).toFixed(4) : '-');
+      console.log(t !== null ? String(t) : '-');
+      console.log(s !== null ? String(s) : '-');
+    } catch(e) {
+      fs.writeFileSync(process.argv[2], '(failed to parse JSON output)');
+      console.log('-'); console.log('-'); console.log('-');
+    }
+  " "$JSON_LOG" "$OUTPUT_LOG" 2>/dev/null) || EXTRACT=$'-\n-\n-'
+  SESSION_COST=$(echo "$EXTRACT" | sed -n '1p')
+  SESSION_TURNS=$(echo "$EXTRACT" | sed -n '2p')
+  SESSION_ID=$(echo "$EXTRACT" | sed -n '3p')
+  cat "$OUTPUT_LOG"
+else
+  echo "(no output captured)" > "$OUTPUT_LOG"
+  cat "$OUTPUT_LOG"
+fi
 
 if (( CLAUDE_EXIT != 0 )); then
   log ""
@@ -203,17 +234,25 @@ if [ -f "$DIR/dist/cli.js" ]; then
   BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
   log "[step] Bundle: ${BUNDLE_BYTES} bytes"
 fi
+if [ "$SESSION_COST" != "-" ]; then
+  log "[step] Session cost: \$${SESSION_COST}"
+fi
+if [ "$SESSION_TURNS" != "-" ]; then
+  log "[step] Session turns: ${SESSION_TURNS}"
+fi
 
 # Append to structured metrics history
 METRICS_FILE="$DIR/metrics.csv"
 if [ ! -f "$METRICS_FILE" ]; then
-  echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed" > "$METRICS_FILE"
+  echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns" > "$METRICS_FILE"
 fi
-# Migrate header if missing test columns
+# Migrate header if missing columns
 if head -1 "$METRICS_FILE" | grep -qv 'test_files'; then
-  sed -i '' '1s/$/,test_files,tests_passed/' "$METRICS_FILE"
+  sed -i '' '1s/$/,test_files,tests_passed,cost_usd,num_turns/' "$METRICS_FILE"
+elif head -1 "$METRICS_FILE" | grep -qv 'cost_usd'; then
+  sed -i '' '1s/$/,cost_usd,num_turns/' "$METRICS_FILE"
 fi
-echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED}" >> "$METRICS_FILE"
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_COUNT},${SRC_LINES},${BUNDLE_BYTES:-0},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${SESSION_COST},${SESSION_TURNS}" >> "$METRICS_FILE"
 
 # Propagate claude failure after metrics are logged
 if (( CLAUDE_EXIT != 0 )); then
