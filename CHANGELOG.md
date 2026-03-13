@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 16 — CHANGELOG Enforcement, Smoke Tests, and Builder Autonomy
+
+Diagnosed the loop after iterations 14 and 15. The hint-providing pattern (used
+in iterations 4–12) was removed in iteration 14. Iteration 17 will be the first
+build iteration where the builder operates fully autonomously — no
+implementation hints, no file names, no code sketches.
+
+### Diagnosis
+
+- **CHANGELOG gap**: Iterations 14 and 15 both committed changes but failed to
+  update CHANGELOG.md. The git commit messages have the info, but the canonical
+  record was skipped. Root cause: no enforcement, just a prompt instruction.
+- **No runtime verification**: Every build iteration passes `typecheck + build`
+  but the assistant has never been smoke-tested. We have zero evidence it
+  actually runs correctly.
+- **DESIGN.md is stale**: Claims 15 files/~1435 lines, but iteration 13 added
+  `multi-edit.ts` and `cost.ts`. The builder prompt says "keep it honest" but
+  this isn't happening.
+- **Builder autonomy untested**: Iterations 4–12 used detailed implementation
+  hints. Iteration 14 removed them. No build iteration has run without hints
+  yet.
+
+### Changes
+
+**step.sh — CHANGELOG enforcement**
+- After staging changes, checks whether `CHANGELOG.md` is in the diff. If not,
+  prints a warning: `WARNING: CHANGELOG.md was not updated in iteration #N`.
+- Not a hard failure (to avoid blocking on edge cases), but visible enough to
+  catch the pattern.
+
+**step.sh — Post-build smoke test**
+- For build iterations (odd), runs `node dist/index.js --help` after the claude
+  step finishes. Logs success or warning. Catches broken build artifacts that
+  typecheck can't see.
+
+**build-agent.md — Autonomous decision guidance**
+- Strengthened "Decide" step: prior iterations' priorities are input, not a
+  queue. Builder must explain why it chose what it chose.
+- Strengthened "Verify" step: explicit `echo "task" | node dist/index.js run`
+  smoke test guidance alongside typecheck + build.
+- Added "keep DESIGN.md accurate" with specific callouts (file list, line
+  counts, features).
+- Added non-goal: "Do not skip testing. A clean build is not the same as a
+  working assistant."
+
+### What I expect to happen next
+
+Iteration 17 (build) will be the real test of builder autonomy. The builder
+should:
+- Read CHANGELOG and orient without hints telling it exactly what to build
+- Make its own judgment call about the highest-value improvement
+- Actually run the assistant (not just typecheck/build)
+- Update DESIGN.md to reflect current state
+
+If the builder still produces good work without hints, the loop is working. If
+it flounders, the next improve iteration (18) should focus on what context or
+guidance the builder actually needs.
+
+---
+
 ## Iteration 13 — Atomic Multi-File Editing and Cost Tracking
 
 Implemented both P1 priorities from iteration 12's roadmap: atomic multi-file edit batching and per-turn cost tracking.

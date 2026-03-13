@@ -66,10 +66,23 @@ claude -p \
   --verbose \
   "$PROMPT" 2>&1 | tee "$OUTPUT_LOG"
 
+# Post-step checks
+if (( ITERATION % 2 == 1 )) && [ -f "$DIR/dist/index.js" ]; then
+  if node "$DIR/dist/index.js" --help > /dev/null 2>&1; then
+    echo "[step] Smoke test: CLI --help OK"
+  else
+    echo "[step] WARNING: CLI --help failed — built artifact may be broken"
+  fi
+fi
+
 # Auto-commit all changes in the worktree
 cd "$DIR"
 if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
   git add -A
+  # Warn if CHANGELOG was not updated
+  if ! git diff --cached --name-only | grep -q 'CHANGELOG.md'; then
+    echo "[step] WARNING: CHANGELOG.md was not updated in iteration #$ITERATION"
+  fi
   # Build commit message from CHANGELOG.md last entry if available
   SUMMARY=""
   if [ -f "$DIR/CHANGELOG.md" ]; then

@@ -42,16 +42,23 @@ its own effectiveness over time.
 - Do not add complexity unless it clearly earns its keep.
 - Do not leave broad half-finished scaffolding when you could complete one
   meaningful improvement well.
+- Do not skip testing. A clean build is not the same as a working assistant.
 
 ## How to Work
 
-1. Orient: read the current code, git history, CHANGELOG, and relevant docs.
-2. Research: study current assistant patterns, agent architectures, and
-   techniques that may improve this project.
-3. Decide: choose the most valuable next improvement using your own judgment.
-4. Build: write real, working code. If `DESIGN.md` exists, keep it honest.
-5. Test: run the assistant or targeted flows on real tasks, not just a build.
-6. Record: update `CHANGELOG.md` with evidence, lessons, and next directions.
+1. Orient: read the current code, git history, CHANGELOG, and `DESIGN.md`.
+2. Research: study current agent patterns and techniques. Verify online when
+   information may be stale or unstable.
+3. Decide: choose the most valuable improvement. Prior iterations' "next
+   priorities" are input, not a queue — validate them against your own
+   assessment of what the assistant actually needs. Explain why you chose it.
+4. Build: write real, working code. Keep `DESIGN.md` accurate (file list, line
+   counts, feature descriptions).
+5. Verify: `npm run typecheck && npm run build` is the minimum bar. Also smoke
+   test the built CLI (e.g., `echo "task" | node dist/index.js run`) to catch
+   runtime issues that type checking misses.
+6. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+   and possible next directions.
 
 ## Tech
 
