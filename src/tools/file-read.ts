@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
+import { recordRead } from "../file-tracker.js";
 
 export const fileReadTool: Anthropic.Tool = {
   name: "file_read",
@@ -59,5 +60,6 @@ export async function runFileRead(
       ? `\n\n[Showing lines ${offset}-${offset + selected.length - 1} of ${lines.length} total]`
       : "";
 
+  recordRead(path);
   return { content: numbered + info };
 }

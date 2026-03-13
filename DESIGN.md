@@ -273,48 +273,65 @@ Shell commands stream output to stderr in real-time via async `spawn`, instead o
 - Timeout via `SIGTERM` with `SIGKILL` fallback after 5s
 - Output truncation unchanged (first 10K + last 5K for results over 20K chars)
 
-### Circuit Breaker
+### Tool Runner (`src/tool-runner.ts`)
 
-Stop after 3 identical consecutive tool failures. Prevents infinite loops where the agent keeps trying the same broken approach.
+Extracted tool execution and failure tracking, keeping `loop.ts` focused on orchestration:
+
+- **Parallel execution**: Tool calls execute via `Promise.all` with verbose logging
+- **Result truncation**: Budget-aware truncation applied before returning to the agent loop
+- **Progressive failure tracking** (`FailureTracker` class): Two levels of stuck-loop detection:
+  - **Identical failures** (same error signature): hard circuit break after 3 — the agent is repeating the exact same broken operation
+  - **Diverse failures** (different errors): soft guidance after 5 consecutive failures — the agent is trying variations that all fail, injected message tells it to step back and reconsider
+
+### File Freshness Tracking (`src/file-tracker.ts`)
+
+Detects when files change between a `file_read` and a subsequent `file_edit`, preventing a common class of stale-content failures:
+
+- **mtime-based**: Uses `statSync().mtimeMs` to track when files were last read or modified by the agent
+- **Stale detection**: Before `file_edit` applies a change, checks if the file's mtime differs from the last known value (catches shell commands, external tools, or other processes that modified the file)
+- **Warning injection**: On stale detection, prepends a warning to the tool result suggesting the agent re-read the file
+- **Self-updating**: Records new mtime after every read, edit, or write — avoids false positives from the agent's own modifications
 
 ## File Structure
 
 ```
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
-  loop.ts             — AgentSession class + core agent loop (~305 lines)
+  loop.ts             — AgentSession class + core agent loop (~265 lines)
+  tool-runner.ts      — Parallel tool execution + failure tracking (~110 lines)
   streaming.ts        — Stream with retry + error classification (~85 lines)
   architect.ts        — Architect/Editor two-pass flow (~135 lines)
   context.ts          — Conversation + compaction + budget tracking (~220 lines)
   confirm.ts          — Destructive command confirmation (~50 lines)
   cost.ts             — Per-turn cost tracking (~65 lines)
-  diff.ts             — Diff display for file edits (~80 lines)
+  diff.ts             — Diff display for file edits (~90 lines)
+  file-tracker.ts     — mtime-based file freshness detection (~55 lines)
   init.ts             — Session warmup: project/git/memory detection (~150 lines)
   lint.ts             — Syntax checking for linter-gated edits (~100 lines)
-  memory.ts           — Persistent memory store (~105 lines)
+  memory.ts           — Persistent memory store (~110 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
   tools/
-    index.ts      — Tool registry + executor (~65 lines)
-    shell.ts      — Async shell with streaming output (~110 lines)
-    file-read.ts  — Read file with line numbers (~65 lines)
+    index.ts      — Tool registry + executor (~70 lines)
+    shell.ts      — Async shell with streaming output (~130 lines)
+    file-read.ts  — Read file with line numbers + freshness tracking (~65 lines)
     file-write.ts — Create/overwrite file with lint gate + diff (~70 lines)
-    file-edit.ts  — Search-and-replace with fuzzy recovery + diff (~195 lines)
+    file-edit.ts  — Search-and-replace with fuzzy recovery + freshness check (~195 lines)
     multi-edit.ts — Atomic multi-file edits + diff (~120 lines)
     grep.ts       — Content search via ripgrep (~85 lines)
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
     repo-map.ts   — Structural codebase index (~125 lines)
     delegate.ts   — Sub-agent exploration (~125 lines)
-    memory.ts     — Persistent cross-session memory tool (~75 lines)
+    memory.ts     — Persistent cross-session memory tool (~90 lines)
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
-    web-search.ts — Web search via DuckDuckGo scraping (~155 lines)
+    web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
 ```
 
-Total: ~3020 lines across 26 files.
+Total: ~3160 lines across 28 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~3020 lines total vs thousands in competitors. Easy to understand, modify, extend.
+1. **Simplicity**: ~3160 lines total vs thousands in competitors. Easy to understand, modify, extend.
 2. **Best-of-breed tools**: 13 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
@@ -331,10 +348,12 @@ Total: ~3020 lines across 26 files.
 15. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
 16. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
 17. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
-18. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
+18. **Safety**: Destructive command confirmation, progressive failure tracking (identical + diverse failures), tool confirmation via `--yes`.
 19. **Persistent memory**: Cross-session memory stores facts, preferences, and project conventions in `~/.kota/memory.json`. The agent can save and recall context across sessions, transforming from a stateless tool into a personal assistant that learns.
 20. **Token budget awareness**: The agent tracks context window usage and adapts — large tool results are automatically truncated as budget fills, the agent sees budget warnings in the system prompt above 50%, and the user sees `context: N%` on every turn. Split system blocks keep prompt caching effective despite dynamic budget notes.
 21. **Session warmup**: At session start, KOTA auto-detects the project type (Node.js, Python, Rust, Go), reads git state (branch, dirty files, recent commits), and recalls relevant memories from previous sessions. The agent starts oriented from turn 1 instead of spending turns on discovery.
+22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
+23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 
 ## Dependencies
 

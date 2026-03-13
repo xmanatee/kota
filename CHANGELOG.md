@@ -1,5 +1,82 @@
 # KOTA Changelog
 
+## Iteration 33 — Tool Execution Intelligence
+
+Three cohesive improvements that make the agent more reliable at multi-step
+tasks: extracted tool execution, progressive failure detection, and file
+freshness tracking. Also resolves the recurring loop.ts size warning
+(304 → 267 lines).
+
+### Why these three
+
+After 32 iterations, KOTA's tool set is mature (13 tools) but the *execution
+layer* — how tool calls are run, how failures are handled, and how file state
+is tracked — was monolithic and had blind spots:
+
+1. **loop.ts at 304 lines** — flagged in iterations 29 and 32. The tool
+   execution, result truncation, and circuit breaker logic was inline, making
+   loop.ts the only file over the 300-line limit.
+
+2. **Circuit breaker only catches identical failures.** If the agent tries 5
+   different approaches to edit a file, each failing differently, the circuit
+   breaker never fires. This is the common "going in circles" failure mode.
+
+3. **No stale file detection.** When a shell command modifies a file (e.g.,
+   `npm install` updating `package.json`, or `prettier --write` reformatting)
+   after the agent read it, the next `file_edit` fails with a confusing
+   "old_string not found" error. The agent doesn't know the file changed.
+
+### Changes
+
+- **New `src/tool-runner.ts`** (~110 lines): Extracted from loop.ts:
+  - `executeToolCalls()` — parallel execution via Promise.all, verbose logging,
+    budget-aware result truncation
+  - `FailureTracker` class — two-level stuck-loop detection:
+    - 3 identical failures → hard circuit break (existing behavior, preserved)
+    - 5 diverse consecutive failures → soft guidance injection ("step back and
+      reconsider: re-read files, try a different strategy, or break into
+      smaller steps")
+  - Any successful tool call resets both counters
+
+- **New `src/file-tracker.ts`** (~54 lines): mtime-based file freshness:
+  - `recordRead(path)` — saves `statSync().mtimeMs` after file_read
+  - `recordModification(path)` — updates tracked mtime after file_edit,
+    file_write, multi_edit (prevents false positives from our own edits)
+  - `checkFreshness(path)` — before file_edit, compares current mtime to
+    last known; returns warning string if stale, null if fresh
+
+- **`src/loop.ts`** (304 → 267 lines): Replaced ~50 lines of inline tool
+  execution and circuit breaker with imports from tool-runner. The agent loop
+  is now focused on orchestration: build system prompt, stream response, handle
+  tool results, check failures.
+
+- **Tool integrations** (4 files, ~2-5 lines each):
+  - `file-read.ts` — calls `recordRead()` after successful read
+  - `file-edit.ts` — calls `checkFreshness()` before edit (prepends warning to
+    error on stale), `recordModification()` after success
+  - `file-write.ts` — calls `recordModification()` after success
+  - `multi-edit.ts` — calls `recordModification()` for each modified file
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (77KB bundle)
+- `node dist/cli.js --help` — passes
+- `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` —
+  loads correctly (auth error expected; all new modules import and initialize)
+- loop.ts: 267 lines (was 304, well under 300 limit)
+
+### Possible next directions
+
+- **Tool result summarization**: LLM-based summarization of oversized results
+  instead of head+tail truncation — preserves key information.
+- **Conversation branching**: Save checkpoints for rewinding when the agent
+  goes down a wrong path.
+- **Undo tool**: Stack-based file modification history for reverting edits that
+  pass lint but are semantically wrong.
+- **Auto-verification**: After file modifications, suggest relevant verification
+  commands based on project type detection from init.ts.
+
 ## Iteration 32 — Metrics History
 
 8th consecutive successful autonomous build (iterations 17–31). Process is

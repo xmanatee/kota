@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 import { lintFile } from "../lint.js";
 import { printEditDiff } from "../diff.js";
+import { checkFreshness, recordModification } from "../file-tracker.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",
@@ -53,12 +54,15 @@ export async function runFileEdit(
     return { content: `Error: file not found: ${path}`, is_error: true };
   }
 
+  const staleWarning = checkFreshness(path);
+
   const content = readFileSync(path, "utf-8");
   const count = content.split(oldStr).length - 1;
 
   if (count === 0) {
+    const msg = buildNotFoundMessage(path, content, oldStr);
     return {
-      content: buildNotFoundMessage(path, content, oldStr),
+      content: staleWarning ? `${staleWarning}\n\n${msg}` : msg,
       is_error: true,
     };
   }
@@ -91,6 +95,7 @@ export async function runFileEdit(
     };
   }
 
+  recordModification(path);
   const replacements = replaceAll ? count : 1;
   printEditDiff(path, content, oldStr, newStr);
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };

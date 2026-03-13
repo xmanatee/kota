@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import type { ToolResult } from "./index.js";
 import { lintFile } from "../lint.js";
 import { printWriteSummary } from "../diff.js";
+import { recordModification } from "../file-tracker.js";
 
 export const fileWriteTool: Anthropic.Tool = {
   name: "file_write",
@@ -62,6 +63,7 @@ export async function runFileWrite(
     };
   }
 
+  recordModification(path);
   const lines = content.split("\n").length;
   if (existed && previousContent !== null) {
     printWriteSummary(path, previousContent.split("\n").length, lines);

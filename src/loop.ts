@@ -1,13 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
-import { allTools, executeTool } from "./tools/index.js";
-import { Context, CONTEXT_WINDOW, truncateToolResult } from "./context.js";
+import { allTools } from "./tools/index.js";
+import { Context, CONTEXT_WINDOW } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { setDelegateModel } from "./tools/delegate.js";
 import { loadProjectContext } from "./project-context.js";
 import { streamMessage } from "./streaming.js";
 import { buildSessionWarmup } from "./init.js";
+import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 
 const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with software engineering, research, analysis, and problem-solving.
 
@@ -41,7 +42,6 @@ const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with softw
 - Never modify files outside the project directory.`;
 
 const MAX_ITERATIONS = 200;
-const CIRCUIT_BREAKER_THRESHOLD = 3;
 
 export type LoopOptions = {
   model?: string;
@@ -153,8 +153,7 @@ export class AgentSession {
       }
     }
 
-    let consecutiveFailures = 0;
-    let lastFailureSignature = "";
+    const failureTracker = new FailureTracker();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       if (this.context.needsCompaction()) {
@@ -214,60 +213,24 @@ export class AgentSession {
 
       this.context.addAssistantMessage(response);
 
-      const toolBlocks = response.content.filter((b) => b.type === "tool_use");
+      const toolBlocks = response.content.filter(
+        (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
+      );
       if (toolBlocks.length === 0) break;
 
-      // Execute tool calls in parallel
-      const results = await Promise.all(
-        toolBlocks.map(async (block) => {
-          if (block.type !== "tool_use") return null;
-          if (this.verbose) {
-            console.error(
-              `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
-            );
-          }
-          const result = await executeTool(
-            block.name,
-            block.input as Record<string, unknown>,
-          );
-          return { tool_use_id: block.id, content: result.content, is_error: result.is_error };
-        }),
-      );
-
-      // Truncate large tool results based on remaining context budget
+      // Execute tool calls in parallel with budget-aware truncation
       const resultLimit = this.context.getToolResultLimit();
-      const validResults = results
-        .filter((r): r is NonNullable<typeof r> => r !== null)
-        .map((r) => ({
-          ...r,
-          content: truncateToolResult(r.content, resultLimit),
-        }));
+      const validResults = await executeToolCalls(toolBlocks, resultLimit, this.verbose);
       this.context.addToolResults(validResults);
 
       if (this.sessionPath) this.context.save(this.sessionPath);
 
-      // Circuit breaker: detect repeated identical failures
-      const failedResults = validResults.filter((r) => r.is_error);
-      if (failedResults.length > 0) {
-        const sig = failedResults.map((r) => r.content).join("|");
-        if (sig === lastFailureSignature) {
-          consecutiveFailures++;
-          if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-            console.error(
-              `[kota] Circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} identical failures. Stopping.`,
-            );
-            this.context.addUserMessage(
-              "You have failed the same way 3 times in a row. " +
-              "Stop and explain what's going wrong.",
-            );
-          }
-        } else {
-          consecutiveFailures = 1;
-          lastFailureSignature = sig;
-        }
-      } else {
-        consecutiveFailures = 0;
-        lastFailureSignature = "";
+      // Failure tracking: detect stuck loops (identical or diverse failures)
+      const action = failureTracker.record(validResults);
+      if (action !== "continue") {
+        const msg = FailureTracker.getMessage(action);
+        console.error(`[kota] ${action === "circuit_break" ? "Circuit breaker" : "Failure guidance"}: ${msg}`);
+        this.context.addUserMessage(msg);
       }
     }
 
