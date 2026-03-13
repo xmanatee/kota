@@ -10,6 +10,7 @@ import { repoMapTool, runRepoMap } from "./repo-map.js";
 import { delegateTool, runDelegate } from "./delegate.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { webFetchTool, runWebFetch } from "./web-fetch.js";
+import { memoryTool, runMemory } from "./memory.js";
 
 export type ToolResult = {
   content: string;
@@ -30,6 +31,7 @@ const runners: Record<string, ToolRunner> = {
   repo_map: runRepoMap,
   delegate: runDelegate,
   web_fetch: runWebFetch,
+  memory: runMemory,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -44,6 +46,7 @@ export const allTools: Anthropic.Tool[] = [
   repoMapTool,
   delegateTool,
   webFetchTool,
+  memoryTool,
 ];
 
 export async function executeTool(

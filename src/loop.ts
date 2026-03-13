@@ -25,6 +25,8 @@ const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help with softw
 - Use web_fetch to look up documentation, APIs, or current information.
 - Use delegate for exploring unfamiliar codebases without polluting context.
 - Use repo_map to orient yourself in a new codebase.
+- Use memory to save important facts for future sessions (preferences, conventions, decisions).
+- At the start of a session, search memory for relevant context about the current project or user.
 
 ## Error recovery
 - When file_edit fails (string not found), re-read the file to get exact content.

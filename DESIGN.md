@@ -90,6 +90,18 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `delegate` | Sub-agent exploration | Read-only mini-loop, returns summary |
 | `multi_edit` | Atomic multi-file edits | All succeed or all revert |
 | `web_fetch` | Fetch web pages | HTML stripping, truncation, timeout |
+| `memory` | Persistent cross-session memory | Save/search/list/delete facts, preferences, conventions |
+
+### Persistent Memory (`src/memory.ts`, `src/tools/memory.ts`)
+
+Cross-session memory that persists facts, preferences, and project knowledge in `~/.kota/memory.json`.
+
+- **Save**: Store content with optional tags for categorization
+- **Search**: Keyword matching across content and tags, ranked by relevance (multi-term scoring)
+- **List/Delete**: Full CRUD for memory management
+- Auto-prune at 100 memories (oldest removed)
+- Lazy-loaded from disk on first access, persisted after each write
+- System prompt hints the agent to check memory at session start and save important context
 
 ### Repo Map (`src/tools/repo-map.ts`)
 
@@ -233,6 +245,7 @@ src/
   cost.ts             — Per-turn cost tracking (~65 lines)
   diff.ts             — Diff display for file edits (~80 lines)
   lint.ts             — Syntax checking for linter-gated edits (~100 lines)
+  memory.ts           — Persistent memory store (~105 lines)
   project-context.ts  — .kota.md file discovery and loading (~65 lines)
   tools/
     index.ts      — Tool registry + executor (~65 lines)
@@ -246,15 +259,16 @@ src/
     todo.ts       — Task tracking (~95 lines)
     repo-map.ts   — Structural codebase index (~125 lines)
     delegate.ts   — Sub-agent exploration (~125 lines)
+    memory.ts     — Persistent cross-session memory tool (~75 lines)
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
 ```
 
-Total: ~2370 lines across 21 files.
+Total: ~2550 lines across 23 files.
 
 ## What Makes KOTA Better
 
-1. **Simplicity**: ~2370 lines total vs thousands in competitors. Easy to understand, modify, extend.
-2. **Best-of-breed tools**: 11 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
+1. **Simplicity**: ~2550 lines total vs thousands in competitors. Easy to understand, modify, extend.
+2. **Best-of-breed tools**: 12 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: When `file_edit` can't find the target string, fuzzy matching (bigram Dice coefficient) finds the closest region in the file and shows it with line numbers and context — the agent self-corrects in one turn instead of needing a full re-read.
 5. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
@@ -271,6 +285,7 @@ Total: ~2370 lines across 21 files.
 16. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
 17. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
 18. **Safety**: Destructive command confirmation, circuit breaker for repeated failures, tool confirmation via `--yes`.
+19. **Persistent memory**: Cross-session memory stores facts, preferences, and project conventions in `~/.kota/memory.json`. The agent can save and recall context across sessions, transforming from a stateless tool into a personal assistant that learns.
 
 ## Dependencies
 

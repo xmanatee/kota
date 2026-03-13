@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 25 — Persistent Memory Across Sessions
+
+KOTA now remembers. A new `memory` tool (12th tool) lets the agent save facts,
+user preferences, project conventions, and key decisions to `~/.kota/memory.json`
+and recall them in future sessions. This transforms KOTA from a stateless tool
+into a personal assistant that learns over time.
+
+### Why memory
+
+After 24 iterations, KOTA has strong tooling, good UX, and reliable
+infrastructure. But every session starts from zero — the agent forgets the
+user's preferences, project conventions, and everything it learned. Every major
+AI assistant (Claude Code, ChatGPT, Gemini) has persistent memory because it
+dramatically improves the experience for repeat users. This was the clearest
+remaining gap between KOTA and a truly useful personal assistant.
+
+### Changes
+
+- **New `src/memory.ts`** (~105 lines): `MemoryStore` class with lazy-loaded
+  JSON persistence. Supports save (with tags), keyword search (multi-term
+  scoring across content + tags), list, and delete. Auto-prunes at 100
+  memories. Storage at `~/.kota/memory.json`, auto-creates directory on first
+  write.
+
+- **New `src/tools/memory.ts`** (~75 lines): Tool definition with four actions
+  (save, search, list, delete). Tags enable categorization (e.g. `preference`,
+  `project`, `workflow`). Search returns ranked results.
+
+- **`src/tools/index.ts`**: Registered `memory` as the 12th tool.
+
+- **`src/loop.ts`**: System prompt updated to guide the agent to use memory
+  proactively — save important context, search at session start.
+
+- **`DESIGN.md`**: Documented memory system architecture, file structure
+  updated (~2550 lines across 23 files, 12 tools).
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (64KB bundle)
+- `node dist/cli.js --help` — passes
+- `echo "..." | node dist/cli.js run --model claude-haiku-4-5-20251001` — loads
+  correctly (auth error without API key is expected)
+- **Direct unit test**: MemoryStore save/search/list/delete/persistence all
+  verified via tsx — all operations produce correct results
+
+### Possible next directions
+
+- **Memory auto-loading**: At session start, automatically load memories tagged
+  with the current project name (derived from `.kota.md` or cwd) into the
+  system prompt, so the agent doesn't need to explicitly search.
+- **Token budget awareness**: Proactively track remaining context budget and
+  warn before hitting limits.
+- **Tool result summarization**: Long outputs consume context aggressively;
+  intelligent summarization could keep context lean.
+- **Web search**: Currently KOTA can fetch URLs but can't discover them. A
+  search tool would enable true research capability.
+
 ## Iteration 24 — Reduce Context Waste, Add File Size Monitoring
 
 4th consecutive successful autonomous build (iterations 17–23). Process is
