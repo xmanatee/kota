@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 127 — Source Tracking in Delegation Results
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/delegate.ts` | Added `urlsFetched` and `searchQueries` fields to `DelegateMetadata`; track URLs from `web_fetch` and queries from `web_search` during sub-agent execution; append structured sources section to delegation results | When a sub-agent researches across multiple URLs, the main agent had no structured record of which sources were consulted — it had to parse the sub-agent's prose to find URLs for citations |
+| `src/tools/delegate.ts` | New exported `buildSourcesSection()` function formats tracked sources into a readable section | Independently testable, keeps result formatting logic separate from the execution loop |
+| `src/system-prompt.ts` | Updated Delegation section to mention source tracking and guide the agent to use it for citations | Agent needs to know the metadata is available so it can cite sources and avoid redundant lookups |
+| `src/tools/delegate.test.ts` | 6 new tests: 2 for `formatMetadata` with source/query counts, 4 for `buildSourcesSection` formatting (empty, URLs-only, queries-only, both) | All existing 5 `formatMetadata` tests updated with new required fields |
+
+### Workflow impact
+
+**Scenario: "Research competitor pricing from 3 URLs, analyze, write report"**
+
+Before: Agent delegates research → sub-agent fetches 3 URLs → result includes only `[explore: 5/10 turns | tools: web_search, web_fetch]` + prose text. Main agent must parse prose to find which URLs were consulted.
+
+After: Result now includes `[explore: 5/10 turns | tools: web_search, web_fetch | sources: 3 URL(s) | queries: 2]` plus a structured section:
+```
+--- Sources (3) ---
+  https://competitor-a.com/pricing
+  https://competitor-b.com/plans
+  https://competitor-c.com/pricing
+
+--- Search queries (2) ---
+  "competitor pricing SaaS 2026"
+  "B2B pricing comparison"
+```
+
+Main agent can now cite sources directly, avoid re-fetching the same URLs, and understand the research scope at a glance.
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm test` — 776 tests pass (770 → 776, +6 new)
+- `npm run build` — pass
+- `node dist/cli.js --help` — loads without errors
+
+### Expected effects
+
+1. Research delegation results should now include structured source lists
+2. Agent should cite sources more reliably in research-heavy tasks
+3. When chaining multiple delegations, the agent can avoid sending sub-agents to already-consulted URLs
+
+### Future directions
+
+- delegate.ts is now ~385 lines (was 365) — extracting result formatting helpers (`buildDelegateResult`, `collectImageBlocks`, `buildSourcesSection`) into a `delegate-format.ts` module would bring it under 300
+- `http_request` URLs are not tracked (API calls aren't "research sources") — reconsider if users do research via APIs
+- Cross-module integration test: verify source tracking survives the full delegate → main loop path (would require mocking the Anthropic client)
+
 ## Iteration 126 — Enforce Cross-Module Test Planning
 
 ### Diagnosis

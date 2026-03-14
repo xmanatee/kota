@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractModifiedFiles, buildDelegateResult, collectImageBlocks, formatMetadata } from "./delegate.js";
+import { extractModifiedFiles, buildDelegateResult, collectImageBlocks, formatMetadata, buildSourcesSection } from "./delegate.js";
 import type { DelegateMetadata } from "./delegate.js";
 import type { ToolResultBlock } from "./index.js";
 
@@ -183,6 +183,8 @@ describe("formatMetadata", () => {
       turnsMax: 10,
       toolsUsed: ["web_search", "web_fetch"],
       completionReason: "done",
+      urlsFetched: [],
+      searchQueries: [],
     };
     expect(formatMetadata(meta)).toBe(
       "[explore: 4/10 turns | tools: web_search, web_fetch]",
@@ -196,6 +198,8 @@ describe("formatMetadata", () => {
       turnsMax: 15,
       toolsUsed: ["file_edit", "file_read", "shell"],
       completionReason: "turn_limit",
+      urlsFetched: [],
+      searchQueries: [],
     };
     expect(formatMetadata(meta)).toBe(
       "[execute: 15/15 turns | tools: file_edit, file_read, shell | hit turn limit]",
@@ -209,6 +213,8 @@ describe("formatMetadata", () => {
       turnsMax: 10,
       toolsUsed: ["grep"],
       completionReason: "circuit_break",
+      urlsFetched: [],
+      searchQueries: [],
     };
     expect(formatMetadata(meta)).toBe(
       "[explore: 5/10 turns | tools: grep | stopped: repeated errors]",
@@ -222,6 +228,8 @@ describe("formatMetadata", () => {
       turnsMax: 10,
       toolsUsed: ["file_read", "web_fetch"],
       completionReason: "context_overflow",
+      urlsFetched: [],
+      searchQueries: [],
     };
     expect(formatMetadata(meta)).toBe(
       "[explore: 8/10 turns | tools: file_read, web_fetch | ran out of context]",
@@ -235,7 +243,75 @@ describe("formatMetadata", () => {
       turnsMax: 10,
       toolsUsed: [],
       completionReason: "done",
+      urlsFetched: [],
+      searchQueries: [],
     };
     expect(formatMetadata(meta)).toBe("[explore: 1/10 turns | tools: none]");
+  });
+
+  it("includes source count when URLs fetched", () => {
+    const meta: DelegateMetadata = {
+      mode: "explore",
+      turnsUsed: 3,
+      turnsMax: 10,
+      toolsUsed: ["web_fetch"],
+      completionReason: "done",
+      urlsFetched: ["https://example.com", "https://docs.api.com"],
+      searchQueries: [],
+    };
+    expect(formatMetadata(meta)).toBe(
+      "[explore: 3/10 turns | tools: web_fetch | sources: 2 URL(s)]",
+    );
+  });
+
+  it("includes query count when searches performed", () => {
+    const meta: DelegateMetadata = {
+      mode: "explore",
+      turnsUsed: 5,
+      turnsMax: 10,
+      toolsUsed: ["web_search", "web_fetch"],
+      completionReason: "done",
+      urlsFetched: ["https://example.com"],
+      searchQueries: ["best practices auth", "OAuth2 vs JWT"],
+    };
+    expect(formatMetadata(meta)).toBe(
+      "[explore: 5/10 turns | tools: web_search, web_fetch | sources: 1 URL(s) | queries: 2]",
+    );
+  });
+});
+
+describe("buildSourcesSection", () => {
+  it("returns empty string when no sources", () => {
+    expect(buildSourcesSection([], [])).toBe("");
+  });
+
+  it("formats URLs only", () => {
+    const result = buildSourcesSection(
+      ["https://example.com", "https://docs.api.com"],
+      [],
+    );
+    expect(result).toContain("--- Sources (2) ---");
+    expect(result).toContain("  https://example.com");
+    expect(result).toContain("  https://docs.api.com");
+    expect(result).not.toContain("Search queries");
+  });
+
+  it("formats queries only", () => {
+    const result = buildSourcesSection([], ["best practices auth"]);
+    expect(result).toContain('--- Search queries (1) ---');
+    expect(result).toContain('  "best practices auth"');
+    expect(result).not.toContain("Sources");
+  });
+
+  it("formats both URLs and queries", () => {
+    const result = buildSourcesSection(
+      ["https://example.com"],
+      ["auth best practices", "OAuth2 tutorial"],
+    );
+    expect(result).toContain("--- Sources (1) ---");
+    expect(result).toContain("  https://example.com");
+    expect(result).toContain("--- Search queries (2) ---");
+    expect(result).toContain('  "auth best practices"');
+    expect(result).toContain('  "OAuth2 tutorial"');
   });
 });

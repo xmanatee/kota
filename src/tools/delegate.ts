@@ -52,6 +52,8 @@ export type DelegateMetadata = {
   turnsMax: number;
   toolsUsed: string[];
   completionReason: CompletionReason;
+  urlsFetched: string[];
+  searchQueries: string[];
 };
 
 /** Format metadata as a concise single-line prefix for the result. */
@@ -69,7 +71,31 @@ export function formatMetadata(meta: DelegateMetadata): string {
     };
     parts.push(labels[meta.completionReason] ?? meta.completionReason);
   }
+  if (meta.urlsFetched.length > 0) {
+    parts.push(`sources: ${meta.urlsFetched.length} URL(s)`);
+  }
+  if (meta.searchQueries.length > 0) {
+    parts.push(`queries: ${meta.searchQueries.length}`);
+  }
   return `[${parts.join(" | ")}]`;
+}
+
+/** Build a formatted section listing sources consulted during delegation. */
+export function buildSourcesSection(
+  urls: readonly string[],
+  queries: readonly string[],
+): string {
+  if (urls.length === 0 && queries.length === 0) return "";
+  const lines: string[] = [];
+  if (urls.length > 0) {
+    lines.push(`--- Sources (${urls.length}) ---`);
+    for (const u of urls) lines.push(`  ${u}`);
+  }
+  if (queries.length > 0) {
+    lines.push(`--- Search queries (${queries.length}) ---`);
+    for (const q of queries) lines.push(`  "${q}"`);
+  }
+  return "\n\n" + lines.join("\n");
 }
 
 // --- Delegate configuration (set by main session) ---
@@ -174,6 +200,8 @@ export async function runDelegate(
   const modifiedFiles = new Set<string>();
   const collectedImages: ToolResultBlock[] = [];
   const toolsUsed = new Set<string>();
+  const urlsFetched = new Set<string>();
+  const searchQueries = new Set<string>();
   let completionReason: CompletionReason = "done";
 
   const client = delegateConfig.client ?? new Anthropic();
@@ -278,6 +306,12 @@ export async function runDelegate(
             modifiedFiles.add(f);
           }
         }
+        if (block.name === "web_fetch" && toolInput.url) {
+          urlsFetched.add(toolInput.url as string);
+        }
+        if (block.name === "web_search" && toolInput.query) {
+          searchQueries.add(toolInput.query as string);
+        }
 
         return {
           tool_use_id: block.id,
@@ -338,28 +372,33 @@ export async function runDelegate(
 
   console.error(`[kota] delegate(${mode}) done — ${totalTurns} turn(s)`);
 
+  const sortedUrls = [...urlsFetched];
+  const sortedQueries = [...searchQueries];
   const meta: DelegateMetadata = {
     mode,
     turnsUsed: totalTurns,
     turnsMax: maxTurns,
     toolsUsed: [...toolsUsed].sort(),
     completionReason,
+    urlsFetched: sortedUrls,
+    searchQueries: sortedQueries,
   };
   const metaLine = formatMetadata(meta);
+  const sources = buildSourcesSection(sortedUrls, sortedQueries);
 
   const buildResult = (text: string) => buildDelegateResult(text, collectedImages);
 
   if (!lastText && modifiedFiles.size === 0) {
-    return buildResult(`${metaLine}\nSub-agent completed without producing a response.`);
+    return buildResult(`${metaLine}\nSub-agent completed without producing a response.${sources}`);
   }
 
   if (isExecute && modifiedFiles.size > 0) {
     const fileList = [...modifiedFiles].map((f) => `  - ${f}`).join("\n");
     return buildResult(
       `${metaLine}\n${lastText || "(no summary)"}\n\n` +
-      `--- Modified files (${modifiedFiles.size}) ---\n${fileList}`,
+      `--- Modified files (${modifiedFiles.size}) ---\n${fileList}${sources}`,
     );
   }
 
-  return buildResult(`${metaLine}\n${lastText || "(no output)"}`);
+  return buildResult(`${metaLine}\n${lastText || "(no output)"}${sources}`);
 }
