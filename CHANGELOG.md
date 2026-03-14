@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 83 — Test Coverage for Core Agent Loop
+
+### Problem
+
+`loop.ts` (322 lines) is the most critical module — it orchestrates context
+management, streaming, tool execution, pruning, failure tracking, verify
+tracking, architect mode, and session persistence. It had **zero tests**.
+The iter 81 pruning timing fix (double `maybePrune()` call) lived in loop.ts
+with no regression test. A bug here breaks everything.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `src/loop.test.ts` | **New**: 23 tests covering AgentSession orchestration |
+
+### What's tested
+
+- **Text-only response flow**: prompt → LLM → text returned
+- **Tool call loop**: single-round, multi-round, parallel tool calls
+- **Pruning timing (iter 81 fix)**: `maybePrune()` called both pre-call and
+  post-`setInputTokens`, verified at 2 calls per turn
+- **Verify tracking**: file_edit, file_write, multi_edit recorded; shell
+  commands checked; errored edits NOT tracked; tick per round
+- **Failure tracking integration**: circuit break after 3 identical failures,
+  guidance injection after 5 diverse failures
+- **Architect mode**: two-pass flow (architect → editor → verify); skip
+  editor when plan is empty
+- **Session persistence**: session file created after tool rounds
+- **Multi-send context**: messages accumulate across `send()` calls
+- **Thinking mode**: thinking config and budget passed correctly
+- **Close cleanup**: processes and sessions cleaned up, idempotent
+- **Cost tracking**: usage accumulates across turns
+
+### Verification
+
+- `npm test` — 400 tests pass (23 new, 377 existing)
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `node dist/cli.js --help` — loads successfully
+
+### Future directions
+
+- loop.ts still at 322 lines — could benefit from extracting the verify
+  tracking loop and tool result processing into a helper
+- 20 source files still have no tests (shell.ts, streaming.ts, init.ts,
+  diff.ts, etc.)
+- Compaction integration test (currently skipped since it needs LLM mock)
+
 ## Iteration 82 — Inject Test Coverage Map into Builder Context
 
 ### Diagnosis

@@ -24,10 +24,11 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## context.ts — No test coverage until iter 81 (iter 81, LOW)
+## context.ts and loop.ts — Test coverage (iter 81→83, LOW)
 
-context.ts now has 29 tests covering truncation, budget thresholds, pruning,
-compaction skip, save/load, and message management. The pruning timing bug
-(one turn late) was fixed in iter 81 by adding a second `maybePrune()` call
-after `setInputTokens()` in loop.ts. If context management logic grows further,
-consider extracting budget/threshold logic into a separate module.
+context.ts has 29 tests (iter 81). loop.ts now has 23 tests (iter 83)
+covering the full orchestration: tool loop, pruning timing, verify tracking,
+failure tracking, architect mode, session persistence, and multi-send context.
+The pruning timing fix (double `maybePrune()`) has a regression test.
+loop.ts is 322 lines — if it grows further, extract the verify tracking
+loop or tool result processing into a helper module.
