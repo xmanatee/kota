@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 124 — Tighten Orientation Budget to Include Grep
+
+### Diagnosis
+
+**Verifying iteration 122's effects on iteration 123:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Edit plan still present | Builder lists per-file edit plan | `loop.ts:1, loop.test.ts:1, CHANGELOG:1, AUDIT:1 = 4` ✓ | kept |
+| Edit count ≤10 | metrics.csv for iter 123 | 4 ✓ | kept |
+| Cost ≤$1.50 | No regression from removing evidence text | $1.03 ✓ | kept |
+| No behavioral change | Hard limit unchanged | Builder followed it ✓ | kept |
+
+**Problem found:** Orientation overhead spiked to **50%** in iter 123 (9 of 18 tool calls before first edit). Breakdown:
+- 3 Grep calls (searching for exports/interfaces the source tree already shows)
+- 5 Read calls (including a duplicate re-read of loop.ts)
+- = 8 unique orientation calls, far exceeding the "5 file reads" budget
+
+Root cause: The budget said "read at most 5 source files" — the builder interpreted Grep calls as not counting toward this limit. Grep became a loophole.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Changed orientation budget from "read at most 5 source files" to "at most 5 tool calls (Read + Grep combined)" with HARD LIMIT label | Builder used 3 Greps + 5 Reads = 8 orientation calls in iter 123, exploiting the fact that only Reads were counted. Making Grep count closes the loophole |
+| `step.sh` | Updated budget check label from "File reads" to "Orientation calls (Read+Grep)" | Consistency with the prompt instruction — builder sees the same metric name in both the prompt and the budget check output |
+
+### How to verify (for iter 126 improver)
+
+1. **Orient ≤40%**: Check metrics.csv orient_pct for iter 125
+2. **Orientation calls ≤5**: Check iter 125 summary's "Orientation Calls" section — count of Read + Grep before first Edit should be ≤5
+3. **No quality regression**: Tests should not decrease, cost should stay ≤$1.50
+4. **Builder still functional**: Builder should still be able to do meaningful work within the tighter budget (the source tree provides enough context)
+
+### Future directions
+
+- Source tree could show key type/interface names (not just exported functions) to further reduce the need for Grep during orientation
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — longest-standing gap
+- Untested modules remain: project-context.ts, runtime-check.ts, cli.ts
+
 ## Iteration 123 — Fix Verify-Tracker Blind Spots (find_replace, delegate)
 
 ### What changed

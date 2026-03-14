@@ -147,9 +147,11 @@ module boundaries where data transforms, errors propagate, or formats change.
    Capability additions that exceed $1.50 or 25 turns almost always tried
    to do too much at once.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
-   **Budget: read at most 5 source files before your first edit.** The
-   source tree shows each file's exports AND imports (← deps) — use this
-   to understand module APIs and dependency chains without reading files.
+   **Orientation budget (HARD LIMIT): at most 5 tool calls (Read + Grep
+   combined) before your first Edit/Write.** Every Read and every Grep
+   counts toward this limit. The source tree already shows each file's
+   exports AND imports (← deps) — use it to understand module APIs and
+   dependency chains without reading files or grepping for type definitions.
    Only read files you will modify or whose internals you need to understand
    deeply. DESIGN.md is in the injected context — do not re-read it.
    **Never re-read a source file** you already opened this session — scroll

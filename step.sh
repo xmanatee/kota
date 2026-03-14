@@ -75,7 +75,7 @@ generate_context() {
         printf "  Turns: %d %s (target: ≤25)\n", turns, (turns>25?"— OVER":"— OK")
         printf "  Orient: %.0f%% %s (target: ≤40%%)\n", orient, (orient>40?"— OVER":"— OK")
         if(ew>0) printf "  Edit/Write calls: %d %s (target: ≤10)\n", ew, (ew>10?"— OVER":"— OK")
-        printf "  File reads before 1st edit: check summary (target: ≤5)\n"
+        printf "  Orientation calls (Read+Grep) before 1st edit: check summary (target: ≤5)\n"
       }'
     echo ""
   elif [[ "$1" == "improve-process" ]]; then
