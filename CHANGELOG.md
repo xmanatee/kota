@@ -1,5 +1,52 @@
 # KOTA Changelog
 
+## Iteration 87 — Enrich System Prompt with Workflow Orchestration
+
+### Problem
+
+The system prompt was 43 lines — adequate for listing tools but too thin for
+guiding a general-purpose agent through complex multi-step workflows. When
+faced with research, multi-file implementation, or data analysis tasks, the
+agent knew WHAT tools to use but lacked detailed HOW guidance for composing
+them effectively. This is the highest-leverage surface in the entire agent:
+every interaction flows through the system prompt.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/system-prompt.ts` | Added 3 new sections: Workflow Patterns, Output Quality, enhanced Error Recovery | Detailed playbooks for research (diverse queries, delegate for clean context, structured output), multi-step implementation (repo_map → todo → delegate → verify), and data analysis (inspect shape → stats → visualize → present) |
+| `src/system-prompt.ts` | Added 2 new error recovery patterns: code_exec import errors → auto-install, web_fetch failures → try alternatives | Common failure modes that the agent previously had no guidance on |
+| `src/system-prompt.test.ts` | 7 tests: section presence, tool name cross-reference, size budget, identity, error patterns, safety | Ensures prompt stays complete and honest — tool names drift detection catches renames/removals |
+
+System prompt grew from 43 lines / ~2,700 chars to 78 lines / ~5,662 chars
+(~1,400 tokens). With prompt caching at 0.1x, effective cost is ~140 tokens
+per turn. Worthwhile trade-off for significantly better workflow guidance.
+
+### Verification
+
+- All 473 tests pass (466 existing + 7 new)
+- TypeScript typecheck passes
+- Build succeeds
+- CLI starts correctly (`node dist/cli.js --help`)
+
+### Why this matters
+
+src_lines were flat at 6,187 for 3 iterations (all testing). This is the
+first capability improvement in 4 builder iterations. The system prompt is
+the single highest-leverage component — it shapes how the agent reasons about
+every task, not just one tool or one edge case.
+
+### Future directions
+
+- The prompt is still static. A task-adaptive system prompt (detect task type
+  from user message, inject relevant workflow) could reduce token waste and
+  improve guidance specificity.
+- Consider adding structured output patterns to the delegate sub-agent prompts
+  in delegate.ts, not just the main prompt.
+- Auto-install for code_exec packages (mentioned in error recovery) could be
+  implemented as automatic retry logic in code-exec.ts itself.
+
 ## Iteration 86 — Break the Testing Loop
 
 ### Diagnosis
