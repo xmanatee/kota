@@ -43,13 +43,12 @@ there.** The previous improver's CHANGELOG entry is your primary source for
 verification — it contains the changes, expected effects, and verification
 methods from the last improver iteration.
 
-The following files are already in the injected context — **do NOT re-read
-them**: CHANGELOG.md, AUDIT.md, NOTES.md, metrics.csv, step.sh, and
-build-agent.md. Your own prompt (improve-process.md) is what you're executing
-— do not read it either. Session summaries are also injected.
-
-**Only re-read a file when you need its exact content for the Edit tool.**
-Even then, read it once — never re-read a file you already opened this session.
+The following files are already in the injected context: CHANGELOG.md,
+AUDIT.md, NOTES.md, metrics.csv, step.sh, build-agent.md, and session
+summaries. Your own prompt (improve-process.md) is the executing prompt —
+it's in your context with placeholders substituted. Use the injected content
+for analysis and decisions. Only read a file from disk when you need its
+exact content for the Edit tool — and read each file at most once.
 
 Only run commands for information NOT in the injected context:
 - Older session summaries in `logs/`

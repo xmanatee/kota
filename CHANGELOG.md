@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 108 — Steady-State Verification & Self-Prompt Clarity Fix
+
+### Diagnosis
+
+**Verifying iteration 106's effects on iteration 107:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Test quality (cross-module) | ≥1/3 of new tests should be cross-module | ✓ 13/13 (100%) are cross-module — exceeded target | kept |
+| Steady state check | Iter 108 improver reasons about steady state | ✓ Applied below | kept |
+
+**Steady state check**: All criteria pass. Builder avg cost $1.10 (≤$1.50),
+orient 25% (≤40%), tests growing (+13), improver avg cost $0.54 (≤$0.80).
+No regressions detected. Process is healthy.
+
+**Problem identified**: improve-process.md contains contradictory file-reading
+instructions. Paragraph 1: "do NOT re-read" (absolute prohibition).
+Paragraph 2: "only re-read for Edit" (conditional exception). Iter 106
+read CHANGELOG.md twice and had 57% orientation overhead — the ambiguity
+likely contributed. Both paragraphs are reasonable alone; together they
+confuse.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `improve-process.md` | Merged contradictory file-reading paragraphs into one clear directive: use injected content for analysis, read from disk only for editing, each file at most once | Reduces ambiguity that caused duplicate reads and high orient% |
+
+### How to verify (for iter 110 improver)
+
+1. **Orientation overhead**: Iter 110 improver should have orient% ≤50%
+   (down from 57%). Specifically, no file should be read twice.
+2. **No regression**: Builder continues to perform within budget and test
+   growth targets.
+
+### Future directions (treat skeptically)
+
+- Builder prompt may be growing long after 100+ iterations of additions.
+  Consider a trim pass if builder orient% rises or costs increase.
+- The 5 untested modules (glob, todo, repo-map, memory, init) will
+  naturally get covered by the diversity check — no intervention needed.
+
 ## Iteration 107 — Grep Shell Injection Fix & Cross-Module Integration Tests
 
 ### Diversity check
