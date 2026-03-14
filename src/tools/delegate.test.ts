@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { extractModifiedFiles, buildDelegateResult, collectImageBlocks, formatMetadata, buildSourcesSection } from "./delegate.js";
-import type { DelegateMetadata } from "./delegate.js";
+import { extractModifiedFiles, buildDelegateResult, collectImageBlocks, formatMetadata, buildSourcesSection, assembleDelegateResult } from "./delegate-format.js";
+import type { DelegateMetadata } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";
 
 describe("extractModifiedFiles", () => {
@@ -313,5 +313,72 @@ describe("buildSourcesSection", () => {
     expect(result).toContain("--- Search queries (2) ---");
     expect(result).toContain('  "auth best practices"');
     expect(result).toContain('  "OAuth2 tutorial"');
+  });
+});
+
+describe("assembleDelegateResult (cross-module)", () => {
+  const baseMeta: DelegateMetadata = {
+    mode: "explore",
+    turnsUsed: 3,
+    turnsMax: 10,
+    toolsUsed: ["web_search", "web_fetch"],
+    completionReason: "done",
+    urlsFetched: ["https://example.com"],
+    searchQueries: ["test query"],
+  };
+
+  it("assembles explore result with metadata, content, and sources", () => {
+    const result = assembleDelegateResult("Research findings here.", baseMeta, new Set(), []);
+    expect(result.content).toContain("[explore: 3/10 turns");
+    expect(result.content).toContain("Research findings here.");
+    expect(result.content).toContain("--- Sources (1) ---");
+    expect(result.content).toContain("https://example.com");
+    expect(result.content).toContain('--- Search queries (1) ---');
+    expect(result.content).toContain('"test query"');
+    expect(result.blocks).toBeUndefined();
+  });
+
+  it("assembles execute result with modified files list", () => {
+    const meta: DelegateMetadata = { ...baseMeta, mode: "execute" };
+    const modified = new Set(["src/foo.ts", "src/bar.ts"]);
+    const result = assembleDelegateResult("Fixed the bug.", meta, modified, []);
+    expect(result.content).toContain("[execute: 3/10 turns");
+    expect(result.content).toContain("Fixed the bug.");
+    expect(result.content).toContain("--- Modified files (2) ---");
+    expect(result.content).toContain("  - src/foo.ts");
+    expect(result.content).toContain("  - src/bar.ts");
+    expect(result.content).toContain("--- Sources (1) ---");
+  });
+
+  it("assembles result with images as blocks", () => {
+    const images: ToolResultBlock[] = [img("chart1"), img("chart2")];
+    const result = assembleDelegateResult("Data analysis.", baseMeta, new Set(), images);
+    expect(result.content).toContain("Data analysis.");
+    expect(result.blocks).toHaveLength(3); // 1 text + 2 images
+    expect(result.blocks![0]).toEqual({ type: "text", text: result.content });
+    expect(result.blocks![1]).toEqual(img("chart1"));
+  });
+
+  it("handles empty response with no modified files", () => {
+    const result = assembleDelegateResult("", baseMeta, new Set(), []);
+    expect(result.content).toContain("Sub-agent completed without producing a response.");
+    expect(result.content).toContain("--- Sources (1) ---");
+  });
+
+  it("shows (no summary) for execute mode with files but no text", () => {
+    const meta: DelegateMetadata = { ...baseMeta, mode: "execute" };
+    const result = assembleDelegateResult("", meta, new Set(["a.ts"]), []);
+    expect(result.content).toContain("(no summary)");
+    expect(result.content).toContain("--- Modified files (1) ---");
+  });
+
+  it("handles turn_limit with sources and images", () => {
+    const meta: DelegateMetadata = { ...baseMeta, completionReason: "turn_limit" };
+    const images: ToolResultBlock[] = [img("partial")];
+    const result = assembleDelegateResult("Partial results.", meta, new Set(), images);
+    expect(result.content).toContain("hit turn limit");
+    expect(result.content).toContain("Partial results.");
+    expect(result.content).toContain("--- Sources (1) ---");
+    expect(result.blocks).toHaveLength(2);
   });
 });

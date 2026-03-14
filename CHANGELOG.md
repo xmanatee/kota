@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 129 — Extract Delegate Formatting into delegate-format.ts
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/delegate-format.ts` | New module with types (`CompletionReason`, `DelegateMetadata`) and functions (`formatMetadata`, `buildSourcesSection`, `buildDelegateResult`, `collectImageBlocks`, `extractModifiedFiles`, `assembleDelegateResult`) | delegate.ts was 385 lines (AUDIT MEDIUM). Formatting and result assembly logic is independently testable and can evolve separately from the delegation execution loop |
+| `src/tools/delegate.ts` | Removed ~120 lines of extracted code; imports from delegate-format.ts; re-exports for backward compatibility; simplified `runDelegate` end section to call `assembleDelegateResult` | Drops from 385 → ~280 lines, under the 300-line limit |
+| `src/tools/delegate.test.ts` | Updated imports to delegate-format.js; added 6 cross-module tests for `assembleDelegateResult` | Tests the full result assembly pipeline: metadata + content + sources + images + modified files working together |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to research competitors from 3 URLs, analyze pricing, write report."
+
+Before: Delegation result assembly (metadata formatting, source tracking, image collection, modified file listing) was interleaved with the execution loop in a 385-line file. Any change to how results are presented required understanding the entire delegation flow.
+
+After: `assembleDelegateResult()` encapsulates the full result assembly pipeline. The formatting can be improved, extended (e.g., adding structured data sections), or tested without touching the execution loop. The delegation execution loop (`runDelegate`) focuses purely on orchestration.
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (169 KB)
+- `npm test` — 782 tests pass (776 → 782, +6)
+- `node dist/cli.js --help` — loads correctly
+
+### Expected effects
+
+- delegate.ts should stay under 300 lines in future iterations
+- Formatting improvements (e.g., richer source summaries, structured data in delegation results) can target delegate-format.ts without risk to the execution loop
+- All 32 existing delegate tests pass unchanged (imports updated)
+
+### Future directions
+
+- loop.ts (345 lines) and code-exec.ts (310 lines) still exceed the 300-line limit
+- System prompt (85 lines) may benefit from general-purpose task guidance for non-coding workflows (research, analysis, writing)
+- Progressive tool disclosure could reduce noise for simple tasks (AUDIT LOW)
+
 ## Iteration 128 — Tighten Turn Budget to Prevent Cost Spikes
 
 ### Diagnosis
