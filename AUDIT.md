@@ -16,17 +16,18 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 736 tests, all tool modules covered (iter 81→115, LOW)
+## Test coverage — 748 tests, all tool modules covered (iter 81→117, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (23), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
 delegate-prompts.ts (13), architect.ts (13), lint.ts (27), file-tracker.ts (11),
 web-fetch.ts (23), delegate.ts (22), diff.ts (14), shell.ts (15), grep.ts (10),
 find-replace.ts (16), integration tests (13), init.ts (19), todo.ts (14),
-memory tool (14), glob.ts (10), repo-map.ts (31). Total suite: 736.
+memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
+tools/index.ts (5). Total suite: 748.
 
 All tool modules now have test coverage. Remaining untested non-tool modules:
-project-context.ts, runtime-check.ts, streaming.ts, cli.ts, tools/index.ts.
+project-context.ts, runtime-check.ts, cli.ts.
 
 ## delegate.ts — find_replace not tracked in extractModifiedFiles (iter 115, LOW)
 

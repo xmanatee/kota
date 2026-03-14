@@ -1,0 +1,149 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { streamMessage, type StreamConfig } from "./streaming.js";
+
+let stdoutSpy: ReturnType<typeof vi.spyOn>;
+let stderrSpy: ReturnType<typeof vi.spyOn>;
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  stdoutSpy.mockRestore();
+  stderrSpy.mockRestore();
+  consoleErrorSpy.mockRestore();
+});
+
+function createStream(texts: string[] = ["Hello"]) {
+  return {
+    on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+      if (event === "text") texts.forEach((t) => cb(t));
+    }),
+    finalMessage: vi.fn().mockResolvedValue({
+      id: "msg_test",
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text: texts.join("") }],
+      model: "test-model",
+      stop_reason: "end_turn",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    }),
+  };
+}
+
+function cfg(client: unknown): StreamConfig {
+  return {
+    client: client as StreamConfig["client"],
+    model: "test-model",
+    maxTokens: 1024,
+    system: [{ type: "text", text: "test" }],
+    messages: [{ role: "user", content: "Hello" }],
+    tools: [],
+    verbose: false,
+  };
+}
+
+describe("streamMessage", () => {
+  it("returns response and accumulated text on success", async () => {
+    const s = createStream(["Hello", " world"]);
+    const client = { messages: { stream: vi.fn().mockReturnValue(s) } };
+
+    const result = await streamMessage(cfg(client));
+
+    expect(result.streamedText).toBe("Hello world");
+    expect(result.response.stop_reason).toBe("end_turn");
+    expect(client.messages.stream).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries on transient error and succeeds", async () => {
+    const s = createStream(["OK"]);
+    const client = {
+      messages: {
+        stream: vi.fn()
+          .mockImplementationOnce(() => { throw new Error("ECONNRESET"); })
+          .mockReturnValueOnce(s),
+      },
+    };
+
+    const promise = streamMessage(cfg(client));
+    await vi.advanceTimersByTimeAsync(15_000);
+    const result = await promise;
+
+    expect(result.streamedText).toBe("OK");
+    expect(client.messages.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries on 429 rate limit", async () => {
+    const s = createStream(["OK"]);
+    const err = Object.assign(new Error("Rate limited"), { status: 429 });
+    const client = {
+      messages: {
+        stream: vi.fn()
+          .mockImplementationOnce(() => { throw err; })
+          .mockReturnValueOnce(s),
+      },
+    };
+
+    const promise = streamMessage(cfg(client));
+    await vi.advanceTimersByTimeAsync(15_000);
+    const result = await promise;
+
+    expect(result.streamedText).toBe("OK");
+    expect(client.messages.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries on 5xx server error", async () => {
+    const s = createStream(["OK"]);
+    const err = Object.assign(new Error("Internal Server Error"), { status: 500 });
+    const client = {
+      messages: {
+        stream: vi.fn()
+          .mockImplementationOnce(() => { throw err; })
+          .mockReturnValueOnce(s),
+      },
+    };
+
+    const promise = streamMessage(cfg(client));
+    await vi.advanceTimersByTimeAsync(15_000);
+    const result = await promise;
+
+    expect(result.streamedText).toBe("OK");
+  });
+
+  it("gives up after max retries", async () => {
+    const client = {
+      messages: { stream: vi.fn().mockImplementation(() => { throw new Error("server error"); }) },
+    };
+
+    const promise = streamMessage(cfg(client));
+    const assertion = expect(promise).rejects.toThrow("server error");
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+    expect(client.messages.stream).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not retry on auth errors", async () => {
+    for (const msg of ["authentication failed", "invalid apiKey", "bad authToken"]) {
+      const client = {
+        messages: { stream: vi.fn().mockImplementation(() => { throw new Error(msg); }) },
+      };
+      await expect(streamMessage(cfg(client))).rejects.toThrow(msg);
+      expect(client.messages.stream).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("does not retry on 4xx client errors", async () => {
+    const err = Object.assign(new Error("Bad Request"), { status: 400 });
+    const client = {
+      messages: { stream: vi.fn().mockImplementation(() => { throw err; }) },
+    };
+
+    await expect(streamMessage(cfg(client))).rejects.toThrow("Bad Request");
+    expect(client.messages.stream).toHaveBeenCalledTimes(1);
+  });
+});

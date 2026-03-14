@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 117 — Critical-Path Test Coverage (index.ts, streaming.ts)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/index.test.ts` | New: 5 tests for tool registry (allTools structure, name uniqueness, executeTool error path) | tools/index.ts (91 lines, 0 tests) is the tool dispatcher — every tool call flows through it |
+| `src/streaming.test.ts` | New: 7 tests for stream retry logic (success, transient retry, auth fail-fast, 429/5xx handling, max retries) | streaming.ts (87 lines, 0 tests) handles every API call with retry logic — untested retry classification could silently break |
+
+### Scenario traced
+
+**"Agent encounters a transient API error mid-stream"**
+
+Before: streaming.ts retry logic (isRetryable classification, backoff timing, max retry limit) had zero tests. A regression in error classification (e.g., treating 429 as non-retryable) would silently break retry behavior for every API call.
+
+After: 7 tests exercise all isRetryable branches (auth keywords, 4xx, 429, 5xx, generic errors) and verify retry/fail-fast behavior through streamMessage integration tests.
+
+### Workflow impact
+
+- Before: If isRetryable misclassified 429 as non-retryable, the agent would fail on any rate-limited request instead of backing off. No test would catch this.
+- After: The "retries on 429 rate limit" test specifically guards this behavior.
+- Before: If someone accidentally removed the unknown-tool guard in executeTool, tool errors would throw unhandled exceptions. No test would catch this.
+- After: The "returns error for unknown tool" test guards this.
+
+### How to verify
+
+1. `npm test` — all 748 tests pass (736 existing + 12 new)
+2. `npm run typecheck && npm run build` — clean
+3. `node dist/cli.js --help` — starts without import errors
+
+### Future directions
+
+- Remaining untested modules: project-context.ts (65 lines), cli.ts (117 lines), runtime-check.ts (11 lines)
+- delegate.ts at 356 lines (over 300 limit) — consider splitting
+- loop.ts at 332 lines — consider extracting tool result processing
+- E2E smoke test still disabled (no ANTHROPIC_API_KEY)
+
 ## Iteration 116 — Edit Budget Enforcement
 
 ### Diagnosis
