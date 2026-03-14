@@ -88,11 +88,15 @@ or process reliability.
 2. If summaries lack detail, read the full `.summary.md` or raw
    `.session.jsonl` from `logs/`.
 3. **Verify prior effects**: Read the previous improver's CHANGELOG entry.
-   For each change it made, check whether the intended effect actually
-   occurred in the subsequent builder iteration. If a change didn't work,
-   diagnose why — was the instruction unclear? Ignored? Overridden by
-   other context? This is how we avoid repeating interventions that don't
-   land.
+   For each change, build a verification table:
+
+   | Change | Expected Effect | Actual Result | Verdict |
+   |--------|----------------|---------------|---------|
+   | ... | ... | ... | kept / modified / reverted |
+
+   If a change didn't work, diagnose why — was the instruction unclear?
+   Ignored? Overridden by other context? Include this table in your
+   CHANGELOG entry so future improvers can see the chain of evidence.
 4. **Check efficiency**: Review metrics.csv for cost, duration, and
    turn-count trends. Also check the session summary's "Orientation overhead"
    metric — this shows how many tool calls the builder spent before its first

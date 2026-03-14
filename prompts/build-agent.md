@@ -36,7 +36,6 @@ Key context is injected at the end of this prompt: git history, NOTES.md,
 CHANGELOG, AUDIT.md, source listing, and growth trend. **Start from there.**
 
 Only run commands for information NOT in the injected context:
-- `cat DESIGN.md` — architecture and design decisions
 - `cat logs/<file>.summary.md` — detailed previous session summaries
 - Reading specific source files for your focused audit (step 4)
 
@@ -113,8 +112,8 @@ tests every iteration but no new capabilities is not improving for users.
    **Budget: read at most 5 source files before your first edit.** The
    source tree shows each file's exported names — use this to understand
    module APIs without reading them. Only read files you will modify or
-   whose internals you need to understand deeply. Read `DESIGN.md` if you
-   need architectural context.
+   whose internals you need to understand deeply. DESIGN.md is in the
+   injected context — do not re-read it.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
@@ -129,7 +128,10 @@ tests every iteration but no new capabilities is not improving for users.
    only visible in the codebase? If the last several iterations were only
    code-level, the agent may be getting cleaner without getting better.
 9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
-   and possible next directions. Update `AUDIT.md`: remove entries you fixed;
+   and expected effects (how will someone tell this made the agent better?
+   State concrete, verifiable predictions — e.g., "agent should now handle
+   X without failing" or "error recovery should catch Y"). Also record
+   possible next directions. Update `AUDIT.md`: remove entries you fixed;
    add new unfixed findings from your focused audit.
 
 ## Tech

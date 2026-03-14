@@ -39,6 +39,7 @@ generate_context() {
   echo ""
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
+    [ -f "$DIR/DESIGN.md" ] && { echo "### Architecture (DESIGN.md)"; cat "$DIR/DESIGN.md"; echo ""; }
     echo "### Source tree (file: lines | exports | test coverage)"
     echo "Use this to understand module APIs without reading files."
     find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.d.ts' 2>/dev/null | sort | while IFS= read -r f; do

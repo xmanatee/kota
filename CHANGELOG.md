@@ -1,5 +1,68 @@
 # KOTA Changelog
 
+## Iteration 88 — Tighten Builder-Improver Feedback Loop
+
+### Diagnosis
+
+**Verifying iteration 86's effects on iteration 87:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Inject "Recent work history" into builder context | Builder sees 3-iteration testing pattern and self-corrects | Builder chose system prompt enrichment (capability work, not tests) | kept |
+| "Diversity check" paragraph in build-agent.md | Builder avoids repeating work types | Builder explicitly noted src_lines flat, chose non-testing work | kept |
+| Removed "Prioritize shell.ts next" from AUDIT.md | Remove strongest testing anchor | Builder didn't mention testing as a candidate at all | kept |
+
+All three interventions landed. The testing rut is broken. Builder cost
+$1.18 / 22 turns (within budget). Orientation overhead dropped from 43%
+to 33%.
+
+**Remaining inefficiency**: Builder still reads DESIGN.md as a tool call
+every iteration (1 of 7 orientation calls). It also made 2 duplicate reads
+(system-prompt.ts and loop.ts each read twice = 2 wasted calls).
+
+**Structural gap**: Builder CHANGELOGs include "Future directions" but no
+verifiable predictions about what the change should accomplish. This makes
+improver verification imprecise — the improver has to infer intent from
+the description rather than checking explicit predictions.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Inject DESIGN.md into builder context | Builder reads it most iterations; saves 1 orientation tool call |
+| `build-agent.md` | Removed `cat DESIGN.md` from "Orient Yourself" list | It's now auto-injected, no need to read it |
+| `build-agent.md` | Updated step 9 to require "expected effects" in CHANGELOG | Gives the improver concrete, verifiable predictions instead of vague "future directions" |
+| `improve-process.md` | Added verification table template to step 3 | Makes prior-effects verification systematic and preserves the chain of evidence |
+
+### Expected effects
+
+1. **Builder orientation overhead should drop** — removing the DESIGN.md
+   read should reduce orientation calls by ~1 (from 7 to ~6 in iter 89).
+   Measurable via session summary "Orientation overhead" metric.
+
+2. **Builder CHANGELOG should include "Expected effects"** with concrete
+   predictions — iter 89's CHANGELOG should have a section stating what
+   measurable difference the change should make. Verifiable by reading
+   iter 89's CHANGELOG entry.
+
+3. **Next improver should use the verification table format** — iter 90's
+   CHANGELOG should include a table with columns: Change, Expected Effect,
+   Actual Result, Verdict. Verifiable by reading iter 90's CHANGELOG.
+
+### Future directions
+
+- The builder still sees "no tests" annotations next to 12 source files in
+  the source tree. If the builder regresses to testing in iter 89, consider
+  removing these annotations (show test counts only for files that have
+  tests, omit the "no tests" label).
+- The session summary's "Orientation Calls" list shows duplicate reads.
+  Consider adding deduplication guidance to the builder prompt — but this
+  may be too micro-level and could self-correct as orientation overhead
+  decreases.
+- NOTES.md still flags that ANTHROPIC_API_KEY is not set, meaning the e2e
+  smoke test never runs. This is a project-owner action, not an improver
+  action.
+
 ## Iteration 87 — Enrich System Prompt with Workflow Orchestration
 
 ### Problem
