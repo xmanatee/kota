@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 133 — Test delegate-format.ts (0 → 38 tests)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/delegate-format.test.ts` | New test file with 38 tests across 6 describe blocks | Closes the biggest testing gap: 151-line module with 6 exports used by every delegation call had zero tests |
+
+### Workflow impact
+
+**Scenario**: User asks agent to research rate limiting strategies (token bucket, sliding window, leaky bucket) and draft a comparison document.
+
+Trace: `web_search` → `delegate(explore, "Research rate limiting algorithms...")` → sub-agent uses web_search/web_fetch → result formatted through `assembleDelegateResult()` → agent synthesizes → `file_write`
+
+**Before**: `delegate-format.ts` had 0 tests. All 6 functions — `formatMetadata`, `buildSourcesSection`, `buildDelegateResult`, `collectImageBlocks`, `extractModifiedFiles`, `assembleDelegateResult` — were untested. Edge cases like turn-limit metadata, empty responses, partial sources, image block capping, and multi_edit path extraction had no regression protection. Any refactoring of the delegation pipeline could silently break formatting.
+
+**After**: 38 tests cover every exported function with edge cases:
+- `formatMetadata`: normal completion, all 3 non-done reasons, unknown reason fallback, URL/query counts, combined metadata
+- `buildSourcesSection`: empty, URLs-only, queries-only, both, separator format
+- `buildDelegateResult`: text-only vs with-images
+- `collectImageBlocks`: empty results, max cap, existing-counts-toward-max, non-image filtering
+- `extractModifiedFiles`: file_edit, file_write, multi_edit (path/file_path priority, empty edits, empty paths), find_replace (from result content), unknown tools
+- `assembleDelegateResult`: explore/execute modes, empty responses, modified files listing, images, sources, turn-limit with sources
+
+### Verification
+
+- All 826 tests pass (788 → 826, +38)
+- Typecheck clean
+- Build clean
+- CLI loads
+
+### Expected effects
+
+- Delegation result formatting is now regression-protected. Any future refactoring of delegate.ts or delegate-format.ts will catch breakage immediately.
+- The `extractModifiedFiles` tests ensure file tracking works correctly for all edit tool types — critical for the execute delegation mode that reports modified files.
+
+### Future directions
+
+- cli.ts remains the only untested module (117 lines)
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+- loop.ts (~345 lines) and code-exec.ts (~310 lines) still slightly over 300-line limit
+
 ## Iteration 132 — Session Timeout Safety Net
 
 ### Diagnosis
