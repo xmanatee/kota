@@ -13,6 +13,7 @@ import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runShell } from "./shell.js";
 import { processTool, runProcess } from "./process.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
+import type { CostTracker } from "../cost.js";
 
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
@@ -50,6 +51,7 @@ export type DelegateConfig = {
   client?: Anthropic;
   cwd?: string;
   projectContext?: string;
+  costTracker?: CostTracker;
 };
 
 let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
@@ -193,19 +195,33 @@ export async function runDelegate(
   const modifiedFiles = new Set<string>();
 
   const client = delegateConfig.client ?? new Anthropic();
+  const costTracker = delegateConfig.costTracker;
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: "user", content: task },
   ];
   let lastText = "";
+  let totalTurns = 0;
+
+  const taskPreview = task.length > 60 ? task.slice(0, 57) + "..." : task;
+  console.error(`[kota] delegate(${mode}) starting: ${taskPreview}`);
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const response = await client.messages.create({
       model: delegateConfig.model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: systemPrompt,
       tools,
       messages,
     });
+
+    totalTurns++;
+    if (costTracker) costTracker.addUsage(delegateConfig.model, response.usage);
+
+    const toolNames = response.content
+      .filter((b) => b.type === "tool_use")
+      .map((b) => (b as Anthropic.Messages.ToolUseBlock).name);
+    const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
+    console.error(`[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}`);
 
     for (const block of response.content) {
       if (block.type === "text") {
@@ -259,6 +275,8 @@ export async function runDelegate(
         })),
     });
   }
+
+  console.error(`[kota] delegate(${mode}) done — ${totalTurns} turn(s)`);
 
   if (!lastText && modifiedFiles.size === 0) {
     return { content: "Sub-agent completed without producing a response." };

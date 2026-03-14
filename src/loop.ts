@@ -97,6 +97,7 @@ export class AgentSession {
       client: this.client,
       cwd: process.cwd(),
       projectContext: projectContext || undefined,
+      costTracker: this.costTracker,
     });
 
     // Initialize MCP servers asynchronously (awaited before first send)

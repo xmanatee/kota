@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { runCodeExec, cleanupSessions } from "./code-exec.js";
+import { runCodeExec, cleanupSessions, detectPackageHint } from "./code-exec.js";
 
 afterAll(() => {
   cleanupSessions();
@@ -158,6 +158,41 @@ describe("code_exec tool", () => {
       });
       expect(result.is_error).toBeFalsy();
       expect(result.content).toContain("2");
+    });
+  });
+
+  describe("package hint detection", () => {
+    it("detects Python missing module", () => {
+      const output = `Traceback (most recent call last):
+  File "<exec>", line 1, in <module>
+ModuleNotFoundError: No module named 'pandas'`;
+      expect(detectPackageHint(output, "python")).toBe(
+        "Tip: Install the missing package with shell: pip install pandas",
+      );
+    });
+
+    it("extracts top-level package from dotted import", () => {
+      const output = "ModuleNotFoundError: No module named 'sklearn.ensemble'";
+      expect(detectPackageHint(output, "python")).toBe(
+        "Tip: Install the missing package with shell: pip install sklearn",
+      );
+    });
+
+    it("detects Node.js missing module", () => {
+      const output = "Error: Cannot find module 'lodash'";
+      expect(detectPackageHint(output, "node")).toBe(
+        "Tip: Install the missing package with shell: npm install lodash",
+      );
+    });
+
+    it("ignores relative path imports in Node.js", () => {
+      const output = "Error: Cannot find module './utils'";
+      expect(detectPackageHint(output, "node")).toBeNull();
+    });
+
+    it("returns null when no import error", () => {
+      expect(detectPackageHint("ZeroDivisionError: division by zero", "python")).toBeNull();
+      expect(detectPackageHint("42", "node")).toBeNull();
     });
   });
 

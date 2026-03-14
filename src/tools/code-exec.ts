@@ -267,5 +267,28 @@ export async function runCodeExec(
         `\n[truncated — ${output.length} chars total]`
       : output;
 
-  return { content: truncated, is_error: isError };
+  const hint = detectPackageHint(truncated, language);
+  const content = hint ? `${truncated}\n\n${hint}` : truncated;
+
+  return { content, is_error: isError };
+}
+
+/** Detect missing package errors and suggest install commands. */
+export function detectPackageHint(output: string, language: Language): string | null {
+  if (language === "python") {
+    const match = output.match(/ModuleNotFoundError: No module named '([^']+)'/);
+    if (match) {
+      const pkg = match[1].split(".")[0];
+      return `Tip: Install the missing package with shell: pip install ${pkg}`;
+    }
+  } else {
+    const match = output.match(/Cannot find module '([^']+)'/);
+    if (match) {
+      const pkg = match[1];
+      if (!pkg.startsWith(".") && !pkg.startsWith("/")) {
+        return `Tip: Install the missing package with shell: npm install ${pkg}`;
+      }
+    }
+  }
+  return null;
 }
