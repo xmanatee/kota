@@ -33,7 +33,7 @@ SESSION_LOG="$LOG_DIR/${LOG_PREFIX}.session.jsonl"
 
 # Extract previous iteration's metrics for context injection
 PREV_METRICS="(none)"
-PREV_LOG="$(ls -1t "$LOG_DIR"/*.output.txt 2>/dev/null | head -1)"
+PREV_LOG="$(ls -1t "$LOG_DIR"/*.output.txt 2>/dev/null | head -1 || true)"
 if [ -n "$PREV_LOG" ]; then
   PREV_METRICS="$(tail -15 "$PREV_LOG" 2>/dev/null | grep '^\[step\]' || echo '(none)')"
 fi
@@ -86,10 +86,11 @@ MAX_STEP_SECONDS="${MAX_STEP_SECONDS:-2700}" # 45 minutes default; override via 
 STEP_START=$(date +%s)
 CLAUDE_EXIT=0
 timeout "$MAX_STEP_SECONDS" claude -p \
+  --verbose \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
   --output-format stream-json \
-  "$PROMPT" > "$SESSION_LOG" 2>/dev/null || CLAUDE_EXIT=$?
+  "$PROMPT" > "$SESSION_LOG" 2>"$LOG_DIR/${LOG_PREFIX}.stderr.log" || CLAUDE_EXIT=$?
 STEP_END=$(date +%s)
 STEP_DURATION=$(( STEP_END - STEP_START ))
 
@@ -266,7 +267,7 @@ fi
 log "[step] Source: ${SRC_COUNT} files, ${SRC_LINES} lines"
 # Flag files over 300 lines and files approaching the limit (>240)
 FILE_SIZES=$(cd "$DIR" && find src -name '*.ts' -exec wc -l {} + 2>/dev/null \
-  | grep -v total | sort -rn)
+  | grep -v total | sort -rn || true)
 OVER_LIMIT=$(echo "$FILE_SIZES" | awk '$1 > 300 {print "[step]   " $2 " (" $1 " lines)"}')
 NEAR_LIMIT=$(echo "$FILE_SIZES" | awk '$1 > 240 && $1 <= 300 {print "[step]   " $2 " (" $1 " lines)"}')
 if [ -n "$OVER_LIMIT" ]; then
