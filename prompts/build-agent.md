@@ -135,7 +135,7 @@ module boundaries where data transforms, errors propagate, or formats change.
    - New production files: ___ (aim for 0–1)
    - Production files to edit: ___ (aim for 2–3)
    - Estimated new lines (prod + test combined): ___
-   - New tests: ___ (aim for 3–8)
+   - New tests: ___ (aim for 3–8; during hardening: ≥1/3 cross-module)
    **Edit plan** (all files including test/CHANGELOG/AUDIT):
    List each file you'll touch and how many Edit/Write calls it needs.
    Aim for 1 edit per file. Total must be ≤10. Example:

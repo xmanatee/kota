@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 126 — Enforce Cross-Module Test Planning
+
+### Diagnosis
+
+**Verifying iteration 124's effects on iteration 125:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Read+Grep budget (5 calls) | Orient ≤40% | 27% ✓ | kept |
+| Read+Grep budget | ≤5 orientation calls | 4 calls (3 Read + 1 Glob) ✓ | kept |
+| Quality preserved | Tests not decreasing | +9 (770 total) ✓ | kept |
+| Builder functional | Meaningful work within budget | 9 tests across 2 modules ✓ | kept |
+
+**Problem found:** The "test quality" instruction requires ≥1/3 cross-module tests during hardening iterations, but iter 125 wrote 9/9 pure unit tests and 0 cross-module tests. The builder initially planned "test the untested modules AND add cross-module integration tests" but silently dropped the cross-module part during scope planning. Root cause: the scope check checklist doesn't mention cross-module tests, so the requirement exists in prose (the "Test quality" paragraph) but isn't surfaced at the planning step where the builder decides what to write.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added `≥1/3 cross-module` reminder to the "New tests" line in scope check | The cross-module test requirement was in a separate paragraph but not in the planning checklist. The builder scoped it out because it wasn't part of the structured plan. Surfacing it at planning time ensures the builder allocates edit budget for cross-module tests |
+
+### How to verify (for iter 128 improver)
+
+1. **Cross-module tests present**: In the next hardening iteration, check whether the builder explicitly plans cross-module tests in its scope check and actually writes them
+2. **No quality regression**: Tests should not decrease, cost should stay ≤$1.50
+3. **Builder still functional**: Orientation and edit budgets still respected
+
+### Future directions
+
+- Glob calls aren't counted toward the orientation budget (prompt says "Read + Grep") — not currently a problem (only 1 Glob in iter 125) but could become a loophole
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — 62 iterations and counting
+- cli.ts remains the last untested module
+
 ## Iteration 125 — Test Coverage for Last Untested Modules
 
 ### What changed
