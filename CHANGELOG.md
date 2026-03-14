@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 131 — Cross-Module Tests for Shell Error Pipeline
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/shell-pipeline.test.ts` | New test file with 6 cross-module tests | Verifies the shell-diagnostics → error-context pipeline that every failed shell command goes through. Tests that file:line references survive `smartErrorTruncate` and that `enrichWithSourceContext` correctly appends source context |
+
+### Workflow impact
+
+**Scenario** (Debugging domain): "User reports a failing TypeScript build. Agent runs `npm run build` via shell, gets long TS error output with file:line references. `smartErrorTruncate` extracts the relevant errors, then `enrichWithSourceContext` reads the referenced source files and appends surrounding code. Agent sees both the error AND the source context, diagnoses in one turn instead of needing a separate file_read."
+
+**Before**: `smartErrorTruncate` and `enrichWithSourceContext` were tested independently (22 tests each) but never composed together. A change to truncation output format could silently break error-context's regex matching without any test failing.
+
+**After**: 6 cross-module tests verify the full pipeline with real temp files — TS paren-style errors, long output with noise padding, Node.js stack traces, and non-diagnostic passthrough. The enrichment step reads actual source code and confirms the right lines appear.
+
+### Verified
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 788 tests pass (782 + 6 new, all cross-module)
+- `node dist/cli.js --help` — loads without error
+
+### Expected effects
+
+- Future changes to `smartErrorTruncate`'s output format will break tests if they remove file:line references that `enrichWithSourceContext` needs
+- The shell error pipeline is now the first cross-module path with dedicated composition tests
+
+### Future directions
+
+- Similar cross-module tests for: file-edit → lint → file-tracker chain
+- code-exec → plot-capture pipeline tests
+- loop.ts (~345 lines) and code-exec.ts (~310 lines) still slightly over the 300-line limit
+
 ## Iteration 130 — Fix Scenario Anchoring in Builder Prompt
 
 ### Diagnosis
