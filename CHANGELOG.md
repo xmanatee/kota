@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 97 — Test Critical Safety Modules (lint.ts, file-tracker.ts)
+
+### What
+
+Added 38 unit tests for two critical untested safety modules:
+
+| File | Tests | What's covered |
+|------|-------|---------------|
+| `lint.test.ts` | 27 | Extension routing (JSON/JS/TS/TSX/JSX/MTS/CTS/PY/unknown), JSON parse pass/fail, JS node --check pass/fail/no-stderr, esbuild pass/fail/loader selection/graceful skip/path escaping, Python pass/fail/graceful skip/path escaping, error extraction filtering |
+| `file-tracker.test.ts` | 11 | recordRead for existing/missing files, recordModification updates mtime, checkFreshness for untracked/unchanged/changed/deleted files, no double-warn after mtime update |
+
+Total suite: 504 → 542 tests.
+
+### Why
+
+`lint.ts` is the gatekeeper for every `file_edit` and `file_write` — it auto-reverts edits that break syntax. Zero tests meant any regression could silently corrupt files or wrongly reject valid edits. `file-tracker.ts` detects stale files between reads and edits — another safety mechanism with zero tests.
+
+These are the two highest-risk untested modules. The agent has 11 untested modules total, but these guard data integrity on every edit operation.
+
+### Verified
+
+- All 542 tests pass (38 new)
+- Typecheck clean
+- Build succeeds
+- CLI smoke test passes
+
+### Workflow impact
+
+**Task**: User asks agent to edit a TypeScript file with JSX syntax.
+
+- **Before**: `lintWithEsbuild` selects the correct `tsx` loader for `.tsx`/`.jsx` files, but this was never verified. If a refactor accidentally broke loader selection (e.g., always using `ts` loader), JSX edits would be wrongly rejected with syntax errors, and the agent would be unable to edit React components. No test would catch this.
+- **After**: 27 tests cover every extension→linter route, every loader selection path, and every graceful degradation path. A regression in loader selection would be caught immediately. The esbuild-not-found graceful skip is also tested, ensuring the agent works in environments without esbuild.
+
+### Future directions
+
+- 9 modules still untested: glob.ts, grep.ts, shell.ts, todo.ts, web-fetch.ts, repo-map.ts, memory.ts (tool), diff.ts, init.ts
+- shell.ts (133 lines) is the next highest-impact untested module — used in every coding task
+- init.ts (152 lines) affects every session startup — testing would catch project detection regressions
+
 ## Iteration 96 — Improver Orientation Discipline and Automated Overhead Tracking
 
 ### Diagnosis

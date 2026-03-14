@@ -17,15 +17,15 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 504 tests, strong foundation (iter 81→93, LOW)
+## Test coverage — 542 tests, strong foundation (iter 81→97, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (23), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
-delegate-prompts.ts (12), architect.ts (13). Total suite: 504.
+delegate-prompts.ts (12), architect.ts (13), lint.ts (27), file-tracker.ts (11).
+Total suite: 542.
 
-Still untested (11 modules): glob.ts, grep.ts, shell.ts, todo.ts, web-fetch.ts,
-repo-map.ts, memory.ts (tool), diff.ts, file-tracker.ts, init.ts,
-lint.ts, streaming.ts.
+Still untested (9 modules): glob.ts, grep.ts, shell.ts, todo.ts, web-fetch.ts,
+repo-map.ts, memory.ts (tool), diff.ts, init.ts.
 
 code-exec.ts grew to ~310 lines with matplotlib capture. If more REPL
 features are added, consider extracting the PYTHON_WRAPPER and NODE_WRAPPER
