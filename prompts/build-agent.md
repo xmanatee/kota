@@ -101,16 +101,21 @@ tests every iteration but no new capabilities is not improving for users.
 1. Review the injected context at the end of this prompt. Note the growth
    trend (are src_lines and tests growing or stagnating?), open AUDIT issues,
    and project owner notes. Do NOT read source files yet.
-2. Assess as a user: "If someone ran this agent on a real task right now —
-   research, multi-file refactor, data analysis — what's the first thing
-   that would break or frustrate them?" Consider system prompt clarity, tool
-   composition in realistic workflows, error recovery, and output quality.
-   System-level gaps are often higher impact than code-level bugs.
-3. Decide direction: list 2-3 candidate improvements from your user
-   assessment, AUDIT.md findings, and any ideas from the CHANGELOG. For each,
-   state the impact on real-task performance and cost. Pick the best one.
-   "Adds a capability" is weaker justification than "fixes a class of
-   failures" or "makes N existing tools work better together."
+2. **Trace a real user scenario**: Pick a concrete multi-step task that
+   exercises 2+ tools working together (e.g., "user asks to research
+   competitor pricing from 3 URLs, analyze the data, and write a report,"
+   "user asks to find all API endpoints, check which lack error handling,
+   and fix them"). Trace it through the agent's code: what tools get called,
+   what does the system prompt guide, where does it fail or produce poor
+   output? The failure point is your strongest candidate for improvement.
+   Pick a different scenario than recent iterations — check the work history.
+   System-level gaps (tool composition, delegation, error recovery) are
+   often higher impact than single-tool bugs.
+3. Decide direction: list 2-3 candidate fixes for the failure from your
+   scenario trace (step 2), plus ideas from AUDIT.md and CHANGELOG. For
+   each, state the impact on real-task performance and cost. Pick the best.
+   "Fixes the traced failure" is stronger justification than "adds a
+   capability" — but use judgment if the failure is trivial.
    **Scope check**: Before proceeding, write a quick estimate:
    - New files: ___ (aim for 0–1)
    - Files to edit: ___ (aim for 2–3)
@@ -137,13 +142,10 @@ tests every iteration but no new capabilities is not improving for users.
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
-8. **User workflow trace**: Before finishing, describe a specific user task
-   (e.g., "research X and summarize", "refactor module Y") and trace how the
-   agent handles it BEFORE vs AFTER your change. Show the concrete difference
-   in behavior — not "it's better" but "step 3 would have failed with error X,
-   now it recovers by doing Y." If you can't describe a concrete workflow
-   improvement, flag this honestly as infrastructure/maintenance work.
-   Include this trace in your CHANGELOG under "### Workflow impact".
+8. **Verify the scenario**: Re-trace the scenario from step 2 with your
+   changes applied. Show the concrete before/after: "step N would have
+   failed with X, now it does Y." If you pivoted away from the traced
+   failure, explain why. Include in CHANGELOG under "### Workflow impact".
 9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and expected effects (how will someone tell this made the agent better?
    State concrete, verifiable predictions — e.g., "agent should now handle

@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 100 — Scenario-Driven Builder Decisions
+
+### Diagnosis
+
+**Verifying iteration 98's effects on iteration 99:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Process health in injected context | Appears with builder/improver averages | ✓ Present with correct data | kept |
+| No manual trend computation | Improver skips metrics.csv | ✓ Iter 100 improver used zero manual analysis | kept |
+| Builder sees deltas | Growth trend shows (+N) for src/tests | ✓ step.sh awk formats deltas correctly | kept |
+| Improver cost ≤$0.90 | Drop from $1.07 | Iter 98: $0.84 ✓ | kept |
+
+**Verifying iteration 96's "do NOT re-read" (deferred to iter 100):**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| "do NOT re-read" list | Improver orient ≤25% | Iter 98: 36% but all 4 reads were justified (files being edited). Iter 100: 2 reads, both for editing. Instruction prevents waste reads, not edit-required reads | effective — kept |
+
+**Problem identified**: The builder's workflow trace (step 8) comes AFTER
+building, making it a post-hoc justification. Step 2 asks abstractly "what
+would break?" — encouraging opinion-based choices. Recent workflow traces
+are single-tool scenarios (iter 99: "fetch a JSON API"). Real general-purpose
+agent tasks involve multi-step, multi-tool workflows. The builder should
+START with a concrete scenario trace, find where it fails, and fix THAT.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` step 2 | Replaced abstract "assess as user" with "trace a concrete multi-step scenario through the code — find the failure point" | Makes decisions evidence-based: trace code → find failure → fix it, not guess → build → justify |
+| `build-agent.md` step 3 | Referenced step 2's scenario trace as primary input for decision | Connects the scenario to the choice of what to build |
+| `build-agent.md` step 8 | Simplified to "re-trace the same scenario with your changes" | Creates a clean loop: trace → fix → verify. No more separate pre/post scenarios |
+
+### How to verify these changes worked (for iter 102 improver)
+
+1. **Scenario appears in iter 101 CHANGELOG**: The builder's CHANGELOG entry
+   should describe a specific multi-step scenario it traced (involving 2+
+   tools) and where the failure was found. If the scenario is single-tool or
+   vague, the instruction needs strengthening.
+2. **Decision is scenario-driven**: The builder's "Decide direction" step
+   should reference the traced failure, not just list ideas from AUDIT.md.
+   Check the session summary for decision reasoning.
+3. **Workflow impact is a re-trace**: The "Workflow impact" section should
+   show before/after on the SAME scenario from step 2, not a different one.
+4. **Builder cost stays ≤$1.50**: The scenario trace shouldn't add significant
+   overhead — it replaces the abstract assessment, not augments it.
+
+### Future directions
+
+- Extract recent workflow traces from CHANGELOG and inject them into builder
+  context, so it sees which scenarios were already traced and picks new ones
+- Add a "scenario bank" of 5-10 canonical multi-tool workflows that the
+  builder can cycle through
+- Consider requiring the builder to trace scenarios that involve delegation
+  (the orchestrator delegating to sub-agents)
+
 ## Iteration 99 — Smart Content-Type Handling in web_fetch
 
 ### What
