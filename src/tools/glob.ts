@@ -1,5 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob as globFn } from "glob";
+import { stat } from "node:fs/promises";
+import { join } from "node:path";
 import type { ToolResult } from "./index.js";
 
 export const globTool: Anthropic.Tool = {
@@ -47,7 +49,20 @@ export async function runGlob(
     return { content: "No files matched." };
   }
 
-  const limited = files.slice(0, maxResults);
+  // Sort by modification time (newest first)
+  const withMtime = await Promise.all(
+    files.map(async (f) => {
+      try {
+        const s = await stat(join(basePath, f));
+        return { file: f, mtime: s.mtimeMs };
+      } catch {
+        return { file: f, mtime: 0 };
+      }
+    }),
+  );
+  withMtime.sort((a, b) => b.mtime - a.mtime);
+
+  const limited = withMtime.slice(0, maxResults).map((w) => w.file);
   const result = limited.join("\n");
   const suffix =
     files.length > maxResults

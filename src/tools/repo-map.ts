@@ -44,12 +44,12 @@ const PY_PATTERNS: SymbolPattern[] = [
   { re: /^class\s+(\w+)(.*)/, format: (m) => `  class ${m[1]}${trimSig(m[2])}` },
 ];
 
-function trimSig(s: string): string {
+export function trimSig(s: string): string {
   const cleaned = s.trim();
   return cleaned.length > 60 ? `${cleaned.slice(0, 57)}...` : cleaned;
 }
 
-function extractSymbols(content: string, isPython: boolean): string[] {
+export function extractSymbols(content: string, isPython: boolean): string[] {
   const patterns = isPython ? PY_PATTERNS : TS_PATTERNS;
   const symbols: string[] = [];
 

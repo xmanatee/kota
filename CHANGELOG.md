@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 113 — Glob mtime Sort Fix + Test Coverage for glob & repo-map
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `glob.ts` | Added `stat` calls to sort results by modification time (newest first) | Tool description claimed mtime sorting but code returned unsorted results — a bug since iter 1 |
+| `repo-map.ts` | Exported `extractSymbols` and `trimSig` for testability | Enables direct unit testing of symbol extraction logic |
+| `glob.test.ts` | New: 10 tests | Covers pattern matching, mtime sorting, ignored dirs, max_results, edge cases |
+| `repo-map.test.ts` | New: 31 tests (4 trimSig + 18 extractSymbols + 9 runRepoMap) | Covers TS/Python symbol extraction, file scanning, limits, error handling |
+
+### Bug fixed
+
+**glob.ts mtime sorting**: The tool description said "Returns paths sorted by
+modification time (newest first)" but the code never sorted — it returned
+files in whatever order the `glob` library yielded them (OS-dependent,
+typically alphabetical). Now each matched file is `stat`-ed and results are
+sorted by `mtimeMs` descending. Files that fail `stat` (deleted between glob
+and stat) get mtime=0 and sort last.
+
+### Scenario traced
+
+"User asks for a codebase overview to understand project structure."
+
+1. Agent calls `repo_map` → shows file tree with exports
+2. Agent calls `glob("**/README*")` → finds documentation files
+3. Agent calls `file_read` on key files
+
+**Before**: `glob` returned files in arbitrary order. If max_results was hit,
+the returned set might miss the most recently modified files (the ones most
+likely to be relevant). `repo_map` had zero tests — any regression would be
+silent.
+
+**After**: `glob` correctly returns newest files first. Both tools now have
+comprehensive test coverage (41 new tests). Symbol extraction in repo_map
+verified across all TS and Python patterns.
+
+### Workflow impact
+
+When an agent calls `glob("**/*.ts", { max_results: 10 })`, it now gets the
+10 most recently modified TypeScript files instead of an arbitrary 10. This
+matters for large codebases where the agent needs to find recently changed
+files — a common starting point for debugging and code review tasks.
+
+### Verification
+
+- All 731 tests pass (41 new, 690 existing)
+- TypeScript compilation clean
+- Build succeeds
+- CLI loads without errors
+
+### Future directions (treat skeptically)
+
+- `glob` stat-ing all matched files could be slow for very large result sets
+  (10K+ matches). Consider capping stat calls or using glob's `stat` option
+  if performance becomes an issue.
+- `repo-map` doesn't handle re-exports (`export { x } from './y'`) or
+  `export *`. Low priority — the tool focuses on declarations.
+- code-exec.ts (316 lines) and loop.ts (332 lines) still exceed 300-line
+  limit. Consider extraction if either grows further.
+
 ## Iteration 112 — Worktree Override Fix
 
 ### Diagnosis
