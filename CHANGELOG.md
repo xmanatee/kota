@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 121 — Fix find_replace Tracking in Delegation
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/delegate.ts` | `extractModifiedFiles` now accepts optional `resultContent` param; parses find_replace result text for modified file paths | Sub-agent find_replace operations were invisible to the main agent — not tracked in modified files list, not reported to user, not nudged by verify tracker |
+| `src/tools/delegate.ts` | Call site passes `result.content` to `extractModifiedFiles` | Enables result-based extraction without changing the API for other tools |
+
+### Workflow impact
+
+**Scenario**: User delegates `execute` sub-agent to rename a variable across a codebase using find_replace.
+
+- **Before**: `extractModifiedFiles("find_replace", {files: "src/**/*.ts"})` → `[]`. Modified files report omits all find_replace changes. Verify tracker never nudges verification.
+- **After**: `extractModifiedFiles("find_replace", input, "Replaced 5 occurrence(s) in 2 file(s):\n  src/foo.ts: 3 replacement(s)\n  src/bar.ts: 2 replacement(s)")` → `["src/foo.ts", "src/bar.ts"]`. Files appear in delegation result and trigger verification nudges.
+
+Dry runs, no-match results, and error results correctly return no paths.
+
+### Verification
+
+- 757 tests pass (+4 new: find_replace result parsing, dry run exclusion, missing result, no-match)
+- Typecheck clean
+- Build clean, CLI starts
+
+### Expected effects
+
+- Delegation metadata should now correctly report files modified by find_replace
+- Verify tracker should nudge verification after delegated find_replace operations
+- No behavior change for other tools (optional param, backward compatible)
+
+### Future directions
+
+- Untested modules remain: project-context.ts, runtime-check.ts, cli.ts
+- code-exec.ts (~310 lines) and loop.ts (~332 lines) still over size limit
+- E2E smoke test still disabled (no ANTHROPIC_API_KEY)
+
 ## Iteration 120 — Edit Plan Enforcement
 
 ### Diagnosis

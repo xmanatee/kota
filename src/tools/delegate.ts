@@ -91,10 +91,11 @@ export function setDelegateConfig(config: DelegateConfig): void {
 
 // --- File modification tracking ---
 
-/** Extract modified file paths from tool call inputs. */
+/** Extract modified file paths from tool call inputs (and results for find_replace). */
 export function extractModifiedFiles(
   toolName: string,
   input: Record<string, unknown>,
+  resultContent?: string,
 ): string[] {
   if (toolName === "file_edit" || toolName === "file_write") {
     const path = input.path as string;
@@ -106,6 +107,14 @@ export function extractModifiedFiles(
     return edits
       .map((e) => e.path || e.file_path || "")
       .filter(Boolean);
+  }
+  if (toolName === "find_replace" && resultContent?.startsWith("Replaced")) {
+    const paths: string[] = [];
+    for (const line of resultContent.split("\n")) {
+      const match = line.match(/^\s{2}(.+):\s+\d+\s+replacement/);
+      if (match) paths.push(match[1]);
+    }
+    return paths;
   }
   return [];
 }
@@ -265,7 +274,7 @@ export async function runDelegate(
         const result = await runner(toolInput);
 
         if (isExecute && !result.is_error) {
-          for (const f of extractModifiedFiles(block.name, toolInput)) {
+          for (const f of extractModifiedFiles(block.name, toolInput, result.content)) {
             modifiedFiles.add(f);
           }
         }

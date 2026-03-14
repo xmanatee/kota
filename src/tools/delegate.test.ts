@@ -62,6 +62,39 @@ describe("extractModifiedFiles", () => {
     expect(extractModifiedFiles("glob", { pattern: "*.ts" })).toEqual([]);
     expect(extractModifiedFiles("shell", { command: "ls" })).toEqual([]);
   });
+
+  it("extracts paths from find_replace result content", () => {
+    const result =
+      "Replaced 5 occurrence(s) in 2 file(s):\n" +
+      "  src/foo.ts: 3 replacement(s)\n" +
+      "  src/bar.ts: 2 replacement(s)";
+    expect(
+      extractModifiedFiles("find_replace", { files: "src/**/*.ts" }, result),
+    ).toEqual(["src/foo.ts", "src/bar.ts"]);
+  });
+
+  it("returns empty for find_replace dry run", () => {
+    const result =
+      "Dry run — 5 match(es) in 2 file(s):\n" +
+      "  src/foo.ts: 3 match(es)\n" +
+      "  src/bar.ts: 2 match(es)";
+    expect(
+      extractModifiedFiles("find_replace", { files: "src/**/*.ts" }, result),
+    ).toEqual([]);
+  });
+
+  it("returns empty for find_replace without result content", () => {
+    expect(
+      extractModifiedFiles("find_replace", { files: "src/**/*.ts" }),
+    ).toEqual([]);
+  });
+
+  it("returns empty for find_replace with no matches", () => {
+    const result = 'No matches for "foo" in files matching src/**/*.ts';
+    expect(
+      extractModifiedFiles("find_replace", { files: "src/**/*.ts" }, result),
+    ).toEqual([]);
+  });
 });
 
 const img = (id: string): ToolResultBlock => ({
