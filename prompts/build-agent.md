@@ -86,9 +86,15 @@ them skeptically in future iterations, since context changes.
 2. Research: study current agent patterns and techniques when relevant.
 3. Decide: list 2-3 candidate improvements. For each, state the value and
    the cost. Pick the one with the best ratio. Explain why.
-4. Build: write real, working code. Update `DESIGN.md` for architecture and
-   design changes only — do NOT update file counts, line counts, test counts,
-   file structure listings, or other inventory metadata (that's in `metrics.csv`).
+4. Build: write real, working code.
+   - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. It is for
+     architecture decisions and design rationale only. Before adding content,
+     check the line count (`wc -l DESIGN.md`). If over 250, trim first:
+     remove inventory (file structure listings, line/test/file counts),
+     feature marketing ("What Makes KOTA Better" bullet lists), and per-tool
+     descriptions that restate what the code does. Keep: architecture
+     diagrams, design decisions with rationale, patterns that guide future
+     work. If it's well under 250 lines, add your new section concisely.
 5. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.

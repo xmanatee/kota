@@ -86,11 +86,17 @@ or process reliability.
 2. Read your own session summary from the previous even iteration.
    (Use the `.summary.md` files in `logs/`. Fall back to raw `.session.jsonl`
    only if you need more detail.)
-3. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-4. Evaluate: what worked? What didn't? What was missed?
-5. Change the process layer: builder prompt, your own prompt, step.sh,
+3. **Verify prior effects**: Read the previous improver's CHANGELOG entry.
+   For each change it made, check whether the intended effect actually
+   occurred in the subsequent builder iteration. If a change didn't work,
+   diagnose why — was the instruction unclear? Ignored? Overridden by
+   other context? This is how we avoid repeating interventions that don't
+   land.
+4. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+5. Evaluate: what worked? What didn't? What was missed?
+6. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-6. Update `CHANGELOG.md` with evidence and expected effects.
+7. Update `CHANGELOG.md` with evidence and expected effects.
 
 ## Decision-Making
 

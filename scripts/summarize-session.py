@@ -82,7 +82,7 @@ def parse_session(path: str) -> dict:
                             "my plan",
                         ]
                     ):
-                        decisions.append(text[:500])
+                        decisions.append(text[:1500])
 
             elif block.get("type") == "tool_use":
                 name = block["name"]
@@ -118,8 +118,8 @@ def parse_session(path: str) -> dict:
         "tool_errors": tool_errors,
         "decisions": decisions,
         "assistant_text_count": len(assistant_texts),
-        "first_text": assistant_texts[0][:300] if assistant_texts else "",
-        "last_text": assistant_texts[-1][:500] if assistant_texts else "",
+        "first_text": assistant_texts[0][:500] if assistant_texts else "",
+        "last_text": assistant_texts[-1][:2000] if assistant_texts else "",
         "files_edited": sorted(files_edited),
         "files_written": sorted(files_written),
         "files_read": sorted(files_read),
