@@ -56,9 +56,10 @@ in the system prompt?
 
 **You decide.** Orient yourself, assess the current state honestly, and pick
 the thing that matters most right now. Scope it so you can finish it well
-within this iteration. If you generate other good ideas while orienting,
-record them in your CHANGELOG entry under "Future directions" — but treat
-them skeptically in future iterations, since context changes.
+within this iteration — aim to stay under $1.50 and 25 turns. Check the
+growth trend for your recent cost. If you generate other good ideas while
+orienting, record them in your CHANGELOG entry under "Future directions" —
+but treat them skeptically in future iterations, since context changes.
 
 ## Unbiased Decision-Making
 
@@ -103,10 +104,12 @@ them skeptically in future iterations, since context changes.
    state the impact on real-task performance and cost. Pick the best one.
    "Adds a capability" is weaker justification than "fixes a class of
    failures" or "makes N existing tools work better together."
-4. Focused audit: NOW read the source files relevant to your chosen direction
-   (1-3 modules, not the whole codebase). Note concrete issues in those
-   modules. Read `DESIGN.md` if you need architectural context. This keeps
-   the audit targeted — avoid reading every source file.
+4. Focused audit: NOW read the source files relevant to your chosen direction.
+   **Budget: read at most 5 source files before your first edit.** The
+   source tree shows each file's exported names — use this to understand
+   module APIs without reading them. Only read files you will modify or
+   whose internals you need to understand deeply. Read `DESIGN.md` if you
+   need architectural context.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture

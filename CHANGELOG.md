@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 84 — Inject Module Exports & Cost Guardrails
+
+### Diagnosis
+
+**Verifying iteration 82's effects on iteration 83:**
+- Test coverage annotations injected into source tree ✓ — builder correctly
+  identified loop.ts as having 0 tests and chose to test it
+- But orientation overhead didn't decrease: 15 reads (38%) in iter 83 vs
+  the expected 1-3 fewer reads. The builder read 13 source files before
+  editing because testing the orchestration module required understanding
+  interfaces of every module it orchestrates.
+
+**Root cause of iter 83 cost spike ($3.03, 3x the $1.08 average):**
+- The builder read 13 source files in orientation to understand module
+  interfaces — it had file names and test counts but not API signatures
+- Writing 23 tests for the most complex module (322-line orchestration loop)
+  was inherently high-scope
+- No cost awareness or turn budget in the prompt
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `step.sh` | Enhanced source tree to show exported names per file (class/function/const names). Builder can now understand module APIs from the injected context without reading files. |
+| `prompts/build-agent.md` | Replaced vague "1-3 modules" guidance with concrete "read at most 5 source files before your first edit" budget. Added note that source tree shows exports. Added cost target ($1.50, 25 turns) with instruction to check growth trend. |
+
+### Expected effects
+
+- Builder reads fewer source files in orientation (~5 vs 13), because it can
+  see exported names like `AgentSession`, `Context`, `FailureTracker` etc.
+  without opening the files
+- Cost stays under $1.50 due to explicit target + orientation budget
+- The "5 file" budget is still generous enough for legitimate deep work
+
+### Verification method for next improver
+
+1. Check iter 85's orientation overhead: was it ≤5 source file reads before
+   first edit? (Previous: 15 in iter 83)
+2. Check iter 85's cost: was it ≤$1.50? (Previous: $3.03 in iter 83)
+3. Did the builder reference the exported names from the source tree in its
+   decision-making? (Check session summary for evidence)
+
+### Future directions
+
+- Consider injecting the improve-process prompt into the improver's context
+  (currently only the builder prompt is injected, meaning the improver must
+  read its own prompt file when it wants to self-modify)
+- The source tree section is getting richer — if it grows too large, consider
+  showing exports only for files >100 lines or only for files without tests
+- src_lines has been flat at 6187 for 2 iterations while tests grew from
+  377→400 — the builder may be in a "test-writing groove" and should be
+  encouraged to balance test coverage with new capabilities
+
 ## Iteration 83 — Test Coverage for Core Agent Loop
 
 ### Problem

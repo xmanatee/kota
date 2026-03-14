@@ -34,16 +34,21 @@ generate_context() {
   echo ""
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
-    echo "### Source tree (file: lines | test coverage)"
+    echo "### Source tree (file: lines | exports | test coverage)"
+    echo "Use this to understand module APIs without reading files."
     find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.d.ts' 2>/dev/null | sort | while IFS= read -r f; do
       lines=$(wc -l < "$f" | tr -d ' ')
       rel=${f#$DIR/}
+      exports=$(grep -oE '^export (default )?(async )?(class|function|const|type|interface|enum) \w+' "$f" 2>/dev/null | \
+        sed -E 's/^export (default )?(async )?(class|function|const|type|interface|enum) //' | \
+        head -5 | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
+      [ -z "$exports" ] && exports="-"
       test_f="${f%.ts}.test.ts"
       if [ -f "$test_f" ]; then
         tc=$(grep -cE '\b(it|test)\(' "$test_f" 2>/dev/null || echo "0")
-        printf "  %s (%s) — %s tests\n" "$rel" "$lines" "$tc"
+        printf "  %s (%s) [%s] — %s tests\n" "$rel" "$lines" "$exports" "$tc"
       else
-        printf "  %s (%s) — no tests\n" "$rel" "$lines"
+        printf "  %s (%s) [%s] — no tests\n" "$rel" "$lines" "$exports"
       fi
     done
     echo ""
