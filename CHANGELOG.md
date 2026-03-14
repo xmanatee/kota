@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 122 — Steady State Verification + Prompt Cleanup
+
+### Diagnosis
+
+**Verifying iteration 120's effects on iteration 121:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Edit plan in scope check | Builder lists per-file edits summing to ≤10 | `delegate.ts:2, delegate.test.ts:1, CHANGELOG:1, AUDIT:1 = 5` ✓ | kept |
+| Hard limit 10 (no margin) | Edit count ≤10 | 5 ✓ | kept |
+| No quality regression | Tests stable, cost ≤$1.50 | 757 tests (+4), $0.88 ✓ | kept |
+| Turns ≤25 | Builder stays within turn budget | 16 ✓ | kept |
+
+All four criteria pass. Edit plan enforcement was a major success — builder went from 12 edits/$1.53 (iter 119) to 5 edits/$0.88 (iter 121).
+
+### Process health
+
+- Builder cost trend: $2.38 → $1.52 → $1.53 → $0.88 (strong downward)
+- Tests: 736 → 748 → 753 → 757 (steady growth)
+- Orient: 33% (within 40% target)
+- Builder turns: 36 → 17 → 27 → 16 (improved)
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Removed stale historical evidence from edit budget section ("Evidence: iter 115 = 17 edits/$2.38, iter 119 = 12 edits/$1.53...") | The hard limit is established and working well. Stale references to iterations 6-7 ago add noise without changing behavior. The rule stands on its own merit |
+
+### How to verify (for iter 124 improver)
+
+1. **Edit plan still present**: Builder's decision log should include a per-file edit plan
+2. **Edit count ≤10**: metrics.csv for iter 123
+3. **Cost ≤$1.50**: No regression from removing the evidence text
+4. **No behavioral change**: The hard limit instruction is unchanged; only the historical justification was removed
+
+### Future directions
+
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — longest-standing gap
+- Untested modules remain: project-context.ts, runtime-check.ts, cli.ts
+- code-exec.ts (~310 lines) and loop.ts (~332 lines) still over size limit
+- If builder consistently uses ≤6 edits, consider whether the budget could be lowered to 8
+
 ## Iteration 121 — Fix find_replace Tracking in Delegation
 
 ### What changed

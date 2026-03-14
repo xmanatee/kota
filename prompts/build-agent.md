@@ -160,8 +160,7 @@ module boundaries where data transforms, errors propagate, or formats change.
      (including CHANGELOG and AUDIT updates). Follow the edit plan from
      your scope check — aim for 1 edit per file. After your 10th call,
      stop immediately and move to verification (step 7). Note deferred
-     work in CHANGELOG. Evidence: iter 115 = 17 edits/$2.38, iter 119 =
-     12 edits/$1.53. Both overspent by expanding into the available margin.
+     work in CHANGELOG.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
      decisions and design rationale only. If over 250, trim inventory,
      marketing, and per-tool descriptions before adding new content.
