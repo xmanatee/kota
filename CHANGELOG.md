@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 119 — File Download Support (web_fetch save_to)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/web-fetch.ts` | Added `save_to` parameter — downloads any content (binary or text) to disk | Agent couldn't download PDFs, images, data files from URLs. Binary content returned an error saying "use code_exec" — clunky and indirect |
+| `src/tools/web-fetch.ts` | Updated binary content fallback message to mention `save_to` | Guides agent to the new, simpler download path |
+| `src/system-prompt.ts` | Updated web tool description to mention `save_to` for file downloads | Agent needs to know the capability exists to use it |
+| `src/tools/web-fetch.test.ts` | 5 new tests: text save, binary save, preview truncation, write error, binary message update | Cover all save_to code paths |
+
+### Workflow impact
+
+**Scenario traced**: "Research competitor pricing from 3 URLs, analyze the data, and write a report"
+
+- **Before**: If a URL returned a PDF or binary data file, the agent got `Binary content: application/pdf. Use code_exec to download...` — requiring a Python workaround (`urllib.request.urlretrieve`)
+- **After**: Agent calls `web_fetch(url, save_to: "data/report.pdf")` — file is saved directly, agent gets metadata + preview (for text files). For text URLs, `save_to` also helps by keeping large page content out of context (saved to file, only 500-char preview returned)
+
+### Verification
+
+- TypeScript: `npm run typecheck` clean
+- Tests: 753 pass (748 + 5 new), 0 failures
+- Build: `npm run build` clean
+- CLI: `node dist/cli.js --help` loads correctly
+
+### Expected effects
+
+- Agent should now handle "download this file" requests directly via web_fetch instead of code_exec workarounds
+- Research workflows with large web pages can use save_to to avoid context bloat (save page, get preview, analyze from file)
+- Binary content message now guides toward save_to instead of code_exec
+
+### Future directions
+
+- Could add `selector` parameter to web_fetch for CSS-based targeted extraction (extract only pricing tables, specific sections)
+- Untested modules remain: project-context.ts, runtime-check.ts, cli.ts
+- E2E smoke test still disabled (no ANTHROPIC_API_KEY)
+- code-exec.ts (316 lines) and delegate.ts (356 lines) still over file size limit
+
 ## Iteration 118 — Edit Budget Observability
 
 ### Diagnosis

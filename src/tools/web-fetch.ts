@@ -1,4 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { writeFile, mkdir } from "node:fs/promises";
+import path from "node:path";
 import type { ToolResult } from "./index.js";
 import { extractContent } from "../html-extract.js";
 
@@ -18,6 +20,12 @@ export const webFetchTool: Anthropic.Tool = {
       max_length: {
         type: "number",
         description: "Maximum response length in characters (default: 20000)",
+      },
+      save_to: {
+        type: "string",
+        description:
+          "Save response to this file path instead of returning content. " +
+          "Works for both binary (PDF, images, ZIP) and text files. Returns file metadata.",
       },
     },
     required: ["url"],
@@ -104,6 +112,31 @@ export async function runWebFetch(
 
     const contentType = response.headers.get("content-type") || "";
 
+    // Download mode: save to file instead of returning content
+    if (input.save_to) {
+      const savePath = path.resolve(input.save_to as string);
+      const mime = contentType.split(";")[0].trim();
+      try {
+        await mkdir(path.dirname(savePath), { recursive: true });
+        if (isBinaryContentType(contentType)) {
+          const buffer = await response.arrayBuffer();
+          await writeFile(savePath, Buffer.from(buffer));
+          return {
+            content: `Downloaded ${mime} to ${savePath} (${formatBytes(buffer.byteLength)})`,
+          };
+        }
+        const text = await response.text();
+        await writeFile(savePath, text, "utf-8");
+        const preview = text.slice(0, 500);
+        return {
+          content: `Saved to ${savePath} (${formatBytes(Buffer.byteLength(text))}, ${mime})\n\nPreview:\n${preview}${text.length > 500 ? "\n..." : ""}`,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: `Error saving file: ${msg}`, is_error: true };
+      }
+    }
+
     // Binary content: report metadata instead of reading garbled text
     if (isBinaryContentType(contentType)) {
       const size = response.headers.get("content-length");
@@ -112,7 +145,7 @@ export async function runWebFetch(
       await response.body?.cancel();
       return {
         content: `Binary content: ${mime}${sizeInfo}. ` +
-          "Use code_exec to download and process binary files (e.g., requests.get() in Python).",
+          "Use web_fetch with save_to to download binary files.",
       };
     }
 

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { isBinaryContentType, formatJsonResponse, runWebFetch } from "./web-fetch.js";
 
+vi.mock("node:fs/promises", () => ({
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+}));
+
 // --- Unit tests for helpers ---
 
 describe("isBinaryContentType", () => {
@@ -108,6 +113,7 @@ describe("runWebFetch", () => {
       statusText,
       headers: new Headers(headers),
       text: () => Promise.resolve(body),
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(body).buffer),
       body: { cancel: () => Promise.resolve() },
     };
   }
@@ -169,7 +175,7 @@ describe("runWebFetch", () => {
     const result = await runWebFetch({ url: "https://example.com/doc.pdf" });
     expect(result.content).toContain("Binary content: application/pdf");
     expect(result.content).toContain("1.0 MB");
-    expect(result.content).toContain("code_exec");
+    expect(result.content).toContain("save_to");
     expect(resp.text).not.toHaveBeenCalled();
     expect(cancelFn).toHaveBeenCalled();
   });
@@ -212,5 +218,95 @@ describe("runWebFetch", () => {
     );
     const result = await runWebFetch({ url: "https://example.com/empty" });
     expect(result.content).toBe("(empty response)");
+  });
+
+  it("saves text content to file with save_to", async () => {
+    const { writeFile: wf, mkdir: mk } = await import("node:fs/promises");
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse("Hello world content here", {
+        headers: { "content-type": "text/plain" },
+      }) as never,
+    );
+    const result = await runWebFetch({
+      url: "https://example.com/data.txt",
+      save_to: "/tmp/test-data.txt",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Saved to");
+    expect(result.content).toContain("text/plain");
+    expect(result.content).toContain("Preview:");
+    expect(result.content).toContain("Hello world content here");
+    expect(mk).toHaveBeenCalledWith("/tmp", { recursive: true });
+    expect(wf).toHaveBeenCalledWith("/tmp/test-data.txt", "Hello world content here", "utf-8");
+  });
+
+  it("saves binary content to file with save_to", async () => {
+    const { writeFile: wf } = await import("node:fs/promises");
+    const resp = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({
+        "content-type": "application/pdf",
+      }),
+      text: vi.fn(),
+      arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3]).buffer),
+      body: { cancel: () => Promise.resolve() },
+    };
+    vi.mocked(global.fetch).mockResolvedValue(resp as never);
+    const result = await runWebFetch({
+      url: "https://example.com/doc.pdf",
+      save_to: "/tmp/doc.pdf",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Downloaded application/pdf");
+    expect(result.content).toContain("3 B");
+    expect(wf).toHaveBeenCalled();
+    expect(resp.text).not.toHaveBeenCalled();
+  });
+
+  it("truncates preview for large text in save_to mode", async () => {
+    const longText = "x".repeat(1000);
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(longText, {
+        headers: { "content-type": "text/csv" },
+      }) as never,
+    );
+    const result = await runWebFetch({
+      url: "https://example.com/data.csv",
+      save_to: "/tmp/data.csv",
+    });
+    expect(result.content).toContain("Preview:");
+    expect(result.content).toContain("...");
+  });
+
+  it("returns error when save_to write fails", async () => {
+    const { writeFile: wf } = await import("node:fs/promises");
+    vi.mocked(wf).mockRejectedValueOnce(new Error("EACCES: permission denied"));
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse("data", {
+        headers: { "content-type": "text/plain" },
+      }) as never,
+    );
+    const result = await runWebFetch({
+      url: "https://example.com/file.txt",
+      save_to: "/readonly/file.txt",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("EACCES");
+  });
+
+  it("updates binary message to mention save_to", async () => {
+    const resp = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "image/png" }),
+      text: vi.fn(),
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    };
+    vi.mocked(global.fetch).mockResolvedValue(resp as never);
+    const result = await runWebFetch({ url: "https://example.com/img.png" });
+    expect(result.content).toContain("save_to");
   });
 });
