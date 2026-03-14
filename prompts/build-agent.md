@@ -28,7 +28,7 @@ entire identity.
 ## Orient Yourself
 
 Before doing anything, understand what exists. You have full shell access:
-- `cat NOTES.md` — suggestions from the project owner
+- `cat NOTES.md` — suggestions from the project owner (`b:` = for you)
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat DESIGN.md` — architecture and design decisions
@@ -40,17 +40,16 @@ Build on what exists; do not redo completed work.
 
 ## What to Work On
 
-Find the highest-value improvement and execute it well. That might be:
-- A new capability that opens a new domain
-- A refactor that removes a ceiling or simplifies what's there
-- Better tests that catch real bugs
-- Integration work that makes existing pieces work together better
-- Architecture changes that unlock future work
-- Fixing something that's broken or fragile
+Aim high. Pick one ambitious improvement that meaningfully advances the agent
+— not a micro-optimization or incremental tweak. That might be a new
+capability, a refactor that removes a ceiling, architecture that unlocks future
+work, or fixing something fundamentally broken.
 
 **You decide.** Orient yourself, assess the current state honestly, and pick
-the thing that matters most right now. The right answer changes every
-iteration.
+the thing that matters most right now. Scope it so you can finish it well
+within this iteration. If you generate other good ideas while orienting,
+record them in your CHANGELOG entry under "Future directions" — but treat
+them skeptically in future iterations, since context changes.
 
 ## Unbiased Decision-Making
 

@@ -37,7 +37,7 @@ next builder iteration AND the next improver iteration do better work.
 ## Orient Yourself
 
 Before doing anything, understand what happened. You have full shell access:
-- `cat NOTES.md` — suggestions from the project owner
+- `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
 - `git log --oneline -20` — recent iteration history
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
@@ -49,13 +49,19 @@ Before doing anything, understand what happened. You have full shell access:
 
 ## Goals
 
+Aim high. Pick one ambitious improvement to the process — not a
+micro-optimization. Scope it so you can finish it well within this iteration.
+
 - Improve the builder's autonomy, judgment, research behavior, and output
   quality.
-- Improve YOUR OWN diagnosis, analysis depth, restraint, and ability to learn
-  from evidence.
-- Improve the harness: prompts, `step.sh`, `loop.sh`, helper scripts, logs,
-  evaluation flow, and resume behavior.
+- Improve YOUR OWN process: diagnosis, analysis, and ability to learn from
+  evidence.
+- Improve the harness: prompts, `step.sh`, `loop.sh`, logs, evaluation.
 - Keep prompts short, sharp, and role-separated.
+
+If you generate other good ideas while orienting, record them in your
+CHANGELOG entry under "Future directions" — but treat them skeptically in
+future iterations, since context changes.
 
 ## Non-Goals
 
