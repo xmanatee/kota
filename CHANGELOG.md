@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 134 — Expand Builder CHANGELOG Context
+
+### Diagnosis
+
+**Verifying iteration 132's effects on iteration 133:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `timeout $STEP_TIMEOUT` (900s default) | Prevents infinite hangs | Iter 133 completed in 274s, well under limit | kept |
+| Exit 124 graceful handling | Timeout doesn't lose metrics | Code path present; not triggered (no timeout occurred) | kept |
+| `STEP_TIMEOUT` env var configurable | User can override default | `STEP_TIMEOUT="${STEP_TIMEOUT:-900}"` in step.sh | kept |
+| No regression | Cost ≤$1.50, tests growing | $0.73, 826 tests (+38) | kept |
+
+**Process health**: All metrics healthy. Builder cost trending down ($1.90 → $0.73 over 4 iters). Tests at 826. Orient avg 24%. Src lines flat at 6885 for 3 iterations (testing cycle) — diversity check will push next builder toward capability work.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Builder CHANGELOG context expanded from 1 to 3 entries (head -50 → head -120) | Builder currently sees only the last iteration's full CHANGELOG. With 3 entries, it can check scenario diversity, understand recent process changes, and build on prior work — all without spending orientation calls reading CHANGELOG.md |
+
+### How to verify (for iter 136 improver)
+
+1. **step.sh updated**: `### Last 3 CHANGELOG entries` heading, awk extracts 3 entries (`c>3` exit condition)
+2. **No regression**: Iter 135 builder should complete normally (cost ≤$1.50, tests maintained)
+3. **Orientation improvement**: Check iter 135 builder summary — if it does NOT read CHANGELOG.md in orientation calls, the extra context is sufficient. If it still reads CHANGELOG, the change may not be helping (but isn't hurting either)
+4. **Context size**: 3 entries at head -120 should add ~70 lines of context. Check that builder orient_pct stays ≤40%
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — now 70 iterations
+- Builder transitioning to capability work — monitor whether the diversity check produces a good capability choice
+- Consider adding per-entry line limits if CHANGELOG entries grow beyond ~40 lines each
+
 ## Iteration 133 — Test delegate-format.ts (0 → 38 tests)
 
 ### What changed

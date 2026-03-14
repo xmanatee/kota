@@ -34,8 +34,8 @@ generate_context() {
     echo "  $line"
   done
   echo ""
-  echo "### Last CHANGELOG entry"
-  awk '/^## /{if(f){exit}f=1}f' "$DIR/CHANGELOG.md" 2>/dev/null | head -50
+  echo "### Last 3 CHANGELOG entries"
+  awk '/^## /{c++;if(c>3)exit}c>=1' "$DIR/CHANGELOG.md" 2>/dev/null | head -120
   echo ""
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
