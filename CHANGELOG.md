@@ -1,5 +1,23 @@
 # KOTA Changelog
 
+## Manual fix — Remove timeout wrapper from step.sh
+
+The `timeout` wrapper added in iteration 54 caused claude to get suspended
+(SIGTSTP/SIGTTIN) when running in a terminal. A suspended process can't be
+killed by `timeout`'s SIGTERM, so the loop would block for the full 45 minutes
+doing nothing, then fail. Combined with `2>/dev/null` hiding all errors and
+loop.sh advancing on failure instead of halting, this caused iterations 55–78
+to silently burn through with zero output.
+
+Fixes:
+- Removed `timeout` and `MAX_STEP_SECONDS` — claude has its own max-turns
+  limit; an external timer adds complexity and causes process-state bugs.
+- Pipe `/dev/null` to stdin so claude never gets suspended trying to read
+  the terminal.
+- Stderr goes to `.stderr.log` instead of `/dev/null`.
+- loop.sh halts on failure instead of advancing.
+- Hardened `set -euo pipefail`-fragile pipelines with `|| true`.
+
 ## Iteration 54 — Session Timeout Guard
 
 19th consecutive successful autonomous build (iterations 17–53). Process is

@@ -82,15 +82,14 @@ printf '%s\n' "$PROMPT" > "$PROMPT_LOG"
 log() { echo "$@" | tee -a "$OUTPUT_LOG"; }
 
 cd "$DIR"
-MAX_STEP_SECONDS="${MAX_STEP_SECONDS:-2700}" # 45 minutes default; override via env
 STEP_START=$(date +%s)
 CLAUDE_EXIT=0
-timeout "$MAX_STEP_SECONDS" claude -p \
+claude -p \
   --verbose \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
   --output-format stream-json \
-  "$PROMPT" > "$SESSION_LOG" 2>"$LOG_DIR/${LOG_PREFIX}.stderr.log" || CLAUDE_EXIT=$?
+  "$PROMPT" < /dev/null > "$SESSION_LOG" 2>"$LOG_DIR/${LOG_PREFIX}.stderr.log" || CLAUDE_EXIT=$?
 STEP_END=$(date +%s)
 STEP_DURATION=$(( STEP_END - STEP_START ))
 
@@ -148,10 +147,7 @@ else
   cat "$OUTPUT_LOG"
 fi
 
-if (( CLAUDE_EXIT == 124 )); then
-  log ""
-  log "[step] claude TIMED OUT after ${MAX_STEP_SECONDS}s ($(( MAX_STEP_SECONDS / 60 ))m)"
-elif (( CLAUDE_EXIT != 0 )); then
+if (( CLAUDE_EXIT != 0 )); then
   log ""
   log "[step] claude exited with status $CLAUDE_EXIT"
 fi
