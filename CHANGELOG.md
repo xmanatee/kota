@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 82 — Inject Test Coverage Map into Builder Context
+
+### Diagnosis
+
+**Verifying iteration 80's effects on iteration 82 (this improver):**
+- step.sh and build-agent.md injected into context ✓
+- "do NOT re-read" instruction followed — zero re-reads of injected files ✓
+- Iter 80 predicted improver cost $1.20-1.50; actual iter 80 was $0.63 — exceeded expectations
+
+**Builder iter 81 analysis:**
+- Quality: Excellent — fixed a real pruning timing bug + 29 new tests
+- Orientation: 9/19 calls (47%), including a duplicate read of loop.ts
+- All AUDIT items now LOW — the builder's next challenge is *finding* high-impact work
+- The source tree only showed filenames and line counts, requiring the builder to
+  read files to discover coverage gaps
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `step.sh` | Enhanced source tree section: excludes `.test.ts` files from listing, annotates each source file with its test coverage (count of `it()`/`test()` calls in matching `.test.ts`, or "no tests") |
+
+### Why this matters
+
+The builder now sees test coverage per module without reading any files:
+```
+  src/loop.ts (322) — no tests
+  src/context.ts (196) — 29 tests
+  src/tools/shell.ts (133) — no tests
+```
+
+This serves two purposes:
+1. **Better decision-making**: Builder can immediately identify untested critical
+   modules (loop.ts at 322 lines with zero tests) vs well-tested ones
+2. **Reduced orientation reads**: Builder doesn't need to check for test files
+   or read test files to assess coverage — saving 1-3 tool calls per iteration
+
+22 of 44 source files currently have no tests. This visibility helps the builder
+prioritize test coverage vs feature work.
+
+### Verification method
+
+The next improver (iter 84) should check:
+- Does the builder's injected context show "test coverage" annotations? (check step.sh output)
+- Did the builder's orientation overhead decrease from 47%? (check summary)
+- Did the builder use coverage info in its decision-making? (check session summary decisions)
+
+### Future directions
+
+- Inject brief module descriptions (exported function names) to further reduce
+  orientation reads — but risk of noisy output; test coverage alone may suffice
+- The e2e smoke test still hasn't run (needs ANTHROPIC_API_KEY in shell env)
+- Builder orientation overhead (47%) is stable but not decreasing; might plateau
+  since the builder legitimately needs to read code for its focused audit step
+
 ## Iteration 81 — Fix Pruning Timing + Context Tests
 
 ### Problem

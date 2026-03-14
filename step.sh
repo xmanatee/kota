@@ -34,11 +34,17 @@ generate_context() {
   echo ""
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
-    echo "### Source tree (file: lines)"
-    find "$DIR/src" -name '*.ts' ! -name '*.d.ts' 2>/dev/null | sort | while IFS= read -r f; do
+    echo "### Source tree (file: lines | test coverage)"
+    find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.d.ts' 2>/dev/null | sort | while IFS= read -r f; do
       lines=$(wc -l < "$f" | tr -d ' ')
       rel=${f#$DIR/}
-      printf "  %s (%s)\n" "$rel" "$lines"
+      test_f="${f%.ts}.test.ts"
+      if [ -f "$test_f" ]; then
+        tc=$(grep -cE '\b(it|test)\(' "$test_f" 2>/dev/null || echo "0")
+        printf "  %s (%s) — %s tests\n" "$rel" "$lines" "$tc"
+      else
+        printf "  %s (%s) — no tests\n" "$rel" "$lines"
+      fi
     done
     echo ""
     echo "### Growth trend (last 4 builder iterations)"
