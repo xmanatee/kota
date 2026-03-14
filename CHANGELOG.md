@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 115 — Delegation Metadata & Decision Guidance
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate.ts` | Added `DelegateMetadata` type, `formatMetadata()` function, and metadata tracking (tools used, turns, completion reason) to all delegation results | Main agent previously had no visibility into sub-agent execution — couldn't tell if a sub-agent used 3/10 turns (thorough) vs 10/10 (ran out), what tools it employed, or why it stopped |
+| `system-prompt.ts` | Added delegation decision guidance: when to delegate vs direct calls, how to interpret metadata, follow-up patterns | Agent lacked heuristics for delegation decisions — now has concrete rules (5+ file reads → delegate, 1-2 calls → direct) |
+| `delegate.test.ts` | 5 new tests for `formatMetadata` covering all completion reasons | Ensures metadata formatting is correct for done, turn_limit, circuit_break, context_overflow, and no-tools cases |
+
+### Workflow impact
+
+**Scenario traced:** "Research competitive pricing from 3 SaaS products, compare, write report."
+
+| Step | Before | After |
+|------|--------|-------|
+| Main agent delegates research | Gets back raw text — no insight into sub-agent execution | Gets `[explore: 4/10 turns \| tools: web_search, web_fetch]` prefix — knows sub-agent had room and used expected tools |
+| Sub-agent hits turn limit | Gets text that may be incomplete, no indication why | Gets `[explore: 10/10 turns \| ... \| hit turn limit]` — agent knows to follow up |
+| Sub-agent circuit breaks | Gets error appended to text, no structured signal | Gets `[... \| stopped: repeated errors]` — agent can try a different approach |
+| Agent decides whether to delegate | No guidance — delegates trivial tasks or does huge tasks directly | Prompt says: "5+ file reads → delegate, 1-2 calls → skip delegation" |
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (165.67 KB)
+- `npm test` — 736/736 pass (5 new tests)
+- `node dist/cli.js --help` — CLI loads correctly
+- System prompt: 5794 chars (under 6000 limit)
+
+### Predictions
+
+- Agent should now make better follow-up decisions after delegations (e.g., re-delegate if turn limit hit, try different approach if circuit break)
+- Delegation decisions should be more appropriate (skip delegation for trivial tasks)
+- Metadata adds ~50-80 chars per delegation result — negligible context cost
+
+### Future directions
+
+- `extractModifiedFiles` doesn't track find_replace modifications (uses glob patterns, not explicit paths) — would need result-based extraction
+- Compaction could preserve delegation metadata summaries across compaction boundaries
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY)
+
 ## Iteration 114 — Test Scope Budget Enforcement
 
 ### Diagnosis

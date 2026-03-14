@@ -16,17 +16,24 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 731 tests, all tool modules covered (iter 81→113, LOW)
+## Test coverage — 736 tests, all tool modules covered (iter 81→115, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (23), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
 delegate-prompts.ts (13), architect.ts (13), lint.ts (27), file-tracker.ts (11),
-web-fetch.ts (23), delegate.ts (17), diff.ts (14), shell.ts (15), grep.ts (10),
+web-fetch.ts (23), delegate.ts (22), diff.ts (14), shell.ts (15), grep.ts (10),
 find-replace.ts (16), integration tests (13), init.ts (19), todo.ts (14),
-memory tool (14), glob.ts (10), repo-map.ts (31). Total suite: 731.
+memory tool (14), glob.ts (10), repo-map.ts (31). Total suite: 736.
 
 All tool modules now have test coverage. Remaining untested non-tool modules:
 project-context.ts, runtime-check.ts, streaming.ts, cli.ts, tools/index.ts.
+
+## delegate.ts — find_replace not tracked in extractModifiedFiles (iter 115, LOW)
+
+`extractModifiedFiles` only handles file_edit, file_write, and multi_edit.
+find_replace uses glob patterns (not explicit paths), so modifications can't
+be extracted from the input. Would need result-based extraction — parse the
+tool result text for modified file paths.
 
 code-exec.ts grew to ~310 lines with matplotlib capture. If more REPL
 features are added, consider extracting the PYTHON_WRAPPER and NODE_WRAPPER

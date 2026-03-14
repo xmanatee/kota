@@ -42,6 +42,36 @@ const SUB_AGENT_RESULT_LIMIT = 30_000;
 const IDENTICAL_FAILURE_LIMIT = 3;
 const MAX_DELEGATE_IMAGES = 10;
 
+// --- Execution metadata ---
+
+export type CompletionReason = "done" | "turn_limit" | "circuit_break" | "context_overflow";
+
+export type DelegateMetadata = {
+  mode: string;
+  turnsUsed: number;
+  turnsMax: number;
+  toolsUsed: string[];
+  completionReason: CompletionReason;
+};
+
+/** Format metadata as a concise single-line prefix for the result. */
+export function formatMetadata(meta: DelegateMetadata): string {
+  const toolList = meta.toolsUsed.length > 0 ? meta.toolsUsed.join(", ") : "none";
+  const parts = [
+    `${meta.mode}: ${meta.turnsUsed}/${meta.turnsMax} turns`,
+    `tools: ${toolList}`,
+  ];
+  if (meta.completionReason !== "done") {
+    const labels: Record<string, string> = {
+      turn_limit: "hit turn limit",
+      circuit_break: "stopped: repeated errors",
+      context_overflow: "ran out of context",
+    };
+    parts.push(labels[meta.completionReason] ?? meta.completionReason);
+  }
+  return `[${parts.join(" | ")}]`;
+}
+
 // --- Delegate configuration (set by main session) ---
 
 export type DelegateConfig = {
@@ -134,6 +164,8 @@ export async function runDelegate(
   const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
   const modifiedFiles = new Set<string>();
   const collectedImages: ToolResultBlock[] = [];
+  const toolsUsed = new Set<string>();
+  let completionReason: CompletionReason = "done";
 
   const client = delegateConfig.client ?? new Anthropic();
   const costTracker = delegateConfig.costTracker;
@@ -151,6 +183,8 @@ export async function runDelegate(
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
     { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
   ];
+
+  let naturalEnd = false;
 
   const taskPreview = task.length > 60 ? task.slice(0, 57) + "..." : task;
   console.error(`[kota] delegate(${mode}) starting: ${taskPreview}`);
@@ -181,6 +215,7 @@ export async function runDelegate(
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
         console.error(`[kota] delegate(${mode}) context overflow at turn ${turn + 1}`);
+        completionReason = "context_overflow";
         if (lastText) break;
         return {
           content: `Sub-agent ran out of context after ${totalTurns} turns. ` +
@@ -197,6 +232,7 @@ export async function runDelegate(
     const toolNames = response.content
       .filter((b) => b.type === "tool_use")
       .map((b) => (b as Anthropic.Messages.ToolUseBlock).name);
+    for (const name of toolNames) toolsUsed.add(name);
     const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
     console.error(`[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}`);
 
@@ -209,7 +245,10 @@ export async function runDelegate(
     messages.push({ role: "assistant", content: response.content });
 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");
-    if (toolBlocks.length === 0) break;
+    if (toolBlocks.length === 0) {
+      naturalEnd = true;
+      break;
+    }
 
     const results = await Promise.all(
       toolBlocks.map(async (block) => {
@@ -255,6 +294,7 @@ export async function runDelegate(
         identicalErrorCount++;
         if (identicalErrorCount >= IDENTICAL_FAILURE_LIMIT) {
           console.error(`[kota] delegate(${mode}) circuit break — same error ${IDENTICAL_FAILURE_LIMIT}x`);
+          completionReason = "circuit_break";
           lastText = (lastText ? lastText + "\n\n" : "") +
             `Sub-agent stopped: repeated the same failing operation ${IDENTICAL_FAILURE_LIMIT} times. ` +
             `Last error: ${failedResults[0].content.slice(0, 200)}`;
@@ -283,21 +323,34 @@ export async function runDelegate(
     });
   }
 
+  if (!naturalEnd && completionReason === "done") {
+    completionReason = "turn_limit";
+  }
+
   console.error(`[kota] delegate(${mode}) done — ${totalTurns} turn(s)`);
+
+  const meta: DelegateMetadata = {
+    mode,
+    turnsUsed: totalTurns,
+    turnsMax: maxTurns,
+    toolsUsed: [...toolsUsed].sort(),
+    completionReason,
+  };
+  const metaLine = formatMetadata(meta);
 
   const buildResult = (text: string) => buildDelegateResult(text, collectedImages);
 
   if (!lastText && modifiedFiles.size === 0) {
-    return buildResult("Sub-agent completed without producing a response.");
+    return buildResult(`${metaLine}\nSub-agent completed without producing a response.`);
   }
 
   if (isExecute && modifiedFiles.size > 0) {
     const fileList = [...modifiedFiles].map((f) => `  - ${f}`).join("\n");
     return buildResult(
-      `${lastText || "(no summary)"}\n\n` +
+      `${metaLine}\n${lastText || "(no summary)"}\n\n` +
       `--- Modified files (${modifiedFiles.size}) ---\n${fileList}`,
     );
   }
 
-  return buildResult(lastText || "(no output)");
+  return buildResult(`${metaLine}\n${lastText || "(no output)"}`);
 }

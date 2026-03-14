@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { extractModifiedFiles, buildDelegateResult, collectImageBlocks } from "./delegate.js";
+import { extractModifiedFiles, buildDelegateResult, collectImageBlocks, formatMetadata } from "./delegate.js";
+import type { DelegateMetadata } from "./delegate.js";
 import type { ToolResultBlock } from "./index.js";
 
 describe("extractModifiedFiles", () => {
@@ -138,5 +139,70 @@ describe("collectImageBlocks", () => {
     const results = [{ content: "text only" } as { blocks?: ToolResultBlock[] }];
     const collected = collectImageBlocks(results, [], 10);
     expect(collected).toEqual([]);
+  });
+});
+
+describe("formatMetadata", () => {
+  it("formats normal completion", () => {
+    const meta: DelegateMetadata = {
+      mode: "explore",
+      turnsUsed: 4,
+      turnsMax: 10,
+      toolsUsed: ["web_search", "web_fetch"],
+      completionReason: "done",
+    };
+    expect(formatMetadata(meta)).toBe(
+      "[explore: 4/10 turns | tools: web_search, web_fetch]",
+    );
+  });
+
+  it("formats turn limit", () => {
+    const meta: DelegateMetadata = {
+      mode: "execute",
+      turnsUsed: 15,
+      turnsMax: 15,
+      toolsUsed: ["file_edit", "file_read", "shell"],
+      completionReason: "turn_limit",
+    };
+    expect(formatMetadata(meta)).toBe(
+      "[execute: 15/15 turns | tools: file_edit, file_read, shell | hit turn limit]",
+    );
+  });
+
+  it("formats circuit break", () => {
+    const meta: DelegateMetadata = {
+      mode: "explore",
+      turnsUsed: 5,
+      turnsMax: 10,
+      toolsUsed: ["grep"],
+      completionReason: "circuit_break",
+    };
+    expect(formatMetadata(meta)).toBe(
+      "[explore: 5/10 turns | tools: grep | stopped: repeated errors]",
+    );
+  });
+
+  it("formats context overflow", () => {
+    const meta: DelegateMetadata = {
+      mode: "explore",
+      turnsUsed: 8,
+      turnsMax: 10,
+      toolsUsed: ["file_read", "web_fetch"],
+      completionReason: "context_overflow",
+    };
+    expect(formatMetadata(meta)).toBe(
+      "[explore: 8/10 turns | tools: file_read, web_fetch | ran out of context]",
+    );
+  });
+
+  it("shows 'none' when no tools were used", () => {
+    const meta: DelegateMetadata = {
+      mode: "explore",
+      turnsUsed: 1,
+      turnsMax: 10,
+      toolsUsed: [],
+      completionReason: "done",
+    };
+    expect(formatMetadata(meta)).toBe("[explore: 1/10 turns | tools: none]");
   });
 });
