@@ -1,20 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./index.js";
-import { fileReadTool, runFileRead } from "./file-read.js";
-import { fileEditTool, runFileEdit } from "./file-edit.js";
-import { fileWriteTool, runFileWrite } from "./file-write.js";
-import { multiEditTool, runMultiEdit } from "./multi-edit.js";
-import { grepTool, runGrep } from "./grep.js";
-import { globTool, runGlob } from "./glob.js";
-import { repoMapTool, runRepoMap } from "./repo-map.js";
-import { webFetchTool, runWebFetch } from "./web-fetch.js";
-import { webSearchTool, runWebSearch } from "./web-search.js";
-import { httpRequestTool, runHttpRequest } from "./http-request.js";
-import { runShell } from "./shell.js";
-import { processTool, runProcess } from "./process.js";
-import { codeExecTool, runCodeExec } from "./code-exec.js";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
+import {
+  EXPLORE_PROMPT,
+  EXECUTE_PROMPT,
+  buildSubAgentPrompt,
+  exploreTools,
+  executeTools,
+  exploreRunners,
+  executeRunners,
+} from "../delegate-prompts.js";
 
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
@@ -61,90 +57,6 @@ export function setDelegateConfig(config: DelegateConfig): void {
   delegateConfig = config;
 }
 
-// --- System prompt builders ---
-
-const EXPLORE_BASE = `You are a research assistant. You can explore codebases and search the web.
-Answer the question by reading files, searching code, finding patterns, and looking up documentation online.
-Be thorough but concise in your final answer.
-You have read-only access — you cannot modify files.`;
-
-const EXECUTE_BASE = `You are a task executor. You can read, search, and modify files, and run shell commands.
-Execute the assigned task precisely. Focus on the specific files and changes described.
-After making changes, verify they work if possible (e.g. run a relevant test or type check).
-Shell commands have a 60-second timeout.
-When done, summarize what you changed and why.`;
-
-/** Build a sub-agent system prompt enriched with project context. */
-export function buildSubAgentPrompt(base: string, config: DelegateConfig): string {
-  const parts = [base];
-
-  if (config.cwd) {
-    parts.push(`\nWorking directory: ${config.cwd}`);
-  }
-
-  if (config.projectContext) {
-    parts.push(`\n${config.projectContext}`);
-  }
-
-  return parts.join("\n");
-}
-
-// --- Tool sets ---
-
-type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
-
-const exploreTools: Anthropic.Tool[] = [
-  fileReadTool, grepTool, globTool, repoMapTool, webFetchTool, webSearchTool, httpRequestTool,
-];
-
-const exploreRunners: Record<string, ToolRunner> = {
-  file_read: runFileRead,
-  grep: runGrep,
-  glob: runGlob,
-  repo_map: runRepoMap,
-  web_fetch: runWebFetch,
-  web_search: runWebSearch,
-  http_request: runHttpRequest,
-};
-
-/** Shell runner with a 60s max timeout for sub-agents. */
-async function runShellBounded(input: Record<string, unknown>): Promise<ToolResult> {
-  const MAX_SUB_TIMEOUT = 60_000;
-  return runShell({
-    ...input,
-    timeout_ms: Math.min((input.timeout_ms as number) || MAX_SUB_TIMEOUT, MAX_SUB_TIMEOUT),
-  });
-}
-
-/** Minimal shell tool definition for sub-agents (shorter timeout in description). */
-const subShellTool: Anthropic.Tool = {
-  name: "shell",
-  description:
-    "Execute a shell command (max 60s timeout). " +
-    "Use for builds, tests, git commands. Commands run in the working directory.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      command: { type: "string", description: "The shell command to execute" },
-      timeout_ms: { type: "number", description: "Timeout in ms (max 60000)" },
-    },
-    required: ["command"],
-  },
-};
-
-const executeTools: Anthropic.Tool[] = [
-  ...exploreTools, fileEditTool, fileWriteTool, multiEditTool, subShellTool, processTool, codeExecTool,
-];
-
-const executeRunners: Record<string, ToolRunner> = {
-  ...exploreRunners,
-  file_edit: runFileEdit,
-  file_write: runFileWrite,
-  multi_edit: runMultiEdit,
-  shell: runShellBounded,
-  process: runProcess,
-  code_exec: runCodeExec,
-};
 
 // --- File modification tracking ---
 
@@ -186,7 +98,7 @@ export async function runDelegate(
   const tools = isExecute ? executeTools : exploreTools;
   const runners = isExecute ? executeRunners : exploreRunners;
   const maxTurns = isExecute ? EXECUTE_MAX_TURNS : EXPLORE_MAX_TURNS;
-  const basePrompt = isExecute ? EXECUTE_BASE : EXPLORE_BASE;
+  const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
   const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
   const modifiedFiles = new Set<string>();
 

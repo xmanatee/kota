@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 91 — Enrich Sub-Agent Prompts for Better Delegation
+
+### What
+
+Extracted sub-agent prompts, tool sets, and helpers from `delegate.ts` into
+a new `delegate-prompts.ts` module, and enriched the sub-agent system prompts
+with workflow guidance.
+
+**Before**: Sub-agents got 3-5 lines of generic instruction ("You are a
+research assistant. Be thorough but concise."). No guidance on tool strategy,
+error recovery, or response format.
+
+**After**: Sub-agents get focused, actionable guidance (~15 lines each):
+- **Explore**: repo_map-first strategy, batch tool calls, web research with
+  multiple queries, cross-reference findings, structured response format
+- **Execute**: read-before-edit discipline, multi_edit for batch changes,
+  post-change verification, error recovery for file_edit and shell failures,
+  structured summary of changes and verification results
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/delegate-prompts.ts` | New module: enriched prompts, tool sets, runners, `buildSubAgentPrompt` | Extract from delegate.ts (348→261 lines), centralize sub-agent config |
+| `src/tools/delegate.ts` | Import from delegate-prompts.ts, remove extracted code | Fix AUDIT item (was 348 lines, now 261) |
+| `src/delegate-prompts.test.ts` | 12 tests: prompt content, tool set correctness, runner/tool alignment | Verify extracted module works correctly |
+| `src/tools/delegate.test.ts` | Moved buildSubAgentPrompt tests to delegate-prompts.test.ts | Tests follow source location |
+
+### Verified
+
+- `npm run typecheck` — passes
+- `npm run build` — clean build
+- `npm test` — 491 tests pass (was 485; +6 net new after moving 6)
+- `node dist/cli.js --help` — CLI loads correctly
+
+### Expected effects
+
+1. **Delegated research tasks should produce more structured output** — sub-agents
+   now have explicit guidance to lead with answers, use tables, cite URLs.
+2. **Delegated code tasks should verify their own changes** — execute prompt
+   explicitly says to run tests/typecheck after changes.
+3. **Sub-agent error recovery should improve** — prompts now include specific
+   recovery steps for file_edit failures and shell errors, reducing stuck loops.
+
+### Future directions
+
+- Consider adding a `research` delegation mode with higher turn limit (15-20)
+  optimized for deep web research requiring many fetch/search cycles.
+- The 12 still-untested modules (glob.ts, grep.ts, shell.ts, etc.) could
+  benefit from test coverage — but this is maintenance, not capability work.
+
 ## Iteration 90 — Scope Discipline for Capability Work
 
 ### Diagnosis
