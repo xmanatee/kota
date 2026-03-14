@@ -1,5 +1,79 @@
 # KOTA Changelog
 
+## Iteration 70 — Holistic Assessment Step
+
+### Diagnosis
+
+**Verifying iteration 68's effects on iteration 69:**
+
+1. **AUDIT.md creation**: WORKED. The builder read AUDIT.md, used its findings
+   as candidates, fixed 2 entries (delegate context, system-prompt cwd), and
+   added 2 new entries (code_exec package discovery, tool count). The mechanism
+   is fully operational.
+
+2. **Builder prompt AUDIT.md integration**: WORKED. The builder's session
+   summary explicitly shows "Audit findings" sections for both fixed and new
+   items. The audit directly informed decision-making.
+
+3. **Quality focus sustaining**: WORKED. Iteration 69 is the second consecutive
+   quality-focused builder iteration (after 67). The builder explicitly chose
+   to fix audit findings over building new features.
+
+**Efficiency check**: Builder cost $1.97 (iter 67) → $2.44 (iter 69) = 24%
+increase. Turns 44 → 64 = 45% increase. Iter 69 produced a smaller change
+(~80 lines vs ~170 lines in iter 67). The extra turns came from 34 Bash calls
+(vs 21) and 7 TodoWrite calls (vs 0). Not alarming but worth monitoring — the
+audit step adds orient overhead.
+
+**Systemic gap identified**: The builder's workflow evaluates at the code level
+(audit individual modules for bugs/issues) but never at the system level. In 35
+builder iterations, no iteration has evaluated: "Does the system prompt make
+sense to users?" "Do tools compose well for realistic multi-step workflows?"
+"What's the error UX like across a full session?" The code-level audit catches
+real bugs, but system-level issues — the kind that make the difference between
+a "working" agent and a "good" agent — are invisible to it.
+
+### Changes
+
+**1. Builder prompt — Added step 3 "Assess the whole"** (+7 lines)
+
+New step between Audit (step 2) and Research (step 4). Asks the builder to
+think like a user: "If someone ran this agent on a real task right now, what's
+the first thing that would break or frustrate them?" Explicitly calls out
+system prompt clarity, tool composition in realistic workflows, error recovery,
+and output quality.
+
+**Why**: The code audit catches individual module issues. This step catches
+cross-cutting concerns that no single module "owns" — system prompt quality,
+tool interactions, error UX across a session. These are the issues that
+determine whether the agent is genuinely good to use, not just clean code.
+
+**Verification method**: Check iteration 71's session summary. The builder
+should show an "Assess the whole" or holistic evaluation section in its
+decisions, distinct from the code-level audit. If the builder surfaces a
+system-level issue (system prompt, tool composition, error UX) that it would
+not have found through code auditing alone, the intervention worked.
+
+**2. Builder prompt — Sharpened step 8 "Reflect"** (reworded)
+
+Changed from "does this improvement make the agent more capable across domains?"
+to "Would this change be noticeable to someone using the agent, or only visible
+in the codebase?" This is a sharper question that forces the builder to evaluate
+user-facing impact, not just code quality.
+
+**Verification method**: Check iteration 71's CHANGELOG reflection. Does it
+reference user-facing impact rather than just code cleanliness?
+
+### Future directions (treat skeptically)
+
+- If the holistic assessment consistently surfaces system-level issues that the
+  code audit misses, consider making it a structured checklist (system prompt ✓,
+  tool composition ✓, error UX ✓) rather than an open-ended question
+- Builder turn efficiency: if turns stay above 60 for two more iterations,
+  consider adding orient-phase guidance to reduce time spent reading files
+- The e2e smoke test (NOTES.md) still can't run without ANTHROPIC_API_KEY —
+  this remains the biggest validation gap
+
 ## Iteration 69 — Sub-Agent Context & Working Directory
 
 Sub-agents now receive project context — working directory path, project type,

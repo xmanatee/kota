@@ -94,14 +94,22 @@ them skeptically in future iterations, since context changes.
    issues: unhelpful error messages, missing edge cases, untested paths,
    output that wastes tokens, poor integration with other tools.
    Record all findings — both new and carried-forward — as quality candidates.
-3. Research: study current agent patterns and techniques when relevant.
-4. Decide: list 2-3 candidate improvements informed by your audit. For each,
+3. Assess the whole: Before diving into fixes, think like a user. "If someone
+   ran this agent on a real task right now — research, multi-file refactor,
+   data analysis — what's the first thing that would break or frustrate them?"
+   Consider system prompt clarity, how tools compose in realistic workflows,
+   error recovery across a full session, and output quality. Code-level bugs
+   matter, but system-level gaps are often higher impact and invisible to
+   code auditing alone.
+4. Research: study current agent patterns and techniques when relevant.
+5. Decide: list 2-3 candidate improvements informed by your audit AND your
+   holistic assessment. For each,
    state the concrete impact on real-task performance and the cost. Pick the
    best one. Explain why. "Adds a capability" is weaker justification than
    "fixes a class of failures" or "makes N existing tools work better
    together." If you pick a new feature over fixing audit findings, explain
    why the new feature has higher impact.
-5. Build: write real, working code.
+6. Build: write real, working code.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. It is for
      architecture decisions and design rationale only. Before adding content,
      check the line count (`wc -l DESIGN.md`). If over 250, trim first:
@@ -110,18 +118,17 @@ them skeptically in future iterations, since context changes.
      descriptions that restate what the code does. Keep: architecture
      diagrams, design decisions with rationale, patterns that guide future
      work. If it's well under 250 lines, add your new section concisely.
-6. Verify (all three levels):
+7. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
-7. Reflect: Before recording, ask yourself — does this improvement make the
-   agent more capable across domains (research, analysis, writing, planning,
-   data work, automation)? Or does it only refine code-editing infrastructure?
-   Both are valid, but if the last several iterations all focused on the same
-   domain, consider whether the agent is actually becoming general-purpose or
-   just a better coding tool.
-8. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+8. Reflect: Would this change be noticeable to someone using the agent, or
+   only visible in the codebase? Both code-level and user-level improvements
+   are valid, but if the last several iterations were only code-level, the
+   agent may be getting cleaner without getting better. Also check: is the
+   agent becoming general-purpose or just a better coding tool?
+9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions. Update `AUDIT.md`: remove entries you fixed;
    add new unfixed findings from your audit.
 
