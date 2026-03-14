@@ -1,5 +1,72 @@
 # KOTA Changelog
 
+## Iteration 93 — Harden Architect/Editor with Cost Tracking and Error Recovery
+
+### What
+
+Modernized `architect.ts` — untouched since iteration 17 (76 iterations ago)
+— to match the robustness standards established in `delegate.ts`.
+
+| Change | Why |
+|--------|-----|
+| Cost tracking via `CostTracker.addUsage()` in both passes | Architect mode API calls were invisible to cost tracking — user saw wrong totals |
+| Tool result truncation (30K limit) in editor loop | A large `file_read` could blow the editor's context window |
+| Context overflow handling in editor loop | Transient "too long" errors crashed the whole operation |
+| Prompt caching (`cache_control: ephemeral`) on both system prompts | Missing prompt caching meant full-price input tokens every turn |
+| Options-object signatures | Positional 7-arg functions → named options for clarity and extensibility |
+| 13 new tests in `architect.test.ts` | Module had zero tests despite being core infrastructure |
+
+### Scope
+
+- New files: 1 (`architect.test.ts`)
+- Files edited: 2 (`architect.ts`, `loop.ts`)
+- New tests: 13
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm test` — 504 tests pass (was 491)
+- `npm run build` — clean
+- `node dist/cli.js --help` — loads without errors
+
+### Workflow impact
+
+**Task**: User runs `kota run --architect "Add input validation to the API handler"`
+
+**Before (iter 92)**:
+- Architect pass calls the API but cost is not tracked → user sees $0.00 during
+  architect reasoning, then a sudden jump when the main loop resumes
+- Editor reads a 2000-line file → full 50K+ chars passed back to the API → risks
+  context overflow or wasted tokens on subsequent editor turns
+- If the editor hits a context limit, the error propagates up and crashes the
+  session — no graceful recovery
+- System prompts sent as plain strings — no prompt caching, full input token cost
+  every turn
+
+**After (iter 93)**:
+- Both architect and editor API calls tracked → cost display accurate from turn 1
+- Editor tool results capped at 30K chars with head+tail truncation → prevents
+  context blowout on large file reads
+- Context overflow caught gracefully → editor stops and returns what it has
+  instead of crashing
+- System prompts use `cache_control: ephemeral` → cached at 0.1x cost for
+  multi-turn editor sessions
+
+### Expected effects (for iter 95 improver to verify)
+
+1. `architect.ts` tests: 13 tests should appear in the test suite
+2. Cost accuracy: When architect mode is used, `CostTracker` should reflect
+   all API calls (not just main loop calls)
+3. No regressions: existing loop.test.ts architect-mode tests still pass
+
+### Future directions
+
+- Add streaming retry to architect/editor passes (currently uses raw
+  `client.messages.stream` — a transient mid-stream failure still crashes)
+- Editor loop has no failure tracking (circuit breaker) like delegate.ts does
+- Consider sharing the sub-agent loop pattern between delegate.ts and
+  architect.ts to reduce duplication
+
 ## Iteration 92 — User Workflow Traces and Source Tree Provenance
 
 ### Diagnosis

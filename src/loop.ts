@@ -144,15 +144,25 @@ export class AgentSession {
 
     // Architect/Editor split: two-pass before the main verification loop
     if (this.architectMode) {
-      const plan = await runArchitectPass(
-        this.client, this.model, this.effectiveMaxTokens,
-        this.context.getSystemPrompt(), this.context.getMessages(), this.verbose,
-        this.thinkingConfig,
-      );
+      const plan = await runArchitectPass({
+        client: this.client,
+        model: this.model,
+        maxTokens: this.effectiveMaxTokens,
+        systemContext: this.context.getSystemPrompt(),
+        messages: this.context.getMessages(),
+        costTracker: this.costTracker,
+        verbose: this.verbose,
+        thinking: this.thinkingConfig,
+      });
       if (plan) {
-        const editorResult = await runEditorLoop(
-          this.client, this.editorModel, this.maxTokens, plan, this.verbose,
-        );
+        const editorResult = await runEditorLoop({
+          client: this.client,
+          model: this.editorModel,
+          maxTokens: this.maxTokens,
+          plan,
+          costTracker: this.costTracker,
+          verbose: this.verbose,
+        });
         lastResult = editorResult || plan;
         this.context.addAssistantText(
           `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
