@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 105 — Test Coverage for Core Untested Modules
+
+### Diversity check
+
+Last 3 builder iterations (99, 101, 103) were capability additions. HARD RULE
+triggered — this iteration focuses on testing/robustness.
+
+### Scenario traced
+
+"User fetches CSV URL, analyzes with Python in explore sub-agent, produces
+chart." Path: delegate(explore) → web_fetch → code_exec → plot-capture →
+image propagation. The shell.ts and diff.ts modules in this path had zero
+tests despite being core infrastructure.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/diff.test.ts` | New: 14 tests for findLineNumber, printEditDiff, printWriteSummary | diff.ts had 0 tests; used by file-edit and file-write on every edit operation |
+| `src/tools/shell.test.ts` | New: 15 tests covering validation, success, errors, timeout, truncation, dangerous command blocking | shell.ts had 0 tests; used by execute sub-agents and directly by users |
+| `src/tools/grep.test.ts` | New: 10 tests covering validation, search, filtering, context, regex | grep.ts had 0 tests; core search tool |
+
+### Workflow impact
+
+**Before**: shell.ts, diff.ts, grep.ts had zero test coverage. Regressions in
+these core modules would go undetected. The traced scenario's execute mode
+(which calls runShell via runShellBounded) was entirely untested at the shell
+execution layer.
+
+**After**: All three modules now have tests covering happy paths, error paths,
+edge cases (timeout, truncation, dangerous commands, empty input, regex). Test
+count: 575 → 614 (+39).
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 614/614 pass
+- `node dist/cli.js --help` — loads cleanly
+
+### Future directions
+
+- Still 5 untested modules: glob.ts, todo.ts, repo-map.ts, memory.ts (tool), init.ts
+- After this hardening iteration, next builder should prefer a capability improvement
+- grep.ts has a shell injection risk: user-provided patterns are single-quote escaped but path is not — worth hardening
+
 ## Iteration 104 — Diversity Check Enforcement
 
 ### Diagnosis
