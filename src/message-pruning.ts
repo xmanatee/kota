@@ -127,14 +127,29 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
 
       if (tr.is_error) continue;
 
-      const content = typeof tr.content === "string" ? tr.content : "";
-      if (content.length < minLength) continue;
+      // Image-bearing results (array content with image blocks) — always prune
+      const hasImages = Array.isArray(tr.content) &&
+        (tr.content as Array<{ type: string }>).some((b) => b.type === "image");
+      const textContent = typeof tr.content === "string" ? tr.content : "";
+
+      if (hasImages) {
+        const toolInfo = toolCallMap.get(tr.tool_use_id);
+        const path = toolInfo ? (toolInfo.input.path || toolInfo.input.file_path || "image") as string : "image";
+        const summary = `[Previously viewed image: ${path}. Re-read if needed.]`;
+        const estimatedSaved = 5000; // Images consume ~1000+ tokens; estimate char savings
+        (tr as { content: string }).content = summary;
+        prunedCount++;
+        charsSaved += estimatedSaved;
+        continue;
+      }
+
+      if (textContent.length < minLength) continue;
 
       const toolInfo = toolCallMap.get(tr.tool_use_id);
       if (!toolInfo || !PRUNEABLE_TOOLS.has(toolInfo.name)) continue;
 
-      const summary = generateSummary(toolInfo.name, toolInfo.input, content);
-      const saved = content.length - summary.length;
+      const summary = generateSummary(toolInfo.name, toolInfo.input, textContent);
+      const saved = textContent.length - summary.length;
 
       (tr as { content: string }).content = summary;
       prunedCount++;

@@ -1,5 +1,52 @@
 # KOTA Changelog
 
+## Iteration 61 — Vision / Image Support (Multimodal Input)
+
+KOTA is now multimodal — `file_read` handles images (PNG, JPEG, GIF, WebP) natively. When the agent reads an image file, it receives the actual image via Claude's vision API, enabling screenshot analysis, diagram reading, chart interpretation, UI review, and photo analysis.
+
+### Why this improvement
+
+KOTA was text-only. Every competitor (Claude Code, Cursor, GPT-4) supports vision. For a general-purpose agent, images are a fundamental input modality — users debug with screenshots, review UI designs, analyze charts, read diagrams. Without vision, the agent could only describe files by name, not see them.
+
+This is a clear binary capability gap (can't → can) that makes KOTA genuinely multimodal rather than just a text processing tool with web access.
+
+### What changed
+
+**Rich tool results** (`src/tools/index.ts`):
+- New `ToolResultBlock` type: union of `{ type: "text"; text: string }` and `{ type: "image"; source: { type: "base64"; media_type: string; data: string } }`
+- `ToolResult` gains optional `blocks?: ToolResultBlock[]` — when present, sent as rich content to Claude's API instead of plain text
+
+**Image reading** (`src/tools/file-read.ts`, ~40 new lines):
+- Detects image files by extension (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`)
+- Reads as base64, returns image content block + text description
+- Size limit: 20MB (Claude API max). Empty files rejected.
+- SVGs and other non-image extensions read as text (unchanged)
+
+**Pipeline updates** (6 files touched):
+- `tool-runner.ts`: Preserves `blocks` through the pipeline, skips text truncation for rich content
+- `context.ts`: `addToolResults` sends `blocks` as API-compatible content via type assertion
+- `message-pruning.ts`: Image-bearing results are always pruned (replaced with text summary) — images consume ~1000+ vision tokens
+- `compaction.ts`: Image blocks rendered as `[image]` in conversation text for summarization
+- `system-prompt.ts`: Updated to mention image support in tool strategy
+
+**Tests** (`src/tools/file-read.test.ts`, 15 new tests):
+- PNG, JPEG, WebP, GIF reading with correct media types
+- Block structure validation (image block + text block)
+- Empty file rejection, size description, offset/limit ignored for images
+- SVG treated as text, non-image extensions unaffected
+
+### Verified
+- TypeScript typechecks clean
+- Builds to 127KB bundle (up from 124KB)
+- All 259 tests pass (244 existing + 15 new)
+- `node dist/cli.js --help` runs correctly
+
+### Future directions (treat skeptically)
+- PDF reading via pdf-parse or similar (another non-text format gap)
+- Image generation / diagram creation (output side of vision)
+- Clipboard/screenshot capture tool (not just files)
+- Video frame extraction for video analysis
+
 ## Iteration 60 — Session Summaries and DESIGN.md Overhead Reduction
 
 Two systemic bottlenecks identified from analyzing iterations 58-59:

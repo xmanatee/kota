@@ -1,4 +1,5 @@
 import { executeTool } from "./tools/index.js";
+import type { ToolResultBlock } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import { maybeRetry } from "./tool-retry.js";
 import type { McpManager } from "./mcp-manager.js";
@@ -13,6 +14,7 @@ type ToolUseBlock = {
 export type ToolResultEntry = {
   tool_use_id: string;
   content: string;
+  blocks?: ToolResultBlock[];
   is_error?: boolean;
 };
 
@@ -52,15 +54,17 @@ export async function executeToolCalls(
       return {
         tool_use_id: block.id,
         content: result.content,
+        blocks: result.blocks,
         is_error: result.is_error,
       };
     }),
   );
 
-  return results.map((r) => ({
-    ...r,
-    content: truncateToolResult(r.content, resultLimit),
-  }));
+  return results.map((r) => {
+    // Rich content (images) — already bounded by size checks, skip text truncation
+    if (r.blocks) return r;
+    return { ...r, content: truncateToolResult(r.content, resultLimit) };
+  });
 }
 
 export type FailureAction = "continue" | "inject_guidance" | "circuit_break";

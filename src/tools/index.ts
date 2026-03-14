@@ -15,8 +15,13 @@ import { webSearchTool, runWebSearch } from "./web-search.js";
 import { askUserTool, runAskUser } from "./ask-user.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 
+export type ToolResultBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
 export type ToolResult = {
   content: string;
+  blocks?: ToolResultBlock[];
   is_error?: boolean;
 };
 

@@ -105,7 +105,7 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | Tool | Purpose | Notes |
 |------|---------|-------|
 | `shell` | Run any shell command | Timeout, cwd support. The Swiss Army knife. |
-| `file_read` | Read file contents | Line numbers, offset/limit for large files |
+| `file_read` | Read files and images | Line numbers, offset/limit for text; base64 vision for images |
 | `file_write` | Create/overwrite a file | For new files only |
 | `file_edit` | Search-and-replace edit | Exact string match, like Claude Code's Edit tool |
 | `grep` | Search file contents | Regex support, ripgrep-style |
@@ -233,6 +233,18 @@ Makes KOTA project-aware by reading `.kota.md` files from the working directory 
 - Content injected into the system prompt on session start
 - Per-file truncation at 8000 chars to prevent context bloat
 - Verbose mode logs when project context is loaded
+
+### Vision / Image Support (`src/tools/file-read.ts`)
+
+KOTA is multimodal — `file_read` handles both text files and images natively.
+
+- **Supported formats**: PNG, JPEG, GIF, WebP (matched by file extension)
+- **How it works**: Image files are read as raw bytes, base64-encoded, and returned as Anthropic image content blocks alongside a text description
+- **Rich tool results**: The `ToolResult` type supports `blocks?: ToolResultBlock[]` — an array of text and image content blocks. When blocks are present, they are sent as the tool result content instead of the plain string. This is compatible with Anthropic's `ToolResultBlockParam.content` which accepts `string | Array<TextBlockParam | ImageBlockParam>`
+- **Size limit**: 20MB per image (Claude API limit). Empty files rejected.
+- **Context management**: Image blocks are pruned aggressively by `message-pruning.ts` (replaced with text summary). Compaction represents images as `[image]` in conversation text. Text truncation is skipped for rich results.
+- **Text fallback**: Every image result also includes a `content: string` text description (e.g., "Image: /path/file.png (1.2MB)") used by pruning, compaction, and logging
+- **Non-image files**: SVG and all other extensions are read as text with line numbers (unchanged behavior)
 
 ### Smart Edit Error Recovery (`src/tools/file-edit.ts`)
 

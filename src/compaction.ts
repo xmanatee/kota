@@ -108,8 +108,17 @@ function buildConversationText(messages: Message[]): string {
       } else if (block.type === "tool_result") {
         const tr = block as Anthropic.Messages.ToolResultBlockParam;
         const status = tr.is_error ? "ERR" : "OK";
-        const preview =
-          typeof tr.content === "string" ? tr.content.slice(0, 120) : "(structured)";
+        let preview: string;
+        if (typeof tr.content === "string") {
+          preview = tr.content.slice(0, 120);
+        } else if (Array.isArray(tr.content)) {
+          const hasImage = tr.content.some((b) => b.type === "image");
+          const textPart = tr.content.find((b) => b.type === "text");
+          const textPreview = textPart && "text" in textPart ? (textPart.text as string).slice(0, 80) : "";
+          preview = hasImage ? `[image] ${textPreview}` : textPreview || "(structured)";
+        } else {
+          preview = "(structured)";
+        }
         parts.push(`[${status}] ${preview}`);
       }
     }

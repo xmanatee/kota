@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync } from "node:fs";
 import { getTodoState } from "./tools/index.js";
+import type { ToolResultBlock } from "./tools/index.js";
 import { compactMessages } from "./compaction.js";
 import { pruneMessages, type PruneStats } from "./message-pruning.js";
 
@@ -94,6 +95,7 @@ export class Context {
     results: Array<{
       tool_use_id: string;
       content: string;
+      blocks?: ToolResultBlock[];
       is_error?: boolean;
     }>,
   ): void {
@@ -102,7 +104,9 @@ export class Context {
       content: results.map((r) => ({
         type: "tool_result" as const,
         tool_use_id: r.tool_use_id,
-        content: r.content,
+        content: r.blocks
+          ? (r.blocks as Anthropic.Messages.ToolResultBlockParam["content"])
+          : r.content,
         is_error: r.is_error,
       })),
     });

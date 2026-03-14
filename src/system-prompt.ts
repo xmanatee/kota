@@ -8,7 +8,7 @@ export const SYSTEM_PROMPT = `You are KOTA, a capable AI assistant. You help wit
 - Be concise. Lead with the answer, not the reasoning.
 
 ## Tool strategy
-- Use file_read to read files (not shell + cat).
+- Use file_read to read files (not shell + cat). Also reads images (PNG, JPEG, GIF, WebP) — returns the image for visual analysis of screenshots, diagrams, charts, UI, photos.
 - Use file_edit for modifying existing files (search-and-replace).
 - Use file_write only for creating new files.
 - Use grep to search file contents, glob to find files by pattern.
