@@ -9,13 +9,14 @@ import { globTool, runGlob } from "./glob.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
 import { webFetchTool, runWebFetch } from "./web-fetch.js";
 import { webSearchTool, runWebSearch } from "./web-search.js";
+import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runShell } from "./shell.js";
 
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
   description:
     "Delegate a task to a sub-agent. Two modes:\n" +
-    "- explore (default): read-only research — file_read, grep, glob, repo_map, web_search, web_fetch\n" +
+    "- explore (default): read-only research — file_read, grep, glob, repo_map, web_search, web_fetch, http_request\n" +
     "- execute: can modify files and run commands — adds file_edit, file_write, multi_edit, shell (60s timeout)\n" +
     "Use explore to research without cluttering context. " +
     "Use execute to dispatch implementation subtasks (e.g. 'fix the lint errors in src/auth.ts').",
@@ -62,7 +63,7 @@ When done, summarize what you changed and why.`;
 type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
 
 const exploreTools: Anthropic.Tool[] = [
-  fileReadTool, grepTool, globTool, repoMapTool, webFetchTool, webSearchTool,
+  fileReadTool, grepTool, globTool, repoMapTool, webFetchTool, webSearchTool, httpRequestTool,
 ];
 
 const exploreRunners: Record<string, ToolRunner> = {
@@ -72,6 +73,7 @@ const exploreRunners: Record<string, ToolRunner> = {
   repo_map: runRepoMap,
   web_fetch: runWebFetch,
   web_search: runWebSearch,
+  http_request: runHttpRequest,
 };
 
 /** Shell runner with a 60s max timeout for sub-agents. */

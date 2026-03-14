@@ -45,6 +45,13 @@ export const RETRY_POLICIES: Record<string, RetryPolicy> = {
     },
     delayMs: 1500,
   },
+
+  http_request: {
+    shouldRetry(error) {
+      return TRANSIENT_NETWORK.test(error) || TRANSIENT_HTTP.test(error);
+    },
+    delayMs: 1500,
+  },
 };
 
 type ToolRunner = (

@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 59 — HTTP Request Tool (API Interaction)
+
+KOTA can now interact with APIs and web services, not just read web pages. The new `http_request` tool supports all HTTP methods, custom headers, and request bodies — enabling REST API interaction, webhook automation, service testing, and data retrieval from authenticated endpoints.
+
+### Why this improvement
+
+The last ~10 iterations focused on code-editing reliability (error diagnostics, whitespace matching, auto-retry, verification nudges). These are important, but they only improve KOTA as a coding tool. For a general-purpose agent, the ability to interact with APIs is fundamental — it unlocks service automation, data retrieval, endpoint testing, and integration workflows. Before this change, KOTA could search the web and read pages, but couldn't POST data, send auth headers, or interact with any REST API. The shell `curl` workaround is verbose and hard for the LLM to parse reliably.
+
+### What changed
+
+**New tool: `http_request`** (`src/tools/http-request.ts`, ~155 lines)
+- All HTTP methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+- Custom headers as key-value pairs (authentication, content-type, etc.)
+- Request body for POST/PUT/PATCH (agent formats JSON/form data)
+- Structured response: status line + selected headers + body
+- JSON auto-detection and pretty-printing (via content-type or content shape)
+- Binary response rejection with helpful info (content-type, size, suggests curl)
+- 4xx/5xx marked as `is_error` for agent error handling
+- Configurable timeout (default 30s, max 120s) and response length (default 20K chars)
+
+**Integration:**
+- Registered in tool index (`src/tools/index.ts`) — available in main agent loop
+- Added to delegate explore tools (`src/tools/delegate.ts`) — sub-agents can do API research
+- Added to tool-retry policies (`src/tool-retry.ts`) — transient failures auto-retry
+- System prompt updated with usage guidance (`src/system-prompt.ts`)
+
+**Tests:** 22 new tests (`src/tools/http-request.test.ts`) covering input validation, all methods, response formatting, JSON handling, truncation, binary detection, error signaling, and header passthrough.
+
+### Verified
+- TypeScript typechecks clean
+- Builds to 124KB bundle (up from 118KB)
+- All 244 tests pass (222 existing + 22 new)
+- `node dist/cli.js --help` runs correctly
+
+### Future directions (treat skeptically)
+- Python subprocess tool for data analysis / computation tasks
+- Parallel task orchestration (the LLM can already issue parallel delegate calls via Promise.all, but explicit orchestration patterns could help)
+- Conversation export / report generation for research deliverables
+
 ## Iteration 58 — Automated Metrics Collection and Builder Prompt Calibration
 
 First improver iteration since #54 (which broke step.sh with a timeout wrapper).

@@ -118,6 +118,26 @@ Inspired by Anthropic's "Writing Tools for Agents" and Codex CLI's minimalism:
 | `memory` | Persistent cross-session memory | Save/search/list/delete facts, preferences, conventions |
 | `web_search` | Web search via DuckDuckGo | No API key needed, returns titles/URLs/snippets |
 | `ask_user` | Ask user a question | Interactive via /dev/tty, graceful non-TTY fallback |
+| `http_request` | General-purpose HTTP client | All methods, custom headers, request bodies |
+
+### HTTP Request (`src/tools/http-request.ts`)
+
+General-purpose HTTP client that enables API interaction, service automation, webhook triggers, and endpoint testing.
+
+- **All HTTP methods**: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+- **Custom headers**: Pass any headers as key-value pairs (authentication, content-type, etc.)
+- **Request body**: String body for POST/PUT/PATCH (agent formats JSON/form data)
+- **Response formatting**: Returns status line + selected response headers + body
+- **JSON auto-detection**: Pretty-prints JSON responses for readability (detects via content-type or content shape)
+- **Binary handling**: Rejects binary responses (images, PDFs, etc.) with content-type and size info, suggests curl
+- **Selected header display**: Shows only useful response headers (content-type, location, rate-limit, request-id, etc.) to save tokens
+- **Error signaling**: 4xx/5xx responses marked as `is_error` so the agent knows to handle failures
+- **Configurable timeout**: Default 30s, max 120s
+- **Truncation**: Large responses truncated to `max_response_length` (default 20K chars)
+- **Auto-retry**: Transient network errors and HTTP 429/5xx auto-retry via the tool-retry module
+- **Available in delegation**: Both explore and execute sub-agents have access for API research
+
+Complements `web_fetch` (which is optimized for reading web pages with HTML stripping) and `web_search` (which discovers URLs). `http_request` is for structured API interaction.
 
 ### Web Search (`src/tools/web-search.ts`)
 
@@ -177,7 +197,7 @@ Inspired by Claude Code's Agent tool — spawns a separate LLM call for tasks th
 
 **Two modes:**
 
-- **`explore`** (default): Read-only research and exploration. Tools: `file_read`, `grep`, `glob`, `repo_map`, `web_search`, `web_fetch`. Max 10 turns.
+- **`explore`** (default): Read-only research and exploration. Tools: `file_read`, `grep`, `glob`, `repo_map`, `web_search`, `web_fetch`, `http_request`. Max 10 turns.
 - **`execute`**: Can modify files and run commands. All explore tools plus `file_edit`, `file_write`, `multi_edit`, `shell` (60s timeout cap). Max 15 turns. Reports which files were modified.
 
 **Design decisions:**
@@ -464,16 +484,18 @@ src/
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
     ask-user.ts   — Interactive user questions via /dev/tty (~95 lines)
+    http-request.ts — General-purpose HTTP client for API interaction (~155 lines)
     file-edit.test.ts — Whitespace-tolerant matching unit tests (~135 lines)
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
+    http-request.test.ts — HTTP request tool unit tests (~185 lines)
 ```
 
-Total: ~6970 lines across 54 files (including 15 test files with ~2050 lines).
+Total: ~7310 lines across 57 files (including 17 test files with ~2420 lines).
 
 ## What Makes KOTA Better
 
 1. **Simplicity**: ~5400 lines total vs thousands in competitors. Easy to understand, modify, extend.
-2. **Best-of-breed tools**: 14 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
+2. **Best-of-breed tools**: 15 tools designed using Anthropic's tool design principles (meaningful errors, token-efficient output, defensive defaults).
 3. **Project-aware**: Reads `.kota.md` files from the working directory up the tree (like Claude Code's CLAUDE.md). Project conventions, architecture notes, and preferences are injected into the system prompt automatically.
 4. **Smart error recovery**: Two-tier edit recovery. First, whitespace-tolerant auto-fix: if the content matches after normalizing indentation/trailing spaces, the edit is applied automatically (saving 1-2 turns). If that fails, fuzzy matching (bigram Dice coefficient) finds the closest region and shows it with line numbers and context.
 5. **Persistent sessions**: `AgentSession` class maintains full conversation context across multiple prompts — interactive REPL is a true multi-turn conversation, not isolated one-shots.
@@ -496,17 +518,18 @@ Total: ~6970 lines across 54 files (including 15 test files with ~2050 lines).
 22. **Progressive failure detection**: Two-level stuck-loop detection — 3 identical failures trigger a hard stop; 5 diverse consecutive failures inject guidance to step back and reconsider. Catches the common "agent tries variations that all fail" pattern that simple circuit breakers miss.
 23. **File freshness tracking**: mtime-based detection of files modified between reads and edits. When a shell command or external process changes a file after the agent read it, the agent is warned before attempting an edit — preventing stale-content failures.
 24. **Structured compaction**: When context is compacted, deterministic extraction preserves which files were modified, which commands were run, and what errors occurred — facts that naive LLM summarization reliably loses. The richer representation also feeds more useful context to the LLM summarizer, producing better narrative summaries of goals, decisions, and progress.
-25. **Unit test suite**: 196 tests across 12 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit, tool-retry, message-pruning, error-context) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, whitespace-tolerant matching, retry policy logic, message pruning, and error context enrichment.
+25. **Unit test suite**: 244 tests across 17 modules (FailureTracker, extractWorkingState, CostTracker, MemoryStore, path-resolver, ask-user, verify-tracker, shell-diagnostics, file-edit, tool-retry, message-pruning, error-context, mcp-client, mcp-manager, delegate, http-request) using vitest. Tests cover state machine transitions, message parsing edge cases, pricing arithmetic, search scoring, persistence, file path similarity, interactive tool behavior, verification nudge logic, error extraction patterns, whitespace-tolerant matching, retry policy logic, message pruning, error context enrichment, and HTTP request handling.
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
-29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation. Execute mode sub-agents additionally have `file_edit`, `file_write`, `multi_edit`, and `shell` (60s timeout), enabling the main agent to orchestrate parallel implementation work.
+29. **Research-capable delegation**: Sub-agents have `web_search`, `web_fetch`, and `http_request` in addition to code exploration tools, so delegated research can discover documentation and interact with APIs. Execute mode sub-agents additionally have `file_edit`, `file_write`, `multi_edit`, and `shell` (60s timeout), enabling the main agent to orchestrate parallel implementation work.
 30. **Verification nudge system**: Tracks which files have been edited but not verified via tests/builds. Detects available verification commands from project config (package.json, Makefile, Cargo.toml, pyproject.toml) and surfaces them in the dynamic system prompt. Escalating urgency: after 3 turns of edits without verification, a stronger nudge appears. Resets when the agent runs a verification command.
 31. **Shell error diagnostics**: When shell commands fail with long output (>8K chars), smart extraction finds the diagnostic-relevant lines instead of naive head+tail truncation. Detects TypeScript compiler errors, test runner failures (vitest/jest), lint errors (ESLint/Biome), and generic error patterns. The agent sees extracted errors + output tail, not a random slice of verbose logs.
 32. **Automatic tool retry**: Transient tool failures (shell timeouts, web network errors, HTTP 429/5xx) are automatically retried once with adjusted parameters — shell gets 2× the timeout, web tools get a 1.5s delay. Saves 1-2 turns per transient failure without agent involvement. Bounded to 1 retry, scoped to the main loop only.
 33. **Selective message pruning**: Two-phase context lifecycle extends the agent's effective working memory. At 50% context usage, large read-only tool results (file_read, grep, glob, web_fetch, etc.) from older messages are replaced with compact summaries — preserving conversation structure while recovering tokens. Full LLM-based compaction only triggers at 75%, giving the agent more useful turns before losing detailed context. Deterministic, no LLM call needed, idempotent.
 34. **Error context enrichment**: When shell commands fail with errors that reference specific file paths and line numbers (TypeScript errors, test failures, lint errors, stack traces), the surrounding source code is automatically pre-fetched and appended. Supports TypeScript, ESLint/Biome, Node.js stack traces, and Python tracebacks. Bounded to 5 references with ±5 lines each. Saves the agent 1 turn per error cycle — it can diagnose and fix without a separate `file_read`.
 35. **MCP (Model Context Protocol) client**: Connect external tool servers via the industry-standard MCP protocol. Configure servers in `.kota/mcp.json` (same format as Claude Desktop/Claude Code). Each server's tools are namespaced as `mcp__<server>__<tool>` and routed automatically. Supports stdio transport, graceful degradation on server failure, and async initialization. Transforms KOTA from a closed system into an extensible platform — users can add database access, API integrations, and custom tools without modifying source.
+36. **General-purpose HTTP client**: The `http_request` tool supports all HTTP methods (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS), custom headers, and request bodies. Returns structured responses with status, selected headers, and body. JSON responses are auto-detected and pretty-printed. Binary responses are rejected with helpful info. 4xx/5xx are marked as errors. Transient failures auto-retry. Available in both main loop and delegation. Transforms KOTA from a tool that can only *read* the web into one that can *interact* with APIs and services.
 
 ## Dependencies
 

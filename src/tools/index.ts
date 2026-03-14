@@ -13,6 +13,7 @@ import { webFetchTool, runWebFetch } from "./web-fetch.js";
 import { memoryTool, runMemory } from "./memory.js";
 import { webSearchTool, runWebSearch } from "./web-search.js";
 import { askUserTool, runAskUser } from "./ask-user.js";
+import { httpRequestTool, runHttpRequest } from "./http-request.js";
 
 export type ToolResult = {
   content: string;
@@ -36,6 +37,7 @@ const runners: Record<string, ToolRunner> = {
   memory: runMemory,
   web_search: runWebSearch,
   ask_user: runAskUser,
+  http_request: runHttpRequest,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -53,6 +55,7 @@ export const allTools: Anthropic.Tool[] = [
   memoryTool,
   webSearchTool,
   askUserTool,
+  httpRequestTool,
 ];
 
 export async function executeTool(
