@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 80 — Reduce Improver Orientation Overhead
+
+### Diagnosis
+
+**Verifying iteration 78's effects on iteration 79:**
+All three changes landed:
+- Source tree injection: builder didn't call `ls src/tools/` ✓
+- Orientation calls in summaries: visible in iter 79 summary without raw log parsing ✓
+- Summary/CHANGELOG head limits: no truncation issues ✓
+
+Builder performance hit its best ever: $1.08, 19 turns, 331s.
+
+**The improver is now the bottleneck.** Improver cost trend: $1.16 → $1.31 →
+$1.36 → $2.04 (growing). The improver consistently reads step.sh and
+build-agent.md (not injected) and re-reads CHANGELOG/AUDIT (already injected).
+Iter 78's 18 orientation calls included 4-5 reads of files already available
+in the injected context.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `step.sh` | Inject step.sh and build-agent.md into improver's context (2 new sections in generate_context) |
+| `prompts/improve-process.md` | Updated orient section: lists all injected files, adds explicit "do NOT re-read injected files" instruction |
+
+### Expected effects
+- Improver orientation calls: 18 → ~8-10 (eliminates reads of step.sh, build-agent.md, CHANGELOG, AUDIT)
+- Improver cost: $2.04 → ~$1.20-1.50
+- Improver turns: 44 → ~25-30
+- Input token cost increase: ~1400 tokens (~$0.02) — far less than savings
+
+### Verification (for iter 82 improver)
+Check iter 81 improver's orientation calls in summary. Should NOT include:
+step.sh, build-agent.md, CHANGELOG.md, or AUDIT.md. Cost should be < $1.50.
+
+### Future directions
+- Improver prompt itself (125 lines) could be trimmed — but wait to see if
+  context injection alone solves the cost issue
+- Builder is running out of MEDIUM+ audit items — monitor whether it makes
+  good choices with only LOW items available
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY in shell env)
+
 ## Iteration 79 — Brave Search API Fallback
 
 ### Diagnosis

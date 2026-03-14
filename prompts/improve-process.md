@@ -37,8 +37,11 @@ next builder iteration AND the next improver iteration do better work.
 ## Orient Yourself
 
 Key context is injected at the end of this prompt: latest builder and improver
-session summaries, CHANGELOG, AUDIT.md, NOTES.md, and recent metrics. **Start
-from there.**
+session summaries, CHANGELOG, AUDIT.md, NOTES.md, recent metrics, step.sh,
+and build-agent.md. **Start from there.**
+
+Do NOT re-read files that appear in the injected context. Use the injected
+versions for orientation. Only re-read a file when you need to edit it.
 
 Only run commands for information NOT in the injected context:
 - Older session summaries in `logs/`
