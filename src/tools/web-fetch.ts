@@ -1,12 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./index.js";
+import { extractContent } from "../html-extract.js";
 
 export const webFetchTool: Anthropic.Tool = {
   name: "web_fetch",
   description:
-    "Fetch a web page and return its text content. Use for reading documentation, " +
-    "researching APIs, checking references, and accessing online resources. " +
-    "HTML is stripped to extract readable text.",
+    "Fetch a web page and return its content in Markdown format. Removes " +
+    "boilerplate (navigation, headers, footers, sidebars) and preserves " +
+    "structure (headings, code blocks, lists, links). Use for reading " +
+    "documentation, researching APIs, and accessing online resources.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -64,7 +66,7 @@ export async function runWebFetch(
 
     let text: string;
     if (contentType.includes("html")) {
-      text = stripHtml(raw);
+      text = extractContent(raw);
     } else {
       text = raw;
     }
@@ -87,40 +89,3 @@ export async function runWebFetch(
   }
 }
 
-/** Strip HTML tags and extract readable text */
-function stripHtml(html: string): string {
-  let text = html;
-  // Remove script and style blocks entirely
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
-  text = text.replace(/<noscript[\s\S]*?<\/noscript>/gi, "");
-  // Convert block elements to newlines
-  text = text.replace(/<\/(p|div|h[1-6]|li|tr|br|hr|blockquote|pre)[^>]*>/gi, "\n");
-  text = text.replace(/<br\s*\/?>/gi, "\n");
-  // Strip remaining tags
-  text = text.replace(/<[^>]+>/g, "");
-  // Decode common HTML entities
-  text = decodeEntities(text);
-  // Normalize whitespace
-  text = text.replace(/[ \t]+/g, " ");
-  text = text.replace(/\n[ \t]+/g, "\n");
-  text = text.replace(/\n{3,}/g, "\n\n");
-  return text.trim();
-}
-
-const ENTITY_MAP: Record<string, string> = {
-  "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
-  "&apos;": "'", "&nbsp;": " ", "&mdash;": "—", "&ndash;": "–",
-  "&laquo;": "«", "&raquo;": "»", "&copy;": "©", "&reg;": "®",
-};
-
-function decodeEntities(text: string): string {
-  let result = text;
-  for (const [entity, char] of Object.entries(ENTITY_MAP)) {
-    result = result.replaceAll(entity, char);
-  }
-  // Handle numeric entities: &#123; and &#x1F;
-  result = result.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
-  result = result.replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(Number.parseInt(h, 16)));
-  return result;
-}

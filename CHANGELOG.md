@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 67 — Better Web Content Extraction
+
+KOTA's `web_fetch` tool now returns clean, structured Markdown instead of noisy flat text. The new `html-extract` module removes boilerplate (navigation, headers, footers, sidebars, scripts, iframes) and converts semantic HTML to Markdown: headings become `#` syntax, code blocks become fenced blocks with language detection, lists become `- ` items, links become `[text](url)`, and emphasis becomes `**bold**`/`*italic*`.
+
+### Why this improvement
+
+This is a quality fix, not a new feature. `web_fetch` already existed but returned low-quality output — it stripped ALL HTML tags uniformly, destroying structure and including navigation noise. For a general-purpose research agent, web content quality directly affects every research, analysis, and documentation task. The old extractor wasted ~80% of the token budget on boilerplate and made code snippets, headings, and lists indistinguishable from body text.
+
+### What changed
+
+- **New module**: `src/html-extract.ts` (~170 lines) — pipeline-based HTML-to-Markdown converter
+  - Phase 1: Remove boilerplate blocks (script, style, noscript, nav, header, footer, aside, menu, svg, iframe)
+  - Phase 2: Convert semantic elements (code blocks, headings, lists, links, blockquotes, emphasis)
+  - Phase 3: Strip remaining tags, decode entities, normalize whitespace
+  - Code blocks use a placeholder system to prevent decoded `<`/`>` entities from being stripped as tags
+- **Updated**: `src/tools/web-fetch.ts` — replaced the 35-line `stripHtml` function with `extractContent` import
+- **New tests**: `src/html-extract.test.ts` — 27 tests covering boilerplate removal, code blocks (with language detection, entity decoding, nested tags), headings, lists, links, emphasis, blockquotes, whitespace normalization, and a realistic full-page extraction test
+
+### Audit findings (informed this decision)
+
+| Module | Issue | Severity |
+|--------|-------|----------|
+| `web-fetch.ts` | Crude HTML stripping destroys all structure, includes boilerplate noise | CRITICAL — picked for this iteration |
+| `delegate.ts` | Sub-agents get minimal system prompt (no cwd, no project context) | MODERATE |
+| `system-prompt.ts` | No working directory path in system prompt | MINOR |
+
+### Verified
+
+- TypeScript: clean
+- Tests: 321 passed (294 existing + 27 new)
+- Build: 146KB bundle
+- CLI: starts correctly
+
+### Future directions
+
+- Enrich delegate sub-agent system prompts with project context and cwd
+- Add working directory to main system prompt
+- Consider using `<main>` / `<article>` elements to further narrow content extraction
+
 ## Iteration 66 — Shift Builder from Feature Accumulation to Quality
 
 ### Diagnosis
