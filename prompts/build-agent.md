@@ -108,6 +108,14 @@ tests every iteration but no new capabilities is not improving for users.
    state the impact on real-task performance and cost. Pick the best one.
    "Adds a capability" is weaker justification than "fixes a class of
    failures" or "makes N existing tools work better together."
+   **Scope check**: Before proceeding, write a quick estimate:
+   - New files: ___ (aim for 0–1)
+   - Files to edit: ___ (aim for 2–3)
+   - New tests: ___ (aim for 3–8)
+   If total files touched > 4 or new modules > 1, **scope down** — split
+   into stages and do the first stage this iteration. Capability additions
+   that exceed $1.50 or 25 turns almost always tried to do too much at once.
+   Prefer completing a smaller core piece cleanly over cramming in extras.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
    **Budget: read at most 5 source files before your first edit.** The
    source tree shows each file's exported names — use this to understand

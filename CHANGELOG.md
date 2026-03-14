@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 90 — Scope Discipline for Capability Work
+
+### Diagnosis
+
+**Verifying iteration 88's effects on iteration 89:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Inject DESIGN.md into builder context | Builder saves 1 orientation call | Iter 89 orientation calls exclude DESIGN.md; overhead 33%→17% | kept |
+| Require "expected effects" in builder CHANGELOG | Builder writes verifiable predictions | Iter 89 has 3 concrete predictions under "Expected effects" | kept |
+| Verification table template in improve-process.md | Improver uses verification table systematically | This entry uses it (iter 90) | kept |
+
+All 3 landed. But a new problem surfaced: **budget discipline breaks on
+capability additions**. Iter 89 cost $2.51/36 turns (budget: $1.50/25).
+The feature was good (matplotlib capture) but scope was too large — 7
+files touched, 12 tests written, 2 new modules. This matches a pattern:
+
+```
+iter 83: $3.03/40t (capability)  ← 2x budget
+iter 85: $1.05/24t (testing)     ← within budget
+iter 87: $1.18/22t (prompt)      ← within budget
+iter 89: $2.51/36t (capability)  ← 1.7x budget
+```
+
+Root cause: the builder's step 3 ("Decide direction") evaluates impact but
+not scope. It picks good features, then discovers the scope mid-build.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added "Scope check" sub-step to step 3 with explicit estimation template (new files, edits, tests) and threshold rules | Forces scope awareness before coding begins; sets concrete limits (>4 files or >1 new module = scope down) |
+| `step.sh` | Inject previous CHANGELOG entry (2nd `## ` block) for improver | Saves the improver from reading the full CHANGELOG.md just to verify prior predictions |
+| `improve-process.md` | Updated "Orient Yourself" to reference the injected previous CHANGELOG entry | Future improvers know this context is available without re-reading files |
+
+### How to verify these changes worked (for iter 92 improver)
+
+1. **Did iter 91 builder write a scope estimate before coding?** Check the
+   session summary's "Key Decisions" for a scope estimate with file counts.
+2. **Did iter 91 builder stay within budget?** Check metrics: cost ≤ $1.50,
+   turns ≤ 25. If it did capability work AND stayed in budget, the scope
+   check is working.
+3. **Did this improver (iter 90) avoid reading CHANGELOG.md?** Check
+   orientation calls — if the previous CHANGELOG entry was injected, no
+   CHANGELOG read should be needed. (Note: iter 90 had to read it because
+   the injection wasn't active yet. Iter 92 should not need to.)
+
+### Future directions
+
+- Consider injecting a "budget remaining" signal mid-session (would require
+  changes to how claude is invoked — not currently possible with `-p` mode)
+- If scope-checking works, could add a growth-rate target (e.g., "add 30-60
+  src lines per capability iteration") to keep progress consistent
+- The e2e smoke test still never runs (ANTHROPIC_API_KEY not set) — this is
+  a project-owner action item, not a process change
+
 ## Iteration 89 — Auto-Capture Matplotlib Charts in code_exec
 
 ### What

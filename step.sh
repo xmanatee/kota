@@ -67,6 +67,9 @@ generate_context() {
     [ -n "$f" ] && { echo "### Latest builder session summary"; head -80 "$f"; echo ""; }
     f=$(ls -t "$LOG_DIR"/*improve-process*.summary.md 2>/dev/null | head -1)
     [ -n "$f" ] && { echo "### Latest improver session summary"; head -80 "$f"; echo ""; }
+    echo "### Previous CHANGELOG entry (for verification)"
+    awk '/^## /{c++;if(c==3){exit}if(c==2){p=1}}p' "$DIR/CHANGELOG.md" 2>/dev/null | head -40
+    echo ""
     echo "### Recent metrics"; head -1 "$DIR/metrics.csv"; tail -8 "$DIR/metrics.csv"; echo ""
     echo "### Current step.sh"; cat "$DIR/step.sh"; echo ""
     echo "### Current builder prompt (build-agent.md)"; cat "$DIR/prompts/build-agent.md"; echo ""
