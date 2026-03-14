@@ -193,3 +193,46 @@ describe("file_read: image size formatting", () => {
     expect(result.content).toMatch(/Image:.*\(\d+(\.\d+)?(B|KB|MB)\)/);
   });
 });
+
+describe("file_read: PDF files", () => {
+  it("returns error for empty PDF file", async () => {
+    const path = join(TEST_DIR, "empty.pdf");
+    writeFileSync(path, Buffer.alloc(0));
+    const result = await runFileRead({ path });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("empty");
+  });
+
+  it("treats .pdf files as PDF (not raw text)", async () => {
+    const path = join(TEST_DIR, "doc.pdf");
+    writeFileSync(path, "%PDF-1.4 fake content here");
+    const result = await runFileRead({ path });
+    // Should enter PDF code path — either extract text, report no text,
+    // or error about pdftotext. Never return raw content with line numbers.
+    const c = result.content;
+    expect(
+      c.includes("[PDF:") ||
+      c.includes("pdftotext") ||
+      c.includes("Error reading PDF") ||
+      c.includes("no extractable text"),
+    ).toBe(true);
+  });
+
+  it("handles .PDF extension case-insensitively", async () => {
+    const path = join(TEST_DIR, "UPPER.PDF");
+    writeFileSync(path, "%PDF-1.4 uppercase extension");
+    const result = await runFileRead({ path });
+    const c = result.content;
+    expect(
+      c.includes("[PDF:") ||
+      c.includes("pdftotext") ||
+      c.includes("Error reading PDF") ||
+      c.includes("no extractable text"),
+    ).toBe(true);
+  });
+
+  it("returns error for missing PDF file", async () => {
+    const result = await runFileRead({ path: join(TEST_DIR, "missing.pdf") });
+    expect(result.is_error).toBe(true);
+  });
+});

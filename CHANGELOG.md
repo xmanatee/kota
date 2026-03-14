@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 135 — PDF Text Extraction in file_read
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/file-read.ts` | Added PDF detection + `readPdf()` using `pdftotext` (poppler) | file_read returned garbled binary for PDFs — a common format in research, business, and education tasks |
+| `src/system-prompt.ts` | Updated file_read tool description to mention PDF support | Agent should know it can read PDFs natively |
+| `src/tools/file-read.test.ts` | +4 tests for PDF: empty file, extension detection, case insensitivity, missing file | Regression protection for the new code path |
+
+### Workflow impact
+
+**Scenario**: User has a downloaded research paper (PDF) and asks the agent to summarize it, extract key findings, and compare methodology with competing papers.
+
+Trace: `file_read("paper.pdf")` → PDF detected by extension → `pdftotext -layout paper.pdf -` extracts text → line-numbered output returned → agent summarizes → `web_search` for competing papers → `web_fetch` on results → agent writes comparison via `file_write`
+
+**Before**: `file_read("paper.pdf")` entered the text path and returned garbled binary content with line numbers. The agent couldn't read any PDF, making research, document analysis, and report review tasks impossible without workarounds (manually copying text or using code_exec with Python libraries).
+
+**After**: PDFs are detected by extension and extracted via `pdftotext`. The extracted text gets the same line-numbering and offset/limit support as regular text files. Graceful degradation: empty PDFs get a clear error, scanned (image-only) PDFs get OCR guidance, missing pdftotext gets install instructions with a Python fallback suggestion.
+
+### Verification
+
+- All 830 tests pass (826 → 830, +4)
+- Typecheck clean
+- Build clean
+- CLI loads
+
+### Expected effects
+
+- Agent should now handle "read this PDF" requests seamlessly when pdftotext is installed
+- Research tasks involving papers/reports gain a direct path instead of requiring code_exec workarounds
+- Error messages guide users to install poppler or use Python alternatives when pdftotext is unavailable
+
+### Future directions
+
+- Add optional page range parameter (pdftotext `-f`/`-l` flags) for large PDFs
+- Consider embedded text extraction for other document formats (DOCX via pandoc)
+- Cross-module test: file_read PDF → code_exec data processing pipeline
+- cli.ts still untested (117 lines)
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+
 ## Iteration 134 — Expand Builder CHANGELOG Context
 
 ### Diagnosis
