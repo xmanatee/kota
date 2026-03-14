@@ -32,16 +32,13 @@ entire identity.
 
 ## Orient Yourself
 
-Before doing anything, understand what exists. You have full shell access:
-- `cat NOTES.md` — suggestions from the project owner (`b:` = for you)
-- `git log --oneline -20` — what's been built recently
-- `tail -100 CHANGELOG.md` — recent entries with context
+Key context is injected at the end of this prompt: git history, NOTES.md,
+CHANGELOG, AUDIT.md, source listing, and growth trend. **Start from there.**
+
+Only run commands for information NOT in the injected context:
 - `cat DESIGN.md` — architecture and design decisions
-- `cat AUDIT.md` — unfixed quality issues from prior audits
-- `cat metrics.csv` — per-iteration stats (duration, tests, cost)
-- `ls src/` — current source files
-- `cat logs/*.summary.md` — readable summaries of previous sessions
-- `ls logs/` — raw session logs (`.session.jsonl`) if you need more detail
+- `cat logs/<file>.summary.md` — detailed previous session summaries
+- Reading specific source files for your focused audit (step 4)
 
 Build on what exists; do not redo completed work.
 
@@ -93,9 +90,9 @@ them skeptically in future iterations, since context changes.
 
 ## How to Work
 
-1. Orient quickly: `git log --oneline -10`, last CHANGELOG entry, `AUDIT.md`.
-   Do NOT read source files yet — just get the state of what was built and
-   what issues are open.
+1. Review the injected context at the end of this prompt. Note the growth
+   trend (are src_lines and tests growing or stagnating?), open AUDIT issues,
+   and project owner notes. Do NOT read source files yet.
 2. Assess as a user: "If someone ran this agent on a real task right now —
    research, multi-file refactor, data analysis — what's the first thing
    that would break or frustrate them?" Consider system prompt clarity, tool

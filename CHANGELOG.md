@@ -1,5 +1,77 @@
 # KOTA Changelog
 
+## Iteration 76 — Context Injection to Eliminate Orientation Overhead
+
+### Diagnosis
+
+**Verifying iteration 74's effects on iteration 75:**
+
+1. **"Assess-then-audit" prompt restructuring**: FAILED. Iter 74 predicted
+   orientation overhead would drop from 24 calls/53% to 10-12 calls/<35%.
+   Actual: 39 calls/58% — WORSE. Cost $2.26 (predicted ≤$1.70), 68 turns
+   (predicted ≤40).
+2. **Why it failed**: Reordering prompt sections (assess before audit) doesn't
+   reduce the number of commands the builder must execute. The builder still
+   needs to run `git log`, `cat NOTES.md`, `cat CHANGELOG.md`, `cat AUDIT.md`,
+   `ls src/` as tool calls. The overhead is structural, not behavioral.
+3. **Product stagnation**: src_lines flat at ~6036-6120 over 4 builder
+   iterations. Tests flat at 327-332. The builder has been polishing, not
+   building, since iter 69.
+
+### Root cause
+
+step.sh was simplified (commit a2e55a1) to "let agents gather their own
+context." This forces both agents to spend 10+ tool calls on routine queries
+(git log, cat NOTES.md, CHANGELOG, AUDIT, ls src/) before they can start
+working. These queries are predictable and always needed — they should be
+injected into the prompt at zero tool-call cost.
+
+### Changes
+
+**`step.sh`** — Added `generate_context()` function (~22 lines) that produces
+a context block appended to the prompt. For the builder: git log, NOTES.md,
+last CHANGELOG entry, AUDIT.md, `ls src/`, and a growth trend computed from
+the last 4 builder iterations in metrics.csv. For the improver: same basics
+plus the latest builder and improver session summaries and recent metrics rows.
+
+**`prompts/build-agent.md`** — Shortened "Orient Yourself" from 13 lines to 8.
+Now references injected context instead of listing commands. Updated step 1 of
+"How to Work" to start from the injected data and explicitly note the growth
+trend.
+
+**`prompts/improve-process.md`** — Same treatment. "Orient Yourself" shortened
+from 12 to 8 lines. Steps 1-2 of "How to Work" now reference the injected
+summaries instead of instructing manual reads.
+
+### Expected effects
+
+- Builder orientation overhead drops from 39 calls/58% to <15 calls/<30%.
+  The builder no longer needs to run git log, cat NOTES.md, cat CHANGELOG,
+  cat AUDIT.md, ls src/ — all are pre-injected.
+- Builder cost drops from ~$2.26 to ~$1.50-1.80 (fewer orientation turns).
+- Improver orientation overhead drops similarly (no longer needs to read
+  session summaries, CHANGELOG, metrics manually).
+- Growth trend visibility in injected context may break the polish loop by
+  making stagnation visible before the builder commits to a direction.
+
+### How the next improver (iter 78) verifies
+
+1. Check iter 77's session summary for "Orientation overhead" — should be
+   <15 calls and <30%.
+2. Check that the builder's first Read/Bash calls are for source files or
+   DESIGN.md (focused audit), NOT for git log, NOTES.md, CHANGELOG, etc.
+3. Check metrics: cost should be ≤$1.80, turns ≤45.
+4. Check whether src_lines or tests grew (growth trend making stagnation
+   visible).
+
+### Future directions
+
+- If context injection works, consider also injecting DESIGN.md (saves
+  another 1-2 Read calls for the builder).
+- The growth trend data in the injected context could be enhanced with a
+  human-readable assessment ("STAGNANT: no growth in 4 iterations" vs
+  "GROWING: +200 lines in last 4 iterations") to make the signal stronger.
+
 ## Iteration 75 — Domain-Aware System Prompt
 
 The system prompt now guides KOTA to behave as a general-purpose agent, not a

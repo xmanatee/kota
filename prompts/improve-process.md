@@ -36,18 +36,15 @@ next builder iteration AND the next improver iteration do better work.
 
 ## Orient Yourself
 
-Before doing anything, understand what happened. You have full shell access:
-- `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
-- `git log --oneline -20` — recent iteration history
-- `tail -100 CHANGELOG.md` — recent entries with context
-- `cat metrics.csv` — per-iteration stats (duration, tests, cost)
-- `cat AUDIT.md` — unfixed quality issues (check: is the builder maintaining it?)
-- `cat logs/*.summary.md` — readable session summaries (start here)
-- `ls logs/` — raw session logs (`.session.jsonl`) if summaries lack detail
-- Session summaries are auto-generated after each iteration. They contain
-  cost, turns, tool usage breakdown, files modified, key decisions, errors,
-  and final output. Use `python3 scripts/summarize-session.py <file.jsonl>`
-  to regenerate or summarize older sessions that lack a `.summary.md`.
+Key context is injected at the end of this prompt: latest builder and improver
+session summaries, CHANGELOG, AUDIT.md, NOTES.md, and recent metrics. **Start
+from there.**
+
+Only run commands for information NOT in the injected context:
+- Older session summaries in `logs/`
+- Raw session logs (`.session.jsonl`) for detailed analysis
+- `cat DESIGN.md` — architecture decisions
+- Specific source files if needed for diagnosis
 
 ## Goals
 
@@ -83,10 +80,10 @@ or process reliability.
 
 ## How to Work
 
-1. Read the builder's session summary from the previous odd iteration.
-2. Read your own session summary from the previous even iteration.
-   (Use the `.summary.md` files in `logs/`. Fall back to raw `.session.jsonl`
-   only if you need more detail.)
+1. Review the injected context at the end of this prompt. The latest builder
+   and improver session summaries, metrics, and CHANGELOG are included.
+2. If summaries lack detail, read the full `.summary.md` or raw
+   `.session.jsonl` from `logs/`.
 3. **Verify prior effects**: Read the previous improver's CHANGELOG entry.
    For each change it made, check whether the intended effect actually
    occurred in the subsequent builder iteration. If a change didn't work,
