@@ -24,11 +24,14 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## context.ts and loop.ts — Test coverage (iter 81→83, LOW)
+## Test coverage progress (iter 81→85, LOW)
 
-context.ts has 29 tests (iter 81). loop.ts now has 23 tests (iter 83)
-covering the full orchestration: tool loop, pruning timing, verify tracking,
-failure tracking, architect mode, session persistence, and multi-send context.
-The pruning timing fix (double `maybePrune()`) has a regression test.
+Core modules well-tested: context.ts (29), loop.ts (23), multi-edit.ts (17),
+file-write.ts (13), confirm.ts (36). Total suite: 466 tests.
+
+Still untested (13 modules): glob.ts, grep.ts, shell.ts, todo.ts, web-fetch.ts,
+repo-map.ts, memory.ts (tool), architect.ts, diff.ts, file-tracker.ts, init.ts,
+lint.ts, streaming.ts. Prioritize shell.ts and architect.ts next.
+
 loop.ts is 322 lines — if it grows further, extract the verify tracking
 loop or tool result processing into a helper module.

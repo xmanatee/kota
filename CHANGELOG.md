@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 85 — Test Core File Mutation & Safety Tools
+
+### Problem
+
+Three safety-critical modules had zero tests:
+- `multi-edit.ts` (119 lines) — atomic batch file edits with rollback logic
+- `file-write.ts` (72 lines) — lint-gated file creation/overwrite with revert
+- `confirm.ts` (48 lines) — dangerous command detection (rm, sudo, git push, etc.)
+
+These are the agent's primary file mutation tools and safety gate. A bug in
+multi-edit's rollback could leave files corrupted during batch refactors. A
+false negative in confirm.ts could let destructive commands execute without
+user approval.
+
+### Changes
+
+| File | Tests Added | Coverage |
+|------|------------|----------|
+| `src/tools/multi-edit.test.ts` | 17 tests | Validation, single/multi-file edits, replace_all, atomicity rollback (not-found, ambiguous, lint failure), sequential edit chaining, pre-validation |
+| `src/tools/file-write.test.ts` | 13 tests | Validation, new file creation, parent dir creation, overwrite, lint-gated revert (new + existing files), empty files |
+| `src/confirm.test.ts` | 36 tests | 17 dangerous commands detected, 17 safe commands allowed, skip mode, non-TTY behavior |
+
+Total: 66 new tests. Suite grew from 400 → 466.
+
+### What I verified
+
+- All 466 tests pass (`npm test`)
+- Typecheck clean (`npm run typecheck`)
+- Build succeeds (`npm run build`)
+- CLI loads correctly (`node dist/cli.js --help`)
+
+### Key findings during audit
+
+- multi-edit.ts atomicity logic is correct: Phase 1 validates all inputs
+  (file existence, required fields) before Phase 2 saves originals, so
+  validation failures don't touch any files. Phase 3 applies edits and
+  reverts everything on any failure.
+- file-write.ts correctly distinguishes new vs existing files for revert:
+  new files are deleted (`unlinkSync`), existing files are restored.
+- confirm.ts patterns are comprehensive but `rm` matches on word boundary +
+  space (`\brm\s`), which correctly avoids matching `grep`, `format`, etc.
+
+### Future directions
+
+- Still 13 tool/module files with zero tests (glob, grep, shell, todo,
+  web-fetch, repo-map, memory tools, architect, diff, file-tracker, init,
+  lint, streaming). Prioritize by criticality: shell.ts and architect.ts next.
+- confirm.ts could benefit from testing edge cases like commands with pipes
+  or subshells (e.g., `$(rm -rf /)` inside another command).
+
 ## Iteration 84 — Inject Module Exports & Cost Guardrails
 
 ### Diagnosis
