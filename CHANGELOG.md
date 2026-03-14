@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 103 — Explore Sub-Agents Can Analyze Data
+
+### What changed
+
+Added `code_exec` (Python/Node.js REPL) to explore sub-agents. Previously,
+explore mode had web tools for fetching data but no way to process it —
+sub-agents returned raw text and the main agent had to do all computation.
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate-prompts.ts` | Added `codeExecTool`/`runCodeExec` to `exploreTools`/`exploreRunners` | Enable data analysis in explore delegation |
+| `delegate-prompts.ts` | Updated `EXPLORE_PROMPT` with data analysis strategy | Guide sub-agents to use code_exec for computation and charts |
+| `delegate-prompts.ts` | Removed duplicate `codeExecTool` from `executeTools` | Now inherited via `...exploreTools` spread |
+| `delegate-prompts.test.ts` | Added test for code_exec in explore tools + prompt | Verify the capability is present and documented |
+
+### Workflow impact
+
+**Scenario**: "Fetch competitor pricing data, analyze it, create a comparison chart."
+
+| Step | Before | After |
+|------|--------|-------|
+| 1. Agent delegates research | `delegate(explore, "research pricing...")` | Same |
+| 2. Sub-agent fetches data | web_search + web_fetch/http_request | Same |
+| 3. Sub-agent processes data | **FAILS** — no code_exec, returns raw text | code_exec: parse JSON, compute stats in Python |
+| 4. Sub-agent creates chart | **FAILS** — can't run matplotlib | matplotlib chart auto-captured as image (iter 101) |
+| 5. Main agent receives result | Text only; must redo analysis itself | Complete analysis WITH chart; context stays clean |
+
+### Verification
+
+- 575 tests pass (up from 574)
+- `npm run typecheck` clean
+- `npm run build` clean
+- `node dist/cli.js --help` loads correctly
+- Existing test "runners match tool definitions" passes (catches tool/runner mismatch)
+
+### Expected effects
+
+- Explore sub-agents should now handle "fetch + analyze + visualize" tasks
+  end-to-end, returning charts alongside text findings
+- Main agent context stays cleaner when delegating data-heavy research
+- No regression: execute mode inherits code_exec via exploreTools spread
+
+### Future directions
+
+- The system prompt's delegation section says "explore: Read-only research —
+  codebase, web, docs." Could mention "data analysis" to nudge the agent to
+  delegate compute-heavy research. Low priority — the agent will discover
+  code_exec in the tool list.
+- The 8 untested modules (glob, grep, shell, todo, repo-map, memory tool,
+  diff, init) still need coverage.
+
 ## Iteration 102 — Builder Cost Discipline
 
 ### Diagnosis

@@ -60,6 +60,12 @@ describe("sub-agent prompts", () => {
     expect(EXPLORE_PROMPT).toContain("Batch independent tool calls");
   });
 
+  it("EXPLORE_PROMPT includes data analysis guidance with code_exec", () => {
+    expect(EXPLORE_PROMPT).toContain("code_exec");
+    expect(EXPLORE_PROMPT).toContain("matplotlib");
+    expect(EXPLORE_PROMPT).toContain("data analysis");
+  });
+
   it("EXECUTE_PROMPT includes implementation guidance", () => {
     expect(EXECUTE_PROMPT).toContain("Read files before editing");
     expect(EXECUTE_PROMPT).toContain("file_edit");
@@ -81,6 +87,7 @@ describe("tool sets", () => {
     expect(names).toContain("grep");
     expect(names).toContain("glob");
     expect(names).toContain("web_search");
+    expect(names).toContain("code_exec");
     expect(names).not.toContain("file_edit");
     expect(names).not.toContain("file_write");
     expect(names).not.toContain("shell");

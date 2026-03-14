@@ -21,13 +21,15 @@ export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information 
 ## Strategy
 - For codebases: repo_map first for structure, then targeted file_read + grep.
 - For web research: web_search with 2-3 diverse queries, then web_fetch top sources.
+- For data analysis: use code_exec (Python/Node.js REPL) to process numbers, compute statistics, or create matplotlib charts. Charts are auto-captured as images.
 - Batch independent tool calls in one turn (e.g., grep + glob together).
 - Cross-reference findings across multiple sources. Note disagreements.
-- You have read-only access — you cannot modify files.
+- You have read-only access — you cannot modify project files.
 
 ## Response Format
 - Lead with the answer, not the process you followed.
 - Use tables for comparisons. Cite URLs for web findings.
+- Include charts/visualizations when data supports it.
 - Distinguish confirmed facts from inferences. Flag outdated information.`;
 
 export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the assigned task precisely.
@@ -88,6 +90,7 @@ export const exploreTools: Anthropic.Tool[] = [
   webFetchTool,
   webSearchTool,
   httpRequestTool,
+  codeExecTool,
 ];
 
 export const exploreRunners: Record<string, ToolRunner> = {
@@ -98,6 +101,7 @@ export const exploreRunners: Record<string, ToolRunner> = {
   web_fetch: runWebFetch,
   web_search: runWebSearch,
   http_request: runHttpRequest,
+  code_exec: runCodeExec,
 };
 
 export const executeTools: Anthropic.Tool[] = [
@@ -107,7 +111,6 @@ export const executeTools: Anthropic.Tool[] = [
   multiEditTool,
   subShellTool,
   processTool,
-  codeExecTool,
 ];
 
 export const executeRunners: Record<string, ToolRunner> = {
@@ -117,7 +120,6 @@ export const executeRunners: Record<string, ToolRunner> = {
   multi_edit: runMultiEdit,
   shell: runShellBounded,
   process: runProcess,
-  code_exec: runCodeExec,
 };
 
 // --- Prompt builder ---
