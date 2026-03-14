@@ -13,6 +13,7 @@ import { httpRequestTool, runHttpRequest } from "./tools/http-request.js";
 import { runShell } from "./tools/shell.js";
 import { processTool, runProcess } from "./tools/process.js";
 import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
+import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
 
 // --- Sub-agent system prompts ---
 
@@ -111,6 +112,7 @@ export const executeTools: Anthropic.Tool[] = [
   multiEditTool,
   subShellTool,
   processTool,
+  findReplaceTool,
 ];
 
 export const executeRunners: Record<string, ToolRunner> = {
@@ -120,6 +122,7 @@ export const executeRunners: Record<string, ToolRunner> = {
   multi_edit: runMultiEdit,
   shell: runShellBounded,
   process: runProcess,
+  find_replace: runFindReplace,
 };
 
 // --- Prompt builder ---

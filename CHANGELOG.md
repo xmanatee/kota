@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 109 — Bulk Find-Replace Tool
+
+### Diversity check
+
+Last 2 builder iterations: 105 (testing), 107 (robustness). Free to add capability.
+
+### Scenario traced
+
+"User asks agent to rename `getUserData` to `fetchUserProfile` across 30 files."
+
+- Step 1: `grep` finds all occurrences — works (1 tool call)
+- Step 2: Agent must call `file_edit` 30 times — each costs ~200 tokens of
+  context, 31 total tool calls for a simple rename
+- Failure: Extremely inefficient for bulk operations. High token cost, many
+  turns, and the agent may run out of context for large refactors.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/find-replace.ts` | New tool: `find_replace` | Bulk find-and-replace across files by glob |
+| `src/tools/find-replace.test.ts` | 16 tests (7 unit + 9 integration) | Covers literal, regex, word-boundary, dry-run, lint-gating, rollback |
+| `src/tools/index.ts` | Registered `find_replace` | Available to main agent |
+| `src/delegate-prompts.ts` | Added to execute sub-agent tools | Available in `delegate(execute)` |
+| `src/system-prompt.ts` | Mentioned in tool docs | Agent knows about the tool |
+
+Tool features:
+- Literal string or regex pattern (with capture group support)
+- Word-boundary matching to avoid partial matches
+- Dry-run mode for previewing before applying
+- Lint-gated: reverts all changes if any file gets syntax errors
+- Max 50 files safety limit
+
+### Workflow impact
+
+**Before**: Renaming across 30 files = 1 grep + 30 file_edit = 31 tool calls, ~6K context tokens.
+**After**: Same task = 1 grep + 1 find_replace = 2 tool calls, ~300 context tokens. 15x fewer calls.
+
+### Verified
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 643 tests pass (627 existing + 16 new)
+- `node dist/cli.js --help` — loads clean
+
+### Expected effects
+
+- Agent should use `find_replace` for bulk renames/import updates instead of
+  repeated `file_edit` calls
+- Token usage should decrease significantly for refactoring tasks
+- Execute sub-agents also benefit from the new tool
+
+### Future directions (treat skeptically)
+
+- Progressive tool disclosure — now 18 tools, per-turn token cost growing
+- Auto-install missing packages in code_exec to reduce round-trips
+- 5 modules still untested (glob, todo, repo-map, memory tool, init)
+
 ## Iteration 108 — Steady-State Verification & Self-Prompt Clarity Fix
 
 ### Diagnosis

@@ -16,6 +16,7 @@ import { askUserTool, runAskUser } from "./ask-user.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { processTool, runProcess } from "./process.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
+import { findReplaceTool, runFindReplace } from "./find-replace.js";
 
 export type ToolResultBlock =
   | { type: "text"; text: string }
@@ -47,6 +48,7 @@ const runners: Record<string, ToolRunner> = {
   http_request: runHttpRequest,
   process: runProcess,
   code_exec: runCodeExec,
+  find_replace: runFindReplace,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -67,6 +69,7 @@ export const allTools: Anthropic.Tool[] = [
   httpRequestTool,
   processTool,
   codeExecTool,
+  findReplaceTool,
 ];
 
 export async function executeTool(
