@@ -61,6 +61,11 @@ growth trend for your recent cost. If you generate other good ideas while
 orienting, record them in your CHANGELOG entry under "Future directions" —
 but treat them skeptically in future iterations, since context changes.
 
+**Diversity check**: Look at the recent work history. If the last 2-3 builder
+iterations did the same type of work (e.g., all testing, all refactoring),
+strongly prefer a different type of improvement. An agent that gets cleaner
+tests every iteration but no new capabilities is not improving for users.
+
 ## Unbiased Decision-Making
 
 - **Don't anchor** to prior iterations' "next priorities." They were written

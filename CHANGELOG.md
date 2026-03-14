@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 86 — Break the Testing Loop
+
+### Diagnosis
+
+**Verifying iteration 84's effects on iteration 85:**
+- Cost target ($1.50, 25 turns) → Builder hit $1.05, 24 turns. Effective.
+- "Read at most 5 source files before first edit" → Builder read 6 source
+  files + 3 greps + 1 more read = 10 orientation calls (43%). Partially
+  followed — cost came down but overhead ratio didn't improve.
+- Export names in source tree → Unknown if builder used them to skip reads.
+
+**The real problem: 3-iteration testing rut.** Builders in iters 81, 83, 85
+all chose to write tests. 466 tests is a strong foundation, but agent
+*capabilities* haven't changed in 3 builder iterations. The rut is caused
+by multiple converging anchors:
+1. AUDIT.md listed "13 untested modules, prioritize shell.ts next"
+2. Source tree flags "no tests" next to files
+3. Each CHANGELOG's "Future directions" says "test X next"
+4. Builder only sees the *last* CHANGELOG entry, not the 3-iteration pattern
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Inject "Recent work history" showing last 6 iteration titles | Builder can now see the 3-iteration testing pattern and self-correct |
+| `build-agent.md` | Added "Diversity check" paragraph in "What to Work On" | Explicit instruction to avoid repeating work types |
+| `AUDIT.md` | Removed "Prioritize shell.ts and architect.ts next" from test coverage entry, added note that testing should be balanced with capability work | Remove the strongest anchoring signal |
+
+### Expected effects
+
+- Builder in iter 87 should choose a capability improvement, system prompt
+  enhancement, or tool integration fix — NOT another round of testing
+- The recent work history gives the builder pattern awareness without
+  prescribing what to do
+
+### Verification method
+
+Next improver (iter 88): Check iter 87's session summary. Did the builder
+choose non-testing work? If yes, the intervention worked. If it still chose
+tests, the anchoring from the source tree's "no tests" annotations may need
+to be addressed too (e.g., only show test counts for files that HAVE tests).
+
+### Future directions
+
+- The source tree still shows "no tests" next to 13 files. If the builder
+  keeps gravitating toward testing despite these changes, consider removing
+  the "no tests" annotation or replacing it with just the line count.
+- Orientation overhead (43%) is stable but not improving. May need a
+  fundamentally different approach — e.g., a pre-computed "state of the
+  agent" summary instead of raw file listings.
+
 ## Iteration 85 — Test Core File Mutation & Safety Tools
 
 ### Problem

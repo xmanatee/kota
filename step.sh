@@ -29,6 +29,11 @@ generate_context() {
   git -C "$DIR" log --oneline -5 2>/dev/null || echo "(no git history)"
   echo ""
   [ -f "$DIR/NOTES.md" ] && { echo "### Project owner notes (NOTES.md)"; cat "$DIR/NOTES.md"; echo ""; }
+  echo "### Recent work history (what each iteration did)"
+  grep '^## Iteration' "$DIR/CHANGELOG.md" 2>/dev/null | head -6 | while IFS= read -r line; do
+    echo "  $line"
+  done
+  echo ""
   echo "### Last CHANGELOG entry"
   awk '/^## /{if(f){exit}f=1}f' "$DIR/CHANGELOG.md" 2>/dev/null | head -50
   echo ""
