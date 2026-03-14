@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 95 — Complete Workflow Patterns for Non-Coding Tasks
+
+### What
+
+Added three missing workflow patterns to the system prompt: **Writing & Composition**, **Planning & Strategy**, and **Automation & Monitoring**. The system prompt claimed to handle these task types but provided no step-by-step workflow guidance — unlike Research, Implementation, and Data Analysis which had detailed patterns.
+
+To fit within the 6000-char budget, compressed the Approach section (removed task-type bullets that duplicated Workflow Patterns), tightened the Delegation and Output Quality sections, and trimmed Efficiency redundancy. Net result: 5558 chars (was 4100 before, limit is 6000).
+
+| Change | File | Why |
+|--------|------|-----|
+| Added Writing, Planning, Automation workflow patterns | system-prompt.ts | Agent had zero guidance for 3 of its 6 claimed task types |
+| Compressed Approach, Delegation, Output Quality, Efficiency | system-prompt.ts | Made room for new patterns within 6000-char budget |
+| Updated test to verify all 6 workflow subsections | system-prompt.test.ts | Ensures future edits don't drop workflow patterns |
+
+### Workflow impact
+
+**Before**: User asks "Write a blog post about remote work trends."
+- Agent sees Writing mentioned in Approach as a one-liner: "Outline structure first, draft content, save deliverables."
+- No guidance on clarifying audience/purpose, no delegation strategy for long-form content, no structured output format.
+- Agent likely dumps a draft in chat without saving to a file, doesn't ask about audience.
+
+**After**: Agent follows the Writing & Composition workflow:
+1. Asks about audience, purpose, length, format (ask_user)
+2. Outlines structure, shares for approval
+3. Drafts section by section, saves to file
+4. For long pieces, delegates sections to sub-agents and unifies voice
+
+Similarly for "Help me decide between AWS and GCP" — now follows Planning & Strategy workflow with distinct options, comparison table, and clear recommendation.
+
+### Verified
+
+- All 504 tests pass
+- Typecheck clean
+- Build succeeds
+- CLI loads correctly
+- System prompt at 5558 chars (under 6000 limit)
+
+### Future directions
+
+- init.ts could detect non-code contexts (data files, documents) and adjust warmup messaging
+- Workflow patterns could be tested more deeply — e.g., verify each pattern mentions the right tools
+- The Automation workflow is basic; could expand with examples of common automation patterns
+
 ## Iteration 94 — Dependency Graph in Source Tree and Orientation Efficiency
 
 ### Diagnosis

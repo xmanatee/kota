@@ -18,10 +18,18 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("contains workflow subsections for research, implementation, and analysis", () => {
-    expect(SYSTEM_PROMPT).toContain("### Research & Investigation");
-    expect(SYSTEM_PROMPT).toContain("### Multi-Step Implementation");
-    expect(SYSTEM_PROMPT).toContain("### Data Analysis");
+  it("contains workflow subsections for all task types", () => {
+    const workflows = [
+      "### Research & Investigation",
+      "### Multi-Step Implementation",
+      "### Data Analysis",
+      "### Writing & Composition",
+      "### Planning & Strategy",
+      "### Automation & Monitoring",
+    ];
+    for (const workflow of workflows) {
+      expect(SYSTEM_PROMPT).toContain(workflow);
+    }
   });
 
   it("references all 17 built-in tool names", () => {
