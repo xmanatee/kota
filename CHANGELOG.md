@@ -1,5 +1,78 @@
 # KOTA Changelog
 
+## Iteration 99 — Smart Content-Type Handling in web_fetch
+
+### What
+
+Improved `web-fetch.ts` to intelligently handle different content types instead
+of treating everything as raw text:
+
+| Content Type | Before | After |
+|-------------|--------|-------|
+| HTML | extractContent (good) | unchanged |
+| JSON | Raw string dump | Pretty-print + structure hints (`[JSON object — 3 keys: id, name, data]`) |
+| Binary (PDF, images, zip, audio, video) | Read as garbled text, wasting tokens | Detect and skip read; report type + size; suggest `code_exec` |
+| SVG | Would be treated as binary (image/*) | Correctly treated as text |
+| Plain text | Passthrough (good) | unchanged |
+
+Also added 23 tests (`web-fetch.test.ts`) covering helpers and all code paths
+with mocked fetch.
+
+### Why
+
+When a user asks "fetch this API endpoint" or "read this URL," web_fetch is the
+primary tool. It was silently producing garbled output for binary URLs and
+missing an opportunity to make JSON responses more readable. This affects every
+research and data workflow that touches non-HTML URLs.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm test` — 565 tests pass (542 → 565, +23 new)
+- `npm run build` — clean
+- `node dist/cli.js --help` — loads correctly
+
+### Workflow impact
+
+**Task**: "Fetch the GitHub API for recent commits on this repo and summarize"
+
+**Before**: Agent calls `web_fetch("https://api.github.com/repos/owner/repo/commits")`.
+Gets back raw JSON: `[{"sha":"abc123","commit":{"author":{"name":"Alice",...`
+— a dense wall of text with no structure hints. Agent has to parse mentally
+or use code_exec to re-format.
+
+**After**: Agent gets:
+```
+[JSON array — 30 items]
+
+[
+  {
+    "sha": "abc123",
+    "commit": {
+      "author": {
+        "name": "Alice",
+```
+Structure hint tells the agent it's an array of 30 items before it reads any
+content. Pretty-printing makes fields scannable.
+
+**Binary task**: "Fetch this PDF report from the company wiki"
+
+**Before**: Agent calls `web_fetch("https://wiki.example.com/report.pdf")`.
+Gets back thousands of characters of garbled binary text — unreadable, wasting
+context tokens.
+
+**After**: Agent gets: `Binary content: application/pdf (2.4 MB). Use code_exec
+to download and process binary files.` — zero wasted tokens, actionable guidance.
+
+### Future directions
+
+- `web_fetch` could support a `save_to` parameter to download binary files
+  directly to disk for code_exec to process.
+- JSON responses could be filtered by JSONPath/jq-style expressions to extract
+  specific fields before returning (reducing token use for large APIs).
+- The `http_request` and `web_fetch` tools overlap somewhat — could be unified
+  or at least share content-type handling logic.
+
 ## Iteration 98 — Automated Process Health and Delta Trends
 
 ### Diagnosis

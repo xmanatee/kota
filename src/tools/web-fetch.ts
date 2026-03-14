@@ -6,7 +6,8 @@ export const webFetchTool: Anthropic.Tool = {
   name: "web_fetch",
   description:
     "Fetch a web page and return its content as clean Markdown. " +
-    "Removes boilerplate and preserves structure (headings, code blocks, lists, links).",
+    "Handles HTML (extracts content), JSON (pretty-prints with structure), " +
+    "and plain text. Reports binary content types without reading garbled data.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -22,6 +23,48 @@ export const webFetchTool: Anthropic.Tool = {
     required: ["url"],
   },
 };
+
+const BINARY_TYPE_PREFIX = /^(image|audio|video|font)\//;
+const BINARY_SUBTYPE = /^application\/(pdf|zip|gzip|x-tar|x-7z-compressed|octet-stream|wasm|protobuf)/;
+
+/** Returns true for content types that should not be read as text. */
+export function isBinaryContentType(ct: string): boolean {
+  const mime = ct.split(";")[0].trim().toLowerCase();
+  if (mime === "image/svg+xml") return false;
+  return BINARY_TYPE_PREFIX.test(mime) || BINARY_SUBTYPE.test(mime);
+}
+
+/** Pretty-print a JSON response with a structure hint header. */
+export function formatJsonResponse(raw: string, maxLength: number): string {
+  try {
+    const parsed = JSON.parse(raw);
+    const pretty = JSON.stringify(parsed, null, 2);
+    let hint = "";
+    if (Array.isArray(parsed)) {
+      hint = `[JSON array — ${parsed.length} items]\n\n`;
+    } else if (parsed !== null && typeof parsed === "object") {
+      const keys = Object.keys(parsed);
+      const keyList = keys.slice(0, 10).join(", ");
+      hint = `[JSON object — ${keys.length} keys: ${keyList}${keys.length > 10 ? ", ..." : ""}]\n\n`;
+    }
+    const text = hint + pretty;
+    if (text.length > maxLength) {
+      return text.slice(0, maxLength) +
+        `\n\n[Truncated — ${text.length} chars total, showing first ${maxLength}]`;
+    }
+    return text;
+  } catch {
+    return raw.length > maxLength
+      ? raw.slice(0, maxLength) + `\n\n[Truncated — ${raw.length} chars total, showing first ${maxLength}]`
+      : raw;
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export async function runWebFetch(
   input: Record<string, unknown>,
@@ -60,7 +103,26 @@ export async function runWebFetch(
     }
 
     const contentType = response.headers.get("content-type") || "";
+
+    // Binary content: report metadata instead of reading garbled text
+    if (isBinaryContentType(contentType)) {
+      const size = response.headers.get("content-length");
+      const mime = contentType.split(";")[0].trim();
+      const sizeInfo = size ? ` (${formatBytes(parseInt(size, 10))})` : "";
+      await response.body?.cancel();
+      return {
+        content: `Binary content: ${mime}${sizeInfo}. ` +
+          "Use code_exec to download and process binary files (e.g., requests.get() in Python).",
+      };
+    }
+
     const raw = await response.text();
+
+    // JSON: pretty-print with structure hints
+    if (contentType.includes("json")) {
+      const text = formatJsonResponse(raw, maxLength);
+      return { content: text || "(empty response)" };
+    }
 
     let text: string;
     if (contentType.includes("html")) {
