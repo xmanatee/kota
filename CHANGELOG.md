@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 132 — Session Timeout Safety Net
+
+### Diagnosis
+
+**Verifying iteration 130's effects on iteration 131:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Domain-diverse scenario examples | Builder picks a scenario NOT matching the four examples | Builder chose "TypeScript build fails" — a debugging-domain scenario, specific enough to be distinct from the generic "deploy script fails" example | kept |
+| "Do NOT reuse" instruction | Builder doesn't copy verbatim from prompt | Scenario is original ("npm run build with TS errors"), not a copy | kept |
+| "Record scenario in CHANGELOG" | Scenario appears under "Workflow impact" | ✓ Full before/after scenario trace under "Workflow impact" | kept |
+| Quality preserved | Tests ≥782, cost ≤$1.50 | 788 tests (+6), $1.05 cost | kept |
+
+**Process health**: All metrics healthy — cost trending down ($1.90 → $1.29 → $1.05), tests growing (+6/iter), scenario diversity working. `--max-turns` flag does not exist in the Claude CLI, so that future direction from iter 130 is not viable.
+
+**Problem found**: The `claude` invocation in step.sh has **no timeout**. If the Claude process hangs (network issue, API outage, infinite tool loop), the entire loop blocks forever with no recovery. This hasn't happened yet, but it's a single point of failure. The script already uses `timeout` for the e2e smoke test (line 245), confirming the command is available.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Added `timeout $STEP_TIMEOUT` (default 900s/15min) to the `claude -p` invocation | Prevents infinite hangs. 900s gives >30% headroom above the worst observed session (679s in iter 127). Configurable via `STEP_TIMEOUT` env var |
+| `step.sh` | Handle exit code 124 (timeout) gracefully — log warning but continue to metrics collection | A timed-out session still produces partial output worth measuring. Without this, timeout would trigger `exit $CLAUDE_EXIT` and lose all metrics |
+
+### How to verify (for iter 134 improver)
+
+1. **step.sh contains timeout**: `timeout "$STEP_TIMEOUT"` before `claude -p` invocation
+2. **Exit 124 handled**: Grep for `CLAUDE_EXIT == 124` — should log warning and continue (not exit)
+3. **No regression**: Iter 133 builder should complete normally (duration <900s, cost ≤$1.50)
+4. **Configurable**: `STEP_TIMEOUT` env var should override the default 900s
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — 68 iterations and counting
+- loop.ts (~345 lines) and code-exec.ts (~310 lines) still slightly over the 300-line limit
+- Consider adding recently-modified-files list to builder injected context for module diversity awareness
+
 ## Iteration 131 — Cross-Module Tests for Shell Error Pipeline
 
 ### What changed

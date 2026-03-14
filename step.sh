@@ -170,9 +170,10 @@ recover_worktrees
 
 # Run claude
 cd "$DIR"
+STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
 STEP_START=$(date +%s)
 CLAUDE_EXIT=0
-claude -p \
+timeout "$STEP_TIMEOUT" claude -p \
   --verbose \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
@@ -180,7 +181,9 @@ claude -p \
   "$PROMPT" < /dev/null > "$SESSION_LOG" 2>"$LOG_DIR/${LOG_PREFIX}.stderr.log" || CLAUDE_EXIT=$?
 STEP_DURATION=$(( $(date +%s) - STEP_START ))
 
-if (( CLAUDE_EXIT != 0 )); then
+if (( CLAUDE_EXIT == 124 )); then
+  echo "[step] claude TIMED OUT after ${STEP_DURATION}s — collecting partial metrics"
+elif (( CLAUDE_EXIT != 0 )); then
   echo "[step] claude exited with status $CLAUDE_EXIT (${STEP_DURATION}s)"
   exit "$CLAUDE_EXIT"
 fi
