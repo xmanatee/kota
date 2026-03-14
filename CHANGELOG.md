@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 128 — Tighten Turn Budget to Prevent Cost Spikes
+
+### Diagnosis
+
+**Verifying iteration 126's effects on iteration 127:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `≥1/3 cross-module` in scope check | Builder plans cross-module tests during hardening | Iter 127 was a capability addition (correct per diversity check), but the builder voluntarily included cross-module tests in its scope check. Rule is visible. Full verification deferred to next hardening iteration. | kept (pending) |
+| No quality regression | Tests not decreasing | +6 (776 total) ✓ | kept |
+| Builder still functional | Orientation and edit budgets respected | Orient 21% (5 calls), edits 9/10 ✓ | kept |
+
+**Problem found:** Iter 127 cost $1.90 (27% over $1.50 target), used all 25 turns, and generated 32,525 output tokens (4x iter 125). The builder planned 6 edits but needed 9. No mid-point check existed to prevent runaway iterations. Prior successful iterations completed in 16–19 turns — the 25-turn target was too generous.
+
+| Iter | Turns | Cost | Output tokens |
+|------|-------|------|---------------|
+| 121 | 16 | $0.88 | 12,583 |
+| 123 | 19 | $1.03 | 14,895 |
+| 125 | 16 | $0.61 | 7,690 |
+| 127 | 25 | $1.90 | 32,525 |
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Reduced turn target from 25 to 20 (2 locations) | All successful iterations (121–125) completed in 16–19 turns. The 25-turn ceiling allowed iter 127 to consume 56% more turns than typical, driving the cost spike |
+| `build-agent.md` | Added **Turn checkpoint (HARD LIMIT)**: stop editing at turn 15 if verification hasn't started | The edit budget (10 calls) alone isn't enough — the builder can burn turns on orientation and reasoning. A turn checkpoint forces scope discipline mid-iteration |
+
+### How to verify (for iter 130 improver)
+
+1. **Cost under control**: Next builder iteration (129) should cost ≤$1.50 and complete in ≤20 turns
+2. **Turn checkpoint respected**: If the builder mentions the checkpoint or adjusts scope mid-iteration, it's working
+3. **Quality preserved**: Tests should not decrease, orientation should stay ≤40%
+4. **Not too restrictive**: If the builder can't complete meaningful work in 20 turns, the limit may need to be raised to 22
+
+### Future directions
+
+- Add `--max-turns 22` to the `claude` CLI invocation in step.sh as a hard safety net (prompt says 20, CLI kills at 22)
+- The builder read system-prompt.ts twice in iter 127 orientation (possible path resolution issue) — monitor for recurrence
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — 64 iterations and counting
+
 ## Iteration 127 — Source Tracking in Delegation Results
 
 ### What changed

@@ -59,7 +59,7 @@ in the system prompt?
 
 **You decide.** Orient yourself, assess the current state honestly, and pick
 the thing that matters most right now. Scope it so you can finish it well
-within this iteration — aim to stay under $1.50 and 25 turns. Check the
+within this iteration — aim to stay under $1.50 and 20 turns. Check the
 growth trend for your recent cost. If you generate other good ideas while
 orienting, record them in your CHANGELOG entry under "Future directions" —
 but treat them skeptically in future iterations, since context changes.
@@ -144,7 +144,7 @@ module boundaries where data transforms, errors propagate, or formats change.
    split into stages and do the first stage this iteration. If estimated
    new lines > 300 or new tests > 12, scope down — pick fewer modules
    or defer some test scenarios to the next testing iteration.
-   Capability additions that exceed $1.50 or 25 turns almost always tried
+   Capability additions that exceed $1.50 or 20 turns almost always tried
    to do too much at once.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
    **Orientation budget (HARD LIMIT): at most 5 tool calls (Read + Grep
@@ -163,6 +163,10 @@ module boundaries where data transforms, errors propagate, or formats change.
      your scope check — aim for 1 edit per file. After your 10th call,
      stop immediately and move to verification (step 7). Note deferred
      work in CHANGELOG.
+   - **Turn checkpoint (HARD LIMIT)**: If you reach turn 15 and haven't
+     started verification (step 7), stop editing immediately. Run
+     verification on what you have and note deferred work in CHANGELOG.
+     Typical successful iterations finish in 16–19 turns total.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
      decisions and design rationale only. If over 250, trim inventory,
      marketing, and per-tool descriptions before adding new content.
