@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 101 — Sub-Agent Image Propagation
+
+### Scenario traced
+
+"User delegates data analysis: 'Analyze this CSV and create a chart showing
+trends.' Sub-agent runs code_exec with matplotlib, produces a chart."
+
+**Before**: Sub-agent's tool results dropped `blocks` (images). The sub-agent
+couldn't see its own charts, and the main agent received only text
+descriptions. Matplotlib output from delegated work was silently lost.
+
+**After**: Image blocks flow through the entire delegation pipeline:
+1. Sub-agent sees its own images via proper `tool_result` content blocks
+2. Images are collected across turns (capped at 10)
+3. Main agent receives images as `blocks` in the ToolResult, matching how the
+   main loop handles rich content (`context.ts:107-108`)
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate.ts` | Preserve `blocks` in tool result objects during sub-agent loop | Sub-agent was dropping image blocks from code_exec/file_read results |
+| `delegate.ts` | Use blocks-aware content format for `tool_result` messages | Sub-agent couldn't see its own matplotlib charts or images |
+| `delegate.ts` | Collect image blocks and return them in final ToolResult | Main agent and user never saw visualizations from delegated work |
+| `delegate.ts` | Extract `buildDelegateResult` and `collectImageBlocks` as testable functions | Enable unit testing of image propagation logic |
+| `delegate.test.ts` | Add 9 tests for image propagation | Cover: text-only results, image blocks, collection cap, mixed content |
+
+### Workflow impact
+
+Re-tracing the same scenario with changes applied:
+- Step 1: User delegates data analysis → `delegate(explore, "analyze CSV...")`
+- Step 2: Sub-agent calls `code_exec` with matplotlib → returns ToolResult with
+  `blocks` containing chart image
+- Step 3 (was broken): Tool result preserves `blocks` → sub-agent sees the
+  chart as an image content block and can iterate on the visualization
+- Step 4 (was broken): `collectImageBlocks` captures the chart → main agent's
+  ToolResult includes `blocks` with the chart → user sees the actual image
+
+### Verified
+
+- TypeScript: `npm run typecheck` — clean
+- Tests: `npm test` — 574 passed (9 new, 0 failures)
+- Build: `npm run build` — clean
+- CLI: `node dist/cli.js --help` — loads without errors
+
+### Expected effects
+
+- Delegated data analysis tasks now propagate matplotlib charts to the user
+  (previously text-only descriptions)
+- Sub-agents can iterate on visualizations (see their own chart output)
+- `file_read` of images in sub-agents propagates to the main context
+- Image cap (10) prevents context explosion from many charts
+
+### Future directions
+
+- Test with real API calls to verify end-to-end image flow through the
+  Anthropic Messages API
+- Consider adding image propagation summary in delegate log output
+  (e.g., "[kota] delegate done — 3 turn(s), 2 images")
+
 ## Iteration 100 — Scenario-Driven Builder Decisions
 
 ### Diagnosis

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
+import type { ToolResult, ToolResultBlock } from "./index.js";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
 import {
@@ -40,6 +40,7 @@ const EXPLORE_MAX_TURNS = 10;
 const EXECUTE_MAX_TURNS = 15;
 const SUB_AGENT_RESULT_LIMIT = 30_000;
 const IDENTICAL_FAILURE_LIMIT = 3;
+const MAX_DELEGATE_IMAGES = 10;
 
 // --- Delegate configuration (set by main session) ---
 
@@ -79,6 +80,37 @@ export function extractModifiedFiles(
   return [];
 }
 
+/** Build a ToolResult with optional image blocks from delegation. */
+export function buildDelegateResult(
+  text: string,
+  images: ToolResultBlock[],
+): ToolResult {
+  if (images.length === 0) return { content: text };
+  return {
+    content: text,
+    blocks: [{ type: "text" as const, text }, ...images],
+  };
+}
+
+/** Collect image blocks from tool results, up to a maximum count. */
+export function collectImageBlocks(
+  results: Array<{ blocks?: ToolResultBlock[] }>,
+  existing: ToolResultBlock[],
+  max: number,
+): ToolResultBlock[] {
+  const collected = [...existing];
+  for (const r of results) {
+    if (r.blocks) {
+      for (const b of r.blocks) {
+        if (b.type === "image" && collected.length < max) {
+          collected.push(b);
+        }
+      }
+    }
+  }
+  return collected;
+}
+
 // --- Main delegate runner ---
 
 export async function runDelegate(
@@ -101,6 +133,7 @@ export async function runDelegate(
   const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
   const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
   const modifiedFiles = new Set<string>();
+  const collectedImages: ToolResultBlock[] = [];
 
   const client = delegateConfig.client ?? new Anthropic();
   const costTracker = delegateConfig.costTracker;
@@ -201,12 +234,18 @@ export async function runDelegate(
         return {
           tool_use_id: block.id,
           content: truncateToolResult(result.content, SUB_AGENT_RESULT_LIMIT),
+          blocks: result.blocks,
           is_error: result.is_error,
         };
       }),
     );
 
     const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
+
+    // Collect image blocks for propagation to the main agent
+    const updated = collectImageBlocks(validResults, collectedImages, MAX_DELEGATE_IMAGES);
+    collectedImages.length = 0;
+    collectedImages.push(...updated);
 
     // Failure tracking: circuit break on repeated identical errors
     const failedResults = validResults.filter((r) => r.is_error);
@@ -230,12 +269,15 @@ export async function runDelegate(
       lastErrorSig = "";
     }
 
+    // Pass rich content (images) to sub-agent so it can see its own outputs
     messages.push({
       role: "user",
       content: validResults.map((r) => ({
         type: "tool_result" as const,
         tool_use_id: r.tool_use_id,
-        content: r.content,
+        content: r.blocks
+          ? (r.blocks as Anthropic.Messages.ToolResultBlockParam["content"])
+          : r.content,
         is_error: r.is_error,
       })),
     });
@@ -243,18 +285,19 @@ export async function runDelegate(
 
   console.error(`[kota] delegate(${mode}) done — ${totalTurns} turn(s)`);
 
+  const buildResult = (text: string) => buildDelegateResult(text, collectedImages);
+
   if (!lastText && modifiedFiles.size === 0) {
-    return { content: "Sub-agent completed without producing a response." };
+    return buildResult("Sub-agent completed without producing a response.");
   }
 
   if (isExecute && modifiedFiles.size > 0) {
     const fileList = [...modifiedFiles].map((f) => `  - ${f}`).join("\n");
-    return {
-      content:
-        `${lastText || "(no summary)"}\n\n` +
-        `--- Modified files (${modifiedFiles.size}) ---\n${fileList}`,
-    };
+    return buildResult(
+      `${lastText || "(no summary)"}\n\n` +
+      `--- Modified files (${modifiedFiles.size}) ---\n${fileList}`,
+    );
   }
 
-  return { content: lastText || "(no output)" };
+  return buildResult(lastText || "(no output)");
 }
