@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 69 — Sub-Agent Context & Working Directory
+
+Sub-agents now receive project context — working directory path, project type,
+and `.kota.md` conventions — instead of working blind with minimal system
+prompts. The main agent's Anthropic client is reused for delegation calls,
+eliminating redundant client instantiation.
+
+### Why this improvement
+
+Two open audit findings (from iteration 67) identified that delegation
+effectiveness was degraded because sub-agents had no orientation context:
+- No working directory path — sub-agents couldn't resolve relative paths
+  or know where they were in the filesystem
+- No project context — sub-agents didn't know the project type, frameworks,
+  or conventions from `.kota.md` files
+
+Every delegation call (both `explore` and `execute` modes) was affected. For a
+general-purpose agent that uses delegation as a core orchestration pattern,
+this is a class of failures, not a single bug.
+
+### What changed
+
+- **`src/tools/delegate.ts`**: Replaced `setDelegateModel(model)` with
+  `setDelegateConfig({ model, client, cwd, projectContext })`. New
+  `buildSubAgentPrompt()` function enriches the base system prompt with
+  working directory and project context. Sub-agents reuse the main session's
+  Anthropic client instead of creating a new one per call.
+- **`src/loop.ts`**: Session constructor now passes client, cwd, and project
+  context to the delegate config.
+- **`src/init.ts`**: `buildSessionWarmup()` now includes the explicit working
+  directory path. `detectProject()` exported for reuse.
+
+### Verified
+
+- TypeScript type-checks clean
+- 327 tests pass (6 new for `buildSubAgentPrompt`)
+- Builds to 146KB bundle
+- CLI `--help` runs correctly
+
+### Audit findings
+
+**Fixed**: delegate.ts sub-agent context (iter 67), system-prompt.ts working
+directory (iter 67).
+
+**New**: code_exec.ts lacks package discovery guidance (MINOR), tool count
+at 17 approaching noise threshold (LOW).
+
+### Future directions
+
+- Package availability check in code_exec (guide agent to `pip install`
+  before importing unavailable packages)
+- Tool grouping or progressive disclosure if tool count grows further
+- Pass relevant memory entries to sub-agents for cross-session context
+
 ## Iteration 68 — Audit Findings Carry-Forward
 
 ### Diagnosis

@@ -4,7 +4,7 @@ import { allTools } from "./tools/index.js";
 import { Context, CONTEXT_WINDOW } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
-import { setDelegateModel } from "./tools/delegate.js";
+import { setDelegateConfig } from "./tools/delegate.js";
 import { loadProjectContext } from "./project-context.js";
 import { streamMessage } from "./streaming.js";
 import { buildSessionWarmup } from "./init.js";
@@ -92,7 +92,12 @@ export class AgentSession {
 
     this.verifyTracker = new VerifyTracker(detectVerifyCommands());
 
-    setDelegateModel(this.editorModel);
+    setDelegateConfig({
+      model: this.editorModel,
+      client: this.client,
+      cwd: process.cwd(),
+      projectContext: projectContext || undefined,
+    });
 
     // Initialize MCP servers asynchronously (awaited before first send)
     this.initPromise = this.initMcp();

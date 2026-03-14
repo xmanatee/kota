@@ -4,7 +4,7 @@ import { join, basename } from "node:path";
 import { getMemoryStore } from "./memory.js";
 
 /** Detect project type from config files in cwd. */
-function detectProject(cwd: string): string | null {
+export function detectProject(cwd: string): string | null {
   const checks: Array<{ file: string; detect: (raw: string) => string }> = [
     {
       file: "package.json",
@@ -135,6 +135,8 @@ function recallMemories(cwd: string): string | null {
 export function buildSessionWarmup(cwd?: string): string {
   const dir = cwd || process.cwd();
   const sections: string[] = [];
+
+  sections.push(`**Working directory**: ${dir}`);
 
   const project = detectProject(dir);
   if (project) sections.push(`**Project**: ${project}`);

@@ -43,22 +43,53 @@ export const delegateTool: Anthropic.Tool = {
 const EXPLORE_MAX_TURNS = 10;
 const EXECUTE_MAX_TURNS = 15;
 
-let delegateModel = "claude-sonnet-4-6";
+// --- Delegate configuration (set by main session) ---
 
+export type DelegateConfig = {
+  model: string;
+  client?: Anthropic;
+  cwd?: string;
+  projectContext?: string;
+};
+
+let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
+
+/** @deprecated Use setDelegateConfig instead. */
 export function setDelegateModel(model: string): void {
-  delegateModel = model;
+  delegateConfig = { ...delegateConfig, model };
 }
 
-const EXPLORE_SYSTEM = `You are a research assistant. You can explore codebases and search the web.
+export function setDelegateConfig(config: DelegateConfig): void {
+  delegateConfig = config;
+}
+
+// --- System prompt builders ---
+
+const EXPLORE_BASE = `You are a research assistant. You can explore codebases and search the web.
 Answer the question by reading files, searching code, finding patterns, and looking up documentation online.
 Be thorough but concise in your final answer.
 You have read-only access — you cannot modify files.`;
 
-const EXECUTE_SYSTEM = `You are a task executor. You can read, search, and modify files, and run shell commands.
+const EXECUTE_BASE = `You are a task executor. You can read, search, and modify files, and run shell commands.
 Execute the assigned task precisely. Focus on the specific files and changes described.
 After making changes, verify they work if possible (e.g. run a relevant test or type check).
 Shell commands have a 60-second timeout.
 When done, summarize what you changed and why.`;
+
+/** Build a sub-agent system prompt enriched with project context. */
+export function buildSubAgentPrompt(base: string, config: DelegateConfig): string {
+  const parts = [base];
+
+  if (config.cwd) {
+    parts.push(`\nWorking directory: ${config.cwd}`);
+  }
+
+  if (config.projectContext) {
+    parts.push(`\n${config.projectContext}`);
+  }
+
+  return parts.join("\n");
+}
 
 // --- Tool sets ---
 
@@ -157,10 +188,11 @@ export async function runDelegate(
   const tools = isExecute ? executeTools : exploreTools;
   const runners = isExecute ? executeRunners : exploreRunners;
   const maxTurns = isExecute ? EXECUTE_MAX_TURNS : EXPLORE_MAX_TURNS;
-  const systemPrompt = isExecute ? EXECUTE_SYSTEM : EXPLORE_SYSTEM;
+  const basePrompt = isExecute ? EXECUTE_BASE : EXPLORE_BASE;
+  const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
   const modifiedFiles = new Set<string>();
 
-  const client = new Anthropic();
+  const client = delegateConfig.client ?? new Anthropic();
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: "user", content: task },
   ];
@@ -168,7 +200,7 @@ export async function runDelegate(
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const response = await client.messages.create({
-      model: delegateModel,
+      model: delegateConfig.model,
       max_tokens: 4096,
       system: systemPrompt,
       tools,
