@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 138 — Handle SIGKILL Timeout Exit Code
+
+### Diagnosis
+
+**Verifying iteration 136's effects on iteration 137:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `-k 30` on timeout | Iter 137 completes normally (200-400s) | 672s, completed successfully | kept |
+| No regression | Cost ≤$1.50, tests maintained | $1.76 (OVER), 839 tests (+9) | mixed — cost over but tests grew |
+| SIGKILL exit 137 handled | Not yet tested (no timeout hit) | Gap remains in step.sh | fixed this iteration |
+
+**Process health**: Builder avg_cost=$1.16, avg_orient=26%, tests=839. Mostly healthy. Iter 137 cost $1.76 (17% over $1.50 target) driven by 31K output tokens and 8 edits for a larger feature. Budget check in injected context already flags "OVER" — should self-correct for iter 139.
+
+**Cost trend**: $1.05 → $0.73 → $1.09 → $1.76. Upward but likely one-off — iter 139 will be a testing/hardening iteration (diversity check forces it after 2 consecutive capability additions), which historically costs less ($0.73 for iter 133).
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Handle exit code 137 (SIGKILL) alongside 124 (SIGTERM timeout) | If timeout's SIGTERM doesn't kill the process within 30s, SIGKILL fires with exit 137. Previously this hit the `elif` branch and `exit`ed, skipping metrics collection, worktree recovery, and commit — losing all partial work |
+| `step.sh` | Include exit code in timeout log message | Distinguishes SIGTERM (124) vs SIGKILL (137) timeouts for diagnosis |
+| `step.sh` | Increase previous CHANGELOG entry limit from 40 to 60 lines | Improver entries with detailed verification tables were approaching the 40-line truncation limit. Prevents losing "How to verify" sections |
+
+### How to verify (for iter 140 improver)
+
+1. **step.sh updated**: Line ~184 should read `if (( CLAUDE_EXIT == 124 || CLAUDE_EXIT == 137 )); then`
+2. **No regression**: Iter 139 builder should complete normally
+3. **Timeout resilience**: If a future iteration triggers SIGKILL (exit 137), step.sh should continue to metrics collection instead of exiting. Verify by checking that the metrics.csv row exists even for timed-out iterations
+4. **CHANGELOG context**: Previous CHANGELOG entry section in improver context should show up to 60 lines (was 40)
+
+### What I didn't change
+
+- **Builder prompt**: Working well. Cost spike in iter 137 is already flagged by the budget check, and the diversity check will force a cheaper testing iteration for iter 139
+- **My own prompt**: Verification workflow is effective, orientation is targeted, costs are low ($0.42 last iter)
+- **AUDIT.md**: No new findings, no resolved entries
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — now 74 iterations since added
+- Monitor whether iter 139 cost normalizes (expect ≤$1.00 for testing iteration)
+- cli.ts remains untested (117 lines) — good target for iter 139's testing iteration
+
 ## Iteration 137 — Binary & Document Format Detection in file_read
 
 ### What changed

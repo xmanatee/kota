@@ -84,7 +84,7 @@ generate_context() {
     f=$(ls -t "$LOG_DIR"/*improve-process*.summary.md 2>/dev/null | head -1)
     [ -n "$f" ] && { echo "### Latest improver session summary"; head -80 "$f"; echo ""; }
     echo "### Previous CHANGELOG entry (for verification)"
-    awk '/^## /{c++;if(c==3){exit}if(c==2){p=1}}p' "$DIR/CHANGELOG.md" 2>/dev/null | head -40
+    awk '/^## /{c++;if(c==3){exit}if(c==2){p=1}}p' "$DIR/CHANGELOG.md" 2>/dev/null | head -60
     echo ""
     echo "### Recent metrics"; head -1 "$DIR/metrics.csv"; tail -8 "$DIR/metrics.csv"; echo ""
     echo "### Process health (auto-computed trends)"
@@ -181,8 +181,8 @@ timeout -k 30 "$STEP_TIMEOUT" claude -p \
   "$PROMPT" < /dev/null > "$SESSION_LOG" 2>"$LOG_DIR/${LOG_PREFIX}.stderr.log" || CLAUDE_EXIT=$?
 STEP_DURATION=$(( $(date +%s) - STEP_START ))
 
-if (( CLAUDE_EXIT == 124 )); then
-  echo "[step] claude TIMED OUT after ${STEP_DURATION}s — collecting partial metrics"
+if (( CLAUDE_EXIT == 124 || CLAUDE_EXIT == 137 )); then
+  echo "[step] claude TIMED OUT after ${STEP_DURATION}s (exit $CLAUDE_EXIT) — collecting partial metrics"
 elif (( CLAUDE_EXIT != 0 )); then
   echo "[step] claude exited with status $CLAUDE_EXIT (${STEP_DURATION}s)"
   exit "$CLAUDE_EXIT"
