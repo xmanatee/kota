@@ -67,6 +67,16 @@ generate_context() {
     grep "build-agent" "$DIR/metrics.csv" 2>/dev/null | tail -4 | \
       awk -F, '{sl=$5+0;t=$10+0;if(NR>1){printf "  iter %s: src=%s(%+d) tests=%s(%+d) cost=$%s turns=%s orient=%s%%\n",$1,$5,sl-pl,$10,t-pt,$11,$12,$14}else{printf "  iter %s: src=%s tests=%s cost=$%s turns=%s orient=%s%%\n",$1,$5,$10,$11,$12,$14}pl=sl;pt=t}'
     echo ""
+    echo "### Budget check (last builder iteration)"
+    grep "build-agent" "$DIR/metrics.csv" 2>/dev/null | tail -1 | \
+      awk -F, '{
+        cost=$11+0; turns=$12+0; orient=$14+0
+        printf "  Cost: $%.2f %s (target: ≤$1.50)\n", cost, (cost>1.5?"— OVER":"— OK")
+        printf "  Turns: %d %s (target: ≤25)\n", turns, (turns>25?"— OVER":"— OK")
+        printf "  Orient: %.0f%% %s (target: ≤40%%)\n", orient, (orient>40?"— OVER":"— OK")
+        printf "  File reads before 1st edit: check summary (target: ≤5)\n"
+      }'
+    echo ""
   elif [[ "$1" == "improve-process" ]]; then
     local f; f=$(ls -t "$LOG_DIR"/*build-agent*.summary.md 2>/dev/null | head -1)
     [ -n "$f" ] && { echo "### Latest builder session summary"; head -80 "$f"; echo ""; }

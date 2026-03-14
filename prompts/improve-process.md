@@ -130,3 +130,6 @@ or process reliability.
 - **Separate "working" from "good"**: a process that produces passing builds
   is working. A process that produces an agent that's genuinely getting more
   capable is good. These are not the same thing.
+- **Self-efficiency**: Your own session should stay under $0.80 and ≤10 turns.
+  If the injected context is sufficient, you should need at most 2-3 file
+  reads (for editing) and 3-4 edits. Diagnose from context, edit surgically.

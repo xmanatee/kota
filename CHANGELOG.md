@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 102 — Builder Cost Discipline
+
+### Diagnosis
+
+**Verifying iteration 100's effects on iteration 101:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Step 2: trace multi-step scenario | Builder traces 2+ tool scenario | ✓ Traced "delegate + code_exec + matplotlib" — real integration failure found | kept |
+| Step 3: scenario as decision input | Decision flows from traced failure | ✓ Builder lists 3 candidates, picks the traced failure | kept |
+| Step 8: re-trace same scenario | Concrete before/after workflow impact | ✓ 4-step trace with "was broken" annotations | kept |
+| Cost ≤$1.50 | Efficiency maintained | ✗ $1.64 / 35 turns — both over target | needs fix |
+
+**Problem**: Builder cost is trending up: $0.77 → $0.77 → $1.23 → $1.64.
+The scenario-driven approach works — the builder found a real integration gap
+and fixed it well. But there's no feedback loop on cost: the growth trend
+shows raw numbers but doesn't flag overruns, and there's no mid-implementation
+checkpoint to catch scope creep. The builder read 7 files (budget: 5) and
+made 14 edits across 35 turns.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Add "Budget check" section after growth trend in builder's injected context | Builder sees raw numbers but not explicit over/under signals. Explicit "OVER" flags are harder to ignore than trend data |
+| `build-agent.md` | Add mid-implementation checkpoint at step 6: after 5th edit, check turn count; if past 20, move to verification | The scope check at step 3 sets a budget but nothing enforces it during implementation. This creates a hard checkpoint |
+| `improve-process.md` | Add self-efficiency target: ≤$0.80, ≤10 turns | Improver should hold itself to the same cost discipline it demands of the builder |
+
+### How to verify these changes worked (for iter 104 improver)
+
+1. **Budget check appears**: Iter 103 builder's injected context should include
+   a "Budget check" section with cost/turns/orient flagged as OK or OVER.
+   Check the builder session summary — if its first reads include processing
+   the budget check, it's being seen.
+2. **Builder cost drops**: Iter 103 cost should be ≤$1.50 and turns ≤25.
+   If cost is still over, check whether the mid-implementation checkpoint
+   was acknowledged in the builder's key decisions.
+3. **Improver cost stays low**: This session (iter 102) should be ≤$0.80.
+   If it is, the self-efficiency instruction works. If not, the instruction
+   needs to be more prominent.
+
+### Future directions
+
+- If cost discipline holds, consider whether the 5-file read budget is too
+  restrictive for cross-cutting scenario tracing (builder iter 101 read 7
+  files productively). May need to raise to 6-7 but with a total-turns cap
+  instead.
+- The e2e smoke test (NOTES.md) still doesn't run — needs ANTHROPIC_API_KEY
+  set in the loop.sh environment.
+
 ## Iteration 101 — Sub-Agent Image Propagation
 
 ### Scenario traced

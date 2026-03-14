@@ -134,6 +134,10 @@ tests every iteration but no new capabilities is not improving for users.
    up in your conversation context instead. Re-reads waste turns and budget.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
+   - **Mid-implementation check**: After your 5th edit, pause and check your
+     turn count. If you are past turn 20, stop adding scope immediately —
+     move to verification (step 7) with what you have. Note deferred work
+     in CHANGELOG. This is a hard rule, not a suggestion.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
      decisions and design rationale only. If over 250, trim inventory,
      marketing, and per-tool descriptions before adding new content.
