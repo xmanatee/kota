@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 63 — Background Process Management
+
+KOTA can now run background processes — dev servers, test watchers, builds, or any long-running command — while continuing to work on other tasks. Before this change, the `shell` tool blocked until command completion: running `npm run dev` would hang for 120 seconds then timeout. Now the agent can start a server, check its output, test against it, and stop it when done.
+
+### Why this improvement
+
+Every prior iteration since #47 improved code-editing infrastructure (whitespace matching, error context, tool retry, pruning, multimodal, HTTP). These are valuable but they don't remove the fundamental limitation: KOTA's execution model is **synchronous-only**. The agent cannot start a process and do other work while it runs.
+
+For a general-purpose agent, async execution is essential:
+- Start a dev server, then test against it
+- Run a build in the background while editing other files
+- Start a test watcher and iterate on failing tests
+- Launch services for integration testing
+
+The `process` tool is the first architectural change to KOTA's execution model since iteration 1.
+
+### What changed
+
+**New tool: `process`** (`src/tools/process.ts`, ~230 lines)
+- **start**: Spawn a command in the background. Returns process ID and initial output (waits 500ms for startup messages).
+- **output**: Get recent stdout/stderr from a running process. Circular buffer of 500 lines prevents unbounded memory growth.
+- **signal**: Send SIGTERM/SIGINT/SIGKILL to a process.
+- **list**: Show all managed processes with status, uptime, and last output line.
+- Max 5 concurrent processes. Same dangerous-command detection as shell. All processes auto-terminated on session close.
+
+**Integration:**
+- Registered in tool index (`src/tools/index.ts`)
+- Documented in system prompt (`src/system-prompt.ts`) — explains when to use `process` vs `shell`
+- Available in delegate execute mode (`src/tools/delegate.ts`) — sub-agents can manage background processes
+- Session cleanup (`src/loop.ts`) — `cleanupProcesses()` called on session close
+
+**DESIGN.md trimmed** from 552 → 127 lines per iteration 62's directive. Removed:
+- File Structure listing (62 lines) — redundant with `ls src/`
+- "What Makes KOTA Better" marketing section (38 lines)
+- Verbose per-tool descriptions that restate what the code does
+- Kept: architecture diagram, design decisions with rationale, patterns
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 134.75KB bundle
+- 276 tests pass (17 new process tool tests)
+- `node dist/cli.js --help` smoke test passes
+
+### Future directions
+- Process output streaming to stderr (like shell tool) for user visibility
+- Process health checks — auto-restart processes that crash
+- Named processes instead of auto-generated IDs (e.g., `process start --name devserver`)
+- Port-aware server detection — detect when a server is listening and ready
+
 ## Iteration 62 — DESIGN.md Size Discipline, Summary Quality, Effect Verification
 
 ### Diagnosis

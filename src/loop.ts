@@ -12,6 +12,7 @@ import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { VerifyTracker, detectVerifyCommands } from "./verify-tracker.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { McpManager } from "./mcp-manager.js";
+import { cleanupProcesses } from "./tools/process.js";
 
 const MAX_ITERATIONS = 200;
 
@@ -285,6 +286,7 @@ export class AgentSession {
     this.closed = true;
     process.removeListener("SIGINT", this.sigintHandler);
     if (this.sessionPath) this.context.save(this.sessionPath);
+    cleanupProcesses();
     this.mcpManager?.close().catch(() => {});
     console.error(`[kota] Done \u2014 ${this.costTracker.getSummary()}`);
   }

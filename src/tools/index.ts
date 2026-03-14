@@ -14,6 +14,7 @@ import { memoryTool, runMemory } from "./memory.js";
 import { webSearchTool, runWebSearch } from "./web-search.js";
 import { askUserTool, runAskUser } from "./ask-user.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
+import { processTool, runProcess } from "./process.js";
 
 export type ToolResultBlock =
   | { type: "text"; text: string }
@@ -43,6 +44,7 @@ const runners: Record<string, ToolRunner> = {
   web_search: runWebSearch,
   ask_user: runAskUser,
   http_request: runHttpRequest,
+  process: runProcess,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -61,6 +63,7 @@ export const allTools: Anthropic.Tool[] = [
   webSearchTool,
   askUserTool,
   httpRequestTool,
+  processTool,
 ];
 
 export async function executeTool(
