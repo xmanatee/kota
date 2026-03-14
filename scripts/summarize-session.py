@@ -56,6 +56,7 @@ def parse_session(path: str) -> dict:
     files_written = set()
     files_read = set()
     first_edit_call = None
+    orientation_calls = []
     call_num = 0
 
     for msg in messages:
@@ -95,6 +96,11 @@ def parse_session(path: str) -> dict:
                 if name in ("Edit", "Write") and first_edit_call is None:
                     first_edit_call = call_num
 
+                # Track orientation calls (before first Edit/Write)
+                if first_edit_call is None:
+                    detail = _tool_detail(name, inp)
+                    orientation_calls.append(f"{name} {detail}")
+
                 if name == "Edit":
                     fp = inp.get("file_path", "")
                     if fp:
@@ -131,6 +137,7 @@ def parse_session(path: str) -> dict:
         "files_read": sorted(files_read),
         "message_count": len(messages),
         "first_edit_call": first_edit_call,
+        "orientation_calls": orientation_calls,
         "total_calls": call_num,
     }
 
@@ -182,6 +189,14 @@ def format_summary(data: dict, path: str) -> str:
             )
         lines.append("")
 
+    # Orientation call sequence
+    orient = data.get("orientation_calls", [])
+    if orient:
+        lines.append("## Orientation Calls")
+        for i, call in enumerate(orient, 1):
+            lines.append(f"{i:2d}. {call}")
+        lines.append("")
+
     # Files modified
     edited = data.get("files_edited", [])
     written = data.get("files_written", [])
@@ -226,6 +241,19 @@ def _short_path(p: str) -> str:
     if len(parts) > 3:
         return "/".join(parts[-3:])
     return p
+
+
+def _tool_detail(name: str, inp: dict) -> str:
+    """Extract a short description of a tool call for orientation logging."""
+    if name == "Read":
+        return _short_path(inp.get("file_path", ""))
+    if name == "Bash":
+        return inp.get("command", "")[:60]
+    if name == "Grep":
+        return inp.get("pattern", "")[:40]
+    if name == "Glob":
+        return inp.get("pattern", "")[:40]
+    return ""
 
 
 def main():

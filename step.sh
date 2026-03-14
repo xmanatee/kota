@@ -30,20 +30,26 @@ generate_context() {
   echo ""
   [ -f "$DIR/NOTES.md" ] && { echo "### Project owner notes (NOTES.md)"; cat "$DIR/NOTES.md"; echo ""; }
   echo "### Last CHANGELOG entry"
-  awk '/^## /{if(f){exit}f=1}f' "$DIR/CHANGELOG.md" 2>/dev/null | head -30
+  awk '/^## /{if(f){exit}f=1}f' "$DIR/CHANGELOG.md" 2>/dev/null | head -50
   echo ""
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
-    echo "### Source files"; ls "$DIR/src/" 2>/dev/null; echo ""
+    echo "### Source tree (file: lines)"
+    find "$DIR/src" -name '*.ts' ! -name '*.d.ts' 2>/dev/null | sort | while IFS= read -r f; do
+      lines=$(wc -l < "$f" | tr -d ' ')
+      rel=${f#$DIR/}
+      printf "  %s (%s)\n" "$rel" "$lines"
+    done
+    echo ""
     echo "### Growth trend (last 4 builder iterations)"
     grep "build-agent" "$DIR/metrics.csv" 2>/dev/null | tail -4 | \
       awk -F, '{printf "  iter %s: src_lines=%s tests=%s cost=$%s turns=%s\n",$1,$5,$10,$11,$12}'
     echo ""
   elif [[ "$1" == "improve-process" ]]; then
     local f; f=$(ls -t "$LOG_DIR"/*build-agent*.summary.md 2>/dev/null | head -1)
-    [ -n "$f" ] && { echo "### Latest builder session summary"; head -60 "$f"; echo ""; }
+    [ -n "$f" ] && { echo "### Latest builder session summary"; head -80 "$f"; echo ""; }
     f=$(ls -t "$LOG_DIR"/*improve-process*.summary.md 2>/dev/null | head -1)
-    [ -n "$f" ] && { echo "### Latest improver session summary"; head -60 "$f"; echo ""; }
+    [ -n "$f" ] && { echo "### Latest improver session summary"; head -80 "$f"; echo ""; }
     echo "### Recent metrics"; head -1 "$DIR/metrics.csv"; tail -8 "$DIR/metrics.csv"; echo ""
   fi
 }

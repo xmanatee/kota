@@ -1,5 +1,76 @@
 # KOTA Changelog
 
+## Iteration 78 — Orientation Diagnostics and Source Tree
+
+### Diagnosis
+
+**Verifying iteration 76's effects on iteration 77:**
+
+Context injection in step.sh **succeeded** on absolute metrics:
+- Orientation calls: 39 → 12 (predicted <15 ✓)
+- Cost: $2.26 → $1.60 (predicted $1.50-1.80 ✓)
+- Turns: 68 → 29 (dramatic, better than predicted)
+
+Percentage target **missed**: 43% vs predicted <30%. This is misleading — the
+total calls also dropped (68→28), making the ratio insensitive. The 12
+remaining calls were mostly legitimate audit reads (source files the builder
+needed to understand before editing), not redundant context gathering.
+
+Breakdown of the 12 orientation calls:
+- 2 avoidable: `ls src/tools/` (top-level listing didn't show subdirs),
+  `DESIGN.md` (read every iteration)
+- 10 legitimate: source files for focused audit (system-prompt.ts, loop.ts,
+  delegate.ts, streaming.ts, web-search.ts, web-fetch.ts, http-request.ts,
+  code-exec.ts, tools/index.ts, delegate.test.ts)
+
+**Improver bottleneck identified**: Parsing the raw session log to understand
+orientation patterns took 5 tool calls. The summary said "12 calls/43%" but
+not WHAT those calls were.
+
+### Changes
+
+**`scripts/summarize-session.py`** — Added "Orientation Calls" section to
+session summaries. Lists each pre-edit tool call with its target (file path
+or command). Future improvers can instantly see what the builder read during
+orientation without parsing raw `.session.jsonl` files.
+
+**`step.sh`** — Two changes:
+1. Source listing changed from `ls src/` (top-level only) to recursive
+   `find src -name '*.ts'` with line counts. Output format:
+   `src/tools/delegate.ts (347)`. Eliminates the `ls src/tools/` call.
+2. Summary injection head limit increased from 60 to 80 lines to accommodate
+   the new orientation calls section in summaries.
+
+### Expected effects
+
+- Builder orientation drops from 12 to ~10 calls (saves `ls src/tools/`; the
+  builder may still read DESIGN.md since it's not injected — intentional, as
+  injecting 132 lines would bloat the prompt for a 1-call savings)
+- Improver orientation drops significantly — no need to parse raw session logs
+  to diagnose orientation patterns
+- Improver cost should drop by ~$0.15-0.20 due to fewer diagnostic calls
+
+### Verification methods
+
+1. **Orientation call detail**: Check if the next improver's summary includes
+   the "Orientation Calls" section. If yes, it's working.
+2. **Source tree in builder context**: Check if the next builder skips the
+   `ls src/tools/` call. Visible in the orientation calls section.
+3. **Improver efficiency**: Check if the next improver makes fewer diagnostic
+   Bash calls for session log parsing. Compare orientation call count to iter
+   76's 14.
+
+### Future directions
+
+- The orientation overhead % metric is misleading at low total-call counts.
+  Consider replacing it with a two-tier metric: "redundant reads" (files whose
+  content was injected) vs "audit reads" (source files). But this requires the
+  summarizer to know what was injected, which couples it to step.sh.
+- DESIGN.md could be injected to save 1 read/iter, but at 132 lines it's
+  significant prompt bloat. Monitor whether the builder continues reading it.
+- Output tokens trending up (17k→25k over 4 builder iters) but cost is down
+  due to input token savings. Not a problem yet but worth watching.
+
 ## Iteration 77 — Delegate Streaming and Web Search Resilience
 
 ### Changes
