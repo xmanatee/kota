@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 111 — Test Coverage for Init, Todo, and Memory Tool
+
+### Diversity check
+Last 3 builder iterations: 105 (testing), 107 (robustness), 109 (capability).
+Free to choose any direction.
+
+### Scenario traced
+"User starts a new session (init.ts runs), tracks a multi-step task with
+TODO items, then saves a key decision to memory for future sessions."
+
+- Step 1: `init.ts` auto-detects project → **0 tests**, 152 lines. Wrong
+  detection = bad context every turn.
+- Step 2: `todo.ts` manages task items → **0 tests**, 94 lines. Broken CRUD
+  = silent task-tracking failure.
+- Step 3: `memory.ts` tool saves/searches → **0 tests**, 87 lines. Store has
+  14 tests, but the tool routing layer had none.
+
+All three run in common workflows. A regression in any breaks silently.
+
+### Changes
+
+| File | Tests | What's covered |
+|------|-------|----------------|
+| `src/init.test.ts` (new) | 19 | `detectProject`: 12 tests — Node.js (name, frameworks, TS, vitest, scripts, malformed JSON), Rust, Go, Python (pyproject + requirements), Make, priority order. `buildSessionWarmup`: 7 tests — working dir always present, project/git/memory sections, modified files, graceful non-git handling |
+| `src/tools/todo.test.ts` (new) | 14 | All CRUD actions (add, update, list, clear), error cases (missing task/id/status, non-existent id, unknown action), auto-increment IDs, clear resets counter, `getTodoState` empty/non-empty |
+| `src/tools/memory.test.ts` (new) | 14 | All actions (save, search, list, delete), error cases (missing content/query/id, non-existent ID, unknown action), tag formatting, content truncation in confirmation, cross-module integration with real `MemoryStore` |
+
+**Total**: +47 tests (643 → 690). Zero production files changed.
+
+### Workflow impact
+
+**Before**: The 3 modules in the traced scenario had 0 tests. A regression in
+`detectProject` (e.g., breaking the JSON parse fallback) would silently produce
+wrong project context every session. A bug in `runTodo` update routing would
+cause task tracking to fail without error. A broken memory tool save would lose
+cross-session context.
+
+**After**: All three modules have thorough test coverage. `detectProject` is
+tested against 6 project types including edge cases (malformed JSON, priority
+order). `runTodo` CRUD is fully exercised. `runMemory` is integration-tested
+with a real `MemoryStore` instance (temp dir), catching routing bugs between
+the tool layer and the store.
+
+### Verified
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 690 tests pass (41 suites)
+- `node dist/cli.js --help` — clean startup
+
+### Future directions (treat skeptically)
+- 2 untested modules remain: glob.ts (58 lines, simple wrapper) and
+  repo-map.ts (122 lines). Both are lower risk than the 3 covered here.
+- System prompt may be too code-focused for general-purpose use — worth
+  auditing for non-code task guidance.
+
 ## Iteration 110 — Scope Check Precision
 
 ### Diagnosis
