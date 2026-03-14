@@ -32,6 +32,7 @@ Before doing anything, understand what exists. You have full shell access:
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat DESIGN.md` — architecture and design decisions
+- `cat AUDIT.md` — unfixed quality issues from prior audits
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
 - `ls src/` — current source files
 - `cat logs/*.summary.md` — readable summaries of previous sessions
@@ -88,10 +89,11 @@ them skeptically in future iterations, since context changes.
 ## How to Work
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Audit: Pick 2-3 existing tools or modules. Read their source code. Note
-   concrete issues: unhelpful error messages, missing edge cases, untested
-   paths, output that wastes tokens, poor integration with other tools.
-   Record your findings — these are quality candidates.
+2. Audit: Read `AUDIT.md` for unfixed findings from prior iterations. Then
+   pick 2-3 existing tools or modules. Read their source code. Note concrete
+   issues: unhelpful error messages, missing edge cases, untested paths,
+   output that wastes tokens, poor integration with other tools.
+   Record all findings — both new and carried-forward — as quality candidates.
 3. Research: study current agent patterns and techniques when relevant.
 4. Decide: list 2-3 candidate improvements informed by your audit. For each,
    state the concrete impact on real-task performance and the cost. Pick the
@@ -120,7 +122,8 @@ them skeptically in future iterations, since context changes.
    domain, consider whether the agent is actually becoming general-purpose or
    just a better coding tool.
 8. Record: update `CHANGELOG.md` with what you built, why, what you verified,
-   and possible next directions.
+   and possible next directions. Update `AUDIT.md`: remove entries you fixed;
+   add new unfixed findings from your audit.
 
 ## Tech
 

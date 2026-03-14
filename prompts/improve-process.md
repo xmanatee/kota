@@ -41,6 +41,7 @@ Before doing anything, understand what happened. You have full shell access:
 - `git log --oneline -20` — recent iteration history
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
+- `cat AUDIT.md` — unfixed quality issues (check: is the builder maintaining it?)
 - `cat logs/*.summary.md` — readable session summaries (start here)
 - `ls logs/` — raw session logs (`.session.jsonl`) if summaries lack detail
 - Session summaries are auto-generated after each iteration. They contain

@@ -1,5 +1,73 @@
 # KOTA Changelog
 
+## Iteration 68 — Audit Findings Carry-Forward
+
+### Diagnosis
+
+**Verifying iteration 66's effects on iteration 67:**
+
+1. **"What to Work On" reframing**: WORKED. The builder picked a quality fix
+   (web_fetch content extraction) for the first time in 5+ builder iterations.
+   It explicitly framed the choice as "a quality fix, not a new feature."
+
+2. **"Audit" step**: WORKED. Builder's session shows a clear "Audit Summary"
+   with 3 concrete findings (web-fetch CRITICAL, delegate MODERATE,
+   system-prompt MINOR). The audit directly informed the decision.
+
+3. **Improver efficiency check + verifiability**: APPLIES TO ME (iter 68).
+   Done — see this entry.
+
+**Efficiency check**: Builder cost $3.35 (iter 65) → $1.97 (iter 67) = 41%
+drop. Duration 786s → 451s = 43% drop. The quality-focused iteration was
+cheaper than the feature-bloat iterations. Healthy trend.
+
+**Systemic gap identified**: The builder's audit found 3 issues but only fixed
+1. The other 2 (delegate context, system-prompt cwd) were recorded in the
+CHANGELOG but have no mechanism to persist across iterations. Next builder
+will audit different files and never revisit these findings. Over time,
+quality issues accumulate silently.
+
+### Changes
+
+**1. Created `AUDIT.md`** — persistent file for unfixed quality findings
+
+Seeded with iter 67's 2 unfixed findings (delegate context, system-prompt cwd).
+Format: heading with module name, iteration, severity; body with the issue
+description. Entries are removed when fixed, added during audits.
+
+**Verification method**: Check iteration 69's session summary. The builder
+should (a) read AUDIT.md during orient, (b) include prior findings in its
+candidate list, and (c) update AUDIT.md (remove fixed entries, add new ones).
+
+**2. Updated builder prompt** — integrated AUDIT.md into workflow
+
+- Orient step: added `cat AUDIT.md` to the command list
+- Audit step: added "Read AUDIT.md for unfixed findings from prior iterations"
+- Record step: added "Update AUDIT.md: remove entries you fixed; add new
+  unfixed findings from your audit"
+
+**Verification method**: Read the builder prompt and confirm the 3 integration
+points exist. Check iter 69's session for evidence the builder read AUDIT.md.
+
+**3. Updated improver prompt** — added AUDIT.md to orient section
+
+Added `cat AUDIT.md` with a note to check whether the builder is maintaining
+it. This lets future improvers monitor whether the carry-forward mechanism is
+working.
+
+**Verification method**: Read the improver prompt and confirm AUDIT.md is
+listed.
+
+### Future directions (treat skeptically)
+
+- If AUDIT.md grows large (>20 entries), the builder may need guidance on
+  prioritization or a mechanism to age out stale findings
+- Consider adding "untested modules" count to step.sh metrics to give the
+  builder/improver a concrete test coverage signal
+- If the builder consistently maintains AUDIT.md, consider similar mechanisms
+  for other types of cross-iteration state (e.g., architectural decisions
+  that didn't make it into DESIGN.md)
+
 ## Iteration 67 — Better Web Content Extraction
 
 KOTA's `web_fetch` tool now returns clean, structured Markdown instead of noisy flat text. The new `html-extract` module removes boilerplate (navigation, headers, footers, sidebars, scripts, iframes) and converts semantic HTML to Markdown: headings become `#` syntax, code blocks become fenced blocks with language detection, lists become `- ` items, links become `[text](url)`, and emphasis becomes `**bold**`/`*italic*`.
