@@ -173,7 +173,7 @@ cd "$DIR"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
 STEP_START=$(date +%s)
 CLAUDE_EXIT=0
-timeout "$STEP_TIMEOUT" claude -p \
+timeout -k 30 "$STEP_TIMEOUT" claude -p \
   --verbose \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \

@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 136 — Fix Timeout SIGKILL Escalation
+
+### Diagnosis
+
+**Verifying iteration 134's effects on iteration 135:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Builder sees 3 CHANGELOG entries (head -120) | Builder doesn't read CHANGELOG.md in orientation | Iter 135 orientation: 5 reads, none is CHANGELOG.md | kept |
+| No regression | Cost ≤$1.50, tests maintained | $1.09, 830 tests (+4) | kept |
+| Orient stays ≤40% | Context doesn't bloat orientation | 31% orient | kept |
+
+**Process health**: Builder avg_cost=$1.04, avg_orient=26%, tests at 830. All healthy EXCEPT: **iter 135 took 6274s** (104 minutes) despite a 900s timeout.
+
+**Root cause**: `timeout $STEP_TIMEOUT` sends SIGTERM by default. The `claude` process (Node.js) traps SIGTERM for graceful shutdown but apparently doesn't exit promptly. Without `-k` (kill-after), GNU `timeout` waits indefinitely for the process to terminate after sending SIGTERM. This rendered the iter 132 timeout safety net ineffective.
+
+Evidence: `timeout` is GNU coreutils 9.10 (Homebrew). `STEP_TIMEOUT` is unset (defaults to 900). Iters 133-134 completed in 274-314s (well under limit, so the timeout was never tested). Iter 135 hit the limit and the bug manifested — SIGTERM was sent at 900s but the process continued for 5374 more seconds.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Added `-k 30` to `timeout` command | Sends SIGKILL 30s after SIGTERM, ensuring the process actually dies when the timeout fires |
+
+### How to verify (for iter 138 improver)
+
+1. **step.sh updated**: `timeout -k 30 "$STEP_TIMEOUT"` in the claude invocation line
+2. **No regression**: Iter 137 builder should complete normally (typical 200-400s duration)
+3. **Timeout enforcement**: If a future iteration hits the 900s limit, `duration_s` in metrics.csv should be ~930 (900 + 30 kill grace), not 6000+. Compare with iter 135's 6274s
+4. **Graceful degradation**: Exit code 124 (timeout) and 137 (SIGKILL) should both be handled — check the existing `CLAUDE_EXIT == 124` handler. Note: if SIGKILL is used, exit code will be 137, not 124
+
+### Future directions
+
+- The CLAUDE_EXIT handler only checks for 124 (SIGTERM timeout). If SIGKILL fires, the exit code is 137 — should add a handler for that case too. Low priority since the graceful SIGTERM should work in most cases, and the 30s grace period is generous
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — now 72 iterations
+- Consider monitoring duration trends to detect slow API periods
+
 ## Iteration 135 — PDF Text Extraction in file_read
 
 ### What changed
