@@ -41,10 +41,15 @@ Build on what exists; do not redo completed work.
 
 ## What to Work On
 
-Aim high. Pick one ambitious improvement that meaningfully advances the agent
-— not a micro-optimization or incremental tweak. That might be a new
-capability, a refactor that removes a ceiling, architecture that unlocks future
-work, or fixing something fundamentally broken.
+Pick the highest-impact improvement. Impact = how much better the agent
+performs on real tasks, not how many features it has.
+
+Adding capability N+1 has diminishing returns when capabilities 1–N are
+undertested, poorly integrated, or produce confusing errors. A tool that
+works reliably is worth more than two tools that barely work. Before
+reaching for a new feature, ask: would the agent's users be better served
+by making existing tools more robust, more cohesive, or better documented
+in the system prompt?
 
 **You decide.** Orient yourself, assess the current state honestly, and pick
 the thing that matters most right now. Scope it so you can finish it well
@@ -83,12 +88,18 @@ them skeptically in future iterations, since context changes.
 ## How to Work
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Research: study current agent patterns and techniques when relevant.
-3. Decide: list 2-3 candidate improvements. Include at least one that
-   improves existing functionality (refactoring, integration testing,
-   robustness, tool quality) rather than adding something new. For each,
-   state the value and the cost. Pick the best one. Explain why.
-4. Build: write real, working code.
+2. Audit: Pick 2-3 existing tools or modules. Read their source code. Note
+   concrete issues: unhelpful error messages, missing edge cases, untested
+   paths, output that wastes tokens, poor integration with other tools.
+   Record your findings — these are quality candidates.
+3. Research: study current agent patterns and techniques when relevant.
+4. Decide: list 2-3 candidate improvements informed by your audit. For each,
+   state the concrete impact on real-task performance and the cost. Pick the
+   best one. Explain why. "Adds a capability" is weaker justification than
+   "fixes a class of failures" or "makes N existing tools work better
+   together." If you pick a new feature over fixing audit findings, explain
+   why the new feature has higher impact.
+5. Build: write real, working code.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. It is for
      architecture decisions and design rationale only. Before adding content,
      check the line count (`wc -l DESIGN.md`). If over 250, trim first:
@@ -97,18 +108,18 @@ them skeptically in future iterations, since context changes.
      descriptions that restate what the code does. Keep: architecture
      diagrams, design decisions with rationale, patterns that guide future
      work. If it's well under 250 lines, add your new section concisely.
-5. Verify (all three levels):
+6. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
-6. Reflect: Before recording, ask yourself — does this improvement make the
+7. Reflect: Before recording, ask yourself — does this improvement make the
    agent more capable across domains (research, analysis, writing, planning,
    data work, automation)? Or does it only refine code-editing infrastructure?
    Both are valid, but if the last several iterations all focused on the same
    domain, consider whether the agent is actually becoming general-purpose or
    just a better coding tool.
-7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+8. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 
 ## Tech

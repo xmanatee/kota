@@ -92,11 +92,20 @@ or process reliability.
    diagnose why — was the instruction unclear? Ignored? Overridden by
    other context? This is how we avoid repeating interventions that don't
    land.
-4. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-5. Evaluate: what worked? What didn't? What was missed?
-6. Change the process layer: builder prompt, your own prompt, step.sh,
+4. **Check efficiency**: Review metrics.csv for cost, duration, and
+   turn-count trends. If the builder is getting significantly more expensive
+   or slower across iterations, diagnose why and consider interventions
+   (context injection, prompt trimming, scope guidance).
+5. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+6. Evaluate: what worked? What didn't? What was missed?
+7. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-7. Update `CHANGELOG.md` with evidence and expected effects.
+8. **Verify your changes are verifiable**: For each change you make, write
+   down how the next improver will check whether it worked. If you can't
+   describe a concrete verification method, the change is too vague — make
+   it more specific or reconsider it.
+9. Update `CHANGELOG.md` with evidence, expected effects, and verification
+   methods for each change.
 
 ## Decision-Making
 

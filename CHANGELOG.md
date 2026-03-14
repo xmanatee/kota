@@ -1,5 +1,78 @@
 # KOTA Changelog
 
+## Iteration 66 — Shift Builder from Feature Accumulation to Quality
+
+### Diagnosis
+
+**Verifying iteration 64's effects on iteration 65:**
+
+1. **E2E smoke test**: NOT WORKING. `ANTHROPIC_API_KEY` is not set in the shell
+   environment (length=0). Claude Code uses stored credentials, but KOTA needs
+   the env var directly. The test code is correct but depends on an unavailable
+   env var. `smoke_haiku` is still `-` for iteration 65.
+
+2. **Quality candidate requirement**: PARTIALLY WORKED. The builder DID list a
+   quality candidate (B: "Refactor tool output quality") as required. But it
+   chose the feature (A: REPL) anyway. The structural incentive to pick features
+   over quality remained unchanged — "Aim high, pick ambitious" codes as "new."
+
+**Systemic pattern**: 5 consecutive feature-addition iterations (57, 59, 61, 63,
+65). No consolidation iteration has occurred. 18 tools, 43 files, 5820 lines,
+146KB bundle. Builder cost jumped 50% in iter 65 ($2.24→$3.35), duration +69%.
+
+**Root cause**: The builder prompt's incentive structure favors novelty. "Aim
+high" = "build something new." The quality candidate requirement was a band-aid
+— it ensured consideration but gave the builder no mechanism to *discover*
+quality problems, and no framework for valuing quality fixes over new features.
+
+### Changes
+
+**1. Builder prompt — "What to Work On" reframing** (`prompts/build-agent.md`)
+
+Replaced "Aim high. Pick one ambitious improvement" with framing that defines
+impact as real-task performance, not feature count. Added explicit diminishing-
+returns guidance: "Adding capability N+1 has diminishing returns when
+capabilities 1–N are undertested, poorly integrated, or produce confusing
+errors."
+
+**Verification method**: Check iteration 67's decision analysis. The builder
+should either (a) pick a quality improvement, or (b) explicitly justify why a
+new feature has higher impact than fixing audit findings. Either outcome shows
+the reframing worked.
+
+**2. Builder prompt — "Audit" step** (`prompts/build-agent.md`, How to Work)
+
+Added step 2: "Pick 2-3 existing tools or modules. Read their source code.
+Note concrete issues." This forces the builder to look at existing code quality
+before deciding what to build. The "Decide" step (now step 4) requires
+evidence-based justification and explicitly notes "Adds a capability" is weaker
+than "fixes a class of failures."
+
+**Verification method**: Check iteration 67's session summary for an "Audit"
+section where the builder reads existing tool source and notes issues.
+
+**3. Improver prompt — efficiency check + verifiability** (`prompts/improve-process.md`)
+
+Added step 4: "Check efficiency" — review metrics.csv for cost/duration trends.
+Added step 8: "Verify your changes are verifiable" — for each change, write how
+the next improver will check whether it worked. This closes the loop on the
+effect-verification step (added iter 62) by making it easier to verify.
+
+**Verification method**: Check iteration 68's CHANGELOG for an efficiency
+analysis section and per-change verification methods.
+
+**4. NOTES.md** — Added note for operator to set `ANTHROPIC_API_KEY` in the
+shell environment to enable the e2e smoke test.
+
+### Future directions (treat skeptically)
+
+- If the audit step works but the builder still picks features, consider making
+  quality iterations mandatory (e.g., every 3rd builder iteration must be quality)
+- Create a lightweight eval suite that tests agent behavior without API calls
+  (mock-based integration tests for tool selection and orchestration)
+- Pre-inject codebase metrics (tool count, line count) into the builder prompt
+  via step.sh to make maturity signals more salient
+
 ## Iteration 65 — Interactive Code Execution (REPL)
 
 KOTA now has persistent REPL sessions for Python and Node.js. The `code_exec` tool lets the agent execute code incrementally — variables, imports, and state persist across calls within a session. This is the capability that separates a general-purpose agent from a coding-only tool: iterative data analysis, math, prototyping, and computation are now first-class workflows.

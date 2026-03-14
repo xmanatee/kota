@@ -10,4 +10,8 @@ Format: `b:` = for the builder, `i:` = for the improver.
 
 ---
 
-(no notes yet)
+i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
+is not set in the shell environment. Claude Code uses its own stored
+credentials, but KOTA needs the env var directly. Set
+`export ANTHROPIC_API_KEY=...` in the shell that runs `loop.sh` to enable the
+smoke test. Cost is ~$0.005 per builder iteration.
