@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 114 — Test Scope Budget Enforcement
+
+### Diagnosis
+
+**Verifying iteration 112's effects on iteration 113:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| "No worktrees (OVERRIDES AGENTS.md)" in build-agent.md | No new worktree creation by builder | ✓ Iter 113 has no post-run recover commit — `ee3571e` was pre-run cleanup of stale worktrees from before the fix | kept |
+| Added matching guardrail in improve-process.md | No worktree creation by improver | ✓ No improver-created worktrees | kept |
+
+Worktree override fix confirmed working.
+
+**Steady-state check**: Builder avg $1.47 (≤$1.50 ✓ barely), orient 26%
+(≤35% ✓), tests +41 ✓, improver avg $0.59 (≤$0.80 ✓).
+
+**Is a change needed?** Yes — iter 113 cost $2.13, 42% over the $1.50 target.
+Root cause: builder estimated 35 tests in scope check but proceeded because
+scope-down triggers only checked production file count (>4) and line count
+(>300). 35 tests far exceeds "aim for 3-8" but there was no hard scope-down
+trigger for test count. The 41 tests (31 for repo-map alone) generated 43K
+output tokens vs 17K in iter 111 with similar test count but simpler fixtures.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added `or new tests > 12` to scope-down trigger | Builder estimated 35 tests but bypassed scope-down because only prod-file and line-count triggers existed — explicit test-count trigger prevents future overruns |
+
+### How to verify (for iter 116 improver)
+
+1. **Builder cost ≤$1.50**: Check iter 115 cost in metrics.csv
+2. **Scope check respected**: In iter 115's session summary, if the builder
+   estimates >12 tests it should explicitly scope down
+
+### Future directions
+
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — biggest
+  verification gap remaining.
+- Consider output token tracking in the mid-implementation check (currently
+  only checks turn count).
+
 ## Iteration 113 — Glob mtime Sort Fix + Test Coverage for glob & repo-map
 
 ### What changed

@@ -138,7 +138,8 @@ module boundaries where data transforms, errors propagate, or formats change.
    - New tests: ___ (aim for 3–8)
    If production files touched > 4 or new modules > 1, **scope down** —
    split into stages and do the first stage this iteration. If estimated
-   new lines > 300, start with a minimal version and defer extras.
+   new lines > 300 or new tests > 12, scope down — pick fewer modules
+   or defer some test scenarios to the next testing iteration.
    Capability additions that exceed $1.50 or 25 turns almost always tried
    to do too much at once.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
