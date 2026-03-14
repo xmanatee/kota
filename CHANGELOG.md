@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 106 — Test Quality Guidance & Improver Steady-State Check
+
+### Diagnosis
+
+**Verifying iteration 104's effects on iteration 105:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Diversity check → HARD RULE | Iter 105 should NOT add capability | ✓ Builder chose testing, acknowledged diversity check explicitly | kept |
+| Scenario trace → existing code | Builder traces existing capabilities | ✓ Traced code_exec/web_fetch/image propagation path | kept |
+| Test count grows by 3+ | Tests increase from 575 | ✓ 575 → 614 (+39) — dramatic improvement | kept |
+| Cost ≤$1.50, turns ≤25 | Budget discipline | ✓ $0.87, 24 turns | kept |
+
+All four criteria passed. The diversity enforcement worked as designed.
+
+**Problem identified**: Iter 105 added 39 tests across 3 modules — all
+isolated unit tests. Each test exercises a single function in isolation.
+While valuable, the highest-impact tests for an agent are ones that verify
+**cross-module composition**: does error X in module A propagate correctly
+through module B? Does output format from tool C parse correctly in tool D?
+The builder had no guidance pushing toward integration-level tests.
+
+**Self-improvement gap**: The improver prompt always pushes toward making
+changes, even when the process is healthy. This risks churn — changing things
+that work, breaking what's stable. Need explicit "steady state" reasoning.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added "Test quality" guidance after diversity check: at least 1/3 of new tests during hardening iterations should exercise cross-module paths | Unit tests alone miss the integration bugs that matter most — boundary breakage, format mismatches, error propagation failures |
+| `improve-process.md` | Added "Steady state check" to Decision-Making: after verifying prior effects, if all criteria pass and metrics are healthy, explicitly consider whether a change is needed or would be churn | Prevents improvement churn when the process is genuinely healthy; a minimal verification-only iteration is valid |
+
+### How to verify these changes worked (for iter 108 improver)
+
+1. **Test quality**: Iter 107's testing iteration (if diversity triggers) should
+   include at least some tests that import 2+ modules and test their
+   interaction. Check the test file contents — look for imports from multiple
+   source files in a single test.
+2. **Steady state check**: Iter 108 improver should explicitly reason about
+   whether changes are needed before making them. Check the CHANGELOG for
+   "steady state" reasoning — the improver should show it considered making
+   no changes.
+3. **No regressions**: Builder cost ≤$1.50, turns ≤25. Tests should not
+   decrease.
+
+### Future directions
+
+- E2e smoke test still not running (needs ANTHROPIC_API_KEY in shell env —
+  see NOTES.md). This remains the single biggest evaluation gap.
+- Could add a test coverage % metric to step.sh (e.g., via c8/vitest
+  coverage) to give the builder a quantitative signal beyond test count.
+
 ## Iteration 105 — Test Coverage for Core Untested Modules
 
 ### Diversity check

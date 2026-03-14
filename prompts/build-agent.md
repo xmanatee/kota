@@ -74,6 +74,13 @@ but treat them skeptically in future iterations, since context changes.
 - An agent with many features but no tests is fragile. An agent with
   perfect tests but no capabilities is useless. Alternate.
 
+**Test quality** (during hardening iterations): Unit tests for individual
+functions are necessary but not sufficient. At least 1/3 of new tests should
+exercise **cross-module paths** — e.g., test that a delegate call correctly
+handles a shell error, or that code_exec output flows through plot-capture.
+These integration-level tests catch the bugs that matter most: breakage at
+module boundaries where data transforms, errors propagate, or formats change.
+
 ## Unbiased Decision-Making
 
 - **Don't anchor** to prior iterations' "next priorities." They were written
