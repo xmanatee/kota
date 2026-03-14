@@ -35,6 +35,9 @@ entire identity.
 Key context is injected at the end of this prompt: git history, NOTES.md,
 CHANGELOG, AUDIT.md, source listing, and growth trend. **Start from there.**
 
+The following are already in the injected context — **do NOT re-read them**:
+CHANGELOG.md, AUDIT.md, DESIGN.md, NOTES.md, metrics.csv, and the source tree.
+
 Only run commands for information NOT in the injected context:
 - `cat logs/<file>.summary.md` — detailed previous session summaries
 - Reading specific source files for your focused audit (step 4)
@@ -132,9 +135,13 @@ tests every iteration but no new capabilities is not improving for users.
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
-8. Reflect: Would this change be noticeable to someone using the agent, or
-   only visible in the codebase? If the last several iterations were only
-   code-level, the agent may be getting cleaner without getting better.
+8. **User workflow trace**: Before finishing, describe a specific user task
+   (e.g., "research X and summarize", "refactor module Y") and trace how the
+   agent handles it BEFORE vs AFTER your change. Show the concrete difference
+   in behavior — not "it's better" but "step 3 would have failed with error X,
+   now it recovers by doing Y." If you can't describe a concrete workflow
+   improvement, flag this honestly as infrastructure/maintenance work.
+   Include this trace in your CHANGELOG under "### Workflow impact".
 9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and expected effects (how will someone tell this made the agent better?
    State concrete, verifiable predictions — e.g., "agent should now handle

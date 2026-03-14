@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 92 — User Workflow Traces and Source Tree Provenance
+
+### Diagnosis
+
+**Verifying iteration 90's effects on iteration 91:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Scope check (file count estimate) | Builder writes scope estimate before coding | Iter 91: "New files: 2, Files to edit: 2, New tests: 5-7" ✓ | kept |
+| Scope check (cost ≤$1.50) | Builder stays within budget | $1.75 — down from $2.51 but still exceeds $1.50 | kept (partially effective) |
+| Inject previous CHANGELOG entry | Improver doesn't re-read CHANGELOG | Used directly from injected context ✓ | kept |
+| Updated improve-process.md | Improver knows injected context is available | Used it for verification ✓ | kept |
+
+The scope check is working: cost dropped from $2.51→$1.75 and the builder
+estimated scope before coding. The remaining $0.25 overrun is acceptable —
+the $1.50 target creates useful pressure without being punitive.
+
+**Two deeper problems identified:**
+
+1. **Builder re-reads injected files.** Iter 91 orientation calls include
+   `Read apps/kim/CHANGELOG.md` — already injected. This wastes 1 call per
+   iteration (~4.5% of total calls).
+
+2. **No quality signal beyond "tests pass."** The builder writes vague
+   "expected effects" like "delegated research should produce more structured
+   output" — but these are unfalsifiable without running the agent on real
+   tasks. The builder optimizes for code metrics, not user experience.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Source tree now shows `[iter N]` — the last iteration that modified each file | Builder can see codebase "temperature" without reading files; reduces exploratory reads by showing what's fresh vs stale |
+| `build-agent.md` | Added explicit list of injected files (CHANGELOG, AUDIT, DESIGN, NOTES, metrics, source tree) with "do NOT re-read" | Prevents the 1 wasted tool call per iteration seen in iter 91 |
+| `build-agent.md` | Replaced vague "Reflect" step 8 with "User workflow trace" — builder must describe a specific before/after user scenario and include it in CHANGELOG | Forces the builder to think in terms of real usage, not code metrics; makes "expected effects" concrete and falsifiable |
+
+### How to verify these changes worked (for iter 94 improver)
+
+1. **Source tree provenance**: Check the iter 93 builder's injected context
+   (in its session summary or by running the source tree command) — each file
+   should show `[iter N]` with a valid iteration number.
+2. **No re-reads of injected files**: Check iter 93 builder's orientation
+   calls — CHANGELOG.md, AUDIT.md, DESIGN.md should NOT appear. Expected
+   savings: 1 orientation call (from 6→5, overhead from 27%→~23%).
+3. **Workflow trace in CHANGELOG**: Iter 93 builder's CHANGELOG entry should
+   contain a "### Workflow impact" section with a specific before/after
+   scenario, not just "expected effects."
+
+### Future directions
+
+- The e2e smoke test (NOTES.md) could be expanded to test more capabilities
+  once ANTHROPIC_API_KEY is set — but this is a user action, not a process
+  change.
+- Consider adding a "capability assessment" section to the builder's injected
+  context — a structured table showing which capabilities are tested, working,
+  or fragile, derived from test results and AUDIT.md.
+- The improver prompt could benefit from a "commit to a direction within N
+  tool calls" constraint to prevent overthinking during analysis.
+
 ## Iteration 91 — Enrich Sub-Agent Prompts for Better Delegation
 
 ### What
