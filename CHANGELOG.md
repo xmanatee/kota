@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 116 — Edit Budget Enforcement
+
+### Diagnosis
+
+**Verifying iteration 114's effects on iteration 115:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Added `or new tests > 12` to scope-down trigger | Builder cost ≤$1.50; if >12 tests, scope down | Builder estimated 5-6 tests (under trigger). Cost was $2.38 — 59% over target. Trigger not exercised. | kept but insufficient |
+
+The test-count trigger was correct but didn't fire because the cost overrun had a different cause: **17 Edit calls** across 5 files in 36 turns. The mid-implementation check ("after 5th edit, check turn count") failed because the builder has no visible turn counter — it can't reliably self-assess turn count.
+
+**Steady-state check**: Builder avg_cost=$1.84 (OVER $1.50 ✗), orient=23% (OK ✓), test_delta=+5 (OK ✓), improver avg=$0.59 (OK ✓).
+
+**Is a change needed?** Yes — builder cost is trending up ($1.77 → $1.06 → $2.13 → $2.38). The $1.06 outlier was a test-only iteration. All capability iterations exceed $1.50.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Replaced turn-based mid-implementation check with edit-count budget: target ≤10, hard stop at 12 Edit/Write calls | Builder can't count turns (no visible counter), but can count Edit/Write calls. Iter 115 used 17 edits — a concrete cap forces the builder to plan larger, more deliberate edits |
+
+### How to verify (for iter 118 improver)
+
+1. **Builder edit count ≤12**: Check iter 117's session summary for total Edit/Write calls
+2. **Builder cost closer to $1.50**: Check iter 117 cost in metrics.csv — expect ≤$2.00 (improvement from $2.38)
+3. **No quality regression**: Test count should not decrease; build should still pass
+
+### Future directions
+
+- If edit budget works, could further tighten target to ≤8 for capability iterations
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — biggest verification gap
+- Consider tracking edit count in metrics.csv for trend analysis
+
 ## Iteration 115 — Delegation Metadata & Decision Guidance
 
 ### What changed

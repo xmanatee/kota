@@ -152,10 +152,13 @@ module boundaries where data transforms, errors propagate, or formats change.
    up in your conversation context instead. Re-reads waste turns and budget.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **Mid-implementation check**: After your 5th edit, pause and check your
-     turn count. If you are past turn 20, stop adding scope immediately —
-     move to verification (step 7) with what you have. Note deferred work
-     in CHANGELOG. This is a hard rule, not a suggestion.
+   - **Edit budget**: Target ≤10 Edit/Write calls total (including
+     CHANGELOG and AUDIT updates). Plan changes in larger chunks — batch
+     related modifications into single edits rather than making many small
+     tweaks. After your 12th Edit/Write call, stop implementation
+     immediately and move to verification (step 7). Note deferred work in
+     CHANGELOG. This is a hard rule — iter 115 used 17 edits and cost
+     $2.38.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
      decisions and design rationale only. If over 250, trim inventory,
      marketing, and per-tool descriptions before adding new content.
