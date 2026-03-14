@@ -94,9 +94,12 @@ or process reliability.
    other context? This is how we avoid repeating interventions that don't
    land.
 4. **Check efficiency**: Review metrics.csv for cost, duration, and
-   turn-count trends. If the builder is getting significantly more expensive
-   or slower across iterations, diagnose why and consider interventions
-   (context injection, prompt trimming, scope guidance).
+   turn-count trends. Also check the session summary's "Orientation overhead"
+   metric — this shows how many tool calls the builder spent before its first
+   Edit/Write. High overhead (>40%) means the builder is reading too many
+   files before starting work. If the builder is getting significantly more
+   expensive or slower across iterations, diagnose why and consider
+   interventions (prompt restructuring, scope guidance, context injection).
 5. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
 6. Evaluate: what worked? What didn't? What was missed?
 7. Change the process layer: builder prompt, your own prompt, step.sh,

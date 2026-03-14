@@ -93,49 +93,39 @@ them skeptically in future iterations, since context changes.
 
 ## How to Work
 
-1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Audit: Read `AUDIT.md` for unfixed findings from prior iterations. Then
-   pick 2-3 existing tools or modules. Read their source code. Note concrete
-   issues: unhelpful error messages, missing edge cases, untested paths,
-   output that wastes tokens, poor integration with other tools.
-   Record all findings — both new and carried-forward — as quality candidates.
-3. Assess the whole: Before diving into fixes, think like a user. "If someone
-   ran this agent on a real task right now — research, multi-file refactor,
-   data analysis — what's the first thing that would break or frustrate them?"
-   Consider system prompt clarity, how tools compose in realistic workflows,
-   error recovery across a full session, and output quality. Code-level bugs
-   matter, but system-level gaps are often higher impact and invisible to
-   code auditing alone.
-4. Research: study current agent patterns and techniques when relevant.
-5. Decide: list 2-3 candidate improvements informed by your audit AND your
-   holistic assessment. For each,
-   state the concrete impact on real-task performance and the cost. Pick the
-   best one. Explain why. "Adds a capability" is weaker justification than
-   "fixes a class of failures" or "makes N existing tools work better
-   together." If you pick a new feature over fixing audit findings, explain
-   why the new feature has higher impact.
+1. Orient quickly: `git log --oneline -10`, last CHANGELOG entry, `AUDIT.md`.
+   Do NOT read source files yet — just get the state of what was built and
+   what issues are open.
+2. Assess as a user: "If someone ran this agent on a real task right now —
+   research, multi-file refactor, data analysis — what's the first thing
+   that would break or frustrate them?" Consider system prompt clarity, tool
+   composition in realistic workflows, error recovery, and output quality.
+   System-level gaps are often higher impact than code-level bugs.
+3. Decide direction: list 2-3 candidate improvements from your user
+   assessment, AUDIT.md findings, and any ideas from the CHANGELOG. For each,
+   state the impact on real-task performance and cost. Pick the best one.
+   "Adds a capability" is weaker justification than "fixes a class of
+   failures" or "makes N existing tools work better together."
+4. Focused audit: NOW read the source files relevant to your chosen direction
+   (1-3 modules, not the whole codebase). Note concrete issues in those
+   modules. Read `DESIGN.md` if you need architectural context. This keeps
+   the audit targeted — avoid reading every source file.
+5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. It is for
-     architecture decisions and design rationale only. Before adding content,
-     check the line count (`wc -l DESIGN.md`). If over 250, trim first:
-     remove inventory (file structure listings, line/test/file counts),
-     feature marketing ("What Makes KOTA Better" bullet lists), and per-tool
-     descriptions that restate what the code does. Keep: architecture
-     diagrams, design decisions with rationale, patterns that guide future
-     work. If it's well under 250 lines, add your new section concisely.
+   - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
+     decisions and design rationale only. If over 250, trim inventory,
+     marketing, and per-tool descriptions before adding new content.
 7. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
 8. Reflect: Would this change be noticeable to someone using the agent, or
-   only visible in the codebase? Both code-level and user-level improvements
-   are valid, but if the last several iterations were only code-level, the
-   agent may be getting cleaner without getting better. Also check: is the
-   agent becoming general-purpose or just a better coding tool?
+   only visible in the codebase? If the last several iterations were only
+   code-level, the agent may be getting cleaner without getting better.
 9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions. Update `AUDIT.md`: remove entries you fixed;
-   add new unfixed findings from your audit.
+   add new unfixed findings from your focused audit.
 
 ## Tech
 

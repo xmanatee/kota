@@ -55,6 +55,8 @@ def parse_session(path: str) -> dict:
     files_edited = set()
     files_written = set()
     files_read = set()
+    first_edit_call = None
+    call_num = 0
 
     for msg in messages:
         if msg.get("type") != "assistant":
@@ -87,7 +89,11 @@ def parse_session(path: str) -> dict:
             elif block.get("type") == "tool_use":
                 name = block["name"]
                 tool_counts[name] += 1
+                call_num += 1
                 inp = block.get("input", {})
+
+                if name in ("Edit", "Write") and first_edit_call is None:
+                    first_edit_call = call_num
 
                 if name == "Edit":
                     fp = inp.get("file_path", "")
@@ -124,6 +130,8 @@ def parse_session(path: str) -> dict:
         "files_written": sorted(files_written),
         "files_read": sorted(files_read),
         "message_count": len(messages),
+        "first_edit_call": first_edit_call,
+        "total_calls": call_num,
     }
 
 
@@ -164,6 +172,14 @@ def format_summary(data: dict, path: str) -> str:
         for name, count in tc.items():
             lines.append(f"- {name}: {count}")
         lines.append(f"- **Total**: {data.get('tool_total', 0)}")
+        first_edit = data.get("first_edit_call")
+        total = data.get("total_calls", 0)
+        if first_edit and total:
+            pct = round((first_edit - 1) / total * 100)
+            lines.append(
+                f"- **Orientation overhead**: {first_edit - 1} calls"
+                f" before first Edit/Write ({pct}% of total)"
+            )
         lines.append("")
 
     # Files modified

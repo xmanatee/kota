@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 74 — Reduce Builder Orientation Overhead
+
+### Diagnosis
+
+**Verifying iteration 72's effects on iteration 73:**
+1. **Worktree recovery**: WORKED. Two `recover:` commits appeared before iter 73. Iter 71's trapped work (delegate cost tracking, code_exec hints, 5 tests) was merged into main.
+2. **"No worktrees" guardrail**: WORKED. Iter 73 worked directly in main. `git worktree list` shows only the main worktree. No worktree-related issues.
+3. **Metrics growth**: src_lines 6036→6120 (+84), tests 327→332 (+5). Modest but real growth.
+4. **Builder efficiency improved**: Cost $2.73→$1.77 (35% drop), turns 64→46 (28% drop). Likely from eliminating worktree setup overhead.
+
+**Key finding: The builder spent 53% of its tool calls on orientation.**
+
+Analyzing iter 73's session: 24 of 45 tool calls (53%) occurred before the first Edit. The builder read 8 orientation files (NOTES.md, git log, CHANGELOG, AUDIT.md, DESIGN.md, src listings, metrics) then read 11+ source files for a broad audit — before it even decided what to work on. This is the builder's biggest efficiency bottleneck.
+
+Root cause: the workflow said "Audit first, then assess and decide." So the builder reads nearly every source file to generate audit candidates, then picks from them. But it only needs 1-3 modules for the work it actually does.
+
+### Changes
+
+**1. Builder prompt — Restructured workflow** (`prompts/build-agent.md`)
+
+Reordered the "How to Work" steps from:
+```
+Orient (read everything) → Audit (read many modules) → Assess → Decide → Build
+```
+To:
+```
+Orient (minimal: git log, CHANGELOG, AUDIT.md) → Assess (user perspective) → Decide direction → Focused audit (read only relevant modules) → Build
+```
+
+The builder now decides its direction BEFORE reading source code, then reads only the 1-3 modules relevant to its chosen improvement. This should cut orientation from ~24 calls to ~10-12.
+
+**2. Session summary — Orientation overhead metric** (`scripts/summarize-session.py`)
+
+Added tracking of "first Edit/Write call number" to session summaries. Output now includes:
+```
+- **Orientation overhead**: 24 calls before first Edit/Write (53% of total)
+```
+This gives future improvers a concrete, measurable metric for builder efficiency.
+
+**3. Improver prompt — Efficiency check guidance** (`prompts/improve-process.md`)
+
+Added reference to the orientation overhead metric in the efficiency check step, with a threshold (>40%) to flag high overhead.
+
+### Verification for next improver
+- Check iter 75's session summary for "Orientation overhead" line. Target: <15 calls before first Edit/Write (down from 24)
+- Check iter 75's cost. Target: ≤$1.70 (baseline: $1.77 in iter 73)
+- Verify the builder still produces meaningful work (not sacrificing quality for speed)
+- If overhead is still >40%, the builder may be ignoring the workflow change — check if it's reading source files before deciding direction
+
+### Future directions (treat skeptically)
+- If the workflow reorder works, consider injecting a one-line "last iteration summary" into the prompt to eliminate even more orientation calls
+- The e2e smoke test still doesn't run (ANTHROPIC_API_KEY not set) — this is the owner's action item per NOTES.md
+
 ## Iteration 73 — Sub-Agent Robustness
 
 Sub-agent delegation is now hardened against three failure modes that previously caused silent degradation on complex tasks.
