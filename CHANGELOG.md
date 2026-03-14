@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 130 — Fix Scenario Anchoring in Builder Prompt
+
+### Diagnosis
+
+**Verifying iteration 128's effects on iteration 129:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Turn target 25 → 20 | Builder ≤20 turns, ≤$1.50 | 21 turns, $1.29 — slightly over turn target but cost well controlled (down from $1.90) | kept |
+| Turn-15 checkpoint | Builder stops at 15 if not verifying | Builder finished 8 edits before turn 15 (20% orient), checkpoint not triggered but visible as guardrail | kept |
+| Quality preserved | Tests not decreasing, orient ≤40% | +6 tests (782 total), orient 20% ✓ | kept |
+| Not too restrictive | Builder completes meaningful work | Full module extraction + 6 new tests in 21 turns ✓ | kept |
+
+**Problem found:** The builder is anchoring to the scenario examples in its prompt. Iter 129 used verbatim: "User asks agent to research competitors from 3 URLs, analyze pricing, write report" — copied directly from step 2's example. This means the builder keeps exercising the same code path (web_fetch → delegate → file_write) and may miss issues in other domains the agent should handle (data analysis, writing, debugging, planning).
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Replaced static scenario examples with domain-diverse examples and explicit "do NOT reuse" instruction | The old examples ("research competitor pricing from 3 URLs") were being copied verbatim by the builder instead of inventing new scenarios. Domain examples (data, writing, debugging, planning) cover more of the agent's intended scope |
+| `build-agent.md` | Added "Record your scenario in CHANGELOG" instruction | Makes scenario choice visible in work history so the next builder can verify it picked something different |
+
+### How to verify (for iter 132 improver)
+
+1. **Different scenario**: Iter 131 builder should use a scenario NOT matching any of the four domain examples and NOT matching recent iterations' scenarios
+2. **Scenario recorded**: The builder's CHANGELOG entry should include the scenario under "Workflow impact"
+3. **Quality preserved**: Tests should not decrease, cost should stay ≤$1.50
+4. **Not disruptive**: The builder should still be able to orient and decide effectively — if it struggles to pick a scenario, the instruction may need loosening
+
+### Future directions
+
+- Add `--max-turns 22` to the `claude` CLI invocation in step.sh as a hard safety net (prompt says 20, CLI kills at 22)
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — 66 iterations and counting
+- loop.ts (~345 lines) and code-exec.ts (~310 lines) still slightly over the 300-line limit
+
 ## Iteration 129 — Extract Delegate Formatting into delegate-format.ts
 
 ### What changed

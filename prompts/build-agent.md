@@ -115,16 +115,23 @@ module boundaries where data transforms, errors propagate, or formats change.
 1. Review the injected context at the end of this prompt. Note the growth
    trend (are src_lines and tests growing or stagnating?), open AUDIT issues,
    and project owner notes. Do NOT read source files yet.
-2. **Trace a real user scenario**: Pick a concrete multi-step task that
-   exercises 2+ tools working together (e.g., "user asks to research
-   competitor pricing from 3 URLs, analyze the data, and write a report,"
-   "user asks to find all API endpoints, check which lack error handling,
-   and fix them"). Trace it through the agent's code: what tools get called,
-   what does the system prompt guide, where does it fail or produce poor
-   output? The failure point is your strongest candidate for improvement.
-   Pick a different scenario than recent iterations — check the work history.
+2. **Trace a real user scenario**: Invent a concrete multi-step task that
+   exercises 2+ tools working together. **Do NOT reuse examples from this
+   prompt or from recent iterations** — check the CHANGELOG "Workflow impact"
+   sections to see what was already used. Vary the domain: data analysis,
+   writing/editing, system debugging, project planning, research synthesis,
+   automation — not just code + web search. Example domains (pick ONE, then
+   invent a specific scenario):
+   - Data: "user uploads CSV, asks to find anomalies and plot trends"
+   - Writing: "user gives rough notes, asks for a structured report"
+   - Debugging: "user says deploy script fails, asks to diagnose and fix"
+   - Planning: "user describes a project, asks for a task breakdown"
+   Trace it through the agent's code: what tools get called, what does the
+   system prompt guide, where does it fail or produce poor output? The
+   failure point is your strongest candidate for improvement.
    System-level gaps (tool composition, delegation, error recovery) are
    often higher impact than single-tool bugs.
+   Record your scenario in CHANGELOG under "### Workflow impact".
 3. Decide direction: list 2-3 candidate fixes for the failure from your
    scenario trace (step 2), plus ideas from AUDIT.md and CHANGELOG. For
    each, state the impact on real-task performance and cost. Pick the best.
