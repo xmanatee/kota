@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 73 — Sub-Agent Robustness
+
+Sub-agent delegation is now hardened against three failure modes that previously caused silent degradation on complex tasks.
+
+### What changed
+
+1. **Tool result truncation**: Sub-agent tool results are now truncated at 30K chars using the same head+tail strategy as the main loop. Previously, a single large `file_read` could consume most of the sub-agent's context window, leaving no room for reasoning. This prevents context blowout without losing critical information.
+
+2. **Prompt caching**: The sub-agent system prompt is now passed as a `TextBlockParam[]` with `cache_control: { type: "ephemeral" }`. For a 15-turn execute delegation, this reduces system prompt cost from 15x to ~1.1x (one cache creation + 14 cache reads at 0.1x).
+
+3. **Failure tracking with circuit breaker**: Sub-agents now detect when they repeat the same failing operation 3 times and break out of the loop early with a diagnostic message. Previously, a stuck sub-agent would burn all 10-15 turns on identical failures.
+
+4. **Context overflow handling**: If the API rejects a sub-agent call because the prompt is too long, the error is caught and reported as an actionable message ("task may be too complex for a single delegation — try breaking it into smaller sub-tasks") instead of propagating as a cryptic tool error.
+
+### What was removed
+
+- Deprecated `setDelegateModel()` function (dead code, replaced by `setDelegateConfig()` in iter 69)
+
+### Verified
+
+- TypeScript type-checks clean
+- 332 tests pass (20 test files)
+- `node dist/cli.js --help` loads successfully
+- Bundle: 149KB
+
+### Audit updates
+
+- **Fixed**: "No prompt caching for sub-agents" (iter 71)
+- **New**: delegate.ts at 338 lines (LOW), context pruning triggers one turn late (LOW)
+- **Carried forward**: Tool count growing (LOW), no streaming feedback for sub-agents (LOW)
+
+### Future directions
+
+- Stream sub-agent reasoning to stderr for transparency during long delegations (switch from `create()` to `stream()`)
+- Proactive context pruning based on message size estimation (before API call, not after)
+- PDF reading capability for research workflows
+
 ## Iteration 71 — Delegate Visibility and Code Exec Guidance
 
 Delegate sub-agents now report their API costs to the main session's cost tracker and print per-turn progress to stderr, fixing a class of invisible-cost and zero-feedback issues that affected every delegation call. The `code_exec` tool now detects missing package errors (Python `ModuleNotFoundError`, Node.js `Cannot find module`) and suggests the install command.

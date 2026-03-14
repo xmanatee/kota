@@ -13,6 +13,7 @@ import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runShell } from "./shell.js";
 import { processTool, runProcess } from "./process.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
+import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
 
 export const delegateTool: Anthropic.Tool = {
@@ -43,6 +44,8 @@ export const delegateTool: Anthropic.Tool = {
 
 const EXPLORE_MAX_TURNS = 10;
 const EXECUTE_MAX_TURNS = 15;
+const SUB_AGENT_RESULT_LIMIT = 30_000;
+const IDENTICAL_FAILURE_LIMIT = 3;
 
 // --- Delegate configuration (set by main session) ---
 
@@ -55,11 +58,6 @@ export type DelegateConfig = {
 };
 
 let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
-
-/** @deprecated Use setDelegateConfig instead. */
-export function setDelegateModel(model: string): void {
-  delegateConfig = { ...delegateConfig, model };
-}
 
 export function setDelegateConfig(config: DelegateConfig): void {
   delegateConfig = config;
@@ -202,17 +200,41 @@ export async function runDelegate(
   let lastText = "";
   let totalTurns = 0;
 
+  // Failure tracking: detect stuck sub-agents
+  let lastErrorSig = "";
+  let identicalErrorCount = 0;
+
+  // System prompt as cached block for prompt caching
+  const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+    { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+  ];
+
   const taskPreview = task.length > 60 ? task.slice(0, 57) + "..." : task;
   console.error(`[kota] delegate(${mode}) starting: ${taskPreview}`);
 
   for (let turn = 0; turn < maxTurns; turn++) {
-    const response = await client.messages.create({
-      model: delegateConfig.model,
-      max_tokens: 8192,
-      system: systemPrompt,
-      tools,
-      messages,
-    });
+    let response: Anthropic.Message;
+    try {
+      response = await client.messages.create({
+        model: delegateConfig.model,
+        max_tokens: 8192,
+        system: systemBlocks,
+        tools,
+        messages,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
+        console.error(`[kota] delegate(${mode}) context overflow at turn ${turn + 1}`);
+        if (lastText) break;
+        return {
+          content: `Sub-agent ran out of context after ${totalTurns} turns. ` +
+            "The task may be too complex for a single delegation — try breaking it into smaller sub-tasks.",
+          is_error: true,
+        };
+      }
+      throw err;
+    }
 
     totalTurns++;
     if (costTracker) costTracker.addUsage(delegateConfig.model, response.usage);
@@ -248,7 +270,6 @@ export async function runDelegate(
         const toolInput = block.input as Record<string, unknown>;
         const result = await runner(toolInput);
 
-        // Track file modifications in execute mode
         if (isExecute && !result.is_error) {
           for (const f of extractModifiedFiles(block.name, toolInput)) {
             modifiedFiles.add(f);
@@ -257,22 +278,44 @@ export async function runDelegate(
 
         return {
           tool_use_id: block.id,
-          content: result.content,
+          content: truncateToolResult(result.content, SUB_AGENT_RESULT_LIMIT),
           is_error: result.is_error,
         };
       }),
     );
 
+    const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
+
+    // Failure tracking: circuit break on repeated identical errors
+    const failedResults = validResults.filter((r) => r.is_error);
+    if (failedResults.length > 0) {
+      const sig = failedResults.map((r) => r.content).join("|");
+      if (sig === lastErrorSig) {
+        identicalErrorCount++;
+        if (identicalErrorCount >= IDENTICAL_FAILURE_LIMIT) {
+          console.error(`[kota] delegate(${mode}) circuit break — same error ${IDENTICAL_FAILURE_LIMIT}x`);
+          lastText = (lastText ? lastText + "\n\n" : "") +
+            `Sub-agent stopped: repeated the same failing operation ${IDENTICAL_FAILURE_LIMIT} times. ` +
+            `Last error: ${failedResults[0].content.slice(0, 200)}`;
+          break;
+        }
+      } else {
+        identicalErrorCount = 1;
+        lastErrorSig = sig;
+      }
+    } else {
+      identicalErrorCount = 0;
+      lastErrorSig = "";
+    }
+
     messages.push({
       role: "user",
-      content: results
-        .filter((r): r is NonNullable<typeof r> => r !== null)
-        .map((r) => ({
-          type: "tool_result" as const,
-          tool_use_id: r.tool_use_id,
-          content: r.content,
-          is_error: r.is_error,
-        })),
+      content: validResults.map((r) => ({
+        type: "tool_result" as const,
+        tool_use_id: r.tool_use_id,
+        content: r.content,
+        is_error: r.is_error,
+      })),
     });
   }
 
@@ -282,7 +325,6 @@ export async function runDelegate(
     return { content: "Sub-agent completed without producing a response." };
   }
 
-  // Build result with modified files summary for execute mode
   if (isExecute && modifiedFiles.size > 0) {
     const fileList = [...modifiedFiles].map((f) => `  - ${f}`).join("\n");
     return {
