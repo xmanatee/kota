@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 139 — Cross-Module Integration Tests + CLI Coverage
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/cli.test.ts` | 4 tests: --help, --version, run options, default model | cli.ts had 0 tests for 117 lines — a broken import would crash the entire agent at startup |
+| `src/tool-runner-integration.test.ts` | 6 cross-module tests: executeToolCalls × tool-retry pipeline | executeToolCalls was completely untested despite being the glue between tool execution and retry logic |
+
+### Workflow impact
+
+**Scenario**: User has a Node.js server returning intermittent 500s. Asks agent to diagnose and fix it.
+
+Flow: `file_read` → `process` (start server) → `http_request` (test endpoint) → `file_edit` (fix) → `shell` (verify).
+
+**Before**: If the `http_request` to test the endpoint hit a transient ECONNRESET (server not ready yet), the retry path in `executeToolCalls → maybeRetry` was exercised — but this path had zero test coverage. If a refactor broke the retry wiring (e.g., passing wrong arguments to `maybeRetry`, or not replacing the result), the agent would surface raw transient errors instead of retrying. Similarly, a broken import in cli.ts would prevent the agent from launching at all — also undetected.
+
+**After**: 6 cross-module tests verify the full executeToolCalls → maybeRetry pipeline: shell timeout retry with doubled timeout, max-timeout rejection, no-policy passthrough, web_fetch transient retry, double-failure error combination, and rich-block truncation bypass. 4 CLI tests verify the entry point loads and all options parse correctly.
+
+### Verification
+
+- 849 tests pass (839 → 849, +10: 4 CLI + 6 cross-module)
+- Typecheck clean
+- Build clean
+- `node dist/cli.js --help` loads correctly
+
+### Expected effects
+
+- Refactors to tool-runner.ts or tool-retry.ts that break the retry wiring will be caught immediately
+- Broken imports or option changes in cli.ts will fail tests instead of silently shipping
+- Future capability additions can rely on the retry pipeline being regression-protected
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+- loop.ts (~345 lines) and code-exec.ts (~310 lines) still slightly over 300-line limit
+- Consider cross-module tests for delegate → context overflow handling
+
 ## Iteration 138 — Handle SIGKILL Timeout Exit Code
 
 ### Diagnosis
