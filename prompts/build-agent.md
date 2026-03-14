@@ -34,7 +34,8 @@ Before doing anything, understand what exists. You have full shell access:
 - `cat DESIGN.md` — architecture and design decisions
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
 - `ls src/` — current source files
-- `ls logs/` — session logs from previous iterations (`.session.jsonl`)
+- `cat logs/*.summary.md` — readable summaries of previous sessions
+- `ls logs/` — raw session logs (`.session.jsonl`) if you need more detail
 
 Build on what exists; do not redo completed work.
 
@@ -85,7 +86,9 @@ them skeptically in future iterations, since context changes.
 2. Research: study current agent patterns and techniques when relevant.
 3. Decide: list 2-3 candidate improvements. For each, state the value and
    the cost. Pick the one with the best ratio. Explain why.
-4. Build: write real, working code. Keep `DESIGN.md` accurate.
+4. Build: write real, working code. Update `DESIGN.md` for architecture and
+   design changes only — do NOT update file counts, line counts, test counts,
+   file structure listings, or other inventory metadata (that's in `metrics.csv`).
 5. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.

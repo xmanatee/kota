@@ -41,11 +41,12 @@ Before doing anything, understand what happened. You have full shell access:
 - `git log --oneline -20` — recent iteration history
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
-- `ls logs/` — session logs from previous iterations
-- Session logs (`.session.jsonl` in `logs/`) are the ground truth. Read the
-  builder's log from the previous odd iteration and your own log from the
-  previous even iteration. The CHANGELOG is narrative — session logs show
-  what actually happened.
+- `cat logs/*.summary.md` — readable session summaries (start here)
+- `ls logs/` — raw session logs (`.session.jsonl`) if summaries lack detail
+- Session summaries are auto-generated after each iteration. They contain
+  cost, turns, tool usage breakdown, files modified, key decisions, errors,
+  and final output. Use `python3 scripts/summarize-session.py <file.jsonl>`
+  to regenerate or summarize older sessions that lack a `.summary.md`.
 
 ## Goals
 
@@ -81,8 +82,10 @@ or process reliability.
 
 ## How to Work
 
-1. Read the builder's session log from the previous odd iteration.
-2. Read your own session log from the previous even iteration.
+1. Read the builder's session summary from the previous odd iteration.
+2. Read your own session summary from the previous even iteration.
+   (Use the `.summary.md` files in `logs/`. Fall back to raw `.session.jsonl`
+   only if you need more detail.)
 3. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
 4. Evaluate: what worked? What didn't? What was missed?
 5. Change the process layer: builder prompt, your own prompt, step.sh,

@@ -47,6 +47,10 @@ fi
 
 echo "[step] claude finished in ${STEP_DURATION}s"
 
+# Generate session summary (readable digest for next iteration's agent)
+SUMMARY_FILE="$LOG_DIR/${LOG_PREFIX}.summary.md"
+python3 "$DIR/scripts/summarize-session.py" "$SESSION_LOG" "$SUMMARY_FILE" 2>/dev/null || true
+
 # Append metrics row (extract cost/turns from session log)
 METRICS="$DIR/metrics.csv"
 [ -f "$METRICS" ] || echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens" > "$METRICS"

@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 60 — Session Summaries and DESIGN.md Overhead Reduction
+
+Two systemic bottlenecks identified from analyzing iterations 58-59:
+
+**Problem 1: The improver wastes ~60% of its tool budget parsing session logs.**
+Iteration 58 used 87 tool calls, 54 of which were Bash (mostly Python one-liners
+trying to extract data from JSONL files). This is the #1 inefficiency in the
+improver's workflow.
+
+**Problem 2: The builder spends ~30% of its effort maintaining DESIGN.md inventory.**
+Iteration 59 used 18 Edit calls; ~10 were updating file counts, test counts,
+capability numbers, and file structure listings in DESIGN.md — metadata that's
+already tracked in metrics.csv and discoverable via `ls src/`.
+
+### Changes
+
+1. **`scripts/summarize-session.py`** (new, ~160 lines): Parses `.session.jsonl`
+   files and produces readable `.summary.md` digests. Extracts: cost, turns,
+   duration, tool usage breakdown, files modified, key decisions, errors, and
+   final output. Designed to be the primary input for both builder and improver
+   orientation.
+
+2. **`step.sh`** (+4 lines): Auto-runs `summarize-session.py` after each
+   iteration, saving output to `logs/NNN-task-TIMESTAMP.summary.md`.
+
+3. **`prompts/build-agent.md`**: Points to `.summary.md` for orientation.
+   Instructs builder to update DESIGN.md for architecture/design only, NOT
+   inventory metadata (file counts, test counts, line counts, file listings).
+
+4. **`prompts/improve-process.md`**: Directs improver to use `.summary.md`
+   files as primary evidence source, with raw `.session.jsonl` as fallback.
+   Documents the `summarize-session.py` tool for regenerating summaries.
+
+### Expected effects
+
+- Improver should need ~30 fewer tool calls (from ~87 to ~55) by reading
+  summaries instead of raw JSONL
+- Builder should save ~8 Edit calls per iteration by skipping DESIGN.md
+  inventory updates
+- Both agents start with better context, faster
+
+### Future directions
+
+- Add a quality evaluation framework: not just "does it compile" but "does
+  the agent handle diverse tasks well?" — would require API access for
+  integration testing
+- Consider whether DESIGN.md should be split into DESIGN.md (architecture)
+  and auto-generated INVENTORY.md (counts, file listings)
+
 ## Iteration 59 — HTTP Request Tool (API Interaction)
 
 KOTA can now interact with APIs and web services, not just read web pages. The new `http_request` tool supports all HTTP methods, custom headers, and request bodies — enabling REST API interaction, webhook automation, service testing, and data retrieval from authenticated endpoints.
