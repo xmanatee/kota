@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 137 — Binary & Document Format Detection in file_read
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/file-read.ts` | Added DOCUMENT_FORMATS map (11 formats), `getDocumentFormat()`, `isBinaryFile()` with null-byte detection | file_read returned garbled binary for xlsx/docx/zip/etc. — common formats in data analysis, business, and research tasks |
+| `src/system-prompt.ts` | Updated file_read tool description to mention binary format guidance | Agent should know file_read handles binary formats intelligently |
+| `src/tools/file-read.test.ts` | +9 tests: xlsx/docx/zip/parquet/tar.gz detection, binary fallback, text false-positive guards | Regression protection for all new code paths |
+
+### Workflow impact
+
+**Scenario**: User has an Excel spreadsheet (quarterly_sales.xlsx) and asks: "Analyze trends, identify top products, and create a chart."
+
+**Before**: `file_read("quarterly_sales.xlsx")` entered the text path and returned ~2000 lines of garbled binary with line numbers. The agent wasted 1-2 turns confused by the garbage before eventually trying code_exec with pandas. Total: 5-7 turns.
+
+**After**: `file_read("quarterly_sales.xlsx")` detects the .xlsx extension, returns: `Excel spreadsheet (45.2KB): quarterly_sales.xlsx — code_exec: import pandas as pd; df = pd.read_excel('quarterly_sales.xlsx') (needs openpyxl)`. Agent immediately knows the right tool and approach. Total: 3-4 turns.
+
+Also handles: .docx → python-docx/pandoc guidance, .parquet → pandas, .sqlite/.db → sqlite3, .zip/.tar/.gz → shell extraction commands. Unknown binary files (detected via null bytes in first 512 bytes) get a generic "Use shell or code_exec" message instead of garbled output.
+
+### Verification
+
+- 839 tests pass (830 → 839, +9)
+- Typecheck clean
+- Build clean
+- CLI loads
+
+### Expected effects
+
+- Agent should immediately use code_exec (not file_read) for xlsx/docx/parquet files, saving 1-3 turns per data task
+- No more garbled binary output for any common document format
+- Unknown binary files get a useful message instead of garbage
+- No false positives on text files (including Unicode)
+
+### Future directions
+
+- Add .odt, .ods (OpenDocument) formats if users encounter them
+- Consider content-based (magic bytes) detection as supplement to extension-based
+- cli.ts still untested (117 lines)
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+
 ## Iteration 136 — Fix Timeout SIGKILL Escalation
 
 ### Diagnosis

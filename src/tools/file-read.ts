@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { extname } from "node:path";
 import type { ToolResult, ToolResultBlock } from "./index.js";
@@ -15,6 +15,46 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB — Claude API limit
+
+const DOCUMENT_FORMATS: Record<string, { type: string; hint: string }> = {
+  ".xlsx": { type: "Excel spreadsheet", hint: "code_exec: `import pandas as pd; df = pd.read_excel('PATH')` (needs openpyxl)" },
+  ".xls": { type: "Excel spreadsheet", hint: "code_exec: `import pandas as pd; df = pd.read_excel('PATH')` (needs xlrd)" },
+  ".docx": { type: "Word document", hint: "code_exec with python-docx, or shell: `pandoc 'PATH' -t plain`" },
+  ".pptx": { type: "PowerPoint", hint: "code_exec with python-pptx" },
+  ".parquet": { type: "Parquet data", hint: "code_exec: `import pandas as pd; df = pd.read_parquet('PATH')`" },
+  ".sqlite": { type: "SQLite database", hint: "code_exec: `import sqlite3; conn = sqlite3.connect('PATH')`" },
+  ".db": { type: "SQLite database", hint: "code_exec: `import sqlite3; conn = sqlite3.connect('PATH')`" },
+  ".zip": { type: "ZIP archive", hint: "shell: `unzip -l 'PATH'` (list) or `unzip 'PATH' -d out/`" },
+  ".tar": { type: "TAR archive", hint: "shell: `tar -tf 'PATH'` (list) or `tar -xf 'PATH'`" },
+  ".tgz": { type: "Compressed archive", hint: "shell: `tar -tzf 'PATH'` (list) or `tar -xzf 'PATH'`" },
+  ".gz": { type: "Gzip file", hint: "shell: `gunzip 'PATH'` or `zcat 'PATH'`" },
+};
+
+function getDocumentFormat(filePath: string): { type: string; hint: string } | null {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith(".tar.gz")) {
+    return { type: "Compressed archive", hint: "shell: `tar -tzf 'PATH'` (list) or `tar -xzf 'PATH'`" };
+  }
+  if (lower.endsWith(".tar.bz2")) {
+    return { type: "Compressed archive", hint: "shell: `tar -tjf 'PATH'` (list) or `tar -xjf 'PATH'`" };
+  }
+  const ext = extname(filePath).toLowerCase();
+  return DOCUMENT_FORMATS[ext] ?? null;
+}
+
+function isBinaryFile(filePath: string): boolean {
+  const fd = openSync(filePath, "r");
+  try {
+    const buf = Buffer.alloc(512);
+    const bytesRead = readSync(fd, buf, 0, 512, 0);
+    for (let i = 0; i < bytesRead; i++) {
+      if (buf[i] === 0) return true;
+    }
+    return false;
+  } finally {
+    closeSync(fd);
+  }
+}
 
 export const fileReadTool: Anthropic.Tool = {
   name: "file_read",
@@ -73,6 +113,22 @@ export async function runFileRead(
 
   if (isPdfFile(filePath)) {
     return readPdf(filePath, input);
+  }
+
+  const docFormat = getDocumentFormat(filePath);
+  if (docFormat) {
+    const stats = statSync(filePath);
+    const hint = docFormat.hint.replaceAll("PATH", filePath);
+    return {
+      content: `${docFormat.type} (${formatSize(stats.size)}): ${filePath}\n\n${hint}`,
+    };
+  }
+
+  const stats = statSync(filePath);
+  if (stats.size > 0 && isBinaryFile(filePath)) {
+    return {
+      content: `Binary file (${formatSize(stats.size)}): ${filePath}\nUse shell or code_exec to process this file.`,
+    };
   }
 
   return readText(filePath, input);

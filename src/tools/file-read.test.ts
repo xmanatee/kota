@@ -194,6 +194,84 @@ describe("file_read: image size formatting", () => {
   });
 });
 
+describe("file_read: document format detection", () => {
+  it("returns guidance for Excel (.xlsx) files", async () => {
+    const path = join(TEST_DIR, "data.xlsx");
+    // ZIP magic bytes (xlsx is a zip archive)
+    writeFileSync(path, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
+    const result = await runFileRead({ path });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Excel spreadsheet");
+    expect(result.content).toContain("pandas");
+    expect(result.content).toContain("data.xlsx");
+  });
+
+  it("returns guidance for Word (.docx) files", async () => {
+    const path = join(TEST_DIR, "report.docx");
+    writeFileSync(path, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("Word document");
+    expect(result.content).toContain("python-docx");
+  });
+
+  it("returns guidance for ZIP archives", async () => {
+    const path = join(TEST_DIR, "archive.zip");
+    writeFileSync(path, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("ZIP archive");
+    expect(result.content).toContain("unzip");
+  });
+
+  it("returns guidance for Parquet files", async () => {
+    const path = join(TEST_DIR, "data.parquet");
+    writeFileSync(path, Buffer.from("PAR1fake_content"));
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("Parquet");
+    expect(result.content).toContain("read_parquet");
+  });
+
+  it("returns guidance for .tar.gz compound extension", async () => {
+    const path = join(TEST_DIR, "backup.tar.gz");
+    writeFileSync(path, Buffer.from([0x1f, 0x8b, 0x08, 0x00]));
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("Compressed archive");
+    expect(result.content).toContain("tar");
+  });
+
+  it("includes file size in guidance", async () => {
+    const path = join(TEST_DIR, "big.xlsx");
+    writeFileSync(path, Buffer.alloc(2048));
+    const result = await runFileRead({ path });
+    expect(result.content).toMatch(/\d+(\.\d+)?(B|KB|MB)/);
+  });
+});
+
+describe("file_read: binary detection", () => {
+  it("detects general binary files by null bytes", async () => {
+    const path = join(TEST_DIR, "unknown.bin");
+    writeFileSync(path, Buffer.from([0x00, 0x01, 0x02, 0x03, 0xff]));
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("Binary file");
+    expect(result.content).toContain("shell or code_exec");
+  });
+
+  it("does not false-positive on text files", async () => {
+    const path = join(TEST_DIR, "normal.txt");
+    writeFileSync(path, "Hello world\nLine 2\nLine 3\n");
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("Hello world");
+    expect(result.content).not.toContain("Binary file");
+  });
+
+  it("does not false-positive on unicode text", async () => {
+    const path = join(TEST_DIR, "unicode.txt");
+    writeFileSync(path, "Héllo wörld 日本語 emoji: 🎉\n");
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("Héllo");
+    expect(result.content).not.toContain("Binary file");
+  });
+});
+
 describe("file_read: PDF files", () => {
   it("returns error for empty PDF file", async () => {
     const path = join(TEST_DIR, "empty.pdf");
