@@ -121,10 +121,12 @@ tests every iteration but no new capabilities is not improving for users.
    Prefer completing a smaller core piece cleanly over cramming in extras.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
    **Budget: read at most 5 source files before your first edit.** The
-   source tree shows each file's exported names — use this to understand
-   module APIs without reading them. Only read files you will modify or
-   whose internals you need to understand deeply. DESIGN.md is in the
-   injected context — do not re-read it.
+   source tree shows each file's exports AND imports (← deps) — use this
+   to understand module APIs and dependency chains without reading files.
+   Only read files you will modify or whose internals you need to understand
+   deeply. DESIGN.md is in the injected context — do not re-read it.
+   **Never re-read a source file** you already opened this session — scroll
+   up in your conversation context instead. Re-reads waste turns and budget.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture

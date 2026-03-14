@@ -40,8 +40,8 @@ generate_context() {
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
     [ -f "$DIR/DESIGN.md" ] && { echo "### Architecture (DESIGN.md)"; cat "$DIR/DESIGN.md"; echo ""; }
-    echo "### Source tree (file: lines | last-changed | exports | test coverage)"
-    echo "Use this to understand module APIs without reading files."
+    echo "### Source tree (file: lines | last-changed | exports | imports | test coverage)"
+    echo "Use this to understand module APIs and dependencies without reading files."
     find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.d.ts' 2>/dev/null | sort | while IFS= read -r f; do
       lines=$(wc -l < "$f" | tr -d ' ')
       rel=${f#$DIR/}
@@ -50,12 +50,16 @@ generate_context() {
         sed -E 's/^export (default )?(async )?(class|function|const|type|interface|enum) //' | \
         head -5 | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
       [ -z "$exports" ] && exports="-"
+      imports=$(grep -oE "from ['\"]\.\.?/?[^'\"]+['\"]" "$f" 2>/dev/null | \
+        sed -E "s/from ['\"]//;s/['\"]$//;s/\.js$//" | \
+        sed -E 's|.*/||' | sort -u | head -4 | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
+      if [ -n "$imports" ]; then dep_str=" ← $imports"; else dep_str=""; fi
       test_f="${f%.ts}.test.ts"
       if [ -f "$test_f" ]; then
         tc=$(grep -cE '\b(it|test)\(' "$test_f" 2>/dev/null || echo "0")
-        printf "  %s (%s) [iter %s] [%s] — %s tests\n" "$rel" "$lines" "$last_iter" "$exports" "$tc"
+        printf "  %s (%s) [iter %s] [%s]%s — %s tests\n" "$rel" "$lines" "$last_iter" "$exports" "$dep_str" "$tc"
       else
-        printf "  %s (%s) [iter %s] [%s] — no tests\n" "$rel" "$lines" "$last_iter" "$exports"
+        printf "  %s (%s) [iter %s] [%s]%s — no tests\n" "$rel" "$lines" "$last_iter" "$exports" "$dep_str"
       fi
     done
     echo ""
@@ -129,7 +133,7 @@ recover_worktrees() {
   cd "$DIR"
   if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ]; then
     git add -A
-    git commit -m "recover: merge trapped worktree changes into main"
+    git commit -m "recover (iter #$ITERATION): merge trapped worktree changes into main"
     echo "[step] Committed recovered worktree changes"
   fi
 }

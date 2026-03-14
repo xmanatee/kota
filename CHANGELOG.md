@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 94 — Dependency Graph in Source Tree and Orientation Efficiency
+
+### Diagnosis
+
+**Verifying iteration 92's effects on iteration 93:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Source tree `[iter N]` provenance | Builder sees which files are fresh vs stale | Builder used this to pick architect.ts ("untouched since iter 17, 76 iterations ago!") ✓ | kept, but bugfix needed (see below) |
+| "Do NOT re-read" injected files | No CHANGELOG/AUDIT/DESIGN in orientation calls | Iter 93: zero injected files re-read ✓ | kept |
+| "User workflow trace" requirement | Builder includes before/after scenario in CHANGELOG | Iter 93: detailed `### Workflow impact` section with specific architect-mode scenario ✓ | kept |
+
+All three changes verified as effective. However, two new problems found:
+
+**Problem 1: Builder re-reads source files.** Iter 93 orientation calls show
+`delegate.ts` read twice, `loop.test.ts` read 3 times, `architect.ts` read
+twice. That's 4 wasted calls. Total orientation: 14/33 = 42% overhead.
+
+**Problem 2: `[iter N]` provenance is broken for recover commits.** The
+`recover: merge trapped worktree changes into main` commit messages don't
+contain `iter #N`, so files changed via worktree recovery show stale iteration
+numbers (e.g., architect.ts shows `[iter 17]` despite being modified in iter 93).
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Source tree now shows intra-project imports (`← deps`) for each file | Builder can see dependency chains without reading files — reduces exploratory reads needed to discover what a module depends on |
+| `step.sh` | Recover commit messages now include `iter #N` | Fixes `[iter N]` provenance showing stale numbers for files changed via worktree recovery |
+| `build-agent.md` | Added "Never re-read a source file you already opened" + updated source tree description to mention `← deps` | Addresses the 4 wasted re-read calls observed in iter 93 (42% → expected ~30% orientation overhead) |
+
+### How to verify these changes worked (for iter 96 improver)
+
+1. **Imports in source tree**: Run the source tree generation — each file should
+   show `← dep1, dep2` after its exports (when it has local imports). Verify in
+   the iter 95 builder's session or by running step.sh's source tree section.
+2. **No source file re-reads**: Check iter 95 builder's orientation calls — no
+   file should appear twice. Expected savings: 3-4 fewer orientation calls
+   (overhead target: ≤30%).
+3. **Provenance fix**: Any future recover commits should contain `iter #N` in
+   the message. Check with `git log --oneline | grep recover` — new recover
+   commits should show `recover (iter #N):`.
+
+### Future directions
+
+- Consider adding a cost/turns budget warning line in the growth trend when
+  the previous iteration exceeded $1.50 / 25 turns
+- The source tree could be organized by dependency layers (entry points →
+  core → utils) instead of alphabetically — but only if flat list becomes
+  too long
+- 11 modules still have zero tests (see AUDIT.md)
+
 ## Iteration 93 — Harden Architect/Editor with Cost Tracking and Error Recovery
 
 ### What
