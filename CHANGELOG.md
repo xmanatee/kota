@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 89 — Auto-Capture Matplotlib Charts in code_exec
+
+### What
+
+Added automatic matplotlib chart capture to the `code_exec` tool. When
+Python code creates matplotlib figures, they are automatically saved as
+PNG images and returned as image blocks in the tool result. The agent can
+now see its own visualizations and iterate on them — no manual `savefig`
++ `file_read` round-trip needed.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/plot-capture.ts` (NEW) | `extractPlots` + `readPlotFiles` utilities | Parse plot markers from REPL output, read captured PNGs as base64 image blocks |
+| `src/tools/code-exec.ts` | PYTHON_WRAPPER: set `MPLBACKEND=Agg`, capture open figures after each execution | Non-interactive backend prevents GUI popups; auto-capture saves up to 5 open figures as temp PNGs |
+| `src/tools/code-exec.ts` | `runCodeExec`: integrate plot extraction + image blocks | Separates plot markers from text output, reads captured images, returns as `ToolResult.blocks` |
+| `src/system-prompt.ts` | Updated data analysis workflow + tool description | Agent knows charts are auto-captured; no need to save to files manually |
+| `src/plot-capture.test.ts` (NEW) | 12 tests for extractPlots + readPlotFiles | Covers marker parsing, file reading, cleanup, edge cases |
+
+### How it works
+
+1. Python wrapper sets `MPLBACKEND=Agg` (non-interactive backend, no GUI)
+2. After each code execution, wrapper checks for open matplotlib figures
+3. Up to 5 figures are saved as temp PNGs, paths printed as `__KOTA_PLOT__:path` markers
+4. Figures are closed after capture (each code_exec cell is self-contained)
+5. TypeScript side extracts markers, reads PNGs as base64, returns as image blocks
+6. Temp files are deleted after reading
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (153.63 KB)
+- `npm test` — 485 tests pass (was 473, +12 new)
+- `node dist/cli.js --help` — clean startup
+
+### Expected effects
+
+1. **Data analysis tasks should produce visible charts** — when the agent
+   uses `code_exec` with matplotlib, the chart images will appear in the
+   tool result. The agent can reason about the visual output (colors,
+   trends, distributions) and iterate. Verifiable by running a data
+   analysis task that includes charting.
+
+2. **System prompt guides agent to use auto-capture** — the agent should
+   call `plt.plot(...)` / `plt.bar(...)` etc. without needing to manually
+   save to files. Verifiable by checking if the agent tries `savefig` +
+   `file_read` (old pattern) vs. just creating figures (new pattern).
+
+3. **No regression on non-matplotlib code** — `extractPlots` on output
+   without markers is a no-op (returns text unchanged, empty plotPaths).
+   Covered by tests.
+
+### Future directions
+
+- Capture seaborn/plotly output (seaborn uses matplotlib, so it's already
+  supported; plotly would need a different approach)
+- Auto-install matplotlib if missing (currently returns import error with
+  pip install hint)
+- Node.js chart capture (no standard library; could support node-canvas)
+
 ## Iteration 88 — Tighten Builder-Improver Feedback Loop
 
 ### Diagnosis

@@ -1,7 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { spawn, type ChildProcess } from "node:child_process";
 import { which } from "../runtime-check.js";
-import type { ToolResult } from "./index.js";
+import type { ToolResult, ToolResultBlock } from "./index.js";
+import { extractPlots, readPlotFiles } from "../plot-capture.js";
 
 const SENTINEL = "__KOTA_EXEC__";
 const DONE_MARKER = "__KOTA_DONE__";
@@ -13,6 +14,7 @@ const MAX_OUTPUT = 50_000;
 // Uses AST to extract and display the last expression's value (like IPython).
 const PYTHON_WRAPPER = [
   "import sys, traceback, ast",
+  "import os as _os; _os.environ['MPLBACKEND']='Agg'",
   "_g = {}",
   "while True:",
   "    lines = []",
@@ -39,6 +41,14 @@ const PYTHON_WRAPPER = [
   "            else:",
   "                exec(compile(code, '<exec>', 'exec'), _g)",
   "    except Exception: traceback.print_exc()",
+  "    try:",
+  "        import matplotlib.pyplot as _plt",
+  "        if _plt.get_fignums():",
+  "            import tempfile as _tf",
+  "            for _fn in _plt.get_fignums()[:5]:",
+  "                _p=_tf.mktemp(suffix='.png',prefix='kota_');_plt.figure(_fn).savefig(_p,dpi=150,bbox_inches='tight');print(f'__KOTA_PLOT__:{_p}')",
+  "            _plt.close('all')",
+  "    except Exception: pass",
   `    sys.stdout.write('${DONE_MARKER}\\n')`,
   "    sys.stdout.flush()",
 ].join("\n");
@@ -261,14 +271,26 @@ export async function runCodeExec(
 
   const { output, isError } = await session.execute(code, timeoutMs);
 
+  // Separate plot markers from text output (Python matplotlib auto-capture)
+  const { text: cleanOutput, plotPaths } = extractPlots(output);
+
   const truncated =
-    output.length > MAX_OUTPUT
-      ? output.slice(0, MAX_OUTPUT) +
-        `\n[truncated — ${output.length} chars total]`
-      : output;
+    cleanOutput.length > MAX_OUTPUT
+      ? cleanOutput.slice(0, MAX_OUTPUT) +
+        `\n[truncated — ${cleanOutput.length} chars total]`
+      : cleanOutput;
 
   const hint = detectPackageHint(truncated, language);
   const content = hint ? `${truncated}\n\n${hint}` : truncated;
+
+  const imageBlocks = readPlotFiles(plotPaths);
+  if (imageBlocks.length > 0) {
+    const blocks: ToolResultBlock[] = [
+      { type: "text", text: content },
+      ...imageBlocks,
+    ];
+    return { content, blocks, is_error: isError };
+  }
 
   return { content, is_error: isError };
 }
