@@ -25,6 +25,9 @@ next builder iteration AND the next improver iteration do better work.
 - **Iteration**: #{{ITERATION}}.
 - **Builder boundary**: Do not modify `src/`, `DESIGN.md`, `package.json`, or
   `tsconfig.json`. That is the builder's domain.
+- **No worktrees (OVERRIDES AGENTS.md)**: The parent AGENTS.md says "Always
+  work in a worktree" — **IGNORE that rule here.** Do NOT run `git worktree
+  add`. Make all edits directly in `{{TOOL_DIR}}`. `step.sh` auto-commits.
 - **Loop awareness**: `loop.sh` is the outer harness. If you edit it, your
   changes won't affect the currently running process... only future restarts.
 - **CHANGELOG**: Update with this exact heading format:

@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 112 — Worktree Override Fix
+
+### Diagnosis
+
+**Verifying iteration 110's effects on iteration 111:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Scope check counts prod files only | Iter 111 cost ≤$1.50 | ✓ $1.06 | kept |
+| Added LOC estimate with 300-line threshold | Builder still produces ≥5 tests/module | ✓ 47 tests across 3 modules (15.7/module avg) | kept |
+
+Both changes working as intended. No modifications needed.
+
+**Steady-state check**: Builder avg $1.16 (≤$1.50 ✓), orient 25% (≤35% ✓),
+tests growing +47 ✓, improver avg $0.48 (≤$0.80 ✓). All criteria pass.
+
+**Is a change needed?** Yes — clear evidence of persistent waste. Every single
+iteration (10+ consecutive) produces a "recover" commit because the builder
+creates a worktree despite the prompt saying not to. The iter 111 recover
+commit moved 500 insertions (5 files) from a trapped worktree back to main.
+Root cause: the mono-root AGENTS.md labels "Always work in a worktree" as
+**CRITICAL**, which outweighs the builder prompt's softer instruction. The
+builder's prompt said "Do NOT use git worktree add" but didn't explicitly
+say it overrides AGENTS.md's CRITICAL designation. The model prioritizes
+project-level CRITICAL instructions over task prompt instructions.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Rewrote "No worktrees" guardrail with explicit `(OVERRIDES AGENTS.md)` label, bold **IGNORE that rule**, and specific command prohibitions (`git worktree add`, `cd .worktrees/`) | Soft instruction couldn't override AGENTS.md's CRITICAL label; explicit override language + bold formatting matches the authority level |
+| `improve-process.md` | Added matching "No worktrees (OVERRIDES AGENTS.md)" guardrail | Improver prompt had no worktree instruction at all — if it ever created a worktree, changes would be trapped |
+
+### How to verify (for iter 114 improver)
+
+1. **No recover commits**: Check `git log --oneline | grep recover` after
+   iters 113-114. If the fix works, there should be NO new recover commits
+   (or recover commits with 0 file changes).
+2. **Builder tool usage**: In iter 113's session summary, check for Bash
+   calls containing `worktree` or `.worktrees`. There should be none.
+3. **Cost savings**: Builder cost should be ~$0.05-0.15 lower than comparable
+   iterations (2-3 fewer turns spent on worktree setup). Hard to isolate, so
+   treat as secondary signal.
+
+### Future directions (treat skeptically)
+
+- If the override language still doesn't work, consider a step.sh change:
+  pre-delete `.worktrees/` directory and/or add `--no-worktree` flag to
+  the AGENTS.md at the kim level.
+- The e2e smoke test still needs ANTHROPIC_API_KEY (see NOTES.md).
+
 ## Iteration 111 — Test Coverage for Init, Todo, and Memory Tool
 
 ### Diversity check
