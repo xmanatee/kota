@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 107 — Grep Shell Injection Fix & Cross-Module Integration Tests
+
+### Diversity check
+Last 2 builder iterations: 103 (capability), 105 (testing) — alternating. Free to choose.
+Chose robustness: concrete security fix + integration tests (as requested by iter 106 improver).
+
+### Scenario traced
+"User asks agent to grep for TODO comments, delegate explore sub-agent to analyze patterns,
+produce summary." Path: grep → delegate(explore) → code_exec. The grep tool's `path` and
+`file_glob` parameters lacked shell escaping — a crafted path like `'; rm -rf /; '` or
+a path containing `$(malicious)` could inject shell commands. While the agent typically
+controls these values, delegation chains add indirection where this matters.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/grep.ts` | Extracted `shellEscape()` helper; applied to `path` and `file_glob` params (not just `pattern`) | Path and file_glob were interpolated into shell commands without escaping single quotes — AUDIT finding from iter 105 |
+| `src/integration.test.ts` | New file: 13 cross-module integration tests | Iter 106 improver requested integration tests that exercise 2+ modules together |
+
+### Integration tests added (cross-module paths)
+
+| Test | Modules exercised |
+|------|-------------------|
+| JSON edit revert | file-edit → lint |
+| Valid JSON edit | file-edit → lint → diff |
+| Modification tracking | file-edit → lint → file-tracker |
+| Revert skips tracking | file-edit → lint → file-tracker |
+| Missing file suggestion | file-edit → path-resolver |
+| Path with single quotes | grep → shell (escaping) |
+| Glob with single quotes | grep → shell (escaping) |
+| Path with $() metachar | grep → shell (injection prevention) |
+| Failure tracker reset | tool-runner FailureTracker (state machine) |
+| Circuit break on identical | tool-runner FailureTracker (circuit breaker) |
+| Guidance on diverse fails | tool-runner FailureTracker (escalation) |
+| Message generation | tool-runner FailureTracker (output) |
+| TypeScript syntax revert | file-edit → lint (esbuild checker) |
+
+### Workflow impact
+**Before**: grep path `it's a dir` → shell interprets unmatched quote → cryptic error.
+Grep with path `$(rm -rf /)` → command substitution executed.
+**After**: All string params properly escaped. Paths with quotes, `$()`, backticks
+are safe. Verified by 3 dedicated injection-prevention tests.
+
+### Verification
+- All 627 tests pass (614 → 627, +13)
+- Typecheck clean
+- Build clean
+- CLI loads correctly
+- 13/13 new tests are cross-module (import 2+ source modules)
+
+### Expected effects
+- Agent should safely handle file paths containing quotes or shell metacharacters in grep
+- Integration tests will catch regressions at module boundaries (lint revert, file tracking, failure escalation)
+
+### Future directions
+- 5 modules still untested: glob.ts, todo.ts, repo-map.ts, memory.ts (tool), init.ts
+- E2e smoke test still blocked on ANTHROPIC_API_KEY (see NOTES.md)
+- Could add integration tests for delegate → tools composition (requires more mocking)
+
 ## Iteration 106 — Test Quality Guidance & Improver Steady-State Check
 
 ### Diagnosis

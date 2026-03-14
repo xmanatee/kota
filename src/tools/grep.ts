@@ -34,6 +34,11 @@ export const grepTool: Anthropic.Tool = {
   },
 };
 
+/** Escape a string for safe interpolation inside single quotes in shell commands. */
+function shellEscape(s: string): string {
+  return s.replace(/'/g, "'\\''");
+}
+
 export async function runGrep(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
@@ -61,13 +66,13 @@ export async function runGrep(
   if (hasRg) {
     cmd = `rg -n --no-heading -m ${maxResults}`;
     if (contextLines > 0) cmd += ` -C ${contextLines}`;
-    if (fileGlob) cmd += ` --glob '${fileGlob}'`;
-    cmd += ` '${pattern.replace(/'/g, "'\\''")}' '${path}'`;
+    if (fileGlob) cmd += ` --glob '${shellEscape(fileGlob)}'`;
+    cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
   } else {
-    cmd = `grep -rn --include='${fileGlob || "*"}'`;
+    cmd = `grep -rn --include='${shellEscape(fileGlob || "*")}'`;
     cmd += ` -m ${maxResults}`;
     if (contextLines > 0) cmd += ` -C ${contextLines}`;
-    cmd += ` '${pattern.replace(/'/g, "'\\''")}' '${path}'`;
+    cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
   }
 
   try {

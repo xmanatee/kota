@@ -17,13 +17,13 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 614 tests, strong foundation (iter 81→105, LOW)
+## Test coverage — 627 tests, strong foundation (iter 81→107, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (23), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
 delegate-prompts.ts (13), architect.ts (13), lint.ts (27), file-tracker.ts (11),
-web-fetch.ts (23), delegate.ts (17), diff.ts (14), shell.ts (15), grep.ts (10).
-Total suite: 614.
+web-fetch.ts (23), delegate.ts (17), diff.ts (14), shell.ts (15), grep.ts (10),
+integration tests (13). Total suite: 627.
 
 Still untested (5 modules): glob.ts, todo.ts, repo-map.ts, memory.ts (tool),
 init.ts.
@@ -34,10 +34,3 @@ into separate modules.
 
 loop.ts is 322 lines — if it grows further, extract the verify tracking
 loop or tool result processing into a helper module.
-
-## grep.ts — potential shell injection via path parameter (iter 105, LOW)
-
-The `path` parameter in runGrep is interpolated directly into the shell command
-string without escaping. A crafted path like `'; rm -rf /; '` could inject
-commands. Low severity since the agent controls the path (not direct user
-input), but worth hardening with proper escaping.
