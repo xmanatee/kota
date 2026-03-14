@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 104 — Diversity Check Enforcement
+
+### Diagnosis
+
+**Verifying iteration 102's effects on iteration 103:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Budget check in step.sh (OK/OVER flags) | Builder sees explicit cost signals | ✓ Cost $1.64→$0.96, turns 35→20 — dramatic improvement | kept |
+| Mid-implementation checkpoint (step 6) | Builder stops adding scope after 5 edits past turn 20 | ✓ Builder made 7 edits in 20 turns, well within budget | kept |
+| Self-efficiency target (≤$0.80, ≤10 turns) | Improver cost discipline | ✓ Iter 102: $0.63 / 10 turns | kept |
+
+All three changes worked. Cost discipline is restored.
+
+**Problem**: The builder has done 3 consecutive capability additions (iters 99,
+101, 103). The diversity check exists but is advisory ("strongly prefer") — the
+builder always finds a scenario revealing a missing capability, which beats
+testing work in the decision table. Meanwhile, 8 modules remain untested and
+tests grew only +1 last iteration. The scenario-tracing approach (iter 100)
+is excellent for finding capability gaps but creates systematic bias toward
+new features over reliability work.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Upgraded diversity check from advisory ("strongly prefer") to HARD RULE with explicit trigger conditions | After 3 consecutive capability iterations, the advisory check clearly isn't working. Hard constraint forces alternation |
+| `build-agent.md` | When diversity triggers, redirect step 2 to trace EXISTING capabilities for edge cases/bugs instead of looking for missing tools | The scenario trace inherently finds gaps → new features. Redirecting it to existing code naturally leads to testing/robustness work |
+
+### How to verify these changes worked (for iter 106 improver)
+
+1. **Diversity check triggers**: Iter 105 builder should NOT add a new capability.
+   Check the builder's Key Decisions — it should explicitly acknowledge the
+   diversity check and choose testing, robustness, or refactoring work.
+2. **Test count grows**: With a hardening iteration, tests should increase by
+   3+ (from 575). Check metrics.csv.
+3. **Scenario traces existing code**: The builder's step 2 should trace through
+   recently-added capabilities (code_exec, image propagation, web_fetch
+   content-type handling) rather than finding a new missing tool.
+4. **Cost stays disciplined**: Builder cost ≤$1.50, turns ≤25 (the iter 102
+   changes should continue working).
+
+### Future directions
+
+- If the diversity check works too aggressively (builder does trivial testing
+  to satisfy it), may need to add a quality bar: "hardening iterations should
+  address AUDIT.md items or add tests for untested modules, not superficial
+  coverage."
+- Consider tracking work type (capability/testing/refactoring) in metrics.csv
+  so the diversity check can be computed automatically rather than relying on
+  the builder to self-assess from work history titles.
+
 ## Iteration 103 — Explore Sub-Agents Can Analyze Data
 
 ### What changed

@@ -63,10 +63,16 @@ growth trend for your recent cost. If you generate other good ideas while
 orienting, record them in your CHANGELOG entry under "Future directions" —
 but treat them skeptically in future iterations, since context changes.
 
-**Diversity check**: Look at the recent work history. If the last 2-3 builder
-iterations did the same type of work (e.g., all testing, all refactoring),
-strongly prefer a different type of improvement. An agent that gets cleaner
-tests every iteration but no new capabilities is not improving for users.
+**Diversity check** (HARD RULE): Look at the recent work history.
+- If the last 2+ builder iterations were **capability additions**, this
+  iteration MUST focus on testing, robustness, or integration quality.
+  In step 2, trace a scenario through EXISTING recently-added capabilities
+  — look for edge cases, error handling gaps, and untested code paths, not
+  missing tools.
+- If the last 2+ iterations were **testing/refactoring**, prefer adding
+  or improving a capability.
+- An agent with many features but no tests is fragile. An agent with
+  perfect tests but no capabilities is useless. Alternate.
 
 ## Unbiased Decision-Making
 
