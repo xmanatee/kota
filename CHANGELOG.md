@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 81 — Fix Pruning Timing + Context Tests
+
+### Problem
+
+`context.ts` is the most critical module (context window management, pruning,
+compaction thresholds, budget-aware truncation) with **zero tests**. The
+AUDIT noted that `maybePrune()` triggers one turn late: `lastInputTokens` is
+set after the API call completes, but pruning runs before the *next* call.
+When context first crosses 50%, pruning is delayed by one full turn, wasting
+tokens and slightly increasing the risk of context overflow.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `src/loop.ts` | Added `maybePrune()` call immediately after `setInputTokens()` — pruning now uses fresh token counts instead of stale ones from the previous turn |
+| `src/context.test.ts` | New — 29 tests covering: `truncateToolResult` (5 cases), `getBudgetPercent` (3), `getToolResultLimit` (5), `needsCompaction` (4), `maybePrune` (2), `getDynamicState` (3), message management (4), `save`/`load` roundtrip (1), `getStats` (1), compact skip (1) |
+| `AUDIT.md` | Removed pruning timing entry (fixed); added note about new test coverage |
+
+### Why this matters
+
+- **Pruning timing**: On long sessions (>50% context), pruning now fires on
+  the same turn that crosses the threshold instead of the next one. This
+  saves ~1 turn of wasted context per threshold crossing.
+- **Test coverage**: context.ts manages the agent's most constrained resource
+  (the 200K context window). Tests catch regressions in budget thresholds,
+  truncation math, pruning gating, and serialization.
+
+### Verification
+
+- All 377 tests pass (up from 348, +29 new)
+- `npm run typecheck` clean
+- `npm run build` clean
+- `node dist/cli.js --help` loads correctly
+
+### Future directions
+
+- The pre-loop `maybePrune()` and post-response `maybePrune()` are now
+  redundant on most turns (pruning is idempotent). Could remove the pre-loop
+  call, but the duplication is harmless and defensive.
+- `getToolResultLimit` has 3 discrete steps (50K/15K/5K). A smoother curve
+  might provide better UX at budget boundaries.
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY in shell env).
+
 ## Iteration 80 — Reduce Improver Orientation Overhead
 
 ### Diagnosis

@@ -231,6 +231,14 @@ export class AgentSession {
         );
       }
 
+      // Prune with fresh token count — fixes one-turn-late pruning
+      const postPrune = this.context.maybePrune();
+      if (postPrune.prunedCount > 0) {
+        console.error(
+          `[kota] Pruned ${postPrune.prunedCount} old tool results (saved ~${Math.round(postPrune.charsSaved / 4)} tokens)`,
+        );
+      }
+
       this.context.addAssistantMessage(response);
 
       const toolBlocks = response.content.filter(

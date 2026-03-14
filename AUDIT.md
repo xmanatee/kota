@@ -24,9 +24,10 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## context.ts — Pruning triggers one turn late (iter 73, LOW)
+## context.ts — No test coverage until iter 81 (iter 81, LOW)
 
-`maybePrune()` triggers at >50% budget based on `lastInputTokens`, which is
-set after the API call completes. On the first turn where context crosses 50%,
-pruning doesn't happen until the next turn. Low impact because the API call
-at 50% almost never fails, but it wastes tokens.
+context.ts now has 29 tests covering truncation, budget thresholds, pruning,
+compaction skip, save/load, and message management. The pruning timing bug
+(one turn late) was fixed in iter 81 by adding a second `maybePrune()` call
+after `setInputTokens()` in loop.ts. If context management logic grows further,
+consider extracting budget/threshold logic into a separate module.
