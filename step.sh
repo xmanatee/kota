@@ -70,10 +70,11 @@ generate_context() {
     echo "### Budget check (last builder iteration)"
     grep "build-agent" "$DIR/metrics.csv" 2>/dev/null | tail -1 | \
       awk -F, '{
-        cost=$11+0; turns=$12+0; orient=$14+0
+        cost=$11+0; turns=$12+0; orient=$14+0; ew=$15+0
         printf "  Cost: $%.2f %s (target: ≤$1.50)\n", cost, (cost>1.5?"— OVER":"— OK")
         printf "  Turns: %d %s (target: ≤25)\n", turns, (turns>25?"— OVER":"— OK")
         printf "  Orient: %.0f%% %s (target: ≤40%%)\n", orient, (orient>40?"— OVER":"— OK")
+        if(ew>0) printf "  Edit/Write calls: %d %s (target: ≤10)\n", ew, (ew>10?"— OVER":"— OK")
         printf "  File reads before 1st edit: check summary (target: ≤5)\n"
       }'
     echo ""
@@ -88,12 +89,13 @@ generate_context() {
     echo "### Recent metrics"; head -1 "$DIR/metrics.csv"; tail -8 "$DIR/metrics.csv"; echo ""
     echo "### Process health (auto-computed trends)"
     awk -F, '
-      /build-agent/ { bc[++bn]=$11; bo[bn]=$14; bt[bn]=$10 }
+      /build-agent/ { bc[++bn]=$11; bo[bn]=$14; bt[bn]=$10; be[bn]=$15 }
       /improve-process/ { ic[++iq]=$11 }
       END {
-        n=bn<4?bn:4; s=0; os=0; on=0
-        for(i=bn-n+1;i<=bn;i++){s+=bc[i];if(bo[i]+0>0){os+=bo[i];on++}}
+        n=bn<4?bn:4; s=0; os=0; on=0; es=0; en=0
+        for(i=bn-n+1;i<=bn;i++){s+=bc[i];if(bo[i]+0>0){os+=bo[i];on++};if(be[i]+0>0){es+=be[i];en++}}
         printf "Builder (last %d): avg_cost=$%.2f avg_orient=%.0f%%",n,s/n,(on?os/on:0)
+        if(en>0) printf " avg_edits=%.0f",es/en
         if(bn>=2) printf " test_delta=%+d",bt[bn]-bt[bn-1]
         printf "\n"
         n=iq<4?iq:4; s=0
@@ -195,9 +197,12 @@ python3 "$DIR/scripts/summarize-session.py" "$SESSION_LOG" "$SUMMARY_FILE" 2>/de
 # Extract orientation overhead percentage from summary
 ORIENT_PCT=$(grep -oE '\([0-9]+% of total\)' "$SUMMARY_FILE" 2>/dev/null | grep -oE '[0-9]+' | head -1 || echo "-")
 
+# Extract edit/write call count from summary
+EDIT_WRITE_COUNT=$(grep -E '^- (Edit|Write):' "$SUMMARY_FILE" 2>/dev/null | awk -F': ' '{s+=$2} END {print s+0}' || echo "0")
+
 # Append metrics row (extract cost/turns from session log)
 METRICS="$DIR/metrics.csv"
-[ -f "$METRICS" ] || echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens,orient_pct" > "$METRICS"
+[ -f "$METRICS" ] || echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens,orient_pct,edit_write_count" > "$METRICS"
 METRICS_ROW=$(node -e "
   const lines = require('fs').readFileSync('$SESSION_LOG','utf8').trim().split('\n');
   for (let i=lines.length-1;i>=0;i--) {
@@ -257,7 +262,7 @@ if [[ "$TASK" == "build-agent" ]]; then
   fi
 fi
 
-echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_FILES},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${METRICS_ROW},${ORIENT_PCT}" >> "$METRICS"
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_FILES},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${METRICS_ROW},${ORIENT_PCT},${EDIT_WRITE_COUNT}" >> "$METRICS"
 
 # Auto-commit all changes in the worktree
 cd "$DIR"

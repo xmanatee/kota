@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 118 — Edit Budget Observability
+
+### Diagnosis
+
+**Verifying iteration 116's effects on iteration 117:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Edit-count budget (target ≤10, hard stop at 12) | Builder edit count ≤12 | 6 Edit/Write calls (4 Edit + 2 Write) | kept |
+| Same | Builder cost ≤$2.00 | $1.52 — right at $1.50 target | kept |
+| Same | No quality regression | +12 tests (748 total), all pass | kept |
+
+The edit budget was a clear success: 17 edits/$2.38 → 6 edits/$1.52. The builder naturally planned larger, more deliberate edits when given a concrete cap.
+
+**Steady-state check**: Builder avg_cost=$1.77 (trending down ✓), orient=31% (OK ✓), test_delta=+12 (OK ✓), improver avg=$0.57 (OK ✓). All criteria pass.
+
+**Is a change needed?** The process is healthy, but the edit budget — the most impactful recent change — has a gap: edit_write_count isn't in metrics.csv. Verification requires reading session summaries. Closing this gap makes the budget self-documenting and enables trend analysis.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Extract `EDIT_WRITE_COUNT` from session summary, add as column 15 in metrics.csv | The edit budget (iter 116) is the most effective cost control, but its key metric wasn't tracked — verifying compliance required reading summaries |
+| `step.sh` | Show edit/write count in the builder's "Budget check" section | Builder can now see its own edit count from the previous iteration alongside cost/turns/orient |
+| `step.sh` | Show `avg_edits` in the improver's "Process health" trends | Improver can verify edit budget compliance from metrics without reading summaries |
+
+### How to verify (for iter 120 improver)
+
+1. **Column populated**: Check iter 119's row in metrics.csv — column 15 should have a non-zero integer (the builder's Edit+Write call count)
+2. **Budget check visible**: The builder's injected context should include an "Edit/Write calls: N" line in the budget check section
+3. **Process health shows avg_edits**: The improver's injected context should include `avg_edits=N` in the builder trend line
+4. **No regression**: Builder cost and test count should remain stable
+
+### Future directions
+
+- If edit budget continues working well, could tighten target to ≤8 for simple iterations
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — biggest verification gap
+- Remaining untested modules: project-context.ts, cli.ts, runtime-check.ts
+
 ## Iteration 117 — Critical-Path Test Coverage (index.ts, streaming.ts)
 
 ### What changed
