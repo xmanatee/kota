@@ -11,6 +11,7 @@ import { buildSessionWarmup } from "./init.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { VerifyTracker, detectVerifyCommands } from "./verify-tracker.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
+import { McpManager } from "./mcp-manager.js";
 
 const MAX_ITERATIONS = 200;
 
@@ -42,8 +43,11 @@ export class AgentSession {
   private sessionPath?: string;
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker: VerifyTracker;
+  private mcpManager: McpManager | null = null;
   private sigintHandler: () => void;
   private closed = false;
+  private initialized = false;
+  private initPromise: Promise<void>;
 
   constructor(options: LoopOptions = {}) {
     this.model = options.model || "claude-sonnet-4-6";
@@ -88,6 +92,9 @@ export class AgentSession {
 
     setDelegateModel(this.editorModel);
 
+    // Initialize MCP servers asynchronously (awaited before first send)
+    this.initPromise = this.initMcp();
+
     // SIGINT handler: save session before exit
     this.sigintHandler = () => {
       if (this.sessionPath) {
@@ -99,10 +106,33 @@ export class AgentSession {
     process.on("SIGINT", this.sigintHandler);
   }
 
+  private async initMcp(): Promise<void> {
+    const config = McpManager.loadConfig();
+    if (!config) {
+      this.initialized = true;
+      return;
+    }
+    this.mcpManager = new McpManager();
+    await this.mcpManager.initialize(config);
+    if (this.mcpManager.getToolCount() > 0 && this.verbose) {
+      console.error(
+        `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
+      );
+    }
+    this.initialized = true;
+  }
+
   /** Send a prompt and run the agent loop until the agent stops. */
   async send(prompt: string): Promise<string> {
+    if (!this.initialized) await this.initPromise;
+
     this.context.addUserMessage(prompt);
     let lastResult = "";
+
+    // Combine built-in tools with MCP tools
+    const combinedTools = this.mcpManager
+      ? [...allTools, ...this.mcpManager.getTools()]
+      : allTools;
 
     // Architect/Editor split: two-pass before the main verification loop
     if (this.architectMode) {
@@ -166,7 +196,7 @@ export class AgentSession {
         maxTokens: this.effectiveMaxTokens,
         system,
         messages: this.context.getMessages(),
-        tools: allTools,
+        tools: combinedTools,
         thinkingConfig: this.thinkingConfig,
         verbose: this.verbose,
       });
@@ -202,7 +232,9 @@ export class AgentSession {
 
       // Execute tool calls in parallel with budget-aware truncation
       const resultLimit = this.context.getToolResultLimit();
-      const validResults = await executeToolCalls(toolBlocks, resultLimit, this.verbose);
+      const validResults = await executeToolCalls(
+        toolBlocks, resultLimit, this.verbose, this.mcpManager ?? undefined,
+      );
       this.context.addToolResults(validResults);
 
       // Track edits and verifications for nudge system
@@ -253,6 +285,7 @@ export class AgentSession {
     this.closed = true;
     process.removeListener("SIGINT", this.sigintHandler);
     if (this.sessionPath) this.context.save(this.sessionPath);
+    this.mcpManager?.close().catch(() => {});
     console.error(`[kota] Done \u2014 ${this.costTracker.getSummary()}`);
   }
 }

@@ -7,7 +7,7 @@ const program = new Command();
 
 program
   .name("kota")
-  .description("KOTA — Keep Only The Awesome. An AI coding agent.")
+  .description("KOTA — Keep Only The Awesome. A general-purpose AI agent.")
   .version("0.1.0");
 
 program

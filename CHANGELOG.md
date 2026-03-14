@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 57 — Write-Capable Sub-Agent Delegation
+
+KOTA's `delegate` tool now has two modes: `explore` (default, read-only — unchanged) and `execute` (new — can modify files and run shell commands). This transforms the agent from a serial worker into a parallel orchestrator: the main agent can dispatch implementation subtasks to sub-agents that independently edit files, run builds/tests, and report what they changed.
+
+### Why this improvement
+
+The existing delegate tool is read-only — the agent can research in parallel but must do all implementation work sequentially in its own context. For complex tasks requiring changes across multiple files, this means every edit, test, and fix burns main-context tokens. With write-capable delegation, the main agent can say "fix the type errors in src/auth.ts" or "add the missing test cases" as delegated tasks. The sub-agent handles the implementation independently, reports which files it modified, and the main agent continues with a clean context.
+
+This is the key architectural difference between a chatbot (does everything in one thread) and an orchestrator (decomposes and delegates work).
+
+### What changed
+
+- **`src/tools/delegate.ts`** (~240 lines, up from ~130): Added `mode` parameter. Execute mode provides `file_edit`, `file_write`, `multi_edit`, and `shell` (60s timeout cap) in addition to all explore-mode tools. Tracks modified files via `extractModifiedFiles()` and appends them to the result. Separate system prompts for each mode. Execute mode gets 15 turns (vs 10 for explore).
+- **`src/tools/delegate.test.ts`** (~65 lines, new): 8 tests for `extractModifiedFiles` — covers file_edit, file_write, multi_edit (with both `path` and `file_path` fields), empty inputs, and read-only tools returning empty.
+- **`src/system-prompt.ts`** (~46 lines): Added delegation guidance section. Broadened agent identity from "coding agent" to "general-purpose AI agent" covering research, analysis, writing, planning, data work, and automation.
+- **`src/cli.ts`**: Updated description to "A general-purpose AI agent."
+- **`DESIGN.md`**: Updated Sub-Agent Delegation section with two-mode architecture, file structure, line counts, and feature descriptions.
+
+### Verified
+
+- TypeScript type-checks clean
+- Builds to 118.3KB bundle
+- 15 test files, 222 tests pass
+- CLI `--help` works correctly
+- Runtime smoke test: agent initializes, registers tools, connects to API
+
+### Future directions
+
+- Multi-modal input (accept images via CLI, send as image content blocks — unlocks visual reasoning)
+- Parallel delegation (dispatch multiple execute sub-agents concurrently via `Promise.all`)
+- Delegation result streaming (stream sub-agent progress to stderr)
+- Tool confirmation in execute mode (let the main agent approve/reject sub-agent tool calls)
+
 ## Manual fix — Remove timeout wrapper from step.sh
 
 The `timeout` wrapper added in iteration 54 caused claude to get suspended

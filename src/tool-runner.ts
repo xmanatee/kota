@@ -1,6 +1,7 @@
 import { executeTool } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import { maybeRetry } from "./tool-retry.js";
+import type { McpManager } from "./mcp-manager.js";
 
 type ToolUseBlock = {
   type: "tool_use";
@@ -17,11 +18,13 @@ export type ToolResultEntry = {
 
 /**
  * Execute tool calls in parallel, with verbose logging and result truncation.
+ * Routes MCP-namespaced tools through the McpManager when provided.
  */
 export async function executeToolCalls(
   toolBlocks: ToolUseBlock[],
   resultLimit: number,
   verbose: boolean,
+  mcpManager?: McpManager,
 ): Promise<ToolResultEntry[]> {
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
@@ -31,11 +34,18 @@ export async function executeToolCalls(
         );
       }
       const input = block.input as Record<string, unknown>;
-      let result = await executeTool(block.name, input);
+
+      // Route MCP tools through the manager
+      let result = mcpManager?.isMcpTool(block.name)
+        ? await mcpManager.executeTool(block.name, input)
+        : await executeTool(block.name, input);
 
       // Auto-retry transient failures (timeouts, network errors)
       if (result.is_error) {
-        const retried = await maybeRetry(block.name, input, result, executeTool);
+        const executor = mcpManager?.isMcpTool(block.name)
+          ? (n: string, i: Record<string, unknown>) => mcpManager.executeTool(n, i)
+          : executeTool;
+        const retried = await maybeRetry(block.name, input, result, executor);
         if (retried) result = retried;
       }
 

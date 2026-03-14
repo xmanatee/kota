@@ -1,6 +1,6 @@
 # KOTA — Keep Only The Awesome
 
-An AI assistant that synthesizes the best ideas from Claude Code, Codex CLI, Aider, SWE-agent, and OpenHands into a simple, powerful architecture.
+A general-purpose AI agent that synthesizes the best ideas from Claude Code, Codex CLI, Aider, SWE-agent, and OpenHands into a simple, powerful architecture.
 
 ## Research Summary
 
@@ -173,13 +173,20 @@ Inspired by Aider's repo map but drastically simplified — regex extraction ins
 
 ### Sub-Agent Delegation (`src/tools/delegate.ts`)
 
-Inspired by Claude Code's Agent tool — spawns a separate LLM call for exploration tasks.
+Inspired by Claude Code's Agent tool — spawns a separate LLM call for tasks that should run outside the main context.
 
-- Creates a fresh Anthropic API call with read-only tools: `file_read`, `grep`, `glob`, `repo_map`, `web_search`, `web_fetch`
-- Runs a mini-loop (max 10 turns) — enough for thorough exploration, bounded to prevent runaway
-- Main context only sees the task and final answer, not intermediate tool calls
+**Two modes:**
+
+- **`explore`** (default): Read-only research and exploration. Tools: `file_read`, `grep`, `glob`, `repo_map`, `web_search`, `web_fetch`. Max 10 turns.
+- **`execute`**: Can modify files and run commands. All explore tools plus `file_edit`, `file_write`, `multi_edit`, `shell` (60s timeout cap). Max 15 turns. Reports which files were modified.
+
+**Design decisions:**
+- Creates a fresh Anthropic API call per delegation — main context only sees the task and final answer
 - Sub-agent uses Sonnet for cost efficiency
-- No file modification tools — exploration and research only
+- Execute mode shell commands are capped at 60s timeout to prevent runaways
+- Execute mode tracks modified files from `file_edit`, `file_write`, and `multi_edit` inputs, and appends them to the result so the main agent knows what changed
+- The main agent is guided (via system prompt) to assign non-overlapping file responsibilities to avoid conflicts between parallel delegations
+- Each mode has a dedicated system prompt: explore focuses on thorough research; execute focuses on precise implementation and verification
 
 ### Architect/Editor Split (`src/architect.ts`)
 
@@ -406,7 +413,7 @@ Addresses the #1 agent failure mode: making file changes without verifying they 
 src/
   cli.ts              — Entry point, Commander.js (~115 lines)
   loop.ts             — AgentSession class + core agent loop (~270 lines)
-  system-prompt.ts    — System prompt constant (~35 lines)
+  system-prompt.ts    — System prompt constant (~46 lines)
   tool-runner.ts      — Parallel tool execution + failure tracking (~115 lines)
   tool-retry.ts       — Automatic retry for transient tool failures (~90 lines)
   message-pruning.ts  — Selective pruning of old tool results (~145 lines)
@@ -426,6 +433,10 @@ src/
   shell-diagnostics.ts — Smart error extraction from shell output (~165 lines)
   error-context.ts    — Source context enrichment for shell errors (~140 lines)
   verify-tracker.ts   — Verification nudge system (~155 lines)
+  mcp-client.ts       — Lightweight MCP JSON-RPC stdio client (~170 lines)
+  mcp-manager.ts      — Multi-server MCP lifecycle + tool routing (~135 lines)
+  mcp-client.test.ts  — MCP client unit tests (~35 lines)
+  mcp-manager.test.ts — MCP manager + namespacing unit tests (~80 lines)
   message-pruning.test.ts — Message pruning unit tests (~265 lines)
   error-context.test.ts — Error context enrichment unit tests (~225 lines)
   shell-diagnostics.test.ts — Error extraction unit tests (~175 lines)
@@ -447,7 +458,8 @@ src/
     glob.ts       — File pattern matching (~60 lines)
     todo.ts       — Task tracking (~95 lines)
     repo-map.ts   — Structural codebase index (~125 lines)
-    delegate.ts   — Sub-agent exploration + web research (~130 lines)
+    delegate.ts   — Sub-agent delegation: explore + execute modes (~240 lines)
+    delegate.test.ts — Delegate file tracking unit tests (~65 lines)
     memory.ts     — Persistent cross-session memory tool (~90 lines)
     web-fetch.ts  — Web page fetching with HTML stripping (~125 lines)
     web-search.ts — Web search via DuckDuckGo scraping (~200 lines)
@@ -456,7 +468,7 @@ src/
     ask-user.test.ts — Ask user tool unit tests (~60 lines)
 ```
 
-Total: ~6250 lines across 49 files (including 13 test files with ~1800 lines).
+Total: ~6970 lines across 54 files (including 15 test files with ~2050 lines).
 
 ## What Makes KOTA Better
 
@@ -475,7 +487,7 @@ Total: ~6250 lines across 49 files (including 13 test files with ~1800 lines).
 13. **Prompt caching**: System prompt sent with `cache_control: { type: "ephemeral" }` — cached prefix reads at 0.1x cost, making multi-turn conversations dramatically cheaper.
 14. **Cost tracking**: Real-time per-turn cost display with cache-aware pricing for Sonnet/Opus/Haiku.
 15. **Repo map**: Structural index of the codebase via regex extraction — lets the agent orient itself without reading every file.
-16. **Sub-agent delegation**: Spawn read-only exploration agents that return summaries, keeping the main context clean.
+16. **Sub-agent delegation**: Two-mode delegation — `explore` for read-only research and `execute` for write-capable subtasks. Execute mode gives sub-agents file modification and shell access, tracks which files they change, and reports back. The main agent can dispatch implementation work to sub-agents while keeping its own context clean.
 17. **Session persistence**: Save/resume conversation state across interruptions via `--session`.
 18. **Safety**: Destructive command confirmation, progressive failure tracking (identical + diverse failures), tool confirmation via `--yes`.
 19. **Persistent memory**: Cross-session memory stores facts, preferences, and project conventions in `~/.kota/memory.json`. The agent can save and recall context across sessions, transforming from a stateless tool into a personal assistant that learns.
@@ -488,12 +500,13 @@ Total: ~6250 lines across 49 files (including 13 test files with ~1800 lines).
 26. **Smart file path resolution**: When `file_read` or `file_edit` gets a file-not-found error, the agent automatically sees suggestions — files with the same basename (exact match) or similar names (fuzzy match via bigram similarity). Saves the agent from wasting a turn on `glob` to find the right path.
 27. **Interactive user collaboration**: The `ask_user` tool lets the agent ask questions mid-task — for clarification, decisions, or information only the user can provide. Uses `/dev/tty` to work even when stdin is piped. Graceful degradation in non-interactive environments.
 28. **Context-aware grep**: The `grep` tool supports `context_lines` to show surrounding lines around matches, saving a follow-up `file_read` round trip.
-29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation.
+29. **Research-capable delegation**: Sub-agents have `web_search` and `web_fetch` in addition to code exploration tools, so delegated research can discover and read online documentation. Execute mode sub-agents additionally have `file_edit`, `file_write`, `multi_edit`, and `shell` (60s timeout), enabling the main agent to orchestrate parallel implementation work.
 30. **Verification nudge system**: Tracks which files have been edited but not verified via tests/builds. Detects available verification commands from project config (package.json, Makefile, Cargo.toml, pyproject.toml) and surfaces them in the dynamic system prompt. Escalating urgency: after 3 turns of edits without verification, a stronger nudge appears. Resets when the agent runs a verification command.
 31. **Shell error diagnostics**: When shell commands fail with long output (>8K chars), smart extraction finds the diagnostic-relevant lines instead of naive head+tail truncation. Detects TypeScript compiler errors, test runner failures (vitest/jest), lint errors (ESLint/Biome), and generic error patterns. The agent sees extracted errors + output tail, not a random slice of verbose logs.
 32. **Automatic tool retry**: Transient tool failures (shell timeouts, web network errors, HTTP 429/5xx) are automatically retried once with adjusted parameters — shell gets 2× the timeout, web tools get a 1.5s delay. Saves 1-2 turns per transient failure without agent involvement. Bounded to 1 retry, scoped to the main loop only.
 33. **Selective message pruning**: Two-phase context lifecycle extends the agent's effective working memory. At 50% context usage, large read-only tool results (file_read, grep, glob, web_fetch, etc.) from older messages are replaced with compact summaries — preserving conversation structure while recovering tokens. Full LLM-based compaction only triggers at 75%, giving the agent more useful turns before losing detailed context. Deterministic, no LLM call needed, idempotent.
 34. **Error context enrichment**: When shell commands fail with errors that reference specific file paths and line numbers (TypeScript errors, test failures, lint errors, stack traces), the surrounding source code is automatically pre-fetched and appended. Supports TypeScript, ESLint/Biome, Node.js stack traces, and Python tracebacks. Bounded to 5 references with ±5 lines each. Saves the agent 1 turn per error cycle — it can diagnose and fix without a separate `file_read`.
+35. **MCP (Model Context Protocol) client**: Connect external tool servers via the industry-standard MCP protocol. Configure servers in `.kota/mcp.json` (same format as Claude Desktop/Claude Code). Each server's tools are namespaced as `mcp__<server>__<tool>` and routed automatically. Supports stdio transport, graceful degradation on server failure, and async initialization. Transforms KOTA from a closed system into an extensible platform — users can add database access, API integrations, and custom tools without modifying source.
 
 ## Dependencies
 
