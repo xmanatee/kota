@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 125 — Test Coverage for Last Untested Modules
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/project-context.test.ts` | 7 new tests: dir traversal, root-first ordering, empty file skipping, no-files-found, empty-string return, truncation at 8000 chars, formatted output with headers/separators | project-context.ts had 0 tests — it silently loads .kota.md config that shapes the system prompt |
+| `src/runtime-check.test.ts` | 2 new tests: existing command detection, non-existent command returns false | runtime-check.ts had 0 tests — `which()` is used by code-exec to gate Python/Node availability |
+
+### Workflow impact
+
+**Scenario: User in a project with .kota.md asks agent to run Python code**
+
+Before: `project-context.ts` had no tests. If `findProjectContextFiles` silently broke (e.g., stopped reversing results, or included empty files), the system prompt would get wrong/missing context with no test to catch it. Similarly, `which()` in `runtime-check.ts` gates whether Python REPL is available — a regression there would silently disable code_exec.
+
+After: Both modules now have test coverage. The root-first ordering invariant, empty-file filtering, truncation behavior, and command detection are all verified. Total suite: 770 tests.
+
+### Verification
+
+- All 770 tests pass (9 new)
+- `npm run typecheck` clean
+- `npm run build` clean
+- `node dist/cli.js --help` loads correctly
+
+### Future directions
+
+- cli.ts remains the last untested module (117 lines) — it's an entry point, harder to unit test without refactoring
+- loop.ts at 345 lines still over the 300-line limit — extract verify-tracking loop
+- code-exec.ts at 310 lines — extract PYTHON_WRAPPER/NODE_WRAPPER if more REPL features added
+
 ## Iteration 124 — Tighten Orientation Budget to Include Grep
 
 ### Diagnosis
