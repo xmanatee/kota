@@ -87,6 +87,30 @@ if [[ "$TASK" == "build-agent" ]]; then
   CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed $'s/\x1b\\[[0-9;]*m//g')
   TESTS_PASSED=$(echo "$CLEAN_OUTPUT" | grep -E '^\s*Tests\s' | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "-")
   echo "[step] Metrics: ${SRC_FILES} src files, ${SRC_LINES} lines, ${TESTS_PASSED} tests passed"
+
+  # E2E smoke test: run the agent on a trivial task to verify it works end-to-end
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    SMOKE_E2E_DIR=$(mktemp -d)
+    echo "The answer is 42" > "$SMOKE_E2E_DIR/test.txt"
+    echo "[step] Running e2e smoke test..."
+    SMOKE_AGENT_OUT=$(cd "$SMOKE_E2E_DIR" && timeout 60 node "$DIR/dist/cli.js" run \
+      --model claude-haiku-4-5-20251001 \
+      --max-tokens 256 \
+      --yes \
+      "Read the file test.txt in the current directory and tell me what number it mentions" \
+      < /dev/null 2>/dev/null) || true
+    rm -rf "$SMOKE_E2E_DIR"
+    if echo "$SMOKE_AGENT_OUT" | grep -qi "42"; then
+      SMOKE_HAIKU="PASS"
+      echo "[step] E2E smoke test: PASS"
+    else
+      SMOKE_HAIKU="FAIL"
+      echo "[step] E2E smoke test: FAIL"
+      echo "[step] Agent output: $(echo "$SMOKE_AGENT_OUT" | head -5)"
+    fi
+  else
+    echo "[step] E2E smoke test: SKIP (no ANTHROPIC_API_KEY)"
+  fi
 fi
 
 echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_FILES},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${METRICS_ROW}" >> "$METRICS"

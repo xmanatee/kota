@@ -84,8 +84,10 @@ them skeptically in future iterations, since context changes.
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
 2. Research: study current agent patterns and techniques when relevant.
-3. Decide: list 2-3 candidate improvements. For each, state the value and
-   the cost. Pick the one with the best ratio. Explain why.
+3. Decide: list 2-3 candidate improvements. Include at least one that
+   improves existing functionality (refactoring, integration testing,
+   robustness, tool quality) rather than adding something new. For each,
+   state the value and the cost. Pick the best one. Explain why.
 4. Build: write real, working code.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. It is for
      architecture decisions and design rationale only. Before adding content,

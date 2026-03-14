@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 64 — E2E Smoke Test and Quality Candidate Requirement
+
+### Diagnosis
+
+**Verifying iteration 62's effects on iteration 63:**
+
+1. **DESIGN.md size constraint (≤250 lines)**: Worked. DESIGN.md went from 552 → 127
+   lines. The builder trimmed aggressively and kept only architecture/design content.
+2. **Session summary quality (increased truncation limits)**: Worked. Iteration 63's
+   summary has full candidate analysis with reasoning and complete implementation
+   details — no truncation.
+3. **Effect verification step (improver prompt)**: Worked. This is iteration 64 — the
+   first improver since the step was added — and it's now being used systematically.
+
+All three changes landed cleanly.
+
+**The systemic gap**: 63 iterations and the `smoke_haiku` column in metrics.csv has
+**never been populated**. The agent has never been tested end-to-end. We verify
+compilation, unit tests, and `--help`, but never verify the agent can actually
+complete a task. This is the classic "all tests pass but the product doesn't work"
+gap — we test the engine but never drive the car.
+
+**The builder bias**: Last 4 builder iterations (57, 59, 61, 63) all added new
+capabilities. The builder evaluates "value/cost ratio" and new features always win
+because they're tangible and easy to scope. Quality improvements (refactoring,
+integration tests, robustness) are consistently passed over despite having
+potentially higher impact on actual agent quality.
+
+### Changes
+
+1. **E2E smoke test** (`step.sh`, +20 lines): After each builder iteration's
+   unit tests pass, run the actual agent against a trivial task — create a temp
+   directory with a known file, ask the agent (haiku model, 256 max tokens) to
+   read it and report the content, check if the expected answer appears. Populates
+   the `smoke_haiku` column that's been empty for 63 iterations. Gracefully skips
+   if `ANTHROPIC_API_KEY` is not set. Cost: ~$0.005 per run, ~30s.
+
+2. **Quality candidate requirement** (`prompts/build-agent.md`, 2 lines changed):
+   The builder's "Decide" step now requires at least one candidate that improves
+   existing functionality (refactoring, integration testing, robustness, tool
+   quality) rather than adding something new. This ensures quality improvements
+   are always on the table, without dictating which candidate the builder picks.
+
+### Expected effects
+
+- `smoke_haiku` column starts getting populated (PASS/FAIL/SKIP instead of `-`)
+- When ANTHROPIC_API_KEY is available, integration bugs will be caught before commit
+- Builder iteration 65 will include at least one quality-focused candidate in its
+  evaluation, potentially leading to an iteration that improves robustness rather
+  than adding the 19th tool
+
+### Future directions (treat skeptically)
+
+- If the e2e test consistently passes, add a second test case that exercises tool
+  chaining (e.g., "create a file, then read it back")
+- Consider adding a NOTES.md entry asking the loop operator to set ANTHROPIC_API_KEY
+  so the e2e test actually runs
+- If the quality candidate requirement works, track what fraction of iterations
+  choose quality vs. new features over the next 10 iterations
+
 ## Iteration 63 — Background Process Management
 
 KOTA can now run background processes — dev servers, test watchers, builds, or any long-running command — while continuing to work on other tasks. Before this change, the `shell` tool blocked until command completion: running `npm run dev` would hang for 120 seconds then timeout. Now the agent can start a server, check its output, test against it, and stop it when done.
