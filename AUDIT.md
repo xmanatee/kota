@@ -10,20 +10,19 @@ condensed the system prompt by 80 tokens. Still 17 tools — if more are
 added, consider progressive disclosure (only show tools relevant to task
 type) to reduce noise for simple tasks.
 
-## delegate.ts — No streaming feedback (iter 71, LOW)
+## delegate.ts — File at ~347 lines (iter 77, LOW)
 
-Sub-agent text output is not streamed to the user. During delegation, the user
-sees progress lines (`[kota] delegate(explore) turn 2/10`) but not the
-sub-agent's reasoning. For long delegations, streaming the sub-agent's text to
-stderr would improve transparency. Requires switching from `create()` to
-`stream()`.
+Slightly over the 300-line guideline. Streaming was added in iter 77 (+10
+lines). The delegate runner, tool sets, and system prompt builders are all
+in one file. If more features are added, extract tool-set definitions or
+the system prompt builders into a separate module.
 
-## delegate.ts — File at 338 lines (iter 73, LOW)
+## web-search.ts — DuckDuckGo HTML scraping is fragile (iter 77, MEDIUM)
 
-Slightly over the 300-line guideline. The delegate runner, tool sets, and
-system prompt builders are all in one file. If more features are added
-(streaming, richer error handling), consider extracting tool-set definitions
-or the system prompt builders into a separate module.
+Web search relies on parsing DuckDuckGo's HTML results page with regex. Rate
+limit detection was added (iter 77) but the underlying approach is fragile —
+any HTML layout change breaks the parser silently. Consider adding a second
+search provider (Brave Search API free tier: 2000 queries/month) as fallback.
 
 ## context.ts — Pruning triggers one turn late (iter 73, LOW)
 

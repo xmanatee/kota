@@ -64,6 +64,16 @@ export async function runWebSearch(
     }
 
     const html = await response.text();
+
+    if (isRateLimited(html)) {
+      return {
+        content:
+          "Search rate-limited by DuckDuckGo (CAPTCHA challenge). " +
+          "Wait a moment and retry, or use web_fetch with a direct URL.",
+        is_error: true,
+      };
+    }
+
     const results = parseSearchResults(html, numResults);
 
     if (results.length === 0) {
@@ -84,8 +94,19 @@ export async function runWebSearch(
   }
 }
 
+/** Detect DuckDuckGo rate limiting / CAPTCHA pages */
+export function isRateLimited(html: string): boolean {
+  const lower = html.toLowerCase();
+  // CAPTCHA/robot pages never contain actual search result links
+  return (
+    (lower.includes("captcha") || lower.includes("please try again") ||
+      lower.includes("automated requests")) &&
+    !lower.includes("result__a")
+  );
+}
+
 /** Parse DuckDuckGo HTML search results */
-function parseSearchResults(html: string, max: number): SearchResult[] {
+export function parseSearchResults(html: string, max: number): SearchResult[] {
   const results: SearchResult[] = [];
 
   // DuckDuckGo HTML wraps each result in a div.result

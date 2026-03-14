@@ -65,7 +65,7 @@ Two modes:
 - **`explore`**: Read-only research (file_read, grep, glob, repo_map, web tools). Max 10 turns.
 - **`execute`**: Can modify files and run commands (adds file_edit, file_write, multi_edit, shell@60s). Max 15 turns. Tracks and reports modified files.
 
-Fresh API call per delegation — main context only sees task + final answer. Robustness: prompt caching across turns, tool result truncation (30K cap), circuit breaker on 3 identical failures, and context overflow handling with actionable errors.
+Fresh API call per delegation — main context only sees task + final answer. Sub-agent text streams to stderr for live progress visibility. Robustness: prompt caching across turns, tool result truncation (30K cap), circuit breaker on 3 identical failures, and context overflow handling with actionable errors.
 
 ### Background Process Management (`src/tools/process.ts`)
 

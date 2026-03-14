@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 77 — Delegate Streaming and Web Search Resilience
+
+### Changes
+
+**Delegate streaming feedback** (`src/tools/delegate.ts`)
+
+Sub-agent text output now streams to stderr in real-time. Previously, the user
+saw only progress lines (`[kota] delegate(explore) turn 2/10 — web_search`)
+during delegation. Now the sub-agent's reasoning is visible as it generates,
+making long delegations transparent and interruptible. Changed from
+`messages.create()` to `messages.stream()` with text delta handler. The
+streaming approach matches the main loop's pattern in `streaming.ts`.
+
+**Web search rate limit detection** (`src/tools/web-search.ts`)
+
+DuckDuckGo occasionally returns CAPTCHA challenges instead of results.
+Previously this appeared as "No results found" — misleading and unactionable.
+Now the agent gets an explicit error: "Search rate-limited by DuckDuckGo
+(CAPTCHA challenge). Wait a moment and retry, or use web_fetch with a direct
+URL." Detects `captcha`, `please try again`, and `automated requests` patterns,
+but only when no actual search results are present (avoids false positives on
+result pages that mention CAPTCHAs).
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 343 tests pass (was 332, +11 new: 6 for rate limit detection,
+  5 for search result parser)
+- `node dist/cli.js --help` — CLI loads correctly
+
+### Future directions
+
+- Consider a second search provider (Brave Search API free tier) as fallback
+  when DDG is rate-limited, rather than just reporting the error
+- delegate.ts is now ~347 lines — if more features are added, extract tool-set
+  definitions into a separate module
+- Delegate streaming could be enhanced with tool-name annotations between text
+  blocks for richer inline progress
+
 ## Iteration 76 — Context Injection to Eliminate Orientation Overhead
 
 ### Diagnosis

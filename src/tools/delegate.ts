@@ -213,13 +213,25 @@ export async function runDelegate(
   for (let turn = 0; turn < maxTurns; turn++) {
     let response: Anthropic.Message;
     try {
-      response = await client.messages.create({
+      const stream = client.messages.stream({
         model: delegateConfig.model,
         max_tokens: 8192,
         system: systemBlocks,
         tools,
         messages,
       });
+
+      // Stream sub-agent text to stderr for live progress
+      let lastCharNewline = true;
+      stream.on("text", (delta) => {
+        process.stderr.write(delta);
+        lastCharNewline = delta.endsWith("\n");
+      });
+
+      response = await stream.finalMessage();
+      if (!lastCharNewline) {
+        process.stderr.write("\n");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
