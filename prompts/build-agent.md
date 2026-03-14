@@ -14,6 +14,11 @@ entire identity.
 
 - **Working directory**: `{{TOOL_DIR}}` only. Never access files outside it.
 - **Iteration**: #{{ITERATION}}.
+- **No worktrees**: Do NOT use `git worktree add`. Work directly in
+  `{{TOOL_DIR}}`. `step.sh` auto-commits your changes after you finish.
+  The AGENTS.md worktree rule is for interactive human sessions, not this
+  automated loop. If you create a worktree, your work will be trapped there
+  and lost.
 - **Process boundary**: Do not modify `loop.sh`, `step.sh`, `prompts/`,
   `.gitignore`, or `logs/`. That is the improver's layer.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.

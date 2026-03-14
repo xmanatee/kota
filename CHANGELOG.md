@@ -1,5 +1,78 @@
 # KOTA Changelog
 
+## Iteration 72 — Fix Worktree Trap (Builder Work Lost)
+
+### Diagnosis
+
+**Critical process failure in iteration 71:** The builder followed AGENTS.md's
+"always work in a worktree" instruction and created `.worktrees/delegate-cost-feedback`.
+All 128 lines of real work (delegate cost tracking, code_exec package hints,
+5 new tests across 6 files) are trapped there. step.sh auto-committed from
+the main directory, which only contained the worktree reference file and
+metrics.csv — 2 insertions total. The builder's actual work never reached main.
+
+**Evidence:**
+- `git show --stat b1ab5f6` (iter 71 commit): 2 files, 2 insertions
+- `git -C .worktrees/delegate-cost-feedback diff --stat HEAD`: 6 files,
+  128 insertions, 9 deletions
+- metrics.csv shows 0 growth in src_files/src_lines/tests for 3 iterations
+  (67→71) — the stagnation was partly caused by this trap
+
+**Root cause:** AGENTS.md says "always work in a worktree." This is designed
+for interactive human sessions where a human reviews and merges. step.sh
+expects changes in the main directory for auto-commit. These two expectations
+conflict. The builder happened to follow AGENTS.md strictly in iter 71,
+causing the failure.
+
+**Verifying iteration 70's effects on iteration 71:**
+1. **"Assess the whole" step**: UNCLEAR. The builder's session summary shows
+   standard audit→decide→build flow. No distinct holistic assessment step
+   visible. The instruction may have been absorbed into existing evaluation
+   or skipped entirely. Not clearly harmful or helpful.
+2. **Sharpened "Reflect" question**: The builder's reflection focused on
+   user-facing impact ("cost display includes delegation costs"). Possibly
+   influenced by the rewording but hard to isolate.
+
+### Changes
+
+**1. Builder prompt — explicit "no worktrees" instruction** (`prompts/build-agent.md`)
+Added to Strict Guardrails: "Do NOT use `git worktree add`. Work directly in
+{{TOOL_DIR}}. step.sh auto-commits your changes. If you create a worktree,
+your work will be trapped and lost."
+
+- *Verification*: Check iter 73's session summary — does it mention worktrees?
+  Check `git show --stat` for iter 73's commit — does it include src/ changes?
+  Check `git worktree list` — should show only the main worktree.
+
+**2. step.sh — worktree recovery safety net** (`step.sh`)
+Added `recover_worktrees()` function that runs BEFORE and AFTER claude:
+- Copies modified, new, and handles deleted files from any `.worktrees/*/`
+  back to the main directory
+- Removes the worktree after recovery
+- Commits recovered changes separately with a "recover:" prefix
+
+- *Verification*: On next run (iter 73), step.sh will automatically merge
+  iter 71's trapped worktree before the builder starts. Check that the
+  commit log shows a "recover: merge trapped worktree changes" commit
+  before iter 73's commit, and that src_files/src_lines/tests increase
+  in metrics.csv.
+
+### Expected effects
+
+1. Iter 73's builder starts with iter 71's work already merged into main
+   (recovered by step.sh pre-run)
+2. Iter 73's builder works directly in main, its changes get committed properly
+3. Metrics accurately reflect the builder's output
+4. If a future builder accidentally creates a worktree, step.sh catches it
+
+### Future directions
+
+- The iter 70 holistic assessment step needs more signal. Consider making it
+  produce a structured output (write to a temp file?) so the improver can
+  verify it actually ran.
+- Builder cost trend ($1.97→$2.44→$2.73) is rising. May need prompt trimming
+  or scope guidance if it continues.
+
 ## Iteration 70 — Holistic Assessment Step
 
 ### Diagnosis

@@ -28,6 +28,52 @@ TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_PREFIX="${ITERATION_PAD}-${TASK}-${TIMESTAMP}"
 SESSION_LOG="$LOG_DIR/${LOG_PREFIX}.session.jsonl"
 
+# Recover any changes trapped in worktrees from prior iterations.
+# The builder may follow AGENTS.md's worktree rule, which means its changes
+# end up in .worktrees/<name>/ instead of the main directory. This function
+# copies those changes back to main so they aren't lost.
+recover_worktrees() {
+  for wt_dir in "$DIR"/.worktrees/*/; do
+    [ -d "$wt_dir" ] || continue
+    local wt_name
+    wt_name=$(basename "$wt_dir")
+    echo "[step] Recovering trapped changes from worktree: $wt_name"
+
+    # Copy modified/added tracked files
+    (cd "$wt_dir" && git diff HEAD --name-only --diff-filter=ACMR 2>/dev/null) | while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      mkdir -p "$DIR/$(dirname "$file")"
+      cp "$wt_dir/$file" "$DIR/$file"
+    done
+
+    # Copy new untracked files
+    (cd "$wt_dir" && git ls-files --others --exclude-standard 2>/dev/null) | while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      mkdir -p "$DIR/$(dirname "$file")"
+      cp "$wt_dir/$file" "$DIR/$file"
+    done
+
+    # Delete files that were removed in the worktree
+    (cd "$wt_dir" && git diff HEAD --name-only --diff-filter=D 2>/dev/null) | while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      rm -f "$DIR/$file"
+    done
+
+    # Clean up worktree
+    git worktree remove "$wt_dir" --force 2>/dev/null || rm -rf "$wt_dir"
+  done
+
+  # Commit recovered changes separately so they don't mix with this iteration
+  cd "$DIR"
+  if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ]; then
+    git add -A
+    git commit -m "recover: merge trapped worktree changes into main"
+    echo "[step] Committed recovered worktree changes"
+  fi
+}
+
+recover_worktrees
+
 # Run claude
 cd "$DIR"
 STEP_START=$(date +%s)
@@ -46,6 +92,9 @@ if (( CLAUDE_EXIT != 0 )); then
 fi
 
 echo "[step] claude finished in ${STEP_DURATION}s"
+
+# Recover any worktrees the agent may have created during this iteration
+recover_worktrees
 
 # Generate session summary (readable digest for next iteration's agent)
 SUMMARY_FILE="$LOG_DIR/${LOG_PREFIX}.summary.md"
