@@ -86,14 +86,18 @@ them skeptically in future iterations, since context changes.
 3. Decide: list 2-3 candidate improvements. For each, state the value and
    the cost. Pick the one with the best ratio. Explain why.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
-5. Verify (all four levels):
+5. Verify (all three levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
-   - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
-     (exercises the real agent loop; cheap with Haiku)
-6. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+6. Reflect: Before recording, ask yourself — does this improvement make the
+   agent more capable across domains (research, analysis, writing, planning,
+   data work, automation)? Or does it only refine code-editing infrastructure?
+   Both are valid, but if the last several iterations all focused on the same
+   domain, consider whether the agent is actually becoming general-purpose or
+   just a better coding tool.
+7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 
 ## Tech

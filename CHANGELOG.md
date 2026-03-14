@@ -1,5 +1,80 @@
 # KOTA Changelog
 
+## Iteration 58 — Automated Metrics Collection and Builder Prompt Calibration
+
+First improver iteration since #54 (which broke step.sh with a timeout wrapper).
+Three sessions spanned iteration 57, one of which was a ghost session (0 output,
+45 min wasted). The builder produced two good features (MCP client, delegate
+execute mode) across the surviving sessions.
+
+### Diagnosis
+
+**Builder (iteration 57)**: Productive but operationally rough. Three sessions
+were needed due to a ghost session and an interruption. Re-orientation overhead
+was ~20 tool calls per restart. The features built (MCP client, write-capable
+delegation) are strong architectural additions. 222 tests pass. However, all
+57 iterations of features have focused exclusively on coding-agent infrastructure
+(file editing, shell execution, error handling, tool retry, etc.). The prompt
+says "general-purpose agent" but the evaluation loop only measures code-tool
+quality. You evaluate what you measure.
+
+**Improver (iteration 54)**: Caused real harm. The `timeout` wrapper caused
+`claude` to get suspended (SIGTSTP/SIGTTIN), leading to silent failures across
+multiple iterations until the boss manually fixed it. Lesson: test infrastructure
+changes against the actual runtime environment before deploying.
+
+### Changes
+
+**1. Automated post-build metrics in `step.sh`** — After build-agent iterations
+finish, step.sh now runs quick shell commands to populate src_files, src_lines,
+bundle_bytes, test_files, tests_passed, and smoke_help. These were all `-` in
+recent metrics.csv rows because the old step.sh only extracted cost/turns from
+the session log. Now every build iteration produces a complete metrics row. Tests
+are re-run via `npm test` and the count is parsed from vitest output (with ANSI
+code stripping).
+
+**2. Builder prompt: removed dead Haiku smoke test** — The `echo "Say hello" |
+node dist/cli.js run --model claude-haiku-4-5-20251001` step consistently failed
+because ANTHROPIC_API_KEY isn't available in the harness environment. The builder
+wasted tool calls attempting it each iteration. Replaced with a simpler 3-level
+verification (static, unit, load). The step.sh metrics collection now handles
+smoke testing and test counting independently.
+
+**3. Builder prompt: added capability reflection step** — Added step 6 between
+verify and record that asks the builder to reflect on whether its feature makes
+the agent more capable across domains or just refines coding infrastructure.
+This is a soft nudge, not a mandate — both types of features are valid, but
+the builder should be aware of the pattern.
+
+### Expected effects
+
+- metrics.csv will have complete data for all future build iterations
+- The builder will stop wasting time on a broken smoke test
+- The builder may start considering non-coding-tool features (uncertain — this
+  is a weak intervention, but it costs nothing)
+
+### Lessons from iteration 54's failure
+
+My timeout wrapper broke the loop for multiple iterations. The root cause was
+that `timeout` sends SIGTERM after a delay, but `claude` was getting SIGTSTP
+first (because the terminal tried to read stdin). The fix (piping `/dev/null`
+to stdin) was obvious in retrospect. I should have tested the change by
+actually running step.sh once before committing. Infrastructure changes to the
+harness need a higher bar than prompt changes.
+
+### Future directions
+
+- **Eval harness**: Run 2-3 simple tasks through the built agent after each
+  iteration to measure actual capability, not just build health. Blocked on
+  API key availability in the harness environment.
+- **Session continuity**: When step.sh restarts the same iteration, inject a
+  summary of prior sessions to avoid re-orientation. The boss removed context
+  injection but this is a different case (same-iteration resume, not cross-
+  iteration context).
+- **Commit message cleanup**: step.sh pastes the first 5 lines of CHANGELOG
+  as the commit message, which produces very long commit messages. Could
+  extract just the heading.
+
 ## Iteration 57 — Write-Capable Sub-Agent Delegation
 
 KOTA's `delegate` tool now has two modes: `explore` (default, read-only — unchanged) and `execute` (new — can modify files and run shell commands). This transforms the agent from a serial worker into a parallel orchestrator: the main agent can dispatch implementation subtasks to sub-agents that independently edit files, run builds/tests, and report what they changed.

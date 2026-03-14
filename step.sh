@@ -60,7 +60,32 @@ METRICS_ROW=$(node -e "
   }
   console.log('-,-,-');
 " 2>/dev/null || echo "-,-,-")
-echo "${ITERATION},${TASK},${STEP_DURATION},-,-,-,-,-,-,-,${METRICS_ROW}" >> "$METRICS"
+
+# Collect project metrics (build-agent iterations only)
+SRC_FILES="-"; SRC_LINES="-"; BUNDLE_BYTES="-"
+SMOKE_HELP="-"; SMOKE_HAIKU="-"; TEST_FILES="-"; TESTS_PASSED="-"
+
+if [[ "$TASK" == "build-agent" ]]; then
+  SRC_FILES=$(find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.d.ts' 2>/dev/null | wc -l | tr -d ' ')
+  SRC_LINES=$(find "$DIR/src" -name '*.ts' ! -name '*.test.ts' ! -name '*.d.ts' -exec cat {} + 2>/dev/null | wc -l | tr -d ' ')
+  [ -f "$DIR/dist/cli.js" ] && BUNDLE_BYTES=$(wc -c < "$DIR/dist/cli.js" | tr -d ' ')
+  TEST_FILES=$(find "$DIR/src" -name '*.test.ts' 2>/dev/null | wc -l | tr -d ' ')
+
+  # Smoke test: --help
+  if node "$DIR/dist/cli.js" --help > /dev/null 2>&1; then
+    SMOKE_HELP="PASS"
+  else
+    SMOKE_HELP="FAIL"
+  fi
+
+  # Run tests and count passes (match "Tests  N passed", not "Test Files")
+  TEST_OUTPUT=$(cd "$DIR" && npm test 2>&1 || true)
+  CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed $'s/\x1b\\[[0-9;]*m//g')
+  TESTS_PASSED=$(echo "$CLEAN_OUTPUT" | grep -E '^\s*Tests\s' | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "-")
+  echo "[step] Metrics: ${SRC_FILES} src files, ${SRC_LINES} lines, ${TESTS_PASSED} tests passed"
+fi
+
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_FILES},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${METRICS_ROW}" >> "$METRICS"
 
 # Auto-commit all changes in the worktree
 cd "$DIR"
