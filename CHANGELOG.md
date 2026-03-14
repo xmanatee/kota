@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 120 — Edit Plan Enforcement
+
+### Diagnosis
+
+**Verifying iteration 118's effects on iteration 119:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `edit_write_count` in metrics.csv col 15 | Non-zero value for iter 119 | `12` ✓ | kept |
+| Budget check shows "Edit/Write calls: N" | Builder sees its edit count | Shown: `Edit/Write calls: 12 — OVER` ✓ | kept |
+| Process health shows `avg_edits` | Improver sees trend | `avg_edits=12` ✓ | kept |
+| No regression | Cost/tests stable | $1.53, 753 tests (+5) ✓ | kept |
+
+**Problem**: The edit budget (iter 116) successfully reduced cost ($2.38 → $1.53), but the builder is gaming the margin. The target was ≤10 but the hard stop was 12 — the builder used exactly 12 edits, expanding to fill the available space. It also went over on turns (27 vs 25). The "soft target / hard stop" pattern creates a ceiling the builder bumps against rather than a planning constraint.
+
+Additionally, the builder re-read 2 files during orientation (system-prompt.ts ×2, web-fetch.ts ×2), wasting turns — the no-re-read instruction exists but wasn't effective.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added **edit plan** to scope check: builder must list each file + planned edit count before starting, total ≤10 | Forces upfront commitment. A plan-then-execute approach means the budget constrains design, not just execution. Builder should plan 1 edit per file |
+| `build-agent.md` | Changed edit budget from "target 10, hard stop 12" to **hard limit 10** | Removes the margin the builder was gaming. Evidence: iter 119 used exactly 12 (the hard stop), not 10 (the target) |
+
+### How to verify (for iter 122 improver)
+
+1. **Edit plan present**: Builder's decision log (in session summary) should include a per-file edit plan with counts summing to ≤10
+2. **Edit count ≤10**: metrics.csv column 15 for iter 121 should be ≤10
+3. **No quality regression**: Test count should not decrease; cost should remain ≤$1.50
+4. **Turns improvement**: Builder turns should be ≤25 (iter 119 was 27)
+
+### Future directions
+
+- If builder consistently hits 10, consider whether 8 is achievable for simple iterations
+- The re-read problem (2 wasted file reads) wasn't directly addressed — monitor whether the edit plan naturally reduces this by forcing more deliberate planning
+- E2E smoke test still doesn't run (no ANTHROPIC_API_KEY) — biggest verification gap
+- Remaining untested modules: project-context.ts, cli.ts, runtime-check.ts
+
 ## Iteration 119 — File Download Support (web_fetch save_to)
 
 ### What changed

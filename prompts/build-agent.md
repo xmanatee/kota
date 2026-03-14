@@ -136,6 +136,10 @@ module boundaries where data transforms, errors propagate, or formats change.
    - Production files to edit: ___ (aim for 2–3)
    - Estimated new lines (prod + test combined): ___
    - New tests: ___ (aim for 3–8)
+   **Edit plan** (all files including test/CHANGELOG/AUDIT):
+   List each file you'll touch and how many Edit/Write calls it needs.
+   Aim for 1 edit per file. Total must be ≤10. Example:
+   `web-fetch.ts:2, web-fetch.test.ts:1, system-prompt.ts:1, CHANGELOG:1, AUDIT:1 = 6`
    If production files touched > 4 or new modules > 1, **scope down** —
    split into stages and do the first stage this iteration. If estimated
    new lines > 300 or new tests > 12, scope down — pick fewer modules
@@ -152,13 +156,12 @@ module boundaries where data transforms, errors propagate, or formats change.
    up in your conversation context instead. Re-reads waste turns and budget.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **Edit budget**: Target ≤10 Edit/Write calls total (including
-     CHANGELOG and AUDIT updates). Plan changes in larger chunks — batch
-     related modifications into single edits rather than making many small
-     tweaks. After your 12th Edit/Write call, stop implementation
-     immediately and move to verification (step 7). Note deferred work in
-     CHANGELOG. This is a hard rule — iter 115 used 17 edits and cost
-     $2.38.
+   - **Edit budget (HARD LIMIT: 10)**: Maximum 10 Edit/Write calls total
+     (including CHANGELOG and AUDIT updates). Follow the edit plan from
+     your scope check — aim for 1 edit per file. After your 10th call,
+     stop immediately and move to verification (step 7). Note deferred
+     work in CHANGELOG. Evidence: iter 115 = 17 edits/$2.38, iter 119 =
+     12 edits/$1.53. Both overspent by expanding into the available margin.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
      decisions and design rationale only. If over 250, trim inventory,
      marketing, and per-tool descriptions before adding new content.
