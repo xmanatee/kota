@@ -6,13 +6,8 @@ import { isDangerous, confirmExecution } from "../confirm.js";
 export const processTool: Anthropic.Tool = {
   name: "process",
   description:
-    "Manage background processes — start servers, watchers, long-running tasks.\n" +
-    "Actions:\n" +
-    "- start: Launch a command in the background. Returns process ID and initial output.\n" +
-    "- output: Get recent stdout/stderr from a running process.\n" +
-    "- signal: Send a signal (SIGTERM, SIGINT, SIGKILL) to a process.\n" +
-    "- list: Show all managed processes with status and last output line.\n" +
-    "Use for: dev servers, test watchers, builds, any command you need running while doing other work.",
+    "Manage background processes (start/output/signal/list). " +
+    "Use for dev servers, watchers, and long-running commands that should run while you do other work.",
   input_schema: {
     type: "object" as const,
     properties: {

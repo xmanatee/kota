@@ -5,9 +5,8 @@ import { getMemoryStore } from "../memory.js";
 export const memoryTool: Anthropic.Tool = {
   name: "memory",
   description:
-    "Persistent memory across sessions. Save important context (user preferences, " +
-    "project conventions, key decisions, learned facts) and recall it in future sessions. " +
-    "Use 'save' to store, 'search' to find relevant memories, 'list' to see all, 'delete' to remove.",
+    "Persistent memory across sessions (save/search/list/delete). " +
+    "Store user preferences, project conventions, key decisions, and learned facts.",
   input_schema: {
     type: "object" as const,
     properties: {

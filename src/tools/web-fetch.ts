@@ -5,10 +5,8 @@ import { extractContent } from "../html-extract.js";
 export const webFetchTool: Anthropic.Tool = {
   name: "web_fetch",
   description:
-    "Fetch a web page and return its content in Markdown format. Removes " +
-    "boilerplate (navigation, headers, footers, sidebars) and preserves " +
-    "structure (headings, code blocks, lists, links). Use for reading " +
-    "documentation, researching APIs, and accessing online resources.",
+    "Fetch a web page and return its content as clean Markdown. " +
+    "Removes boilerplate and preserves structure (headings, code blocks, lists, links).",
   input_schema: {
     type: "object" as const,
     properties: {

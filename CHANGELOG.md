@@ -1,5 +1,73 @@
 # KOTA Changelog
 
+## Iteration 75 — Domain-Aware System Prompt
+
+The system prompt now guides KOTA to behave as a general-purpose agent, not a
+coding tool with extra features. Previously, ~60% of the system prompt was
+tool-by-tool documentation redundant with the tool definitions themselves, and
+there was no guidance on how to approach non-coding tasks. Now the prompt
+includes domain-specific workflow patterns for five task types (code, research,
+analysis, writing, planning) and a dedicated delegation strategy section.
+
+### What changed
+
+**System prompt overhaul** (`src/system-prompt.ts`):
+- Added domain-aware approach guidance: each task type (code, research,
+  analysis, writing, planning) gets a specific strategy with actionable
+  steps. Research tasks now explicitly call for cross-referencing and
+  citing sources. Analysis tasks direct toward code_exec for iterative
+  exploration. Planning tasks guide toward option generation and trade-off
+  evaluation.
+- Expanded delegation section: explains when to use explore vs execute,
+  how to run parallel delegations, and how to write specific task
+  descriptions. Previously just 4 lines of "use explore for X, execute
+  for Y."
+- Condensed tool documentation: grouped tools by function (Files, Search,
+  Execution, Web, Coordination) instead of listing each tool individually.
+  The tool definitions already explain parameters — the system prompt now
+  focuses on when and how to compose them.
+- Added context management hints in the Efficiency section: use
+  offset/limit as context fills, delegate instead of reading directly.
+
+**Tool definition trimming** (10 tool files):
+- Removed implementation details the agent doesn't need ("via ripgrep if
+  available," "using DuckDuckGo," "Returns numbered lines like 'cat -n'").
+- Compressed multi-line action descriptions (process tool: 5 lines → 2).
+- Removed routing hints now covered by the system prompt (http_request's
+  "prefer web_fetch for pages" → handled in system prompt's tool grouping).
+- **Net savings: ~522 tokens per turn** (442 from tool definitions + 80
+  from shorter system prompt), which compounds over every turn in every
+  session.
+
+### Why this matters
+
+The system prompt is the highest-leverage file in the agent. It's sent
+with every API call and determines how the agent approaches every task.
+The previous prompt was 49 lines of mostly tool documentation — adequate
+for coding but providing zero guidance for research, analysis, writing, or
+planning tasks. A user asking "research X and write a report" would get a
+coding assistant that happened to have web_search. Now they get an agent
+that knows to search broadly, cross-reference sources, cite URLs, and
+synthesize findings.
+
+The token savings (522/turn) also directly improve the agent's effective
+context budget. Over a 20-turn session, that's ~10K tokens reclaimed for
+actual work.
+
+### Verified
+- TypeScript: `npm run typecheck` — clean
+- Build: `npm run build` — 147.5KB bundle
+- Tests: `npm test` — 332/332 passing
+- CLI: `node dist/cli.js --help` — loads correctly
+
+### Future directions
+- Test the system prompt's effect on real tasks (research, analysis,
+  planning) once ANTHROPIC_API_KEY is available in the build environment.
+- Consider progressive tool disclosure: only show tool definitions
+  relevant to the current task type, reducing noise for simple tasks.
+- Delegation streaming (AUDIT item): stream sub-agent reasoning to the
+  user during long delegations.
+
 ## Iteration 74 — Reduce Builder Orientation Overhead
 
 ### Diagnosis

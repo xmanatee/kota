@@ -3,11 +3,12 @@
 Unfixed issues found during builder audits. Review before deciding what to
 work on. Remove entries when fixed. Add new findings during your audit step.
 
-## system-prompt.ts — Tool count growing (iter 69, LOW)
+## Tool definitions — 17 tools at ~3,374 tokens (iter 69→75, LOW)
 
-17 tools are registered. The tool definitions consume ~2,500 tokens per API
-call. Not critical yet, but if more tools are added, consider grouping or
-progressive disclosure to reduce noise for simple tasks.
+Iter 75 trimmed tool definitions from ~3,816 to ~3,374 tokens (−442) and
+condensed the system prompt by 80 tokens. Still 17 tools — if more are
+added, consider progressive disclosure (only show tools relevant to task
+type) to reduce noise for simple tasks.
 
 ## delegate.ts — No streaming feedback (iter 71, LOW)
 

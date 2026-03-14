@@ -4,11 +4,8 @@ import type { ToolResult } from "./index.js";
 export const httpRequestTool: Anthropic.Tool = {
   name: "http_request",
   description:
-    "Make an HTTP request to an API endpoint. Supports all methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS), " +
-    "custom headers, and request bodies. Returns status, response headers, and body. " +
-    "Use for interacting with REST APIs, triggering webhooks, testing endpoints, and service automation. " +
-    "For reading web pages, prefer web_fetch (which strips HTML). " +
-    "For searching the web, use web_search.",
+    "Make an HTTP request. Supports all methods, custom headers, and request bodies. " +
+    "Returns status, headers, and body. For web pages use web_fetch instead.",
   input_schema: {
     type: "object" as const,
     properties: {

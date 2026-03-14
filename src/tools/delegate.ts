@@ -19,11 +19,9 @@ import type { CostTracker } from "../cost.js";
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
   description:
-    "Delegate a task to a sub-agent. Two modes:\n" +
-    "- explore (default): read-only research — file_read, grep, glob, repo_map, web_search, web_fetch, http_request\n" +
-    "- execute: can modify files and run commands — adds file_edit, file_write, multi_edit, shell (60s timeout)\n" +
-    "Use explore to research without cluttering context. " +
-    "Use execute to dispatch implementation subtasks (e.g. 'fix the lint errors in src/auth.ts').",
+    "Delegate a task to a sub-agent with its own context. " +
+    "explore (default): read-only research. " +
+    "execute: can modify files and run commands.",
   input_schema: {
     type: "object" as const,
     properties: {

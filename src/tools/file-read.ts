@@ -18,10 +18,8 @@ const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB — Claude API limit
 export const fileReadTool: Anthropic.Tool = {
   name: "file_read",
   description:
-    "Read the contents of a file with line numbers. " +
-    "Supports offset and limit for reading portions of large files. " +
-    "Returns numbered lines like 'cat -n'. " +
-    "Also supports reading image files (PNG, JPEG, GIF, WebP) — returns the image for visual analysis.",
+    "Read a file with line numbers. Supports offset/limit for large files. " +
+    "Also reads images (PNG, JPEG, GIF, WebP) for visual analysis.",
   input_schema: {
     type: "object" as const,
     properties: {

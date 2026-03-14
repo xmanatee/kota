@@ -4,10 +4,8 @@ import type { ToolResult } from "./index.js";
 export const webSearchTool: Anthropic.Tool = {
   name: "web_search",
   description:
-    "Search the web using DuckDuckGo. Returns titles, URLs, and snippets " +
-    "for the top results. Use for researching errors, finding documentation, " +
-    "discovering libraries, and looking up current information. " +
-    "Use web_fetch to read full pages from the URLs returned.",
+    "Search the web. Returns titles, URLs, and snippets for the top results. " +
+    "Use web_fetch to read full pages from URLs returned.",
   input_schema: {
     type: "object" as const,
     properties: {

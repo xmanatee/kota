@@ -6,9 +6,8 @@ import type { ToolResult } from "./index.js";
 export const repoMapTool: Anthropic.Tool = {
   name: "repo_map",
   description:
-    "Generate a structural map of the codebase showing file paths and exported " +
-    "symbols (functions, classes, types, constants). Use this to orient yourself " +
-    "in an unfamiliar codebase before making changes.",
+    "Generate a structural map of the codebase showing file paths and exported symbols " +
+    "(functions, classes, types, constants).",
   input_schema: {
     type: "object" as const,
     properties: {

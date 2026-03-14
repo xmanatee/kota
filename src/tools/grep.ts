@@ -5,9 +5,7 @@ import type { ToolResult } from "./index.js";
 export const grepTool: Anthropic.Tool = {
   name: "grep",
   description:
-    "Search file contents using regex patterns (via ripgrep if available, " +
-    "otherwise grep). Returns matching lines with file paths and line numbers. " +
-    "Use for finding code patterns, function definitions, imports, etc.",
+    "Search file contents using regex patterns. Returns matching lines with file paths and line numbers.",
   input_schema: {
     type: "object" as const,
     properties: {
