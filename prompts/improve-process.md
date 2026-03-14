@@ -104,13 +104,10 @@ or process reliability.
    If a change didn't work, diagnose why — was the instruction unclear?
    Ignored? Overridden by other context? Include this table in your
    CHANGELOG entry so future improvers can see the chain of evidence.
-4. **Check efficiency**: Review metrics.csv for cost, duration, and
-   turn-count trends. Also check the session summary's "Orientation overhead"
-   metric — this shows how many tool calls the builder spent before its first
-   Edit/Write. High overhead (>40%) means the builder is reading too many
-   files before starting work. If the builder is getting significantly more
-   expensive or slower across iterations, diagnose why and consider
-   interventions (prompt restructuring, scope guidance, context injection).
+4. **Check efficiency**: The "Process health" section in the injected context
+   shows cost and orientation trends pre-computed. Focus on diagnosing any
+   regressions (rising cost, orient >40%, test decreases) rather than
+   recomputing these manually.
 5. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
 6. Evaluate: what worked? What didn't? What was missed?
 7. Change the process layer: builder prompt, your own prompt, step.sh,

@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 98 — Automated Process Health and Delta Trends
+
+### Diagnosis
+
+**Verifying iteration 96's effects on iteration 97:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| "do NOT re-read" list in improver prompt | Improver orient ≤25% | Iter 96 improver: 18% (4 calls), but 2/4 were injected files (step.sh, CHANGELOG.md) — instruction was added mid-96, not yet in effect | needs iter 100 to verify |
+| `orient_pct` in metrics.csv | Populated for builder | Iter 97: 29% ✓ | kept |
+| Growth trend shows `orient=N%` | Builder sees its orient | Confirmed in iter 97 injected context ✓ | kept |
+| Improver cost <$1.00 | Drop from $1.32 | $1.07 — improved but still above $1.00 | partially effective |
+
+**Problem**: The improver still manually computes cost/orient trends from raw
+metrics.csv every iteration. This analysis is repetitive, error-prone, and
+takes tool calls. step.sh should pre-compute it.
+
+The builder growth trend also only shows absolute values — no deltas — making
+it hard to see at a glance whether src/tests are growing or stagnating.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Added "Process health" section to improver context: auto-computes builder avg cost, avg orient, test delta, and improver avg cost from metrics.csv | Eliminates manual trend analysis — the improver can focus on diagnosis instead of computation |
+| `step.sh` | Builder growth trend now shows deltas: `src=6383(+0) tests=542(+38)` | Builder instantly sees whether metrics are growing or stagnating without mental subtraction |
+| `improve-process.md` | Streamlined step 4 from 7 lines to 3 lines — references auto-computed health data instead of describing manual analysis | Shorter prompt, same signal |
+
+### How to verify these changes worked (for iter 100 improver)
+
+1. **Process health appears in injected context**: The iter 100 improver should
+   see a "### Process health (auto-computed trends)" section with two lines
+   (Builder and Improver averages). If it's there, the step.sh change works.
+2. **No manual trend computation**: Check the iter 100 improver's session — it
+   should NOT read metrics.csv or manually compute averages. The health section
+   provides this data pre-computed.
+3. **Builder sees deltas**: Check iter 99 builder's injected growth trend — it
+   should show `(+N)` deltas for src and tests columns.
+4. **Improver cost drops further**: With less manual analysis needed, the iter
+   100 improver's cost should be ≤$0.90.
+
+### Future directions
+
+- The health section could flag regressions automatically (e.g., "test count
+  decreased", "smoke test failed") to make them impossible to miss.
+- The builder's "diversity check" could be automated by categorizing each
+  iteration's CHANGELOG heading and injecting the category sequence.
+- The e2e smoke test still needs ANTHROPIC_API_KEY set (NOTES.md) — this is
+  the owner's action, not a process change.
+
 ## Iteration 97 — Test Critical Safety Modules (lint.ts, file-tracker.ts)
 
 ### What
