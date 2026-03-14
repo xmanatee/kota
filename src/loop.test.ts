@@ -328,6 +328,84 @@ describe("AgentSession", () => {
       expect(mockVerifyTracker.checkShellCommand).toHaveBeenCalledWith("npm test");
     });
 
+    it("records files from find_replace result", async () => {
+      session = new AgentSession();
+      mockStreamMessage
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_1", name: "find_replace", input: { glob: "**/*.ts", pattern: "old", replacement: "new" } }]),
+        )
+        .mockResolvedValueOnce(textResponse("done"));
+      mockExecuteToolCalls.mockResolvedValueOnce(
+        toolResults([{
+          id: "tu_1",
+          content: "Replaced 3 occurrence(s) in 2 file(s):\n  /src/a.ts: 2 replacement(s)\n  /src/b.ts: 1 replacement(s)",
+        }]),
+      );
+
+      await session.send("rename");
+
+      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/a.ts");
+      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/b.ts");
+    });
+
+    it("records files from delegate execute result", async () => {
+      session = new AgentSession();
+      mockStreamMessage
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_1", name: "delegate", input: { mode: "execute", task: "fix" } }]),
+        )
+        .mockResolvedValueOnce(textResponse("done"));
+      mockExecuteToolCalls.mockResolvedValueOnce(
+        toolResults([{
+          id: "tu_1",
+          content: "execute: 3/15 turns | tools: file_edit\nFixed the bug\n\n--- Modified files (2) ---\n  - /src/main.ts\n  - /src/util.ts",
+        }]),
+      );
+
+      await session.send("delegate fix");
+
+      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/main.ts");
+      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/util.ts");
+    });
+
+    it("does NOT record delegate explore (no modified files)", async () => {
+      session = new AgentSession();
+      mockStreamMessage
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_1", name: "delegate", input: { mode: "explore", task: "research" } }]),
+        )
+        .mockResolvedValueOnce(textResponse("done"));
+      mockExecuteToolCalls.mockResolvedValueOnce(
+        toolResults([{
+          id: "tu_1",
+          content: "explore: 3/10 turns | tools: file_read, grep\nFound the relevant code.",
+        }]),
+      );
+
+      await session.send("research");
+
+      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
+    });
+
+    it("does NOT record find_replace dry run", async () => {
+      session = new AgentSession();
+      mockStreamMessage
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_1", name: "find_replace", input: { glob: "**/*.ts", pattern: "old", replacement: "new", dry_run: true } }]),
+        )
+        .mockResolvedValueOnce(textResponse("done"));
+      mockExecuteToolCalls.mockResolvedValueOnce(
+        toolResults([{
+          id: "tu_1",
+          content: "Dry run — 3 match(es) in 2 file(s):\n  /src/a.ts: 2 match(es)\n  /src/b.ts: 1 match(es)",
+        }]),
+      );
+
+      await session.send("preview");
+
+      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
+    });
+
     it("does NOT record edit when tool result is an error", async () => {
       session = new AgentSession();
       mockStreamMessage

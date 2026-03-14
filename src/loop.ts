@@ -277,6 +277,21 @@ export class AgentSession {
                 if (e.file_path) this.verifyTracker.recordEdit(e.file_path);
               }
             }
+          } else if (block.name === "find_replace") {
+            // Parse "  /path: N replacement(s)" from result content
+            for (const line of result.content.split("\n")) {
+              const m = line.match(/^\s{2}(\S.+?):\s+\d+\s+replacement/);
+              if (m) this.verifyTracker.recordEdit(m[1]);
+            }
+          } else if (block.name === "delegate") {
+            // Parse "  - /path" from Modified files section in metadata
+            const idx = result.content.indexOf("--- Modified files");
+            if (idx !== -1) {
+              for (const line of result.content.slice(idx).split("\n")) {
+                const m = line.match(/^\s{2}-\s+(.+)/);
+                if (m) this.verifyTracker.recordEdit(m[1]);
+              }
+            }
           }
         }
         if (block.name === "shell") {

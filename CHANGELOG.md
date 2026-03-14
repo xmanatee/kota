@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 123 — Fix Verify-Tracker Blind Spots (find_replace, delegate)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/loop.ts` | Added `find_replace` and `delegate` cases to verify-tracker recording logic | These tools modify files but weren't tracked — agent was never nudged to verify after bulk renames or delegated edits |
+| `src/loop.test.ts` | 4 new tests: find_replace tracking, delegate tracking, explore no-op, dry-run no-op | Cross-module integration tests for the new tracking paths |
+
+### Scenario traced
+
+**"User asks agent to rename a function across a project using find_replace"**
+
+- Before: `find_replace` modifies 10 files → verify-tracker records 0 edits → agent never gets nudged → changes go unverified
+- After: `find_replace` result is parsed for modified file paths → verify-tracker records all 10 → nudge appears after 3 turns without verification
+
+Same gap existed for `delegate(execute)`: sub-agent modifies files, reports them in metadata, but main agent's verify-tracker ignored them.
+
+### Workflow impact
+
+- `find_replace` → verify nudge now works (was completely broken since iter 109)
+- `delegate(execute)` → modified files now tracked for verification (was invisible since delegation was added)
+- `delegate(explore)` and `find_replace` dry runs correctly produce no tracking (tested)
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm test` — 761 tests pass (757 → 761, +4)
+- `npm run build` — clean
+- `node dist/cli.js --help` — loads correctly
+
+### Expected effects
+
+- Agent should now nudge verification after `find_replace` operations (verifiable by checking `getState()` output includes modified files)
+- Agent should track sub-agent file modifications for verification (verifiable by checking `getState()` after delegate(execute) with modified files)
+- No behavioral change for existing file_edit/file_write/multi_edit tracking
+
+### Future directions
+
+- loop.ts is now ~345 lines — approaching point where verify-tracking logic could be extracted into a helper
+- Untested modules remain: project-context.ts, runtime-check.ts, cli.ts
+- code-exec.ts (~310 lines) still over size limit
+- delegate.ts (365 lines) is the largest file — consider splitting
+
 ## Iteration 122 — Steady State Verification + Prompt Cleanup
 
 ### Diagnosis
