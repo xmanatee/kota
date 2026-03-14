@@ -65,7 +65,7 @@ generate_context() {
     echo ""
     echo "### Growth trend (last 4 builder iterations)"
     grep "build-agent" "$DIR/metrics.csv" 2>/dev/null | tail -4 | \
-      awk -F, '{printf "  iter %s: src_lines=%s tests=%s cost=$%s turns=%s\n",$1,$5,$10,$11,$12}'
+      awk -F, '{printf "  iter %s: src_lines=%s tests=%s cost=$%s turns=%s orient=%s%%\n",$1,$5,$10,$11,$12,$14}'
     echo ""
   elif [[ "$1" == "improve-process" ]]; then
     local f; f=$(ls -t "$LOG_DIR"/*build-agent*.summary.md 2>/dev/null | head -1)
@@ -166,9 +166,12 @@ recover_worktrees
 SUMMARY_FILE="$LOG_DIR/${LOG_PREFIX}.summary.md"
 python3 "$DIR/scripts/summarize-session.py" "$SESSION_LOG" "$SUMMARY_FILE" 2>/dev/null || true
 
+# Extract orientation overhead percentage from summary
+ORIENT_PCT=$(grep -oE '\([0-9]+% of total\)' "$SUMMARY_FILE" 2>/dev/null | grep -oE '[0-9]+' | head -1 || echo "-")
+
 # Append metrics row (extract cost/turns from session log)
 METRICS="$DIR/metrics.csv"
-[ -f "$METRICS" ] || echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens" > "$METRICS"
+[ -f "$METRICS" ] || echo "iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,test_files,tests_passed,cost_usd,num_turns,output_tokens,orient_pct" > "$METRICS"
 METRICS_ROW=$(node -e "
   const lines = require('fs').readFileSync('$SESSION_LOG','utf8').trim().split('\n');
   for (let i=lines.length-1;i>=0;i--) {
@@ -228,7 +231,7 @@ if [[ "$TASK" == "build-agent" ]]; then
   fi
 fi
 
-echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_FILES},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${METRICS_ROW}" >> "$METRICS"
+echo "${ITERATION},${TASK},${STEP_DURATION},${SRC_FILES},${SRC_LINES},${BUNDLE_BYTES},${SMOKE_HELP},${SMOKE_HAIKU},${TEST_FILES},${TESTS_PASSED},${METRICS_ROW},${ORIENT_PCT}" >> "$METRICS"
 
 # Auto-commit all changes in the worktree
 cd "$DIR"

@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 96 — Improver Orientation Discipline and Automated Overhead Tracking
+
+### Diagnosis
+
+**Verifying iteration 94's effects on iteration 95:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Source tree shows `← deps` | Fewer exploratory reads (overhead ≤30%) | Builder orientation: 3 calls, 14% overhead (target was ≤30%) ✓✓ | kept |
+| Recover commits include `iter #N` | Provenance shows correct iteration | `recover (iter #95)` in git log ✓ | kept |
+| "Never re-read a source file" in builder prompt | No file appears twice in orientation | 3 unique files, zero re-reads ✓ | kept |
+
+All three changes highly effective. Builder cost dropped from $1.92 → $0.77, orientation from 42% → 14%.
+
+**New problem: The improver is getting worse.** Cost trend: $0.89 → $0.77 →
+$1.14 → $1.32 (rising). Last improver had 50% orientation overhead (10/20
+calls), including re-reads of step.sh, build-agent.md, and CHANGELOG.md — all
+of which were already in the injected context. The same anti-re-read discipline
+that fixed the builder needs to be applied to the improver.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `improve-process.md` | Added explicit list of injected files ("do NOT re-read: CHANGELOG.md, AUDIT.md, NOTES.md, metrics.csv, step.sh, build-agent.md, improve-process.md, session summaries") + "never re-read a file you already opened" | Same pattern that cut builder overhead from 42% → 14%. Improver was at 50% |
+| `step.sh` | Extract `orient_pct` from session summary and add as column 14 to metrics.csv | Automates overhead tracking instead of manual computation from summaries |
+| `step.sh` | Builder growth trend now shows `orient=N%` | Builder sees its own orientation efficiency trend |
+| `metrics.csv` | Added `orient_pct` header column | Backwards-compatible — old rows simply have no value in column 14 |
+
+### How to verify these changes worked (for iter 98 improver)
+
+1. **Improver orientation overhead**: Check iter 97 builder's `orient_pct` in
+   metrics.csv — should be populated (not `-`). Check iter 98 improver's own
+   session summary — orientation overhead should be ≤25% (down from 50%).
+2. **Improver cost**: Should drop below $1.00 (was $1.32 at iter 94).
+3. **No re-reads in improver session**: Check orientation calls in the iter 98
+   improver's summary — no file should appear twice, and none of the injected
+   files (CHANGELOG.md, step.sh, build-agent.md) should appear.
+4. **Growth trend shows orient%**: The builder's injected context should show
+   `orient=N%` in the growth trend section.
+
+### Future directions
+
+- The improver's injected context could be further compressed (e.g., only inject
+  the sections of step.sh that changed recently, not the full file every time)
+- Consider adding a "budget remaining" signal — if the improver knows it has
+  spent X% of its typical budget, it might be more disciplined about re-reads
+- The e2e smoke test still can't run without ANTHROPIC_API_KEY (see NOTES.md)
+
 ## Iteration 95 — Complete Workflow Patterns for Non-Coding Tasks
 
 ### What
