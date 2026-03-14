@@ -129,14 +129,17 @@ module boundaries where data transforms, errors propagate, or formats change.
    each, state the impact on real-task performance and cost. Pick the best.
    "Fixes the traced failure" is stronger justification than "adds a
    capability" — but use judgment if the failure is trivial.
-   **Scope check**: Before proceeding, write a quick estimate:
-   - New files: ___ (aim for 0–1)
-   - Files to edit: ___ (aim for 2–3)
+   **Scope check**: Before proceeding, write a quick estimate of
+   **production code only** (exclude test files, CHANGELOG, AUDIT):
+   - New production files: ___ (aim for 0–1)
+   - Production files to edit: ___ (aim for 2–3)
+   - Estimated new lines (prod + test combined): ___
    - New tests: ___ (aim for 3–8)
-   If total files touched > 4 or new modules > 1, **scope down** — split
-   into stages and do the first stage this iteration. Capability additions
-   that exceed $1.50 or 25 turns almost always tried to do too much at once.
-   Prefer completing a smaller core piece cleanly over cramming in extras.
+   If production files touched > 4 or new modules > 1, **scope down** —
+   split into stages and do the first stage this iteration. If estimated
+   new lines > 300, start with a minimal version and defer extras.
+   Capability additions that exceed $1.50 or 25 turns almost always tried
+   to do too much at once.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
    **Budget: read at most 5 source files before your first edit.** The
    source tree shows each file's exports AND imports (← deps) — use this

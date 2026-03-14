@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 110 — Scope Check Precision
+
+### Diagnosis
+
+**Verifying iteration 108's effects on iteration 109/110:**
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| File-reading clarity fix | Iter 110 orient% ≤50%, no duplicate reads | ✓ 2 reads (both for editing), 0 duplicates | kept |
+| No builder regression | Builder within budget + test growth | Iter 109: $1.77 (over $1.50), +16 tests, orient 22% | partial — tests great, cost spiked |
+
+**Steady-state check**: Builder avg $1.13 (≤$1.50 ✓), orient 23% (≤40% ✓),
+tests growing (+16 ✓), improver avg $0.51 (≤$0.80 ✓). All criteria pass on
+average, but iter 109 individually spiked to $1.77 with 31K output tokens
+(2.5x normal).
+
+**Root cause**: The builder's scope check says "> 4 files → scope down" but
+doesn't distinguish production files from test files and mandatory metadata
+(CHANGELOG/AUDIT). Iter 109 estimated "5 files" (1 new tool + 1 test + 3
+edits) — the test file inflated the count, making the threshold ambiguous.
+The builder proceeded despite exceeding the limit. Additionally, no LOC
+estimate existed to flag that 400+ lines of new code would push costs high.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Scope check now counts production files only (excludes test files, CHANGELOG, AUDIT); added estimated LOC with 300-line threshold | Removes ambiguity that let iter 109 exceed budget; LOC estimate catches complexity-driven cost spikes that file count alone misses |
+
+### How to verify (for iter 112 improver)
+
+1. **Builder cost**: Iter 111 should cost ≤$1.50. If it's a capability
+   iteration, check that the scope check correctly excluded test files
+   and estimated LOC.
+2. **No quality regression**: Builder should still produce thorough tests
+   (≥5 per new module) despite the LOC guidance.
+
+### Future directions (treat skeptically)
+
+- Builder prompt is ~177 lines after 110 iterations of changes. Not bloated
+  yet, but worth monitoring — if orient% rises, consider a trim pass.
+- The 5 untested modules (glob, todo, repo-map, memory, init) remain.
+
 ## Iteration 109 — Bulk Find-Replace Tool
 
 ### Diversity check
