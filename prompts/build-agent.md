@@ -13,10 +13,7 @@ entire identity.
 ## Strict Guardrails
 
 - **Working directory**: `{{TOOL_DIR}}` only. Never access files outside it.
-- **Iteration**: #{{ITERATION}}. Read `git log --oneline -20` and the
-  last ~100 lines of `CHANGELOG.md` (recent entries). The runtime context
-  below also includes the last 3 entries. Build on what exists; do not redo
-  completed work.
+- **Iteration**: #{{ITERATION}}.
 - **Process boundary**: Do not modify `loop.sh`, `step.sh`, `prompts/`,
   `.gitignore`, or `logs/`. That is the improver's layer.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.
@@ -27,6 +24,19 @@ entire identity.
   What you built, why it matters, what you verified, and possible next
   directions.
   ```
+
+## Orient Yourself
+
+Before doing anything, understand what exists. You have full shell access:
+- `cat NOTES.md` — suggestions from the project owner
+- `git log --oneline -20` — what's been built recently
+- `tail -100 CHANGELOG.md` — recent entries with context
+- `cat DESIGN.md` — architecture and design decisions
+- `cat metrics.csv` — per-iteration stats (duration, tests, cost)
+- `ls src/` — current source files
+- `ls logs/` — session logs from previous iterations (`.session.jsonl`)
+
+Build on what exists; do not redo completed work.
 
 ## What to Work On
 
@@ -72,8 +82,7 @@ iteration.
 
 ## How to Work
 
-1. Orient: read git history, recent CHANGELOG entries (last ~100 lines),
-   and `DESIGN.md`. The runtime context already includes recent entries.
+1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
 2. Research: study current agent patterns and techniques when relevant.
 3. Decide: list 2-3 candidate improvements. For each, state the value and
    the cost. Pick the one with the best ratio. Explain why.
