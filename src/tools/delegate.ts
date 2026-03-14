@@ -12,6 +12,7 @@ import { webSearchTool, runWebSearch } from "./web-search.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runShell } from "./shell.js";
 import { processTool, runProcess } from "./process.js";
+import { codeExecTool, runCodeExec } from "./code-exec.js";
 
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
@@ -103,7 +104,7 @@ const subShellTool: Anthropic.Tool = {
 };
 
 const executeTools: Anthropic.Tool[] = [
-  ...exploreTools, fileEditTool, fileWriteTool, multiEditTool, subShellTool, processTool,
+  ...exploreTools, fileEditTool, fileWriteTool, multiEditTool, subShellTool, processTool, codeExecTool,
 ];
 
 const executeRunners: Record<string, ToolRunner> = {
@@ -113,6 +114,7 @@ const executeRunners: Record<string, ToolRunner> = {
   multi_edit: runMultiEdit,
   shell: runShellBounded,
   process: runProcess,
+  code_exec: runCodeExec,
 };
 
 // --- File modification tracking ---

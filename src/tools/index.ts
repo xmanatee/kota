@@ -15,6 +15,7 @@ import { webSearchTool, runWebSearch } from "./web-search.js";
 import { askUserTool, runAskUser } from "./ask-user.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { processTool, runProcess } from "./process.js";
+import { codeExecTool, runCodeExec } from "./code-exec.js";
 
 export type ToolResultBlock =
   | { type: "text"; text: string }
@@ -45,6 +46,7 @@ const runners: Record<string, ToolRunner> = {
   ask_user: runAskUser,
   http_request: runHttpRequest,
   process: runProcess,
+  code_exec: runCodeExec,
 };
 
 export const allTools: Anthropic.Tool[] = [
@@ -64,6 +66,7 @@ export const allTools: Anthropic.Tool[] = [
   askUserTool,
   httpRequestTool,
   processTool,
+  codeExecTool,
 ];
 
 export async function executeTool(

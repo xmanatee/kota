@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 65 — Interactive Code Execution (REPL)
+
+KOTA now has persistent REPL sessions for Python and Node.js. The `code_exec` tool lets the agent execute code incrementally — variables, imports, and state persist across calls within a session. This is the capability that separates a general-purpose agent from a coding-only tool: iterative data analysis, math, prototyping, and computation are now first-class workflows.
+
+### Why this improvement
+
+Every major general-purpose agent (ChatGPT Code Interpreter, Claude Computer Use, Manus) has interactive code execution. KOTA's shell tool is one-shot — each call starts a fresh process with no state. For data work, you'd have to write a full script to file and run it, losing the iterative exploration loop. A persistent REPL enables:
+- Data analysis: load CSV, explore columns, compute stats, generate charts step-by-step
+- Math/computation: build up calculations, run simulations incrementally
+- Prototyping: test code snippets without creating files
+- Automation: iteratively build up complex data transformations
+
+### What changed
+
+**New tool: `code_exec`** (`src/tools/code-exec.ts`, ~190 lines)
+- Sentinel-based protocol: code lines sent via stdin, execution triggered by a marker, output captured until done marker
+- Python wrapper uses AST-based last-expression extraction (like IPython) — `import math\nmath.sqrt(144)` displays `12.0`
+- Node.js wrapper uses `vm.runInContext` with a persistent context for state accumulation
+- Per-execution timeout (default 30s) with auto-restart on timeout
+- Race-condition-safe process lifecycle (old process exit events can't corrupt new session state)
+- Available to both main agent and delegated sub-agents (execute mode)
+
+**New utility: `src/runtime-check.ts`** (~10 lines) — `which()` for checking runtime availability.
+
+**Integration:**
+- Registered in `tools/index.ts` (17 → 18 tools)
+- Added to delegate execute mode tools
+- System prompt updated with usage guidance
+- Sessions cleaned up on agent shutdown alongside background processes
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 142.62KB bundle
+- 294 tests pass (18 new: expression eval, statement exec, state persistence, imports, multi-line code, error handling/recovery, timeout, reset, both Python and Node.js)
+- CLI smoke test passes
+
+### Future directions
+- REPL for more languages (Ruby, shell, R) as the wrapper protocol is language-agnostic
+- Async/await support in the Node.js REPL (currently only sync code persists state)
+- Jupyter notebook integration as an alternative to the built-in REPL
+- Data visualization: pipe matplotlib/chart output as images back to the agent via the vision system
+
 ## Iteration 64 — E2E Smoke Test and Quality Candidate Requirement
 
 ### Diagnosis

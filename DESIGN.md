@@ -111,6 +111,10 @@ Cross-session memory in `~/.kota/memory.json`. Save/search/list/delete with keyw
 - **Error context enrichment** (`src/error-context.ts`): Pre-fetches source code around file:line references in errors.
 - **Verification nudges** (`src/verify-tracker.ts`): Tracks unverified edits, detects available test/build commands, escalates after 3 turns.
 
+### Interactive Code Execution (`src/tools/code-exec.ts`)
+
+Persistent REPL sessions (Python / Node.js) for iterative computation. Wrapper processes use a sentinel-based protocol: code lines are sent via stdin until a sentinel marker, then executed, with a done marker printed to stdout when complete. State (variables, imports) persists across calls within a session. AST-based last-expression extraction (Python) displays return values like IPython. Sessions are managed per-language and cleaned up on agent shutdown.
+
 ### MCP Support (`src/mcp-client.ts`, `src/mcp-manager.ts`)
 
 External tool servers via Model Context Protocol. Configure in `.kota/mcp.json`. Tools namespaced as `mcp__<server>__<tool>`. Stdio transport, graceful degradation.

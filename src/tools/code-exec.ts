@@ -1,0 +1,271 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import { spawn, type ChildProcess } from "node:child_process";
+import { which } from "../runtime-check.js";
+import type { ToolResult } from "./index.js";
+
+const SENTINEL = "__KOTA_EXEC__";
+const DONE_MARKER = "__KOTA_DONE__";
+const DEFAULT_TIMEOUT = 30_000;
+const MAX_OUTPUT = 50_000;
+
+// Python wrapper: reads code blocks delimited by SENTINEL, executes them,
+// prints DONE_MARKER after each. State accumulates in _g dict.
+// Uses AST to extract and display the last expression's value (like IPython).
+const PYTHON_WRAPPER = [
+  "import sys, traceback, ast",
+  "_g = {}",
+  "while True:",
+  "    lines = []",
+  "    while True:",
+  "        line = sys.stdin.readline()",
+  "        if not line: sys.exit(0)",
+  `        if line.rstrip('\\n') == '${SENTINEL}': break`,
+  "        lines.append(line)",
+  "    code = ''.join(lines)",
+  "    try:",
+  "        try:",
+  "            r = eval(compile(code, '<exec>', 'eval'), _g)",
+  "            if r is not None: print(repr(r))",
+  "        except SyntaxError:",
+  "            tree = ast.parse(code)",
+  "            if tree.body and isinstance(tree.body[-1], ast.Expr):",
+  "                last = tree.body.pop()",
+  "                if tree.body:",
+  "                    exec(compile(tree, '<exec>', 'exec'), _g)",
+  "                expr = ast.Expression(body=last.value)",
+  "                ast.fix_missing_locations(expr)",
+  "                r = eval(compile(expr, '<exec>', 'eval'), _g)",
+  "                if r is not None: print(repr(r))",
+  "            else:",
+  "                exec(compile(code, '<exec>', 'exec'), _g)",
+  "    except Exception: traceback.print_exc()",
+  `    sys.stdout.write('${DONE_MARKER}\\n')`,
+  "    sys.stdout.flush()",
+].join("\n");
+
+// Node.js wrapper: same protocol, uses vm.runInContext for state persistence.
+const NODE_WRAPPER = [
+  "const rl=require('readline').createInterface({input:process.stdin,terminal:false});",
+  "const vm=require('vm');",
+  "const ctx=vm.createContext({...globalThis,require,console,process,Buffer,",
+  "setTimeout,setInterval,clearTimeout,clearInterval});",
+  "let lines=[];",
+  "rl.on('line',l=>{",
+  `  if(l==='${SENTINEL}'){`,
+  "    const code=lines.join('\\n');lines=[];",
+  "    try{",
+  "      const r=vm.runInContext(code,ctx,{filename:'<exec>'});",
+  "      if(r!==undefined){",
+  "        const s=typeof r==='object'?JSON.stringify(r,null,2):String(r);",
+  "        process.stdout.write(s+'\\n');",
+  "      }",
+  "    }catch(e){process.stderr.write((e.stack||String(e))+'\\n')}",
+  `    process.stdout.write('${DONE_MARKER}\\n');`,
+  "    return;",
+  "  }",
+  "  lines.push(l);",
+  "});",
+  "rl.on('close',()=>process.exit(0));",
+].join("");
+
+type Language = "python" | "node";
+
+class REPLSession {
+  private proc: ChildProcess | null = null;
+  private language: Language;
+  private alive = false;
+
+  constructor(language: Language) {
+    this.language = language;
+  }
+
+  private start(): void {
+    if (this.alive) return;
+
+    const [cmd, args] =
+      this.language === "python"
+        ? ["python3", ["-u", "-c", PYTHON_WRAPPER]]
+        : ["node", ["-e", NODE_WRAPPER]];
+
+    this.proc = spawn(cmd, args, {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    this.alive = true;
+    // Guard: only update state if this is still the current process.
+    // Prevents old process's exit event from resetting a new session.
+    const ref = this.proc;
+    ref.on("exit", () => { if (this.proc === ref) this.alive = false; });
+    ref.on("error", () => { if (this.proc === ref) this.alive = false; });
+  }
+
+  async execute(
+    code: string,
+    timeoutMs: number,
+  ): Promise<{ output: string; isError: boolean }> {
+    if (!this.alive || !this.proc) this.start();
+    const proc = this.proc!;
+    if (!proc.stdin || !proc.stdout || !proc.stderr) {
+      return { output: "Process stdio not available", isError: true };
+    }
+
+    return new Promise((resolve) => {
+      const stdoutChunks: string[] = [];
+      const stderrChunks: string[] = [];
+      let stdoutBuf = "";
+      let settled = false;
+
+      const settle = (result: { output: string; isError: boolean }) => {
+        if (settled) return;
+        settled = true;
+        proc.stdout!.removeListener("data", onStdout);
+        proc.stderr!.removeListener("data", onStderr);
+        proc.removeListener("exit", onExit);
+        clearTimeout(timer);
+        resolve(result);
+      };
+
+      const onStdout = (chunk: Buffer) => {
+        stdoutBuf += chunk.toString();
+        const idx = stdoutBuf.indexOf(DONE_MARKER + "\n");
+        if (idx !== -1) {
+          const before = stdoutBuf.slice(0, idx).trim();
+          if (before) stdoutChunks.push(before);
+          const stderr = stderrChunks.join("").trim();
+          const stdout = stdoutChunks.join("").trim();
+          const parts = [stdout, stderr].filter(Boolean);
+          const output = parts.join("\n") || "(no output)";
+          // Done marker reached = execution completed. Not a tool error.
+          // Code-level errors (tracebacks) are visible in the output text.
+          settle({ output, isError: false });
+        }
+      };
+
+      const onStderr = (chunk: Buffer) => {
+        stderrChunks.push(chunk.toString());
+      };
+
+      const onExit = (code: number | null) => {
+        const stderr = stderrChunks.join("").trim();
+        const stdout = stdoutBuf.trim();
+        const parts = [stdout, stderr].filter(Boolean);
+        settle({
+          output: parts.join("\n") || `Process exited with code ${code}`,
+          isError: true,
+        });
+      };
+
+      const timer = setTimeout(() => {
+        this.kill();
+        settle({ output: `Execution timed out after ${timeoutMs}ms`, isError: true });
+      }, timeoutMs);
+
+      proc.stdout!.on("data", onStdout);
+      proc.stderr!.on("data", onStderr);
+      proc.on("exit", onExit);
+
+      // Send code + sentinel to trigger execution
+      proc.stdin!.write(code + "\n" + SENTINEL + "\n");
+    });
+  }
+
+  kill(): void {
+    if (this.proc) {
+      try { this.proc.kill("SIGTERM"); } catch {}
+      const ref = this.proc;
+      setTimeout(() => { try { ref.kill("SIGKILL"); } catch {} }, 2000);
+    }
+    this.alive = false;
+    this.proc = null;
+  }
+
+  isAlive(): boolean {
+    return this.alive;
+  }
+}
+
+// One session per language, reused across calls
+const sessions: Record<Language, REPLSession> = {
+  python: new REPLSession("python"),
+  node: new REPLSession("node"),
+};
+
+/** Kill all REPL sessions. Called on agent shutdown. */
+export function cleanupSessions(): void {
+  sessions.python.kill();
+  sessions.node.kill();
+}
+
+export const codeExecTool: Anthropic.Tool = {
+  name: "code_exec",
+  description:
+    "Execute code in a persistent REPL session. Variables, imports, and state persist " +
+    "across calls — ideal for iterative data analysis, computation, math, prototyping, " +
+    "and exploration. Supports Python and Node.js (each has its own session).",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      code: {
+        type: "string",
+        description: "The code to execute",
+      },
+      language: {
+        type: "string",
+        enum: ["python", "node"],
+        description: "Language runtime (default: python)",
+      },
+      timeout_ms: {
+        type: "number",
+        description: "Execution timeout in ms (default: 30000)",
+      },
+      reset: {
+        type: "boolean",
+        description: "Reset the session (kill and restart) before executing",
+      },
+    },
+    required: ["code"],
+  },
+};
+
+export async function runCodeExec(
+  input: Record<string, unknown>,
+): Promise<ToolResult> {
+  const code = input.code as string;
+  const language = (input.language as Language) || "python";
+  const timeoutMs = (input.timeout_ms as number) || DEFAULT_TIMEOUT;
+  const reset = (input.reset as boolean) || false;
+
+  if (!code) {
+    return { content: "Error: code is required", is_error: true };
+  }
+  if (language !== "python" && language !== "node") {
+    return {
+      content: `Error: language must be "python" or "node", got "${language}"`,
+      is_error: true,
+    };
+  }
+
+  // Check runtime availability
+  const cmd = language === "python" ? "python3" : "node";
+  if (!which(cmd)) {
+    return {
+      content: `Error: ${cmd} not found. Install ${language === "python" ? "Python 3" : "Node.js"} to use code_exec with language="${language}".`,
+      is_error: true,
+    };
+  }
+
+  const session = sessions[language];
+  if (reset) session.kill();
+
+  const { output, isError } = await session.execute(code, timeoutMs);
+
+  const truncated =
+    output.length > MAX_OUTPUT
+      ? output.slice(0, MAX_OUTPUT) +
+        `\n[truncated — ${output.length} chars total]`
+      : output;
+
+  return { content: truncated, is_error: isError };
+}
