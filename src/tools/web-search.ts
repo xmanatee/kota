@@ -38,6 +38,83 @@ export async function runWebSearch(
     return { content: "Error: query is required", is_error: true };
   }
 
+  // Try Brave Search API first if configured (JSON-based, no HTML scraping)
+  const braveKey = process.env.BRAVE_SEARCH_API_KEY;
+  if (braveKey) {
+    const braveResults = await fetchBraveSearch(query, numResults, braveKey);
+    if (braveResults && braveResults.length > 0) {
+      return { content: formatResults(braveResults) };
+    }
+    // Brave returned no results — fall through to DDG
+  }
+
+  return fetchDuckDuckGo(query, numResults);
+}
+
+function formatResults(results: SearchResult[]): string {
+  return results
+    .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
+    .join("\n\n");
+}
+
+// --- Brave Search API (JSON, reliable) ---
+
+type BraveSearchResponse = {
+  web?: { results?: Array<{ title: string; url: string; description?: string }> };
+};
+
+/** Parse Brave Search API JSON response into SearchResults. */
+export function parseBraveResults(
+  data: BraveSearchResponse,
+  max: number,
+): SearchResult[] {
+  const results: SearchResult[] = [];
+  const webResults = data.web?.results;
+  if (!webResults) return results;
+  for (const r of webResults) {
+    if (results.length >= max) break;
+    if (r.title && r.url) {
+      results.push({ title: r.title, url: r.url, snippet: r.description || "" });
+    }
+  }
+  return results;
+}
+
+async function fetchBraveSearch(
+  query: string,
+  numResults: number,
+  apiKey: string,
+): Promise<SearchResult[] | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const url =
+      `https://api.search.brave.com/res/v1/web/search` +
+      `?q=${encodeURIComponent(query)}&count=${numResults}`;
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey,
+      },
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    const data = (await response.json()) as BraveSearchResponse;
+    return parseBraveResults(data, numResults);
+  } catch {
+    clearTimeout(timeout);
+    return null;
+  }
+}
+
+// --- DuckDuckGo HTML scraping (fallback) ---
+
+async function fetchDuckDuckGo(
+  query: string,
+  numResults: number,
+): Promise<ToolResult> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -57,10 +134,7 @@ export async function runWebSearch(
     clearTimeout(timeout);
 
     if (!response.ok) {
-      return {
-        content: `Search failed: HTTP ${response.status}`,
-        is_error: true,
-      };
+      return { content: `Search failed: HTTP ${response.status}`, is_error: true };
     }
 
     const html = await response.text();
@@ -75,16 +149,10 @@ export async function runWebSearch(
     }
 
     const results = parseSearchResults(html, numResults);
-
     if (results.length === 0) {
       return { content: `No results found for: ${query}` };
     }
-
-    const formatted = results
-      .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
-      .join("\n\n");
-
-    return { content: formatted };
+    return { content: formatResults(results) };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("abort")) {
@@ -97,7 +165,6 @@ export async function runWebSearch(
 /** Detect DuckDuckGo rate limiting / CAPTCHA pages */
 export function isRateLimited(html: string): boolean {
   const lower = html.toLowerCase();
-  // CAPTCHA/robot pages never contain actual search result links
   return (
     (lower.includes("captcha") || lower.includes("please try again") ||
       lower.includes("automated requests")) &&
@@ -109,9 +176,6 @@ export function isRateLimited(html: string): boolean {
 export function parseSearchResults(html: string, max: number): SearchResult[] {
   const results: SearchResult[] = [];
 
-  // DuckDuckGo HTML wraps each result in a div.result
-  // Title/link: <a class="result__a" href="...">Title</a>
-  // Snippet: <a class="result__snippet" ...>Snippet text</a>
   const resultBlockRegex =
     /<div[^>]*class="[^"]*result[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?=<div[^>]*class="[^"]*result|$)/gi;
 
@@ -121,7 +185,6 @@ export function parseSearchResults(html: string, max: number): SearchResult[] {
     blocks.push(blockMatch[1]);
   }
 
-  // If block parsing fails, fall back to extracting links and snippets globally
   if (blocks.length === 0) {
     return parseFallback(html, max);
   }
@@ -129,7 +192,6 @@ export function parseSearchResults(html: string, max: number): SearchResult[] {
   for (const block of blocks) {
     if (results.length >= max) break;
 
-    // Extract link and title
     const linkMatch = block.match(
       /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i,
     );
@@ -139,11 +201,8 @@ export function parseSearchResults(html: string, max: number): SearchResult[] {
     const title = stripTags(linkMatch[2]).trim();
     const url = resolveRedirectUrl(rawUrl);
     if (!url || !title) continue;
-
-    // Skip DuckDuckGo internal links
     if (url.includes("duckduckgo.com")) continue;
 
-    // Extract snippet
     const snippetMatch = block.match(
       /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i,
     );
@@ -155,11 +214,9 @@ export function parseSearchResults(html: string, max: number): SearchResult[] {
   return results;
 }
 
-/** Fallback parser: extract result links and snippets directly */
 function parseFallback(html: string, max: number): SearchResult[] {
   const results: SearchResult[] = [];
 
-  // Match any anchor with result__a class
   const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
   const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
 
@@ -189,9 +246,7 @@ function parseFallback(html: string, max: number): SearchResult[] {
   return results;
 }
 
-/** Decode DuckDuckGo redirect URLs to get the actual destination */
 function resolveRedirectUrl(raw: string): string {
-  // DuckDuckGo wraps URLs: //duckduckgo.com/l/?uddg=ENCODED_URL&rut=...
   if (raw.includes("uddg=")) {
     const uddgMatch = raw.match(/uddg=([^&]+)/);
     if (uddgMatch) {
@@ -203,7 +258,6 @@ function resolveRedirectUrl(raw: string): string {
   return "";
 }
 
-/** Strip HTML tags from a string */
 function stripTags(html: string): string {
   return html
     .replace(/<[^>]+>/g, "")

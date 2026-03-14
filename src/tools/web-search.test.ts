@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isRateLimited, parseSearchResults } from "./web-search.js";
+import { isRateLimited, parseSearchResults, parseBraveResults } from "./web-search.js";
 
 describe("isRateLimited", () => {
   it("detects CAPTCHA pages", () => {
@@ -19,7 +19,6 @@ describe("isRateLimited", () => {
   });
 
   it("returns false for normal results page with captcha mention in content", () => {
-    // A result about CAPTCHAs should not trigger rate limit detection
     const html =
       '<div class="result"><a class="result__a" href="https://example.com">How CAPTCHAs Work</a>' +
       '<a class="result__snippet">Learn about captcha technology</a></div>';
@@ -97,5 +96,70 @@ describe("parseSearchResults", () => {
     expect(results).toHaveLength(1);
     expect(results[0].title).toBe("Bold Title");
     expect(results[0].snippet).toBe("Italic snippet & more");
+  });
+});
+
+describe("parseBraveResults", () => {
+  it("parses standard Brave API response", () => {
+    const data = {
+      web: {
+        results: [
+          { title: "TypeScript Handbook", url: "https://typescriptlang.org/docs", description: "Official TS docs" },
+          { title: "TS Generics Guide", url: "https://example.com/generics", description: "Learn generics" },
+        ],
+      },
+    };
+    const results = parseBraveResults(data, 5);
+    expect(results).toHaveLength(2);
+    expect(results[0]).toEqual({
+      title: "TypeScript Handbook",
+      url: "https://typescriptlang.org/docs",
+      snippet: "Official TS docs",
+    });
+  });
+
+  it("respects max limit", () => {
+    const data = {
+      web: {
+        results: [
+          { title: "A", url: "https://a.com", description: "a" },
+          { title: "B", url: "https://b.com", description: "b" },
+          { title: "C", url: "https://c.com", description: "c" },
+        ],
+      },
+    };
+    expect(parseBraveResults(data, 2)).toHaveLength(2);
+  });
+
+  it("handles missing description", () => {
+    const data = {
+      web: {
+        results: [{ title: "No Desc", url: "https://example.com" }],
+      },
+    };
+    const results = parseBraveResults(data, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].snippet).toBe("");
+  });
+
+  it("returns empty for missing web results", () => {
+    expect(parseBraveResults({}, 5)).toHaveLength(0);
+    expect(parseBraveResults({ web: {} }, 5)).toHaveLength(0);
+    expect(parseBraveResults({ web: { results: [] } }, 5)).toHaveLength(0);
+  });
+
+  it("skips entries with missing title or url", () => {
+    const data = {
+      web: {
+        results: [
+          { title: "", url: "https://a.com", description: "no title" },
+          { title: "No URL", url: "", description: "no url" },
+          { title: "Valid", url: "https://b.com", description: "ok" },
+        ],
+      },
+    };
+    const results = parseBraveResults(data, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Valid");
   });
 });

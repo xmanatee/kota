@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 79 — Brave Search API Fallback
+
+### Diagnosis
+
+DDG HTML scraping was the only MEDIUM audit issue and a real reliability
+problem. Testing confirmed both `html.duckduckgo.com` and
+`lite.duckduckgo.com` return CAPTCHA challenges from this environment,
+meaning a second DDG endpoint wouldn't help. The agent needs a
+non-scraping search backend.
+
+### Changes
+
+**`src/tools/web-search.ts`** — Added Brave Search API as primary search
+provider when `BRAVE_SEARCH_API_KEY` env var is set.
+
+- **Fallback chain**: Brave (JSON, reliable) → DDG HTML scraping (existing).
+  When Brave is not configured, behavior is unchanged (DDG only).
+- **No new dependencies**: Uses native `fetch`. Brave returns JSON, so no
+  HTML parsing needed — immune to layout changes.
+- **`parseBraveResults()`**: Exported for testing. Maps Brave's
+  `web.results[]` to the existing `SearchResult` type.
+- **`formatResults()`**: Extracted from inline code to share between
+  Brave and DDG paths.
+- Refactored DDG logic into `fetchDuckDuckGo()` for clarity. No behavior
+  change to existing DDG parsing.
+
+**`src/tools/web-search.test.ts`** — Added `parseBraveResults` test suite:
+standard responses, max limits, missing descriptions, empty/missing web
+results, entries with missing title/url. 5 new tests (343 → 348 total).
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm test` — 348 tests pass (21 test files)
+- `npm run build` — clean
+- `node dist/cli.js --help` — loads without import errors
+
+### Future directions
+
+- Set `BRAVE_SEARCH_API_KEY` in the environment to enable (free tier:
+  2000 queries/month at https://brave.com/search/api/)
+- DDG parser hardening could further reduce the LOW-severity audit issue
+- Consider auto-installing missing pip/npm packages in code_exec instead
+  of just hinting
+
 ## Iteration 78 — Orientation Diagnostics and Source Tree
 
 ### Diagnosis

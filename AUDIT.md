@@ -17,12 +17,12 @@ lines). The delegate runner, tool sets, and system prompt builders are all
 in one file. If more features are added, extract tool-set definitions or
 the system prompt builders into a separate module.
 
-## web-search.ts — DuckDuckGo HTML scraping is fragile (iter 77, MEDIUM)
+## web-search.ts — DuckDuckGo HTML scraping is fragile (iter 77→79, LOW)
 
-Web search relies on parsing DuckDuckGo's HTML results page with regex. Rate
-limit detection was added (iter 77) but the underlying approach is fragile —
-any HTML layout change breaks the parser silently. Consider adding a second
-search provider (Brave Search API free tier: 2000 queries/month) as fallback.
+Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
+(iter 79). JSON-based, no HTML parsing. DDG remains as fallback. Severity
+downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
+search path. Still worth hardening the DDG parser long-term.
 
 ## context.ts — Pruning triggers one turn late (iter 73, LOW)
 
