@@ -24,7 +24,7 @@ export function smartErrorTruncate(output: string, limit = 20_000): string {
   if (extracted) {
     const tail = lastLines(output, 20);
     const header = `[Extracted ${extracted.count} diagnostic(s) from ${output.length} chars]\n`;
-    return header + "\n" + extracted.text + "\n\n--- Output tail ---\n" + tail;
+    return `${header}\n${extracted.text}\n\n--- Output tail ---\n${tail}`;
   }
 
   // Fallback: head + tail
@@ -73,7 +73,7 @@ export function extractTscErrors(output: string): Extraction | null {
   if (errors.length === 0) return null;
 
   const unique = [...new Set(errors)].slice(0, 40);
-  const text = `TypeScript errors (${unique.length}):\n` + unique.map((e) => `  ${e}`).join("\n");
+  const text = `TypeScript errors (${unique.length}):\n${unique.map((e) => `  ${e}`).join("\n")}`;
   return { text, count: unique.length };
 }
 
@@ -152,7 +152,7 @@ export function extractLintErrors(output: string): Extraction | null {
   // Prefer actual errors over warnings
   const errorsOnly = unique.filter((l) => /error/i.test(l) || /×/.test(l));
   const shown = errorsOnly.length > 0 ? errorsOnly : unique;
-  const text = `Lint issues (${shown.length}):\n` + shown.map((e) => `  ${e}`).join("\n");
+  const text = `Lint issues (${shown.length}):\n${shown.map((e) => `  ${e}`).join("\n")}`;
   return { text, count: shown.length };
 }
 
@@ -193,6 +193,6 @@ export function extractGenericErrors(output: string): Extraction | null {
   if (regions.length === 0) return null;
 
   const limited = regions.slice(0, 15);
-  const text = `Errors (${regions.length} locations):\n\n` + limited.join("\n\n");
+  const text = `Errors (${regions.length} locations):\n\n${limited.join("\n\n")}`;
   return { text, count: regions.length };
 }

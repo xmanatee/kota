@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  TOOL_GROUPS,
   CORE_TOOL_NAMES,
-  enableGroup,
-  getActiveToolNames,
-  filterTools,
-  resetGroups,
-  getEnabledGroups,
-  enableToolsTool,
-  runEnableTools,
   detectToolGroups,
+  enableGroup,
+  enableToolsTool,
+  filterTools,
+  getActiveToolNames,
+  getEnabledGroups,
+  resetGroups,
+  runEnableTools,
+  TOOL_GROUPS,
 } from "./tool-groups.js";
 
 describe("tool-groups", () => {

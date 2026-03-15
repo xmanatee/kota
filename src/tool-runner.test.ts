@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  executeToolCalls,
   FailureTracker,
   type ToolResultEntry,
-  executeToolCalls,
 } from "./tool-runner.js";
 
 vi.mock("./tools/index.js", () => ({
@@ -15,9 +15,9 @@ vi.mock("./tool-retry.js", () => ({
   maybeRetry: vi.fn().mockResolvedValue(null),
 }));
 
-import { executeTool } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import { maybeRetry } from "./tool-retry.js";
+import { executeTool } from "./tools/index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
 const mockTruncate = vi.mocked(truncateToolResult);

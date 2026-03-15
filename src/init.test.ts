@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { join } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock memory module to isolate from real ~/.kota/memory.json
 vi.mock("./memory.js", () => ({
@@ -12,8 +12,8 @@ vi.mock("./memory.js", () => ({
   })),
 }));
 
+import { buildSessionWarmup, detectEnvironment, detectProject, getDirectoryOverview } from "./init.js";
 import { getMemoryStore } from "./memory.js";
-import { detectProject, buildSessionWarmup, getDirectoryOverview, detectEnvironment } from "./init.js";
 
 const mocked = vi.mocked(getMemoryStore);
 

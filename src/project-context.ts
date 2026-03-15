@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 const CONTEXT_FILENAME = ".kota.md";
 const MAX_CLIMB = 10;
@@ -53,7 +53,7 @@ export function loadProjectContext(startDir?: string): string {
   const sections = files.map((f) => {
     let content = f.content;
     if (content.length > MAX_CONTENT_LENGTH) {
-      content = content.slice(0, MAX_CONTENT_LENGTH) + "\n... (truncated)";
+      content = `${content.slice(0, MAX_CONTENT_LENGTH)}\n... (truncated)`;
     }
     return `### ${f.path}\n\n${content}`;
   });

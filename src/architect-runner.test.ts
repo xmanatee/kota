@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockArchitectPass, mockEditorLoop } = vi.hoisted(() => ({
   mockArchitectPass: vi.fn(),
@@ -11,8 +11,8 @@ vi.mock("./architect.js", () => ({
 }));
 
 import {
-  runArchitectStep,
   type ArchitectStepConfig,
+  runArchitectStep,
 } from "./architect-runner.js";
 
 function makeConfig(

@@ -70,7 +70,7 @@ export function printEditDiff(
   for (const l of newLines) parts.push(`${c.green}+${l}${c.reset}`);
   for (const l of contextAfter) parts.push(` ${l}`);
 
-  process.stderr.write(parts.join("\n") + "\n");
+  process.stderr.write(`${parts.join("\n")}\n`);
 }
 
 /**

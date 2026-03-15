@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Scheduler, parseTime, parseRepeat, resetScheduler } from "./scheduler.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { parseRepeat, parseTime, resetScheduler, Scheduler } from "./scheduler.js";
 
 describe("parseTime", () => {
   const now = new Date("2025-06-15T10:00:00Z");

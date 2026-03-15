@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export type Memory = {
   id: string;
@@ -78,7 +78,7 @@ export class MemoryStore {
     }
     if (options?.since) {
       const sinceDate = new Date(options.since).getTime();
-      if (!isNaN(sinceDate)) {
+      if (!Number.isNaN(sinceDate)) {
         pool = pool.filter((m) => new Date(m.created).getTime() >= sinceDate);
       }
     }
@@ -88,7 +88,7 @@ export class MemoryStore {
 
     return pool
       .map((m) => {
-        const text = (m.content + " " + m.tags.join(" ")).toLowerCase();
+        const text = (`${m.content} ${m.tags.join(" ")}`).toLowerCase();
         const hits = terms.filter((t) => text.includes(t)).length;
         return { memory: m, score: hits / terms.length };
       })

@@ -1,6 +1,6 @@
+import { readFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob as globFn } from "glob";
-import { readFileSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 
 export const repoMapTool: Anthropic.Tool = {

@@ -7,8 +7,8 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 export type ScheduledItem = {
   id: number;
@@ -45,7 +45,7 @@ export function parseTime(expr: string, now?: Date): Date | null {
 
   // ISO datetime
   const iso = new Date(expr.trim());
-  if (!isNaN(iso.getTime()) && /\d{4}-\d{2}/.test(expr)) return iso;
+  if (!Number.isNaN(iso.getTime()) && /\d{4}-\d{2}/.test(expr)) return iso;
 
   // Relative: "in N unit(s)"
   const relMatch = s.match(

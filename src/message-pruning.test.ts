@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { pruneMessages, buildToolCallMap, generateSummary } from "./message-pruning.js";
 import type Anthropic from "@anthropic-ai/sdk";
+import { describe, expect, it } from "vitest";
+import { buildToolCallMap, generateSummary, pruneMessages } from "./message-pruning.js";
 
 type Message = Anthropic.MessageParam;
 

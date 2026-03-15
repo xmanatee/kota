@@ -8,8 +8,8 @@
  */
 
 import { AgentSession, type LoopOptions } from "./loop.js";
-import { BufferTransport } from "./transport.js";
 import type { ScheduledItem } from "./scheduler.js";
+import { BufferTransport } from "./transport.js";
 
 export type ActionResult = {
   item: ScheduledItem;

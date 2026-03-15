@@ -1,28 +1,28 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult, ToolResultBlock } from "./index.js";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
-import type { Transport } from "../transport.js";
-import { maybeRetry } from "../tool-retry.js";
 import {
-  EXPLORE_PROMPT,
-  EXECUTE_PROMPT,
   buildSubAgentPrompt,
-  exploreTools,
+  EXECUTE_PROMPT,
+  EXPLORE_PROMPT,
+  executeRunners,
   executeTools,
   exploreRunners,
-  executeRunners,
+  exploreTools,
 } from "../delegate-prompts.js";
+import { maybeRetry } from "../tool-retry.js";
+import type { Transport } from "../transport.js";
 import {
+  assembleDelegateResult,
   type CompletionReason,
+  collectImageBlocks,
   type DelegateMetadata,
   extractModifiedFiles,
-  collectImageBlocks,
-  assembleDelegateResult,
 } from "./delegate-format.js";
+import type { ToolResult, ToolResultBlock } from "./index.js";
 
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
-export { formatMetadata, buildSourcesSection, buildDelegateResult, collectImageBlocks, extractModifiedFiles } from "./delegate-format.js";
+export { buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
@@ -119,7 +119,7 @@ export async function runDelegate(
   let naturalEnd = false;
 
   const transport = delegateConfig.transport;
-  const taskPreview = task.length > 60 ? task.slice(0, 57) + "..." : task;
+  const taskPreview = task.length > 60 ? `${task.slice(0, 57)}...` : task;
   if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) starting: ${taskPreview}` });
 
   for (let turn = 0; turn < maxTurns; turn++) {
@@ -242,7 +242,7 @@ export async function runDelegate(
         if (identicalErrorCount >= IDENTICAL_FAILURE_LIMIT) {
           if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) circuit break — same error ${IDENTICAL_FAILURE_LIMIT}x` });
           completionReason = "circuit_break";
-          lastText = (lastText ? lastText + "\n\n" : "") +
+          lastText = (lastText ? `${lastText}\n\n` : "") +
             `Sub-agent stopped: repeated the same failing operation ${IDENTICAL_FAILURE_LIMIT} times. ` +
             `Last error: ${failedResults[0].content.slice(0, 200)}`;
           break;

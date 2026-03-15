@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  smartErrorTruncate,
-  extractTscErrors,
-  extractTestFailures,
-  extractLintErrors,
   extractGenericErrors,
+  extractLintErrors,
+  extractTestFailures,
+  extractTscErrors,
+  smartErrorTruncate,
 } from "./shell-diagnostics.js";
 
 // Helper: pad output to exceed the 8K threshold

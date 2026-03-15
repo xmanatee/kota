@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
+import { describe, expect, it } from "vitest";
 import {
-  SENTINEL,
-  DONE_MARKER,
   DEFAULT_TIMEOUT,
+  DONE_MARKER,
   MAX_OUTPUT,
-  PYTHON_WRAPPER,
   NODE_WRAPPER,
+  PYTHON_WRAPPER,
+  SENTINEL,
 } from "./code-wrappers.js";
 
 // Helper: run Python wrapper, send code, collect output
@@ -21,7 +21,7 @@ function runPython(code: string): Promise<{ stdout: string; stderr: string }> {
     proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
     proc.on("close", () => resolve({ stdout, stderr }));
     proc.on("error", reject);
-    proc.stdin.write(code + "\n" + SENTINEL + "\n");
+    proc.stdin.write(`${code}\n${SENTINEL}\n`);
     // Close stdin to let the wrapper exit after processing
     setTimeout(() => proc.stdin.end(), 200);
   });
@@ -39,7 +39,7 @@ function runNode(code: string): Promise<{ stdout: string; stderr: string }> {
     proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
     proc.on("close", () => resolve({ stdout, stderr }));
     proc.on("error", reject);
-    proc.stdin.write(code + "\n" + SENTINEL + "\n");
+    proc.stdin.write(`${code}\n${SENTINEL}\n`);
     setTimeout(() => proc.stdin.end(), 200);
   });
 }

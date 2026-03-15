@@ -6,196 +6,28 @@
  * for real, exercising it beyond CliTransport for the first time.
  */
 
-import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
-import { randomUUID } from "node:crypto";
-import { AgentSession, type LoopOptions } from "./loop.js";
-import { loadConfig, type KotaConfig } from "./config.js";
-import { NullTransport, ProxyTransport, type Transport, type AgentEvent } from "./transport.js";
-import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js";
-import { ActionExecutor, partitionDueItems, type ActionResult } from "./action-executor.js";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { ActionExecutor, type ActionResult, partitionDueItems } from "./action-executor.js";
+import type { KotaConfig } from "./config.js";
+import { loadConfig } from "./config.js";
 import { getHistory } from "./history.js";
+import { AgentSession, type LoopOptions } from "./loop.js";
+import { getScheduler, initScheduler } from "./scheduler.js";
+import {
+  CORS_HEADERS,
+  jsonResponse,
+  type ManagedSession,
+  readBody,
+  SessionPool,
+  SseTransport,
+  setCors,
+} from "./session-pool.js";
+import { NullTransport, type Transport } from "./transport.js";
+import { DATA_STREAM_HEADERS, DataStreamTransport, extractLastUserMessage } from "./vercel-ai-stream.js";
 import { getWebUI } from "./web-ui.js";
-import { DataStreamTransport, DATA_STREAM_HEADERS, extractLastUserMessage } from "./vercel-ai-stream.js";
 
-// --- SSE Transport ---
-
-/** Transport that writes AgentEvents as Server-Sent Events to an HTTP response. */
-export class SseTransport implements Transport {
-  private closed = false;
-
-  constructor(private res: ServerResponse) {
-    res.on("close", () => { this.closed = true; });
-  }
-
-  emit(event: AgentEvent): void {
-    if (this.closed) return;
-    this.res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
-  }
-
-  /** Send a custom named event (session, done). */
-  send(eventName: string, data: Record<string, unknown>): void {
-    if (this.closed) return;
-    this.res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
-  }
-
-  end(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.res.end();
-  }
-
-  get isClosed(): boolean {
-    return this.closed;
-  }
-}
-
-// --- Session Pool ---
-
-export type ManagedSession = {
-  id: string;
-  agent: AgentSession;
-  proxy: ProxyTransport;
-  busy: boolean;
-  lastActive: number;
-};
-
-const DEFAULT_MAX_SESSIONS = 10;
-const DEFAULT_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-export type SessionPoolOptions = {
-  maxSessions?: number;
-  ttlMs?: number;
-};
-
-export class SessionPool {
-  private sessions = new Map<string, ManagedSession>();
-  private maxSessions: number;
-  private ttlMs: number;
-
-  constructor(opts: SessionPoolOptions = {}) {
-    this.maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS;
-    this.ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
-  }
-
-  /** Create a new session. Evicts oldest idle session if at capacity. */
-  create(agentFactory: (transport: Transport) => AgentSession): ManagedSession {
-    if (this.sessions.size >= this.maxSessions) {
-      const evicted = this.evictOldest();
-      if (!evicted) throw new Error("Too many active sessions");
-    }
-
-    const id = randomUUID().slice(0, 8);
-    const proxy = new ProxyTransport();
-    const agent = agentFactory(proxy);
-    const session: ManagedSession = { id, agent, proxy, busy: false, lastActive: Date.now() };
-    this.sessions.set(id, session);
-    return session;
-  }
-
-  get(id: string): ManagedSession | undefined {
-    return this.sessions.get(id);
-  }
-
-  delete(id: string): boolean {
-    const session = this.sessions.get(id);
-    if (!session) return false;
-    session.agent.close();
-    this.sessions.delete(id);
-    return true;
-  }
-
-  list(): Array<{ id: string; busy: boolean; lastActive: number }> {
-    return [...this.sessions.values()].map((s) => ({
-      id: s.id,
-      busy: s.busy,
-      lastActive: s.lastActive,
-    }));
-  }
-
-  /** Remove sessions idle longer than TTL. Returns count evicted. */
-  cleanup(): number {
-    const now = Date.now();
-    let count = 0;
-    for (const [id, session] of this.sessions) {
-      if (!session.busy && now - session.lastActive > this.ttlMs) {
-        session.agent.close();
-        this.sessions.delete(id);
-        count++;
-      }
-    }
-    return count;
-  }
-
-  closeAll(): void {
-    for (const session of this.sessions.values()) {
-      session.agent.close();
-    }
-    this.sessions.clear();
-  }
-
-  get size(): number {
-    return this.sessions.size;
-  }
-
-  private evictOldest(): boolean {
-    let oldest: ManagedSession | null = null;
-    for (const s of this.sessions.values()) {
-      if (!s.busy && (!oldest || s.lastActive < oldest.lastActive)) {
-        oldest = s;
-      }
-    }
-    if (!oldest) return false;
-    oldest.agent.close();
-    this.sessions.delete(oldest.id);
-    return true;
-  }
-}
-
-// --- HTTP helpers ---
-
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-function setCors(res: ServerResponse): void {
-  for (const [k, v] of Object.entries(CORS_HEADERS)) res.setHeader(k, v);
-}
-
-function json(res: ServerResponse, status: number, body: unknown): void {
-  setCors(res);
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(body));
-}
-
-function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    const MAX_BODY = 1024 * 1024; // 1MB
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > MAX_BODY) {
-        req.destroy();
-        reject(new Error("Request body too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => {
-      try {
-        const text = Buffer.concat(chunks).toString("utf-8");
-        resolve(text ? JSON.parse(text) : {});
-      } catch {
-        reject(new Error("Invalid JSON"));
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-// --- Server ---
+// Re-export for backwards compatibility with tests
+export { type ManagedSession, SessionPool, SseTransport } from "./session-pool.js";
 
 export type ServerOptions = {
   port?: number;
@@ -209,14 +41,11 @@ export function startServer(options: ServerOptions = {}): Server {
   const config = options.config ?? loadConfig();
   const pool = new SessionPool();
 
-  // Initialize scheduler for the current project
   initScheduler(process.cwd());
   const scheduler = getScheduler();
 
-  // Track SSE clients listening for notifications
   const notificationClients = new Set<SseTransport>();
 
-  // Action executor for autonomous scheduled actions
   const actionExecutor = new ActionExecutor({
     sessionOptions: {
       model: options.model ?? config.model,
@@ -250,7 +79,6 @@ export function startServer(options: ServerOptions = {}): Server {
   const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
     const { actions, notifications } = partitionDueItems(dueItems);
 
-    // Broadcast notification-only items as before
     for (const item of notifications) {
       broadcastNotification({
         type: "reminder",
@@ -261,7 +89,6 @@ export function startServer(options: ServerOptions = {}): Server {
       });
     }
 
-    // Execute autonomous actions in the background
     for (const item of actions) {
       if (!actionExecutor.canExecute()) {
         broadcastNotification({
@@ -273,7 +100,6 @@ export function startServer(options: ServerOptions = {}): Server {
         continue;
       }
 
-      // Notify that action is starting
       broadcastNotification({
         type: "action_started",
         id: item.id,
@@ -281,7 +107,6 @@ export function startServer(options: ServerOptions = {}): Server {
         action: item.action,
       });
 
-      // Execute asynchronously — don't block the timer
       actionExecutor.execute(item).then(broadcastActionResult).catch(() => {});
     }
   });
@@ -304,18 +129,17 @@ export function startServer(options: ServerOptions = {}): Server {
     try {
       body = await readBody(req);
     } catch (err) {
-      json(res, 400, { error: (err as Error).message });
+      jsonResponse(res, 400, { error: (err as Error).message });
       return;
     }
 
-    // Detect Vercel AI SDK format: { messages: [...] } vs KOTA format: { message: "..." }
     const isVercelFormat = Array.isArray(body.messages);
     const message = isVercelFormat
       ? extractLastUserMessage(body.messages as Array<{ role: string; content: string }>)
       : (body.message as string | undefined);
 
     if (!message) {
-      json(res, 400, { error: isVercelFormat ? "No user message found in messages array" : "message is required" });
+      jsonResponse(res, 400, { error: isVercelFormat ? "No user message found in messages array" : "message is required" });
       return;
     }
 
@@ -324,7 +148,7 @@ export function startServer(options: ServerOptions = {}): Server {
     if (sessionId) {
       const existing = pool.get(sessionId);
       if (!existing) {
-        json(res, 404, { error: "Session not found" });
+        jsonResponse(res, 404, { error: "Session not found" });
         return;
       }
       session = existing;
@@ -332,13 +156,13 @@ export function startServer(options: ServerOptions = {}): Server {
       try {
         session = pool.create(makeAgent);
       } catch (err) {
-        json(res, 503, { error: (err as Error).message });
+        jsonResponse(res, 503, { error: (err as Error).message });
         return;
       }
     }
 
     if (session.busy) {
-      json(res, 409, { error: "Session is busy processing another request" });
+      jsonResponse(res, 409, { error: "Session is busy processing another request" });
       return;
     }
     session.busy = true;
@@ -350,7 +174,6 @@ export function startServer(options: ServerOptions = {}): Server {
     }
   }
 
-  /** Handle a chat request in KOTA's native SSE format. */
   async function handleKotaChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
     setCors(res);
     res.writeHead(200, {
@@ -361,7 +184,6 @@ export function startServer(options: ServerOptions = {}): Server {
 
     const sse = new SseTransport(res);
     session.proxy.target = sse;
-
     sse.send("session", { session_id: session.id });
 
     try {
@@ -377,7 +199,6 @@ export function startServer(options: ServerOptions = {}): Server {
     }
   }
 
-  /** Handle a chat request in Vercel AI SDK Data Stream Protocol v1 format. */
   async function handleVercelChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
     setCors(res);
     const headers = { ...DATA_STREAM_HEADERS, ...CORS_HEADERS };
@@ -411,7 +232,7 @@ export function startServer(options: ServerOptions = {}): Server {
     }
 
     if (req.method === "GET" && path === "/api/health") {
-      json(res, 200, {
+      jsonResponse(res, 200, {
         status: "ok",
         sessions: pool.size,
         activeActions: actionExecutor.activeCount,
@@ -421,16 +242,16 @@ export function startServer(options: ServerOptions = {}): Server {
     }
 
     if (req.method === "GET" && path === "/api/sessions") {
-      json(res, 200, { sessions: pool.list() });
+      jsonResponse(res, 200, { sessions: pool.list() });
       return;
     }
 
     if (req.method === "POST" && path === "/api/sessions") {
       try {
         const session = pool.create(makeAgent);
-        json(res, 201, { session_id: session.id });
+        jsonResponse(res, 201, { session_id: session.id });
       } catch (err) {
-        json(res, 503, { error: (err as Error).message });
+        jsonResponse(res, 503, { error: (err as Error).message });
       }
       return;
     }
@@ -438,15 +259,14 @@ export function startServer(options: ServerOptions = {}): Server {
     if (req.method === "POST" && path === "/api/chat") {
       handleChat(req, res).catch((err) => {
         if (!res.headersSent) {
-          json(res, 500, { error: (err as Error).message });
+          jsonResponse(res, 500, { error: (err as Error).message });
         }
       });
       return;
     }
 
-    // Scheduler endpoints
     if (req.method === "GET" && path === "/api/schedules") {
-      json(res, 200, { schedules: scheduler.pending() });
+      jsonResponse(res, 200, { schedules: scheduler.pending() });
       return;
     }
 
@@ -459,7 +279,6 @@ export function startServer(options: ServerOptions = {}): Server {
       });
       const sse = new SseTransport(res);
       notificationClients.add(sse);
-      // Send any currently overdue items immediately
       const overdue = scheduler.getDue();
       for (const item of overdue) {
         scheduler.markFired(item.id);
@@ -483,17 +302,16 @@ export function startServer(options: ServerOptions = {}): Server {
         res.writeHead(204);
         res.end();
       } else {
-        json(res, 404, { error: "Session not found" });
+        jsonResponse(res, 404, { error: "Session not found" });
       }
       return;
     }
 
-    // Conversation history endpoints
     if (req.method === "GET" && path === "/api/history") {
       const history = getHistory();
       const search = url.searchParams.get("search") || undefined;
       const limit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
-      json(res, 200, { conversations: history.list({ search, limit }) });
+      jsonResponse(res, 200, { conversations: history.list({ search, limit }) });
       return;
     }
 
@@ -502,9 +320,9 @@ export function startServer(options: ServerOptions = {}): Server {
       const history = getHistory();
       const data = history.load(historyMatch[1]);
       if (data) {
-        json(res, 200, data);
+        jsonResponse(res, 200, data);
       } else {
-        json(res, 404, { error: "Conversation not found" });
+        jsonResponse(res, 404, { error: "Conversation not found" });
       }
       return;
     }
@@ -515,12 +333,11 @@ export function startServer(options: ServerOptions = {}): Server {
         res.writeHead(204);
         res.end();
       } else {
-        json(res, 404, { error: "Conversation not found" });
+        jsonResponse(res, 404, { error: "Conversation not found" });
       }
       return;
     }
 
-    // Serve web UI at root
     if (req.method === "GET" && (path === "/" || path === "/index.html")) {
       setCors(res);
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -528,7 +345,7 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
-    json(res, 404, { error: "Not found" });
+    jsonResponse(res, 404, { error: "Not found" });
   }
 
   const server = createServer(handleRequest);

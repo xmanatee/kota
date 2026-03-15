@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { runProcess, clearProcesses, getActiveProcessCount } from "./process.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { clearProcesses, getActiveProcessCount, runProcess } from "./process.js";
 
 afterEach(() => {
   clearProcesses();

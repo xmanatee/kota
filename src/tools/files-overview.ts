@@ -1,6 +1,6 @@
+import { readdir, readFile, stat } from "node:fs/promises";
+import { extname, join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { readdir, stat, readFile } from "node:fs/promises";
-import { join, extname } from "node:path";
 import type { ToolResult } from "./index.js";
 
 export const filesOverviewTool: Anthropic.Tool = {
@@ -114,7 +114,7 @@ async function scan(
   const files: Entry[] = [];
   const dirs: string[] = [];
 
-  let entries;
+  let entries: import("node:fs").Dirent[];
   try { entries = await readdir(dir, { withFileTypes: true }); }
   catch { return { files, dirs }; }
 

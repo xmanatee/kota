@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runSchedule } from "./schedule.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initScheduler, resetScheduler } from "../scheduler.js";
+import { runSchedule } from "./schedule.js";
 
 describe("schedule tool", () => {
   beforeEach(() => {

@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { runMultiEdit } from "./tools/multi-edit.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runFindReplace } from "./tools/find-replace.js";
+import { runMultiEdit } from "./tools/multi-edit.js";
 
 /**
  * Cross-module integration: multi-edit × lint × file-tracker × diff.

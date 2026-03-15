@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryStore } from "./memory.js";
 
 describe("MemoryStore", () => {

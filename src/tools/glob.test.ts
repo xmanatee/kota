@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
-  mkdtempSync,
-  writeFileSync,
   mkdirSync,
+  mkdtempSync,
   rmSync,
   utimesSync,
+  writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runGlob } from "./glob.js";
 
 describe("runGlob", () => {

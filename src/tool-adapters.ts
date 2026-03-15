@@ -11,7 +11,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolDefinition, KotaPlugin } from "./plugin-types.js";
+import type { KotaPlugin, ToolDefinition } from "./plugin-types.js";
 import type { ToolResult } from "./tools/index.js";
 
 // --- External format types ---

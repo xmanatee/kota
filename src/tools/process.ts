@@ -1,7 +1,7 @@
+import { type ChildProcess, spawn } from "node:child_process";
 import type Anthropic from "@anthropic-ai/sdk";
-import { spawn, type ChildProcess } from "node:child_process";
+import { confirmExecution, isDangerous } from "../confirm.js";
 import type { ToolResult } from "./index.js";
-import { isDangerous, confirmExecution } from "../confirm.js";
 
 export const processTool: Anthropic.Tool = {
   name: "process",
@@ -229,7 +229,7 @@ function listProcesses(): ToolResult {
     const lastLine = mp.outputBuffer.length > 0
       ? mp.outputBuffer[mp.outputBuffer.length - 1]
       : "(no output)";
-    const truncLast = lastLine.length > 80 ? lastLine.slice(0, 77) + "..." : lastLine;
+    const truncLast = lastLine.length > 80 ? `${lastLine.slice(0, 77)}...` : lastLine;
     lines.push(`${mp.id} [${status}] ${mp.command}\n  last: ${truncLast}`);
   }
 

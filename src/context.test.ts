@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { Context, CONTEXT_WINDOW, truncateToolResult } from "./context.js";
 import type Anthropic from "@anthropic-ai/sdk";
+import { beforeEach, describe, expect, it } from "vitest";
+import { CONTEXT_WINDOW, Context, truncateToolResult } from "./context.js";
 
 // --- truncateToolResult ---
 

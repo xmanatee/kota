@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { extractWorkingState } from "./compaction.js";
 import type Anthropic from "@anthropic-ai/sdk";
+import { describe, expect, it } from "vitest";
+import { extractWorkingState } from "./compaction.js";
 
 type Message = Anthropic.MessageParam;
 

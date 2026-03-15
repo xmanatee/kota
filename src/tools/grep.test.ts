@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { runGrep, formatCountOutput } from "./grep.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { formatCountOutput, runGrep } from "./grep.js";
 
 const TEST_DIR = join(process.cwd(), ".test-grep");
 

@@ -1,7 +1,7 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { SENTINEL, DONE_MARKER, PYTHON_WRAPPER, NODE_WRAPPER } from "./code-wrappers.js";
+import { DONE_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
 
 export type Language = "python" | "node";
 
@@ -74,7 +74,7 @@ export class REPLSession {
         if (killTimer) clearTimeout(killTimer);
         if (interrupted && !result.isError) {
           resolve({
-            output: result.output + `\n\n[Interrupted after ${timeoutMs}ms — session state preserved. Variables and imports are still available.]`,
+            output: `${result.output}\n\n[Interrupted after ${timeoutMs}ms — session state preserved. Variables and imports are still available.]`,
             isError: false,
           });
           return;
@@ -84,7 +84,7 @@ export class REPLSession {
 
       const onStdout = (chunk: Buffer) => {
         stdoutBuf += chunk.toString();
-        const idx = stdoutBuf.indexOf(DONE_MARKER + "\n");
+        const idx = stdoutBuf.indexOf(`${DONE_MARKER}\n`);
         if (idx !== -1) {
           const before = stdoutBuf.slice(0, idx).trim();
           if (before) stdoutChunks.push(before);
@@ -132,7 +132,7 @@ export class REPLSession {
       proc.stderr!.on("data", onStderr);
       proc.on("exit", onExit);
 
-      proc.stdin!.write(code + "\n" + SENTINEL + "\n");
+      proc.stdin!.write(`${code}\n${SENTINEL}\n`);
     });
     if (crashRestarted) {
       return {

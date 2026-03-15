@@ -1,6 +1,6 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { createInterface } from "node:readline";
 import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./index.js";
 
 export const askUserTool: Anthropic.Tool = {

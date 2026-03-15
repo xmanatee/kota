@@ -7,15 +7,16 @@
  * These tests verify the composition: file:line references must survive
  * truncation so enrichment can find and annotate them with source code.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { smartErrorTruncate } from "./shell-diagnostics.js";
+
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   enrichWithSourceContext,
   extractFileReferences,
 } from "./error-context.js";
-import { writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { smartErrorTruncate } from "./shell-diagnostics.js";
 
 const TMP = join(tmpdir(), `kota-pipeline-${process.pid}`);
 const SRC = join(TMP, "src");
@@ -65,7 +66,7 @@ describe("shell error pipeline (cross-module: shell-diagnostics → error-contex
 
     it("preserves TS refs when output is padded with noise", () => {
       const tsError = `${FILE_A}(8,38): error TS2345: Argument of type 'number' is not assignable.`;
-      const output = tsError + "\n" + padding(800);
+      const output = `${tsError}\n${padding(800)}`;
 
       const truncated = smartErrorTruncate(output);
       const refs = extractFileReferences(truncated);
@@ -103,7 +104,7 @@ describe("shell error pipeline (cross-module: shell-diagnostics → error-contex
 
     it("enriches long output after truncation", () => {
       const tsError = `${FILE_A}(8,38): error TS2345: Argument of type 'number'.`;
-      const output = tsError + "\n" + padding(800);
+      const output = `${tsError}\n${padding(800)}`;
 
       const truncated = smartErrorTruncate(output);
       const enriched = enrichWithSourceContext(truncated);
@@ -226,7 +227,7 @@ describe("shell error pipeline (cross-module: shell-diagnostics → error-contex
         { length: 30 },
         (_, i) => `${FILE_A}:${i + 1}:1: error no-console: Unexpected console statement`,
       );
-      const output = lintLines.join("\n") + "\n" + padding(500);
+      const output = `${lintLines.join("\n")}\n${padding(500)}`;
 
       const truncated = smartErrorTruncate(output);
       const enriched = enrichWithSourceContext(truncated);
@@ -336,7 +337,7 @@ describe("shell error pipeline (cross-module: shell-diagnostics → error-contex
       // (no Error:, no TS errors, no test failures, no lint)
       const refLine = `    at handler (${FILE_A}:4:15)`;
       const noise = "x".repeat(25_000);
-      const output = refLine + "\n" + noise;
+      const output = `${refLine}\n${noise}`;
 
       const truncated = smartErrorTruncate(output);
       // Head gets 60% of 20K = 12K chars — refLine is at the start, should survive

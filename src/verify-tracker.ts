@@ -145,7 +145,7 @@ export class VerifyTracker {
       parts.push("[Consider verifying before making more changes]");
     }
 
-    return "\n\n" + parts.join("\n");
+    return `\n\n${parts.join("\n")}`;
   }
 
   /** Number of files edited but not yet verified. */

@@ -1,8 +1,8 @@
-import { describe, test, expect, afterEach } from "vitest";
-import { extractPlots, readPlotFiles } from "./plot-capture.js";
-import { writeFileSync, unlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, test } from "vitest";
+import { extractPlots, readPlotFiles } from "./plot-capture.js";
 
 describe("extractPlots", () => {
   test("extracts plot paths from output", () => {

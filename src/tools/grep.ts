@@ -1,5 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { execSync } from "node:child_process";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./index.js";
 
 export const grepTool: Anthropic.Tool = {
@@ -57,12 +57,12 @@ export function formatCountOutput(raw: string): string {
     const sep = line.lastIndexOf(":");
     if (sep === -1) continue;
     const count = parseInt(line.slice(sep + 1), 10);
-    if (isNaN(count) || count === 0) continue;
+    if (Number.isNaN(count) || count === 0) continue;
     entries.push(line);
     total += count;
   }
   if (entries.length === 0) return "No matches found.";
-  return entries.join("\n") + `\n\nTotal: ${total} matches in ${entries.length} files`;
+  return `${entries.join("\n")}\n\nTotal: ${total} matches in ${entries.length} files`;
 }
 
 export async function runGrep(

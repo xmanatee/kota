@@ -134,10 +134,10 @@ function convertTables(html: string, placeholders: string[]): string {
       }
 
       const lines: string[] = [];
-      lines.push("| " + rows[0].join(" | ") + " |");
-      lines.push("| " + rows[0].map(() => "---").join(" | ") + " |");
+      lines.push(`| ${rows[0].join(" | ")} |`);
+      lines.push(`| ${rows[0].map(() => "---").join(" | ")} |`);
       for (let i = 1; i < rows.length; i++) {
-        lines.push("| " + rows[i].join(" | ") + " |");
+        lines.push(`| ${rows[i].join(" | ")} |`);
       }
 
       return ph(lines.join("\n"));
@@ -183,7 +183,7 @@ function convertInlineElements(html: string): string {
       for (const m of (inner as string).matchAll(re)) {
         pairs.push(`**${stripTags(m[1])}**: ${stripTags(m[2])}`);
       }
-      return pairs.length > 0 ? "\n" + pairs.join("\n") + "\n" : "";
+      return pairs.length > 0 ? `\n${pairs.join("\n")}\n` : "";
     },
   );
 
@@ -204,7 +204,7 @@ function convertInlineElements(html: string): string {
     /<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi,
     (_, content) => {
       const text = stripTags(content);
-      return "\n" + text.split("\n").map((l: string) => `> ${l}`).join("\n") + "\n";
+      return `\n${text.split("\n").map((l: string) => `> ${l}`).join("\n")}\n`;
     },
   );
 

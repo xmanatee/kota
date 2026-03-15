@@ -1,10 +1,10 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { join, basename } from "node:path";
-import { getMemoryStore } from "./memory.js";
-import { getTaskStore } from "./task-store.js";
-import { getScheduler } from "./scheduler.js";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { getHistory } from "./history.js";
+import { getMemoryStore } from "./memory.js";
+import { getScheduler } from "./scheduler.js";
+import { getTaskStore } from "./task-store.js";
 
 /** Detect project type from config files in cwd. */
 export function detectProject(cwd: string): string | null {
@@ -234,7 +234,7 @@ export function getDirectoryOverview(cwd: string): string | null {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       if (e.isDirectory()) {
-        if (!skipDirs.has(e.name)) dirs.push(e.name + "/");
+        if (!skipDirs.has(e.name)) dirs.push(`${e.name}/`);
       } else if (e.isFile()) {
         files.push(e.name);
       }
@@ -295,5 +295,5 @@ export function buildSessionWarmup(cwd?: string): string {
   if (recentConvo) sections.push(`**Previous conversation**:\n${recentConvo}`);
 
   if (sections.length === 0) return "";
-  return "\n\n## Session Context (auto-detected)\n\n" + sections.join("\n\n");
+  return `\n\n## Session Context (auto-detected)\n\n${sections.join("\n\n")}`;
 }

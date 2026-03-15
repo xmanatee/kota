@@ -3,10 +3,11 @@
  * Verifies that runFileRead correctly invokes preview formatters and
  * produces coherent output for JSON, JSONL, CSV, and TSV files.
  */
-import { describe, it, expect, afterEach } from "vitest";
-import { writeFileSync, unlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
+
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { runFileRead } from "./tools/file-read.js";
 
 function tmpFile(name: string, content: string): string {

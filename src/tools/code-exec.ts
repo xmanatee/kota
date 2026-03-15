@@ -1,11 +1,11 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
+import type Anthropic from "@anthropic-ai/sdk";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../code-wrappers.js";
+import { extractPlots, readPlotFiles } from "../plot-capture.js";
+import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "../repl-session.js";
 import { which } from "../runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
-import { extractPlots, readPlotFiles } from "../plot-capture.js";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../code-wrappers.js";
-import { type Language, type REPLSession, sessions, cleanupSessions, findPythonBinary } from "../repl-session.js";
 
 export { cleanupSessions };
 
@@ -177,7 +177,7 @@ async function tryAutoInstall(
     return null;
   }
   const retryCode = language === "python"
-    ? "import importlib; importlib.invalidate_caches()\n" + code
+    ? `import importlib; importlib.invalidate_caches()\n${code}`
     : code;
   const result = await session.execute(retryCode, timeoutMs);
   const installer = language === "python" ? "pip" : "npm";

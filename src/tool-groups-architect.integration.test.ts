@@ -1,13 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { EDITOR_TOOL_SET } from "./architect.js";
 import {
-  enableGroup,
-  resetGroups,
-  filterTools,
-  getActiveToolNames,
   CORE_TOOL_NAMES,
+  enableGroup,
+  filterTools,
+  resetGroups,
   TOOL_GROUPS,
 } from "./tool-groups.js";
-import { EDITOR_TOOL_SET } from "./architect.js";
 import { allTools } from "./tools/index.js";
 
 /**

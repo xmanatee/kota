@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
 import { getTaskStore, type Task, type TaskPriority } from "../task-store.js";
+import type { ToolResult } from "./index.js";
 
 export type Priority = TaskPriority;
 export type TodoItem = Task;
@@ -178,5 +178,5 @@ export function getTodoState(): string {
   if (shown.length === 0) return "";
   const omitted = completed.length - recentCompleted.length;
   const omittedLine = omitted > 0 ? `\n(${omitted} older completed task${omitted > 1 ? "s" : ""} archived)` : "";
-  return "\n<current-tasks>\n" + formatTodos(shown) + omittedLine + "\n</current-tasks>";
+  return `\n<current-tasks>\n${formatTodos(shown)}${omittedLine}\n</current-tasks>`;
 }

@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { runNotebook, notebookTool } from "./notebook.js";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { checkFreshness } from "../file-tracker.js";
+import { notebookTool, runNotebook } from "./notebook.js";
 
 function tmpPath(name: string): string {
   return path.join(

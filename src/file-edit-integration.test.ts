@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { recordRead } from "./file-tracker.js";
 import { runFileEdit } from "./tools/file-edit.js";
 import { runFileRead } from "./tools/file-read.js";
-import { recordRead } from "./file-tracker.js";
 
 /**
  * Cross-module integration: file-edit × lint × file-tracker.

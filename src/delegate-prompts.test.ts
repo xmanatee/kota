@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  EXPLORE_PROMPT,
-  EXECUTE_PROMPT,
   buildSubAgentPrompt,
-  exploreTools,
+  EXECUTE_PROMPT,
+  EXPLORE_PROMPT,
+  executeRunners,
   executeTools,
   exploreRunners,
-  executeRunners,
+  exploreTools,
 } from "./delegate-prompts.js";
 
 describe("buildSubAgentPrompt", () => {

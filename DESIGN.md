@@ -468,9 +468,18 @@ External tool servers via Model Context Protocol. Configure in `.kota/mcp.json`.
 
 `file_read` handles images (PNG, JPEG, GIF, WebP) natively — base64-encoded and sent as Anthropic image content blocks. Rich tool results (`ToolResult.blocks`) support mixed text + image content.
 
+### Session Pool (`src/session-pool.ts`)
+
+Extracted HTTP session infrastructure — `SseTransport`, `SessionPool`, `ManagedSession` type, and HTTP helpers (`setCors`, `jsonResponse`, `readBody`). Shared by the HTTP server and any future transport that needs session management over HTTP.
+
+### Linting (`biome.json`)
+
+Biome linter enforces code quality across all source files. Rules cover unused imports/variables, type-only imports, template literal preference, `Number.isNaN` over global `isNaN`, and import sorting. Run via `npm run lint`; auto-fix via `npm run lint:fix`.
+
 ## Dependencies
 
 - `@anthropic-ai/sdk` — Claude API client
 - `commander` — CLI parsing
 - `glob` — File pattern matching
+- `@biomejs/biome` — Linting and import organization (dev)
 - `vitest` — Testing (dev)

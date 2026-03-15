@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { isRateLimited, parseSearchResults, parseBraveResults } from "./web-search.js";
+import { describe, expect, it } from "vitest";
+import { isRateLimited, parseBraveResults, parseSearchResults } from "./web-search.js";
 
 describe("isRateLimited", () => {
   it("detects CAPTCHA pages", () => {

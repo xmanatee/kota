@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseCsvRow, formatCsvMetadata, CSV_EXTENSIONS } from "./csv-preview.js";
+import { describe, expect, it } from "vitest";
+import { CSV_EXTENSIONS, formatCsvMetadata, parseCsvRow } from "./csv-preview.js";
 
 describe("parseCsvRow", () => {
   it("splits simple CSV", () => {

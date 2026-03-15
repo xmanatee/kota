@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { RETRY_POLICIES, maybeRetry } from "./tool-retry.js";
+import { describe, expect, it, vi } from "vitest";
+import { maybeRetry, RETRY_POLICIES } from "./tool-retry.js";
 import type { ToolResult } from "./tools/index.js";
 
 // --- Shell retry policy ---

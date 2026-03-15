@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ServerResponse } from "node:http";
-import { SseTransport, SessionPool } from "./server.js";
-import { NullTransport, BufferTransport, ProxyTransport, type AgentEvent, type Transport } from "./transport.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentSession } from "./loop.js";
+import { SessionPool, SseTransport } from "./server.js";
+import { BufferTransport, ProxyTransport, type Transport } from "./transport.js";
 
 // --- Mock helpers ---
 

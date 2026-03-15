@@ -1,21 +1,21 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./tools/index.js";
-import { fileReadTool, runFileRead } from "./tools/file-read.js";
-import { fileEditTool, runFileEdit } from "./tools/file-edit.js";
-import { fileWriteTool, runFileWrite } from "./tools/file-write.js";
-import { multiEditTool, runMultiEdit } from "./tools/multi-edit.js";
-import { grepTool, runGrep } from "./tools/grep.js";
-import { globTool, runGlob } from "./tools/glob.js";
-import { repoMapTool, runRepoMap } from "./tools/repo-map.js";
-import { webFetchTool, runWebFetch } from "./tools/web-fetch.js";
-import { webSearchTool, runWebSearch } from "./tools/web-search.js";
-import { httpRequestTool, runHttpRequest } from "./tools/http-request.js";
-import { runShell } from "./tools/shell.js";
-import { processTool, runProcess } from "./tools/process.js";
-import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
-import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
-import { filesOverviewTool, runFilesOverview } from "./tools/files-overview.js";
 import { detectProject, getDirectoryOverview } from "./init.js";
+import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
+import { fileEditTool, runFileEdit } from "./tools/file-edit.js";
+import { fileReadTool, runFileRead } from "./tools/file-read.js";
+import { fileWriteTool, runFileWrite } from "./tools/file-write.js";
+import { filesOverviewTool, runFilesOverview } from "./tools/files-overview.js";
+import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
+import { globTool, runGlob } from "./tools/glob.js";
+import { grepTool, runGrep } from "./tools/grep.js";
+import { httpRequestTool, runHttpRequest } from "./tools/http-request.js";
+import type { ToolResult } from "./tools/index.js";
+import { multiEditTool, runMultiEdit } from "./tools/multi-edit.js";
+import { processTool, runProcess } from "./tools/process.js";
+import { repoMapTool, runRepoMap } from "./tools/repo-map.js";
+import { runShell } from "./tools/shell.js";
+import { runWebFetch, webFetchTool } from "./tools/web-fetch.js";
+import { runWebSearch, webSearchTool } from "./tools/web-search.js";
 
 // --- Sub-agent system prompts ---
 

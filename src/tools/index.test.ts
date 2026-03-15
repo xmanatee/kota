@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { allTools, executeTool, registerTool, getRegisteredTools, clearCustomTools } from "./index.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { allTools, clearCustomTools, executeTool, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,

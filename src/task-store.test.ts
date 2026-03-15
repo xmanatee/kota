@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { mkdtempSync, existsSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { TaskStore, initTaskStore, getTaskStore, resetTaskStore } from "./task-store.js";
+import { join } from "node:path";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { getTaskStore, initTaskStore, resetTaskStore, TaskStore } from "./task-store.js";
 
 const testDir = mkdtempSync(join(tmpdir(), "kota-task-test-"));
 

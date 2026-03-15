@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 
 type Message = Anthropic.MessageParam;
@@ -55,7 +55,7 @@ export function generateTitle(firstMessage: string): string {
     .trim();
 
   if (cleaned.length <= TITLE_MAX_LENGTH) return cleaned;
-  return cleaned.slice(0, TITLE_MAX_LENGTH - 3) + "...";
+  return `${cleaned.slice(0, TITLE_MAX_LENGTH - 3)}...`;
 }
 
 /** Count user+assistant messages (excludes tool_result turns). */

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { findLineNumber, printEditDiff, printWriteSummary } from "./diff.js";
 
 describe("findLineNumber", () => {
@@ -67,7 +67,7 @@ describe("printEditDiff", () => {
     const lines = Array.from({ length: 50 }, (_, i) => `line${i}`);
     const content = lines.join("\n");
     const oldStr = lines.slice(5, 30).join("\n"); // 25 lines old
-    const newStr = lines.slice(5, 30).map((l) => l + "_new").join("\n"); // 25 lines new
+    const newStr = lines.slice(5, 30).map((l) => `${l}_new`).join("\n"); // 25 lines new
 
     printEditDiff("big.ts", content, oldStr, newStr);
 

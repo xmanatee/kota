@@ -1,26 +1,26 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
-import { allTools } from "./tools/index.js";
-import { filterTools, detectToolGroups, enableGroup, resetGroups } from "./tool-groups.js";
-import { Context, CONTEXT_WINDOW } from "./context.js";
-import { CostTracker } from "./cost.js";
+import Anthropic from "@anthropic-ai/sdk";
 import { runArchitectStep } from "./architect-runner.js";
-import { setDelegateConfig } from "./tools/delegate.js";
-import { loadProjectContext } from "./project-context.js";
-import { streamMessage } from "./streaming.js";
+import { buildUserProfile, type KotaConfig } from "./config.js";
+import { CONTEXT_WINDOW, Context } from "./context.js";
+import { CostTracker } from "./cost.js";
+import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
-import { executeToolCalls, FailureTracker } from "./tool-runner.js";
-import { VerifyTracker, detectVerifyCommands, processToolResults } from "./verify-tracker.js";
-import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { McpManager } from "./mcp-manager.js";
 import { PluginManager } from "./plugin-loader.js";
-import { cleanupProcesses } from "./tools/process.js";
-import { cleanupSessions } from "./tools/code-exec.js";
-import { CliTransport, type Transport } from "./transport.js";
-import { buildUserProfile, type KotaConfig } from "./config.js";
+import { loadProjectContext } from "./project-context.js";
+import { initScheduler, resetScheduler } from "./scheduler.js";
+import { streamMessage } from "./streaming.js";
+import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { initTaskStore } from "./task-store.js";
-import { initScheduler, getScheduler, resetScheduler } from "./scheduler.js";
-import { getHistory } from "./history.js";
+import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
+import { executeToolCalls, FailureTracker } from "./tool-runner.js";
+import { cleanupSessions } from "./tools/code-exec.js";
+import { setDelegateConfig } from "./tools/delegate.js";
+import { allTools } from "./tools/index.js";
+import { cleanupProcesses } from "./tools/process.js";
+import { CliTransport, type Transport } from "./transport.js";
+import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -166,7 +166,7 @@ export class AgentSession {
     this.sigintHandler = () => {
       if (this.sessionPath) {
         this.context.save(this.sessionPath);
-        this.transport.emit({ type: "status", message: "\n[kota] Session saved to " + this.sessionPath });
+        this.transport.emit({ type: "status", message: `\n[kota] Session saved to ${this.sessionPath}` });
       }
       this.saveToHistory();
       process.exit(0);

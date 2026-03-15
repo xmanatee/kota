@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
+import { describe, expect, it, vi } from "vitest";
+import { compactMessages, extractWorkingState } from "./compaction.js";
 import { Context, truncateToolResult } from "./context.js";
-import { extractWorkingState, compactMessages } from "./compaction.js";
-import { pruneMessages, buildToolCallMap, generateSummary } from "./message-pruning.js";
+import { buildToolCallMap, pruneMessages } from "./message-pruning.js";
 
 type Message = Anthropic.MessageParam;
 
@@ -366,7 +366,7 @@ describe("context-pipeline cross-module integration", () => {
           type: "tool_result",
           tool_use_id: "img1",
           content: [
-            { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBOR" + "x".repeat(5000) } },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: `iVBOR${"x".repeat(5000)}` } },
             { type: "text", text: "Architecture diagram showing 3 services" },
           ],
         }],
@@ -394,7 +394,7 @@ describe("context-pipeline cross-module integration", () => {
   it("delegate tool results are pruned with task summary", () => {
     const msgs: Message[] = [
       toolUse("d1", "delegate", { task: "Explore the authentication module and list all exported functions", mode: "explore" }),
-      toolResult("d1", "Found 8 exported functions:\n" + "x".repeat(3000)),
+      toolResult("d1", `Found 8 exported functions:\n${"x".repeat(3000)}`),
       // Pad
       ...Array.from({ length: 22 }, (_, i) => [
         { role: "assistant" as const, content: `msg ${i}` },
@@ -513,9 +513,9 @@ describe("context-pipeline cross-module integration", () => {
           type: "tool_result",
           tool_use_id: "m1",
           content: [
-            { type: "text", text: "Section 1: " + "a".repeat(800) },
-            { type: "text", text: "Section 2: " + "b".repeat(800) },
-            { type: "text", text: "Section 3: " + "c".repeat(800) },
+            { type: "text", text: `Section 1: ${"a".repeat(800)}` },
+            { type: "text", text: `Section 2: ${"b".repeat(800)}` },
+            { type: "text", text: `Section 3: ${"c".repeat(800)}` },
           ],
         }],
       } as Message,
@@ -570,7 +570,7 @@ describe("context-pipeline cross-module integration", () => {
           type: "tool_result",
           tool_use_id: "ce1",
           content: [
-            { type: "text", text: "DataFrame statistics:\n" + "x".repeat(3000) },
+            { type: "text", text: `DataFrame statistics:\n${"x".repeat(3000)}` },
           ],
         }],
       } as Message,

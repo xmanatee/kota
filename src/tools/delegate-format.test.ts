@@ -1,14 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
 import {
-  formatMetadata,
-  buildSourcesSection,
+  assembleDelegateResult,
   buildDelegateResult,
+  buildSourcesSection,
   collectImageBlocks,
   extractModifiedFiles,
-  assembleDelegateResult,
+  formatMetadata,
   textHasSources,
 } from "./delegate-format.js";
-import type { DelegateMetadata, CompletionReason } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";
 
 // --- Helpers ---

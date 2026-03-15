@@ -1,9 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync } from "node:fs";
-import { getTodoState } from "./tools/index.js";
-import type { ToolResultBlock } from "./tools/index.js";
+import type Anthropic from "@anthropic-ai/sdk";
 import { compactMessages } from "./compaction.js";
-import { pruneMessages, type PruneStats } from "./message-pruning.js";
+import { type PruneStats, pruneMessages } from "./message-pruning.js";
+import type { ToolResultBlock } from "./tools/index.js";
+import { getTodoState } from "./tools/index.js";
 
 type Message = Anthropic.MessageParam;
 
@@ -58,7 +58,7 @@ export class Context {
     const severity = pct > 0.75
       ? "CRITICAL: finish current task, avoid large reads"
       : "be concise, use targeted file reads with offset/limit";
-    return timeLine + todoState + `\n\n[Context budget: ${pctStr}% used (${usedK}K/${maxK}K tokens) — ${severity}]`;
+    return `${timeLine + todoState}\n\n[Context budget: ${pctStr}% used (${usedK}K/${maxK}K tokens) — ${severity}]`;
   }
 
   getBudgetPercent(): number {

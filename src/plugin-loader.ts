@@ -1,10 +1,10 @@
 import { existsSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { KotaPlugin, PluginContext } from "./plugin-types.js";
-import { registerTool, clearCustomTools } from "./tools/index.js";
-import { registerCustomGroup, clearCustomGroups } from "./tool-groups.js";
 import { adaptExport } from "./tool-adapters.js";
+import { clearCustomGroups, registerCustomGroup } from "./tool-groups.js";
+import { clearCustomTools, registerTool } from "./tools/index.js";
 
 const PLUGIN_DIR = ".kota/plugins";
 

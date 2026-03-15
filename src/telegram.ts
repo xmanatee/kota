@@ -6,9 +6,9 @@
  * Long polling for receiving messages, typing indicators while processing.
  */
 
+import type { KotaConfig } from "./config.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
-import { NullTransport, ProxyTransport, type Transport, type AgentEvent } from "./transport.js";
-import { type KotaConfig } from "./config.js";
+import { type AgentEvent, NullTransport, ProxyTransport, type Transport } from "./transport.js";
 
 const TELEGRAM_API = "https://api.telegram.org";
 const MAX_MESSAGE_LENGTH = 4096;

@@ -44,7 +44,7 @@ export function parseCsvRow(line: string, delimiter: string): string[] {
 function inferType(values: string[]): string | null {
   const nonEmpty = values.filter((v) => v !== "");
   if (nonEmpty.length === 0) return null;
-  if (nonEmpty.every((v) => !isNaN(Number(v)))) return "numeric";
+  if (nonEmpty.every((v) => !Number.isNaN(Number(v)))) return "numeric";
   const datePattern = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}/;
   if (nonEmpty.every((v) => datePattern.test(v))) return "date";
   return null; // text is default, no need to annotate
@@ -74,7 +74,7 @@ export function formatCsvMetadata(lines: string[], delimiter: string): string {
     colDescs.push(type ? `${headers[i]}:${type}` : headers[i]);
 
     if (type === "numeric") {
-      const nums = values.map(Number).filter((n) => !isNaN(n));
+      const nums = values.map(Number).filter((n) => !Number.isNaN(n));
       if (nums.length > 0) {
         numericRanges.push(`${headers[i]}: ${Math.min(...nums)}–${Math.max(...nums)}`);
       }
@@ -85,5 +85,5 @@ export function formatCsvMetadata(lines: string[], delimiter: string): string {
   if (numericRanges.length > 0) {
     meta += `\n[Ranges: ${numericRanges.join(", ")}]`;
   }
-  return meta + "\n\n";
+  return `${meta}\n\n`;
 }

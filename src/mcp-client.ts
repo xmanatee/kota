@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
 
 export type McpToolSchema = {
@@ -189,13 +189,13 @@ export class McpClient {
         reject: (err) => { clearTimeout(timer); reject(err); },
       });
 
-      this.proc?.stdin?.write(JSON.stringify(msg) + "\n");
+      this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
     });
   }
 
   private notify(method: string, params?: Record<string, unknown>): void {
     const msg: JsonRpcNotification = { jsonrpc: "2.0", method, ...(params && { params }) };
-    this.proc?.stdin?.write(JSON.stringify(msg) + "\n");
+    this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
   }
 
   private rejectAll(error: Error): void {

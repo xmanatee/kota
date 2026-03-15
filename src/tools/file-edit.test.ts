@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { normalizeWhitespace, tryWhitespaceMatch, runFileEdit } from "./file-edit.js";
-import { readFileSync, writeFileSync, mkdirSync, rmSync, utimesSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { recordRead, checkFreshness } from "../file-tracker.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { checkFreshness, recordRead } from "../file-tracker.js";
+import { normalizeWhitespace, runFileEdit, tryWhitespaceMatch } from "./file-edit.js";
 
 describe("normalizeWhitespace", () => {
   it("trims each line and collapses blank lines", () => {

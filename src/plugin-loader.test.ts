@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PluginManager } from "./plugin-loader.js";
-import { clearCustomTools, allTools, executeTool } from "./tools/index.js";
-import { resetGroups, clearCustomGroups, enableGroup, filterTools, TOOL_GROUPS } from "./tool-groups.js";
+import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
+import { allTools, clearCustomTools, executeTool } from "./tools/index.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -85,7 +85,7 @@ describe("PluginManager", () => {
     await pm.loadAll(tmpDir);
 
     // "analysis" group should exist with our tool
-    expect(TOOL_GROUPS["analysis"]).toEqual(["custom_analyzer"]);
+    expect(TOOL_GROUPS.analysis).toEqual(["custom_analyzer"]);
 
     // Tool should NOT appear in filtered tools until group is enabled
     const beforeEnable = filterTools(allTools);
@@ -235,14 +235,14 @@ describe("PluginManager", () => {
     const pm = new PluginManager();
     await pm.loadAll(tmpDir);
 
-    expect(TOOL_GROUPS["temp_group"]).toEqual(["temp_tool"]);
+    expect(TOOL_GROUPS.temp_group).toEqual(["temp_tool"]);
     const result = await executeTool("temp_tool", {});
     expect(result.content).toBe("temp");
 
     await pm.unloadAll();
 
     // Group should be gone
-    expect(TOOL_GROUPS["temp_group"]).toBeUndefined();
+    expect(TOOL_GROUPS.temp_group).toBeUndefined();
 
     // Tool should be gone
     const result2 = await executeTool("temp_tool", {});
@@ -282,7 +282,7 @@ describe("PluginManager", () => {
     const pm = new PluginManager();
     await pm.loadAll(tmpDir);
 
-    expect(TOOL_GROUPS["email"]).toContain("send_email");
-    expect(TOOL_GROUPS["email"]).toContain("read_inbox");
+    expect(TOOL_GROUPS.email).toContain("send_email");
+    expect(TOOL_GROUPS.email).toContain("read_inbox");
   });
 });

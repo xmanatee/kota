@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { extractContent, decodeEntities } from "./html-extract.js";
+import { describe, expect, it } from "vitest";
+import { decodeEntities, extractContent } from "./html-extract.js";
 
 describe("extractContent", () => {
   describe("boilerplate removal", () => {

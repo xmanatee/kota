@@ -5,13 +5,14 @@
  * boundary bugs: format mismatches, error propagation failures, and
  * broken composition paths.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { checkFreshness, recordRead } from "./file-tracker.js";
+import { FailureTracker, type ToolResultEntry } from "./tool-runner.js";
 import { runFileEdit } from "./tools/file-edit.js";
 import { runGrep } from "./tools/grep.js";
-import { checkFreshness, recordRead, recordModification } from "./file-tracker.js";
-import { FailureTracker, type ToolResultEntry } from "./tool-runner.js";
 
 const TEST_DIR = join(process.cwd(), ".test-integration");
 

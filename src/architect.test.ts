@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // --- Hoisted mocks ---
 const { mockExecuteTool } = vi.hoisted(() => ({
@@ -24,7 +24,7 @@ vi.mock("./tools/index.js", () => ({
   executeTool: mockExecuteTool,
 }));
 
-import { runArchitectPass, runEditorLoop, MAX_EDITOR_TURNS, EDITOR_TOOL_SET } from "./architect.js";
+import { runArchitectPass, runEditorLoop } from "./architect.js";
 import { enableGroup, resetGroups } from "./tool-groups.js";
 
 // --- Helpers ---

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { runHttpRequest } from "./tools/http-request.js";
-import { readFileSync, existsSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { detectToolGroups, enableGroup, resetGroups, getActiveToolNames } from "./tool-groups.js";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { detectToolGroups, enableGroup, getActiveToolNames, resetGroups } from "./tool-groups.js";
+import { runHttpRequest } from "./tools/http-request.js";
 
 /**
  * Cross-module integration tests for the http_request → code_exec data pipeline.

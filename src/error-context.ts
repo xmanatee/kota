@@ -8,7 +8,7 @@
  * without a separate file_read.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 export type FileRef = {
@@ -151,5 +151,5 @@ export function enrichWithSourceContext(output: string, basedir?: string): strin
 
   if (sections.length === 0) return output;
 
-  return output + "\n\n--- Referenced source ---\n" + sections.join("\n\n");
+  return `${output}\n\n--- Referenced source ---\n${sections.join("\n\n")}`;
 }

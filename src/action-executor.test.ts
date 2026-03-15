@@ -1,9 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   ActionExecutor,
+  type ActionResult,
   getActionItems,
   partitionDueItems,
-  type ActionResult,
 } from "./action-executor.js";
 import type { ScheduledItem } from "./scheduler.js";
 

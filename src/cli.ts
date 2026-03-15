@@ -1,13 +1,13 @@
-import { Command } from "commander";
 import { createInterface } from "node:readline";
-import { runAgentLoop, AgentSession, type LoopOptions } from "./loop.js";
+import { Command } from "commander";
+import { ActionExecutor, partitionDueItems } from "./action-executor.js";
+import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { loadConfig, expandAlias, type KotaConfig } from "./config.js";
+import { getHistory } from "./history.js";
+import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
+import { getScheduler } from "./scheduler.js";
 import { startServer } from "./server.js";
 import { TelegramBot } from "./telegram.js";
-import { getScheduler } from "./scheduler.js";
-import { ActionExecutor, partitionDueItems } from "./action-executor.js";
-import { getHistory } from "./history.js";
 
 const program = new Command();
 

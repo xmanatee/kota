@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeToolCalls } from "./tool-runner.js";
 import { executeTool } from "./tools/index.js";
 
@@ -216,7 +216,7 @@ describe("executeToolCalls × tool-retry integration", () => {
 
   it("truncates content field for rich results (FailureTracker consistency)", async () => {
     // When is_error is true with blocks, content is used by FailureTracker for signature
-    const largeError = "Traceback: " + "e".repeat(5_000);
+    const largeError = `Traceback: ${"e".repeat(5_000)}`;
     const richBlocks = [
       { type: "text" as const, text: largeError },
     ];

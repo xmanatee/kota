@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
-import { runTodo, getTodoState } from "./todo.js";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initTaskStore, resetTaskStore } from "../task-store.js";
+import { getTodoState, runTodo } from "./todo.js";
 
 beforeAll(() => {
   initTaskStore(process.cwd(), null); // in-memory mode for tests

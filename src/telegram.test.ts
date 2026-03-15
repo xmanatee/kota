@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { splitMessage, TelegramTransport, TelegramBot, callTelegramApi } from "./telegram.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./telegram.js";
 
 // --- splitMessage ---
 

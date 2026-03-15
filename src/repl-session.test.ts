@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { REPLSession, sessions, cleanupSessions, findPythonBinary } from "./repl-session.js";
-import { SENTINEL, DONE_MARKER } from "./code-wrappers.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DONE_MARKER, SENTINEL } from "./code-wrappers.js";
+import { cleanupSessions, findPythonBinary, REPLSession, sessions } from "./repl-session.js";
 
 describe("REPLSession", () => {
   it("starts not alive", () => {

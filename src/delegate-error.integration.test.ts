@@ -5,7 +5,7 @@
  * circuit breaking, transient retry, and result formatting.
  * Exercises: delegate.ts × tool-retry.ts × delegate-format.ts
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Hoisted mock runner — accessible inside vi.mock factory
 const { mockRunner } = vi.hoisted(() => ({
@@ -26,7 +26,7 @@ vi.mock("./delegate-prompts.js", () => ({
   executeRunners: { shell: (input: Record<string, unknown>) => mockRunner(input) },
 }));
 
-import { setDelegateConfig, runDelegate } from "./tools/delegate.js";
+import { runDelegate, setDelegateConfig } from "./tools/delegate.js";
 
 function mockStream(response: unknown) {
   const obj = {

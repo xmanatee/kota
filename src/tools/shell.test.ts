@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { runShell } from "./shell.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as confirm from "../confirm.js";
+import { runShell } from "./shell.js";
 
 // Suppress stderr output during tests
 let stderrSpy: ReturnType<typeof vi.spyOn>;

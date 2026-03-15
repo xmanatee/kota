@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  VerifyTracker,
+  enableGroup,
+  getActiveToolNames,
+  getEnabledGroups,
+  resetGroups,
+} from "./tool-groups.js";
+import {
   processToolResults,
   type ToolCallRecord,
   type ToolResultRecord,
+  VerifyTracker,
 } from "./verify-tracker.js";
-import {
-  enableGroup,
-  resetGroups,
-  getActiveToolNames,
-  getEnabledGroups,
-} from "./tool-groups.js";
 
 /**
  * Cross-module integration tests:

@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { getScheduler, parseRepeat, parseTime } from "../scheduler.js";
 import type { ToolResult } from "./index.js";
-import { getScheduler, parseTime, parseRepeat } from "../scheduler.js";
 
 export const scheduleTool: Anthropic.Tool = {
   name: "schedule",
@@ -49,7 +49,7 @@ export const scheduleTool: Anthropic.Tool = {
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return iso;
   const now = new Date();
   const today = now.toDateString();
   const tomorrow = new Date(now.getTime() + 86_400_000).toDateString();

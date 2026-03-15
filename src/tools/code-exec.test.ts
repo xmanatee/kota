@@ -1,5 +1,5 @@
-import { describe, it, expect, afterAll } from "vitest";
-import { runCodeExec, cleanupSessions, detectPackageHint, extractMissingPackage } from "./code-exec.js";
+import { afterAll, describe, expect, it } from "vitest";
+import { cleanupSessions, detectPackageHint, extractMissingPackage, runCodeExec } from "./code-exec.js";
 
 afterAll(() => {
   cleanupSessions();

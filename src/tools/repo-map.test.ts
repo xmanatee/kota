@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { extractSymbols, trimSig, runRepoMap } from "./repo-map.js";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { extractSymbols, runRepoMap, trimSig } from "./repo-map.js";
 
 // --- Pure function tests ---
 
@@ -144,7 +144,7 @@ describe("extractSymbols", () => {
 
   it("truncates long signatures", () => {
     const longSig =
-      "export function process(" + "a: string, ".repeat(10) + "): void {}";
+      `export function process(${"a: string, ".repeat(10)}): void {}`;
     const result = extractSymbols(longSig, false);
     expect(result).toHaveLength(1);
     expect(result[0]).toContain("...");

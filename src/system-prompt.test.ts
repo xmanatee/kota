@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
+import { CORE_TOOL_NAMES, TOOL_GROUPS } from "./tool-groups.js";
 import { allTools } from "./tools/index.js";
-import { TOOL_GROUPS, CORE_TOOL_NAMES } from "./tool-groups.js";
 
 describe("SYSTEM_PROMPT", () => {
   it("contains all required sections", () => {

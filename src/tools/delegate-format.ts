@@ -55,7 +55,7 @@ export function buildSourcesSection(
     lines.push(`--- Search queries (${queries.length}) ---`);
     for (const q of queries) lines.push(`  "${q}"`);
   }
-  return "\n\n" + lines.join("\n");
+  return `\n\n${lines.join("\n")}`;
 }
 
 /** Build a ToolResult with optional image blocks from delegation. */

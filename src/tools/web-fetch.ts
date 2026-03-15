@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { writeFile, mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ToolResult } from "./index.js";
+import type Anthropic from "@anthropic-ai/sdk";
 import { extractContent } from "../html-extract.js";
+import type { ToolResult } from "./index.js";
 
 export const webFetchTool: Anthropic.Tool = {
   name: "web_fetch",
@@ -63,7 +63,7 @@ export function formatJsonResponse(raw: string, maxLength: number): string {
     return text;
   } catch {
     return raw.length > maxLength
-      ? raw.slice(0, maxLength) + `\n\n[Truncated — ${raw.length} chars total, showing first ${maxLength}]`
+      ? `${raw.slice(0, maxLength)}\n\n[Truncated — ${raw.length} chars total, showing first ${maxLength}]`
       : raw;
   }
 }

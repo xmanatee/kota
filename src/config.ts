@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 /**
  * KOTA configuration schema.
@@ -136,14 +136,14 @@ export function buildUserProfile(config: KotaConfig): string {
   if (config.user.name) parts.push(`**User**: ${config.user.name}`);
   if (config.user.context) parts.push(config.user.context);
   if (parts.length === 0) return "";
-  return "\n\n## User Profile\n\n" + parts.join("\n");
+  return `\n\n## User Profile\n\n${parts.join("\n")}`;
 }
 
 /** Expand aliases in a prompt. If prompt starts with an alias key, prepend the alias value. */
 export function expandAlias(prompt: string, aliases?: Record<string, string>): string {
   if (!aliases) return prompt;
   for (const [key, expansion] of Object.entries(aliases)) {
-    if (prompt.startsWith(key + " ") || prompt === key) {
+    if (prompt.startsWith(`${key} `) || prompt === key) {
       const rest = prompt.slice(key.length).trimStart();
       return rest ? expansion + rest : expansion.trimEnd();
     }

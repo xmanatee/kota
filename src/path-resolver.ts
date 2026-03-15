@@ -1,5 +1,5 @@
-import { globSync } from "glob";
 import { basename } from "node:path";
+import { globSync } from "glob";
 
 const IGNORE_DIRS = [
   "node_modules/**",

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // --- Hoisted mock variables (used inside vi.mock factories) ---
 
@@ -82,8 +82,8 @@ vi.mock("./architect.js", () => ({
 
 // --- Import after mocks ---
 
-import { AgentSession } from "./loop.js";
 import { Context } from "./context.js";
+import { AgentSession } from "./loop.js";
 
 // --- Helpers ---
 

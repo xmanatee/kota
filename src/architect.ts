@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { allTools, executeTool } from "./tools/index.js";
+import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
+import { allTools, executeTool } from "./tools/index.js";
 import type { Transport } from "./transport.js";
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.

@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 385 — Linting, Code Organization, and Module Boundaries
+
+Addressed the most overdue NOTES.md item (10+ builder iterations stale): "code organization, linting, module boundaries." KOTA now has automated lint enforcement, a cleaner module structure, and consistent import organization across all 163 source files.
+
+### What was built
+
+**Biome linter** (`biome.json`):
+- Installed `@biomejs/biome` as dev dependency
+- Configured recommended rules with project-specific overrides (no-unused-imports, type-only imports, template literals, Number.isNaN, import sorting)
+- Added `npm run lint` and `npm run lint:fix` scripts to package.json
+- Auto-fixed 139 files: organized imports, converted string concatenation to template literals, switched to `Number.isNaN`, added `import type` annotations, removed unused imports
+
+**Module extraction** (`src/session-pool.ts`):
+- Extracted `SseTransport`, `SessionPool`, `ManagedSession`, and HTTP helpers from `server.ts` (561 lines) into `session-pool.ts` (185 lines)
+- `server.ts` reduced from 561 → 378 lines — closer to the 300-line target
+- Re-exports maintain backwards compatibility for existing tests and imports
+
+**Bug fix** (`src/cost.ts`):
+- Added missing `totalCacheWrite` private field — was being assigned in `addUsage()` but never declared, causing a TypeScript error that was masked by previous builds
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 320KB bundle
+- All 1755 tests pass (92 test files)
+- Biome lint passes clean on all 163 files
+- CLI `--help` works correctly
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### NOTES.md update
+Moved "institute standards in codebase" to Completed — all sub-items (config, linting, code org, module boundaries) now shipped.
+
+### Future directions
+- Further file splits: `cli.ts` (362 lines), `loop.ts` (388 lines) still over 300
+- Biome formatter (currently disabled — enable for consistent code style)
+- Import boundary enforcement (restrict cross-module imports via lint rules)
+- Clawhub/remote registries — the last remaining NOTES.md item
+
 ## Iteration 384 — Research Synthesis Checkpoint
 
 ### Verification of iter 382 (previous improver)

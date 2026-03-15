@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { extractModifiedFiles, buildDelegateResult, collectImageBlocks, formatMetadata, buildSourcesSection, assembleDelegateResult } from "./delegate-format.js";
+import { describe, expect, it } from "vitest";
 import type { DelegateMetadata } from "./delegate-format.js";
+import { assembleDelegateResult, buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";
 
 describe("extractModifiedFiles", () => {

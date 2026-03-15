@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { runHttpRequest, formatTabularJson } from "./http-request.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { formatTabularJson, runHttpRequest } from "./http-request.js";
 
 describe("runHttpRequest", () => {
   const originalFetch = globalThis.fetch;

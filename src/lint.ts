@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 
 export type LintResult = { ok: true } | { ok: false; error: string };

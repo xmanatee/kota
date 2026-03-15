@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { isBinaryContentType, formatJsonResponse, runWebFetch } from "./web-fetch.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatJsonResponse, isBinaryContentType, runWebFetch } from "./web-fetch.js";
 
 vi.mock("node:fs/promises", () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),

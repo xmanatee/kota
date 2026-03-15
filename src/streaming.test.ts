@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { streamMessage, type StreamConfig } from "./streaming.js";
-import { CliTransport, BufferTransport } from "./transport.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type StreamConfig, streamMessage } from "./streaming.js";
+import { CliTransport } from "./transport.js";
 
 let stdoutSpy: ReturnType<typeof vi.spyOn>;
 let stderrSpy: ReturnType<typeof vi.spyOn>;

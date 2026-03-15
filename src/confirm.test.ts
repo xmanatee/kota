@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { isDangerous, setSkipConfirmations, confirmExecution } from "./confirm.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { confirmExecution, isDangerous, setSkipConfirmations } from "./confirm.js";
 
 afterEach(() => {
   setSkipConfirmations(false);

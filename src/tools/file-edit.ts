@@ -1,10 +1,10 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import type { ToolResult } from "./index.js";
-import { lintFile } from "../lint.js";
 import { printEditDiff } from "../diff.js";
 import { checkFreshness, recordModification } from "../file-tracker.js";
+import { lintFile } from "../lint.js";
 import { fileNotFoundError } from "../path-resolver.js";
+import type { ToolResult } from "./index.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",

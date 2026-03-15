@@ -1,6 +1,6 @@
-import * as fs from "fs";
-import * as path from "path";
-import { recordRead, recordModification } from "../file-tracker.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { recordModification, recordRead } from "../file-tracker.js";
 import type { ToolResult } from "./index.js";
 
 interface NotebookCell {
@@ -11,7 +11,7 @@ interface NotebookCell {
 function splitSource(content: string): string[] {
   if (!content) return [""];
   const lines = content.split("\n");
-  return lines.map((line, i) => (i < lines.length - 1 ? line + "\n" : line));
+  return lines.map((line, i) => (i < lines.length - 1 ? `${line}\n` : line));
 }
 
 function buildCell(cell: NotebookCell) {

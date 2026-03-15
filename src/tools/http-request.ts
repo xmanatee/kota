@@ -1,5 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { writeFileSync } from "node:fs";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./index.js";
 
 export const httpRequestTool: Anthropic.Tool = {
@@ -202,7 +202,7 @@ function formatResponseHeaders(headers: Headers): string {
       lines.push(`${name}: ${value}`);
     }
   }
-  return lines.length > 0 ? lines.join("\n") + "\n" : "";
+  return lines.length > 0 ? `${lines.join("\n")}\n` : "";
 }
 
 function isBinaryContentType(ct: string): boolean {
@@ -268,10 +268,10 @@ export function formatTabularJson(data: unknown): string | null {
   );
 
   const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - s.length));
-  const header = "| " + cols.map((c, i) => pad(c, widths[i])).join(" | ") + " |";
-  const sep = "| " + widths.map(w => "-".repeat(w)).join(" | ") + " |";
+  const header = `| ${cols.map((c, i) => pad(c, widths[i])).join(" | ")} |`;
+  const sep = `| ${widths.map(w => "-".repeat(w)).join(" | ")} |`;
   const body = displayRows.map(
-    r => "| " + cols.map((c, i) => pad(fmtCell(r[c]), widths[i])).join(" | ") + " |",
+    r => `| ${cols.map((c, i) => pad(fmtCell(r[c]), widths[i])).join(" | ")} |`,
   );
 
   let result = [header, sep, ...body].join("\n");

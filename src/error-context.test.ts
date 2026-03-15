@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { extractFileReferences, readContextLines, enrichWithSourceContext } from "./error-context.js";
 import * as fs from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { enrichWithSourceContext, extractFileReferences, readContextLines } from "./error-context.js";
 
 // Mock fs to control which files "exist" and their content
 vi.mock("node:fs", async () => {

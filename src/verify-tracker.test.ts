@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { VerifyTracker, isVerifyCommand, detectVerifyCommands, processToolResults } from "./verify-tracker.js";
+import { describe, expect, it } from "vitest";
+import { detectVerifyCommands, isVerifyCommand, processToolResults, VerifyTracker } from "./verify-tracker.js";
 
 describe("VerifyTracker", () => {
   it("starts with empty state", () => {

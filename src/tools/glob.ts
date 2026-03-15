@@ -1,7 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { glob as globFn } from "glob";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import type Anthropic from "@anthropic-ai/sdk";
+import { glob as globFn } from "glob";
 import type { ToolResult } from "./index.js";
 
 export const globTool: Anthropic.Tool = {

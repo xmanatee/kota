@@ -8,16 +8,16 @@
  *
  * Also tests find_replace → verify-tracker, which was previously untested.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   assembleDelegateResult,
   type DelegateMetadata,
 } from "./tools/delegate-format.js";
 import {
-  VerifyTracker,
   processToolResults,
   type ToolCallRecord,
   type ToolResultRecord,
+  VerifyTracker,
 } from "./verify-tracker.js";
 
 function makeMeta(overrides: Partial<DelegateMetadata> = {}): DelegateMetadata {

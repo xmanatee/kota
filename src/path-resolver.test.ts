@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { nameSimilarity, suggestAlternatives, fileNotFoundError } from "./path-resolver.js";
+import { describe, expect, it } from "vitest";
+import { fileNotFoundError, nameSimilarity, suggestAlternatives } from "./path-resolver.js";
 
 describe("nameSimilarity", () => {
   it("returns 1 for exact match", () => {

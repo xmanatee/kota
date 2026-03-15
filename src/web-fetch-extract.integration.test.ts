@@ -6,7 +6,7 @@
  * Complements the basic cross-module tests in web-fetch.test.ts by covering
  * tables, blockquotes, entity-heavy content, and content-type edge cases.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runWebFetch } from "./tools/web-fetch.js";
 
 function mockHtmlResponse(body: string) {

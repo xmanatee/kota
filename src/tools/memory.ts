@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
 import { getMemoryStore } from "../memory.js";
+import type { ToolResult } from "./index.js";
 
 export const memoryTool: Anthropic.Tool = {
   name: "memory",
@@ -48,7 +48,7 @@ export const memoryTool: Anthropic.Tool = {
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toISOString().slice(0, 10);
 }
 

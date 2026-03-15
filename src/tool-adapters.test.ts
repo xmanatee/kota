@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  normalizeResult,
-  fromSimple,
-  fromOpenAI,
-  fromVercelAI,
-  extractJsonSchema,
-  zodDefToJsonSchema,
   adaptExport,
-  type SimpleTool,
+  extractJsonSchema,
+  fromOpenAI,
+  fromSimple,
+  fromVercelAI,
+  normalizeResult,
   type OpenAIFunctionTool,
+  type SimpleTool,
   type VercelAITool,
+  zodDefToJsonSchema,
 } from "./tool-adapters.js";
 
 describe("normalizeResult", () => {
