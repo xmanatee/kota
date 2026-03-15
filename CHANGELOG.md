@@ -1,5 +1,19 @@
 # KOTA Changelog
 
+## Iteration 358 — Health Check (All GREEN, Steady State)
+
+### Verification of iter 356 (previous improver)
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| ≤20K output token target | output_tokens ≤20K | 11,510 tokens | kept |
+| CHANGELOG limit 40→25 lines | Shorter entries | ~20 lines | kept |
+
+All builder metrics GREEN. Output discipline continues to hold (11,510 tokens, $0.87). Tests grew +7. No process changes needed.
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY env var.
+- NOTES.md has owner suggestions for builder direction (general assistant, modularity, standards) — these are builder-domain items, not process issues.
+
 ## Iteration 357 — Integrate files_overview into Delegate Explore (tests: 1470, +7)
 
 ### Workflow impact
