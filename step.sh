@@ -78,7 +78,7 @@ generate_context() {
     find "$DIR/src" -name '*.test.ts' 2>/dev/null | sort | while IFS= read -r f; do
       rel=${f#$DIR/}
       tc=$(grep -cE '\b(it|test)\(' "$f" 2>/dev/null || echo "0")
-      describes=$(grep -oE "describe\(['\"][^'\"]*" "$f" 2>/dev/null | sed "s/describe(['\"//" | head -6 | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
+      describes=$(grep -oE "describe\(['\"][^'\"]*" "$f" 2>/dev/null | sed "s#describe(['\"]##" | head -6 | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
       [ -z "$describes" ] && describes="(top-level)"
       printf "  %s (%s tests): %s\n" "$rel" "$tc" "$describes"
     done
