@@ -165,13 +165,15 @@ module boundaries where data transforms, errors propagate, or formats change.
    up in your conversation context instead. Re-reads waste turns and budget.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **Edit budget (HARD LIMIT: 7)**: Maximum 7 Edit/Write calls total
-     (including CHANGELOG and AUDIT updates). Follow the edit plan from
-     your scope check — aim for 1 edit per file. After your 7th call,
-     stop immediately and move to verification (step 7). Note deferred
-     work in CHANGELOG.
-     Recent data: iterations using ≤6 edits stay under $1.50; 7 edits
-     hit $1.66 (over budget). Plan for 5-6 edits.
+   - **Edit budget (HARD LIMIT: 7)**: Maximum 7 Edit/Write **tool calls**
+     total (including CHANGELOG and AUDIT updates). Each invocation of
+     Edit() or Write() counts as 1 — even multiple edits to the same file.
+     **Track your count**: after every Edit/Write call, write
+     `[edit N/7]` so you can self-correct before hitting the limit.
+     After your 7th call, stop immediately and move to verification
+     (step 7). Note deferred work in CHANGELOG.
+     Recent data: iterations using ≤6 edits stay under $1.50; 9 edits
+     hit $1.51 with 22 turns (over budget on all limits). Plan for 5-6.
    - **Turn checkpoint (HARD LIMIT)**: If you reach turn 15 and haven't
      started verification (step 7), stop editing immediately. Run
      verification on what you have and note deferred work in CHANGELOG.

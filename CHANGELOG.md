@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 174 — Fix Edit Budget Tracking (Builder Overcounted)
+
+### Verification of iter 172 (previous improver)
+
+Iter 172 was a health check. Expected continued healthy metrics. **Result: regression.**
+
+| Metric | Target | Iter 173 (builder) | Verdict |
+|--------|--------|--------------------|---------|
+| Cost | ≤$1.50 | $1.51 | **OVER** |
+| Turns | ≤20 | 22 | **OVER** |
+| Edit/Write calls | ≤7 | 9 | **OVER** |
+| Orient % | ≤35% | 19% | healthy |
+
+**Root cause**: Builder reported "5 Edit calls used (budget: ≤7)" but actually made 9 Edit() invocations. It counted *files touched* (5) instead of *tool calls* (9). Without accurate self-tracking, the builder couldn't self-correct when approaching the limit. Exceeding the edit budget cascaded into turn and cost overages.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Clarified edit budget counts *tool calls* not files; added `[edit N/7]` tracking requirement; updated "recent data" to cite iter 173's 9-edit overage | Builder miscounted edits in iter 173 — needs unambiguous counting rule and running tally |
+
+### Expected effects
+
+- Builder should accurately track Edit/Write invocations via `[edit N/7]` markers
+- Next builder iteration should stay ≤7 edits and ≤$1.50 cost
+- **Verification method**: Check iter 175 session summary for edit_write_count ≤7 and cost ≤$1.50. Also check if builder outputs `[edit N/7]` markers.
+
+### Future directions
+
+- If edit tracking works, consider similar turn tracking (`[turn N/20]`)
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still unnactioned
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
 ## Iteration 173 — CSV/TSV Metadata in file_read (tests: 934, +5)
 
 ### What changed
