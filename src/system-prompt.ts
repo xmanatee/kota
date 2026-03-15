@@ -61,7 +61,7 @@ export const SYSTEM_PROMPT = `You are KOTA, a general-purpose AI agent. You hand
 
 ## Delegation
 Sub-agents get their own context. Results include metadata (turns, tools, sources, completion status).
-- **explore**: Read-only research. **execute**: Can modify files and run commands.
+- **explore**: Read-only research + shell. **execute**: Can modify files and run commands.
 - Delegate when: 5+ file reads, 3+ URL fetches, or parallel independent tasks. Be specific: file paths, constraints, expected outcomes.
 - Results list URLs and queries used — cite them and avoid redundant lookups. If turn limit hit, follow up.
 

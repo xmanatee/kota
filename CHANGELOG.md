@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 165 — Shell Access for Explore Sub-Agents (tests: 909, +2)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/delegate-prompts.ts` | Added `subShellTool` + `runShellBounded` to explore tool set; removed duplicates from execute set (inherited via spread) | Explore sub-agents couldn't run any shell commands — no git, version checks, dependency listings, or system info gathering |
+| `src/delegate-prompts.ts` | Updated EXPLORE_PROMPT with shell guidance and "information gathering only" constraint | Sub-agent needs to know when/how to use shell and that it's for read-only info |
+| `src/system-prompt.ts` | Updated delegation description: explore now mentions shell | Main agent needs accurate info about what explore mode can do |
+| `src/delegate-prompts.test.ts` | Updated explore tool assertion (+shell), added 2 tests (prompt guidance, no duplicate shell in execute) | Verify the change and prevent regressions |
+
+### Workflow impact
+
+**Scenario**: "User says: 'Analyze our git history for the last month — who committed the most, what time of day, show me the distribution.'"
+
+**Before**: Main agent runs `shell("git log ...")` itself (consuming context tokens), then either analyzes inline (more context consumed) or delegates analysis but explore sub-agent can't run git commands. Must use heavier `execute` mode for any command.
+
+**After**: `delegate(explore, "Analyze git history — run git log, parse output, create charts")` works end-to-end. Explore sub-agent runs `shell("git log --format='%an|%ai' --since='1 month ago'")`, processes with `code_exec(python)`, creates matplotlib charts (auto-captured), and returns the full analysis. Main context stays clean.
+
+### Verification
+
+- 909 tests pass (907 → 909, +2)
+- Typecheck clean, build clean, CLI loads correctly
+- 5 Edit/Write calls used (budget: ≤8)
+
+### Expected effects
+
+- Research delegations that need system info (git state, versions, deps, processes) now work without execute mode
+- Explore mode gains parity with code_exec (already present) for info-gathering commands
+- Execute mode's tool set is unchanged (shell inherited from explore, full access via runShellBounded override)
+
+### Future directions
+
+- Consider `isDangerous` pre-check in explore shell to reject destructive commands outright (instead of prompting)
+- architect-runner.ts still has no tests (extracted iter 163)
+- Progressive tool disclosure (18 tools, ~3,550 tokens)
+
 ## Iteration 164 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 162 (previous improver)

@@ -26,10 +26,11 @@ export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information 
   - Note publication dates — flag findings older than 1 year as potentially stale.
   - If a source is inaccessible (paywall, 403, timeout), note it and move on.
 - For data analysis: use code_exec (Python/Node.js REPL) to process numbers, compute statistics, or create matplotlib charts. Charts are auto-captured as images.
+- For system info: use shell (60s timeout) for git commands, version checks, dependency listings, and process info.
 - For API exploration: use http_request for direct API calls; web_fetch for documentation pages.
 - Batch independent tool calls in one turn (e.g., grep + glob together, multiple web_fetch calls).
 - Cross-reference findings across multiple sources. Note disagreements.
-- You have read-only access — you cannot modify project files.
+- You have read-only access — do not modify project files. Use shell for information gathering only.
 
 ## Response Format
 - Lead with the answer, not the process you followed.
@@ -99,6 +100,7 @@ export const exploreTools: Anthropic.Tool[] = [
   webSearchTool,
   httpRequestTool,
   codeExecTool,
+  subShellTool,
 ];
 
 export const exploreRunners: Record<string, ToolRunner> = {
@@ -110,6 +112,7 @@ export const exploreRunners: Record<string, ToolRunner> = {
   web_search: runWebSearch,
   http_request: runHttpRequest,
   code_exec: runCodeExec,
+  shell: runShellBounded,
 };
 
 export const executeTools: Anthropic.Tool[] = [
@@ -117,7 +120,6 @@ export const executeTools: Anthropic.Tool[] = [
   fileEditTool,
   fileWriteTool,
   multiEditTool,
-  subShellTool,
   processTool,
   findReplaceTool,
 ];
@@ -127,7 +129,6 @@ export const executeRunners: Record<string, ToolRunner> = {
   file_edit: runFileEdit,
   file_write: runFileWrite,
   multi_edit: runMultiEdit,
-  shell: runShellBounded,
   process: runProcess,
   find_replace: runFindReplace,
 };

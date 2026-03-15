@@ -103,16 +103,28 @@ describe("sub-agent prompts", () => {
 });
 
 describe("tool sets", () => {
-  it("explore tools are read-only (no file_edit, file_write, shell)", () => {
+  it("explore tools include research + shell for info gathering (no file_edit, file_write)", () => {
     const names = exploreTools.map((t) => t.name);
     expect(names).toContain("file_read");
     expect(names).toContain("grep");
     expect(names).toContain("glob");
     expect(names).toContain("web_search");
     expect(names).toContain("code_exec");
+    expect(names).toContain("shell");
     expect(names).not.toContain("file_edit");
     expect(names).not.toContain("file_write");
-    expect(names).not.toContain("shell");
+  });
+
+  it("EXPLORE_PROMPT includes shell guidance for system info", () => {
+    expect(EXPLORE_PROMPT).toContain("shell");
+    expect(EXPLORE_PROMPT).toContain("system info");
+    expect(EXPLORE_PROMPT).toContain("information gathering");
+  });
+
+  it("explore shell does not appear as duplicate in execute tools", () => {
+    const names = executeTools.map((t) => t.name);
+    const shellCount = names.filter((n) => n === "shell").length;
+    expect(shellCount).toBe(1);
   });
 
   it("execute tools include all explore tools plus mutation tools", () => {
