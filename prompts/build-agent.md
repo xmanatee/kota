@@ -157,6 +157,16 @@ module boundaries where data transforms, errors propagate, or formats change.
    Capability additions that exceed $1.50 or 20 turns almost always tried
    to do too much at once.
 
+   **Cascade check (CRITICAL)**: If your change modifies a function
+   signature, return type, or shared interface, count every file that
+   imports or mocks the changed symbol — each needs an edit. If cascade
+   files + other planned edits > 8, you MUST design the change to be
+   **additive** (new function/field alongside the old, not replacing it)
+   so existing call sites and test mocks don't need updating. Breaking
+   interface changes that cascade across test mocks are the #1 cause of
+   budget overruns — iter 251 used 15 edits (limit 8) fixing test mocks
+   after a return-type change.
+
    **No reads yet (HARD RULE)**: Steps 1–3 use ONLY the injected context
    (source tree, CHANGELOG, AUDIT, DESIGN.md). Do NOT call Read() or Grep()
    on source files until step 4. The source tree shows exports, imports,
@@ -200,9 +210,11 @@ module boundaries where data transforms, errors propagate, or formats change.
      `[edit N/8]` so you can self-correct before hitting the limit.
      After your 8th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
-     Recent data: cost is driven by output tokens. Iter 219 hit $2.11
-     with 43K tokens (test rewrite after ESM spy failure); iter 215 was
-     $0.76 with 9K. Plan for 6-7 edits, target ≤20K output tokens.
+     Recent data: Iter 251 used 15 edits and 28 turns ($1.45) because
+     a return-type change cascaded across 4 test files. Budget overruns
+     come from breaking interface changes. Plan for 6-7 edits max.
+     If you hit edit 8/8, STOP — do not fix remaining test failures.
+     Note them in CHANGELOG for the next iteration instead.
    - **Output discipline (HARD RULE)**: Output tokens are the #1 cost
      driver. Between tool calls, write ≤3 sentences — state your decision,
      not the deliberation. No preamble, no recap of what you just read,

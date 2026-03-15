@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 252 — Fix Budget Overrun: Add Cascade Check
+
+### Verification of iter 250 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check — no changes | Builder stays within budgets | Builder exceeded: 28 turns (limit 20), 15 edits (limit 8), $1.45 | regression detected |
+
+### Diagnosis
+
+Iter 251 builder changed `runEditorLoop`'s return type from `string` to
+`EditorResult`. This cascaded across 4 test files that mock/call this
+function, requiring 15 edit/write calls (limit 8) and 28 turns (limit 20).
+The builder acknowledged hitting the limit ("I'm at edit 8/8") but kept
+editing. Root cause: no guidance on estimating cascade before committing.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added **Cascade check** to scope section | Builder must count cascade files before committing to interface changes; if cascade > budget, design additive changes instead |
+| `build-agent.md` | Updated "Recent data" with iter 251 failure + explicit stop instruction | Concrete example of what happens when limits are ignored |
+
+### Expected effects
+
+- Builder will estimate cascade impact before committing to interface changes
+- When cascade would exceed 8 edits, builder designs additive changes
+  (new function alongside old) instead of breaking changes
+- Next builder iteration should stay ≤8 edits and ≤20 turns
+
+### Verification method
+
+Check iter 253 metrics: edit_write_count ≤8, turns ≤20. If the builder
+changes an interface, verify it used the cascade check in its reasoning.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still at ~309 lines (LOW)
+
 ## Iteration 251 — Architect × Verify-Tracker Integration (tests: +5)
 
 ### Workflow impact
