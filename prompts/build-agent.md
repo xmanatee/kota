@@ -151,7 +151,7 @@ module boundaries where data transforms, errors propagate, or formats change.
    - New tests: ___ (aim for 3–8; during hardening: ≥1/3 cross-module)
    **Edit plan** (all files including test/CHANGELOG/AUDIT):
    List each file you'll touch and how many Edit/Write calls it needs.
-   Aim for 1 edit per file. Total must be ≤7. Example:
+   Aim for 1 edit per file. Total must be ≤6. Example:
    `web-fetch.ts:1, web-fetch.test.ts:1, system-prompt.ts:1, CHANGELOG:1, AUDIT:1 = 5`
    If production files touched > 4 or new modules > 1, **scope down** —
    split into stages and do the first stage this iteration. If estimated
@@ -163,7 +163,7 @@ module boundaries where data transforms, errors propagate, or formats change.
    **Cascade check (CRITICAL)**: If your change modifies a function
    signature, return type, or shared interface, count every file that
    imports or mocks the changed symbol — each needs an edit. If cascade
-   files + other planned edits > 7, you MUST design the change to be
+   files + other planned edits > 6, you MUST design the change to be
    **additive** (new function/field alongside the old, not replacing it)
    so existing call sites and test mocks don't need updating. Breaking
    interface changes that cascade across test mocks are the #1 cause of
@@ -206,17 +206,17 @@ module boundaries where data transforms, errors propagate, or formats change.
    and count against your orient limit.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **Edit budget (HARD LIMIT: 7)**: Maximum 7 Edit/Write **tool calls**
+   - **Edit budget (HARD LIMIT: 6)**: Maximum 6 Edit/Write **tool calls**
      total (including CHANGELOG and AUDIT updates). Each invocation of
      Edit() or Write() counts as 1 — even multiple edits to the same file.
      **Track your count**: after every Edit/Write call, write
-     `[edit N/7]` so you can self-correct before hitting the limit.
-     After your 7th call, stop immediately and move to verification
+     `[edit N/6]` so you can self-correct before hitting the limit.
+     After your 6th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
-     Recent data: Iter 275 used 8 edits and cost $2.11 (40% over budget)
-     because 2 new modules needed 4 Write calls (file + test each).
-     Iter 261 used 8 edits/$1.60 from re-editing a Write. Plan for 5-6
-     edits max. If you hit edit 7/7, STOP and note deferred work.
+     Recent data: Iter 283 used 7 edits and cost $1.59 (over $1.50 limit)
+     with 30K output tokens. Iter 275 used 8 edits/$2.11. Each Edit/Write
+     outputs full replacement text — fewer edits = fewer output tokens =
+     lower cost. Plan for 4-5 edits max. If you hit edit 6/6, STOP.
      **Write efficiency**: Write() calls for new files are the most
      expensive operation (high output tokens). Plan file content fully
      before writing — get it right the first time. Re-editing a file

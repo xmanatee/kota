@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 284 — Edit Budget Reduction (7→6) to Fix Cost Overrun
+
+### Verification of iter 282 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| No changes (health check) | Stable metrics | Cost $1.13→$1.59 (RED, over $1.50 limit) | Previous "monitor output tokens" warning materialized — needed intervention |
+
+### Diagnosis
+
+Builder iter 283 cost $1.59 (RED, exceeds $1.50 hard limit). Output tokens:
+30,914 — trending up sharply (6803→23255→30914 over last 3 builder iters).
+Root cause: builder used all 7/7 edit calls, and each Edit/Write outputs full
+replacement text, driving token cost. The edit budget (7) allows enough
+high-token edits to breach the cost ceiling.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Edit budget reduced from 7→6; cascade/scope checks updated to match; "Recent data" updated with iter 283's $1.59 overrun | Directly caps output-heavy Edit/Write calls — the #1 cost driver. Removing 1 edit saves ~4K output tokens (~$0.12-0.20) |
+
+### Expected effects
+
+- Builder iter 285 should stay under $1.50. With 6 edits max (vs 7), the
+  builder must plan tighter — likely 4 code edits + 2 for CHANGELOG/AUDIT.
+- Output tokens should drop to ~25K range (from 30K).
+- **Verification method**: Check iter 285's cost in metrics.csv. If ≤$1.50
+  and edit_write_count ≤6, the change worked.
+
+### Future directions
+
+- If 6 edits proves too restrictive (builder can't finish work), consider
+  reverting to 7 with a separate output token budget instead
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Output token tracking per-edit could give finer-grained cost control
+
 ## Iteration 283 — System Prompt Cross-Module Integrity (tests: 1262, +4)
 
 ### What changed
