@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
+import { allTools } from "./tools/index.js";
 
 describe("SYSTEM_PROMPT", () => {
   it("contains all required sections", () => {
@@ -96,7 +97,7 @@ describe("SYSTEM_PROMPT", () => {
 
   it("error recovery guides explicit package installation, not auto-install", () => {
     expect(SYSTEM_PROMPT).toContain("pip install <pkg>");
-    expect(SYSTEM_PROMPT).toContain("error output names the missing package");
+    expect(SYSTEM_PROMPT).toContain("error names the missing package");
     expect(SYSTEM_PROMPT).toContain("Don't retry the same failing call");
   });
 
@@ -157,5 +158,48 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("destructive commands");
     expect(SYSTEM_PROMPT).toContain("ask_user");
     expect(SYSTEM_PROMPT).toContain("outside the project directory");
+  });
+
+  // Cross-module integration tests — verify prompt guidance matches tool schemas
+
+  it("every tool in allTools registry is referenced in system prompt", () => {
+    for (const tool of allTools) {
+      expect(SYSTEM_PROMPT).toContain(tool.name);
+    }
+  });
+
+  it("grep tool schema has modes and options referenced in prompt", () => {
+    const grep = allTools.find((t) => t.name === "grep")!;
+    const props = grep.input_schema.properties as Record<string, unknown>;
+    expect(props).toHaveProperty("files_only");
+    expect(props).toHaveProperty("count_only");
+    expect(props).toHaveProperty("context_lines");
+  });
+
+  it("web_fetch and http_request tools have save_to parameter", () => {
+    const webFetch = allTools.find((t) => t.name === "web_fetch")!;
+    const httpReq = allTools.find((t) => t.name === "http_request")!;
+    const fetchProps = webFetch.input_schema.properties as Record<
+      string,
+      unknown
+    >;
+    const httpProps = httpReq.input_schema.properties as Record<
+      string,
+      unknown
+    >;
+    expect(fetchProps).toHaveProperty("save_to");
+    expect(httpProps).toHaveProperty("save_to");
+  });
+
+  it("code_exec tool supports Python and Node.js languages", () => {
+    const codeExec = allTools.find((t) => t.name === "code_exec")!;
+    const props = codeExec.input_schema.properties as Record<string, unknown>;
+    expect(props).toHaveProperty("language");
+    const lang = props.language as { enum?: string[] };
+    expect(lang.enum).toContain("python");
+    const hasNode = lang.enum!.some(
+      (v) => v === "javascript" || v === "node" || v === "nodejs",
+    );
+    expect(hasNode).toBe(true);
   });
 });

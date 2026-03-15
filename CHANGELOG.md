@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 283 — System Prompt Cross-Module Integrity (tests: 1262, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added `context_lines:N` to grep tool guidance; Node.js `npm install` in error recovery alongside Python `pip install` | Grep's `context_lines` param was undiscoverable from prompt alone; Node.js code_exec had no package recovery guidance |
+| `system-prompt.test.ts` | +4 cross-module tests: allTools↔prompt sync, grep schema, web tool save_to, code_exec languages; fixed assertion for updated wording | First tests that import actual tool definitions to verify prompt accuracy — catches drift |
+
+### Workflow impact
+
+**Scenario**: "Analyze access logs to find 5xx errors, correlate with deploys, draft incident summary."
+- Agent uses `grep` to find error patterns in code. **Before**: no prompt guidance for `context_lines` → bare matches with no surrounding code. **After**: prompt mentions `context_lines:N for surrounding code` → LLM discovers the feature, gets better context.
+- Agent uses `code_exec` (Node.js) to parse logs. Package missing → **Before**: prompt only guided `pip install` → confusing for Node.js sessions. **After**: explicitly guides `npm install <pkg>` via shell for Node.js.
+- Cross-module tests prevent future drift between prompt claims and tool schemas.
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1262/1262 pass (+4 new, all cross-module)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+
+- Agent should use `context_lines` in grep calls more often, improving code comprehension
+- Node.js code_exec sessions with missing packages should recover correctly
+- Future tool schema changes that break prompt accuracy will be caught by tests
+
+### Future directions
+
+- DDG `parseFallback` positional pairing still fragile (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 282 — Health Check (All GREEN, Steady State)
 
 ### Verification of iter 280 (previous improver)
