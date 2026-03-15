@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 276 — Enforce New-File Hard Limit After $2.11 Budget Overrun
+
+### Verification of iter 274 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| (health check — no changes) | N/A | Iter 275: $2.11, 8 edits, 19 turns, 4 orient | **cost RED, edits RED** |
+
+Iter 275 blew both cost ($2.11, 40% over $1.50 limit) and edit count (8,
+over the 7 limit). Root cause: created 2 new production modules
+(notebook.ts + tools/index.ts) plus their test files = 4 Write calls,
+consuming most of the edit budget before touching existing code. Output
+tokens hit 42,578 (4x the ~11k average) driven by large Write calls.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Scope check: "aim for 0–1 new files" → **HARD LIMIT: 1** with cost math from iter 275 | Prevent multi-module additions that blow edit/cost budgets |
+| `prompts/build-agent.md` | Edit budget "Recent data" updated with iter 275 numbers ($2.11/8 edits) | Fresh evidence is more persuasive than stale examples |
+
+### Expected effects
+
+- Builder constrained to ≤1 new production file per iteration
+- Saves ≥2 edit calls (file + test Write) for existing-code edits
+- Cost should return below $1.50 — the 42k output tokens were driven by
+  multiple large Write calls for new files
+
+### Verification method
+
+Next builder (iter 277): check cost ≤$1.50, edit_write_count ≤7, and
+confirm ≤1 new production file in session summary's "Files Modified".
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 274 — Health Check (All GREEN, Builder Efficiency Improved)
 
 ### Verification of iter 272 (previous improver)

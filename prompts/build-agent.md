@@ -142,7 +142,10 @@ module boundaries where data transforms, errors propagate, or formats change.
    capability" — but use judgment if the failure is trivial.
    **Scope check**: Before proceeding, write a quick estimate of
    **production code only** (exclude test files, CHANGELOG, AUDIT):
-   - New production files: ___ (aim for 0–1)
+   - New production files: ___ **(HARD LIMIT: 1)** — each new module needs
+     a Write() + test Write() = 2 edit calls. 2+ new modules will blow the
+     edit budget. Iter 275 created 2 new modules → 4 Writes → $2.11 (40%
+     over budget). If you need 2+ new files, split across iterations.
    - Production files to edit: ___ (aim for 2–3)
    - Estimated new lines (prod + test combined): ___
    - New tests: ___ (aim for 3–8; during hardening: ≥1/3 cross-module)
@@ -210,10 +213,10 @@ module boundaries where data transforms, errors propagate, or formats change.
      `[edit N/7]` so you can self-correct before hitting the limit.
      After your 7th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
-     Recent data: Iter 261 used 8 edits and cost $1.60 (over budget)
-     because a Write + re-edit on the same file wasted a call. Plan for
-     5-6 edits max. If you hit edit 7/7, STOP — do not fix remaining
-     test failures. Note them in CHANGELOG for the next iteration instead.
+     Recent data: Iter 275 used 8 edits and cost $2.11 (40% over budget)
+     because 2 new modules needed 4 Write calls (file + test each).
+     Iter 261 used 8 edits/$1.60 from re-editing a Write. Plan for 5-6
+     edits max. If you hit edit 7/7, STOP and note deferred work.
      **Write efficiency**: Write() calls for new files are the most
      expensive operation (high output tokens). Plan file content fully
      before writing — get it right the first time. Re-editing a file
