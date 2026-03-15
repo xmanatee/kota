@@ -26,6 +26,9 @@ export function lintFile(path: string): LintResult {
       return lintWithEsbuild(path, ext);
     case ".py":
       return lintPython(path);
+    case ".sh":
+    case ".bash":
+      return lintShell(path);
     default:
       return { ok: true };
   }
@@ -87,6 +90,25 @@ function lintPython(path: string): LintResult {
     const msg = (err as Error).message || "";
     if (msg.includes("ENOENT") || msg.includes("not found")) {
       return { ok: true }; // python3 not available, skip
+    }
+    const e = err as { stderr?: string };
+    return { ok: false, error: e.stderr || msg };
+  }
+}
+
+function lintShell(path: string): LintResult {
+  const escaped = path.replace(/'/g, "'\\''");
+  try {
+    execSync(`bash -n '${escaped}'`, {
+      encoding: "utf-8",
+      stdio: "pipe",
+      timeout: 10_000,
+    });
+    return { ok: true };
+  } catch (err) {
+    const msg = (err as Error).message || "";
+    if (msg.includes("ENOENT") || msg.includes("not found")) {
+      return { ok: true }; // bash not available, skip
     }
     const e = err as { stderr?: string };
     return { ok: false, error: e.stderr || msg };

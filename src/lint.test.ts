@@ -277,6 +277,57 @@ describe("lintPython", () => {
   });
 });
 
+// --- Shell (bash) linting ---
+
+describe("lintShell", () => {
+  it("routes .sh to bash -n", () => {
+    mockExec.mockReturnValue("");
+    const result = lintFile("/tmp/deploy.sh");
+    expect(result.ok).toBe(true);
+    expect(mockExec).toHaveBeenCalledWith(
+      "bash -n '/tmp/deploy.sh'",
+      expect.objectContaining({ timeout: 10_000 }),
+    );
+  });
+
+  it("routes .bash to bash -n", () => {
+    mockExec.mockReturnValue("");
+    const result = lintFile("/tmp/setup.bash");
+    expect(result.ok).toBe(true);
+    expect(mockExec).toHaveBeenCalledWith(
+      "bash -n '/tmp/setup.bash'",
+      expect.anything(),
+    );
+  });
+
+  it("fails with stderr on syntax error", () => {
+    const err = new Error("exit 1") as Error & { stderr: string };
+    err.stderr = "/tmp/bad.sh: line 5: syntax error near unexpected token `fi'";
+    mockExec.mockImplementation(() => { throw err; });
+    const result = lintFile("/tmp/bad.sh");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("syntax error");
+    }
+  });
+
+  it("skips when bash not found (ENOENT)", () => {
+    mockExec.mockImplementation(() => {
+      throw new Error("spawn bash ENOENT");
+    });
+    expect(lintFile("/tmp/no-bash.sh")).toEqual({ ok: true });
+  });
+
+  it("handles paths with single quotes", () => {
+    mockExec.mockReturnValue("");
+    lintFile("/tmp/it's.sh");
+    expect(mockExec).toHaveBeenCalledWith(
+      expect.stringContaining("it'\\''s"),
+      expect.anything(),
+    );
+  });
+});
+
 // --- extractEsbuildError (tested indirectly) ---
 
 describe("esbuild error extraction", () => {

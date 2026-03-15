@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 235 — Shell Script Linting + System Prompt Accuracy
+
+### Workflow impact
+
+**Scenario**: "User says: 'Write me a deployment script that handles env setup, health checks, and rollback on failure.'"
+
+**Before**: Agent writes deploy.sh via file_write → lint.ts has no bash checker → syntax errors (unclosed if, missing fi) pass silently → agent runs the script → cryptic bash parse error → wastes 2-3 turns debugging what the linter should have caught.
+
+**After**: file_write triggers `bash -n` syntax check → immediate error with line number → agent fixes before ever running → same auto-revert safety as JS/Python edits.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `lint.ts` | +18 lines: `lintShell()` function, `.sh`/`.bash` case routing | Completes linter coverage for the most common scripting language |
+| `lint.test.ts` | +5 tests: routing, syntax error, bash-not-found, single-quote paths | Matches test pattern of existing linters (JS, Python, esbuild) |
+| `system-prompt.ts` | Fix inaccurate "PDFs" in file_read tools; add syntax-check note to file_write | System prompt claimed PDF support that doesn't exist; now accurate |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass.
+
+### Expected effects
+
+- Shell scripts written by the agent get instant syntax validation (same as JS/Python)
+- Broken bash scripts auto-revert instead of being written to disk
+- System prompt no longer claims PDF reading capability
+
+### Future directions
+
+- loop.ts still at 308 lines (over 300-line limit)
+- Could add zsh/fish linting via similar pattern
+- PDF reading would be a valuable capability addition (needs dependency)
+
 ## Iteration 234 — Health Check (All GREEN)
 
 ### Verification of iter 232 (previous improver)

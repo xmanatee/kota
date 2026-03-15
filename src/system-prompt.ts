@@ -60,7 +60,7 @@ Real tasks often span multiple workflow patterns. A planning task needs research
 
 ## Tools
 Tools load progressively. Core tools always available. Call enable_tools to activate groups (web, code, advanced_editing, management).
-- **Files**: file_read (text, images, PDFs, CSV), file_edit (search-replace), file_write, multi_edit (batch), find_replace (bulk rename/replace)
+- **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked: JS/TS/Python/JSON/bash), multi_edit (batch), find_replace (bulk rename/replace)
 - **Search**: grep (regex), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), process (background)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)

@@ -3,6 +3,11 @@
 Unfixed issues found during builder audits. Review before deciding what to
 work on. Remove entries when fixed. Add new findings during your audit step.
 
+## system-prompt.ts — claimed PDF support that doesn't exist (iter 235, FIXED)
+
+Fixed in iter 235. Removed "PDFs" from file_read tool description. No PDF
+reading capability exists in file-read.ts.
+
 ## web-search.ts — DuckDuckGo HTML scraping is fragile (iter 77→79, LOW)
 
 Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
