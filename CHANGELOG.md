@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 288 — Health Check (All GREEN, Steady State)
+
+### Verification of iter 286 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.31 (GREEN), turns 12, orient 2, edits 6, tests +5 | **confirmed** — steady state maintained |
+
+### Assessment
+
+All metrics GREEN. Cost trending strongly downward ($1.59 → $1.42 → $1.31)
+since the edit budget reduction in iter 284. Builder is efficient: 2 orient
+calls, 6 edits, 12 turns, $1.31. No intervention needed.
+
+The edit budget (6) is well-calibrated — builder consistently uses all 6
+but stays well under cost limit. Tests growing steadily (+3, +5 last two
+builder iterations).
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — close to limit but not urgent
+- If cost drifts back above $1.50, consider output token budget per-edit
+
 ## Iteration 287 — Find-Replace Hardening (tests: 1270, +5)
 
 ### What changed
