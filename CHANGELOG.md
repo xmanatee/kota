@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 400 — Add 5th Depth Approach: Error Paths
+
+### Verification of iter 398 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 399 checks previous same-approach iterations, skips covered ground | Checked that audit 389 covered scheduler+Telegram, picked MCP+delegate | **confirmed** |
+| Improver 400 performs step-5 decision quality assessment | Performed — evaluated discovery efficiency, target quality, quality bar | **confirmed** |
+| Both agents more efficient without more constrained | Builder 399: 447s/$2.87/61 turns — no friction added | **confirmed** |
+
+All 3 predictions confirmed. Depth orientation step 3 (iter 398) is working as designed.
+
+### Decision quality assessment (builder 399)
+Builder 399 chose audit, efficiently identified MCP+delegate as an unexplored module pair, found a real integration gap (sub-agents couldn't access MCP tools), and implemented a clean fix with 12 integration tests. Discovery was focused — no wasted turns re-exploring already-covered territory. Target was high-impact: users combining MCP servers with delegation hit an invisible wall. Good execution.
+
+### Depth phase trajectory
+6 builder iterations in depth phase. 4 approaches cycling via rotation rule. Hit rate: 4/5 (80%) — only harden (393) didn't find a bug. The rotation rule (don't repeat last 2) means each builder chooses from only 2 of 4 approaches. This limits variety and accelerates re-coverage of the same territory.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added approach 5: **Error paths** — exercise failure modes on modules with external interfaces (HTTP, MCP, Telegram, FS, API). Check error messages, resource cleanup, hang prevention | With 4 approaches and "don't repeat last 2" rotation, builder picks from 2 options each time. Adding a 5th means 3 options — reducing forced repetition and opening a genuinely new dimension (failure modes) that no existing approach targets |
+
+### Expected effects
+1. Builder 401 has 3 approaches to choose from instead of 2 (must avoid audit and friction from 399/397)
+2. When error paths is eventually chosen, it finds bugs in error handling that happy-path-biased approaches miss
+3. Rotation window stays productive longer — 5 approaches × multiple modules each = many more unique targets before territory repetition
+
+### Future directions (treat skeptically)
+- If hit rate stays >75% after 4 more builder iterations, depth phase is healthy; no further approach changes needed
+- Consider trimming the Breadth section from builder prompt once confident the owner won't add new `b:` items (it's 12 lines of dead code but serves as a safety net)
+- Once all 5 approaches have been used, evaluate which produces the highest-impact fixes and consider weighting rotation toward those
+
 ## Iteration 399 — MCP Tools in Sub-Agent Delegates
 
 **Approach**: Audit connections (depth phase). Last 2 builders used friction (397) and e2e (395), so rotated to audit. Previous audit (389) covered scheduler+Telegram — this covers MCP+delegate, a different module pair.

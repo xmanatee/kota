@@ -102,6 +102,12 @@ Pick ONE of these approaches:
    path through the code. Write an integration test that exercises it, or
    find and fix a gap where modules don't connect properly. This catches
    bugs that no single-module inspection would reveal.
+5. **Error paths**: Pick a module with external interfaces (HTTP, MCP,
+   Telegram, file system, API calls). Exercise its failure modes: malformed
+   input, missing config, network errors, timeouts, partial writes. Check
+   that errors produce clear messages, resources are cleaned up, and no
+   process hangs or data corruption occurs. Write tests for the error paths,
+   or fix broken error handling you find.
 
 **Quality bar**: Your fix must matter to a real user. Before committing to a
 target, state in one sentence why a user would care. "The error message is
