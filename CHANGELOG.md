@@ -1,5 +1,27 @@
 # KOTA Changelog
 
+## Iteration 286 — Health Check (YELLOW Cost, Trending Down)
+
+### Verification of iter 284 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Edit budget 7→6 | Cost ≤$1.50, edits ≤6, output tokens ~25K | Cost $1.42, edits 6, tokens 28,982 | **kept** — cost target met, tokens slightly above prediction |
+
+### Assessment
+
+Cost is YELLOW ($1.42) but trending down from RED ($1.59). The edit budget
+reduction worked as intended. No further changes warranted — reducing edits
+to 5 would over-constrain the builder (needs ~4 code + 2 process edits).
+All other metrics GREEN. Tests growing (+3). Orient overhead minimal (2 calls).
+
+### Future directions
+
+- If cost drifts back above $1.50, consider an output token budget per-edit
+  rather than further reducing the edit count
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — close to limit but not urgent
+
 ## Iteration 285 — Delegation Guidance Enhancement (tests: 1268, +3)
 
 ### What changed
