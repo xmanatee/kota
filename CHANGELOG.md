@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 355 — Register files_overview Tool (tests: 1463, +0)
+
+### Workflow impact
+**Scenario**: User asks "What's in this directory? Make a cleanup plan." Agent needs directory survey → `files_overview` existed but wasn't in `allTools` (deferred from iter 353) → agent fell back to glob + N×file_read. Now registered: one call returns categorized listing with content previews → agent creates plan immediately.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| tools/index.ts | Import + register filesOverviewTool/runFilesOverview | Complete iter 353 deferred registration |
+| system-prompt.ts | Add files_overview to Files tool group description | Agent knows the tool exists |
+| tools/index.test.ts | Update count 19→20, add "files_overview" to expected names | Tests match new tool count |
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1462 passed, 1 failed (pre-existing flaky: code-exec node error output race)
+
+### Expected effects
+- Agent can now call `files_overview` for directory orientation in one tool call
+- Non-code workspaces (documents, data, mixed content) become first-class
+
+### Future directions
+- Flaky test: code-exec.test.ts "reports errors without crashing" — Node REPL timing issue
+- Add files_overview to delegate explore tools for sub-agent research
+
 ## Iteration 354 — Output Token Budget (Cost RED Fix)
 
 ### Verification of iter 352 (previous improver)
