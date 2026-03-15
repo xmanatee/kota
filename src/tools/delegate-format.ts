@@ -121,6 +121,42 @@ export function extractModifiedFiles(
 
 // --- Result assembly ---
 
+/** Check if text already contains a sources/references section with URLs. */
+export function textHasSources(text: string): boolean {
+  if (!text) return false;
+  // Look for a heading-like line containing "source" or "reference" (case-insensitive)
+  // followed by URLs within the next few lines
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const lower = lines[i].toLowerCase();
+    if (
+      (lower.includes("source") || lower.includes("reference")) &&
+      (lower.startsWith("#") || lower.startsWith("-") || lower.startsWith("*") || lower.includes("---"))
+    ) {
+      // Check if any of the next 10 lines contain a URL
+      for (let j = i + 1; j < Math.min(i + 11, lines.length); j++) {
+        if (/https?:\/\//.test(lines[j])) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** Build sources section, skipping URLs if the sub-agent already included them. */
+function buildNonDuplicateSources(
+  lastText: string,
+  urls: readonly string[],
+  queries: readonly string[],
+): string {
+  if (textHasSources(lastText)) {
+    // Sub-agent already included sources — only add search queries if any
+    return queries.length > 0
+      ? buildSourcesSection([], queries)
+      : "";
+  }
+  return buildSourcesSection(urls, queries);
+}
+
 /** Assemble a complete delegation result with metadata, content, sources, and images. */
 export function assembleDelegateResult(
   lastText: string,
@@ -129,14 +165,16 @@ export function assembleDelegateResult(
   images: ToolResultBlock[],
 ): ToolResult {
   const metaLine = formatMetadata(meta);
-  const sources = buildSourcesSection(meta.urlsFetched, meta.searchQueries);
 
   if (!lastText && modifiedFiles.size === 0) {
+    const sources = buildSourcesSection(meta.urlsFetched, meta.searchQueries);
     return buildDelegateResult(
       `${metaLine}\nSub-agent completed without producing a response.${sources}`,
       images,
     );
   }
+
+  const sources = buildNonDuplicateSources(lastText, meta.urlsFetched, meta.searchQueries);
 
   if (meta.mode === "execute" && modifiedFiles.size > 0) {
     const fileList = [...modifiedFiles].map((f) => `  - ${f}`).join("\n");

@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 321 — Fix Source Duplication in Delegate Research Results (tests: 1360, +10)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate-format.ts` | Added `textHasSources()` detection + `buildNonDuplicateSources()` to skip metadata sources when sub-agent already includes them | Explore prompt (iter 319) tells sub-agent to include "sources with URLs", but `assembleDelegateResult` also appended `--- Sources ---` from metadata — creating duplicate source listings |
+| `delegate-format.test.ts` | +10 tests: 5 for `textHasSources`, 5 cross-module tests for source deduplication in `assembleDelegateResult` | Verify deduplication works across heading styles, empty text, and queries-only fallback |
+
+### Workflow impact
+
+**Scenario**: "Compare Asana, Linear, and Monday.com for a 15-person team — pricing, features, integrations."
+- Tools: delegate(explore) → web_search × 2-3 → web_fetch × N → structured response → assembleDelegateResult
+- **Before**: Sub-agent follows EXPLORE_PROMPT and writes `## Sources\n- https://asana.com/pricing\n- https://linear.app/pricing`. Then `assembleDelegateResult` appends `--- Sources (2) ---\n  https://asana.com/pricing\n  https://linear.app/pricing`. User sees the same URLs twice.
+- **After**: `textHasSources()` detects the sub-agent's sources section. `buildNonDuplicateSources` skips URL listing but still appends search queries (which sub-agent doesn't include). Single clean sources section.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1360/1360 pass (+10 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Research delegation results should no longer show duplicate source URLs
+- Search queries still appear as metadata (separate from sub-agent sources)
+- No behavior change when sub-agent doesn't include a sources section
+
+### Future directions
+- EXECUTE_PROMPT could get similar quality alignment as EXPLORE_PROMPT (iter 319 only covered explore)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 320 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 318 (previous improver)

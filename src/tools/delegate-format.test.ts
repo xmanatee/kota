@@ -6,6 +6,7 @@ import {
   collectImageBlocks,
   extractModifiedFiles,
   assembleDelegateResult,
+  textHasSources,
 } from "./delegate-format.js";
 import type { DelegateMetadata, CompletionReason } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";
@@ -311,5 +312,93 @@ describe("assembleDelegateResult", () => {
     expect(result.content).toContain("hit turn limit");
     expect(result.content).toContain("Partial findings...");
     expect(result.content).toContain("Sources (1)");
+  });
+
+  it("skips metadata sources when sub-agent text already has a sources section", () => {
+    const subAgentText = [
+      "## Executive Summary",
+      "Asana is best for large teams.",
+      "",
+      "## Sources",
+      "- https://asana.com/pricing (2025-12)",
+      "- https://linear.app/pricing (2025-11)",
+    ].join("\n");
+    const meta = makeMeta({
+      urlsFetched: ["https://asana.com/pricing", "https://linear.app/pricing"],
+      searchQueries: ["project management tool comparison"],
+    });
+    const result = assembleDelegateResult(subAgentText, meta, new Set(), []);
+    // Should NOT have the metadata "--- Sources (2) ---" section
+    expect(result.content).not.toContain("--- Sources (2) ---");
+    // But should still append search queries
+    expect(result.content).toContain("Search queries (1)");
+    expect(result.content).toContain('"project management tool comparison"');
+  });
+
+  it("still appends metadata sources when sub-agent text has no sources section", () => {
+    const subAgentText = "Asana costs $10.99/user/month for Premium.";
+    const meta = makeMeta({
+      urlsFetched: ["https://asana.com/pricing"],
+      searchQueries: [],
+    });
+    const result = assembleDelegateResult(subAgentText, meta, new Set(), []);
+    expect(result.content).toContain("--- Sources (1) ---");
+    expect(result.content).toContain("https://asana.com/pricing");
+  });
+
+  it("handles sub-agent text with markdown references section", () => {
+    const subAgentText = [
+      "Analysis complete.",
+      "",
+      "### References",
+      "- https://docs.example.com/api",
+    ].join("\n");
+    const meta = makeMeta({
+      urlsFetched: ["https://docs.example.com/api"],
+    });
+    const result = assembleDelegateResult(subAgentText, meta, new Set(), []);
+    expect(result.content).not.toContain("--- Sources (1) ---");
+  });
+
+  it("appends sources for empty response even if keyword 'source' appears", () => {
+    // Empty lastText should always get metadata sources
+    const meta = makeMeta({
+      urlsFetched: ["https://example.com"],
+    });
+    const result = assembleDelegateResult("", meta, new Set(), []);
+    expect(result.content).toContain("--- Sources (1) ---");
+  });
+});
+
+// --- textHasSources ---
+
+describe("textHasSources", () => {
+  it("returns false for empty text", () => {
+    expect(textHasSources("")).toBe(false);
+  });
+
+  it("detects markdown heading with sources and URLs", () => {
+    const text = "## Sources\n- https://example.com\n- https://other.com";
+    expect(textHasSources(text)).toBe(true);
+  });
+
+  it("detects references heading with URLs", () => {
+    const text = "### References\nhttps://docs.example.com";
+    expect(textHasSources(text)).toBe(true);
+  });
+
+  it("detects dashed source heading", () => {
+    const text = "--- Sources ---\n  https://a.com";
+    expect(textHasSources(text)).toBe(true);
+  });
+
+  it("returns false when source heading has no URLs nearby", () => {
+    const text = "## Sources\nNo sources were found for this query.";
+    expect(textHasSources(text)).toBe(false);
+  });
+
+  it("returns false for plain text mentioning 'source' without heading format", () => {
+    const text = "The source of truth is the database. See https://example.com";
+    expect(textHasSources(text)).toBe(false);
   });
 });
