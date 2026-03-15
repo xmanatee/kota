@@ -50,8 +50,8 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("stays under 8200 characters to keep token cost manageable", () => {
-    // ~8200 chars ≈ ~2050 tokens, cached at 0.1x. Budget raised for checkpoint guidance + notebook.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(8200);
+    // ~8500 chars ≈ ~2125 tokens, cached at 0.1x. Budget raised for delegation guidance.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(8500);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -158,6 +158,30 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("destructive commands");
     expect(SYSTEM_PROMPT).toContain("ask_user");
     expect(SYSTEM_PROMPT).toContain("outside the project directory");
+  });
+
+  it("delegation section includes task description and parallel research patterns", () => {
+    expect(SYSTEM_PROMPT).toContain("Task descriptions");
+    expect(SYSTEM_PROMPT).toContain("output format");
+    expect(SYSTEM_PROMPT).toContain("Parallel research");
+    expect(SYSTEM_PROMPT).toContain("explore delegates");
+    expect(SYSTEM_PROMPT).toContain("synthesize");
+  });
+
+  it("delegate tool schema has mode parameter with explore/execute matching prompt", () => {
+    const delegate = allTools.find((t) => t.name === "delegate")!;
+    expect(delegate).toBeDefined();
+    const props = delegate.input_schema.properties as Record<string, unknown>;
+    expect(props).toHaveProperty("mode");
+    const mode = props.mode as { enum?: string[] };
+    expect(mode.enum).toContain("explore");
+    expect(mode.enum).toContain("execute");
+  });
+
+  it("delegate tool has task parameter for structured handoff", () => {
+    const delegate = allTools.find((t) => t.name === "delegate")!;
+    const props = delegate.input_schema.properties as Record<string, unknown>;
+    expect(props).toHaveProperty("task");
   });
 
   // Cross-module integration tests — verify prompt guidance matches tool schemas

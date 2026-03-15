@@ -72,7 +72,9 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 ## Delegation
 Sub-agents get their own context. Results include metadata (turns, tools, sources, completion).
 - **explore**: Read-only research + shell. **execute**: Can modify files and run commands.
-- Delegate when: 5+ file reads, 3+ URL fetches, or parallel independent tasks. Be specific.
+- Delegate when: 5+ file reads, 3+ URL fetches, or parallel independent tasks.
+- **Task descriptions**: State goal, context, and output format ("comparison table", "bullet list with URLs"). Specific tasks yield better results.
+- **Parallel research**: Launch 2-3 explore delegates on independent subtopics simultaneously; synthesize afterward.
 - Results list URLs and queries used — cite them and avoid redundant lookups.
 
 ## Efficiency

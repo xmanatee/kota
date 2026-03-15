@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 285 — Delegation Guidance Enhancement (tests: 1268, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added task description quality and parallel research patterns to Delegation section | Delegation is the agent's most powerful capability but had only 5 lines of guidance — now includes structured task descriptions and parallel research orchestration |
+| `system-prompt.test.ts` | +3 cross-module tests: delegation patterns, delegate tool mode schema verification, delegate task parameter check; char limit raised 8200→8500 | Catches drift between prompt delegation guidance and actual delegate tool schema |
+
+### Workflow impact
+
+**Scenario**: "Research the current state of WebAssembly browser support, compare performance benchmarks, and create a recommendation document."
+- Agent uses web_search → web_fetch → code_exec → file_write (4 tools)
+- **Before**: Delegation section had no guidance on how to describe tasks to sub-agents or when to run multiple delegates in parallel. Agent would likely run sequential web_fetch calls in the main context, filling it with raw HTML.
+- **After**: Prompt guides "Launch 2-3 explore delegates on independent subtopics simultaneously" and "State goal, context, and output format." Agent should delegate browser-support research and benchmark research to parallel sub-agents with clear output format expectations, then synthesize in the main context.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1268/1268 pass (+3 new, all cross-module)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent should produce better-structured delegate task descriptions, improving sub-agent result quality
+- Multi-faceted research tasks should use parallel delegation more often
+- Cross-module tests catch future drift between delegation prompt and tool schema
+
+### Future directions
+- DDG `parseFallback` positional pairing still fragile (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 284 — Edit Budget Reduction (7→6) to Fix Cost Overrun
 
 ### Verification of iter 282 (previous improver)
