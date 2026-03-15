@@ -54,7 +54,7 @@ describe("runArchitectStep", () => {
 
   it("passes maxTokens and editorModel to editor loop", async () => {
     mockArchitectPass.mockResolvedValue("Plan");
-    mockEditorLoop.mockResolvedValue("Done");
+    mockEditorLoop.mockResolvedValue({ text: "Done", modifiedFiles: [] });
     await runArchitectStep(
       makeConfig({
         model: "architect-m",
@@ -70,14 +70,15 @@ describe("runArchitectStep", () => {
 
   it("uses editor result as lastResult when available", async () => {
     mockArchitectPass.mockResolvedValue("Plan");
-    mockEditorLoop.mockResolvedValue("Editor output");
+    mockEditorLoop.mockResolvedValue({ text: "Editor output", modifiedFiles: ["a.ts"] });
     const result = await runArchitectStep(makeConfig());
     expect(result!.lastResult).toBe("Editor output");
+    expect(result!.modifiedFiles).toEqual(["a.ts"]);
   });
 
   it("falls back to plan when editor returns empty", async () => {
     mockArchitectPass.mockResolvedValue("The plan");
-    mockEditorLoop.mockResolvedValue("");
+    mockEditorLoop.mockResolvedValue({ text: "", modifiedFiles: [] });
     const result = await runArchitectStep(makeConfig());
     expect(result!.lastResult).toBe("The plan");
   });
@@ -85,7 +86,7 @@ describe("runArchitectStep", () => {
   it("truncates plan to 500 chars in summary", async () => {
     const longPlan = "A".repeat(600);
     mockArchitectPass.mockResolvedValue(longPlan);
-    mockEditorLoop.mockResolvedValue("Done");
+    mockEditorLoop.mockResolvedValue({ text: "Done", modifiedFiles: [] });
     const result = await runArchitectStep(makeConfig());
     expect(result!.summary).toContain("A".repeat(500));
     expect(result!.summary).not.toContain("A".repeat(501));
@@ -93,7 +94,7 @@ describe("runArchitectStep", () => {
 
   it("includes editor result in summary when present, omits when absent", async () => {
     mockArchitectPass.mockResolvedValue("Plan");
-    mockEditorLoop.mockResolvedValue("Completed refactoring");
+    mockEditorLoop.mockResolvedValue({ text: "Completed refactoring", modifiedFiles: ["x.ts"] });
     const withEditor = await runArchitectStep(makeConfig());
     expect(withEditor!.summary).toContain(
       "Editor result: Completed refactoring",
@@ -101,7 +102,7 @@ describe("runArchitectStep", () => {
 
     vi.clearAllMocks();
     mockArchitectPass.mockResolvedValue("Plan");
-    mockEditorLoop.mockResolvedValue(null);
+    mockEditorLoop.mockResolvedValue({ text: "", modifiedFiles: [] });
     const withoutEditor = await runArchitectStep(makeConfig());
     expect(withoutEditor!.summary).not.toContain("Editor result:");
   });

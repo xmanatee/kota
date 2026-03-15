@@ -159,6 +159,7 @@ export class AgentSession {
       });
       if (result) {
         lastResult = result.lastResult;
+        for (const f of result.modifiedFiles) this.verifyTracker.recordEdit(f);
         this.context.addAssistantText(result.summary);
         this.context.addUserMessage(
           "The architect/editor has made changes. " +

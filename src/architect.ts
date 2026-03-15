@@ -82,7 +82,14 @@ export type EditorOptions = {
   verbose?: boolean;
 };
 
-export async function runEditorLoop(opts: EditorOptions): Promise<string> {
+export type EditorResult = {
+  text: string;
+  modifiedFiles: string[];
+};
+
+const EDIT_TOOL_NAMES = new Set(["file_edit", "file_write", "multi_edit"]);
+
+export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> {
   const { client, model, maxTokens, plan, costTracker, verbose } = opts;
   if (verbose) console.error("[kota] Editor pass — executing plan...");
 
@@ -96,6 +103,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<string> {
     { role: "user", content: plan },
   ];
   let lastText = "";
+  const modifiedFiles = new Set<string>();
 
   for (let turn = 0; turn < MAX_EDITOR_TURNS; turn++) {
     let response: Anthropic.Message;
@@ -156,18 +164,34 @@ export async function runEditorLoop(opts: EditorOptions): Promise<string> {
       }),
     );
 
+    const filtered = results.filter((r): r is NonNullable<typeof r> => r !== null);
+
+    // Track modified files from successful edit tool calls
+    for (const block of toolBlocks) {
+      if (block.type !== "tool_use") continue;
+      const res = filtered.find((r) => r.tool_use_id === block.id);
+      if (res && !res.is_error && EDIT_TOOL_NAMES.has(block.name)) {
+        const input = block.input as Record<string, unknown>;
+        if (block.name === "multi_edit") {
+          const edits = input.edits as Array<{ file_path?: string }> | undefined;
+          if (edits) for (const e of edits) { if (e.file_path) modifiedFiles.add(e.file_path); }
+        } else {
+          const p = (input.path as string) || "";
+          if (p) modifiedFiles.add(p);
+        }
+      }
+    }
+
     messages.push({
       role: "user",
-      content: results
-        .filter((r): r is NonNullable<typeof r> => r !== null)
-        .map((r) => ({
-          type: "tool_result" as const,
-          tool_use_id: r.tool_use_id,
-          content: r.content,
-          is_error: r.is_error,
-        })),
+      content: filtered.map((r) => ({
+        type: "tool_result" as const,
+        tool_use_id: r.tool_use_id,
+        content: r.content,
+        is_error: r.is_error,
+      })),
     });
   }
 
-  return lastText;
+  return { text: lastText, modifiedFiles: [...modifiedFiles] };
 }

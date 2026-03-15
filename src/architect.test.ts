@@ -188,7 +188,7 @@ describe("runEditorLoop", () => {
       client, model: "test", maxTokens: 1000, plan: "Edit the file",
     });
 
-    expect(result).toBe("All changes complete.");
+    expect(result).toEqual({ text: "All changes complete.", modifiedFiles: [] });
   });
 
   it("executes tools and continues until model stops", async () => {
@@ -207,7 +207,7 @@ describe("runEditorLoop", () => {
     });
 
     expect(mockExecuteTool).toHaveBeenCalledWith("file_read", { path: "test.ts" });
-    expect(result).toBe("Done editing.");
+    expect(result).toEqual({ text: "Done editing.", modifiedFiles: [] });
     expect(client.messages.stream).toHaveBeenCalledTimes(2);
   });
 
@@ -351,7 +351,7 @@ describe("runEditorLoop", () => {
       client, model: "test", maxTokens: 1000, plan: "test",
     });
 
-    expect(result).toBe("");
+    expect(result).toEqual({ text: "", modifiedFiles: [] });
   });
 
   it("re-throws non-context errors", async () => {

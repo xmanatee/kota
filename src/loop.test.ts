@@ -482,7 +482,7 @@ describe("AgentSession", () => {
     it("runs architect then editor pass before main loop", async () => {
       session = new AgentSession({ architectMode: true });
       mockArchitectPass.mockResolvedValueOnce("Step 1: create file...");
-      mockEditorLoop.mockResolvedValueOnce("Created file.ts");
+      mockEditorLoop.mockResolvedValueOnce({ text: "Created file.ts", modifiedFiles: ["file.ts"] });
       mockStreamMessage.mockResolvedValueOnce(textResponse("verified"));
 
       const result = await session.send("implement feature");

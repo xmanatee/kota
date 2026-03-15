@@ -21,6 +21,7 @@ export type ArchitectStepConfig = {
 export type ArchitectStepResult = {
   lastResult: string;
   summary: string;
+  modifiedFiles: string[];
 };
 
 /**
@@ -52,9 +53,10 @@ export async function runArchitectStep(
   });
 
   return {
-    lastResult: editorResult || plan,
+    lastResult: editorResult.text || plan,
     summary:
       `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
-      (editorResult ? `\n\nEditor result: ${editorResult}` : ""),
+      (editorResult.text ? `\n\nEditor result: ${editorResult.text}` : ""),
+    modifiedFiles: editorResult.modifiedFiles,
   };
 }

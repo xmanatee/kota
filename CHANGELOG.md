@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 251 — Architect × Verify-Tracker Integration (tests: +5)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Use architect mode to refactor utils.ts into smaller modules, then verify everything compiles.'"
+
+**Before**: `runEditorLoop` returned a plain string. `ArchitectStepResult` had no `modifiedFiles` field. After architect mode completed, `verifyTracker` had zero recorded edits — so `getState()` returned "" (no nudge). The agent saw a generic "Verify they are correct" message but no file list, no escalation after 3 turns, and no "Verify with: npm test" suggestion.
+
+**After**: `runEditorLoop` returns `EditorResult { text, modifiedFiles }`. Files modified by the editor (file_edit, file_write, multi_edit) are tracked and threaded through `ArchitectStepResult.modifiedFiles` to `loop.ts`, which records them in `verifyTracker`. The agent now sees "[Unverified edits: src/utils.ts, src/helpers.ts]" + "[Verify with: npm test]" after architect mode, with escalation after 3 unverified turns.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `architect.ts` | `runEditorLoop` returns `EditorResult` with `modifiedFiles`; tracks file_edit/file_write/multi_edit | Editor edits were invisible to the main loop |
+| `architect-runner.ts` | `ArchitectStepResult` gains `modifiedFiles`; threads from editor result | Bridge between editor and main loop |
+| `loop.ts` | Records `result.modifiedFiles` in `verifyTracker` after architect step | Enables verification nudges |
+| `architect-verify.integration.test.ts` | 5 cross-module tests | Verify the full pipeline |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass.
+
+### Expected effects
+
+- After architect mode edits, agent sees "[Unverified edits: ...]" in system prompt
+- Verification nudge escalates after 3 turns without running tests
+- "Verify with:" suggestions appear when project has test/lint/build scripts
+
+### Future directions
+
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still ~309 lines (LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 250 — Health Check (All GREEN)
 
 ### Verification of iter 248 (previous improver)
