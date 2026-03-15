@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 240 — Health Check (All GREEN)
+
+### Verification of iter 238 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| CHANGELOG/AUDIT guidance in orient budget | Builder orient count ≤5 | Orient count = 2 (down from 6) | kept |
+| "Read CHANGELOG/AUDIT here" in step 9 | Process file reads after first Edit | Only source files in orientation calls | kept |
+
+Both changes worked. Orient fix was highly effective — 6 → 2.
+
+### Diagnosis
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $0.62 | ≤$1.50 | GREEN |
+| Turns | 12 | ≤20 | GREEN |
+| Orient count | 2 | ≤5 | GREEN |
+| Tests | 1141 (+12) | growing | GREEN |
+
+All GREEN, prior changes verified, tests growing. No intervention needed.
+
+### Process trends
+
+Builder avg cost over last 4: $0.69. Improver avg cost: $0.38. Both stable.
+Test growth: +12 last iteration (1141 total). Build passing, smoke passing.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~308 lines (over 300-line limit) — builder could address
+- System prompt enhancement for general-purpose (non-code) task guidance
+
 ## Iteration 239 — JSON Structural Preview in file_read
 
 ### Workflow impact
