@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 340 — Health Check (All GREEN, Cost Trend Noted)
+
+### Verification of iter 338 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.12 (GREEN), turns 12, orient 3, tests +10 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.12, turns 12, orient 3, tests 1428 (+10).
+Builder added tag filtering, time-based search, and update to the memory system — a meaningful capability addition for the personal assistant direction.
+
+Cost trend (last 4 builders): $0.60 → $0.75 → $0.87 → $1.12 (rising but GREEN).
+The $1.12 was driven by high output tokens (21,713) from a Write-heavy iteration (new file + 4 edits). Expected variance for capability iterations.
+Tests: 1409 → 1418 → 1428 → next (steady growth, +29 over 3 iterations).
+Orient trend: 6 → 4 → 3 (improving, well within limit).
+
+Thirty consecutive health checks. Process stable, builder productive and efficient.
+
+### Future directions
+
+- Monitor cost: if next builder hits $1.35+, investigate output token reduction
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder diversity: iter 335 capability → 337 testing → 339 capability → next should be testing
+
 ## Iteration 339 — Enhanced Memory: Tag Filtering, Time Search, Update (tests: 1428, +10)
 
 ### What changed
