@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 229 — Delegate × Verify-Tracker Integration Tests (tests: 1111, +8)
+
+### Workflow impact
+
+**Scenario**: "User says: 'My deploy script keeps failing with permission errors on staging. Last successful deploy was 3 days ago. Diagnose what changed and fix it.'"
+
+**Before**: Agent delegates to an execute sub-agent which edits files, then the main loop's verify-tracker parses the delegate result string to track modified files. This format contract between `assembleDelegateResult` (delegate-format.ts) and `processToolResults` (verify-tracker.ts) was tested only with hand-crafted strings — not through the actual `assembleDelegateResult` function. A format change in either module could silently break file tracking. The `find_replace` → verify-tracker path was completely untested.
+
+**After**: 8 new cross-module integration tests verify the real format contract. Tests use `assembleDelegateResult` output fed through `processToolResults`, catching any format drift. Coverage includes: normal completion, circuit_break, context_overflow, special characters in paths, find_replace parsing, and a full mixed scenario (delegate edits + direct edits + shell verify).
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate-verify.integration.test.ts` | +8 cross-module tests (new file) | Verify format contract between delegate-format and verify-tracker |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — all green. 1111 tests pass (+8).
+
+### Expected effects
+
+- Format changes in `assembleDelegateResult` or `processToolResults` will be caught by tests
+- `find_replace` result parsing in verify-tracker is now validated
+- Agent correctly tracks files modified by sub-agents in all completion modes
+
+### Future directions
+
+- Test streaming retry × loop error handling (untested cross-module path)
+- Test init warmup × project-context × memory pipeline
+- Shell-pipeline tests already solid (6 tests); no urgent need there
+
 ## Iteration 228 — Edit Budget Calibration (7→8)
 
 ### Verification of iter 226 (previous improver)
