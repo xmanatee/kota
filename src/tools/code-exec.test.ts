@@ -338,4 +338,45 @@ ModuleNotFoundError: No module named 'pandas'`;
       expect(result.content).toContain("2");
     }, 10000);
   });
+
+  describe("venv-aware auto-install (cross-module: repl-session × code-exec)", () => {
+    it("detectPackageHint uses venv binary in install command", () => {
+      const output = "ModuleNotFoundError: No module named 'pandas'";
+      const venvBin = "/project/.venv/bin/python";
+      expect(detectPackageHint(output, "python", venvBin)).toBe(
+        "Tip: Install the missing package with shell: /project/.venv/bin/python -m pip install pandas",
+      );
+    });
+
+    it("detectPackageHint falls back to pip for system python3", () => {
+      const output = "ModuleNotFoundError: No module named 'numpy'";
+      expect(detectPackageHint(output, "python", "python3")).toBe(
+        "Tip: Install the missing package with shell: pip install numpy",
+      );
+    });
+
+    it("detectPackageHint defaults to standard pip without binary arg", () => {
+      const output = "ModuleNotFoundError: No module named 'flask'";
+      expect(detectPackageHint(output, "python")).toBe(
+        "Tip: Install the missing package with shell: pip install flask",
+      );
+    });
+
+    it("findPythonBinary result flows into detectPackageHint for non-venv path", async () => {
+      // Cross-module: findPythonBinary from repl-session feeds into detectPackageHint
+      const { findPythonBinary } = await import("../repl-session.js");
+      const bin = findPythonBinary("/nonexistent/path/no/venv/here");
+      const output = "ModuleNotFoundError: No module named 'requests'";
+      const hint = detectPackageHint(output, "python", bin);
+      // No venv exists → falls back to python3 → standard pip command
+      expect(hint).toBe("Tip: Install the missing package with shell: pip install requests");
+    });
+
+    it("node hint unchanged by python binary", () => {
+      const output = "Error: Cannot find module 'express'";
+      expect(detectPackageHint(output, "node", "/some/.venv/bin/python")).toBe(
+        "Tip: Install the missing package with shell: npm install express",
+      );
+    });
+  });
 });

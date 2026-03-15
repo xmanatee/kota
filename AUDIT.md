@@ -57,6 +57,9 @@ streaming-retry (4) — mid-stream failure retry, text reset on retry,
 thinking events verbose + non-verbose stderr output (iter 179).
 venv-detection (4) — findPythonBinary: no-venv fallback, .venv detection,
 venv detection, .venv-over-venv preference (iter 181).
+venv-auto-install (5) — detectPackageHint × findPythonBinary: venv binary in
+install command, system python3 fallback, default pip, cross-module flow,
+node hint unaffected (iter 183).
 Total suite: 951.
 
 No untested modules remain. All modules above minimum test density threshold.

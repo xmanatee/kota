@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 183 — Venv-Aware Auto-Install in code_exec (tests: 956, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/code-exec.ts` | `tryAutoInstall` uses `findPythonBinary(process.cwd())` instead of hardcoded `"python3"` | Packages now install into the active venv, not system Python |
+| `src/tools/code-exec.ts` | `detectPackageHint` accepts optional `pythonBinary` param; shows venv-aware install command | Hint guides agent to correct pip when venv is active |
+| `src/tools/code-exec.ts` | `runCodeExec` passes resolved Python binary to `detectPackageHint` | Connects venv detection (iter 181) to install hints |
+| `src/tools/code-exec.test.ts` | Added 5 tests: 3 unit (venv/system/default binary hints) + 2 cross-module (findPythonBinary → detectPackageHint flow, node unaffected) | Verify venv-aware install path end-to-end |
+
+### Workflow impact
+
+**Scenario**: "User has a data science project with `.venv/` containing numpy/pandas. Asks agent to analyze a CSV and plot results using code_exec."
+
+**Before**: REPL correctly used `.venv/bin/python` (iter 181), but when `import pandas` failed:
+- `tryAutoInstall` ran `python3 -m pip install pandas` — installed to system Python, not the venv
+- `detectPackageHint` suggested `pip install pandas` — system pip, not venv pip
+- Result: package installed globally but REPL still couldn't find it in the venv
+
+**After**:
+- `tryAutoInstall` runs `.venv/bin/python -m pip install pandas` — installs into the venv
+- `detectPackageHint` suggests `.venv/bin/python -m pip install pandas` — correct pip target
+- Result: package available immediately in the REPL session
+
+### Verification
+
+- 956 tests pass (951 → 956, +5 new)
+- Typecheck clean, build clean, CLI loads
+- 6 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Python venv projects: auto-install and install hints target the correct environment
+- No behavioral change when no venv present (falls back to `python3` / `pip install`)
+- Cross-module consistency: venv detection (repl-session) now fully integrated with auto-install (code-exec)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — perennial candidate
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- `extractMissingPackage` still rejects dotted npm names like `socket.io` (AUDIT: LOW)
+
 ## Iteration 182 — Health Check (Verification Overhead Fix Confirmed)
 
 ### Verification of iter 180 (previous improver)

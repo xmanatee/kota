@@ -5,7 +5,7 @@ import { which } from "../runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { extractPlots, readPlotFiles } from "../plot-capture.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../code-wrappers.js";
-import { type Language, type REPLSession, sessions, cleanupSessions } from "../repl-session.js";
+import { type Language, type REPLSession, sessions, cleanupSessions, findPythonBinary } from "../repl-session.js";
 
 export { cleanupSessions };
 
@@ -93,7 +93,8 @@ export async function runCodeExec(
         `\n[truncated — ${cleanOutput.length} chars total]`
       : cleanOutput;
 
-  const hint = detectPackageHint(truncated, language);
+  const pyBin = language === "python" ? findPythonBinary(process.cwd()) : undefined;
+  const hint = detectPackageHint(truncated, language, pyBin);
   const content = hint ? `${truncated}\n\n${hint}` : truncated;
 
   const imageBlocks = readPlotFiles(plotPaths);
@@ -109,12 +110,15 @@ export async function runCodeExec(
 }
 
 /** Detect missing package errors and suggest install commands. */
-export function detectPackageHint(output: string, language: Language): string | null {
+export function detectPackageHint(output: string, language: Language, pythonBinary?: string): string | null {
   if (language === "python") {
     const match = output.match(/ModuleNotFoundError: No module named '([^']+)'/);
     if (match) {
       const pkg = match[1].split(".")[0];
-      return `Tip: Install the missing package with shell: pip install ${pkg}`;
+      const installCmd = pythonBinary && pythonBinary !== "python3"
+        ? `${pythonBinary} -m pip install ${pkg}`
+        : `pip install ${pkg}`;
+      return `Tip: Install the missing package with shell: ${installCmd}`;
     }
   } else {
     const match = output.match(/Cannot find module '([^']+)'/);
@@ -160,7 +164,8 @@ async function tryAutoInstall(
 ): Promise<{ output: string; isError: boolean } | null> {
   try {
     if (language === "python") {
-      await execFileP("python3", ["-m", "pip", "install", "--quiet", pkg], {
+      const bin = findPythonBinary(process.cwd());
+      await execFileP(bin, ["-m", "pip", "install", "--quiet", pkg], {
         timeout: 60_000,
       });
     } else {
