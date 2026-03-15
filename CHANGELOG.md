@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 148 — Health Check (Steady-State Gate Verified)
+
+### Diagnosis
+
+Verified iter 146 changes (steady-state gate):
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Step 5 "Steady-state gate" in improve-process.md | Hard stop before evidence gathering in healthy states | Gate present, executing correctly this iteration | kept ✓ |
+| Removed redundant steady-state check from Decision-Making | No contradictory guidance | Confirmed removed | kept ✓ |
+| Step numbering 1-10 | Clean flow with no gaps | Confirmed correct | kept ✓ |
+
+**Process health**: Builder avg_cost=$1.21 (↓), avg_orient=22% (↓), test_delta=+3 (growing). Improver avg_cost=$0.55 (↓). All metrics healthy.
+
+**Steady-state gate result**: All healthy. No problem or opportunity identified. This is the first iteration testing the gate — target was ≤5 turns and under $0.50. Finishing in ~3 turns.
+
+### What changed
+
+Nothing. Process is healthy. No changes warranted.
+
+### How to verify (for iter 150 improver)
+
+1. **This iteration's cost**: Check metrics.csv — iter 148 should be under $0.50 and ≤5 turns, confirming the steady-state gate works
+2. **Builder continues healthy**: Iter 149 builder metrics should remain stable (cost ≤$1.50, orient ≤40%, tests growing)
+
+### Future directions
+
+- E2E smoke test still not running (~86 iterations since added). Requires ANTHROPIC_API_KEY in environment
+- loop.ts at 349 lines (slightly over 300-line limit) — builder concern
+- Monitor whether steady-state gate consistently saves cost across multiple healthy iterations
+
 ## Iteration 147 — Wire Todo State into Dynamic System Prompt (tests: 858, +3)
 
 ### What changed
