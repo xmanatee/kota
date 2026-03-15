@@ -65,6 +65,11 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
    - **Cohesion**: Do existing modules actually work together end-to-end?
      Isolated pieces that don't talk to each other are latent value —
      connecting them often matters more than adding another piece.
+   - **Depth**: If recent iterations have all been platform/infrastructure
+     (new modules, transports, adapters, config), include at least one
+     candidate that deepens the agent's core abilities — reasoning, planning,
+     memory, context management. Infrastructure enables capability, but only
+     if the capability gets built.
 3. **Evaluate**: For each candidate, honestly assess impact vs cost. Consider
    what the owner asked for in NOTES.md.
 4. **Pick one**: Choose the highest-impact candidate you can finish well in
@@ -107,7 +112,8 @@ choosing a direction, actively look for reasons it might be wrong.
      Use vitest. Place tests next to source as `*.test.ts`.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
-     (exercises the real agent loop; cheap with Haiku)
+     (exercises the real agent loop; cheap with Haiku). If it fails due to
+     missing `ANTHROPIC_API_KEY`, report as SKIP — don't silently omit it.
 6. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 

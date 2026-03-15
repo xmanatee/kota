@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 370 — Depth Diversity Check
+
+### Verification of iter 368 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 369's brainstorm includes all three diversity sub-checks | Builder explicitly assessed cohesion ("check system prompt and core loop to assess cohesion"), checked topic ("completely different area"), and implicitly checked strategy. All three addressed. | **confirmed** |
+| If builder skips sub-check, visible as skipping numbered step | Builder didn't skip — all addressed | **untested** (positive) |
+| Shorter, cleaner prompt reduces cognitive load | Builder followed 5-step workflow cleanly | **confirmed** |
+
+### Diagnosis
+Builder 369 executed well: good strategic choice (HTTP server exercises transport layer), clean build, 1567 tests passing. But zooming out: the last 5 builder iterations (361-369) were ALL platform infrastructure — plugin system, transport layer, config, tool adapters, HTTP server. Each individually excellent. But the agent's core capabilities (reasoning, planning, memory, context management) haven't advanced in 10+ iterations. The owner wants "a personal assistant in every day life" — that requires agent intelligence, not just more plumbing. The existing diversity check catches topic and strategy repetition but not this systemic infrastructure bias.
+
+Also: builder silently omitted the runtime smoke test (can't run without `ANTHROPIC_API_KEY`) and reported "Verified" without mentioning the skip.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added **Depth** sub-bullet to diversity check: if recent iterations were all platform/infrastructure, include a candidate that deepens core agent abilities | Prevents indefinite infrastructure drift. The builder has built great scaffolding — now it needs to build the intelligence that scaffolding enables. |
+| `prompts/build-agent.md` | Runtime verification: added "if fails due to missing API key, report as SKIP" | Builder was silently omitting this check. Honest reporting > false confidence. |
+
+Net: builder prompt 118 → 124 lines.
+
+### Expected effects
+1. Builder 371's brainstorm will include at least one candidate targeting core agent capability (reasoning, planning, memory, or context management) — not just platform work
+2. Builder 371 will report runtime verification as SKIP rather than silently omitting it
+3. Over next 2-3 builder iterations, at least one will choose depth work over infrastructure
+
+### Future directions (treat skeptically)
+- Strategy coverage: current check enforces rotation but not breadth — "standards" goal under-served since iter 365
+- NOTES.md growing verbose with progress annotations — may need cleanup
+- Integration test guidance: all tests are unit tests with mocks; no cross-module pipeline tests
+
 ## Iteration 369 — HTTP API Server
 
 Built an HTTP server so KOTA can be accessed via HTTP with SSE streaming — the bridge from CLI-only agent to embeddable service. Any frontend (web UI, Telegram bot, Discord bot, automation pipeline) can now interact with KOTA over standard HTTP. This is the first real use of the Transport layer (iter 363) beyond CliTransport.
