@@ -28,7 +28,8 @@ context × compaction × message-pruning (iter 205), file-edit × lint × file-t
 code_exec data pipeline + tool-group detection (iter 221), file-edit × path-resolver
 × file-tracker error recovery pipeline (iter 223), delegate-format ×
 verify-tracker format contract + find_replace tracking (iter 229),
-process × confirm dangerous command blocking (iter 233).
+process × confirm dangerous command blocking (iter 233),
+shell-diagnostics × error-context multi-format pipeline (iter 237).
 
 ## plot-capture — silent error swallowing (iter 203→209, FIXED)
 

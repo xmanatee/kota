@@ -124,4 +124,116 @@ describe("shell error pipeline (cross-module: shell-diagnostics → error-contex
       expect(enriched).toContain("npm WARN");
     });
   });
+
+  describe("multi-file and multi-format references", () => {
+    const FILE_B = join(SRC, "helper.ts");
+
+    beforeAll(() => {
+      writeFileSync(
+        FILE_B,
+        [
+          "export function add(a: number, b: number) {",
+          "  return a + b;",
+          "}",
+        ].join("\n"),
+      );
+    });
+
+    it("enriches errors referencing two different files", () => {
+      const output = [
+        `${FILE_A}(3,10): error TS2345: Argument of type 'string'.`,
+        `${FILE_B}(1,17): error TS2304: Cannot find name 'number'.`,
+      ].join("\n");
+
+      const truncated = smartErrorTruncate(output);
+      const enriched = enrichWithSourceContext(truncated);
+
+      // Both files should be referenced in enrichment
+      expect(enriched).toContain("--- Referenced source ---");
+      expect(enriched).toContain("example.ts:3");
+      expect(enriched).toContain("helper.ts:1");
+      expect(enriched).toContain("processData"); // line 3 of example.ts
+      expect(enriched).toContain("add"); // line 1 of helper.ts
+    });
+
+    it("handles Python traceback format through pipeline", () => {
+      // Python pattern only matches .py files
+      const pyFile = join(SRC, "helper.py");
+      writeFileSync(pyFile, "def greet(name):\n    return f'Hello {name}'\n\ngreet(42)\n");
+
+      const output = [
+        "Traceback (most recent call last):",
+        `  File "${pyFile}", line 4, in <module>`,
+        "    greet(42)",
+        "TypeError: expected str, got int",
+      ].join("\n");
+
+      const truncated = smartErrorTruncate(output);
+      const enriched = enrichWithSourceContext(truncated);
+
+      expect(enriched).toContain("--- Referenced source ---");
+      const refs = extractFileReferences(enriched);
+      expect(refs.some((r) => r.path === pyFile && r.line === 4)).toBe(true);
+    });
+
+    it("handles ESLint-style colon-separated errors through pipeline", () => {
+      const output = `${FILE_A}:8:20: error no-unused-vars: 'value' is defined but never used`;
+
+      const truncated = smartErrorTruncate(output);
+      const enriched = enrichWithSourceContext(truncated);
+
+      expect(enriched).toContain("--- Referenced source ---");
+      expect(enriched).toContain("processData(42)"); // line 8
+    });
+
+    it("deduplicates nearby refs — two errors on adjacent lines yield one context block", () => {
+      const output = [
+        `${FILE_A}(4,5): error TS2345: First error.`,
+        `${FILE_A}(5,5): error TS2322: Second error.`,
+      ].join("\n");
+
+      const truncated = smartErrorTruncate(output);
+      const enriched = enrichWithSourceContext(truncated);
+
+      expect(enriched).toContain("--- Referenced source ---");
+      // Should only have one context block for FILE_A (dedup within 10 lines)
+      const contextBlocks = enriched.split("--- Referenced source ---")[1];
+      const fileHeaders = contextBlocks
+        .split("\n")
+        .filter((l) => l.includes("example.ts:"));
+      expect(fileHeaders).toHaveLength(1);
+    });
+
+    it("handles mixed TS errors + stack trace in long output", () => {
+      const errors = [
+        `${FILE_A}(8,38): error TS2345: Argument of type 'number'.`,
+        padding(500),
+        `Error: Runtime failure`,
+        `    at handler (${FILE_B}:2:10)`,
+      ].join("\n");
+
+      const truncated = smartErrorTruncate(errors);
+      const enriched = enrichWithSourceContext(truncated);
+
+      expect(enriched).toContain("--- Referenced source ---");
+      // TS error extracted by extractTscErrors should preserve FILE_A ref
+      const refs = extractFileReferences(enriched);
+      expect(refs.some((r) => r.path === FILE_A)).toBe(true);
+    });
+
+    it("preserves lint refs in long output through extractLintErrors", () => {
+      const lintLines = Array.from(
+        { length: 30 },
+        (_, i) => `${FILE_A}:${i + 1}:1: error no-console: Unexpected console statement`,
+      );
+      const output = lintLines.join("\n") + "\n" + padding(500);
+
+      const truncated = smartErrorTruncate(output);
+      const enriched = enrichWithSourceContext(truncated);
+
+      // extractLintErrors should fire, refs should survive
+      expect(enriched).toContain("Lint issues");
+      expect(enriched).toContain("--- Referenced source ---");
+    });
+  });
 });

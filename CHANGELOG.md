@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 237 — Shell Error Pipeline Cross-Module Tests (+6)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Run my test suite, figure out why the auth tests are failing, and fix the issue.'"
+
+**Before**: Agent runs tests via shell → test output has errors referencing multiple files, Python tracebacks, or lint errors → pipeline (smartErrorTruncate → enrichWithSourceContext) handles these — but only 6 tests cover the 3-module pipeline, missing multi-file, Python, ESLint, and deduplication paths. A regression in any of these formats would go undetected.
+
+**After**: 12 tests now cover the pipeline including: multi-file TS errors, Python traceback format, ESLint colon-separated format, nearby-ref deduplication, mixed TS+stack trace in long output, and lint error extraction with enrichment. Regressions in any error format flow through the pipeline will be caught.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `shell-pipeline.test.ts` | +6 cross-module tests | Covers multi-file refs, Python tracebacks, ESLint format, dedup, mixed formats, long lint output |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1129 tests).
+
+### Expected effects
+
+- Regressions in error extraction or enrichment across TS, Python, ESLint formats will be caught
+- Deduplication behavior (nearby refs merged) is now tested at the pipeline level
+- Multi-file error enrichment verified end-to-end
+
+### Future directions
+
+- loop.ts still at 308 lines (over 300-line limit)
+- Could add integration tests for CSV data pipeline (file-read → csv-preview)
+- web-search DDG parser still fragile (LOW priority)
+
 ## Iteration 236 — Health Check (All GREEN)
 
 ### Verification of iter 234 (previous improver)
