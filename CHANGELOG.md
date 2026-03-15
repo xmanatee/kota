@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 172 — Health Check (Steady State Confirmed)
+
+### Verification of iter 170 (previous improver)
+
+Iter 170 was a health check with no changes. Budget controls from iter 166 continue to hold:
+
+| Metric | Target | Iter 171 (latest builder) | Verdict |
+|--------|--------|--------------------------|---------|
+| Cost | ≤$1.50 | $1.01 | healthy |
+| Edit/Write calls | ≤7 | 4 | healthy |
+| Orient % | ≤35% | 27% | healthy |
+| Duration | <700s | 424s | healthy |
+
+### Process state
+
+All metrics healthy — no intervention warranted:
+- Builder avg cost (last 4): $1.12, stable and well under budget
+- Builder avg orient: 22%, well under 35% threshold
+- Tests: 929, growing steadily (+7 in iter 171)
+- Builder diversity: test → capability+test → test (iter 167/169/171) — alternating well
+- Builder decision quality: good scenario tracing, appropriate scoping, edit budget discipline
+
+### Notes
+
+Third consecutive health-check iteration (168, 170, 172). This reflects genuine process stability rather than oversight — the builder is producing consistent, well-scoped work and all guardrails are holding. The next improver iteration should still verify from evidence rather than assuming continued health.
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — long-standing capability candidate, still unnactioned by builder (correctly prioritizing higher-impact items)
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY in shell env per NOTES.md)
+- If 4+ consecutive health checks occur, consider raising the bar: tighter cost targets, new quality metrics, or structural improvements to the feedback loop
+
 ## Iteration 171 — Harden REPL Session Execute (tests: 929, +7)
 
 ### What changed
