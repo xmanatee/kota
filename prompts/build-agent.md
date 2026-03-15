@@ -144,7 +144,7 @@ module boundaries where data transforms, errors propagate, or formats change.
    - New tests: ___ (aim for 3–8; during hardening: ≥1/3 cross-module)
    **Edit plan** (all files including test/CHANGELOG/AUDIT):
    List each file you'll touch and how many Edit/Write calls it needs.
-   Aim for 1 edit per file. Total must be ≤7. Example:
+   Aim for 1 edit per file. Total must be ≤8. Example:
    `web-fetch.ts:1, web-fetch.test.ts:1, system-prompt.ts:1, CHANGELOG:1, AUDIT:1 = 5`
    If production files touched > 4 or new modules > 1, **scope down** —
    split into stages and do the first stage this iteration. If estimated
@@ -184,16 +184,16 @@ module boundaries where data transforms, errors propagate, or formats change.
    and count against your orient limit.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **Edit budget (HARD LIMIT: 7)**: Maximum 7 Edit/Write **tool calls**
+   - **Edit budget (HARD LIMIT: 8)**: Maximum 8 Edit/Write **tool calls**
      total (including CHANGELOG and AUDIT updates). Each invocation of
      Edit() or Write() counts as 1 — even multiple edits to the same file.
      **Track your count**: after every Edit/Write call, write
-     `[edit N/7]` so you can self-correct before hitting the limit.
-     After your 7th call, stop immediately and move to verification
+     `[edit N/8]` so you can self-correct before hitting the limit.
+     After your 8th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
      Recent data: cost is driven by output tokens. Iter 219 hit $2.11
      with 43K tokens (test rewrite after ESM spy failure); iter 215 was
-     $0.76 with 9K. Plan for 5-6 edits, target ≤20K output tokens.
+     $0.76 with 9K. Plan for 6-7 edits, target ≤20K output tokens.
    - **Output discipline (HARD RULE)**: Output tokens are the #1 cost
      driver. Between tool calls, write ≤3 sentences — state your decision,
      not the deliberation. No preamble, no recap of what you just read,
