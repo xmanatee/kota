@@ -318,10 +318,17 @@ function formatRelative(target: Date, now: Date): string {
 
 let instance: Scheduler | undefined;
 
+/**
+ * Initialize the scheduler singleton. Idempotent — if an instance already
+ * exists for the same project directory, it is reused rather than replaced.
+ * This prevents multi-session contexts (HTTP server, Telegram bot) from
+ * stomping on each other's scheduler instances.
+ */
 export function initScheduler(
   projectDir?: string,
   storageDir?: string | null,
 ): void {
+  if (instance) return;
   instance = new Scheduler(projectDir, storageDir);
 }
 

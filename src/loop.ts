@@ -9,7 +9,7 @@ import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
 import { PluginManager } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
-import { initScheduler, resetScheduler } from "./scheduler.js";
+import { initScheduler } from "./scheduler.js";
 import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { initTaskStore } from "./task-store.js";
@@ -367,7 +367,6 @@ export class AgentSession {
     cleanupProcesses();
     cleanupSessions();
     resetGroups();
-    resetScheduler();
     this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });

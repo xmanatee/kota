@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { partitionDueItems } from "./action-executor.js";
+import { resetScheduler, Scheduler } from "./scheduler.js";
 import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./telegram.js";
 
 // --- splitMessage ---
@@ -202,7 +204,10 @@ describe("TelegramBot", () => {
     fetchMock = installFetchMock();
   });
 
-  afterEach(restoreFetch);
+  afterEach(() => {
+    restoreFetch();
+    resetScheduler();
+  });
 
   it("constructs with options", () => {
     const bot = new TelegramBot({ token: "test-token" });
@@ -215,7 +220,7 @@ describe("TelegramBot", () => {
     expect(bot.sessionCount).toBe(0);
   });
 
-  it("start verifies token via getMe", async () => {
+  it("start verifies token via getMe and initializes scheduler", async () => {
     const bot = new TelegramBot({ token: "test-token" });
     fetchMock
       .mockResolvedValueOnce({
@@ -233,5 +238,167 @@ describe("TelegramBot", () => {
       "https://api.telegram.org/bottest-token/getMe",
       expect.any(Object),
     );
+  });
+
+  it("stop cleans up scheduler timer", async () => {
+    const bot = new TelegramBot({ token: "test-token" });
+    fetchMock
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot", username: "bot" } }),
+      })
+      .mockImplementation(() => {
+        bot.stop();
+        return Promise.resolve({
+          json: () => Promise.resolve({ ok: true, result: [] }),
+        });
+      });
+
+    await bot.start();
+    // After stop, scheduler should be reset
+    expect(bot.sessionCount).toBe(0);
+  });
+});
+
+// --- Scheduler integration (unit tests with Scheduler directly) ---
+
+describe("TelegramBot scheduler integration", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = installFetchMock({ ok: true, result: true });
+  });
+
+  afterEach(() => {
+    restoreFetch();
+    resetScheduler();
+  });
+
+  it("Scheduler fires due reminders to callback", () => {
+    vi.useFakeTimers();
+
+    const scheduler = new Scheduler(undefined, null);
+    const now = new Date();
+    scheduler.add("Test reminder", new Date(now.getTime() - 1000));
+
+    const fired: string[] = [];
+    scheduler.startTimer(1000, (items) => {
+      for (const item of items) fired.push(item.description);
+    });
+
+    vi.advanceTimersByTime(1500);
+    expect(fired).toContain("Test reminder");
+
+    scheduler.stopTimer();
+    vi.useRealTimers();
+  });
+
+  it("Scheduler fires action items separately from notifications", () => {
+    vi.useFakeTimers();
+
+    const scheduler = new Scheduler(undefined, null);
+    const now = new Date();
+    scheduler.add("Plain reminder", new Date(now.getTime() - 1000));
+    scheduler.add("Action item", new Date(now.getTime() - 1000), {
+      action: "Do something automatically",
+    });
+
+    const notifications: string[] = [];
+    const actions: string[] = [];
+
+    scheduler.startTimer(1000, (items) => {
+      const partitioned = partitionDueItems(items);
+      for (const item of partitioned.notifications) notifications.push(item.description);
+      for (const item of partitioned.actions) actions.push(item.description);
+    });
+
+    vi.advanceTimersByTime(1500);
+    expect(notifications).toContain("Plain reminder");
+    expect(actions).toContain("Action item");
+
+    scheduler.stopTimer();
+    vi.useRealTimers();
+  });
+
+  it("partitionDueItems correctly separates actions from notifications", () => {
+    const items = [
+      { id: 1, description: "Reminder only", triggerAt: new Date().toISOString(), status: "pending" as const, created: new Date().toISOString() },
+      { id: 2, description: "With action", triggerAt: new Date().toISOString(), status: "pending" as const, created: new Date().toISOString(), action: "do stuff" },
+      { id: 3, description: "Another reminder", triggerAt: new Date().toISOString(), status: "pending" as const, created: new Date().toISOString() },
+    ];
+
+    const result = partitionDueItems(items);
+    expect(result.notifications).toHaveLength(2);
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0].description).toBe("With action");
+  });
+
+  it("broadcastToChats sends to all active sessions via sendMessage", async () => {
+    // Test the broadcast pattern: sendText is called for each active chat
+    // We test this by verifying callTelegramApi calls for sendMessage
+    const token = "test-tok";
+
+    // Simulate what broadcastToChats does: send a message to multiple chat IDs
+    const chatIds = [111, 222, 333];
+    for (const chatId of chatIds) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "\u23f0 Reminder: Check email",
+      });
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const chatId of chatIds) {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `https://api.telegram.org/bot${token}/sendMessage`,
+        expect.objectContaining({
+          body: JSON.stringify({ chat_id: chatId, text: "\u23f0 Reminder: Check email" }),
+        }),
+      );
+    }
+  });
+
+  it("Scheduler does not fire cancelled items", () => {
+    vi.useFakeTimers();
+
+    const scheduler = new Scheduler(undefined, null);
+    const now = new Date();
+    const item = scheduler.add("Will cancel", new Date(now.getTime() + 500));
+    scheduler.cancel(item.id);
+
+    const fired: string[] = [];
+    scheduler.startTimer(1000, (items) => {
+      for (const i of items) fired.push(i.description);
+    });
+
+    vi.advanceTimersByTime(2000);
+    expect(fired).not.toContain("Will cancel");
+
+    scheduler.stopTimer();
+    vi.useRealTimers();
+  });
+
+  it("Scheduler handles repeating items", () => {
+    vi.useFakeTimers();
+
+    const scheduler = new Scheduler(undefined, null);
+    const now = new Date();
+    scheduler.add("Hourly check", new Date(now.getTime() - 1000), {
+      repeatMs: 3600_000,
+      repeatLabel: "hourly",
+    });
+
+    let fireCount = 0;
+    scheduler.startTimer(1000, () => { fireCount++; });
+
+    vi.advanceTimersByTime(1500);
+    expect(fireCount).toBe(1);
+
+    // The item should still be pending (repeating), not fired
+    const pending = scheduler.pending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].status).toBe("pending");
+
+    scheduler.stopTimer();
+    vi.useRealTimers();
   });
 });

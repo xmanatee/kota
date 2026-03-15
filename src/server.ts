@@ -12,7 +12,7 @@ import type { KotaConfig } from "./config.js";
 import { loadConfig } from "./config.js";
 import { getHistory } from "./history.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
-import { getScheduler, initScheduler } from "./scheduler.js";
+import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 import {
   CORS_HEADERS,
   jsonResponse,
@@ -353,6 +353,7 @@ export function startServer(options: ServerOptions = {}): Server {
   server.on("close", () => {
     clearInterval(cleanupTimer);
     stopScheduler();
+    resetScheduler();
     for (const client of notificationClients) client.end();
     notificationClients.clear();
     pool.closeAll();

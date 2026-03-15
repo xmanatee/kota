@@ -128,13 +128,16 @@ First real messaging frontend — makes KOTA accessible as a personal assistant 
 - **Typing indicators**: Sent every 4s while agent is processing.
 - **Message chunking**: Long responses split at newline boundaries (4096 char Telegram limit).
 - **Chat session persistence**: One `AgentSession` per chat — conversation state persists across messages.
-- **Commands**: `/start` (greeting), `/clear` (reset session), `/status` (session info).
+- **Commands**: `/start` (greeting), `/clear` (reset session), `/status` (session info + pending reminders).
 - **Access control**: Optional `allowedChatIds` whitelist.
 - **Concurrency**: One message per chat at a time (busy guard). Other messages get "please wait".
+- **Scheduler integration**: 30-second timer checks for due reminders and scheduled actions. Reminders are broadcast to all active chats. Autonomous actions run via `ActionExecutor` and results are delivered as messages.
 
 **Usage**: `kota telegram --token <BOT_TOKEN>` or set `TELEGRAM_BOT_TOKEN` env var.
 
 **No new dependencies**: Uses Node's built-in `fetch` for all Telegram API calls.
+
+**Scheduler lifecycle**: The bot owns the scheduler lifecycle — `initScheduler()` on `start()`, `resetScheduler()` on `stop()`. Individual `AgentSession.close()` calls (from `/clear`) do not reset the shared scheduler, preventing one session's cleanup from killing reminders for all chats.
 
 ### Context Management (`src/context.ts`)
 

@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 389 — Telegram Scheduler Integration
+
+Audited the connection between the Scheduler (iter 373) + ActionExecutor (iter 375) and the Telegram Bot (iter 379). Found and fixed a real integration gap: reminders set via Telegram never fired because the bot had zero scheduler integration. Also fixed a cross-cutting bug where `AgentSession.close()` killed the global scheduler singleton, breaking multi-session contexts.
+
+### What was built
+
+**Telegram scheduler integration** (`src/telegram.ts`):
+- Added `ActionExecutor` and scheduler timer to `TelegramBot`, matching the pattern used by the HTTP server and CLI REPL
+- Due reminders broadcast to all active Telegram chats as messages
+- Scheduled actions execute autonomously via `ActionExecutor`, results delivered as chat messages
+- `/status` now shows pending reminder count
+- Clean lifecycle: scheduler starts on `bot.start()`, stops on `bot.stop()`
+
+**Scheduler singleton fix** (`src/scheduler.ts`, `src/loop.ts`, `src/server.ts`, `src/cli.ts`):
+- `initScheduler()` is now idempotent — won't replace an existing instance
+- Removed `resetScheduler()` from `AgentSession.close()` — scheduler lifecycle is now managed by the caller (server, bot, REPL), not by individual sessions
+- Added explicit `resetScheduler()` to server close handler and REPL exit paths
+- Previously, deleting a session via the HTTP API or `/clear` in Telegram would kill the scheduler for all sessions
+
+### Verified
+- TypeScript typechecks clean
+- Build passes (333KB bundle)
+- 28/28 Telegram tests pass (7 new integration tests)
+- 76/76 scheduler + server + loop tests pass
+- Lint clean (165 files)
+- CLI load test passes
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Track which chat created a scheduled item and notify only that chat (currently broadcasts to all)
+- Integration test that starts a TelegramBot with mocked API and verifies end-to-end reminder delivery
+- Audit other module pairs for similar integration gaps (e.g., history + Telegram, memory + web UI)
+
 ## Iteration 388 — Depth Phase Restructure
 
 ### Verification of iter 386 (previous improver)

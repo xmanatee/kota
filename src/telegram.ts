@@ -4,10 +4,13 @@
  * Uses the Telegram Bot API via HTTP (no external dependencies).
  * One AgentSession per chat, ProxyTransport pattern (same as HTTP server).
  * Long polling for receiving messages, typing indicators while processing.
+ * Scheduler integration delivers reminders and action results to active chats.
  */
 
+import { ActionExecutor, type ActionResult, partitionDueItems } from "./action-executor.js";
 import type { KotaConfig } from "./config.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
+import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 import { type AgentEvent, NullTransport, ProxyTransport, type Transport } from "./transport.js";
 
 const TELEGRAM_API = "https://api.telegram.org";
@@ -15,6 +18,7 @@ const MAX_MESSAGE_LENGTH = 4096;
 const TYPING_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_S = 30;
 const ERROR_BACKOFF_MS = 5000;
+const SCHEDULER_CHECK_MS = 30_000;
 
 // --- Telegram API types (minimal subset) ---
 
@@ -166,6 +170,8 @@ export class TelegramBot {
   private running = false;
   private offset = 0;
   private options: TelegramBotOptions;
+  private stopSchedulerTimer: (() => void) | null = null;
+  private actionExecutor: ActionExecutor | null = null;
 
   constructor(options: TelegramBotOptions) {
     this.token = options.token;
@@ -177,6 +183,8 @@ export class TelegramBot {
     const me = await callTelegramApi<TelegramUser>(this.token, "getMe");
     console.log(`[kota-telegram] Bot: @${me.username ?? me.first_name}`);
     console.log("[kota-telegram] Listening for messages...");
+
+    this.startScheduler();
 
     while (this.running) {
       try {
@@ -191,6 +199,11 @@ export class TelegramBot {
 
   stop(): void {
     this.running = false;
+    if (this.stopSchedulerTimer) {
+      this.stopSchedulerTimer();
+      this.stopSchedulerTimer = null;
+    }
+    resetScheduler();
     for (const session of this.sessions.values()) {
       session.agent.close();
     }
@@ -199,6 +212,67 @@ export class TelegramBot {
 
   get sessionCount(): number {
     return this.sessions.size;
+  }
+
+  /** Start the scheduler timer for reminders and autonomous actions. */
+  private startScheduler(): void {
+    initScheduler(process.cwd());
+    const scheduler = getScheduler();
+
+    this.actionExecutor = new ActionExecutor({
+      sessionOptions: {
+        model: this.options.model ?? this.options.config?.model,
+        verbose: this.options.verbose ?? this.options.config?.verbose,
+        config: this.options.config,
+        noHistory: true,
+      },
+    });
+
+    this.stopSchedulerTimer = scheduler.startTimer(SCHEDULER_CHECK_MS, (dueItems) => {
+      const { actions, notifications } = partitionDueItems(dueItems);
+
+      for (const item of notifications) {
+        this.broadcastToChats(`\u23f0 Reminder: ${item.description}`);
+      }
+
+      for (const item of actions) {
+        if (!this.actionExecutor?.canExecute()) {
+          this.broadcastToChats(`Skipped action "${item.description}" \u2014 too many running`);
+          continue;
+        }
+
+        this.broadcastToChats(`Running action: "${item.description}"...`);
+
+        this.actionExecutor.execute(item).then((result) => {
+          this.broadcastActionResult(result);
+        }).catch(() => {});
+      }
+    });
+
+    if (this.options.verbose) {
+      console.log("[kota-telegram] Scheduler started (checking every 30s)");
+    }
+  }
+
+  /** Send a message to all active chat sessions. */
+  private broadcastToChats(text: string): void {
+    for (const chatId of this.sessions.keys()) {
+      this.sendText(chatId, text);
+    }
+  }
+
+  /** Deliver an action result to all active chats. */
+  private broadcastActionResult(result: ActionResult): void {
+    if (result.error) {
+      this.broadcastToChats(`Action "${result.item.description}" failed: ${result.error}`);
+    } else {
+      const duration = Math.round(result.durationMs / 1000);
+      let msg = `Action "${result.item.description}" completed (${duration}s)`;
+      if (result.result) {
+        msg += `\n\n${result.result}`;
+      }
+      this.broadcastToChats(msg);
+    }
   }
 
   private async poll(): Promise<void> {
@@ -226,7 +300,7 @@ export class TelegramBot {
       this.sendText(
         chatId,
         `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
-          `/clear — New conversation\n/status — Session info`,
+          `/clear \u2014 New conversation\n/status \u2014 Session info`,
       );
       return;
     }
@@ -244,12 +318,17 @@ export class TelegramBot {
     if (text === "/status") {
       const session = this.sessions.get(chatId);
       const busy = this.busyChats.has(chatId);
-      this.sendText(
-        chatId,
+      const scheduler = getScheduler();
+      const pendingCount = scheduler.count();
+      const statusParts = [
         session
           ? `Active session (${busy ? "processing" : "idle"}). Cost: ${session.agent.getCostSummary()}`
           : "No active session. Send a message to start one.",
-      );
+      ];
+      if (pendingCount > 0) {
+        statusParts.push(`${pendingCount} pending reminder(s)`);
+      }
+      this.sendText(chatId, statusParts.join("\n"));
       return;
     }
 

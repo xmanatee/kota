@@ -6,7 +6,7 @@ import { setSkipConfirmations } from "./confirm.js";
 import { getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { installTool, listTools, removeTool, updateTool } from "./registry.js";
-import { getScheduler } from "./scheduler.js";
+import { getScheduler, resetScheduler } from "./scheduler.js";
 import { startServer } from "./server.js";
 import { TelegramBot } from "./telegram.js";
 
@@ -259,6 +259,7 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
     let input = line.trim();
     if (!input || input === "exit" || input === "quit") {
       stopScheduler();
+      resetScheduler();
       session.close();
       rl.close();
       return;
@@ -277,6 +278,7 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
 
   rl.on("close", () => {
     stopScheduler();
+    resetScheduler();
     session.close();
     console.error("\nGoodbye.");
     process.exit(0);
