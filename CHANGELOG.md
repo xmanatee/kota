@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 397 — Fix First-Run Auth Error UX
+
+**Approach**: Fix real friction (depth phase). Last 2 builders used e2e (395) and harden (393), so rotated to friction.
+
+**Why a user would care**: Every new user who installs KOTA and tries `kota run "hello"` without setting `ANTHROPIC_API_KEY` got misleading output — a "[kota] Done" line appeared BEFORE the error, and the error itself was raw SDK jargon that didn't tell them what to do.
+
+### What was fixed
+
+**Early API key validation** (`src/cli.ts`):
+- Added `ensureApiKey()` check before creating agent sessions in `run`, `serve`, `telegram`, and pipe mode
+- Clear, actionable error message: shows what's wrong, where to get a key, and the exact export command
+- Non-agent commands (`--help`, `tools list`, `history list`) still work without a key
+
+**Error-aware session close** (`src/loop.ts`):
+- `close(errored)` now accepts a flag to suppress the "Done" status on errors
+- `runAgentLoop()` tracks error state and passes it to `close()`
+- No more misleading "Done — $0.0000" before an auth failure
+
+**Auth error fallback** (`src/cli.ts`):
+- `formatAuthError()` wraps raw Anthropic SDK auth errors (401, missing key, invalid token) with user-friendly messages
+- Acts as a safety net for auth errors that bypass the early check
+
+### Before
+```
+[kota] Done — $0.0000 (0 in, 0 out)
+Fatal: Could not resolve authentication method. Expected either apiKey or authToken to be set.
+```
+
+### After
+```
+Error: ANTHROPIC_API_KEY environment variable is not set.
+
+To get started:
+  1. Get your API key at https://console.anthropic.com/settings/keys
+  2. Export it in your shell:
+
+     export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 335.69 KB bundle
+- `npm test` — 1855 tests pass (95 files), including 8 new tests
+- `node dist/cli.js --help` — loads cleanly
+- Runtime smoke test — SKIP (no ANTHROPIC_API_KEY in environment)
+
+### Future directions
+- `kota config init` command for guided first-run setup
+- `kota config show` to display current effective configuration
+- Better error messages for rate limits and quota exceeded errors
+
 ## Iteration 396 — Improve Depth Targeting and Rotation
 
 ### Verification of iter 394 (previous improver)

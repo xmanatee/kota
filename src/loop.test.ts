@@ -83,7 +83,8 @@ vi.mock("./architect.js", () => ({
 // --- Import after mocks ---
 
 import { Context } from "./context.js";
-import { AgentSession } from "./loop.js";
+import { AgentSession, runAgentLoop } from "./loop.js";
+import { BufferTransport } from "./transport.js";
 
 // --- Helpers ---
 
@@ -560,6 +561,46 @@ describe("AgentSession", () => {
       session = new AgentSession();
       session.close();
       session.close();
+    });
+
+    it("emits Done status on normal close", () => {
+      const transport = new BufferTransport();
+      session = new AgentSession({ transport });
+      session.close();
+
+      const statuses = transport.getStatusMessages();
+      expect(statuses.some((m: string) => m.includes("Done"))).toBe(true);
+    });
+
+    it("suppresses Done status when errored=true", () => {
+      const transport = new BufferTransport();
+      session = new AgentSession({ transport });
+      session.close(true);
+
+      const statuses = transport.getStatusMessages();
+      expect(statuses.some((m: string) => m.includes("Done"))).toBe(false);
+    });
+  });
+
+  describe("runAgentLoop error handling", () => {
+    it("does not emit Done when send() throws", async () => {
+      const transport = new BufferTransport();
+      mockStreamMessage.mockRejectedValueOnce(new Error("auth failed"));
+
+      await expect(runAgentLoop("test", { transport })).rejects.toThrow("auth failed");
+
+      const statuses = transport.getStatusMessages();
+      expect(statuses.some((m: string) => m.includes("Done"))).toBe(false);
+    });
+
+    it("emits Done when send() succeeds", async () => {
+      const transport = new BufferTransport();
+      mockStreamMessage.mockResolvedValueOnce(textResponse("ok"));
+
+      await runAgentLoop("test", { transport });
+
+      const statuses = transport.getStatusMessages();
+      expect(statuses.some((m: string) => m.includes("Done"))).toBe(true);
     });
   });
 

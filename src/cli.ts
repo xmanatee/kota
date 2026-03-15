@@ -10,6 +10,40 @@ import { getScheduler, resetScheduler } from "./scheduler.js";
 import { startServer } from "./server.js";
 import { TelegramBot } from "./telegram.js";
 
+/**
+ * Check that the Anthropic API key is available before starting any agent.
+ * Exits with a clear, actionable message if missing.
+ */
+function ensureApiKey(): void {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("Error: ANTHROPIC_API_KEY environment variable is not set.\n");
+    console.error("To get started:");
+    console.error("  1. Get your API key at https://console.anthropic.com/settings/keys");
+    console.error("  2. Export it in your shell:\n");
+    console.error("     export ANTHROPIC_API_KEY=sk-ant-...\n");
+    process.exit(1);
+  }
+}
+
+/** Check if an error is an Anthropic auth error and return a user-friendly message, or null. */
+export function formatAuthError(err: Error): string | null {
+  const msg = err.message || "";
+  if (
+    msg.includes("Could not resolve authentication") ||
+    msg.includes("apiKey") ||
+    msg.includes("authToken") ||
+    (err as { status?: number }).status === 401
+  ) {
+    return [
+      "Error: Anthropic API authentication failed.\n",
+      "Check that your ANTHROPIC_API_KEY is set and valid:",
+      "  export ANTHROPIC_API_KEY=sk-ant-...\n",
+      "Get a key at https://console.anthropic.com/settings/keys",
+    ].join("\n");
+  }
+  return null;
+}
+
 const program = new Command();
 
 program
@@ -34,6 +68,7 @@ program
   .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
   .option("--no-history", "Disable automatic conversation history")
   .action(async (promptWords: string[], opts) => {
+    ensureApiKey();
     const config = loadConfig();
 
     // CLI flags override config file values
@@ -97,6 +132,7 @@ program
   .option("-m, --model <model>", "Model to use")
   .option("-v, --verbose", "Show debug output")
   .action((opts) => {
+    ensureApiKey();
     const config = loadConfig();
     startServer({
       port: Number.parseInt(opts.port, 10),
@@ -114,6 +150,7 @@ program
   .option("-v, --verbose", "Show debug output")
   .option("--allowed-chats <ids>", "Comma-separated list of allowed chat IDs")
   .action(async (opts) => {
+    ensureApiKey();
     const config = loadConfig();
     const token = opts.token || process.env.TELEGRAM_BOT_TOKEN;
     if (!token) {
@@ -421,6 +458,7 @@ async function checkPipeMode() {
     }
     const piped = chunks.join("").trim();
     if (piped) {
+      ensureApiKey();
       await runAgentLoop(piped, {
         model: "claude-sonnet-4-6",
         maxTokens: 8192,
@@ -439,6 +477,11 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`Fatal: ${err.message}`);
+  const authMsg = formatAuthError(err);
+  if (authMsg) {
+    console.error(authMsg);
+  } else {
+    console.error(`Fatal: ${err.message}`);
+  }
   process.exit(1);
 });

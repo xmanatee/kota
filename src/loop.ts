@@ -359,7 +359,7 @@ export class AgentSession {
   }
 
   /** Clean up handlers and save final state. */
-  close(): void {
+  close(errored = false): void {
     if (this.closed) return;
     this.closed = true;
     process.removeListener("SIGINT", this.sigintHandler);
@@ -369,7 +369,9 @@ export class AgentSession {
     resetGroups();
     this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
-    this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });
+    if (!errored) {
+      this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });
+    }
   }
 }
 
@@ -379,9 +381,13 @@ export async function runAgentLoop(
   options: LoopOptions = {},
 ): Promise<string> {
   const session = new AgentSession(options);
+  let errored = false;
   try {
     return await session.send(prompt);
+  } catch (err) {
+    errored = true;
+    throw err;
   } finally {
-    session.close();
+    session.close(errored);
   }
 }
