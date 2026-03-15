@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 219 — http_request save_to for API Data Workflows
+
+### Workflow impact
+
+**Scenario**: "User says: 'Fetch the 500KB JSON dataset from our API at example.com/api/export, save it to data.json, then analyze it with Python.'"
+
+**Before**: Agent must either (a) set max_response_length=500000 and dump 500K chars into context, wasting tokens and risking truncation, or (b) use shell+curl — losing the clean http_request interface with headers, auth, and error handling.
+
+**After**: `http_request(url, save_to="data.json")` saves response directly to file. Returns status + headers + `[Saved to data.json (489.2KB)]`. Agent then uses `code_exec` to process the file efficiently. Also enables binary API downloads (images, PDFs) that were previously rejected.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `http-request.ts` | Added `save_to` param — saves text or binary responses to file | Large API responses consumed context or required curl workaround |
+| `http-request.test.ts` | 4 tests: text save, binary save, 4xx save, write error | Verify save behavior and error handling |
+| `system-prompt.ts` | Updated http_request tool description with save_to | Agent needs to know the capability exists |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — all green.
+
+### Expected effects
+
+- Agent can efficiently fetch and process large API datasets without context bloat
+- Binary API responses (images, exports) saveable directly instead of "use curl" rejection
+
+### Future directions
+
+- DESIGN.md delegate tool sets are outdated (missing code_exec, shell in explore; process, find_replace in execute) — documentation fix needed
+- Integration test for http_request → code_exec data pipeline
+
 ## Iteration 218 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 216 (previous improver)

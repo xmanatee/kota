@@ -242,4 +242,78 @@ describe("runHttpRequest", () => {
     const result = await runHttpRequest({ url: "https://api.example.com", method: "OPTIONS" });
     expect(result.content).toContain("allow: GET, POST, OPTIONS");
   });
+
+  // --- save_to ---
+
+  it("saves text response to file", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const savePath = path.join(dir, "data.json");
+
+    mockFetch({ body: '{"records":[1,2,3]}', contentType: "application/json" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/export",
+      save_to: savePath,
+    });
+    expect(result.content).toContain("HTTP 200 OK");
+    expect(result.content).toContain("[Saved to");
+    expect(result.content).not.toContain('"records"');
+    expect(fs.readFileSync(savePath, "utf-8")).toBe('{"records":[1,2,3]}');
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it("saves binary response to file instead of rejecting", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const savePath = path.join(dir, "image.bin");
+
+    const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const responseHeaders = new Map<string, string>([
+      ["content-type", "image/png"],
+    ]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      arrayBuffer: () => Promise.resolve(binaryData.buffer),
+    });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/image.png",
+      save_to: savePath,
+    });
+    expect(result.content).toContain("[Saved to");
+    expect(result.content).not.toContain("curl");
+    expect(fs.readFileSync(savePath)[0]).toBe(0x89);
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it("marks saved 4xx response as error", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const savePath = path.join(dir, "error.txt");
+
+    mockFetch({ status: 404, statusText: "Not Found", body: "not found" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/missing",
+      save_to: savePath,
+    });
+    expect(result.content).toContain("[Saved to");
+    expect(result.is_error).toBe(true);
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it("returns error when save_to write fails", async () => {
+    mockFetch({ body: "data" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/data",
+      save_to: "/nonexistent_kota_test_path/file.txt",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Error saving response");
+  });
 });

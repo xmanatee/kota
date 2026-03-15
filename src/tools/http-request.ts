@@ -1,11 +1,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { writeFileSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 
 export const httpRequestTool: Anthropic.Tool = {
   name: "http_request",
   description:
     "Make an HTTP request. Supports all methods, custom headers, and request bodies. " +
-    "Returns status, headers, and body. For web pages use web_fetch instead.",
+    "Returns status, headers, and body. Use save_to for large responses or binary downloads. " +
+    "For web pages use web_fetch instead.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -34,6 +36,12 @@ export const httpRequestTool: Anthropic.Tool = {
       max_response_length: {
         type: "number",
         description: "Max response body length in chars (default: 20000)",
+      },
+      save_to: {
+        type: "string",
+        description:
+          "Save response body to this file instead of returning inline. " +
+          "Useful for large API responses or binary data.",
       },
     },
     required: ["url"],
@@ -100,7 +108,32 @@ export async function runHttpRequest(
       };
     }
 
+    const saveTo = input.save_to as string | undefined;
     const contentType = response.headers.get("content-type") || "";
+
+    if (saveTo) {
+      try {
+        let size: number;
+        if (isBinaryContentType(contentType)) {
+          const buffer = Buffer.from(await response.arrayBuffer());
+          writeFileSync(saveTo, buffer);
+          size = buffer.length;
+        } else {
+          const raw = await response.text();
+          writeFileSync(saveTo, raw, "utf-8");
+          size = Buffer.byteLength(raw, "utf-8");
+        }
+        const result: ToolResult = {
+          content: formatResult(response.status, response.statusText, responseHeaders,
+            `[Saved to ${saveTo} (${formatBytes(size)})]`),
+        };
+        if (response.status >= 400) result.is_error = true;
+        return result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: `Error saving response to ${saveTo}: ${msg}`, is_error: true };
+      }
+    }
 
     // Reject binary responses
     if (isBinaryContentType(contentType)) {

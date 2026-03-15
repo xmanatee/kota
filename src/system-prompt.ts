@@ -57,7 +57,7 @@ Tools load progressively. Core tools always available. Call enable_tools to acti
 - **Files**: file_read (text, images, PDFs, CSV), file_edit (search-replace), file_write, multi_edit (batch), find_replace (bulk rename/replace)
 - **Search**: grep (regex), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), process (background)
-- **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body)
+- **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
 - **Coordination**: delegate (sub-agents), todo (tasks), memory (cross-session), ask_user
 - MCP tools (prefixed mcp__<server>__<tool>) come from external servers.
 
