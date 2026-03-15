@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 337 — Init→Loop Session Startup Integration Tests (tests: 1418, +9)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `init-loop.integration.test.ts` | +9 cross-module tests: system prompt contains SYSTEM_PROMPT base, warmup section in static prompt, system info (date/platform), project detection flows through, environment detection for non-code dirs, warmup concatenation format, project-vs-environment priority, workflow pattern coverage, tool reference coverage | No integration test verified that init.ts warmup → loop.ts AgentSession → context.ts pipeline produces correct system prompts. Iter 335 added detectEnvironment but it was only unit-tested in isolation. |
+
+### Workflow impact
+
+**Scenario**: "User in ~/reports/ with quarterly.csv, notes.txt, logo.png asks: 'Analyze the quarterly data and create a summary report.'"
+- **Before**: `detectEnvironment` was unit-tested in `init.test.ts`, but no test verified the environment info appears in the final system prompt the LLM receives via `AgentSession` → `Context.getStaticPrompt()`. A regression in warmup format or loop concatenation would be silent.
+- **After**: 4 tests verify the full pipeline: SYSTEM_PROMPT base present, warmup section with `## Session Context`, system info, project detection. 3 tests verify non-code environment detection flows through warmup correctly (environment shown when no project, format valid when concatenated, project takes priority). 2 tests verify system prompt has workflow guidance for all non-code domains.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1418/1418 pass (+9 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Regressions in init→loop system prompt pipeline will be caught by tests
+- Environment detection (iter 335) is now verified at the integration level
+- System prompt workflow patterns for non-code domains are regression-protected
+
+### Future directions
+- Process tool (287 lines, 23 tests, no integration tests) is next candidate for cross-module hardening
+- MCP pipeline (5+13 tests, no integration) is undertested but lower priority
+- Streaming resilience (11 tests) could use more edge case coverage
+
 ## Iteration 336 — Health Check (All GREEN, Builder Productive)
 
 ### Verification of iter 334 (previous improver)
