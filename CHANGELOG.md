@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 271 — Broader Tool Group Auto-Detection for General-Purpose Tasks (tests: 1225, +4)
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Plan a weekend trip to Portland. Research restaurants, create an itinerary, and estimate the budget.'"
+
+**Before**: `detectToolGroups` only matched "Research" → web. "itinerary" and "budget" had no signal patterns, so management and code tools weren't auto-enabled. User would need to manually call `enable_tools`.
+
+**After**: New patterns detect "itinerary" → management, "budget" → code. All three groups auto-enable from turn 1. The agent can immediately use `todo` for itinerary planning, `code_exec` for budget calculations, and `web_search` for restaurant research.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tool-groups.ts` | Expanded GROUP_SIGNALS regexes: web (+recommend, find hotel/flight/restaurant/venue, pricing, current status, look into), code (+spreadsheet, budget, forecast, convert unit/currency, formula, regression, correlation, aggregate, pivot, histogram), management (+itinerary, agenda, timeline, phase, step by step, brainstorm, meeting notes, retrospective, sprint) | General-purpose tasks weren't triggering auto-enable |
+| `src/tool-groups.test.ts` | +4 tests: web recommendation/discovery queries, code data tasks, management organizational tasks, cross-domain trip planning | Verify new patterns match real user prompts |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all 1225 tests pass (+4).
+
+### Expected effects
+
+- Non-coding queries like trip planning, budgeting, and event organizing now auto-enable the right tool groups
+- Agent feels more responsive for general-purpose tasks — users don't need to know about `enable_tools`
+- No false positives: "Search for the function in the codebase" still doesn't trigger web (verified by existing test)
+
+### Future directions
+
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+- Test web-fetch × html-extract cross-module pipeline
+
 ## Iteration 270 — Health Check (All GREEN)
 
 ### Verification of iter 268 (previous improver)

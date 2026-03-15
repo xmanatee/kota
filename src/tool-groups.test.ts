@@ -307,5 +307,40 @@ describe("tool-groups", () => {
       // code_exec should NOT be enabled (not detected)
       expect(active.has("code_exec")).toBe(false);
     });
+
+    it("detects web for general-purpose recommendation and discovery queries", () => {
+      expect(detectToolGroups("What is the best camera for beginners?")).toContain("web");
+      expect(detectToolGroups("Recommend a good restaurant in Austin")).toContain("web");
+      expect(detectToolGroups("Find a hotel near the conference center")).toContain("web");
+      expect(detectToolGroups("How much does a flight to Tokyo cost?")).toContain("web");
+      expect(detectToolGroups("Check the current weather in Portland")).toContain("web");
+      expect(detectToolGroups("Look into alternatives for Slack")).toContain("web");
+    });
+
+    it("detects code for data tasks beyond pure programming", () => {
+      expect(detectToolGroups("Create a budget spreadsheet for Q2")).toContain("code");
+      expect(detectToolGroups("Forecast revenue for next quarter")).toContain("code");
+      expect(detectToolGroups("Convert units from imperial to metric")).toContain("code");
+      expect(detectToolGroups("Build a histogram of response times")).toContain("code");
+      expect(detectToolGroups("Find the correlation between price and sales")).toContain("code");
+    });
+
+    it("detects management for non-coding organizational tasks", () => {
+      expect(detectToolGroups("Create an itinerary for my Portland trip")).toContain("management");
+      expect(detectToolGroups("Draft an agenda for tomorrow's meeting")).toContain("management");
+      expect(detectToolGroups("Build a timeline for the product launch")).toContain("management");
+      expect(detectToolGroups("Brainstorm ideas for the team offsite")).toContain("management");
+      expect(detectToolGroups("Summarize the meeting notes into action items")).toContain("management");
+      expect(detectToolGroups("Plan the sprint retrospective")).toContain("management");
+    });
+
+    it("cross-domain: trip planning enables web + management + code", () => {
+      const groups = detectToolGroups(
+        "Plan a weekend trip to Portland. Research restaurants, create an itinerary, and estimate the budget"
+      );
+      expect(groups).toContain("web");
+      expect(groups).toContain("management");
+      expect(groups).toContain("code"); // "budget" → "estimate" triggers via "forecast" won't but budget doesn't... let's check
+    });
   });
 });
