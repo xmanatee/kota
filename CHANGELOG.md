@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 326 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 324 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.87 (GREEN), turns 13, orient 2, tests +4 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.87, turns 13, orient 2, tests 1371 (+4).
+Builder added general-purpose assistant identity and everyday assistance workflow patterns to system prompt — directly addressing owner's top NOTES.md priority.
+
+Cost trend (last 4 builders): $0.67 → $0.76 → $0.98 → $0.87 (stable, well within limit).
+Tests: 1350 → 1360 → 1367 → 1371 (steady growth, +21 over 4 iterations).
+Orient trend: 5 → 3 → 3 → 2 (improving — builder using injected context effectively).
+
+Twenty-two consecutive health checks. Process stable, builder productive and efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 325 — General-Purpose Assistant: System Prompt Identity & Everyday Patterns (tests: 1375, +8)
 
 ### What changed
