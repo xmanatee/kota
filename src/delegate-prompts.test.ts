@@ -80,9 +80,21 @@ describe("sub-agent prompts", () => {
   });
 
   it("EXPLORE_PROMPT includes source quality guidance", () => {
-    expect(EXPLORE_PROMPT).toContain("official sources");
+    expect(EXPLORE_PROMPT).toContain("primary sources");
     expect(EXPLORE_PROMPT).toContain("publication dates");
     expect(EXPLORE_PROMPT).toContain("inaccessible");
+  });
+
+  it("EXPLORE_PROMPT includes structured data pipeline guidance", () => {
+    expect(EXPLORE_PROMPT).toContain("save_to");
+    expect(EXPLORE_PROMPT).toContain("code_exec to parse");
+    expect(EXPLORE_PROMPT).toContain("don't manually extract");
+  });
+
+  it("EXPLORE_PROMPT includes conflict resolution and presentation format", () => {
+    expect(EXPLORE_PROMPT).toContain("sources conflict");
+    expect(EXPLORE_PROMPT).toContain("executive summary");
+    expect(EXPLORE_PROMPT).toContain("source dates");
   });
 
   it("EXPLORE_PROMPT includes API exploration guidance", () => {

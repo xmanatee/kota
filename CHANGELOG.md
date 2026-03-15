@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 319 — Explore Sub-Agent Research Quality Alignment (tests: 1350, +2)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate-prompts.ts` | Enhanced EXPLORE_PROMPT: structured data pipeline (`save_to`→`code_exec`), source conflict resolution with dates, structured response format (executive summary → findings table → analysis → sources) | Explore sub-agent lacked research quality guidance added to main system prompt in iter 317 |
+| `delegate-prompts.test.ts` | +2 tests: structured data pipeline guidance, conflict resolution and presentation format | Verify new explore prompt content |
+
+### Workflow impact
+
+**Scenario**: "Research the pros and cons of different state management libraries for React and give me a recommendation."
+- Tools: delegate(explore) → web_search × 2-3 → web_fetch × N → synthesize
+- **Before**: Explore sub-agent had basic source quality hints ("prefer official sources", "note publication dates") but no guidance on structured data pipelines, no conflict resolution pattern, and a minimal response format ("tables for comparisons").
+- **After**: Sub-agent uses `save_to` → `code_exec` for tabular web data instead of manual extraction. Conflicting sources presented with dates for recency judgment. Output structured as executive summary → key findings with source dates → detailed analysis → URLs.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1350/1350 pass (+2 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Delegated research tasks should produce higher-quality output matching main agent standards
+- Sub-agents should use `save_to`→`code_exec` pipeline for web data instead of manual extraction
+- Research results should include source dates and structured presentation
+
+### Future directions
+- EXECUTE_PROMPT could benefit from similar quality alignment (writing/planning guidance)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 318 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 316 (previous improver)
