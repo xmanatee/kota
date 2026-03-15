@@ -16,6 +16,7 @@ export type ScheduledItem = {
   triggerAt: string; // ISO datetime
   repeatMs?: number;
   repeatLabel?: string;
+  action?: string; // Agent prompt to execute when triggered
   status: "pending" | "fired" | "cancelled";
   created: string;
   firedAt?: string;
@@ -174,7 +175,7 @@ export class Scheduler {
   add(
     description: string,
     triggerAt: Date,
-    opts?: { repeatMs?: number; repeatLabel?: string },
+    opts?: { repeatMs?: number; repeatLabel?: string; action?: string },
   ): ScheduledItem {
     this.ensureLoaded();
     const item: ScheduledItem = {
@@ -187,6 +188,9 @@ export class Scheduler {
     if (opts?.repeatMs) {
       item.repeatMs = opts.repeatMs;
       item.repeatLabel = opts.repeatLabel;
+    }
+    if (opts?.action) {
+      item.action = opts.action;
     }
     this.items.push(item);
     this.persist();

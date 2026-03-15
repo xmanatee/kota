@@ -4,6 +4,8 @@ import { runAgentLoop, AgentSession, type LoopOptions } from "./loop.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { loadConfig, expandAlias, type KotaConfig } from "./config.js";
 import { startServer } from "./server.js";
+import { getScheduler } from "./scheduler.js";
+import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 
 const program = new Command();
 
@@ -94,12 +96,49 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
     prompt: "kota> ",
   });
 
+  // Set up autonomous action execution for scheduled items
+  const actionExecutor = new ActionExecutor({
+    sessionOptions: {
+      model: options.model,
+      verbose: options.verbose,
+      config,
+    },
+  });
+
+  const scheduler = getScheduler();
+  const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
+    const { actions, notifications } = partitionDueItems(dueItems);
+
+    for (const item of notifications) {
+      console.error(`\n[kota] ⏰ Reminder: ${item.description}`);
+    }
+
+    for (const item of actions) {
+      if (!actionExecutor.canExecute()) {
+        console.error(`\n[kota] Skipped action "${item.description}" — too many running`);
+        continue;
+      }
+      console.error(`\n[kota] Running autonomous action: "${item.description}"...`);
+      actionExecutor.execute(item).then((result) => {
+        if (result.error) {
+          console.error(`[kota] Action "${item.description}" failed: ${result.error}`);
+        } else {
+          console.error(`[kota] Action "${item.description}" completed (${Math.round(result.durationMs / 1000)}s)`);
+          if (result.result) {
+            console.log(result.result);
+          }
+        }
+      }).catch(() => {});
+    }
+  });
+
   console.error("KOTA — interactive mode. Type your task, or 'exit' to quit.\n");
   rl.prompt();
 
   rl.on("line", async (line) => {
     let input = line.trim();
     if (!input || input === "exit" || input === "quit") {
+      stopScheduler();
       session.close();
       rl.close();
       return;
@@ -117,6 +156,7 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
   });
 
   rl.on("close", () => {
+    stopScheduler();
     session.close();
     console.error("\nGoodbye.");
     process.exit(0);

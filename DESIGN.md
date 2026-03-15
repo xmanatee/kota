@@ -183,7 +183,7 @@ Cross-session task tracking that survives session restarts. Tasks are stored per
 
 ### Scheduler (`src/scheduler.ts`, `src/tools/schedule.ts`)
 
-Time-aware scheduling for reminders and recurring tasks. Enables the agent to "remind me in 30 minutes" or "check this every hour" — a core personal assistant capability.
+Time-aware scheduling for reminders, recurring tasks, and autonomous agent actions. Enables the agent to "remind me in 30 minutes", "check this every hour", or proactively execute tasks on a schedule.
 
 **Time parsing** (`parseTime`):
 - ISO datetime: `"2025-06-15T14:00:00Z"`
@@ -196,13 +196,34 @@ Time-aware scheduling for reminders and recurring tasks. Enables the agent to "r
 
 **Persistence**: Same project-scoping pattern as TaskStore — `~/.kota/schedules-<hash>.json`. Auto-prunes old fired items (keeps last 20). In-memory mode for tests.
 
-**Schedule tool** (in `management` group): `add` (create reminder with time + optional repeat), `list` (pending items), `cancel` (by ID). Auto-detected from prompts containing "remind", "schedule", "alarm", etc.
+**Schedule tool** (in `management` group): `add` (create reminder with time + optional repeat + optional agent_action), `list` (pending items), `cancel` (by ID). Auto-detected from prompts containing "remind", "schedule", "alarm", etc.
 
 **Session warmup**: Overdue and upcoming items appear at session start, so the agent can notify the user about missed reminders.
 
 **Server integration**: When running `kota serve`, a 30-second timer checks for due items and pushes them as SSE notifications to connected clients via `GET /api/notifications`. Also exposes `GET /api/schedules` for listing pending items.
 
 **Repeating items**: After firing, the next trigger time advances by the interval. If multiple intervals were missed, jumps to the next future occurrence rather than firing repeatedly.
+
+### Autonomous Scheduled Actions (`src/action-executor.ts`)
+
+Transforms KOTA from a reactive tool into a proactive agent. Scheduled items can carry an `action` prompt that KOTA executes autonomously when triggered — no user input needed.
+
+**How it works**:
+1. User schedules an item with `agent_action`: "Check the weather in NYC and save to /tmp/weather.txt"
+2. When the scheduler fires, `ActionExecutor` creates a lightweight agent session with `BufferTransport`
+3. The action prompt is wrapped with context from the schedule description
+4. The agent executes the prompt (using all available tools), collects the result
+5. Results are delivered via SSE notifications (server) or printed to stderr (REPL)
+
+**Concurrency**: Max 3 concurrent actions by default. Actions that exceed the limit are skipped with a notification. Each action has a 120s timeout.
+
+**Server mode**: Due items are partitioned by `partitionDueItems()`:
+- Items without `action` → notification-only (SSE `reminder` event, as before)
+- Items with `action` → `ActionExecutor.execute()` runs asynchronously, delivers `action_started`, `action_result`, or `action_skipped` SSE events
+
+**CLI REPL mode**: Scheduler timer runs between user turns. Due actions execute in the background. Results print to stderr so they don't interfere with the conversation flow.
+
+**Example**: "Every morning at 8am, check Hacker News for AI news and summarize the top 5 stories" — KOTA runs this autonomously and delivers the summary without being prompted.
 
 ### Persistent Memory (`src/memory.ts`)
 

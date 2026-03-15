@@ -31,6 +31,13 @@ export const scheduleTool: Anthropic.Tool = {
         description:
           'Optional repeat schedule ("every 30 minutes", "hourly", "daily")',
       },
+      agent_action: {
+        type: "string",
+        description:
+          "Optional agent prompt to execute autonomously when triggered. " +
+          'Example: "Check the weather in NYC and save a summary to /tmp/weather.txt". ' +
+          "Without this, the schedule only sends a notification. With it, KOTA executes the prompt as a background task.",
+      },
       id: {
         type: "number",
         description: "Schedule ID (for 'cancel')",
@@ -89,11 +96,17 @@ export async function runSchedule(
         repeatOpts = { repeatMs: parsed.ms, repeatLabel: parsed.label };
       }
 
-      const item = scheduler.add(description, triggerAt, repeatOpts);
+      const agentAction = input.agent_action as string | undefined;
+
+      const item = scheduler.add(description, triggerAt, {
+        ...repeatOpts,
+        action: agentAction,
+      });
       const timeLabel = formatTime(item.triggerAt);
       const repeatLabel = item.repeatLabel ? ` (${item.repeatLabel})` : "";
+      const actionLabel = item.action ? " [autonomous]" : "";
       return {
-        content: `Scheduled #${item.id}: "${description}" — ${timeLabel}${repeatLabel}`,
+        content: `Scheduled #${item.id}: "${description}" — ${timeLabel}${repeatLabel}${actionLabel}`,
       };
     }
 
@@ -104,7 +117,8 @@ export async function runSchedule(
       const lines = items.map((item) => {
         const due = new Date(item.triggerAt) <= now ? " [OVERDUE]" : "";
         const repeat = item.repeatLabel ? ` (${item.repeatLabel})` : "";
-        return `#${item.id}: "${item.description}" — ${formatTime(item.triggerAt)}${repeat}${due}`;
+        const auto = item.action ? " [autonomous]" : "";
+        return `#${item.id}: "${item.description}" — ${formatTime(item.triggerAt)}${repeat}${due}${auto}`;
       });
       return { content: `${items.length} scheduled:\n${lines.join("\n")}` };
     }

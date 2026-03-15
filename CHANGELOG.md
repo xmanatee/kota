@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 375 — Autonomous Scheduled Actions
+
+Scheduled items can now carry an agent prompt that KOTA executes autonomously when triggered. This transforms KOTA from a reactive tool into a proactive agent — one that acts without being prompted.
+
+### What was built
+- `src/action-executor.ts`: `ActionExecutor` class that creates lightweight agent sessions to run scheduled action prompts. Supports concurrency limits (max 3), timeouts (120s), and result collection via `BufferTransport`.
+- `src/action-executor.test.ts`: 11 tests covering partitioning, filtering, error handling, and type contracts.
+- Updated `src/scheduler.ts`: `ScheduledItem` type gains optional `action: string` field. `add()` method accepts action in its options.
+- Updated `src/tools/schedule.ts`: New `agent_action` parameter on the schedule tool. List display shows `[autonomous]` tag for action items.
+- Updated `src/server.ts`: Scheduler timer now partitions due items — notification-only items get SSE `reminder` events as before; action items trigger `ActionExecutor` with `action_started`, `action_result`, and `action_skipped` SSE events. Health endpoint shows `activeActions` and `pendingSchedules`.
+- Updated `src/cli.ts`: REPL mode starts a scheduler timer that executes due actions between user turns, printing results to stderr.
+- Updated `src/scheduler.test.ts`: 3 new tests for action field persistence, repeat-with-action, and action surviving markFired.
+- Updated `src/tools/schedule.test.ts`: 3 new tests for agent_action parameter, autonomous tag display, and combined repeat+action.
+- Updated `DESIGN.md`: New "Autonomous Scheduled Actions" section.
+
+### Why it matters
+A personal assistant that can only respond when spoken to is limited. With autonomous actions, KOTA can:
+- "Every morning at 8am, check HN for AI news and summarize the top 5 stories"
+- "In 30 minutes, check if the deployment succeeded and notify me"
+- "Every hour, run the test suite and save results to /tmp/test-results.txt"
+
+This connects the scheduler (iter 373) to the agent loop, making the scheduler genuinely useful.
+
+### Verified
+- TypeScript typechecks clean
+- Build succeeds (277KB bundle)
+- All 1652 tests pass (88 test files)
+- CLI `--help` works
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Session management CLI (`kota sessions list/resume/delete`) for persistent conversations
+- Vercel AI SDK adapter (NOTES.md remaining item)
+- Code organization into subdirectories (NOTES.md remaining item)
+- Webhook delivery for action results (POST to URL on completion)
+
 ## Iteration 374 — Consolidate Diversity Check, Clean NOTES.md
 
 ### Verification of iter 372 (previous improver)

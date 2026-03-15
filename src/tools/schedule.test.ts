@@ -115,4 +115,48 @@ describe("schedule tool", () => {
     const result = await runSchedule({ action: "unknown" });
     expect(result.is_error).toBe(true);
   });
+
+  it("adds with agent_action for autonomous execution", async () => {
+    const result = await runSchedule({
+      action: "add",
+      description: "Weather check",
+      time: "in 30 minutes",
+      agent_action: "Check the weather in NYC and summarize it",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Weather check");
+    expect(result.content).toContain("[autonomous]");
+  });
+
+  it("lists items with agent_action showing [autonomous] tag", async () => {
+    await runSchedule({
+      action: "add",
+      description: "Auto task",
+      time: "in 1 hour",
+      agent_action: "Run backup",
+    });
+    await runSchedule({
+      action: "add",
+      description: "Simple reminder",
+      time: "in 2 hours",
+    });
+
+    const result = await runSchedule({ action: "list" });
+    expect(result.content).toContain("[autonomous]");
+    expect(result.content).toContain("Auto task");
+    expect(result.content).toContain("Simple reminder");
+  });
+
+  it("adds with both agent_action and repeat", async () => {
+    const result = await runSchedule({
+      action: "add",
+      description: "Hourly check",
+      time: "in 1 hour",
+      repeat: "hourly",
+      agent_action: "Check system health",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("hourly");
+    expect(result.content).toContain("[autonomous]");
+  });
 });

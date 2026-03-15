@@ -202,6 +202,42 @@ describe("Scheduler", () => {
     expect(fired).toContain("Due now");
   });
 
+  it("adds an item with an action", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    const item = scheduler.add("Check weather", trigger, {
+      action: "Search for weather in NYC and summarize",
+    });
+    expect(item.action).toBe("Search for weather in NYC and summarize");
+    expect(item.description).toBe("Check weather");
+    expect(item.status).toBe("pending");
+  });
+
+  it("adds an item with action and repeat", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    const item = scheduler.add("Hourly report", trigger, {
+      repeatMs: 3_600_000,
+      repeatLabel: "hourly",
+      action: "Generate status report",
+    });
+    expect(item.action).toBe("Generate status report");
+    expect(item.repeatMs).toBe(3_600_000);
+    expect(item.repeatLabel).toBe("hourly");
+  });
+
+  it("action persists through markFired for repeating items", () => {
+    const past = new Date(Date.now() - 60_000);
+    const item = scheduler.add("Recurring action", past, {
+      repeatMs: 3_600_000,
+      repeatLabel: "hourly",
+      action: "Do the thing",
+    });
+    scheduler.markFired(item.id);
+
+    const updated = scheduler.get(item.id)!;
+    expect(updated.status).toBe("pending"); // still pending (repeating)
+    expect(updated.action).toBe("Do the thing"); // action preserved
+  });
+
   it("repeating items with past trigger advance to next future occurrence", () => {
     // Create an item that should have fired 5 intervals ago
     const past = new Date(Date.now() - 5 * 3_600_000);

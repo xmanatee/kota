@@ -12,6 +12,7 @@ import { AgentSession, type LoopOptions } from "./loop.js";
 import { loadConfig, type KotaConfig } from "./config.js";
 import { NullTransport, type Transport, type AgentEvent } from "./transport.js";
 import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js";
+import { ActionExecutor, partitionDueItems, type ActionResult } from "./action-executor.js";
 
 // --- SSE Transport ---
 
@@ -223,21 +224,73 @@ export function startServer(options: ServerOptions = {}): Server {
   // Track SSE clients listening for notifications
   const notificationClients = new Set<SseTransport>();
 
-  const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
+  // Action executor for autonomous scheduled actions
+  const actionExecutor = new ActionExecutor({
+    sessionOptions: {
+      model: options.model ?? config.model,
+      verbose: options.verbose ?? config.verbose,
+      config,
+    },
+  });
+
+  function broadcastNotification(data: Record<string, unknown>): void {
     for (const client of notificationClients) {
       if (client.isClosed) {
         notificationClients.delete(client);
         continue;
       }
-      for (const item of dueItems) {
-        client.send("notification", {
-          type: "reminder",
+      client.send("notification", data);
+    }
+  }
+
+  function broadcastActionResult(result: ActionResult): void {
+    broadcastNotification({
+      type: "action_result",
+      id: result.item.id,
+      description: result.item.description,
+      action: result.item.action,
+      result: result.result,
+      error: result.error || null,
+      durationMs: result.durationMs,
+    });
+  }
+
+  const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
+    const { actions, notifications } = partitionDueItems(dueItems);
+
+    // Broadcast notification-only items as before
+    for (const item of notifications) {
+      broadcastNotification({
+        type: "reminder",
+        id: item.id,
+        description: item.description,
+        scheduledFor: item.triggerAt,
+        repeat: item.repeatLabel || null,
+      });
+    }
+
+    // Execute autonomous actions in the background
+    for (const item of actions) {
+      if (!actionExecutor.canExecute()) {
+        broadcastNotification({
+          type: "action_skipped",
           id: item.id,
           description: item.description,
-          scheduledFor: item.triggerAt,
-          repeat: item.repeatLabel || null,
+          reason: "Too many concurrent actions",
         });
+        continue;
       }
+
+      // Notify that action is starting
+      broadcastNotification({
+        type: "action_started",
+        id: item.id,
+        description: item.description,
+        action: item.action,
+      });
+
+      // Execute asynchronously — don't block the timer
+      actionExecutor.execute(item).then(broadcastActionResult).catch(() => {});
     }
   });
 
@@ -330,7 +383,12 @@ export function startServer(options: ServerOptions = {}): Server {
     }
 
     if (req.method === "GET" && path === "/api/health") {
-      json(res, 200, { status: "ok", sessions: pool.size });
+      json(res, 200, {
+        status: "ok",
+        sessions: pool.size,
+        activeActions: actionExecutor.activeCount,
+        pendingSchedules: scheduler.count(),
+      });
       return;
     }
 
