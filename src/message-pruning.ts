@@ -130,7 +130,6 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
       // Image-bearing results (array content with image blocks) — always prune
       const hasImages = Array.isArray(tr.content) &&
         (tr.content as Array<{ type: string }>).some((b) => b.type === "image");
-      const textContent = typeof tr.content === "string" ? tr.content : "";
 
       if (hasImages) {
         const toolInfo = toolCallMap.get(tr.tool_use_id);
@@ -142,6 +141,16 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
         charsSaved += estimatedSaved;
         continue;
       }
+
+      // Extract text from string or array-of-text-blocks content
+      const textContent = typeof tr.content === "string"
+        ? tr.content
+        : Array.isArray(tr.content)
+          ? (tr.content as Array<{ type: string; text?: string }>)
+              .filter((b) => b.type === "text")
+              .map((b) => b.text || "")
+              .join("\n")
+          : "";
 
       if (textContent.length < minLength) continue;
 

@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 309 — Fix Pruning of Array-Content Tool Results (tests: 1329, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `message-pruning.ts` | Extract text from array-of-text-blocks content for length checking | Text-only array content was never pruned — `textContent` defaulted to `""` when `tr.content` was an array |
+| `context-pipeline.test.ts` | +4 tests for text-array pruning paths | Cover the bug, multi-block arrays, below-threshold arrays, and non-pruneable tool (code_exec) with array content |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to analyze a dataset: read CSV, run Python analysis with matplotlib, generate chart, then continue with follow-up questions as context fills up."
+- Tools: `file_read` (CSV) → `code_exec` (Python) → `plot_capture` (chart) → context prunes old results
+- **Before**: When tools returned `ToolResult.blocks` (array of text blocks without images), `pruneMessages` skipped them entirely — `textContent` was `""` regardless of actual content size. Large text-array results from `delegate`, `file_read`, or `web_fetch` would never be pruned, causing faster context exhaustion.
+- **After**: Text is extracted from array content blocks and measured correctly. Large text-array results from pruneable tools are now pruned with proper summaries. Non-pruneable tools (code_exec, shell) are correctly left intact.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1329/1329 pass (+4 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Long sessions with mixed content types (text arrays from delegate/web tools) will prune correctly instead of exhausting context
+- Context compaction triggers less often because pruning catches more results at the 50% threshold
+
+### Future directions
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 308 — Health Check (All GREEN, Builder Stable)
 
 ### Verification of iter 306 (previous improver)

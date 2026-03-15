@@ -467,6 +467,132 @@ describe("context-pipeline cross-module integration", () => {
     }
   });
 
+  it("text-only array content in tool results is pruned correctly", () => {
+    // Bug: when tr.content is an array of text blocks (no images),
+    // textContent defaulted to "" → result was never pruned regardless of size.
+    const msgs: Message[] = [
+      toolUse("a1", "file_read", { path: "src/big-module.ts" }),
+      // Simulate a tool result stored as array-of-text-blocks (from ToolResult.blocks)
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "a1",
+          content: [
+            { type: "text", text: "x".repeat(4000) },
+          ],
+        }],
+      } as Message,
+      // Pad with enough messages so the result is outside keepRecent
+      ...Array.from({ length: 22 }, (_, i) => [
+        { role: "assistant" as const, content: `step ${i}` },
+        { role: "user" as const, content: `ok ${i}` },
+      ]).flat(),
+    ];
+
+    const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
+    expect(stats.prunedCount).toBe(1);
+    expect(stats.charsSaved).toBeGreaterThan(3000);
+
+    // The pruned result should now be a text summary
+    const result = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
+      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    expect(typeof result.content).toBe("string");
+    expect(result.content).toContain("Previously read");
+    expect(result.content).toContain("src/big-module.ts");
+  });
+
+  it("multi-block text array content is pruned with combined length", () => {
+    // Tool result with multiple text blocks that individually are small
+    // but combined exceed minLength
+    const msgs: Message[] = [
+      toolUse("m1", "delegate", { task: "Analyze the codebase structure and report findings" }),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "m1",
+          content: [
+            { type: "text", text: "Section 1: " + "a".repeat(800) },
+            { type: "text", text: "Section 2: " + "b".repeat(800) },
+            { type: "text", text: "Section 3: " + "c".repeat(800) },
+          ],
+        }],
+      } as Message,
+      ...Array.from({ length: 22 }, (_, i) => [
+        { role: "assistant" as const, content: `s${i}` },
+        { role: "user" as const, content: `o${i}` },
+      ]).flat(),
+    ];
+
+    const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
+    expect(stats.prunedCount).toBe(1);
+
+    const result = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
+      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    expect(typeof result.content).toBe("string");
+    expect(result.content).toContain("Previous delegate");
+    expect(result.content).toContain("Analyze the codebase");
+  });
+
+  it("text array content below minLength is not pruned", () => {
+    const msgs: Message[] = [
+      toolUse("s1", "file_read", { path: "small.ts" }),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "s1",
+          content: [
+            { type: "text", text: "short content" },
+          ],
+        }],
+      } as Message,
+      ...Array.from({ length: 22 }, (_, i) => [
+        { role: "assistant" as const, content: `s${i}` },
+        { role: "user" as const, content: `o${i}` },
+      ]).flat(),
+    ];
+
+    const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
+    expect(stats.prunedCount).toBe(0);
+  });
+
+  it("cross-module: code_exec text result flows through prune pipeline", () => {
+    // Simulates code_exec returning a large text-only result (no plots)
+    // stored as array blocks, flowing through the context prune pipeline
+    const msgs: Message[] = [
+      { role: "user", content: "Analyze this data and compute statistics" },
+      toolUse("ce1", "code_exec", { code: "import pandas as pd\ndf.describe()", language: "python" }),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "ce1",
+          content: [
+            { type: "text", text: "DataFrame statistics:\n" + "x".repeat(3000) },
+          ],
+        }],
+      } as Message,
+      { role: "assistant", content: "Here are the statistics..." },
+      // More work happens, pushing the result out of keepRecent
+      ...Array.from({ length: 24 }, (_, i) => [
+        { role: "user" as const, content: `follow-up ${i}` },
+        { role: "assistant" as const, content: `response ${i}` },
+      ]).flat(),
+    ];
+
+    // code_exec is NOT in PRUNEABLE_TOOLS, so even with array fix,
+    // it should not be pruned (code_exec results may contain state info)
+    const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
+    expect(stats.prunedCount).toBe(0);
+
+    // Verify the result is still intact
+    const result = (msgs[2] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
+      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    expect(Array.isArray(result.content)).toBe(true);
+  });
+
   it("truncateToolResult interacts correctly with pruning thresholds", () => {
     // When context is tight, tool results get truncated before they even
     // reach the conversation history. This test verifies that truncated
