@@ -10,7 +10,7 @@ import { createServer, type IncomingMessage, type ServerResponse, type Server } 
 import { randomUUID } from "node:crypto";
 import { AgentSession, type LoopOptions } from "./loop.js";
 import { loadConfig, type KotaConfig } from "./config.js";
-import { NullTransport, type Transport, type AgentEvent } from "./transport.js";
+import { NullTransport, ProxyTransport, type Transport, type AgentEvent } from "./transport.js";
 import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js";
 import { ActionExecutor, partitionDueItems, type ActionResult } from "./action-executor.js";
 import { getHistory } from "./history.js";
@@ -44,17 +44,6 @@ export class SseTransport implements Transport {
 
   get isClosed(): boolean {
     return this.closed;
-  }
-}
-
-// --- Proxy Transport ---
-
-/** Mutable transport proxy — lets one AgentSession stream to different sinks per request. */
-export class ProxyTransport implements Transport {
-  constructor(public target: Transport = new NullTransport()) {}
-
-  emit(event: AgentEvent): void {
-    this.target.emit(event);
   }
 }
 

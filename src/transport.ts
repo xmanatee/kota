@@ -72,6 +72,15 @@ export class NullTransport implements Transport {
   }
 }
 
+/** Mutable transport proxy — lets one session stream to different sinks per request. */
+export class ProxyTransport implements Transport {
+  constructor(public target: Transport = new NullTransport()) {}
+
+  emit(event: AgentEvent): void {
+    this.target.emit(event);
+  }
+}
+
 /** Collects events into an array for testing or buffered output. */
 export class BufferTransport implements Transport {
   readonly events: AgentEvent[] = [];

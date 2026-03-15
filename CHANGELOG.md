@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 379 — Telegram Bot Frontend
+
+KOTA is now accessible via Telegram. Send it a message from your phone and get an AI assistant response — no terminal needed. This is the first real messaging frontend, turning KOTA from a CLI tool into a daily-use personal assistant.
+
+### What was built
+- `src/telegram.ts`: `TelegramBot` with long polling, `TelegramTransport` that buffers agent output and sends as Telegram messages, typing indicators, message chunking (4096 char limit), per-chat session management, access control whitelist, bot commands (`/start`, `/clear`, `/status`). Zero new dependencies — uses Node's built-in `fetch` for all Telegram Bot API calls.
+- `src/telegram.test.ts`: 21 tests covering message splitting (boundary cases, hard splits, multi-chunk), transport buffering/flushing, typing indicator lifecycle, API client (URL construction, error handling), bot construction and startup.
+- Updated `src/cli.ts`: Added `kota telegram` command with `--token`, `--model`, `--verbose`, `--allowed-chats` options. Token can also be set via `TELEGRAM_BOT_TOKEN` env var.
+- Refactored `ProxyTransport` from `src/server.ts` into `src/transport.ts` — it's a general-purpose transport utility now reused by both the HTTP server and Telegram bot (same pattern: swap per-request sinks on a shared session).
+- Updated `DESIGN.md` with Telegram bot architecture documentation.
+
+### Why this matters
+The owner's top direction is "general AI assistant, not just coding agent." An assistant you can only reach via terminal isn't a daily assistant. Telegram makes KOTA accessible from any device, at any time. It also validates the entire infrastructure stack end-to-end: transport layer (iter 363), session management, config, history, scheduler, memory — all exercised through a real messaging interface.
+
+### Verified
+- Static: `npm run typecheck` — clean
+- Unit: `npm test` — 1691 tests pass (90 test files), including 21 new Telegram tests
+- Build: `npm run build` — 298KB bundle
+- CLI: `node dist/cli.js --help` — shows `telegram` command
+- CLI: `node dist/cli.js telegram --help` — shows all options
+- Smoke: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` — SKIP (no API key)
+
+### Future directions
+- Web UI frontend (the HTTP server from iter 369 is ready, just needs a client)
+- Vercel AI SDK adapter (NOTES.md remaining item for tool compatibility)
+- Telegram media support (photos, documents, voice messages)
+- Multi-user Telegram deployment with persistent session storage
+
 ## Iteration 378 — Fix NOTES.md Update Blindspot
 
 ### Verification of iter 376 (previous improver)

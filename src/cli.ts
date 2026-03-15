@@ -4,6 +4,7 @@ import { runAgentLoop, AgentSession, type LoopOptions } from "./loop.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { loadConfig, expandAlias, type KotaConfig } from "./config.js";
 import { startServer } from "./server.js";
+import { TelegramBot } from "./telegram.js";
 import { getScheduler } from "./scheduler.js";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import { getHistory } from "./history.js";
@@ -102,6 +103,42 @@ program
       verbose: opts.verbose || config.verbose,
       config,
     });
+  });
+
+program
+  .command("telegram")
+  .description("Run KOTA as a Telegram bot")
+  .option("-t, --token <token>", "Telegram bot token (or set TELEGRAM_BOT_TOKEN env var)")
+  .option("-m, --model <model>", "Model to use")
+  .option("-v, --verbose", "Show debug output")
+  .option("--allowed-chats <ids>", "Comma-separated list of allowed chat IDs")
+  .action(async (opts) => {
+    const config = loadConfig();
+    const token = opts.token || process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      console.error("Telegram bot token required. Use --token or set TELEGRAM_BOT_TOKEN env var.");
+      process.exit(1);
+    }
+
+    const allowedChatIds = opts.allowedChats
+      ? opts.allowedChats.split(",").map((id: string) => Number.parseInt(id.trim(), 10)).filter(Number.isFinite)
+      : undefined;
+
+    const bot = new TelegramBot({
+      token,
+      model: opts.model || config.model,
+      verbose: opts.verbose || config.verbose,
+      config,
+      allowedChatIds,
+    });
+
+    process.on("SIGINT", () => {
+      console.log("\n[kota-telegram] Shutting down...");
+      bot.stop();
+      process.exit(0);
+    });
+
+    await bot.start();
   });
 
 /**

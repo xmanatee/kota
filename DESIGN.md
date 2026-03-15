@@ -40,6 +40,7 @@ All agent I/O is decoupled from the terminal via a typed event system. The agent
 - `CliTransport` — renders to stdout/stderr (default, reproduces original terminal behavior)
 - `BufferTransport` — collects events in-memory (testing, batch processing)
 - `NullTransport` — discards everything (headless/benchmarking)
+- `ProxyTransport` — mutable target proxy, used by HTTP server and Telegram bot to swap per-request sinks
 
 **Embedding KOTA in other frontends** (Telegram, web, Discord):
 ```typescript
@@ -91,6 +92,29 @@ data: {"session_id":"abc12345","result":"Hello!"}
 - **No external deps**: Pure `node:http`. CORS enabled by default.
 
 **Usage**: `kota serve --port 3000`
+
+### Telegram Bot (`src/telegram.ts`)
+
+First real messaging frontend — makes KOTA accessible as a personal assistant via Telegram. Uses the Telegram Bot API via HTTP (no external dependencies). Validates and exercises the full transport/session infrastructure.
+
+**Architecture** (same ProxyTransport pattern as HTTP server):
+- Each chat ID gets an `AgentSession` with a `ProxyTransport`
+- On each message, a `TelegramTransport` is set as the proxy target
+- `TelegramTransport` buffers `text` events, shows typing indicators, flushes as Telegram messages
+- After response, proxy resets to `NullTransport`
+
+**Key features**:
+- **Long polling**: `getUpdates` with 30s timeout. Error backoff at 5s.
+- **Typing indicators**: Sent every 4s while agent is processing.
+- **Message chunking**: Long responses split at newline boundaries (4096 char Telegram limit).
+- **Chat session persistence**: One `AgentSession` per chat — conversation state persists across messages.
+- **Commands**: `/start` (greeting), `/clear` (reset session), `/status` (session info).
+- **Access control**: Optional `allowedChatIds` whitelist.
+- **Concurrency**: One message per chat at a time (busy guard). Other messages get "please wait".
+
+**Usage**: `kota telegram --token <BOT_TOKEN>` or set `TELEGRAM_BOT_TOKEN` env var.
+
+**No new dependencies**: Uses Node's built-in `fetch` for all Telegram API calls.
 
 ### Context Management (`src/context.ts`)
 
