@@ -267,7 +267,11 @@ if [[ "$TASK" == "build-agent" ]]; then
   TEST_OUTPUT=$(cd "$DIR" && npm test 2>&1 || true)
   CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed $'s/\x1b\\[[0-9;]*m//g')
   TESTS_PASSED=$(echo "$CLEAN_OUTPUT" | grep -E '^\s*Tests\s' | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "-")
+  TESTS_FAILED=$(echo "$CLEAN_OUTPUT" | grep -E '^\s*Tests\s' | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
   echo "[step] Metrics: ${SRC_FILES} src files, ${SRC_LINES} lines, ${TESTS_PASSED} tests passed"
+  if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_FAILED" != "-" ]; then
+    echo "[step] WARNING: ${TESTS_FAILED} tests FAILED — builder left regressions!"
+  fi
 
   # E2E smoke test: run the agent on a trivial task to verify it works end-to-end
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then

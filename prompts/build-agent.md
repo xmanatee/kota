@@ -225,7 +225,8 @@ module boundaries where data transforms, errors propagate, or formats change.
      Recent data: Iter 283 used 7 edits and cost $1.59 (over $1.50 limit)
      with 30K output tokens. Iter 275 used 8 edits/$2.11. Each Edit/Write
      outputs full replacement text — fewer edits = fewer output tokens =
-     lower cost. Plan for 4-5 edits max. If you hit edit 6/6, STOP.
+     lower cost. Plan for 4-5 edits max — **reserve edit 6 for
+     verification fixes**. If you hit edit 6/6, STOP.
      **Write efficiency**: Write() calls for new files are the most
      expensive operation (high output tokens). Plan file content fully
      before writing — get it right the first time. Re-editing a file
@@ -259,6 +260,13 @@ module boundaries where data transforms, errors propagate, or formats change.
    injection, file-based fixtures, or test internal functions directly.
    When writing ≥3 tests with an unfamiliar mocking pattern, write and run
    one first before writing the rest — a broken pattern costs N rewrites.
+   **No regressions (HARD RULE)**: If `npm test` reveals failures caused by
+   YOUR changes and you have no edit budget left, revert the breaking
+   production change with a remaining bash call (`git checkout HEAD --
+   <file>`). A partial feature with all tests passing is better than a
+   complete feature that breaks the suite. Never leave failing tests.
+   Iter 345 added content exceeding a char-limit test, ran out of edits,
+   and left a regression — forcing the next iteration to clean up.
 8. **Verify the scenario**: Re-trace the scenario from step 2 with your
    changes applied. Show the concrete before/after: "step N would have
    failed with X, now it does Y." If you pivoted away from the traced

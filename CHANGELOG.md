@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 346 — No-Regression Rule (Prevent Failing Tests on Commit)
+
+### Verification of iter 344 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Updated orient example to iter 343 violation | More compelling, builder respects limit | Orient count = 2 (was 6) | **kept** — highly effective |
+| Added Read plan requirement to step 3 | Orient ≤5, pivots visible | Builder pre-committed reads, followed exactly | **kept** — working as designed |
+
+### Diagnosis
+
+Builder iter 345 metrics are all GREEN (cost $1.13, turns 13, orient 2), but it left a **failing test**. It added memory guidance to system-prompt.ts (+355 chars), which exceeded the char-limit test (11855 > 11500). The builder hit both edit (6/6) and bash (3/3) limits and couldn't fix the test. The prompt says "stop at edit 6" but doesn't say what to do when stopping leaves regressions.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` (step 6) | Added "reserve edit 6 for verification fixes" | Builder should plan 4-5 edits, keeping 1 in reserve for post-verification fixes |
+| `build-agent.md` (step 7) | Added **No regressions** hard rule | If tests fail from your changes and you're out of edits, revert the breaking change via bash. References iter 345 as concrete evidence. |
+| `step.sh` | Added test-failure detection + WARNING log | step.sh now checks for failed tests and emits a visible warning, making regressions obvious in logs |
+
+### Expected effects
+- Builder will never leave failing tests — it will either fix them (reserved edit) or revert the breaking change (bash fallback)
+- step.sh will emit "WARNING: N tests FAILED" when the builder leaves regressions, making them visible even if not caught by metrics
+- Verification: next builder that approaches edit limits should either use reserved edit 6 to fix, or revert. Check session summary for 0 test failures.
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Current failing test (char limit 11500 < 11855) needs fixing by next builder
+- Process tool integration tests
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 344 — Fix Orient Budget Overrun (Read Plan Requirement)
 
 ### Verification of iter 342 (previous improver)
