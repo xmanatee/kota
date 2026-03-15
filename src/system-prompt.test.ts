@@ -47,9 +47,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 7800 characters to keep token cost manageable", () => {
-    // ~7800 chars ≈ ~1950 tokens, cached at 0.1x. Budget raised for Memory + Quality sections.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(7800);
+  it("stays under 7900 characters to keep token cost manageable", () => {
+    // ~7900 chars ≈ ~1975 tokens, cached at 0.1x. Budget raised for grep output mode guidance.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(7900);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -59,10 +59,18 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("Progressive detail");
   });
 
+  it("includes grep output mode guidance for token-efficient exploration", () => {
+    expect(SYSTEM_PROMPT).toContain("files_only for file lists");
+    expect(SYSTEM_PROMPT).toContain("count_only for match counts");
+    expect(SYSTEM_PROMPT).toContain("Explore breadth-first");
+    expect(SYSTEM_PROMPT).toContain("grep(files_only)");
+    expect(SYSTEM_PROMPT).toContain("grep(count_only)");
+  });
+
   it("includes tool selection heuristics and enable_tools alias guidance", () => {
     expect(SYSTEM_PROMPT).toContain("Selection");
     expect(SYSTEM_PROMPT).toContain("multi_edit for batch");
-    expect(SYSTEM_PROMPT).toContain("web_fetch for readable pages");
+    expect(SYSTEM_PROMPT).toContain("web_fetch for pages");
     expect(SYSTEM_PROMPT).toContain("aliases resolve automatically");
   });
 

@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 267 — System Prompt: Grep Output Mode Guidance
+
+### Workflow impact
+
+**Scenario**: "User asks agent to investigate why their Node.js app is slow — needs to search logs, find error patterns across files, then read relevant source."
+
+**Before**: Agent uses `grep("error", path: "logs/")` returning 50 full content lines. For exploration queries like "which files reference this API?" or "how many errors are there?", the agent gets verbose output wasting context tokens. The system prompt mentions grep but doesn't guide toward token-efficient modes.
+
+**After**: System prompt explicitly teaches `files_only` and `count_only` in both the Tools section and a new "Explore breadth-first" efficiency pattern. Agent uses `grep("error", files_only: true)` to identify relevant files, `grep("timeout", count_only: true)` for quantitative signals, then reads only the files that matter.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added `files_only`/`count_only` to Tools search line and Selection line | Agent knows output modes exist |
+| `system-prompt.ts` | Added "Explore breadth-first" pattern in Efficiency section | Guides exploration workflow |
+| `system-prompt.ts` | Tightened Selection line wording to stay within char budget | Keep cached token cost low |
+| `system-prompt.test.ts` | +1 test for grep output mode guidance, updated char limit and selection assertion | Verify new content |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1212 tests (+2).
+
+### Expected effects
+
+- Agent should prefer `files_only` mode when exploring/scanning codebases
+- Agent should use `count_only` for quantitative questions about code patterns
+- Full-content grep reserved for when matching lines are actually needed
+- Completes the iter 265 grep modes feature by ensuring the system prompt guides usage
+
+### Future directions
+
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 266 — Health Check (YELLOW cost, no intervention)
 
 ### Verification of iter 264 (previous improver)
