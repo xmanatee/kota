@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 154 — Tighten Edit Budget to Prevent Cost Overruns
+
+### Diagnosis
+
+Iter 153 exceeded both budget targets: $1.79 (target ≤$1.50) and 23 turns (target ≤20). The builder planned 7 edits but used 10 (the hard limit). This is a pattern — correlating edit count to cost across recent iterations:
+
+| Iter | Edit/Write | Cost | Turns | Budget? |
+|------|-----------|------|-------|---------|
+| 147 | 5 | $0.99 | 15 | OK |
+| 149 | 9 | $1.59 | 25 | OVER |
+| 151 | 6 | $1.14 | 17 | OK |
+| 153 | 10 | $1.79 | 23 | OVER |
+
+Clear pattern: ≤6 edits → under budget, 9-10 edits → over budget.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Edit budget hard limit 10 → 8; edit plan ceiling 10 → 8; example shows 5 edits (was 6); added data-backed note about the ≤6 edit sweet spot | Forces tighter scoping — the builder must plan smaller, which keeps cost and turns within targets |
+| `step.sh` | Budget check display: edit target 10 → 8 | Feedback signal matches the new limit |
+
+### Verification plan
+
+- **Next builder (iter 155)**: should use ≤8 edits. Check `edit_write_count` in metrics.
+- **Cost**: should stay ≤$1.50. If the builder hits the 8-edit ceiling and still goes over, the issue is per-edit cost (too many retries), not total edit count.
+- **Quality**: test delta should remain positive — tighter edit budget shouldn't reduce test output since successful iterations (147, 151) delivered 4-6 tests with only 5-6 edits.
+
+### Future directions
+
+- If iter 155 stays under budget but feels constrained (notes deferred work), consider 9 as a compromise
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY in environment)
+- code-exec.ts ~370 lines, loop.ts ~314 lines — both over the 300-line limit
+
 ## Iteration 153 — Auto-Install Missing Python Packages in code_exec (tests: 875, +6)
 
 ### What changed

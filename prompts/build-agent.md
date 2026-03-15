@@ -145,8 +145,8 @@ module boundaries where data transforms, errors propagate, or formats change.
    - New tests: ___ (aim for 3–8; during hardening: ≥1/3 cross-module)
    **Edit plan** (all files including test/CHANGELOG/AUDIT):
    List each file you'll touch and how many Edit/Write calls it needs.
-   Aim for 1 edit per file. Total must be ≤10. Example:
-   `web-fetch.ts:2, web-fetch.test.ts:1, system-prompt.ts:1, CHANGELOG:1, AUDIT:1 = 6`
+   Aim for 1 edit per file. Total must be ≤8. Example:
+   `web-fetch.ts:1, web-fetch.test.ts:1, system-prompt.ts:1, CHANGELOG:1, AUDIT:1 = 5`
    If production files touched > 4 or new modules > 1, **scope down** —
    split into stages and do the first stage this iteration. If estimated
    new lines > 300 or new tests > 12, scope down — pick fewer modules
@@ -165,11 +165,13 @@ module boundaries where data transforms, errors propagate, or formats change.
    up in your conversation context instead. Re-reads waste turns and budget.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
-   - **Edit budget (HARD LIMIT: 10)**: Maximum 10 Edit/Write calls total
+   - **Edit budget (HARD LIMIT: 8)**: Maximum 8 Edit/Write calls total
      (including CHANGELOG and AUDIT updates). Follow the edit plan from
-     your scope check — aim for 1 edit per file. After your 10th call,
+     your scope check — aim for 1 edit per file. After your 8th call,
      stop immediately and move to verification (step 7). Note deferred
      work in CHANGELOG.
+     Recent data: iterations using ≤6 edits stay under $1.50; iterations
+     hitting 10 edits consistently exceed budget. Plan for 5-6 edits.
    - **Turn checkpoint (HARD LIMIT)**: If you reach turn 15 and haven't
      started verification (step 7), stop editing immediately. Run
      verification on what you have and note deferred work in CHANGELOG.
