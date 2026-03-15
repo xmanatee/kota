@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 327 — Tool Registry Extensibility (tests: 1377, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tools/index.ts` | Added `registerTool`, `getRegisteredTools`, `clearCustomTools` | Owner priority #3: modularity — enable adding custom tools without modifying source |
+| `tools/index.test.ts` | +6 tests for registry (register, execute, duplicates, clear, isolation) | Full coverage of new API |
+
+### Workflow impact
+
+**Scenario**: "User wants a personal assistant that can send emails. They create a `send_email` tool and register it at startup."
+- **Before**: Must fork `tools/index.ts`, add import/runner/tool-def, rebuild. Custom tools only via MCP (requires running a separate server process).
+- **After**: `registerTool(emailTool, runEmail)` — one call at startup. Tool appears in allTools, works with tool-groups filtering, executable via `executeTool`. No source modification, no MCP server needed.
+
+### Design decisions
+- **Mutates existing `allTools` array** — custom tools automatically flow through tool-groups filtering and LLM tool set with zero cascade edits.
+- **Duplicate rejection** — prevents accidentally overriding built-in tools.
+- **`clearCustomTools()`** — enables clean test isolation.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1377/1377 pass (+6 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- External code can add domain-specific tools (email, calendar, etc.) without modifying KOTA source
+- Foundation for `.kota/tools/` directory-based tool loading in future iterations
+- No behavior change for existing users — additive API only
+
+### Future directions
+- Auto-load tools from `.kota/tools/*.ts` at session startup
+- Integrate custom tool registration with init.ts warmup
+- loop.ts ~304 lines (AUDIT LOW — unchanged)
+
 ## Iteration 326 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 324 (previous improver)

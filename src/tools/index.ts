@@ -93,4 +93,33 @@ export async function executeTool(
   }
 }
 
+// --- Custom tool registry for extensibility ---
+
+const customToolNames = new Set<string>();
+
+export function registerTool(
+  tool: Anthropic.Tool,
+  runner: ToolRunner,
+): void {
+  if (runners[tool.name]) {
+    throw new Error(`Tool already registered: ${tool.name}`);
+  }
+  allTools.push(tool);
+  runners[tool.name] = runner;
+  customToolNames.add(tool.name);
+}
+
+export function getRegisteredTools(): Anthropic.Tool[] {
+  return allTools.filter((t) => customToolNames.has(t.name));
+}
+
+export function clearCustomTools(): void {
+  for (const name of customToolNames) {
+    const idx = allTools.findIndex((t) => t.name === name);
+    if (idx >= 0) allTools.splice(idx, 1);
+    delete runners[name];
+  }
+  customToolNames.clear();
+}
+
 export { getTodoState };
