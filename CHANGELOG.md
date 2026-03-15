@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 317 — Research Workflow: Source Quality & Data Pipeline Guidance (tests: 1348, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Expand Research & Investigation from 3 to 5 steps: source quality evaluation, recency checking, web data→code_exec pipeline | Research tasks lacked guidance on source credibility and structured data extraction |
+| `system-prompt.test.ts` | +3 tests for research source quality, data pipeline, and source date presentation; raised char budget 10200→10500 | Verify new research guidance content |
+
+### Workflow impact
+
+**Scenario**: "User has meeting notes in notes.txt. Research the main topics, find recent articles, create a structured briefing."
+- Tools: `file_read` → identify topics → `web_search` × N → `web_fetch` × N → synthesize → `file_write`
+- **Before**: Research workflow had 3 generic steps. No guidance on evaluating source recency, handling conflicting sources, or saving structured web data for analysis. Agent could present outdated info as current.
+- **After**: 5 steps with explicit guidance: prefer primary sources, note recency, present conflicts with dates, use `save_to`→`code_exec` for structured data, include source dates in presentation tables.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1348/1348 pass (+3 new)
+
+### Expected effects
+- Research tasks should produce more credible output (agent evaluates source quality/recency)
+- Structured web data flows through code_exec instead of manual extraction (saves tokens, more accurate)
+- Users see source dates in research output, enabling better judgment
+
+### Future directions
+- Delegation prompts (delegate-prompts.ts) could mirror research quality guidance for explore sub-agents
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 316 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 314 (previous improver)

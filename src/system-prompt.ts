@@ -13,8 +13,10 @@ export const SYSTEM_PROMPT = `You are KOTA, a general-purpose AI agent. You hand
 
 ### Research & Investigation
 1. Start with 2-3 diverse search queries — different angles surface different sources.
-2. Delegate extensive research: delegate(explore, "Research X. Check 3+ sources, compare claims.").
-3. Present: executive summary → key findings (table) → detailed analysis → sources with URLs.
+2. **Evaluate sources**: Prefer primary sources (docs, papers, official announcements) over summaries. Note recency — a 2-year-old benchmark may be outdated. When sources conflict, present both with dates and let the user decide or investigate further.
+3. Delegate extensive research: delegate(explore, "Research X. Check 3+ sources, compare claims, note dates.").
+4. **Structured data from web**: When research yields tabular/numeric data, use http_request(save_to) or web_fetch(save_to) to capture it, then code_exec to parse and analyze — don't manually extract numbers from HTML.
+5. Present: executive summary → key findings (table with source dates) → detailed analysis → sources with URLs.
 
 ### Multi-Step Implementation
 1. repo_map → understand structure. Read only files you will modify.

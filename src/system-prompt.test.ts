@@ -50,8 +50,8 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("stays under 10200 characters to keep token cost manageable", () => {
-    // ~10200 chars ≈ ~2550 tokens, cached at 0.1x. Budget raised for context budget + assumption guidance.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(10200);
+    // ~10500 chars ≈ ~2625 tokens, cached at 0.1x. Budget raised for research quality guidance (iter 317).
+    expect(SYSTEM_PROMPT.length).toBeLessThan(10500);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -209,6 +209,26 @@ describe("SYSTEM_PROMPT", () => {
   it("efficiency section guides building on prior turns", () => {
     expect(SYSTEM_PROMPT).toContain("Build on prior turns");
     expect(SYSTEM_PROMPT).toContain("don't restart from scratch");
+  });
+
+  it("research workflow includes source quality and recency evaluation", () => {
+    const researchSection = SYSTEM_PROMPT.split("### Research & Investigation")[1]?.split("###")[0] || "";
+    expect(researchSection).toContain("primary sources");
+    expect(researchSection).toContain("recency");
+    expect(researchSection).toContain("sources conflict");
+    expect(researchSection).toContain("note dates");
+  });
+
+  it("research workflow guides web data capture into code_exec pipeline", () => {
+    const researchSection = SYSTEM_PROMPT.split("### Research & Investigation")[1]?.split("###")[0] || "";
+    expect(researchSection).toContain("save_to");
+    expect(researchSection).toContain("code_exec");
+    expect(researchSection).toContain("tabular");
+  });
+
+  it("research workflow presentation includes source dates", () => {
+    const researchSection = SYSTEM_PROMPT.split("### Research & Investigation")[1]?.split("###")[0] || "";
+    expect(researchSection).toContain("source dates");
   });
 
   it("includes safety guardrails", () => {
