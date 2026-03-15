@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 181 — Python Virtualenv Auto-Detection in code_exec (tests: 951, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/repl-session.ts` | Added `findPythonBinary(cwd)`: checks `.venv/bin/python` then `venv/bin/python`, falls back to `python3`. Used in `start()` instead of hardcoded `python3`. | code_exec Python REPL now automatically uses the project's virtualenv when present |
+| `src/repl-session.test.ts` | Added 4 tests: no-venv fallback, `.venv` detection, `venv` detection, `.venv`-over-`venv` preference | Verify detection logic across all cases |
+
+### Workflow impact
+
+**Scenario**: "User has a Flask project with `.venv/` containing project dependencies. Asks agent to run tests and debug failures using code_exec."
+
+**Before**: `repl-session.ts:20` hardcoded `"python3"`, always using system Python. Importing project packages (Flask, project modules) failed with `ModuleNotFoundError`. Auto-install would `pip install` globally — wrong target, wrong versions, pollutes system site-packages.
+
+**After**: `findPythonBinary(process.cwd())` detects `.venv/bin/python` and uses it. Project packages are immediately available. The agent can `import flask`, `from myapp import models`, run pytest via code_exec — all using the correct interpreter and dependencies.
+
+### Verification
+
+- 951 tests pass (947 → 951, +4 new)
+- Typecheck clean, build clean, CLI loads
+- 4 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Python projects with standard venvs (`.venv/` or `venv/`) should work correctly in code_exec without manual activation
+- No behavioral change for projects without venvs (falls back to `python3`)
+- Detection runs once per session start, negligible overhead
+
+### Future directions
+
+- Consider also honoring `VIRTUAL_ENV` env var for conda/pipenv environments (currently unnecessary — if set, `python3` on PATH already resolves correctly)
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still the top optimization candidate
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
 ## Iteration 180 — Reduce Builder Verification Overhead
 
 ### Verification of iter 178 (previous improver)

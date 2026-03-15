@@ -1,5 +1,8 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { REPLSession, sessions, cleanupSessions } from "./repl-session.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { REPLSession, sessions, cleanupSessions, findPythonBinary } from "./repl-session.js";
 import { SENTINEL, DONE_MARKER } from "./code-wrappers.js";
 
 describe("REPLSession", () => {
@@ -98,5 +101,45 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     expect(result.output).not.toContain(SENTINEL);
     expect(result.output).not.toContain(DONE_MARKER);
     expect(result.output).toContain("clean");
+  });
+});
+
+describe("findPythonBinary", () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `kota-venv-test-${Date.now()}`);
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("returns python3 when no venv exists", () => {
+    expect(findPythonBinary(testDir)).toBe("python3");
+  });
+
+  it("returns .venv/bin/python when .venv exists", () => {
+    const binDir = join(testDir, ".venv", "bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, "python"), "");
+    expect(findPythonBinary(testDir)).toBe(join(testDir, ".venv", "bin", "python"));
+  });
+
+  it("returns venv/bin/python when venv exists", () => {
+    const binDir = join(testDir, "venv", "bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, "python"), "");
+    expect(findPythonBinary(testDir)).toBe(join(testDir, "venv", "bin", "python"));
+  });
+
+  it("prefers .venv over venv when both exist", () => {
+    for (const dir of [".venv", "venv"]) {
+      const binDir = join(testDir, dir, "bin");
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(join(binDir, "python"), "");
+    }
+    expect(findPythonBinary(testDir)).toBe(join(testDir, ".venv", "bin", "python"));
   });
 });

@@ -31,7 +31,7 @@ tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
 code-exec.ts (38, includes SIGINT interrupt + timeout recovery + auto-install + hint interaction tests),
-repl-session.ts (12, lifecycle + 7 cross-module execute tests — iter 171),
+repl-session.ts (16, lifecycle + 7 cross-module execute + 4 venv detection tests — iter 181),
 verify-tracker.ts (34, includes 10 cross-module processToolResults tests),
 code-wrappers.ts (12, protocol markers + Python/Node.js subprocess integration),
 html-extract.ts (33, includes 6 table conversion tests — iter 169).
@@ -55,7 +55,9 @@ system-context (3) — date/platform in session warmup: date format with day of
 week, date matches local time, platform info included (iter 175).
 streaming-retry (4) — mid-stream failure retry, text reset on retry,
 thinking events verbose + non-verbose stderr output (iter 179).
-Total suite: 947.
+venv-detection (4) — findPythonBinary: no-venv fallback, .venv detection,
+venv detection, .venv-over-venv preference (iter 181).
+Total suite: 951.
 
 No untested modules remain. All modules above minimum test density threshold.
 

@@ -1,7 +1,18 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { SENTINEL, DONE_MARKER, PYTHON_WRAPPER, NODE_WRAPPER } from "./code-wrappers.js";
 
 export type Language = "python" | "node";
+
+/** Find the best Python binary, preferring a local virtualenv over system python3. */
+export function findPythonBinary(cwd: string): string {
+  for (const dir of [".venv", "venv"]) {
+    const bin = join(cwd, dir, "bin", "python");
+    if (existsSync(bin)) return bin;
+  }
+  return "python3";
+}
 
 export class REPLSession {
   private proc: ChildProcess | null = null;
@@ -17,7 +28,7 @@ export class REPLSession {
 
     const [cmd, args] =
       this.language === "python"
-        ? ["python3", ["-u", "-c", PYTHON_WRAPPER]]
+        ? [findPythonBinary(process.cwd()), ["-u", "-c", PYTHON_WRAPPER]]
         : ["node", ["-e", NODE_WRAPPER]];
 
     this.proc = spawn(cmd, args, {
