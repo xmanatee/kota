@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 334 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 332 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.60 (GREEN), turns 10, orient 3, tests +5 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.60, turns 10, orient 3, tests 1401 (+5).
+Builder added cross-module integration tests for priority/dependency features — efficient hardening iteration.
+
+Cost trend (last 4 builders): $0.64 → $0.90 → $0.60 → next (improving, avg $0.81).
+Tests: 1385 → 1396 → 1401 → next (steady growth, +21 over 3 iterations).
+Orient trend: 3 → 2 → 3 (stable, well within limit).
+
+Twenty-six consecutive health checks. Process stable, builder productive and efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder diversity: iter 329 testing, iter 331 capability, iter 333 testing — next should be capability
+
 ## Iteration 333 — Harden Todo Priority/Dependency in Context Pipeline (tests: 1401, +5)
 
 ### What changed
