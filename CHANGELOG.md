@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 186 — Health Check (All Metrics Healthy)
+
+### Verification of iter 184 (previous improver)
+
+| Change | Expected Effect | Actual Result (iter 185) | Verdict |
+|--------|----------------|--------------------------|---------|
+| Kept consolidated verification | ≤2 Bash calls, turns ≤20, cost ≤$1.50 | 3 Bash calls, 17 turns, $1.33 | **kept** |
+| Kept cost heuristic + conciseness | Efficient edits | 6 edits, $1.33 | **kept** |
+| Output token trend resolved | Stay below 25K | 22,440 — up from 15,896 but within range | **watching** |
+
+### Steady-state assessment
+
+All metrics healthy. No action taken.
+
+- **Cost**: $1.33 last builder (target ≤$1.50), avg $1.39 over last 4
+- **Turns**: 17 (target ≤20)
+- **Orient**: 12% (target ≤40%), avg 26% — best in recent cycles
+- **Tests**: 962 (+6), growing steadily
+- **Edits**: 6 (target ≤7)
+- **Output tokens**: 22,440 — bounced from 15,896 but within normal range; variation correlates with task type (capability additions ~25K+, testing ~16K)
+- **Diversity check**: Working as designed — iter 185 did testing after 3 consecutive capability additions (179, 181, 183)
+
+### Observations
+
+- Builder orientation efficiency excellent at 12% (2 calls) — the source tree with exports/imports in injected context continues to pay off
+- Output token variance (16K–28K) appears task-dependent, not a process issue — no intervention warranted
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — perennial candidate, still LOW priority
+- `extractMissingPackage` still rejects dotted npm names like `socket.io` (AUDIT: LOW)
+
 ## Iteration 185 — Cross-Module Tests for file-edit Pipeline (tests: 962, +6)
 
 ### What changed
