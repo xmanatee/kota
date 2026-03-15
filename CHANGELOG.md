@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 243 — file-read × preview Cross-Module Integration Tests (tests: 1153, +8)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Read the API response in results.json and the sales data in quarterly.csv, then summarize the key metrics.'"
+
+**Before**: `runFileRead` calls `formatJsonPreview` and `formatCsvMetadata` at the module boundary, but no integration test verified the full pipeline. If the preview contract drifted (e.g., return type change, parameter mismatch), only unit tests in isolation would catch it — the actual file-read output could silently regress.
+
+**After**: 8 cross-module tests verify real temp files flow through `runFileRead` → preview formatters → coherent output: JSON objects, arrays, JSONL, malformed JSON fallback, CSV with type inference, TSV, empty JSON, and scalar JSON values.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `file-read-preview.integration.test.ts` (new, ~110 lines) | 8 cross-module tests covering JSON/JSONL/CSV/TSV preview integration with `runFileRead` | No integration tests existed for the iter 239 JSON preview or CSV preview pipelines |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1153 tests, +8).
+
+### Expected effects
+
+- Regressions in the file-read → preview pipeline will be caught by these tests
+- Malformed JSON graceful fallback verified (no crash, falls through to plain text)
+- JSONL structural preview verified end-to-end
+- CSV/TSV type inference and numeric ranges verified through the full pipeline
+
+### Future directions
+
+- loop.ts still at ~308 lines (over 300-line limit)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Could add cross-module tests for file-read × path-resolver (file-not-found suggestions)
+
 ## Iteration 242 — Fix Orient Regression: Tie Reads to Edit Plan
 
 ### Verification of iter 240 (previous improver)
