@@ -167,6 +167,28 @@ File-based plugin architecture for extending KOTA without modifying core code. D
 
 **Lifecycle**: `PluginManager.loadAll()` runs during session init (parallel with MCP). `unloadAll()` clears tools, groups, and calls `onUnload` hooks.
 
+### Configuration (`src/config.ts`)
+
+Layered configuration system with three levels of precedence:
+
+1. **Global** (`~/.kota/config.json`): User-wide defaults (model, user profile, aliases)
+2. **Project** (`.kota/config.json`): Project-specific overrides (autoEnable groups, model for this project)
+3. **CLI flags / overrides**: Highest precedence, always wins
+
+**Schema** (`KotaConfig`):
+- `model`, `editorModel`, `maxTokens`: LLM settings
+- `architect`, `thinking`, `thinkingBudget`: Behavior modes
+- `verbose`, `skipConfirmations`: UX preferences
+- `autoEnable`: Tool groups to activate at session start (e.g., `["web", "code"]`)
+- `user.name`, `user.context`: User profile injected into system prompt for personalization
+- `aliases`: Prompt expansion shortcuts (e.g., `{"/research": "Enable web tools and research: "}`)
+
+**User profile** is injected into the system prompt between project context and session warmup. This lets the agent personalize responses — a data scientist gets different explanations than a frontend engineer.
+
+**Aliases** expand at the CLI layer: if a prompt starts with an alias key, the alias value is prepended. Works in both single-shot and REPL modes.
+
+**Merging**: Scalar fields use last-wins. `user` and `aliases` shallow-merge (project extends global). `autoEnable` replaces (project knows best which groups it needs). Invalid values are silently dropped.
+
 ### MCP Support (`src/mcp-client.ts`, `src/mcp-manager.ts`)
 
 External tool servers via Model Context Protocol. Configure in `.kota/mcp.json`. Tools namespaced as `mcp__<server>__<tool>`. Stdio transport, graceful degradation.

@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 365 — Unified Configuration System
+
+Built a layered configuration system that makes KOTA personalizable — addressing the owner's "standards" goal and enabling the "general assistant" direction through user profiles and prompt aliases.
+
+### What was built
+- `src/config.ts`: `KotaConfig` type, `loadConfig()` with 3-layer precedence (global ~/.kota/config.json → project .kota/config.json → CLI flags), `buildUserProfile()` for system prompt injection, `expandAlias()` for prompt shortcuts
+- `src/config.test.ts`: 18 tests covering loading, sanitization, merging, malformed files, user profiles, and alias expansion
+- Updated `src/cli.ts`: Config loaded at startup, CLI flags override config values, aliases expand in both single-shot and REPL modes
+- Updated `src/loop.ts`: `LoopOptions.config` field, user profile injected into system prompt, `autoEnable` groups activated at session start
+
+### Why it matters
+A personal assistant must be personalizable. Before this, every KOTA session started identically — model, behavior, and tool availability were only configurable via CLI flags. Now:
+- Users set defaults once in `~/.kota/config.json` (model, thinking mode, etc.)
+- Projects override selectively in `.kota/config.json` (auto-enable web tools for research projects)
+- User profile (name + context) is injected into the system prompt — the agent knows who it's talking to from turn 1
+- Aliases let users create prompt shortcuts (`/research`, `/draft`, `/review`) that expand automatically
+
+### Verified
+- TypeScript: `tsc --noEmit` clean
+- Tests: 1519 passed (18 new for config)
+- Build: 238.70 KB bundle
+- CLI: `node dist/cli.js --help` loads correctly
+
+### Future directions
+- Config `init` command to bootstrap `~/.kota/config.json` interactively
+- MCP server configs in config.json (consolidate with .kota/mcp.json)
+- Per-project model routing (e.g., use Opus for code, Haiku for quick tasks)
+- Config validation warnings on startup for typos/unknown keys
+
 ## Iteration 364 — Strategic Breadth Check
 
 ### Verification of iter 362 (previous improver)

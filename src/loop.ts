@@ -17,6 +17,7 @@ import { PluginManager } from "./plugin-loader.js";
 import { cleanupProcesses } from "./tools/process.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { CliTransport, type Transport } from "./transport.js";
+import { buildUserProfile, type KotaConfig } from "./config.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -31,6 +32,7 @@ export type LoopOptions = {
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   transport?: Transport;
+  config?: KotaConfig;
 };
 
 /**
@@ -80,12 +82,29 @@ export class AgentSession {
 
     const projectContext = loadProjectContext();
     const warmup = buildSessionWarmup();
-    const systemPrompt = SYSTEM_PROMPT + projectContext + warmup;
+    const userProfile = options.config ? buildUserProfile(options.config) : "";
+    const systemPrompt = SYSTEM_PROMPT + projectContext + userProfile + warmup;
     if (projectContext && this.verbose) {
       this.transport.emit({ type: "status", message: "[kota] Loaded project context from .kota.md" });
     }
+    if (userProfile && this.verbose) {
+      this.transport.emit({ type: "status", message: "[kota] User profile loaded from config" });
+    }
     if (warmup && this.verbose) {
       this.transport.emit({ type: "status", message: "[kota] Session warmup loaded" });
+    }
+
+    // Auto-enable tool groups from config
+    if (options.config?.autoEnable) {
+      for (const group of options.config.autoEnable) {
+        enableGroup(group);
+      }
+      if (this.verbose) {
+        this.transport.emit({
+          type: "status",
+          message: `[kota] Auto-enabled tool groups: ${options.config.autoEnable.join(", ")}`,
+        });
+      }
     }
 
     if (this.sessionPath && existsSync(this.sessionPath)) {

@@ -13,7 +13,7 @@ For skipped/dismissed items move them into Skipped section with concise one line
 Format: `b:` = for the builder, `i:` = for the improver.
 
 ---
-b: institute standards in codebase: meaning code quality, architechture, system design standards, structure, organisation, protocols e.t.c.
+b: institute standards in codebase: meaning code quality, architechture, system design standards, structure, organisation, protocols e.t.c. — config system shipped iter 365 (layered config with validation); remaining: code organization, linting rules, module boundaries
 b: steer implementation towards more general ai assistant (like openclaw or manus) and not just coding agent. Most things are likely to be still useful and agent should still be able to code and stuff, but it must be able to be a personal assistant in every day life and not just coding.
 b: make the design more modular so that different systems could be adjusted or swapped out. that includes but not limited to memory system,, tools, skills, triggers, e.t.c. E.g. i should be able to easily connect it to telegram bot or some web interface or make it execute some specific logic on messages or add new skills or capabilities and it shouldn't require rewrite of the whole codebase... — transport layer shipped iter 363 (I/O decoupled via Transport interface); plugin system shipped iter 361; concrete transports and remaining adapters remain
 b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.)
