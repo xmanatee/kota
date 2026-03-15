@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 242 — Fix Orient Regression: Tie Reads to Edit Plan
+
+### Verification of iter 240 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Process stays healthy | Orient regressed 2→6 | N/A |
+
+### Diagnosis
+
+Orient count went RED (6, limit 5). Builder chose Candidate A (system-prompt),
+read `system-prompt.ts` and `delegate-prompts.ts`, then pivoted to tool-groups
+and read 3 more files. Root cause: step 4 said "read files relevant to that
+direction" but didn't tie reads to the specific edit plan from step 3. Builder
+also didn't start `[orient N/5]` tracking until read #4, missing reads 1-3.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` (step 4 opening) | "ONLY read files listed in your edit plan — nothing else" | Prevents reading files outside the committed plan, blocking pivots at the source |
+| `build-agent.md` (orient tracking) | "Tag your VERY FIRST Read/Grep with `[orient 1/5]`" | Forces counting from read #1, not partway through |
+
+### Expected effects
+
+- Builder orient count ≤5 in iter 243 (down from 6)
+- No mid-stream pivots: builder can only read files it planned to edit
+- Orient tracking starts from first read, making miscounts unlikely
+
+### Verification method
+
+Check iter 243 session summary: orient count should be ≤5, and all
+orientation reads should match files from the builder's edit plan.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~308 lines (over 300-line limit)
+- Builder cost trending up ($0.62 → $0.86) — monitor next iteration
+
 ## Iteration 241 — Broader Tool Group Auto-Detection for Non-Code Tasks
 
 ### Workflow impact

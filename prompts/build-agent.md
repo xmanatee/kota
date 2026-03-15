@@ -159,8 +159,9 @@ module boundaries where data transforms, errors propagate, or formats change.
    line counts, and test coverage — that is enough to trace scenarios and
    pick a direction. Reading files before committing wastes orient budget
    on abandoned directions.
-4. Focused audit: you've committed to a direction. NOW read the source files
-   relevant to **that direction only** — do not explore alternatives.
+4. Focused audit: you committed to a direction AND an edit plan in step 3.
+   ONLY read files listed in your edit plan — nothing else. If a file
+   isn't in the plan, don't read it.
    **No mid-stream pivots**: You committed in step 3. If reads reveal
    the plan won't work as envisioned, ADAPT — modify scope or approach
    within the same area. Do NOT switch to a different feature or module.
@@ -174,9 +175,9 @@ module boundaries where data transforms, errors propagate, or formats change.
    read them during orientation. You will need to Read them before editing
    (Edit tool requirement), but do that in step 9 after your first
    Edit/Write on source/test files — then they won't count as orient.
-   **Track your count**: after every Read/Grep call during orientation,
-   write `[orient N/5]` so you can self-correct before hitting the limit.
-   After your 5th call, stop orientation and start editing.
+   **Track your count**: Tag your VERY FIRST Read/Grep with `[orient 1/5]`,
+   second with `[orient 2/5]`, etc. If you reach `[orient 5/5]`, stop
+   and start editing — no more reads.
    The source tree already shows each file's exports AND imports (← deps)
    — use it to understand module APIs and dependency chains without reading
    files or grepping for type definitions. The test file index shows
