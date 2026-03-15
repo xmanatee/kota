@@ -35,21 +35,22 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("references all 18 built-in tool names", () => {
+  it("references all 19 built-in tool names", () => {
     const toolNames = [
       "shell", "file_read", "file_write", "file_edit", "multi_edit",
       "grep", "glob", "todo", "repo_map", "delegate",
       "web_fetch", "memory", "web_search", "ask_user",
       "http_request", "process", "code_exec", "find_replace",
+      "notebook",
     ];
     for (const name of toolNames) {
       expect(SYSTEM_PROMPT).toContain(name);
     }
   });
 
-  it("stays under 7900 characters to keep token cost manageable", () => {
-    // ~7900 chars ≈ ~1975 tokens, cached at 0.1x. Budget raised for grep output mode guidance.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(7900);
+  it("stays under 8200 characters to keep token cost manageable", () => {
+    // ~8200 chars ≈ ~2050 tokens, cached at 0.1x. Budget raised for checkpoint guidance + notebook.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(8200);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -119,6 +120,17 @@ describe("SYSTEM_PROMPT", () => {
   it("task composition includes source citation and format guidance", () => {
     expect(SYSTEM_PROMPT).toContain("Cite sources");
     expect(SYSTEM_PROMPT).toContain("Format for the medium");
+  });
+
+  it("task composition includes checkpoint guidance for multi-step workflows", () => {
+    expect(SYSTEM_PROMPT).toContain("Checkpoint with user");
+    expect(SYSTEM_PROMPT).toContain("confirm direction");
+    expect(SYSTEM_PROMPT).toContain("intermediate result");
+  });
+
+  it("execution tools include notebook for reproducible analysis", () => {
+    expect(SYSTEM_PROMPT).toContain("notebook");
+    expect(SYSTEM_PROMPT).toContain("reproducible analysis");
   });
 
   it("memory section guides proactive save and recall with keyword discipline", () => {

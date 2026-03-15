@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 279 — System Prompt: User Checkpoints & Notebook Tool (tests: 1252, +2)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added "Checkpoint with user" guidance in Task Composition; added `notebook` to Execution tools line | Agent lacked guidance on when to pause for user confirmation in multi-step workflows; notebook tool was invisible to the LLM |
+| `system-prompt.test.ts` | +2 tests: checkpoint guidance, notebook mention; updated tool count 18→19 and char budget 7900→8200 | Coverage for new prompt content |
+
+### Workflow impact
+
+**Scenario**: "User has a directory of meeting notes (.txt files) and asks the agent to extract action items, categorize by owner, and create a summary CSV"
+- **Before**: Agent would glob → read all files → process → dump final CSV without pausing. If the extraction logic was wrong or the user wanted different categories, all work wasted.
+- **After**: Checkpoint guidance tells agent to show extracted items before analysis, confirm structure before producing CSV. Notebook tool is now visible for reproducible data workflows.
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1252/1252 pass (+2 new)
+- `node dist/cli.js --help` — works
+- System prompt: 8133 chars (under 8200 budget)
+
+### Expected effects
+
+- Agent should pause for user confirmation before expensive multi-step operations (processing many files, writing long documents)
+- Agent should consider using `notebook` tool for data analysis tasks where reproducibility matters
+- No behavior change for simple single-step tasks
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 278 — Health Check (All GREEN, Hard Limit Working)
 
 ### Verification of iter 276 (previous improver)
