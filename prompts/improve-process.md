@@ -91,6 +91,12 @@ Areas to improve:
   not a success. Every iteration should produce a meaningful improvement.
   Read the owner's NOTES.md, read the builder's session log, find something
   real to improve.
+- **Metrics-only evaluation**: Checking cost, turns, and token counts is
+  necessary but not sufficient. You must also evaluate WHAT the builder chose
+  to work on — not just whether it worked efficiently. A builder that spends
+  4 iterations polishing one feature while owner-requested strategic goals
+  go unaddressed is a process failure, even if every metric is GREEN. Evaluate
+  the builder's choice of work, not just the execution of that work.
 
 ## Non-Goals
 

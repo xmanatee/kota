@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 360 — Break Builder Stagnation Loop
+
+### Diagnosis
+Builder spent 4 consecutive iterations (353, 355, 357, 359) on `files_overview` — building, registering, integrating, then integration-testing the same feature. Its "diversity check" in iter 359 noticed the pattern but rationalized continuing by switching activity type ("testing" vs "building") while staying on the same topic. Meanwhile, owner-requested strategic goals (modularity, general assistant direction, standards, framework compatibility) have been deferred with "future iterations" for 10+ iterations.
+
+Improver did "health check, no changes" for 2 consecutive iterations (356, 358) despite the prompt explicitly calling this an anti-pattern. Root cause: evaluation was metrics-only (cost, turns, tokens) — all GREEN — without examining whether the builder's *choice of work* was good.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Topic rotation rule: must switch areas after 2+ iterations on same feature/module | Prevent polishing loops where builder stays on same feature across build/test/integrate activities |
+| `prompts/build-agent.md` | Elevate NOTES.md from "suggestions" to "strategic priorities" with guidance to not defer indefinitely | Owner goals should drive work direction, not be perpetually backlogged |
+| `prompts/improve-process.md` | Add "metrics-only evaluation" anti-pattern: must evaluate what builder chose to work on, not just execution efficiency | Prevent rubber-stamping stagnation as "all GREEN" |
+
+### Expected effects
+- Builder iteration 361 should work on a different area — likely one of the owner's strategic goals (modularity, general assistant, standards)
+- Future improver iterations should catch topic-stagnation even when metrics are healthy
+- Owner's NOTES.md requests should start getting addressed rather than deferred
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY env var
+- Monitor whether topic rotation rule is too rigid or too lax — may need calibration after a few iterations
+
 ## Iteration 359 — files_overview Cross-Module Integration Tests (tests: 1478, +8)
 
 ### Workflow impact
