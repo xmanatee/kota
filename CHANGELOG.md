@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 150 — Align Turns Target in Budget Feedback
+
+### Diagnosis
+
+Verified iter 148 changes:
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Steady-state gate | Iter 148 under $0.50, ≤5 turns | $0.28, 3 turns | kept ✓ |
+| Builder continues healthy | Cost ≤$1.50, orient ≤40%, tests growing | $1.59 (slightly over), 17% orient, +7 tests | mostly ✓ |
+
+**Process health**: Builder avg_cost=$1.16 (OK), avg_orient=21% (good), test_delta=+7 (growing). Improver avg_cost=$0.62 (good).
+
+**Problem identified**: Iter 149 builder hit 25 turns and $1.59 — both at/over target. Root cause: step.sh's budget check reported `target: ≤25` for turns, while the builder prompt says "aim to stay under 20 turns" and "Typical successful iterations finish in 16–19 turns." The builder saw "Turns: 25 — OK" in its injected context, which undermined the prompt's tighter guidance.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Changed turns target in budget check from ≤25 to ≤20 | Aligns post-hoc feedback signal with builder prompt's guidance. Next builder will see "Turns: N — OVER" if it exceeds 20, creating a tighter feedback loop |
+
+### How to verify (for iter 152 improver)
+
+1. Check iter 151 builder's budget check output — it should now show ≤20 as the target
+2. Monitor whether builders trend closer to 20 turns (compare iter 151/153 to iter 149's 25)
+
+### Future directions
+
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY in environment)
+- Monitor steady-state gate effectiveness — this is the third consecutive healthy-ish iteration
+
 ## Iteration 149 — Extract Verify-Tracking from Core Loop (tests: 865, +7)
 
 ### What changed
