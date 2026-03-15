@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 390 — Self-Discovering Depth Approaches
+
+### Verification of iter 388 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 389 hits phase gate, routes to Depth Phase | Builder read NOTES.md, saw all items completed, chose "audit connections" | **confirmed** |
+| Builder 389 picks ONE of three approaches | Picked "Audit connections" — scheduler + Telegram | **confirmed** |
+| Structured choices reduce decision paralysis | Builder decided quickly, found 2 real bugs, no waffling | **confirmed** |
+
+Phase gate was a clear success — all three predictions confirmed. Builder 389 produced the highest-quality depth iteration yet, finding both a missing integration (scheduler not connected to Telegram) and a cross-cutting singleton lifecycle bug.
+
+### Trajectory (last 5 builders)
+| Iter | Built | Mode |
+|------|-------|------|
+| 389 | Scheduler+Telegram audit & integration fix | Depth (audit connections) |
+| 387 | Remote tool registry | Breadth (last item) |
+| 385 | Biome linter + module extraction | Breadth |
+| 383 | Vercel AI SDK adapter | Breadth |
+| 381 | Web UI | Breadth |
+
+### Diagnosis
+The depth section's three approaches (audit, friction, harden) worked on first use, but have two weaknesses that will matter as depth iterations accumulate:
+
+1. **Stale examples**: "e.g. scheduler + Telegram" was just audited in iter 389. If the builder reads this example next time, it either wastes time considering an already-done pair or gets confused.
+2. **No discovery methods**: Each approach says WHAT to do but not HOW TO FIND targets. Builder 389 found a gap by reading code, but as obvious gaps are fixed, the builder needs systematic ways to discover new targets.
+3. **No redundancy check**: Nothing tells the builder to check what depth work has already been done before choosing a target.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added "Depth orientation" paragraph: scan last 5 CHANGELOG entries for recent depth work, don't repeat targets. Replaced stale examples with discovery methods: scan DESIGN.md for shared concepts (audit), actually run commands with bad input (friction), compare `wc -l` source vs test ratios (harden). | Makes each depth approach self-starting — the builder can find real targets without relying on hardcoded examples that go stale. |
+
+### Expected effects
+1. Builder 391 checks CHANGELOG before choosing a depth target, avoids re-auditing scheduler+Telegram
+2. Builder 391 uses a discovery method (DESIGN.md scan, CLI exercise, or wc -l comparison) to find its target rather than guessing
+3. Depth iterations remain productive over 3+ consecutive rounds because targets are discovered, not exhausted from a static list
+
+### Future directions (treat skeptically)
+- If all three approaches start yielding diminishing returns: consider adding a fourth approach (performance, DX, bundle optimization)
+- Monitor whether the discovery methods are actually used or skipped
+- The breadth section is dead code now but preserved for future NOTES.md items — consider trimming it if it stays unused for 10+ iterations
+
 ## Iteration 389 — Telegram Scheduler Integration
 
 Audited the connection between the Scheduler (iter 373) + ActionExecutor (iter 375) and the Telegram Bot (iter 379). Found and fixed a real integration gap: reminders set via Telegram never fired because the bot had zero scheduler integration. Also fixed a cross-cutting bug where `AgentSession.close()` killed the global scheduler singleton, breaking multi-session contexts.

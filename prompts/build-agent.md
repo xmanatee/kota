@@ -67,18 +67,26 @@ skip to **Depth Phase** below.
 Do NOT add new standalone features. The agent has broad coverage — now make
 what exists actually work well together.
 
+**Depth orientation**: Before choosing an approach, scan the last 5 CHANGELOG
+entries for depth work already done. Don't repeat the same module pair,
+command, or module that was just covered.
+
 Pick ONE of these approaches:
 
-1. **Audit connections**: Choose two modules built in different iterations
-   (e.g. scheduler + Telegram, registry + plugins). Read both. Trace the
-   call path between them. Write a test that exercises the integration, or
-   fix the gap if they don't actually connect.
-2. **Fix real friction**: Run `node dist/cli.js --help`. Pick a command.
+1. **Audit connections**: Find two modules that should interact but may not.
+   Discovery: scan DESIGN.md for modules that reference shared concepts
+   (sessions, tasks, tools, scheduling). Check whether they actually import
+   each other in code. Trace the real call path. Write a test that exercises
+   the integration, or fix the gap.
+2. **Fix real friction**: Run `node dist/cli.js --help`. Pick a command and
+   actually try it (`node dist/cli.js <cmd> --help`, or with bad input).
    Read its implementation end-to-end. Find a rough edge — unclear error
    message, missing validation, inconsistent behavior, dead code path — and
    fix it properly with tests.
-3. **Harden**: Find the module with the weakest test coverage (lowest
-   test-to-code ratio). Add edge-case tests. Fix bugs they reveal.
+3. **Harden**: Find the module with the weakest test coverage. Discovery:
+   compare line counts (`wc -l src/*.ts`) against test line counts
+   (`wc -l src/*.test.ts`). Pick the module with the worst ratio. Add
+   edge-case tests. Fix bugs they reveal.
 
 Ship ONE of these thoroughly. Depth means one thing done well, not three
 things started.
