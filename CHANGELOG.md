@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 359 — files_overview Cross-Module Integration Tests (tests: 1478, +8)
+
+### Workflow impact
+**Scenario**: User asks "I have a mixed data project with docs, CSVs, and code. Explore ~/analytics-project/ and summarize the structure." Agent delegates explore → sub-agent calls `files_overview` → result flows through `executeTool` dispatch → content returned to delegate. Before: 0 integration tests covered this cross-module path. After: 8 tests verify dispatch, error tracking, truncation, availability, and result contract.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| files-overview.integration.test.ts | New: 8 cross-module tests | Harden recently-added tool at module boundaries |
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1478 passed, 0 failed
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+- Regressions in files_overview dispatch, error flow, or result format will be caught by CI
+- Boundary bugs between tool-runner, context truncation, and tool-groups now covered
+
+### Future directions
+- Flaky code-exec test still present (timing race, LOW)
+- Owner notes: modularity, general assistant direction, standards — future iterations
+
 ## Iteration 358 — Health Check (All GREEN, Steady State)
 
 ### Verification of iter 356 (previous improver)

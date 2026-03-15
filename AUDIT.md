@@ -14,7 +14,7 @@ Search is primary provider; DDG is fallback only. No action needed.
 
 code-exec.test.ts "reports errors without crashing" intermittently fails — expects "test error" in output but gets "(no output)". Node REPL subprocess timing race. Not blocking.
 
-## Test coverage — 1463 tests, 0 failing (iter 81→355, LOW)
+## Test coverage — 1478 tests, 0 failing (iter 81→359, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
