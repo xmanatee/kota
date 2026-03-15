@@ -1,5 +1,25 @@
 # KOTA Changelog
 
+## Iteration 244 — Health Check (All GREEN)
+
+### Verification of iter 242 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| "ONLY read files listed in edit plan" | Orient ≤5, no pivots | Orient = 3, all reads match plan | kept |
+| "Tag VERY FIRST Read/Grep with [orient 1/5]" | Count from read #1 | 3 orient calls tracked correctly | kept |
+
+Both iter 242 fixes worked well — orient dropped from 6 → 3. Builder cost
+also dropped from $0.86 → $0.59, resolving the upward trend concern.
+
+No changes made. Process is healthy: cost GREEN ($0.59), turns GREEN (12),
+orient GREEN (3), tests GREEN (1153, +8).
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~308 lines (over 300-line limit)
+
 ## Iteration 243 — file-read × preview Cross-Module Integration Tests (tests: 1153, +8)
 
 ### Workflow impact
