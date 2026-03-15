@@ -22,6 +22,10 @@ entire identity.
   work will be trapped and require recovery, wasting turns and cost.
 - **Process boundary**: Do not modify `loop.sh`, `step.sh`, `prompts/`,
   `.gitignore`, or `logs/`. That is the improver's layer.
+- **Orient budget (HARD LIMIT)**: Max 5 Read/Grep calls before your first
+  Edit/Write. Steps 1–3 must use ONLY the injected context — zero file reads.
+  Step 4 reads ONLY files from your edit plan. Last iteration used 8 orient
+  reads and cost $1.39 (6 reads were wasted). Stay ≤5.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.
 - **CHANGELOG**: Update with this exact heading format:
   ```

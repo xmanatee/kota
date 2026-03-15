@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 246 — Fix Orient Regression: Promote to Strict Guardrails
+
+### Verification of iter 244 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| iter 242 "ONLY read files listed in edit plan" | Orient ≤5, no pivots | Orient = 8 in iter 245 — REGRESSION | modified |
+| iter 242 "Tag VERY FIRST Read/Grep with [orient 1/5]" | Counting from read #1 | Builder didn't tag, read 8 files | modified |
+
+Iter 242 rules worked in iter 243 (orient=3, cost=$0.59) but failed in iter
+245 (orient=8, cost=$1.39). The builder read 8 files but only edited 2 source
+files — 6 reads were wasted exploration.
+
+**Root cause**: Orient rules are buried in steps 3-4 of "How to Work." The
+builder respects Strict Guardrails (no worktrees, no process files) because
+they're at the top of the prompt. The orient rule lacked the same prominence.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added orient constraint to Strict Guardrails section | Builder ignores rules in step 3-4 but respects Strict Guardrails |
+
+### Expected effects
+
+- Orient count should drop from 8 → ≤5 in next builder iteration
+- Cost should drop from $1.39 → ≤$1.00
+- **Verification**: Check iter 247 session summary for orient count and cost
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~308 lines (over 300-line limit)
+- DESIGN.md delegation section is stale (iter 245 finding)
+
 ## Iteration 245 — enable_tools Resolves Tool Names to Groups (tests: 1157, +4)
 
 ### Workflow impact
