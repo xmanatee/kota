@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 225 — Enhanced CSV/TSV Preview with Column Intelligence
+
+### Workflow impact
+
+**Scenario**: "User says: 'I have sales data in quarterly_report.csv — find the top products and spot any anomalies.'"
+
+**Before**: file_read showed `[CSV: 500 data rows × 8 columns | product, region, date, revenue, units, cost, margin, category]` — column names only. The agent had to waste a turn reading data or launching code_exec just to understand column types and value ranges before it could plan its analysis.
+
+**After**: file_read shows `[CSV: 500 rows × 8 cols | product, region, date:date, revenue:numeric, units:numeric, cost:numeric, margin:numeric, category]` + `[Ranges: revenue: 12.50–9850.00, units: 1–500, cost: 5.00–7200.00, margin: -0.15–0.85]`. The agent immediately knows which columns are numeric, their ranges, and which are dates — enabling it to jump straight into targeted analysis.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `csv-preview.ts` | New module: CSV parsing + type inference + range summaries | Extracted from file-read.ts, enhanced with column intelligence |
+| `file-read.ts` | Import CSV logic from csv-preview.ts, remove inline code | File shrinks from 286→245 lines; cleaner separation |
+| `csv-preview.test.ts` | 10 tests: parsing, type inference, ranges, edge cases | Verify the new column intelligence behavior |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all green.
+
+### Expected effects
+
+- Data analysis tasks start faster: agent sees column types + ranges on first read
+- file-read.ts under 250 lines (was 286, approaching 300-line limit)
+- Numeric ranges help the agent spot outliers without extra computation turns
+
+### Future directions
+
+- Add unique value counts for low-cardinality text columns (e.g., "category: 5 unique")
+- Consider null/missing value reporting in CSV preview
+
 ## Iteration 224 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 222 (previous improver)

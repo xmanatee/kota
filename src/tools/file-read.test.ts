@@ -321,7 +321,9 @@ describe("file_read: CSV/TSV metadata", () => {
     const path = join(TEST_DIR, "sales.csv");
     writeFileSync(path, "date,region,sales\n2024-01-15,North,1000\n2024-01-16,South,2000\n");
     const result = await runFileRead({ path });
-    expect(result.content).toContain("[CSV: 2 data rows × 3 columns | date, region, sales]");
+    expect(result.content).toContain("[CSV: 2 rows × 3 cols |");
+    expect(result.content).toContain("date:date");
+    expect(result.content).toContain("sales:numeric");
     expect(result.content).toContain("2024-01-15");
   });
 
@@ -329,28 +331,29 @@ describe("file_read: CSV/TSV metadata", () => {
     const path = join(TEST_DIR, "data.tsv");
     writeFileSync(path, "name\tage\tcity\nAlice\t30\tNYC\n");
     const result = await runFileRead({ path });
-    expect(result.content).toContain("[CSV: 1 data rows × 3 columns | name, age, city]");
+    expect(result.content).toContain("[CSV: 1 rows × 3 cols |");
+    expect(result.content).toContain("age:numeric");
   });
 
   it("strips quotes from CSV headers", async () => {
     const path = join(TEST_DIR, "quoted.csv");
     writeFileSync(path, '"First Name","Last Name","Age"\nJohn,Doe,42\n');
     const result = await runFileRead({ path });
-    expect(result.content).toContain("First Name, Last Name, Age");
+    expect(result.content).toContain("First Name, Last Name, Age:numeric");
   });
 
   it("handles CSV with only headers (no data rows)", async () => {
     const path = join(TEST_DIR, "empty-data.csv");
     writeFileSync(path, "col1,col2,col3\n");
     const result = await runFileRead({ path });
-    expect(result.content).toContain("[CSV: 0 data rows × 3 columns");
+    expect(result.content).toContain("[CSV: 0 rows × 3 cols");
   });
 
   it("shows total metadata even with offset/limit", async () => {
     const path = join(TEST_DIR, "paged.csv");
     writeFileSync(path, "a,b\n1,2\n3,4\n5,6\n7,8\n9,10\n");
     const result = await runFileRead({ path, offset: 3, limit: 2 });
-    expect(result.content).toContain("[CSV: 5 data rows × 2 columns");
+    expect(result.content).toContain("[CSV: 5 rows × 2 cols");
     expect(result.content).toContain("3,4");
   });
 
@@ -358,28 +361,31 @@ describe("file_read: CSV/TSV metadata", () => {
     const path = join(TEST_DIR, "embedded.csv");
     writeFileSync(path, '"Revenue, USD",Category,Count\n1000,A,5\n2000,B,3\n');
     const result = await runFileRead({ path });
-    expect(result.content).toContain("[CSV: 2 data rows × 3 columns | Revenue, USD, Category, Count]");
+    expect(result.content).toContain("[CSV: 2 rows × 3 cols |");
+    expect(result.content).toContain("Revenue, USD:numeric");
   });
 
   it("handles escaped quotes in header fields", async () => {
     const path = join(TEST_DIR, "escaped.csv");
     writeFileSync(path, '"Company ""A""",Revenue\n1000,2000\n');
     const result = await runFileRead({ path });
-    expect(result.content).toContain('[CSV: 1 data rows × 2 columns | Company "A", Revenue]');
+    expect(result.content).toContain('[CSV: 1 rows × 2 cols |');
+    expect(result.content).toContain("Revenue:numeric");
   });
 
   it("handles single-line CSV without trailing newline", async () => {
     const path = join(TEST_DIR, "headeronly.csv");
     writeFileSync(path, "x,y,z");
     const result = await runFileRead({ path });
-    expect(result.content).toContain("[CSV: 0 data rows × 3 columns | x, y, z]");
+    expect(result.content).toContain("[CSV: 0 rows × 3 cols | x, y, z]");
   });
 
   it("handles mixed quoted and unquoted headers", async () => {
     const path = join(TEST_DIR, "mixed.csv");
     writeFileSync(path, 'id,"Full Name",age,"City, State"\nA,Bob,30,"NY, US"\n');
     const result = await runFileRead({ path });
-    expect(result.content).toContain("[CSV: 1 data rows × 4 columns | id, Full Name, age, City, State]");
+    expect(result.content).toContain("[CSV: 1 rows × 4 cols |");
+    expect(result.content).toContain("age:numeric");
   });
 });
 
@@ -404,7 +410,7 @@ describe("file_read × context: CSV metadata survives truncation", () => {
     writeFileSync(path, header + rows);
     const result = await runFileRead({ path });
     const truncated = truncateToolResult(result.content, 500);
-    expect(truncated).toContain("[CSV: 200 data rows × 3 columns | name, value, description]");
+    expect(truncated).toContain("[CSV: 200 rows × 3 cols |");
     expect(truncated).toContain("chars omitted");
   });
 });

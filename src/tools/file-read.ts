@@ -5,6 +5,7 @@ import { extname } from "node:path";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { recordRead } from "../file-tracker.js";
 import { fileNotFoundError } from "../path-resolver.js";
+import { CSV_EXTENSIONS, formatCsvMetadata } from "../csv-preview.js";
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   ".png": "image/png",
@@ -212,49 +213,6 @@ function readImage(filePath: string, mediaType: string): ToolResult {
 
   recordRead(filePath);
   return { content: description, blocks };
-}
-
-const CSV_EXTENSIONS: Record<string, string> = {
-  ".csv": ",",
-  ".tsv": "\t",
-};
-
-function parseCsvRow(line: string, delimiter: string): string[] {
-  const fields: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        current += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === delimiter) {
-      fields.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  fields.push(current.trim());
-  return fields;
-}
-
-function formatCsvMetadata(lines: string[], delimiter: string): string {
-  if (lines.length === 0) return "";
-  const headers = parseCsvRow(lines[0], delimiter);
-  const totalLines = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
-  const dataRows = Math.max(0, totalLines - 1);
-  return `[CSV: ${dataRows} data rows × ${headers.length} columns | ${headers.join(", ")}]\n\n`;
 }
 
 function readText(filePath: string, input: Record<string, unknown>): ToolResult {
