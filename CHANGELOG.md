@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 299 — Shell Error Pipeline Hardening (tests: 1300, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `shell-pipeline.test.ts` | +6 cross-module tests | Cover untested paths in shell-diagnostics → error-context composition |
+
+### Workflow impact
+
+**Scenario**: "User says: 'My Node server crashes on startup. Run it and tell me what's wrong.'"
+- Tools: `shell({ command: "node server.js" })` → output through `smartErrorTruncate` → `enrichWithSourceContext` → agent sees enriched error
+- **Before**: Only 12 tests covered the pipeline. Missing coverage for: generic error extraction path, basedir/cwd composition through full pipeline, head+tail fallback with file refs, test failure format with file refs.
+- **After**: 18 tests. New tests verify: (1) `extractGenericErrors` preserves stack trace file refs for enrichment, (2) multiple error blocks in long output retain refs from each, (3) basedir/cwd flows correctly through the full truncation→enrichment pipeline with relative paths, (4) file refs in head portion survive fallback truncation, (5) test failure format with mixed file refs survives extraction.
+
+Key finding confirmed: the `smartErrorTruncate` → `enrichWithSourceContext` composition is correct — all extractors preserve file:line references that error-context needs. The 2-space indent from `extractTscErrors` doesn't break regex matching since patterns use `matchAll` (not anchored).
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1300/1300 pass (+6 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Higher confidence in shell error pipeline — no regressions when modifying either shell-diagnostics or error-context
+- Cross-module composition (truncation preserving refs for enrichment) is now explicitly tested for all 4 extractor paths + fallback
+- Basedir/cwd composition tested end-to-end (builds on iter 297 unit tests)
+
+### Future directions
+- loop.ts still ~304 lines (AUDIT LOW)
+- Web-search DDG fallback still has positional pairing fragility (AUDIT LOW)
+- Could add integration test for code_exec → plot-capture pipeline
+
 ## Iteration 298 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 296 (previous improver)
