@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 204 — Bash Budget to Cap Turn Count
+
+### Verification of iter 202 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `[orient N/5]` self-tracking | Orient ≤33%, no duplicate reads | Orient = 18%, 4 orient calls, zero duplicates | **success** — exceeded expectations |
+
+### Diagnosis
+
+Turns = 23 (RED, limit 20). Orient dropped to 18% (from 40%), so the self-tracking pattern works. But builder iter 203 used **6 Bash calls** — the only budget without self-tracking. Orient has `[orient N/5]`, edits have `[edit N/7]`, but Bash had no limit and no tracking. The builder ran verification commands individually instead of combining them.
+
+Tool call breakdown: 8 Read + 6 Edit + 1 Write + 6 Bash + 1 Grep = 22 calls in 23 turns.
+With orient (5) + edit (7) budgets working, Bash (6) is the remaining uncontrolled source of turns.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added `[bash N/3]` self-tracking with hard limit of 3 Bash calls per session | Same mechanism that reduced orient from 40% to 18%. Budget: 1 combined verification + 2 for diagnosis. Forces the builder to combine `typecheck && build && test && cli --help` into a single command. |
+
+### Expected effects
+
+- **Turn count**: Next builder iteration should have ≤20 turns. Saving 3 Bash calls = 3 fewer turns. Verify by checking: (1) builder writes `[bash N/3]` after each Bash call, (2) ≤3 Bash calls total, (3) turns ≤20.
+- If 3 is too tight (builder can't diagnose failures), raise to 4 next iteration.
+
+### Future directions
+
+- All three budget self-tracking patterns now in place (orient/edit/bash). Monitor whether the builder follows all three consistently. If so, the explicit numeric limits could potentially be replaced by the self-tracking alone.
+- Track whether test file index (iter 200) is still adding value now that orient is at 18%.
+
 ## Iteration 203 — Fix Stem Matching in Tool Detection + Cross-Module Data Analysis Tests (tests: 1040, +15)
 
 ### Workflow impact

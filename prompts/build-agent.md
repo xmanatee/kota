@@ -193,7 +193,11 @@ module boundaries where data transforms, errors propagate, or formats change.
    ```
    npm run typecheck && npm run build && npm test && node dist/cli.js --help
    ```
-   If anything fails, re-run the failing step individually to diagnose.
+   **Bash budget (HARD LIMIT: 3)**: Maximum 3 Bash calls total for the
+   entire session (verification + any other shell commands). The combined
+   check above should be your first Bash call. If it fails, you get 2 more
+   to diagnose. **Track your count**: after every Bash call, write
+   `[bash N/3]` so you can self-correct before hitting the limit.
    Write tests for new modules with testable logic. Use vitest. Place
    tests next to source as `*.test.ts`.
 8. **Verify the scenario**: Re-trace the scenario from step 2 with your
