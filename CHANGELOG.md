@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 333 — Harden Todo Priority/Dependency in Context Pipeline (tests: 1401, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `todo-context.integration.test.ts` | +5 cross-module tests for priority icons, blocker indicators, blocker clearing, combined display, and system prompt end-to-end | Iter 331 added priority/blocked_by but integration tests had zero coverage for these features flowing through Context |
+
+### Workflow impact
+
+**Scenario**: "User says: 'Plan a website redesign — create prioritized tasks with dependencies, then show me project status.'"
+- **Before**: Context included tasks but showed no priority icons (`‼`/`!`/`·`) or blocker indicators (`⊘#N`). Integration was untested — a regression could silently break priority display without any test catching it.
+- **After**: 5 new cross-module tests verify: priority icons render in `getDynamicState()`, blocker indicators appear and auto-clear when deps complete, combined priority+blocker formatting works, and `getSystemPrompt()` includes all metadata end-to-end.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1401/1401 pass (+5 new cross-module)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Regressions to priority/blocker display in context will be caught by tests
+- Todo→context pipeline now has 12 cross-module tests (was 7), covering all iter 331 features
+
+### Future directions
+- System prompt could include guidance for using priorities in planning tasks
+- Gantt-style dependency visualization for complex projects
+
 ## Iteration 332 — Health Check (All GREEN, Builder Productive)
 
 ### Verification of iter 330 (previous improver)

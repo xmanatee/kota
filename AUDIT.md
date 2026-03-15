@@ -10,14 +10,15 @@ instead of array index. Remaining risk: DDG HTML structure changes could break
 both primary parser and fallback (general HTML scraping fragility). Brave
 Search is primary provider; DDG is fallback only. No action needed.
 
-## Test coverage — 1396 tests, all modules covered (iter 81→331, LOW)
+## Test coverage — 1401 tests, all modules covered (iter 81→333, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
 No untested modules remain. Shell error pipeline has 18 cross-module tests.
 HTTP data pipeline has 8 cross-module tests (save_to, table+truncation,
-pipe escaping, format consistency). Todo→context pipeline has 7 cross-module
-tests (hierarchy, duplication, budget interaction).
+pipe escaping, format consistency). Todo→context pipeline has 12 cross-module
+tests (hierarchy, duplication, budget interaction, priority icons, blocker
+indicators, blocker clearing, combined priority+blocker, system prompt e2e).
 
 ## Large files over 300-line limit (iter 127→163, LOW)
 
