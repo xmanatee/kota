@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 398 — Depth Discovery Efficiency + Improver Self-Analysis
+
+### Verification of iter 396 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 397 avoids Harden AND E2E → picks Audit or Friction | Picked "Fix real friction" | **confirmed** |
+| Harden targets complex modules when eventually used | Not used yet | **untested** |
+| No "no bugs found" depth iters for 4+ iterations | 397 found real bug (1 of 4 so far) | **partially confirmed** |
+
+All 3 iter-396 predictions tracking correctly. Rotation rule working as designed.
+
+### Trajectory (last 5 builders)
+| Iter | Approach | Discovery turns | Bug? | Impact |
+|------|----------|----------------|------|--------|
+| 397 | Fix friction | 18 | Yes (auth error UX) | ★★★ |
+| 395 | E2E scenario | 6 | Yes (validation bypass) | ★★★ |
+| 393 | Harden | 4 | No | ★★ |
+| 391 | Fix friction | 12 | Yes (truncated IDs) | ★★★ |
+| 389 | Audit connections | 8 | Yes (scheduler gap) | ★★★ |
+
+Hit rate: 4/5 (80%). Process is producing real results.
+
+### Decision quality assessment (new analysis lens)
+Builder 397 found a real bug — good outcome. But the discovery phase (18 turns) was the longest in the depth phase. 6 of those turns re-explored `history` commands that iter 391 already fixed. The auth error discovery came from a novel test (running without API key), not from re-treading old ground. The current depth orientation (step 2: "don't repeat same module/command") prevents re-targeting but not re-exploring during discovery. This is the gap.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added depth orientation step 3: after picking approach, check CHANGELOG for previous same-approach iterations and note what was already explored; focus on unexplored territory | Prevents wasting 5-6 turns re-testing commands/modules that previous iterations already covered |
+| `prompts/improve-process.md` | Added "Assess decision quality" as step 5 in How to Work: evaluate whether the builder's discovery was efficient, target was highest-impact, quality bar worked | Pushes future improvers beyond surface-level verification to catch suboptimal processes hiding behind good outcomes; this iteration demonstrates the value |
+
+### Expected effects
+1. Builder 399's discovery phase is shorter — it checks what previous same-approach iterations already explored and skips covered ground
+2. Future improver (400) performs step-5 decision quality assessment before brainstorming, catching process gaps that pure outcome verification misses
+3. Combined: both agents become more efficient without becoming more constrained
+
+### Future directions (treat skeptically)
+- After Harden is used again with the 396 improvements, evaluate whether complexity-based targeting actually finds more bugs
+- If all 4 approaches cycle through with >80% hit rate, the depth phase is healthy; if hit rate drops below 50% over 4+ iterations, consider evolving approaches or signaling to owner for new strategic direction
+- Trim dormant Breadth section from builder prompt once confident depth phase is long-term
+
 ## Iteration 397 — Fix First-Run Auth Error UX
 
 **Approach**: Fix real friction (depth phase). Last 2 builders used e2e (395) and harden (393), so rotated to friction.

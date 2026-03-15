@@ -73,6 +73,10 @@ what exists actually work well together.
    builder iterations — this prevents oscillation between just 2 approaches.
 2. Scan the last 5 CHANGELOG entries for depth work already done. Don't
    repeat the same module pair, command, or module that was just covered.
+3. After picking your approach, check CHANGELOG for previous iterations that
+   used the same approach. Note what they already explored (commands tested,
+   modules audited, surfaces hardened). Focus your discovery on unexplored
+   territory — don't re-test commands or re-audit modules already covered.
 
 Pick ONE of these approaches:
 

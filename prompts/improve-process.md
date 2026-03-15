@@ -128,11 +128,16 @@ or process reliability.
    latest iteration.
 3. Read the builder's session log from the previous odd iteration.
 4. Read your own session log from the previous even iteration.
-5. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-6. Evaluate: what worked? What didn't? What was missed?
-7. Change the process layer: builder prompt, your own prompt, step.sh,
+5. **Assess decision quality**: For the latest builder, ask: did the discovery
+   method efficiently find its target, or waste turns on already-covered
+   ground? Was the chosen target the highest-impact option available? Did the
+   quality bar filter out weak targets? This catches suboptimal processes
+   hiding behind good outcomes.
+6. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+7. Evaluate: what worked? What didn't? What was missed?
+8. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-8. Update `CHANGELOG.md` with evidence, expected effects, and verification
+9. Update `CHANGELOG.md` with evidence, expected effects, and verification
    verdicts from step 1.
 
 ## Decision-Making
