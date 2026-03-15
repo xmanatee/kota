@@ -224,10 +224,10 @@ export async function runCodeExec(
 
   let { output, isError } = await session.execute(code, timeoutMs);
 
-  // Auto-install missing Python packages and retry (one attempt)
+  // Auto-install missing packages and retry (one attempt)
   const missingPkg = extractMissingPackage(output, language);
   if (missingPkg) {
-    const retry = await tryAutoInstall(missingPkg, code, session, timeoutMs);
+    const retry = await tryAutoInstall(missingPkg, code, language, session, timeoutMs);
     if (retry) {
       output = retry.output;
       isError = retry.isError;
@@ -278,33 +278,56 @@ export function detectPackageHint(output: string, language: Language): string | 
   return null;
 }
 
-/** Extract the missing package name from a Python ModuleNotFoundError. */
+/** Extract the missing package name from an import error. */
 export function extractMissingPackage(output: string, language: string): string | null {
-  if (language !== "python") return null;
-  const m = output.match(/ModuleNotFoundError: No module named '([^']+)'/);
-  if (!m) return null;
-  const pkg = m[1].split(".")[0];
-  return /^[a-zA-Z0-9_-]+$/.test(pkg) ? pkg : null;
+  if (language === "python") {
+    const m = output.match(/ModuleNotFoundError: No module named '([^']+)'/);
+    if (!m) return null;
+    const pkg = m[1].split(".")[0];
+    return /^[a-zA-Z0-9_-]+$/.test(pkg) ? pkg : null;
+  }
+  if (language === "node") {
+    const m = output.match(/Cannot find module '([^']+)'/);
+    if (!m) return null;
+    const raw = m[1];
+    if (raw.startsWith(".") || raw.startsWith("/")) return null;
+    // Extract package name: @scope/name or name (strip subpaths)
+    const pkgName = raw.startsWith("@")
+      ? raw.split("/").slice(0, 2).join("/")
+      : raw.split("/")[0];
+    return /^(@[a-zA-Z0-9_-]+\/)?[a-zA-Z0-9_-]+$/.test(pkgName) ? pkgName : null;
+  }
+  return null;
 }
 
-/** Try to pip-install a missing package and re-run the code. Returns null on failure. */
+/** Auto-install a missing package and re-run the code. Returns null on failure. */
 async function tryAutoInstall(
   pkg: string,
   code: string,
+  language: Language,
   session: REPLSession,
   timeoutMs: number,
 ): Promise<{ output: string; isError: boolean } | null> {
   try {
-    await execFileP("python3", ["-m", "pip", "install", "--quiet", pkg], {
-      timeout: 60_000,
-    });
+    if (language === "python") {
+      await execFileP("python3", ["-m", "pip", "install", "--quiet", pkg], {
+        timeout: 60_000,
+      });
+    } else {
+      await execFileP("npm", ["install", "--no-save", pkg], {
+        timeout: 60_000,
+      });
+    }
   } catch {
     return null;
   }
-  const retryCode = "import importlib; importlib.invalidate_caches()\n" + code;
+  const retryCode = language === "python"
+    ? "import importlib; importlib.invalidate_caches()\n" + code
+    : code;
   const result = await session.execute(retryCode, timeoutMs);
+  const installer = language === "python" ? "pip" : "npm";
   return {
-    output: `[Auto-installed ${pkg} via pip]\n${result.output}`,
+    output: `[Auto-installed ${pkg} via ${installer}]\n${result.output}`,
     isError: result.isError,
   };
 }

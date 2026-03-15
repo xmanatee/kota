@@ -207,7 +207,7 @@ ModuleNotFoundError: No module named 'pandas'`;
       expect(extractMissingPackage(output, "python")).toBe("sklearn");
     });
 
-    it("returns null for non-Python", () => {
+    it("python error does not match as node", () => {
       const output = "ModuleNotFoundError: No module named 'pandas'";
       expect(extractMissingPackage(output, "node")).toBeNull();
     });
@@ -220,6 +220,31 @@ ModuleNotFoundError: No module named 'pandas'`;
     it("rejects package names with invalid characters", () => {
       const output = "ModuleNotFoundError: No module named 'foo; rm -rf /'";
       expect(extractMissingPackage(output, "python")).toBeNull();
+    });
+
+    it("extracts Node.js package from Cannot find module", () => {
+      const output = "Error: Cannot find module 'lodash'\nRequire stack:\n- <repl>";
+      expect(extractMissingPackage(output, "node")).toBe("lodash");
+    });
+
+    it("extracts scoped Node.js packages", () => {
+      const output = "Error: Cannot find module '@anthropic-ai/sdk'";
+      expect(extractMissingPackage(output, "node")).toBe("@anthropic-ai/sdk");
+    });
+
+    it("strips subpath from Node.js package", () => {
+      const output = "Error: Cannot find module 'csv-stringify/sync'";
+      expect(extractMissingPackage(output, "node")).toBe("csv-stringify");
+    });
+
+    it("skips relative paths for Node.js", () => {
+      expect(extractMissingPackage("Cannot find module './utils'", "node")).toBeNull();
+      expect(extractMissingPackage("Cannot find module '/abs/path'", "node")).toBeNull();
+    });
+
+    it("rejects invalid Node.js package names", () => {
+      const output = "Cannot find module 'foo; rm -rf /'";
+      expect(extractMissingPackage(output, "node")).toBeNull();
     });
   });
 

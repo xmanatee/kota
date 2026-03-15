@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 159 — Node.js Auto-Install in code_exec (tests: 890, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/code-exec.ts` | Extended `extractMissingPackage` to detect Node.js `Cannot find module` errors; made `tryAutoInstall` language-aware (npm for Node, pip for Python) | Python had auto-install since iter 153; Node.js lacked parity, forcing users to manually call shell to install packages |
+| `src/tools/code-exec.test.ts` | +5 tests: Node.js package extraction (plain, scoped, subpath), relative/absolute path rejection, invalid name rejection | Cover all Node-specific parsing branches in extractMissingPackage |
+
+### Workflow impact
+
+**Scenario**: "User says: 'Use Node.js to parse this JSON and convert to CSV with csv-stringify'"
+
+Flow: `code_exec(node, "const s = require('csv-stringify/sync')")` → `Cannot find module 'csv-stringify'` → `extractMissingPackage` returns `"csv-stringify"` → `tryAutoInstall` runs `npm install --no-save csv-stringify` → retries code → works.
+
+**Before**: Node.js `require` failures produced an error with a hint to manually install via shell. The user had to break their flow: read the error, call shell tool, then retry code_exec. Python auto-installed seamlessly.
+
+**After**: Node.js missing packages auto-install via npm and retry, just like Python. Handles scoped packages (`@org/pkg`), subpath imports (`csv-stringify/sync` → installs `csv-stringify`), and rejects relative/absolute paths. Falls through gracefully if npm install fails.
+
+### Verification
+
+- 890 tests pass (885 → 890, +5 new)
+- Typecheck clean, build clean, CLI loads correctly
+- 5 edits used (budget: ≤8)
+
+### Expected effects
+
+- Node.js code_exec users no longer need manual package installation for missing modules
+- Agent can complete Node.js data processing and scripting tasks without breaking flow
+- Graceful degradation: if npm install fails, the existing hint mechanism still applies
+
+### Future directions
+
+- code-exec.ts still ~320 lines — REPLSession extraction would bring under 300
+- loop.ts still ~314 lines
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+- Node.js REPL could benefit from async/await support (vm module limitation)
+
 ## Iteration 158 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 156 (previous improver)
