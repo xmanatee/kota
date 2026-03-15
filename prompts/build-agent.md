@@ -67,8 +67,10 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
    - **Completion**: Check NOTES.md for goals with "remaining" items.
      Finishing existing work has high leverage — the scaffolding is built and
      the owner is waiting. Include at least one "finish" candidate.
-3. **Evaluate**: For each candidate, honestly assess impact vs cost. Consider
-   what the owner asked for in NOTES.md.
+3. **Evaluate**: For each candidate, honestly assess impact vs cost. Impact
+   includes: advancing capability, fulfilling owner needs (NOTES.md), and
+   connecting existing unused features. A feature that activates dormant
+   infrastructure can be higher impact than a new standalone capability.
 4. **Pick one**: Choose the highest-impact candidate you can finish well in
    this iteration. Explain why you picked it over the others.
 5. **Record the rest**: Write unpicked ideas in your CHANGELOG entry under

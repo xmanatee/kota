@@ -120,13 +120,19 @@ or process reliability.
    CHANGELOG entry. Check each prediction against what actually happened in
    the builder's latest session log. Record verdicts (confirmed/refuted/unclear)
    before brainstorming new changes. This closes the learning loop.
-2. Read the builder's session log from the previous odd iteration.
-3. Read your own session log from the previous even iteration.
-4. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-5. Evaluate: what worked? What didn't? What was missed?
-6. Change the process layer: builder prompt, your own prompt, step.sh,
+2. **Analyze trajectory**: Review the last 5 builder iterations via `git log`.
+   For each, note: what was built, whether it integrated with existing features
+   or was standalone, and whether it addressed a NOTES.md goal. Look for
+   patterns: repeated themes, neglected areas, growing gaps between what's
+   built and what's connected. This prevents myopia from only looking at the
+   latest iteration.
+3. Read the builder's session log from the previous odd iteration.
+4. Read your own session log from the previous even iteration.
+5. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+6. Evaluate: what worked? What didn't? What was missed?
+7. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-7. Update `CHANGELOG.md` with evidence, expected effects, and verification
+8. Update `CHANGELOG.md` with evidence, expected effects, and verification
    verdicts from step 1.
 
 ## Decision-Making

@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 376 — Trajectory Analysis and Multi-Dimensional Evaluation
+
+### Verification of iter 374 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 375 runs diversity check with less overhead (3 bullets) | Builder ran visible, concise check: "Last 2 builders: #373, #371 — both persistence/management. Must pick a different area." | **confirmed** |
+| Builder 375's NOTES.md updates will be concise | Builder didn't update NOTES.md at all — guidance not triggered | **untested** |
+| NOTES.md goal moves to Completed within 2-3 builder iters | Completed still "(none)". Builder listed finish candidates but chose new capability. 1 of 2-3 elapsed. | **unclear** |
+
+### Diagnosis
+Two converging patterns across 8+ iterations:
+
+1. **Improver pattern**: I've made builder prompt adjustments for 8 consecutive improver iterations (360-374) — diversity checks, cohesion lenses, completion pushes, consolidation. Each was justified individually but the cumulative approach is prompt-engineering-only. My own prompt hasn't changed. Time for self-improvement.
+
+2. **Builder evaluation gap**: The builder consistently interprets "impact" as "new capability," causing it to choose new features over connecting existing unused scaffolding (plugins, tool adapters, config). The eval step says "Consider what the owner asked for in NOTES.md" but this is a weak signal that gets overridden.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/improve-process.md` | Added step 2 "Analyze trajectory" to How to Work — review last 5 builder iters for patterns (standalone vs integrated, NOTES.md alignment) | Prevents myopia from only examining the latest iteration. Forces systematic trajectory analysis before brainstorming. First self-improvement in 8+ iterations. |
+| `prompts/build-agent.md` | Changed Evaluate step from "Consider what the owner asked for" to three explicit impact dimensions: capability advancement, owner needs, connecting existing unused features | Makes evaluation multi-dimensional. "A feature that activates dormant infrastructure can be higher impact than a new standalone capability." |
+
+### Expected effects
+1. Next improver (iter 378) will perform explicit trajectory analysis before brainstorming, producing better-informed interventions
+2. Builder 377's brainstorm will include at least one candidate about activating/connecting existing unused features (plugins, adapters, config)
+3. Over the next 3-4 builder iterations, at least one will focus on integration of existing features rather than building new standalone capability
+
+### Future directions (treat skeptically)
+- NOTES.md Completed section still empty after 15+ iterations — may need structural change to the update mechanism rather than more guidance
+- Owner's `i:` note about ANTHROPIC_API_KEY remains unaddressed — this requires owner action (setting env var), not improver action
+- Consider adding a "feature integration matrix" to DESIGN.md that tracks which features connect to which — but this is builder's domain
+
 ## Iteration 375 — Autonomous Scheduled Actions
 
 Scheduled items can now carry an agent prompt that KOTA executes autonomously when triggered. This transforms KOTA from a reactive tool into a proactive agent — one that acts without being prompted.
