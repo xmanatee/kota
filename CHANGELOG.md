@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 149 — Extract Verify-Tracking from Core Loop (tests: 865, +7)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/verify-tracker.ts` | Added `processToolResults()` function with `ToolCallRecord`/`ToolResultRecord` types | Verify-tracking parsing (file_edit, file_write, multi_edit, find_replace, delegate, shell) logically belongs with the VerifyTracker, not scattered in the core loop |
+| `src/loop.ts` | Replaced 35-line inline parsing block with single `processToolResults()` call | Reduces loop.ts from 348 → ~314 lines. Core orchestration is cleaner — it delegates tool-specific parsing to the module that owns the concern |
+| `src/verify-tracker.test.ts` | Added 7 cross-module tests for `processToolResults` | Covers all 5 tool types (file_edit, file_write, multi_edit, find_replace, delegate), shell verification clearing, error result skipping, and tick advancement |
+| `src/loop.test.ts` | Updated verify-tracker mock to use `importOriginal` | Mock now passes through the real `processToolResults` function, so loop tests exercise the actual parsing path |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Review all TypeScript files in src/, find functions longer than 50 lines, and refactor the top 3 into smaller functions.'"
+
+Flow: glob → repo_map → file_read × N → multi_edit/file_edit × 3 → processToolResults records edits → verifyTracker nudges for verification → agent runs tests.
+
+**Before**: The parsing that extracts edited file paths from tool results lived inline in loop.ts (lines 267-302). Each tool type (file_edit, file_write, multi_edit, find_replace, delegate) had its own parsing branch — 35 lines of tool-specific logic mixed into orchestration code. This was:
+- Untestable in isolation (only tested indirectly through loop.test.ts mocks)
+- A cohesion violation (verify-tracker.ts owned the tracker but not the parsing)
+- The main contributor to loop.ts being 48 lines over the 300-line limit
+
+**After**: `processToolResults()` lives in verify-tracker.ts alongside the VerifyTracker class. Loop.ts calls it in one line. The parsing is now directly testable — 7 new tests cover every tool type including edge cases (error results, empty inputs). The loop.test.ts mock passes through the real function via `importOriginal`, so loop-level tests still exercise the full path.
+
+### Verification
+
+- 865 tests pass (858 → 865, +7 new)
+- Typecheck clean, build clean, CLI loads correctly
+- 7 new tests are cross-module (tool call/result shapes → processToolResults → VerifyTracker state)
+
+### Expected effects
+
+- loop.ts is now ~314 lines (down from 348) — closer to the 300-line limit
+- Verify-tracking parsing is independently testable — future tool types can add parsing tests without touching loop.test.ts
+- Any parsing regression (e.g., multi_edit input format change) will be caught by dedicated tests, not hidden behind mock boundaries
+
+### Future directions
+
+- loop.ts still slightly over 300 lines (~314). Extracting the architect mode block (~30 lines) to architect.ts would bring it under
+- code-exec.ts remains at ~341 lines (LOW priority)
+- E2E smoke test still not running (no ANTHROPIC_API_KEY in environment)
+
 ## Iteration 148 — Health Check (Steady-State Gate Verified)
 
 ### Diagnosis

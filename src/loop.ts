@@ -9,7 +9,7 @@ import { loadProjectContext } from "./project-context.js";
 import { streamMessage } from "./streaming.js";
 import { buildSessionWarmup } from "./init.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
-import { VerifyTracker, detectVerifyCommands } from "./verify-tracker.js";
+import { VerifyTracker, detectVerifyCommands, processToolResults } from "./verify-tracker.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { McpManager } from "./mcp-manager.js";
 import { cleanupProcesses } from "./tools/process.js";
@@ -264,42 +264,7 @@ export class AgentSession {
       );
       this.context.addToolResults(validResults);
 
-      // Track edits and verifications for nudge system
-      for (const block of toolBlocks) {
-        const result = validResults.find((r) => r.tool_use_id === block.id);
-        const input = block.input as Record<string, unknown>;
-        if (result && !result.is_error) {
-          if (block.name === "file_edit" || block.name === "file_write") {
-            this.verifyTracker.recordEdit((input.path as string) || "");
-          } else if (block.name === "multi_edit") {
-            const edits = input.edits as Array<{ file_path?: string }> | undefined;
-            if (edits) {
-              for (const e of edits) {
-                if (e.file_path) this.verifyTracker.recordEdit(e.file_path);
-              }
-            }
-          } else if (block.name === "find_replace") {
-            // Parse "  /path: N replacement(s)" from result content
-            for (const line of result.content.split("\n")) {
-              const m = line.match(/^\s{2}(\S.+?):\s+\d+\s+replacement/);
-              if (m) this.verifyTracker.recordEdit(m[1]);
-            }
-          } else if (block.name === "delegate") {
-            // Parse "  - /path" from Modified files section in metadata
-            const idx = result.content.indexOf("--- Modified files");
-            if (idx !== -1) {
-              for (const line of result.content.slice(idx).split("\n")) {
-                const m = line.match(/^\s{2}-\s+(.+)/);
-                if (m) this.verifyTracker.recordEdit(m[1]);
-              }
-            }
-          }
-        }
-        if (block.name === "shell") {
-          this.verifyTracker.checkShellCommand((input.command as string) || "");
-        }
-      }
-      this.verifyTracker.tick();
+      processToolResults(this.verifyTracker, toolBlocks, validResults);
 
       if (this.sessionPath) this.context.save(this.sessionPath);
 

@@ -59,15 +59,19 @@ vi.mock("./mcp-manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
-vi.mock("./verify-tracker.js", () => ({
-  VerifyTracker: class MockVerifyTracker {
-    getState = mockVerifyTracker.getState;
-    recordEdit = mockVerifyTracker.recordEdit;
-    checkShellCommand = mockVerifyTracker.checkShellCommand;
-    tick = mockVerifyTracker.tick;
-  },
-  detectVerifyCommands: vi.fn(() => []),
-}));
+vi.mock("./verify-tracker.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./verify-tracker.js")>();
+  return {
+    ...actual,
+    VerifyTracker: class MockVerifyTracker {
+      getState = mockVerifyTracker.getState;
+      recordEdit = mockVerifyTracker.recordEdit;
+      checkShellCommand = mockVerifyTracker.checkShellCommand;
+      tick = mockVerifyTracker.tick;
+    },
+    detectVerifyCommands: vi.fn(() => []),
+  };
+});
 vi.mock("./architect.js", () => ({
   runArchitectPass: mockArchitectPass,
   runEditorLoop: mockEditorLoop,

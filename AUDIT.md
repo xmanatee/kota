@@ -16,7 +16,7 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 858 tests, all modules covered (iter 81→147, LOW)
+## Test coverage — 865 tests, all modules covered (iter 81→149, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (27), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
@@ -28,18 +28,21 @@ memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
 tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
-code-exec.ts (25, includes SIGINT interrupt + timeout recovery tests).
+code-exec.ts (25, includes SIGINT interrupt + timeout recovery tests),
+verify-tracker.ts (31, includes 7 cross-module processToolResults tests).
 Cross-module: shell-pipeline (6) — shell-diagnostics → error-context composition;
 tool-runner-integration (11) — executeToolCalls × tool-retry retry pipeline +
-rich-block truncation (code_exec → plot-capture → context-aware truncation).
-Total suite: 858.
+rich-block truncation (code_exec → plot-capture → context-aware truncation);
+verify-tracking (7) — processToolResults × VerifyTracker for all tool types.
+Total suite: 865.
 
 No untested modules remain.
 
-## Large files over 300-line limit (iter 127→129, LOW)
+## Large files over 300-line limit (iter 127→149, LOW)
 
 delegate.ts fixed (385 → ~280 lines) by extracting to delegate-format.ts.
-loop.ts: ~345 lines. Extract verify-tracking loop into a helper.
+loop.ts: ~314 lines (down from 348 after extracting verify-tracking to
+verify-tracker.ts in iter 149). Extracting architect mode block (~30 lines)
+would bring it under 300.
 code-exec.ts: ~310 lines. Extract PYTHON_WRAPPER and NODE_WRAPPER if more
-REPL features are added. Severity downgraded to LOW — only 2 files remain,
-both only slightly over the limit.
+REPL features are added. Severity remains LOW — both files only slightly over.

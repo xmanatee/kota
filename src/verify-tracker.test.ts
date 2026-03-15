@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { VerifyTracker, isVerifyCommand, detectVerifyCommands } from "./verify-tracker.js";
+import { VerifyTracker, isVerifyCommand, detectVerifyCommands, processToolResults } from "./verify-tracker.js";
 
 describe("VerifyTracker", () => {
   it("starts with empty state", () => {
@@ -184,6 +184,93 @@ describe("isVerifyCommand", () => {
     expect(isVerifyCommand("cd src")).toBe(false);
     expect(isVerifyCommand("echo hello")).toBe(false);
     expect(isVerifyCommand("node script.js")).toBe(false);
+  });
+});
+
+describe("processToolResults", () => {
+  it("tracks file_edit and file_write paths", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "file_edit", id: "1", input: { path: "src/foo.ts" } },
+      { name: "file_write", id: "2", input: { path: "src/bar.ts" } },
+    ], [
+      { tool_use_id: "1", content: "OK" },
+      { tool_use_id: "2", content: "OK" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(2);
+    const state = tracker.getState();
+    expect(state).toContain("src/foo.ts");
+    expect(state).toContain("src/bar.ts");
+  });
+
+  it("tracks multi_edit file paths", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "multi_edit", id: "1", input: {
+        edits: [
+          { file_path: "src/a.ts", old_string: "x", new_string: "y" },
+          { file_path: "src/b.ts", old_string: "a", new_string: "b" },
+        ],
+      } },
+    ], [
+      { tool_use_id: "1", content: "OK" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(2);
+  });
+
+  it("parses find_replace result content for edited paths", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "find_replace", id: "1", input: { pattern: "foo", replacement: "bar", glob: "*.ts" } },
+    ], [
+      { tool_use_id: "1", content: "find_replace completed:\n  src/main.ts: 3 replacement(s)\n  src/util.ts: 1 replacement(s)" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(2);
+    expect(tracker.getState()).toContain("src/main.ts");
+    expect(tracker.getState()).toContain("src/util.ts");
+  });
+
+  it("parses delegate modified files section", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "delegate", id: "1", input: { mode: "execute", task: "fix bug" } },
+    ], [
+      { tool_use_id: "1", content: "Task completed.\n--- Modified files\n  - src/fix.ts\n  - src/test.ts" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(2);
+    expect(tracker.getState()).toContain("src/fix.ts");
+    expect(tracker.getState()).toContain("src/test.ts");
+  });
+
+  it("checks shell commands for verification and clears edits", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "shell", id: "1", input: { command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "all tests passed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("skips tracking when result is an error", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "file_edit", id: "1", input: { path: "src/foo.ts" } },
+    ], [
+      { tool_use_id: "1", content: "Error: string not found", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("advances turn counter via tick", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    // Each processToolResults call ticks once
+    processToolResults(tracker, [], []);
+    processToolResults(tracker, [], []);
+    processToolResults(tracker, [], []);
+    expect(tracker.getState()).toContain("Consider verifying");
   });
 });
 

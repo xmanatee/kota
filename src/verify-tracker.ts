@@ -153,3 +153,63 @@ export class VerifyTracker {
     return this.editedFiles.size;
   }
 }
+
+/** Minimal tool call shape — avoids SDK dependency. */
+export type ToolCallRecord = {
+  name: string;
+  id: string;
+  input: unknown;
+};
+
+/** Minimal tool result shape. */
+export type ToolResultRecord = {
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+};
+
+/**
+ * Extract edit/verification events from completed tool calls.
+ * Parses tool inputs and results to update the VerifyTracker.
+ */
+export function processToolResults(
+  tracker: VerifyTracker,
+  toolCalls: ToolCallRecord[],
+  results: ToolResultRecord[],
+): void {
+  for (const call of toolCalls) {
+    const result = results.find((r) => r.tool_use_id === call.id);
+    const input = call.input as Record<string, unknown>;
+
+    if (result && !result.is_error) {
+      if (call.name === "file_edit" || call.name === "file_write") {
+        tracker.recordEdit((input.path as string) || "");
+      } else if (call.name === "multi_edit") {
+        const edits = input.edits as Array<{ file_path?: string }> | undefined;
+        if (edits) {
+          for (const e of edits) {
+            if (e.file_path) tracker.recordEdit(e.file_path);
+          }
+        }
+      } else if (call.name === "find_replace") {
+        for (const line of result.content.split("\n")) {
+          const m = line.match(/^\s{2}(\S.+?):\s+\d+\s+replacement/);
+          if (m) tracker.recordEdit(m[1]);
+        }
+      } else if (call.name === "delegate") {
+        const idx = result.content.indexOf("--- Modified files");
+        if (idx !== -1) {
+          for (const line of result.content.slice(idx).split("\n")) {
+            const m = line.match(/^\s{2}-\s+(.+)/);
+            if (m) tracker.recordEdit(m[1]);
+          }
+        }
+      }
+    }
+
+    if (call.name === "shell") {
+      tracker.checkShellCommand((input.command as string) || "");
+    }
+  }
+  tracker.tick();
+}
