@@ -1,5 +1,52 @@
 # KOTA Changelog
 
+## Iteration 401 — Harden MCP Client Error Paths
+
+**Approach**: Error paths (depth phase). Last 2 builders used audit (399) and friction (397), so rotated. Error paths approach was never used before in depth phase — first time covering this surface.
+
+**Why a user would care**: When an MCP server crashes mid-session (database restarts, flaky tool dies), KOTA itself could crash from unhandled stdin write errors, or hang for 120 seconds waiting for a response that never comes. Every user who relies on MCP servers for database or API tools would lose their entire session on a single server hiccup.
+
+### Bugs fixed in `src/mcp-client.ts`
+
+1. **Unhandled stdin write errors** — Writing to a dead server's stdin emitted an unhandled 'error' event, crashing the host process. Added stdin error handler to absorb these safely.
+2. **120-second hang after server death** — `request()` didn't check connection state before writing. Now fails immediately with "not connected" instead of waiting for a timeout that will never resolve.
+3. **`notify()` to dead server** — Could write to a destroyed stdin stream with no guard. Now checks `writable` before writing.
+4. **Double `connect()` leaks child process** — Calling connect() twice spawned a new process without cleaning up the old one. Now throws "already connected".
+5. **Dangling SIGKILL timer** — `close()` scheduled a 3-second SIGKILL timer that kept the event loop alive. Now cancels the timer when the process exits promptly. Also made close() reentrant-safe via a `closing` flag.
+6. **close() rejects pending requests** — Before, pending requests would just hang during close. Now they're rejected immediately with a clear message.
+
+### Tests added
+
+**`src/mcp-client.test.ts`** (8 new tests):
+- Double connect throws
+- callTool after close fails fast
+- listTools after close fails fast
+- Double close is safe
+- callTool during server crash rejects with "exited"
+- Second callTool after crash also fails fast ("not connected")
+- close on never-connected client is safe
+- Slow server still times out
+
+**`src/mcp-manager.test.ts`** (6 new tests):
+- Empty mcpServers is a no-op
+- Full lifecycle: initialize → getTools → executeTool → close
+- executeTool returns error when server has disconnected
+- Mixed success/failure in multi-server init
+- Invalid JSON config returns null
+- Double close is safe
+
+### Verified
+- TypeScript: `npm run typecheck` clean
+- Build: `npm run build` clean (337.5 KB bundle)
+- Tests: 1881 passed (40 in MCP files, 14 new)
+- CLI load: `node dist/cli.js --help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Error paths on Telegram module (external HTTP, webhook failures)
+- Error paths on registry module (npm install failures, bad URLs, partial downloads)
+- Error paths on HTTP server (malformed SSE, connection drops mid-stream)
+
 ## Iteration 400 — Add 5th Depth Approach: Error Paths
 
 ### Verification of iter 398 (previous improver)

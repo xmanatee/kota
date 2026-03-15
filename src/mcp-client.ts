@@ -49,6 +49,8 @@ export class McpClient {
   private nextId = 1;
   private pending = new Map<number, PendingRequest>();
   private connected = false;
+  private closing = false;
+  private killTimer: ReturnType<typeof setTimeout> | null = null;
   private serverName: string;
 
   constructor(
@@ -70,6 +72,10 @@ export class McpClient {
 
   /** Spawn the server process and complete the MCP handshake. */
   async connect(): Promise<void> {
+    if (this.connected) {
+      throw new Error(`MCP server "${this.serverName}" is already connected`);
+    }
+
     this.proc = spawn(this.command, this.args, {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...this.env },
@@ -84,6 +90,9 @@ export class McpClient {
       this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
       this.connected = false;
     });
+
+    // Absorb stdin write errors (server may have exited)
+    this.proc.stdin?.on("error", () => {});
 
     // Capture stderr for diagnostics but don't block
     this.proc.stderr?.on("data", (chunk: Buffer) => {
@@ -136,19 +145,45 @@ export class McpClient {
 
   /** Gracefully shut down the server. */
   async close(): Promise<void> {
-    if (!this.proc) return;
+    if (!this.proc || this.closing) return;
+    this.closing = true;
+    this.connected = false;
+    this.rejectAll(new Error(`MCP server "${this.serverName}" is closing`));
+
+    const proc = this.proc;
+    this.proc = null;
+    this.rl?.close();
+    this.rl = null;
+
     try {
-      await this.request("shutdown", undefined, 5_000);
-      this.notify("exit");
+      // Attempt graceful shutdown if stdin is still writable
+      if (proc.stdin?.writable) {
+        const id = this.nextId++;
+        const msg: JsonRpcRequest = { jsonrpc: "2.0", id, method: "shutdown" };
+        proc.stdin.write(`${JSON.stringify(msg)}\n`);
+        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        const exitMsg: JsonRpcNotification = { jsonrpc: "2.0", method: "exit" };
+        proc.stdin.write(`${JSON.stringify(exitMsg)}\n`);
+      }
     } catch {
       // Server may not support graceful shutdown
     }
-    this.proc.kill("SIGTERM");
-    setTimeout(() => this.proc?.kill("SIGKILL"), 3_000);
-    this.rl?.close();
-    this.proc = null;
-    this.rl = null;
-    this.connected = false;
+
+    proc.kill("SIGTERM");
+    this.killTimer = setTimeout(() => {
+      try { proc.kill("SIGKILL"); } catch { /* already dead */ }
+      this.killTimer = null;
+    }, 3_000);
+
+    // Cancel the SIGKILL timer if the process exits promptly
+    proc.on("exit", () => {
+      if (this.killTimer) {
+        clearTimeout(this.killTimer);
+        this.killTimer = null;
+      }
+    });
+
+    this.closing = false;
   }
 
   private handleLine(line: string): void {
@@ -175,6 +210,12 @@ export class McpClient {
     params?: Record<string, unknown>,
     timeout = CONNECT_TIMEOUT,
   ): Promise<unknown> {
+    if (!this.proc?.stdin?.writable) {
+      return Promise.reject(
+        new Error(`MCP server "${this.serverName}" is not connected`),
+      );
+    }
+
     const id = this.nextId++;
     const msg: JsonRpcRequest = { jsonrpc: "2.0", id, method, ...(params && { params }) };
 
@@ -194,8 +235,9 @@ export class McpClient {
   }
 
   private notify(method: string, params?: Record<string, unknown>): void {
+    if (!this.proc?.stdin?.writable) return;
     const msg: JsonRpcNotification = { jsonrpc: "2.0", method, ...(params && { params }) };
-    this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
+    this.proc.stdin.write(`${JSON.stringify(msg)}\n`);
   }
 
   private rejectAll(error: Error): void {

@@ -88,4 +88,150 @@ describe("McpManager", () => {
     expect(manager.getServerCount()).toBe(0);
     expect(manager.getToolCount()).toBe(0);
   }, 15_000);
+
+  it("initialize with empty mcpServers is a no-op", async () => {
+    const manager = new McpManager();
+    await manager.initialize({ mcpServers: {} });
+    expect(manager.getServerCount()).toBe(0);
+    expect(manager.getToolCount()).toBe(0);
+  });
+
+  it("initialize connects to working server and lists tools", async () => {
+    const manager = new McpManager();
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+            serverInfo: { name: "test-srv" },
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "ping", description: "Pings", inputSchema: { type: "object" } }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "ping") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [{ type: "text", text: "pong" }],
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { "test-srv": { command: "node", args: ["-e", server] } },
+    });
+
+    expect(manager.getServerCount()).toBe(1);
+    expect(manager.getToolCount()).toBe(1);
+    expect(manager.isMcpTool("mcp__test-srv__ping")).toBe(true);
+
+    const tools = manager.getTools();
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe("mcp__test-srv__ping");
+
+    const result = await manager.executeTool("mcp__test-srv__ping", {});
+    expect(result.content).toBe("pong");
+    expect(result.is_error).toBeUndefined();
+
+    await manager.close();
+    expect(manager.getServerCount()).toBe(0);
+    expect(manager.getToolCount()).toBe(0);
+  }, 10_000);
+
+  it("executeTool returns error when server has disconnected", async () => {
+    const manager = new McpManager();
+    const dieServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "test", inputSchema: { type: "object" } }],
+          }}) + "\\n");
+        } else if (msg.method === "notifications/initialized") {
+          setTimeout(() => process.exit(1), 50);
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { dying: { command: "node", args: ["-e", dieServer] } },
+    });
+    expect(manager.getServerCount()).toBe(1);
+
+    // Wait for server to die
+    await new Promise((r) => setTimeout(r, 300));
+
+    const result = await manager.executeTool("mcp__dying__test", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("disconnected");
+
+    await manager.close();
+  }, 10_000);
+
+  it("mixed success/failure in multi-server init", async () => {
+    const manager = new McpManager();
+    const goodServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "ok", inputSchema: { type: "object" } }],
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: {
+        good: { command: "node", args: ["-e", goodServer] },
+        bad: { command: "__nonexistent__" },
+      },
+    });
+
+    // Good server connected, bad one didn't
+    expect(manager.getServerCount()).toBe(1);
+    expect(manager.getToolCount()).toBe(1);
+    expect(manager.isMcpTool("mcp__good__ok")).toBe(true);
+    expect(manager.isMcpTool("mcp__bad__anything")).toBe(false);
+
+    await manager.close();
+  }, 15_000);
+
+  it("loadConfig handles invalid JSON gracefully", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
+    const configDir = path.join(tmpDir, ".kota");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, "mcp.json"), "not valid json {{{");
+
+    const config = McpManager.loadConfig(tmpDir);
+    expect(config).toBeNull();
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("double close is safe", async () => {
+    const manager = new McpManager();
+    await manager.close();
+    await manager.close();
+    expect(manager.getServerCount()).toBe(0);
+  });
 });

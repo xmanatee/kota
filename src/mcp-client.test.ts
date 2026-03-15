@@ -220,3 +220,130 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     await expect(client.listTools()).rejects.toThrow(/exited/);
   }, 10_000);
 });
+
+describe("McpClient error paths", () => {
+  let client: McpClient;
+
+  afterEach(async () => {
+    await client.close();
+  });
+
+  it("double connect throws", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "double-connect");
+    await client.connect();
+    expect(client.isConnected()).toBe(true);
+
+    await expect(client.connect()).rejects.toThrow(/already connected/);
+  }, 10_000);
+
+  it("callTool after close fails fast", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "post-close-call");
+    await client.connect();
+    await client.close();
+
+    await expect(client.callTool("echo", { text: "hi" })).rejects.toThrow(/not connected/);
+  }, 10_000);
+
+  it("listTools after close fails fast", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "post-close-list");
+    await client.connect();
+    await client.close();
+
+    await expect(client.listTools()).rejects.toThrow(/not connected/);
+  }, 10_000);
+
+  it("double close is safe", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "double-close");
+    await client.connect();
+
+    await client.close();
+    await client.close();
+    expect(client.isConnected()).toBe(false);
+  }, 10_000);
+
+  it("callTool after server crash fails fast without hanging", async () => {
+    // Server that crashes after a specific tool call
+    const crashServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+            serverInfo: { name: "crash-server" },
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "crash") {
+          process.exit(1);
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    client = new McpClient("node", ["-e", crashServer], {}, "crash-test");
+    await client.connect();
+
+    // Server crashes during tool call — should reject quickly
+    await expect(client.callTool("crash", {})).rejects.toThrow(/exited/);
+    expect(client.isConnected()).toBe(false);
+  }, 10_000);
+
+  it("second callTool after server crash also fails fast", async () => {
+    // Server that exits right after initialize
+    const dieServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "notifications/initialized") {
+          setTimeout(() => process.exit(1), 50);
+        }
+      });
+    `;
+    client = new McpClient("node", ["-e", dieServer], {}, "die-test");
+    await client.connect();
+
+    // Wait for server to exit
+    await new Promise((r) => setTimeout(r, 200));
+    expect(client.isConnected()).toBe(false);
+
+    // Both calls should fail immediately with "not connected"
+    await expect(client.callTool("anything", {})).rejects.toThrow(/not connected/);
+    await expect(client.listTools()).rejects.toThrow(/not connected/);
+  }, 10_000);
+
+  it("close on never-connected client is safe", async () => {
+    client = new McpClient("echo", [], {}, "never-connected");
+    await client.close();
+    await client.close();
+    expect(client.isConnected()).toBe(false);
+  });
+
+  it("server slow to respond still times out", async () => {
+    // Server that accepts initialize but never responds to tools/list
+    const slowServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+        // tools/list: intentionally no response — triggers timeout
+      });
+    `;
+    client = new McpClient("node", ["-e", slowServer], {}, "slow-test");
+    await client.connect();
+
+    // listTools sends a request with CONNECT_TIMEOUT (10s) — should timeout
+    await expect(client.listTools()).rejects.toThrow(/timed out/);
+  }, 15_000);
+});
