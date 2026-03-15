@@ -16,11 +16,18 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 973 tests, all modules covered (iter 81→189, LOW)
+## Test coverage — 979 tests, all modules covered (iter 81→191, LOW)
 
 All 54 test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
 No untested modules remain. All modules above minimum test density threshold.
+
+## tool-runner.ts — executeToolCalls has 0 tests (iter 191, MEDIUM)
+
+`executeToolCalls` is the main tool dispatch orchestration function (integrates
+context truncation, MCP dispatch, tool-retry, failure tracking). Only
+`FailureTracker` is tested (11 tests). The orchestration function itself has
+no tests — a regression here could break all tool execution.
 
 ## code-exec.ts — extractMissingPackage rejects dotted npm names (iter 177, LOW)
 

@@ -182,6 +182,51 @@ describe("buildSubAgentPrompt × init.ts — delegate environment context", () =
     expect(result).not.toContain("node_modules");
     expect(result).not.toContain(".git");
   });
+
+  it("includes Python project detection from pyproject.toml", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(
+      join(tmpDir, "pyproject.toml"),
+      '[project]\nname = "data-analyzer"',
+    );
+    writeFileSync(join(tmpDir, "main.py"), "print('hi')");
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).toContain("Python project");
+    expect(result).toContain("data-analyzer");
+    expect(result).toContain("main.py");
+  });
+
+  it("includes Go project detection from go.mod", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(
+      join(tmpDir, "go.mod"),
+      "module github.com/user/service\n\ngo 1.21",
+    );
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).toContain("Go project");
+    expect(result).toContain("github.com/user/service");
+  });
+
+  it("handles non-existent cwd gracefully — no crash", () => {
+    const result = buildSubAgentPrompt(base, {
+      cwd: "/tmp/kota-nonexistent-path-test-42",
+    });
+    expect(result).toContain("Working directory:");
+    expect(result).not.toContain("Project:");
+    expect(result).not.toContain("Directory:");
+  });
+
+  it("truncates large directory listing through delegate prompt", async () => {
+    const { writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    for (let i = 0; i < 12; i++) mkdirSync(join(tmpDir, `dir${String(i).padStart(2, "0")}`));
+    for (let i = 0; i < 18; i++) writeFileSync(join(tmpDir, `f${String(i).padStart(2, "0")}.txt`), "");
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).toContain("+2 more");
+    expect(result).toContain("+3 more");
+  });
 });
 
 describe("tool sets", () => {

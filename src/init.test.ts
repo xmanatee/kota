@@ -260,4 +260,14 @@ describe("getDirectoryOverview", () => {
     const result = getDirectoryOverview(dir)!;
     expect(result).toContain("+3 more");
   });
+
+  it("returns null for non-existent directory", () => {
+    expect(getDirectoryOverview("/tmp/kota-nonexistent-dir-42")).toBeNull();
+  });
+
+  it("returns null when directory has only hidden entries", () => {
+    writeFileSync(join(dir, ".hidden"), "secret");
+    writeFileSync(join(dir, ".config"), "data");
+    expect(getDirectoryOverview(dir)).toBeNull();
+  });
 });

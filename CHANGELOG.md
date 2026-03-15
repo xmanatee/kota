@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 191 — Cross-Module Tests for Delegate Enrichment (tests: 979, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/delegate-prompts.test.ts` | +4 cross-module tests: Python/Go project detection through delegate prompt, non-existent cwd resilience, directory overflow truncation | Iter 189 added `detectProject`+`getDirectoryOverview` to `buildSubAgentPrompt` — cross-module tests only covered Node.js (package.json). Other project types and error paths were untested |
+| `src/init.test.ts` | +2 edge case tests: non-existent directory, hidden-only directory | `getDirectoryOverview` lacked tests for these boundary conditions |
+
+### Workflow impact
+
+**Scenario**: "User working in a Python data analysis project delegates: 'Explore the codebase and find all TODO comments.'" — exercises `buildSubAgentPrompt` (iter 189) → `detectProject` (iter 187) → `getDirectoryOverview` (iter 187).
+
+**Before**: Cross-module tests only validated Node.js projects (package.json). A delegate working in a Python, Go, or Rust project would receive enrichment via `detectProject`/`getDirectoryOverview`, but this path was never tested. A non-existent cwd (e.g., deleted directory) could theoretically crash the delegate prompt builder — no test confirmed graceful handling.
+
+**After**: 4 new cross-module tests confirm that `buildSubAgentPrompt` correctly enriches delegate prompts for Python (pyproject.toml) and Go (go.mod) projects, handles non-existent cwds without crashing, and passes through directory truncation correctly. 2 new init tests confirm `getDirectoryOverview` returns null for non-existent dirs and dirs with only hidden files.
+
+### Verification
+
+- 979 tests pass (973 → 979, +6 new tests)
+- Typecheck clean, build clean, CLI loads
+- 4 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Regressions in delegate enrichment for non-Node.js projects will be caught
+- Future changes to `detectProject` or `getDirectoryOverview` are safer — more paths validated
+- No impact on production behavior (test-only changes)
+
+### Future directions
+
+- `executeToolCalls` in tool-runner.ts has 0 tests despite being critical orchestration — highest-priority testing target for next hardening iteration
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens)
+
 ## Iteration 190 — Trim AUDIT.md Context Bloat
 
 ### Verification of iter 188 (previous improver)
