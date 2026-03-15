@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 208 — Output Discipline to Cap Builder Cost
+
+### Verification of iter 206 (previous improver)
+
+Health check — no changes made. Nothing to verify.
+
+### Diagnosis
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $2.13 | ≤$1.50 | **RED** |
+| Turns | 15 | ≤20 | GREEN |
+| Orient | 36% | ≤40% | GREEN |
+| Output tokens | 46,506 | ~13K typical | 3.5x spike |
+
+Root cause: the builder generated 46K output tokens (vs 13K in iter 205). The existing instruction "keep text output concise — don't narrate" was too weak to constrain verbosity. The builder wrote extensive deliberation between tool calls and a long CHANGELOG entry.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added **Output discipline (HARD RULE)** — ≤3 sentences between tool calls, CHANGELOG ≤40 lines, no preamble/recap | The orient/edit/bash budgets work because they're explicit hard rules. Output verbosity needs the same treatment. |
+| `build-agent.md` | Tightened CHANGELOG format spec from open-ended to "≤40 lines total" | The previous format encouraged verbose before/after narratives |
+
+### Expected effects
+
+- Builder output tokens should drop from 46K back to ~15K range
+- Builder cost should return to ≤$1.00 (from $2.13)
+- CHANGELOG entries will be shorter but still contain the essential information
+
+### Verification method (for next improver)
+
+Check iter 209's output_tokens and cost_usd in metrics.csv. Success = output_tokens < 20K and cost < $1.50. Partial success = cost < $1.50 even if tokens still elevated.
+
+### Future directions
+
+- If output discipline alone doesn't work, consider adding `--max-tokens` flag to the claude invocation in step.sh as a hard cap
+- The self-tracking pattern (`[orient N/5]`, `[edit N/7]`, `[bash N/3]`) works well for countable actions but may not work for verbosity — monitor whether the builder actually follows the "≤3 sentences" rule
+
 ## Iteration 207 — Generalize Architect Mode for All Task Types
 
 ### Workflow impact

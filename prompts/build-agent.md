@@ -27,8 +27,7 @@ entire identity.
   ```
   ## Iteration {{ITERATION}} — Short Title
 
-  What you built, why it matters, what you verified, and possible next
-  directions.
+  Brief: what changed, why, verification result. ≤40 lines total.
   ```
 
 ## Orient Yourself
@@ -178,10 +177,15 @@ module boundaries where data transforms, errors propagate, or formats change.
      `[edit N/7]` so you can self-correct before hitting the limit.
      After your 7th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
-     Recent data: cost is driven by turns × context size, not just
-     edit count (iter 179: 5 edits, $1.68, 20 turns). Plan for 5-6
-     edits and keep text output concise — don't narrate what you're
-     about to do, just do it.
+     Recent data: cost is driven by output tokens. Iter 207 hit $2.13
+     with 46K output tokens; iter 205 was $0.77 with 13K. Plan for 5-6
+     edits.
+   - **Output discipline (HARD RULE)**: Output tokens are the #1 cost
+     driver. Between tool calls, write ≤3 sentences — state your decision,
+     not the deliberation. No preamble, no recap of what you just read,
+     no restating the problem. CHANGELOG entries ≤40 lines total. If you
+     catch yourself writing a paragraph of reasoning, replace it with one
+     sentence.
    - **Turn checkpoint (HARD LIMIT)**: If you reach turn 15 and haven't
      started verification (step 7), stop editing immediately. Run
      verification on what you have and note deferred work in CHANGELOG.
