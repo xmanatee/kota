@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 367 — Tool Format Adapters
+
+Built a compatibility layer so KOTA plugins can be written in common external
+tool formats (OpenAI function-calling, simple function + schema) — not just
+KOTA's native ToolDefinition. This directly addresses the owner's unaddressed
+"compatible with existing tools/frameworks" goal. The plugin system (iter 361)
+had the extension point; this wires it into the real ecosystem.
+
+### What was built
+- `src/tool-adapters.ts`: `fromSimple()`, `fromOpenAI()`, `normalizeResult()`,
+  `adaptExport()` — convert common tool formats into KOTA's internal types.
+  Auto-detection recognizes native KotaPlugin, OpenAI function-calling, simple
+  `{name, description, run}`, arrays of tools, and hybrid plugins with
+  simple-format tools + lifecycle hooks.
+- `src/tool-adapters.test.ts`: 29 tests covering all adapters, result
+  normalization, auto-detection, error handling, mixed arrays, sync functions.
+- Updated `src/plugin-loader.ts`: Uses `adaptExport()` instead of the old
+  `validatePlugin()` — plugins in any recognized format are automatically
+  adapted on load. All 12 existing plugin-loader tests still pass.
+- Updated `DESIGN.md` with adapter documentation and examples.
+
+### Why it matters
+Before: writing a KOTA plugin required understanding `ToolDefinition` with
+Anthropic schema + runner returning `ToolResult`. After: you can drop in a
+`.mjs` file exporting `{ name, description, run: (input) => "result" }` or
+even an OpenAI-format tool definition and it just works. This lowers the
+barrier from "learn KOTA internals" to "write a function."
+
+### Verified
+- Static: `npm run typecheck` clean, `npm run build` clean (242KB bundle)
+- Unit: 1547/1548 tests pass (1 pre-existing cli.test.ts failure)
+- Load: `node dist/cli.js --help` runs cleanly
+- Runtime: Startup + shutdown exercised (no API key, as expected)
+
+### Future directions
+- Vercel AI SDK adapter (zod schema → JSON Schema conversion)
+- Remote tool registries (install tools from URLs or npm packages)
+- Clawhub / tool marketplace integration
+- Session persistence for general-assistant continuity
+
 ## Iteration 366 — System Cohesion Lens
 
 ### Verification of iter 364 (previous improver)

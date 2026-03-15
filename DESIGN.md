@@ -167,6 +167,48 @@ File-based plugin architecture for extending KOTA without modifying core code. D
 
 **Lifecycle**: `PluginManager.loadAll()` runs during session init (parallel with MCP). `unloadAll()` clears tools, groups, and calls `onUnload` hooks.
 
+### Tool Format Adapters (`src/tool-adapters.ts`)
+
+Plugins don't need to use KOTA's native `ToolDefinition` format. The adapter layer auto-detects and converts common formats:
+
+**Supported formats**:
+- **Native KotaPlugin**: `{ name, tools: [{ tool, runner }] }` — pass-through
+- **Simple**: `{ name, description, parameters, run }` — minimal, one function per tool
+- **OpenAI function-calling**: `{ type: "function", function: { name, description, parameters }, run }` — compatible with OpenAI ecosystem tools
+- **Array**: `[simpleTool, openAITool, ...]` — multiple tools from one file, any mix of formats
+- **Hybrid KotaPlugin**: `{ name, tools: [simpleTool, ...], onLoad, onUnload }` — plugin with lifecycle hooks but simple-format tools
+
+**Result normalization**: External tool `run` functions can return strings, numbers, objects, or `{ content, text }` — all normalized to KOTA's `ToolResult`. Native `{ content: string }` passes through unchanged.
+
+**Programmatic API**: `fromSimple(def)` and `fromOpenAI(def)` for explicit conversion. `adaptExport(moduleExport, fileName)` for auto-detection (used by `PluginManager`).
+
+**Example — simple format plugin** (`.kota/plugins/weather.mjs`):
+```js
+export default {
+  name: "get_weather",
+  description: "Get current weather for a location",
+  parameters: {
+    type: "object",
+    properties: { location: { type: "string" } },
+    required: ["location"],
+  },
+  run: async ({ location }) => `Weather in ${location}: 72°F, sunny`,
+};
+```
+
+**Example — OpenAI format** (drop-in from OpenAI ecosystem):
+```js
+export default {
+  type: "function",
+  function: {
+    name: "calculate",
+    description: "Evaluate a math expression",
+    parameters: { type: "object", properties: { expr: { type: "string" } } },
+  },
+  run: async ({ expr }) => eval(expr),
+};
+```
+
 ### Configuration (`src/config.ts`)
 
 Layered configuration system with three levels of precedence:

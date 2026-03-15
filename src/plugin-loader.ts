@@ -4,33 +4,9 @@ import { pathToFileURL } from "node:url";
 import type { KotaPlugin, PluginContext } from "./plugin-types.js";
 import { registerTool, clearCustomTools } from "./tools/index.js";
 import { registerCustomGroup, clearCustomGroups } from "./tool-groups.js";
+import { adaptExport } from "./tool-adapters.js";
 
 const PLUGIN_DIR = ".kota/plugins";
-
-/** Validates that a loaded module looks like a KotaPlugin. */
-function validatePlugin(obj: unknown, file: string): KotaPlugin {
-  if (!obj || typeof obj !== "object") {
-    throw new Error(`${file}: export is not an object`);
-  }
-  const p = obj as Record<string, unknown>;
-  if (typeof p.name !== "string" || p.name.length === 0) {
-    throw new Error(`${file}: plugin must export a non-empty 'name' string`);
-  }
-  if (p.tools !== undefined && !Array.isArray(p.tools)) {
-    throw new Error(`${file}: 'tools' must be an array`);
-  }
-  if (p.tools) {
-    for (const t of p.tools as Array<Record<string, unknown>>) {
-      if (!t.tool || typeof t.tool !== "object") {
-        throw new Error(`${file}: each tool entry needs a 'tool' schema object`);
-      }
-      if (typeof t.runner !== "function") {
-        throw new Error(`${file}: each tool entry needs a 'runner' function`);
-      }
-    }
-  }
-  return obj as KotaPlugin;
-}
 
 /**
  * Discovers and manages KOTA plugins from `.kota/plugins/`.
@@ -74,7 +50,7 @@ export class PluginManager {
   async loadPlugin(absPath: string, displayName: string): Promise<void> {
     const url = pathToFileURL(absPath).href;
     const mod = await import(url);
-    const plugin = validatePlugin(mod.default ?? mod, displayName);
+    const plugin = adaptExport(mod.default ?? mod, displayName);
 
     if (this.plugins.some((p) => p.name === plugin.name)) {
       throw new Error(`duplicate plugin name "${plugin.name}"`);
