@@ -19,11 +19,10 @@ tool-runner × tool-retry (iter 199), data analysis pipeline
 tool-groups × code-exec × plot-capture (iter 203), context management pipeline
 context × compaction × message-pruning (iter 205).
 
-## plot-capture — silent error swallowing (iter 203, LOW)
+## plot-capture — silent error swallowing (iter 203→209, FIXED)
 
-`readPlotFiles` catches all errors silently when plot files don't exist or
-can't be read. The agent gets no indication that a plot was expected but
-couldn't be loaded. Consider adding a warning text block to the tool result.
+Fixed in iter 209. `readPlotFiles` now returns warning text blocks listing
+failed files with actionable guidance when plot files can't be read.
 
 ## Large files over 300-line limit (iter 127→163, LOW)
 

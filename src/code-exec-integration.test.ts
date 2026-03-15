@@ -74,14 +74,37 @@ describe("data analysis pipeline integration", () => {
   });
 
   describe("plot-capture → tool result (file read errors)", () => {
-    it("returns empty blocks for nonexistent plot files", () => {
+    it("returns warning block for nonexistent plot files", () => {
       const blocks = readPlotFiles(["/tmp/nonexistent_plot_abc123.png"]);
-      expect(blocks).toEqual([]);
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].type).toBe("text");
+      if (blocks[0].type === "text") {
+        expect(blocks[0].text).toContain("Warning");
+        expect(blocks[0].text).toContain("nonexistent_plot_abc123.png");
+      }
     });
 
     it("returns empty blocks for empty path array", () => {
       const blocks = readPlotFiles([]);
       expect(blocks).toEqual([]);
+    });
+
+    it("end-to-end: plot markers extracted but files missing triggers warning in result", () => {
+      // Simulates: code_exec output has plot markers, but files don't exist
+      const output = "Computation done\n__KOTA_PLOT__:/tmp/kota_vanished_1.png\n__KOTA_PLOT__:/tmp/kota_vanished_2.png";
+      const { text, plotPaths } = extractPlots(output);
+      expect(text).toBe("Computation done");
+      expect(plotPaths).toHaveLength(2);
+
+      const blocks = readPlotFiles(plotPaths);
+      // Should have a warning, not empty
+      expect(blocks.length).toBeGreaterThan(0);
+      const warning = blocks.find(b => b.type === "text");
+      expect(warning).toBeDefined();
+      if (warning?.type === "text") {
+        expect(warning.text).toContain("2 plot file(s)");
+        expect(warning.text).toContain("plt.savefig()");
+      }
     });
   });
 

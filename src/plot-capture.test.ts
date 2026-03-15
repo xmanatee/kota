@@ -83,12 +83,17 @@ describe("readPlotFiles", () => {
     expect(existsSync(path)).toBe(false);
   });
 
-  test("skips non-existent files without error", () => {
+  test("returns warning for non-existent files", () => {
     const blocks = readPlotFiles(["/tmp/kota_nonexistent_999.png"]);
-    expect(blocks).toEqual([]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe("text");
+    if (blocks[0].type === "text") {
+      expect(blocks[0].text).toContain("Warning");
+      expect(blocks[0].text).toContain("kota_nonexistent_999.png");
+    }
   });
 
-  test("handles mix of existing and non-existing files", () => {
+  test("returns images and warning for mix of existing and non-existing files", () => {
     const path = join(tmpdir(), `kota_test_mix_${Date.now()}.png`);
     writeFileSync(path, "data");
     tempFiles.push(path);
@@ -98,8 +103,21 @@ describe("readPlotFiles", () => {
       path,
       "/tmp/kota_nonexistent_997.png",
     ]);
-    expect(blocks).toHaveLength(1);
+    expect(blocks).toHaveLength(2); // 1 image + 1 warning
     expect(blocks[0].type).toBe("image");
+    expect(blocks[1].type).toBe("text");
+    if (blocks[1].type === "text") {
+      expect(blocks[1].text).toContain("2 plot file(s)");
+    }
+  });
+
+  test("warning includes actionable guidance", () => {
+    const blocks = readPlotFiles(["/tmp/kota_missing.png"]);
+    const warning = blocks.find(b => b.type === "text");
+    expect(warning).toBeDefined();
+    if (warning?.type === "text") {
+      expect(warning.text).toContain("plt.savefig()");
+    }
   });
 
   test("returns empty array for empty input", () => {

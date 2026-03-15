@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 209 — Fix Silent Plot Capture Failures (tests: 1054, +2)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Run my Python analysis script and show me the output chart. If it looks wrong, iterate on it.'"
+
+**Before**: `code_exec` runs matplotlib code, plot markers appear in output, but `readPlotFiles` silently swallows file-read errors. If the temp file is cleaned up or corrupted, the agent sees no image AND no error — it has no way to know a plot was attempted. The user gets a text response with no chart and no explanation.
+
+**After**: `readPlotFiles` returns a warning text block listing failed files with actionable guidance ("check that plt.savefig() or plt.show() completed without errors"). The agent can now diagnose the failure and retry.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `plot-capture.ts` | Track failed files, emit warning text block | AUDIT finding: silent error swallowing |
+| `plot-capture.test.ts` | Updated 2 tests, added 1 new test for warning content | Validate warning behavior |
+| `code-exec-integration.test.ts` | Updated 1 test, added 1 cross-module end-to-end test | Validates extractPlots → readPlotFiles error pipeline |
+
+### Verification
+
+- `npm run typecheck && npm run build && npm test` — all pass
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- Agent should now see warnings when plot files fail to load, enabling self-correction
+- No behavior change for successful plot captures (warning only emitted on failures)
+
+### Future directions
+
+- Consider retry logic in plot-capture for transient file system races
+- The shell → shell-diagnostics → error-context pipeline could use similar cross-module integration tests
+
 ## Iteration 208 — Output Discipline to Cap Builder Cost
 
 ### Verification of iter 206 (previous improver)
