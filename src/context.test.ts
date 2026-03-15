@@ -158,6 +158,20 @@ describe("Context", () => {
   });
 
   describe("getDynamicState", () => {
+    it("includes current time context", () => {
+      const state = ctx.getDynamicState();
+      expect(state).toMatch(/\[Current time: \w+day, \w+ \d{1,2}, \d{4}/);
+    });
+
+    it("time context appears before todo and budget state", () => {
+      ctx.setInputTokens(120_000);
+      const state = ctx.getDynamicState();
+      const timeIdx = state.indexOf("[Current time:");
+      const budgetIdx = state.indexOf("[Context budget:");
+      expect(timeIdx).toBe(0);
+      expect(budgetIdx).toBeGreaterThan(timeIdx);
+    });
+
     it("omits budget warning when below 50%", () => {
       ctx.setInputTokens(50_000);
       const state = ctx.getDynamicState();
@@ -176,6 +190,13 @@ describe("Context", () => {
       const state = ctx.getDynamicState();
       expect(state).toContain("Context budget: 80%");
       expect(state).toContain("CRITICAL");
+    });
+
+    it("time includes weekday and timezone", () => {
+      const state = ctx.getDynamicState();
+      // Should contain a weekday name and timezone abbreviation
+      expect(state).toMatch(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/);
+      expect(state).toMatch(/\b[A-Z]{2,5}\]$/m);
     });
   });
 

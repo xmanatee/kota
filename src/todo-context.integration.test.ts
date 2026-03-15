@@ -40,7 +40,7 @@ describe("todo → context integration", () => {
     const ctx = new Context("base");
     const dynamic = ctx.getDynamicState();
     expect(dynamic).not.toContain("<current-tasks>");
-    expect(dynamic).toBe("");
+    expect(dynamic).toMatch(/^\[Current time: .+\]$/);
   });
 
   it("cleared todos remove state from context", async () => {

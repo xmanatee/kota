@@ -45,18 +45,20 @@ export class Context {
     return this.systemPrompt;
   }
 
-  /** Dynamic state (todos + budget) — changes per turn, not cached. */
+  /** Dynamic state (time + todos + budget) — changes per turn, not cached. */
   getDynamicState(): string {
+    const now = new Date();
+    const timeLine = `[Current time: ${now.toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}]`;
     const todoState = getTodoState();
     const pct = this.getBudgetPercent();
-    if (pct <= 0.5) return todoState;
+    if (pct <= 0.5) return timeLine + todoState;
     const usedK = Math.round(this.lastInputTokens / 1000);
     const maxK = Math.round(CONTEXT_WINDOW / 1000);
     const pctStr = Math.round(pct * 100);
     const severity = pct > 0.75
       ? "CRITICAL: finish current task, avoid large reads"
       : "be concise, use targeted file reads with offset/limit";
-    return todoState + `\n\n[Context budget: ${pctStr}% used (${usedK}K/${maxK}K tokens) — ${severity}]`;
+    return timeLine + todoState + `\n\n[Context budget: ${pctStr}% used (${usedK}K/${maxK}K tokens) — ${severity}]`;
   }
 
   getBudgetPercent(): number {

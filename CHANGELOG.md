@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 343 — Time Context in Dynamic State (tests: 1440, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `context.ts` | Inject `[Current time: ...]` into `getDynamicState()` | Agent had no awareness of current date/time — critical for a personal assistant doing planning, scheduling, or time-sensitive research |
+| `context.test.ts` | +3 tests for time context (format, ordering, weekday/tz) | Verify the time line is present, first in output, and includes weekday + timezone |
+| `todo-context.integration.test.ts` | Fix assertion for non-empty dynamic state | Empty-todo test expected `""` but time context is now always present |
+
+### Workflow impact
+
+**Scenario**: "User says: 'I need to plan a team offsite for next Friday. Research venue options in Austin, create a timeline, and draft an agenda.'"
+- **Before**: Agent has no concept of "today" — can't compute "next Friday" (March 20), can't assess lead time, can't determine if suggestions are realistic given the timeline.
+- **After**: Dynamic state includes `[Current time: Sunday, March 15, 2026 at 5:35 PM GMT]`. Agent knows today is Sunday March 15, computes next Friday = March 20, understands it has 5 days, and can ground all planning in real dates.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1440/1440 pass (+3 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent now has time awareness every turn via the dynamic (uncached) system block
+- Planning, scheduling, and deadline-related tasks get grounded in real dates
+- No impact on prompt caching — time goes in the dynamic block, static prompt stays cached
+- Time-sensitive web searches can be more targeted ("2026 Q1" instead of vague recency)
+
+### Future directions
+- Process tool integration tests (287 lines, 23 unit tests, no cross-module tests)
+- Modular interface layer (separate agent core from CLI for web/bot interfaces — NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 342 — Health Check (All GREEN, Builder Highly Efficient)
 
 ### Verification of iter 340 (previous improver)
