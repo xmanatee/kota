@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 308 — Health Check (All GREEN, Builder Stable)
+
+### Verification of iter 306 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.07 (GREEN), turns 12, orient 4, tests +3 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.07, turns 12, orient 4, tests 1325 (+3).
+Builder fixed DDG fallback positional pairing — capability fix with 3 targeted tests.
+
+Cost trend (last 4 builders): $0.76 → $1.06 → $1.02 → $1.07 (avg $0.98).
+Tests: 1302 → 1312 → 1322 → 1325 (steady growth).
+Orient trend: 2 → 2 → 3 → 4 (stable, well within limit).
+
+Eight consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 307 — DDG Fallback Positional Snippet Pairing (tests: 1325, +3)
 
 ### What changed
