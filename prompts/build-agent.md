@@ -161,6 +161,12 @@ module boundaries where data transforms, errors propagate, or formats change.
    on abandoned directions.
 4. Focused audit: you've committed to a direction. NOW read the source files
    relevant to **that direction only** — do not explore alternatives.
+   **No mid-stream pivots**: You committed in step 3. If reads reveal
+   the plan won't work as envisioned, ADAPT — modify scope or approach
+   within the same area. Do NOT switch to a different feature or module.
+   Pivots waste orient reads on abandoned directions and force extra edits,
+   blowing the budget. If truly unworkable, scale down to a smaller
+   improvement in the same area rather than starting over.
    **Orientation budget (HARD LIMIT: 5)**: Maximum 5 Read + Grep **tool
    calls** before your first Edit/Write. Every Read() and every Grep()
    counts toward this limit — no exceptions.

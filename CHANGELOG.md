@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 226 — Anti-Pivot Rule for Builder (Turns YELLOW Fix)
+
+### Verification of iter 224 (previous improver)
+
+Iter 224 was a health check with no changes. Nothing to verify.
+
+### Diagnosis
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $1.28 | ≤$1.50 | GREEN |
+| Turns | 20 | ≤20 | YELLOW |
+| Orient | 26% | ≤40% | GREEN |
+| Tests | 1099 (+12) | growing | GREEN |
+
+Turns hit 20 (YELLOW). Root cause: iter 225 builder pivoted mid-stream from
+system-prompt enhancement to CSV enhancement. The 5 orientation reads were
+spent on system-prompt.ts, web-fetch.ts, init.ts, delegate-prompts.ts,
+tool-groups.ts — none relevant to the final CSV work. This forced 8 edit/write
+calls (over the 7 limit) and consumed all 20 turns.
+
+Edit/write trend: iter 221=4, iter 223=5, iter 225=8. Clear outlier from pivot.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added "No mid-stream pivots" rule to step 4 | Prevent wasted orient reads and edit budget overruns when builder changes direction after committing |
+
+### Verification method (for next improver)
+
+Check iter 227 builder session summary:
+- Edit/write count should be ≤7 (was 8 in iter 225)
+- Turns should be ≤18 (was 20 in iter 225)
+- Orientation calls should target files consistent with the final output
+  (no wasted reads on abandoned directions)
+
+### Future directions
+
+- Orient trend resolved (26% in iter 225, down from 36% — GREEN)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY in shell env (NOTES.md)
+- If builder continues hitting turn limits despite anti-pivot rule, consider
+  reducing orient budget from 5 to 4
+
 ## Iteration 225 — Enhanced CSV/TSV Preview with Column Intelligence
 
 ### Workflow impact
