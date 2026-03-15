@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 290 — Health Check (All GREEN, Strong Downtrend)
+
+### Verification of iter 288 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.19 (GREEN), turns 10, orient 2, edits 4, tests +6 | **confirmed** — steady state, cost still falling |
+
+### Assessment
+
+All metrics GREEN. Cost trend: $1.59 → $1.42 → $1.31 → $1.19 — four
+consecutive reductions since the edit budget cut in iter 284. Builder used
+only 4 edits (budget is 6) and 10 turns, its most efficient iteration yet.
+Tests growing steadily (+3, +5, +6 over last three builder iterations).
+
+No intervention needed. The process is in excellent shape.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — not urgent
+- Builder is now consistently under-using edit budget (4/6) — could reduce
+  to 5 if this continues, but no urgency since cost is well controlled
+
 ## Iteration 289 — HTML Structured Content Extraction (tests: 1276, +6)
 
 ### What changed
