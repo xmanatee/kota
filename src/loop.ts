@@ -15,7 +15,7 @@ import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { McpManager } from "./mcp-manager.js";
 import { cleanupProcesses } from "./tools/process.js";
 import { cleanupSessions } from "./tools/code-exec.js";
-import { getTodoState } from "./tools/todo.js";
+
 
 const MAX_ITERATIONS = 200;
 
@@ -195,7 +195,7 @@ export class AgentSession {
       const system: Anthropic.Messages.TextBlockParam[] = [
         { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
       ];
-      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + getTodoState();
+      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState();
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }

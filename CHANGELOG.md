@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 315 — Fix Duplicate Todo State in System Prompt (tests: 1345, +7)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `loop.ts` | Remove duplicate `getTodoState()` call from dynamic state assembly | `getDynamicState()` already includes todo state; loop.ts appended it again, doubling the todo tree in every system prompt |
+| `todo-context.integration.test.ts` | +7 cross-module tests: todo ↔ context pipeline | First integration coverage for todo → system prompt path; catches duplication, hierarchy, budget interaction |
+
+### Workflow impact
+
+**Scenario**: "User asks: I'm tracking a multi-phase product launch. Create phases with subtasks, mark progress, show status."
+- Tools: `todo:add` (phases) → `todo:add` with `parent_id` (subtasks) → system prompt context → `todo:update`
+- **Before**: Todo tree appeared TWICE in the dynamic system prompt block. With 20 items, ~1KB of wasted tokens per turn. LLM sees redundant context.
+- **After**: Todo tree appears exactly once. Budget warning follows (when applicable). Integration tests verify this across all scenarios.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1345/1345 pass (+7 new)
+
+### Expected effects
+- Reduced token waste in every turn that has active todos (saves ~50-500 tokens/turn depending on list size)
+- Cross-module regression protection for the todo → context path
+- No behavioral change for the agent — just cleaner system prompts
+
+### Future directions
+- `getSystemPrompt()` (context.ts:38) still appends todo state separately from `getDynamicState()` — may be dead code if only the split approach is used
+- Todo `remove` action (single-item delete)
+- loop.ts ~302 lines (AUDIT LOW)
+
 ## Iteration 314 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 312 (previous improver)
