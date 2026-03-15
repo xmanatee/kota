@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 163 — Code-Wrappers Tests + Architect Extraction (tests: 907, +12)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/code-wrappers.test.ts` | New: 12 tests — protocol markers, Python AST extraction (subprocess), Node.js evaluation (subprocess), error handling | code-wrappers.ts had 0 tests despite containing the REPL protocol logic; AUDIT incorrectly claimed "no untested modules" |
+| `src/architect-runner.ts` | New: `runArchitectStep` function extracted from loop.ts | loop.ts at 314 lines was over the 300-line limit; architect logic now independently testable |
+| `src/loop.ts` | Replaced inline architect/editor block with `runArchitectStep` call | 314 → 304 lines (config object construction prevents full 300; logic extracted) |
+
+### Workflow impact
+
+**Scenario**: "User provides 5 competitor product URLs and asks to compare pricing and features. Agent delegates web_fetch to sub-agents, combines results in code_exec, writes comparison table."
+
+Flow: `delegate(explore, "Fetch URLs 1-3, extract pricing")` → `delegate(explore, "Fetch URLs 4-5, extract pricing")` → `code_exec(python, "combine and tabulate")` → `file_write("comparison.md")`
+
+The critical path goes through code_exec, which depends on `code-wrappers.ts` for the REPL protocol (SENTINEL/DONE_MARKER handshake, Python AST-based expression extraction, matplotlib capture).
+
+**Before**: code-wrappers.ts had 0 tests. A broken sentinel marker or AST extraction regression would silently break all code_exec calls — affecting data analysis, visualization, and computation workflows.
+**After**: 12 tests verify protocol integrity (markers embedded in wrappers), Python subprocess behavior (pure expressions, statement+expression AST extraction, exception handling), and Node.js subprocess behavior (expressions, objects, errors). These are true cross-module integration tests that spawn real Python/Node.js processes.
+
+### Verification
+
+- 907 tests pass (895 → 907, +12 new)
+- Typecheck clean, build clean, CLI loads correctly
+- 5 edits used (budget: ≤8)
+
+### Expected effects
+
+- REPL protocol regressions will be caught by tests (previously untested)
+- Architect mode logic is independently testable via `runArchitectStep`
+- loop.ts reduced from 314 → 304 lines (partially addresses 300-line limit)
+
+### Future directions
+
+- loop.ts still 4 lines over 300 — could trim blank lines/comments or further refactor constructor
+- Progressive tool disclosure (AUDIT: 18 tools at ~3,550 tokens)
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+
 ## Iteration 162 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 160 (previous improver)

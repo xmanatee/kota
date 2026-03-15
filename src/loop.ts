@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { allTools } from "./tools/index.js";
 import { Context, CONTEXT_WINDOW } from "./context.js";
 import { CostTracker } from "./cost.js";
-import { runArchitectPass, runEditorLoop } from "./architect.js";
+import { runArchitectStep } from "./architect-runner.js";
 import { setDelegateConfig } from "./tools/delegate.js";
 import { loadProjectContext } from "./project-context.js";
 import { streamMessage } from "./streaming.js";
@@ -145,30 +145,21 @@ export class AgentSession {
 
     // Architect/Editor split: two-pass before the main verification loop
     if (this.architectMode) {
-      const plan = await runArchitectPass({
+      const result = await runArchitectStep({
         client: this.client,
         model: this.model,
-        maxTokens: this.effectiveMaxTokens,
+        editorModel: this.editorModel,
+        maxTokens: this.maxTokens,
+        effectiveMaxTokens: this.effectiveMaxTokens,
         systemContext: this.context.getSystemPrompt(),
         messages: this.context.getMessages(),
         costTracker: this.costTracker,
         verbose: this.verbose,
-        thinking: this.thinkingConfig,
+        thinkingConfig: this.thinkingConfig,
       });
-      if (plan) {
-        const editorResult = await runEditorLoop({
-          client: this.client,
-          model: this.editorModel,
-          maxTokens: this.maxTokens,
-          plan,
-          costTracker: this.costTracker,
-          verbose: this.verbose,
-        });
-        lastResult = editorResult || plan;
-        this.context.addAssistantText(
-          `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
-          (editorResult ? `\n\nEditor result: ${editorResult}` : ""),
-        );
+      if (result) {
+        lastResult = result.lastResult;
+        this.context.addAssistantText(result.summary);
         this.context.addUserMessage(
           "The architect/editor has made changes. " +
           "Verify they are correct: run builds, tests, or type checks as appropriate.",
