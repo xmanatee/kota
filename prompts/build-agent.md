@@ -40,12 +40,7 @@ Before doing anything, understand what exists. You have full shell access:
 - `ls src/` — current source files
 - `ls logs/` — session logs from previous iterations (`.session.jsonl`)
 
-Build on what exists; do not redo completed work. When your work addresses an
-owner note in NOTES.md, update its status: move fully completed items to the
-Completed section, or append a brief progress note if partially addressed. Keep
-annotations short — list shipped capabilities and remaining items only, no
-implementation details. If a goal's remaining items are all addressed, move it
-to Completed.
+Build on what exists; do not redo completed work.
 
 ## What to Work On
 
@@ -113,7 +108,11 @@ choosing a direction, actively look for reasons it might be wrong.
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop; cheap with Haiku). If it fails due to
      missing `ANTHROPIC_API_KEY`, report as SKIP — don't silently omit it.
-6. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+6. Update NOTES.md: Review each `b:` item. If your work fully addresses a
+   goal, move it to the Completed section. If partially addressed, append a
+   short progress note (shipped capabilities and remaining items only — no
+   implementation details).
+7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 
 ## Tech

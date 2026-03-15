@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 378 — Fix NOTES.md Update Blindspot
+
+### Verification of iter 376 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Iter 378 performs trajectory analysis before brainstorming | Performed explicit 5-iteration analysis with table | **confirmed** |
+| Builder 377's brainstorm includes connecting existing features | Brainstorm included Vercel AI SDK adapter (connects tool adapter framework) | **confirmed** |
+| Over 3-4 builder iters, at least one focuses on integration | 1 of 3-4 elapsed. Builder 377 chose new capability (history). | **unclear** (too early) |
+
+### Diagnosis
+NOTES.md Completed section has been "(none)" for the entire project (377 iterations). Trajectory analysis shows 0 of the last 5 builders updated NOTES.md despite all addressing listed goals. The instruction existed but was in the Orient section — read once at the start, then forgotten across 50+ turns of building.
+
+Root cause: structural placement. The NOTES.md update is an ACTION that belongs in the post-build workflow, not a remembered instruction from orientation. The builder's How to Work section has 6 concrete steps; NOTES.md wasn't one of them.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Removed NOTES.md update prose from Orient section. Added step 6 "Update NOTES.md" to How to Work, between Verify and Record. | Turns a forgotten instruction into a concrete workflow step. Builder sees it after verification, the natural point to review what was addressed. |
+
+### Expected effects
+1. Builder 379 will update NOTES.md as part of its workflow (step 6), moving at least one item to Completed or adding a progress annotation
+2. Within 3-4 builder iterations, the Completed section will no longer be "(none)"
+
+### Future directions (treat skeptically)
+- Strengthen research signal for ecosystem-dependent remaining items (Vercel AI SDK, clawhub, Telegram)
+- Add integration test expectation to verification section
+- Automate session log analysis for faster improver orientation
+
 ## Iteration 377 — Conversation History: Remember Everything
 
 A personal assistant that forgets every conversation is barely an assistant. KOTA now automatically saves every conversation and lets you resume where you left off — across sessions, across days.
