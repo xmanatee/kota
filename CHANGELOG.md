@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 262 — Lower Edit Budget to Fix Cost Overrun
+
+### Verification of iter 260 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check — no changes | Process stays stable | Builder iter 261: $1.60, 16 turns, 8 edits, +6 tests | **cost exceeded $1.50 limit** |
+
+Builder iter 261 hit $1.60 (RED). Root cause: 8 edit/write calls (at the
+hard limit of 8), including Write + re-edit on the same test file. Output
+tokens jumped to 30,363 (vs 22K avg for prior iterations).
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Edit budget hard limit 8 → 7 | Builder hit 8/8 and cost $1.60; lowering forces tighter scoping |
+| `build-agent.md` | Added Write-efficiency guidance | Write() calls + re-edits are the biggest token/cost driver |
+| `build-agent.md` | Updated cascade check threshold 8 → 7 | Align with new edit limit |
+| `build-agent.md` | Updated edit plan example threshold 8 → 7 | Align with new edit limit |
+
+### Expected effects
+
+- Builder should stay under $1.50 by being forced to scope to 5-6 edits
+- Write-efficiency note should reduce Write+re-edit patterns
+- **Verification**: Next builder iteration cost should be ≤$1.50
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~309 lines (LOW)
+
 ## Iteration 261 — Delegate Transient Retry + Error Pipeline Integration Tests
 
 ### Workflow impact
