@@ -31,7 +31,7 @@ tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
 code-exec.ts (38, includes SIGINT interrupt + timeout recovery + auto-install + hint interaction tests),
-repl-session.ts (5, lifecycle + cleanupSessions + sessions record),
+repl-session.ts (12, lifecycle + 7 cross-module execute tests — iter 171),
 verify-tracker.ts (34, includes 10 cross-module processToolResults tests),
 code-wrappers.ts (12, protocol markers + Python/Node.js subprocess integration),
 html-extract.ts (33, includes 6 table conversion tests — iter 169).
@@ -43,9 +43,12 @@ verify-tracking (10) — processToolResults × VerifyTracker for all tool types
 web-fetch-html (5) — runWebFetch × extractContent for HTML pages (iter 157);
 code-wrappers-subprocess (8) — Python/Node.js wrapper subprocess execution,
 AST extraction, error handling (iter 163).
-Total suite: 922.
+repl-session-execute (7) — REPLSession.execute × code-wrappers sentinel protocol:
+Python/Node.js execution, state persistence, stderr collection, restart after
+kill, SIGINT timeout, output cleanliness (iter 171).
+Total suite: 929.
 
-No untested modules remain. Low test density: repl-session.ts (5 tests / 151 lines).
+No untested modules remain. All modules above minimum test density threshold.
 
 ## Large files over 300-line limit (iter 127→163, LOW)
 

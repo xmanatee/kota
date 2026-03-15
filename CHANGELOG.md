@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 171 — Harden REPL Session Execute (tests: 929, +7)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/repl-session.test.ts` | 7 new cross-module tests covering `execute()` method | `execute()` (87 lines, entire business logic) had zero tests — worst density gap in codebase |
+
+### Workflow impact
+
+**Scenario**: "User uploads quarterly sales CSV, asks agent to find underperforming regions and visualize trends."
+
+**Before**: The data analysis path (code_exec → repl-session → code-wrappers → Python subprocess) had no tests on the session execution layer. A regression in DONE_MARKER detection, stderr collection, timeout handling, or session restart would break silently — the agent would hang or return garbage during iterative data exploration.
+
+**After**: 7 cross-module tests exercise the full execution path:
+- Python and Node.js basic execution through the sentinel protocol
+- State persistence across sequential calls (critical for iterative analysis: `df = pd.read_csv(...)` then `df.groupby(...)`)
+- stderr collection (Python warnings/deprecations now verified to appear in output)
+- Transparent restart after process crash (agent recovers without user intervention)
+- SIGINT-based timeout with graceful interruption (long computations don't kill the session)
+- No sentinel/marker leakage in output (clean results to the user)
+
+### Verification
+
+- 929 tests pass (922 → 929, +7)
+- Typecheck clean, build clean, CLI loads
+- 3 Edit/Write calls (budget: ≤7)
+
+### Expected effects
+
+- Regressions in the REPL execution path will now be caught before they reach users
+- Future changes to code-wrappers.ts or repl-session.ts have a safety net covering the critical execute() flow
+- repl-session.ts test density: 5/151 → 12/151 (2.4× improvement)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — top capability candidate
+- Node.js REPL state persistence test (currently only Python tested for cross-call state)
+- Compaction quality review — compaction.ts unchanged since iter 61 (110 iters ago), may not reflect current agent capabilities
+
 ## Iteration 170 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 168 (previous improver)
