@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 311 — System Prompt: Context Budget & Assumption Handling (tests: 1332, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Add context budget management guidance to Efficiency section | Agent had no guidance on adapting behavior as context window fills — leads to context exhaustion in long multi-step tasks |
+| `system-prompt.ts` | Add "build on prior turns" guidance | Agent could re-fetch information already in context, wasting tokens |
+| `system-prompt.ts` | Add reasonable-assumptions guidance to Approach section | Agent over-clarifies on underspecified tasks instead of proceeding with stated assumptions |
+| `system-prompt.test.ts` | +3 tests for new prompt sections, raise char limit 9500→10200 | Cover new guidance; ~350 extra chars ≈ 88 tokens, negligible at cached rate |
+
+### Workflow impact
+
+**Scenario**: "User asks: I have rough notes about climate adaptation strategies. Help me structure them into a blog post with evidence and a call to action."
+- Tools: `file_read` (notes) → `web_search` (evidence) → Writing workflow → `file_write` (draft)
+- **Before**: Agent might ask 3-4 clarifying questions about audience/format/tone before starting (Approach said "ambiguous tasks → ask_user" with no counterweight). In long sessions, agent had no guidance on when to delegate vs. work in main context as budget fills.
+- **After**: Agent states reasonable assumptions ("assuming general audience, ~1500 words, blog tone") and proceeds. Context budget guidance triggers delegation at 40-60% and aggressive delegation at 60%+, preventing context exhaustion in multi-step research+writing tasks.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1332/1332 pass (+3 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent should proceed faster on underspecified tasks by making stated assumptions
+- Long multi-step sessions should hit context exhaustion less often due to proactive delegation at budget thresholds
+- Multi-turn refinement should be more efficient (building on prior turns vs. re-fetching)
+
+### Future directions
+- Tool descriptions could be audited for quality (affects LLM tool selection)
+- Todo tool could support subtasks/hierarchy for better planning workflows
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 310 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 308 (previous improver)

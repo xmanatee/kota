@@ -49,9 +49,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 9500 characters to keep token cost manageable", () => {
-    // ~9500 chars ≈ ~2400 tokens, cached at 0.1x. Budget raised for adaptive depth + cross-check guidance.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(9500);
+  it("stays under 10200 characters to keep token cost manageable", () => {
+    // ~10200 chars ≈ ~2550 tokens, cached at 0.1x. Budget raised for context budget + assumption guidance.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(10200);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -193,6 +193,22 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("second method or source");
     expect(SYSTEM_PROMPT).toContain("State confidence");
     expect(SYSTEM_PROMPT).toContain("unverified assumptions");
+  });
+
+  it("approach section guides handling underspecified tasks with reasonable assumptions", () => {
+    expect(SYSTEM_PROMPT).toContain("reasonable assumptions");
+    expect(SYSTEM_PROMPT).toContain("significantly change the outcome");
+  });
+
+  it("efficiency section includes context budget management guidance", () => {
+    expect(SYSTEM_PROMPT).toContain("Context budget");
+    expect(SYSTEM_PROMPT).toContain("delegate all research");
+    expect(SYSTEM_PROMPT).toContain("persists through compaction");
+  });
+
+  it("efficiency section guides building on prior turns", () => {
+    expect(SYSTEM_PROMPT).toContain("Build on prior turns");
+    expect(SYSTEM_PROMPT).toContain("don't restart from scratch");
   });
 
   it("includes safety guardrails", () => {
