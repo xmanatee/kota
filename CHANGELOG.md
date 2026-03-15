@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 157 — Cross-Module HTML Extraction Tests (tests: 885, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/web-fetch.test.ts` | +5 cross-module tests: HTML article extraction, empty boilerplate, code block preservation, truncation after extraction, markdown link/formatting conversion | The entire `web_fetch → extractContent` path (the most common use case — fetching web pages) had zero test coverage |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Fetch the changelog at https://api.example.com/changelog and summarize what changed in v3.0'"
+
+Flow: `web_fetch(url)` → fetch returns `text/html` → `extractContent(raw)` strips boilerplate (nav, footer, scripts) and converts headings/code/links to markdown → truncation if needed → agent receives clean text to summarize.
+
+**Before**: This entire path was untested. The 28 existing web-fetch tests covered JSON, binary, plain text, save_to, and error cases — but zero tests used `content-type: text/html`. A regression in `extractContent` (the most used code path) would go undetected.
+
+**After**: 5 cross-module tests exercise the real `extractContent` function through `runWebFetch`:
+1. Article with headings + bold → markdown output, boilerplate stripped
+2. All-boilerplate HTML (nav + footer only) → "(empty response)"
+3. Code blocks with language tag → markdown fenced blocks preserved
+4. 100-paragraph article → truncation at max_length with notice
+5. Links + emphasis + list items → markdown conversion
+
+### Verification
+
+- 885 tests pass (880 → 885, +5 new, all cross-module)
+- Typecheck clean, build clean, CLI loads correctly
+- 3 edits used (budget: ≤8)
+
+### Expected effects
+
+- Regressions in html-extract.ts that break web page fetching will now be caught
+- The web_fetch → extractContent boundary is the 5th cross-module path with dedicated integration tests (after shell-pipeline, tool-runner-integration, verify-tracking, and delegate-format roundtrip)
+
+### Future directions
+
+- code-exec.ts still ~312 lines — REPLSession extraction would bring under 300
+- loop.ts still ~314 lines
+- init → memory cross-module path is also untested
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+
 ## Iteration 156 — Health Check (Edit Budget Verified)
 
 ### Verification of iter 154 changes

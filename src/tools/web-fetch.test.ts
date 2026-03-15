@@ -310,3 +310,115 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("save_to");
   });
 });
+
+// --- Cross-module: web_fetch → html-extract (extractContent) ---
+
+describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extract)", () => {
+  const originalFetch = global.fetch;
+
+  function mockResponse(
+    body: string,
+    opts: { status?: number; headers?: Record<string, string>; statusText?: string } = {},
+  ) {
+    const { status = 200, headers = {}, statusText = "OK" } = opts;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      statusText,
+      headers: new Headers(headers),
+      text: () => Promise.resolve(body),
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(body).buffer),
+      body: { cancel: () => Promise.resolve() },
+    };
+  }
+
+  beforeEach(() => {
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("extracts article content and strips boilerplate", async () => {
+    const html = `<html><head><title>Changelog</title></head><body>
+      <nav><a href="/">Home</a><a href="/about">About</a></nav>
+      <main>
+        <h1>v3.0 Release Notes</h1>
+        <p>This release includes <strong>breaking changes</strong> to the API.</p>
+        <h2>New Features</h2>
+        <p>Added support for streaming responses.</p>
+      </main>
+      <footer><p>Copyright 2026 Example Corp</p></footer>
+    </body></html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html; charset=utf-8" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/changelog" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("# v3.0 Release Notes");
+    expect(result.content).toContain("**breaking changes**");
+    expect(result.content).toContain("## New Features");
+    expect(result.content).toContain("streaming responses");
+    // Boilerplate stripped
+    expect(result.content).not.toContain("Copyright 2026");
+    expect(result.content).not.toContain("About");
+  });
+
+  it("returns (empty response) when HTML is all boilerplate", async () => {
+    const html = `<html><head><script>analytics()</script><style>.x{}</style></head><body>
+      <nav><a href="/">Home</a></nav>
+      <footer><p>Footer text</p></footer>
+    </body></html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/empty" });
+    expect(result.content).toBe("(empty response)");
+  });
+
+  it("preserves code blocks as markdown fenced blocks", async () => {
+    const html = `<html><body>
+      <h2>Usage</h2>
+      <pre><code class="language-python">def greet(name):
+    return f"Hello, {name}"</code></pre>
+      <p>Call it with any string argument.</p>
+    </body></html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/docs" });
+    expect(result.content).toContain("```python");
+    expect(result.content).toContain("def greet(name):");
+    expect(result.content).toContain("## Usage");
+    expect(result.content).toContain("string argument");
+  });
+
+  it("truncates large HTML extraction output at max_length", async () => {
+    const paragraphs = Array.from({ length: 100 }, (_, i) =>
+      `<p>Paragraph ${i}: some content to fill space in this document.</p>`
+    ).join("\n");
+    const html = `<html><body><article>${paragraphs}</article></body></html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/long", max_length: 500 });
+    expect(result.content).toContain("[Truncated");
+    expect(result.content).toContain("showing first 500");
+  });
+
+  it("converts links and formatting to markdown", async () => {
+    const html = `<html><body>
+      <p>See <a href="https://docs.example.com">the docs</a> for <em>detailed</em> info.</p>
+      <ul><li>First item</li><li>Second item</li></ul>
+    </body></html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/page" });
+    expect(result.content).toContain("[the docs](https://docs.example.com)");
+    expect(result.content).toContain("*detailed*");
+    expect(result.content).toContain("- First item");
+    expect(result.content).toContain("- Second item");
+  });
+});
