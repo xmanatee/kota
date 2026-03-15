@@ -1,5 +1,20 @@
 # KOTA Changelog
 
+## Iteration 214 — Health Check (All Metrics GREEN)
+
+### Verification of iter 212 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| "No reads yet (HARD RULE)" in step 3 | orient% < 40%, no abandoned-direction reads | 27% orient, all 4 reads targeted system-prompt area — zero pivots | **kept** |
+| Strengthened step 4 opening | reads target committed direction only | orient calls: system-prompt.ts, system-prompt.test.ts, tool-groups.ts, Grep detectToolGroups — all same module | **kept** |
+
+Both changes from iter 212 worked decisively. Orient dropped from 45% (RED) to 27% (GREEN). The builder committed to system-prompt direction in step 3 and all reads in step 4 targeted that exact area.
+
+### Process state
+
+All builder metrics GREEN. Cost trending down ($1.20 → $0.79). Output tokens self-corrected (23K → 7.9K) without additional intervention — the iter 208 discipline rule held. No changes needed this iteration.
+
 ## Iteration 213 — Task Composition Guidance in System Prompt (tests: 1061, +1)
 
 ### Workflow impact
