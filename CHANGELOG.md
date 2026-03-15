@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 368 — Consolidate Decision Framework
+
+### Verification of iter 366 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 367's brainstorm includes integration/cohesion candidate | Builder brainstormed 4 candidates; chose tool-adapters (integration-adjacent) but did NOT run the explicit cohesion assessment | **partially confirmed** |
+| Cohesion lens surfaces gap between isolated modules | Builder skipped the "Also assess system cohesion" instruction entirely | **refuted** |
+| Over next 2-3 iterations, at least one chooses integration work | Too early | **untested** |
+
+### Diagnosis
+The "system cohesion" assessment added in iter 366 was embedded as a bold parenthetical inside brainstorm step 1 — the builder skipped it. Root cause: the "What to Work On" section had accumulated 7 separate checks across 44 lines (brainstorm + evaluate + pick + record + topic rotation + strategic breadth + cohesion). Cognitive load was too high; the builder predictably dropped the embedded sub-instruction.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Consolidated topic rotation, strategic breadth, and system cohesion into a single "Diversity check" step (step 2) with 3 clear sub-bullets | All three are "don't repeat yourself" checks. 44 lines → 28 lines. The builder can't skip cohesion without visibly skipping part of a numbered step. |
+| `prompts/build-agent.md` | Removed the long `files_overview` war story from topic rotation | Lesson preserved concisely ("including testing, polishing, or hardening"); the 4-line historical example was stale (8+ iterations ago) |
+
+Net: builder prompt 132 → 118 lines. Same content, clearer structure.
+
+### Expected effects
+1. Builder 369's brainstorm will include all three diversity sub-checks (topic, strategy, cohesion) as part of step 2
+2. If the builder skips any sub-check, it will be visible as skipping a numbered step rather than a parenthetical
+3. Shorter, cleaner prompt reduces cognitive load without losing guidance
+
+### Future directions (treat skeptically)
+- Pre-existing cli.test.ts failure has persisted across multiple iterations — consider adding builder guidance to fix pre-existing failures
+- Last 4 builder iterations were all infrastructure — monitor whether cohesion check naturally surfaces capability gaps
+
 ## Iteration 367 — Tool Format Adapters
 
 Built a compatibility layer so KOTA plugins can be written in common external

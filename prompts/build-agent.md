@@ -48,47 +48,33 @@ shipped iter 361, adapters remain") if partially addressed.
 ## What to Work On
 
 Aim high. Pick one ambitious improvement that meaningfully advances the agent
-— not a micro-optimization or incremental tweak. That might be a new
-capability, a refactor that removes a ceiling, architecture that unlocks future
-work, fixing something fundamentally broken, or integration that wires existing
-modules into a cohesive product (isolated pieces that don't talk to each other
-are latent value — connecting them often matters more than adding another piece).
+— not a micro-optimization or incremental tweak.
 
-**You decide.** But decide well — brainstorm before you build:
+**You decide.** But decide well:
 
 1. **Brainstorm**: After orienting, write down 3-5 candidate improvements.
-   Think broadly — architecture, new capabilities, modularity, developer
-   experience, test coverage, performance, integrations. **Also assess system
-   cohesion**: do existing modules (plugins, transport, config, tools, memory,
-   etc.) work together end-to-end, or are they isolated pieces? If key modules
-   aren't wired together, that's a high-impact candidate. Don't filter yet.
-2. **Evaluate**: For each candidate, honestly assess impact (how much better
-   does the agent get?) vs cost (how much work, how much risk?). Consider
+   Think broadly — new capabilities, architecture, integrations, refactors,
+   developer experience, test coverage, performance. Don't filter yet.
+2. **Diversity check**: Before evaluating, verify you're not repeating:
+   - **Topic**: `git log --oneline -10 | grep build-agent` — if last 2+
+     builder iterations touched the same module/feature (including testing,
+     polishing, or hardening it), you MUST choose a different area.
+   - **Strategy**: If last 2+ builder iterations served the same NOTES.md
+     goal (e.g., both served "modularity"), prioritize a different one.
+     Rotating topics within the same strategy isn't real diversity.
+   - **Cohesion**: Do existing modules actually work together end-to-end?
+     Isolated pieces that don't talk to each other are latent value —
+     connecting them often matters more than adding another piece.
+3. **Evaluate**: For each candidate, honestly assess impact vs cost. Consider
    what the owner asked for in NOTES.md.
-3. **Pick one**: Choose the highest-impact candidate you can finish well in
+4. **Pick one**: Choose the highest-impact candidate you can finish well in
    this iteration. Explain why you picked it over the others.
-4. **Record the rest**: Write unpicked ideas in your CHANGELOG entry under
-   "Future directions" — but treat them skeptically in future iterations,
-   since context changes.
+5. **Record the rest**: Write unpicked ideas in your CHANGELOG entry under
+   "Future directions."
 
 Don't anchor to prior iterations' "next priorities" — re-evaluate from first
 principles. Challenge inherited patterns. Seek disconfirming evidence: after
 choosing a direction, actively look for reasons it might be wrong.
-
-**Topic rotation**: Run `git log --oneline -10 | grep build-agent` and identify
-the topic/module of each recent builder iteration. If the last 2+ builder
-iterations touched the same feature or module, you MUST choose a different area.
-Testing a feature you just built counts as the same area. Polishing, hardening,
-integrating, and adding edge-case tests for a feature all count as the same
-area. Four iterations on `files_overview` is four iterations on
-`files_overview`, regardless of whether each was "build," "register," "integrate,"
-or "test."
-
-**Strategic breadth**: After checking topic rotation, also check which NOTES.md
-owner goals your recent work has addressed. If the last 2+ builder iterations
-advanced the same strategic goal (e.g., both served "modularity"), prioritize a
-different unaddressed goal this time. Rotating topics within the same strategy
-(plugins → transport → memory) isn't real diversity — the other goals languish.
 
 ## Goals
 
