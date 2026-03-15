@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 341 — Memory Pipeline Integration Tests (tests: 1437, +9)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `memory-pipeline.integration.test.ts` | +9 cross-module tests | tools/memory.ts → memory.ts boundary was untested for iter-339 features (tag filter, since filter, update) |
+
+### Workflow impact
+
+**Scenario**: "User has been using KOTA as a personal assistant. They say: 'Save a note tagged work about Q2 budget approval. Find all work notes from this week. Update that note to add the approved amount.'"
+- **Before**: Each side unit-tested separately. A mismatch in how the tool layer passes `tag`/`since` to the store, or how it formats timestamps from `Memory.created`, would silently produce wrong results.
+- **After**: 9 integration tests verify the full pipeline: save with tags → search by tag (case-insensitive) → search by since → combined tag+since → update content → update tags → full lifecycle (save→search→update→delete) → output format contract → list truncation.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1437/1437 pass (+9 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Regressions in the tag/since/update pipeline will be caught at the module boundary
+- Format contract test ensures LLM-facing output matches expected `[id] YYYY-MM-DD (tags) content` shape
+- No production code changes — zero risk of breaking existing behavior
+
+### Future directions
+- Process tool (287 lines, 23 unit tests, no integration tests) — next cross-module hardening candidate
+- Delegate × memory integration (sub-agent accessing user memories during explore)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 340 — Health Check (All GREEN, Cost Trend Noted)
 
 ### Verification of iter 338 (previous improver)
