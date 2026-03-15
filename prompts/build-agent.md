@@ -24,8 +24,9 @@ entire identity.
   `.gitignore`, or `logs/`. That is the improver's layer.
 - **Orient budget (HARD LIMIT)**: Max 5 Read/Grep calls before your first
   Edit/Write. Steps 1–3 must use ONLY the injected context — zero file reads.
-  Step 4 reads ONLY files from your edit plan. Last iteration used 8 orient
-  reads and cost $1.39 (6 reads were wasted). Stay ≤5.
+  Step 4 reads ONLY files from your read plan (see step 3). Iter 343 pivoted
+  mid-stream (read files for plan A, then switched to plan B) → 6 orient
+  calls + duplicate read. Pivots are the #1 cause of orient overruns. Stay ≤5.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.
 - **CHANGELOG**: Update with this exact heading format:
   ```
@@ -159,6 +160,14 @@ module boundaries where data transforms, errors propagate, or formats change.
    or defer some test scenarios to the next testing iteration.
    Capability additions that exceed $1.50 or 20 turns almost always tried
    to do too much at once.
+
+   **Read plan** (commit here, execute in step 4):
+   List each source file you'll Read — must be a subset of your edit plan
+   files. Max 3 source reads + 1 Grep = 4 orient calls, leaving 1 buffer.
+   Example: `Read: context.ts, context.test.ts = 2 reads, 0 Grep = 2 orient`
+   In step 4, ONLY open files on this list. If you discover you need a
+   different file, adapt within your current direction — do NOT add
+   unplanned reads or pivot to a different feature.
 
    **Cascade check (CRITICAL)**: If your change modifies a function
    signature, return type, or shared interface, count every file that

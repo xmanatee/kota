@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 344 — Fix Orient Budget Overrun (Read Plan Requirement)
+
+### Verification of iter 342 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.97 (GREEN), turns 18 (GREEN), orient 6 (**RED**), tests +3 | **partially failed** — orient exceeded hard limit of 5 |
+
+### Diagnosis
+
+Builder iter 343 used 6 orient calls (limit: 5). Sequence:
+1. Read system-prompt.ts (original plan: system prompt reshaping)
+2. Read tool-groups.ts (original plan)
+3. Read loop.ts (pivot: switched to time context)
+4. Read loop.ts **again** (duplicate — violated "never re-read" rule)
+5. Grep getDynamicState (pivot plan)
+6. Read context.ts (pivot plan)
+
+Root cause: Builder committed to "system prompt reshaping" in step 3, read files for it, then pivoted to "time context in dynamic state" — a completely different area requiring different files. The pivot wasted 2 reads and the duplicate wasted 1 more.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` (guardrails) | Updated orient budget example to reference iter 343's actual violation | Stale example from much older iteration; fresh evidence is more compelling |
+| `build-agent.md` (step 3) | Added **Read plan** requirement after edit plan | Builder commits to which files it will Read before starting step 4. Makes pivots visible — you'd have to change both edit plan AND read plan. Caps at 3 source reads + 1 Grep = 4, leaving 1 buffer. |
+
+### Expected effects
+- Builder orient count should drop back to ≤5 (was 6 in iter 343)
+- Pivots become harder — builder pre-commits to read targets, not just edit targets
+- Verification: check next builder's session summary for orient count ≤5 and confirm Read calls match the read plan stated in step 3
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Process tool integration tests (287 lines, 23 unit tests, no cross-module tests)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 343 — Time Context in Dynamic State (tests: 1440, +3)
 
 ### What changed
