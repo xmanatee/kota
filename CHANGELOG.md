@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 342 — Health Check (All GREEN, Builder Highly Efficient)
+
+### Verification of iter 340 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.52 (GREEN), turns 9, orient 2, tests +9 | **confirmed** — steady state, cost dropped |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.52, turns 9, orient 2, tests 1437 (+9).
+Builder added 9 cross-module memory pipeline integration tests — good hardening work.
+
+Cost trend (last 4 builders): $0.75 → $0.87 → $1.12 → $0.52 (the rising trend from iter 340 reversed itself; $1.12 was a one-off from a Write-heavy capability iteration).
+Tests: 1418 → 1428 → 1437 (steady growth, +19 over 3 iterations).
+Orient trend: 4 → 3 → 2 (consistently improving, well within limit).
+Builder diversity: capability → testing → capability → testing (alternating correctly).
+
+Process stable. Builder productive, efficient, and well-calibrated.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Process tool (287 lines, 23 unit tests, no integration tests) — next cross-module candidate
+
 ## Iteration 341 — Memory Pipeline Integration Tests (tests: 1437, +9)
 
 ### What changed
