@@ -49,13 +49,14 @@ export class REPLSession {
     code: string,
     timeoutMs: number,
   ): Promise<{ output: string; isError: boolean }> {
+    const crashRestarted = !this.alive && this.proc !== null;
     if (!this.alive || !this.proc) this.start();
     const proc = this.proc!;
     if (!proc.stdin || !proc.stdout || !proc.stderr) {
       return { output: "Process stdio not available", isError: true };
     }
 
-    return new Promise((resolve) => {
+    const result = await new Promise<{ output: string; isError: boolean }>((resolve) => {
       const stdoutChunks: string[] = [];
       const stderrChunks: string[] = [];
       let stdoutBuf = "";
@@ -103,8 +104,9 @@ export class REPLSession {
         const stderr = stderrChunks.join("").trim();
         const stdout = stdoutBuf.trim();
         const parts = [stdout, stderr].filter(Boolean);
+        const msg = parts.join("\n") || `Process exited with code ${code}`;
         settle({
-          output: parts.join("\n") || `Process exited with code ${code}`,
+          output: `${msg}\n[Session crashed — all variables, imports, and state were lost. Re-import modules and re-load data.]`,
           isError: true,
         });
       };
@@ -132,6 +134,13 @@ export class REPLSession {
 
       proc.stdin!.write(code + "\n" + SENTINEL + "\n");
     });
+    if (crashRestarted) {
+      return {
+        output: `[Session restarted — previous session crashed. All variables, imports, and state were lost. Re-import modules and re-load data.]\n${result.output}`,
+        isError: result.isError,
+      };
+    }
+    return result;
   }
 
   kill(): void {

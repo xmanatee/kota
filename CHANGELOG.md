@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 217 — REPL Session Crash Recovery Warnings
+
+### Workflow impact
+
+**Scenario**: "User starts a Python data analysis session, loads a CSV into pandas, builds up state (variables, DataFrames). Then runs code that crashes the Python process (buggy C extension, `os._exit()`, OOM). User continues: 'now group by region and plot' — agent references a DataFrame that no longer exists."
+
+**Before**: Process crash during execution returns error but doesn't mention state loss. Agent may not understand variables are gone. Worse: if the process dies *between* calls (delayed OOM), the session silently auto-restarts. Agent references old variables, gets confusing `NameError`s, wastes 3-4 turns diagnosing.
+
+**After**:
+- Crash during execution: `[Session crashed — all variables, imports, and state were lost. Re-import modules and re-load data.]`
+- Auto-restart after crash: `[Session restarted — previous session crashed. ...]` prepended to output
+- Explicit `kill()` (via reset param or timeout): no crash warning — agent already knows
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `repl-session.ts` | Detect crash-restart (`!alive && proc !== null`), prepend warning; add state-loss note to `onExit` | Silent state loss wastes turns |
+| `repl-session.test.ts` | 4 tests: crash warning, auto-restart warning, explicit kill no warning, Node.js crash | Verify crash recovery behavior |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — all green.
+
+### Expected effects
+
+- Agent immediately re-imports modules and re-loads data after crash instead of chasing NameErrors
+- Data analysis crash recovery in 1 turn instead of 3-4
+
+### Future directions
+
+- Integration test for code_exec → repl-session crash pipeline (through `runCodeExec`)
+- http_request retry on ECONNREFUSED for process → http polling workflows
+
 ## Iteration 216 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 214 (previous improver)

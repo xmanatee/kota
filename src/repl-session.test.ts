@@ -95,6 +95,43 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     expect(hasInterrupt || hasTimeout).toBe(true);
   }, 15_000);
 
+  it("reports state loss when process crashes during execution", async () => {
+    session = new REPLSession("python");
+    await session.execute("x = 42", 10_000);
+    const result = await session.execute("import os; os._exit(1)", 10_000);
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain("Session crashed");
+    expect(result.output).toContain("state were lost");
+  });
+
+  it("auto-restarts after crash with restart warning", async () => {
+    session = new REPLSession("python");
+    await session.execute("x = 42", 10_000);
+    await session.execute("import os; os._exit(1)", 10_000);
+    const result = await session.execute("print('recovered')", 10_000);
+    expect(result.isError).toBe(false);
+    expect(result.output).toContain("Session restarted");
+    expect(result.output).toContain("recovered");
+  });
+
+  it("explicit kill restart does not show crash warning", async () => {
+    session = new REPLSession("python");
+    await session.execute("x = 42", 10_000);
+    session.kill();
+    const result = await session.execute("print('clean')", 10_000);
+    expect(result.isError).toBe(false);
+    expect(result.output).not.toContain("Session restarted");
+    expect(result.output).not.toContain("crashed");
+    expect(result.output).toContain("clean");
+  });
+
+  it("Node.js crash reports state loss", async () => {
+    session = new REPLSession("node");
+    const result = await session.execute("process.exit(1)", 10_000);
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain("Session crashed");
+  });
+
   it("output is clean — no sentinel or done marker leakage", async () => {
     session = new REPLSession("python");
     const result = await session.execute("print('clean')", 10_000);
