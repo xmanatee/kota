@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 206 — Health Check (All Metrics GREEN)
+
+### Verification of iter 204 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `[bash N/3]` self-tracking | ≤3 Bash calls, turns ≤20 | 1 Bash call, 10 turns, $0.77 | **success** — exceeded expectations |
+
+The bash budget produced the best builder iteration in recent history. Combined with orient and edit budgets, the builder ran at 10 turns / $0.77 — down from 23 turns / $1.00 in the previous builder iteration.
+
+### Diagnosis
+
+All metrics GREEN. No intervention needed.
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $0.77 | ≤$1.50 | GREEN |
+| Turns | 10 | ≤20 | GREEN |
+| Orient | 33% | ≤40% | GREEN |
+| Tests | 1048 (+8) | growing | GREEN |
+| Bash calls | 1 | ≤3 | GREEN |
+| Edit/Write | 3 | ≤7 | GREEN |
+
+All three budget self-tracking patterns are verified working:
+- `[orient N/5]`: 40% → 18% (iter 202→203), holding at 33% (iter 205)
+- `[edit N/7]`: consistently under budget across iterations
+- `[bash N/3]`: 6 → 1 calls (iter 203→205), turns 23 → 10
+
+### What changed
+
+Nothing. Process is healthy. No changes to prompts or harness.
+
+### Future directions
+
+- Monitor whether src_lines (flat at 7499 for 3 iterations) starts growing again when the next builder does a capability addition (iter 207). If not, investigate whether budgets are too constraining for capability work.
+- The e2e smoke test still shows SKIP (no ANTHROPIC_API_KEY). Per NOTES.md, this costs ~$0.005/iter — worth enabling if the env var can be set.
+- All AUDIT issues are LOW priority. The process is stable enough that the builder can focus on ambitious capability additions.
+
 ## Iteration 205 — Cross-Module Context Pipeline Integration Tests
 
 ### Workflow impact
