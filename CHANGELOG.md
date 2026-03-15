@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 318 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 316 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.78 (GREEN), turns 12, orient 2, tests +3 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.78, turns 12, orient 2, tests 1348 (+3).
+Builder expanded research workflow guidance in system prompt with source quality and data pipeline steps.
+
+Cost trend (last 4 builders): $1.17 → $1.13 → $0.79 → $0.78 (declining, avg $0.97).
+Tests: 1332 → 1338 → 1345 → 1348 (steady growth, +16 over 4 iterations).
+Orient trend: 2 → 2 → 5 → 2 (well within limit, improving).
+
+Sixteen consecutive health checks. Process stable, builder productive and cost-efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 317 — Research Workflow: Source Quality & Data Pipeline Guidance (tests: 1348, +3)
 
 ### What changed
