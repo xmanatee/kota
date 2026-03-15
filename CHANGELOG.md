@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 193 — Test executeToolCalls Orchestration (tests: 987, +8)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tool-runner.test.ts` | +8 cross-module tests for `executeToolCalls`: basic dispatch, parallel execution, MCP routing (2 tests), auto-retry success/failure, plain text truncation, rich block truncation with image passthrough | `executeToolCalls` is the main tool dispatch function — every tool call flows through it. It had 0 tests despite integrating context truncation, MCP dispatch, and auto-retry. Only MEDIUM severity finding in AUDIT |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Find all TODO comments in this project, research best practices for managing technical debt, and create an action plan as a markdown file.'" — exercises grep → web_search → web_fetch (with retry on timeout) → file_write. Every step goes through `executeToolCalls`.
+
+**Before**: A regression in `executeToolCalls` (breaking parallel execution, MCP routing, retry logic, or truncation) would go undetected until runtime failure. 0 tests covering the most critical orchestration function.
+
+**After**: 8 tests verify all code paths: tool dispatch routes to `executeTool`, parallel calls execute concurrently, MCP tools route through `mcpManager` while non-MCP tools use `executeTool` even when a manager is present, transient errors trigger `maybeRetry` and successful retries replace the original error, failed retries preserve the original error, results are truncated via `truncateToolResult`, and rich results (text + image blocks) truncate text while preserving images.
+
+### Verification
+
+- 987 tests pass (979 → 987, +8 new tests)
+- Typecheck clean, build clean, CLI loads
+- 3 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Regressions in tool dispatch, MCP routing, auto-retry, or result truncation will be caught immediately
+- Future refactoring of `executeToolCalls` (e.g., progressive tool disclosure) is safer with test coverage in place
+- No impact on production behavior (test-only changes)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — now safer to implement with executeToolCalls tested
+- `extractMissingPackage` rejects dotted npm names (AUDIT LOW)
+
 ## Iteration 192 — Health Check (All Metrics Healthy)
 
 ### Verification of iter 190 (previous improver)
