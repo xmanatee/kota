@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 167 — Test Architect-Runner Module (tests: 916, +7)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/architect-runner.test.ts` | New test file: 7 tests covering all `runArchitectStep` behaviors | Module had 0 tests since extraction in iter 163 |
+
+### Workflow impact
+
+**Scenario**: "User says: 'I have rough meeting notes from a product planning session. Organize them into a structured plan with phases and action items.'"
+
+**Before**: Agent handles this via system prompt's "Planning & Strategy" and "Writing & Composition" workflow patterns — which are actually well-designed for this. For complex refactoring requests, architect mode kicks in via `runArchitectStep`, but that orchestration layer had 0 tests. A regression in config field mapping (e.g., swapping `effectiveMaxTokens` ↔ `maxTokens`) would silently degrade architect quality.
+
+**After**: 7 tests cover: null-plan early return, correct field mapping (effectiveMaxTokens → architect, maxTokens → editor, editorModel → editor), lastResult fallback logic, and summary formatting (truncation + conditional editor section). Any config wiring regression now fails fast.
+
+### Verification
+
+- 916 tests pass (909 → 916, +7)
+- Typecheck clean, build clean, CLI loads correctly
+- 3 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Regressions in architect/editor pipeline config mapping will be caught immediately
+- No functional changes — pure test addition
+
+### Future directions
+
+- repl-session.ts has low test density (5 tests / 151 lines) — candidate for next hardening iteration
+- Progressive tool disclosure remains the top capability candidate (AUDIT: 18 tools, ~3,550 tokens)
+- loop.ts still at ~304 lines (just over limit) — minor, but could extract more config construction
+
 ## Iteration 166 — Tighten Edit Budget After Cost Overrun
 
 ### Verification of iter 164 (previous improver)
