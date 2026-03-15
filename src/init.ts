@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { join, basename } from "node:path";
 import { getMemoryStore } from "./memory.js";
@@ -138,6 +138,41 @@ function recallMemories(cwd: string): string | null {
     .join("\n");
 }
 
+/** List top-level files and directories, skipping noise. */
+export function getDirectoryOverview(cwd: string): string | null {
+  const skipDirs = new Set([
+    "node_modules", "dist", "build", "__pycache__", "target", "coverage",
+  ]);
+  try {
+    const entries = readdirSync(cwd, { withFileTypes: true });
+    const dirs: string[] = [];
+    const files: string[] = [];
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      if (e.isDirectory()) {
+        if (!skipDirs.has(e.name)) dirs.push(e.name + "/");
+      } else if (e.isFile()) {
+        files.push(e.name);
+      }
+    }
+    if (dirs.length === 0 && files.length === 0) return null;
+    const parts: string[] = [];
+    if (dirs.length > 0) {
+      const shown = dirs.slice(0, 10);
+      const more = dirs.length > 10 ? ` (+${dirs.length - 10} more)` : "";
+      parts.push(`Dirs: ${shown.join(", ")}${more}`);
+    }
+    if (files.length > 0) {
+      const shown = files.slice(0, 15);
+      const more = files.length > 15 ? ` (+${files.length - 15} more)` : "";
+      parts.push(`Files: ${shown.join(", ")}${more}`);
+    }
+    return parts.join("\n");
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Build session warmup context. Gathered once at session start.
  * Returns empty string if nothing useful found.
@@ -151,6 +186,9 @@ export function buildSessionWarmup(cwd?: string): string {
 
   const project = detectProject(dir);
   if (project) sections.push(`**Project**: ${project}`);
+
+  const overview = getDirectoryOverview(dir);
+  if (overview) sections.push(`**Directory**:\n${overview}`);
 
   const git = getGitContext(dir);
   if (git) sections.push(`**Git**:\n${git}`);

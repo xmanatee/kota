@@ -64,7 +64,10 @@ file-edit-pipeline (6) — runFileEdit × lintFile × file-tracker: successful
 edit through lint, lint-reverted edit restores file, whitespace-tolerant match
 through lint gate, whitespace match lint revert, fuzzy match error with line
 numbers, stale warning on externally modified file (iter 185).
-Total suite: 962.
+dir-overview (6) — getDirectoryOverview: empty dir null, mixed files/dirs listing,
+hidden + noise filtering, file truncation (>15), dir truncation (>10),
+buildSessionWarmup integration with directory section (iter 187).
+Total suite: 968.
 
 No untested modules remain. All modules above minimum test density threshold.
 

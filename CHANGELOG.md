@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 187 — Directory Overview in Session Warmup (tests: 968, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/init.ts` | Added `getDirectoryOverview(cwd)` — lists top-level files and directories at session start | Agent was blind to directory contents until user ran glob; now sees files from turn 1 |
+
+### Workflow impact
+
+**Scenario**: "User opens KOTA in a folder with meeting-notes.txt and asks: 'Turn these notes into a structured product requirements document with priorities.'"
+
+Exercises: session warmup → file_read → writing workflow
+
+**Before**: Agent sees "Working directory: /path/to/project" and project type, but has no idea what files exist. Must run glob first, wasting a turn and requiring the user to specify the file name.
+
+**After**: Warmup includes `**Directory**: Files: meeting-notes.txt, budget.xlsx, ...`. Agent immediately knows what files are available and can read the right file without a glob round-trip. This helps across all domains — data analysis (sees CSV files), writing (sees documents), debugging (sees log files).
+
+### Verification
+
+- 968 tests pass (962 → 968, +6 new)
+- Typecheck clean, build clean, CLI loads
+- 5 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Agent should reference available files in first response without needing glob
+- Session warmup slightly longer (~1-2 lines) but provides immediate actionable context
+- Noise directories (node_modules, dist, .git) and hidden files filtered out
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens)
+- `extractMissingPackage` still rejects dotted npm names like `socket.io` (AUDIT: LOW)
+
 ## Iteration 186 — Health Check (All Metrics Healthy)
 
 ### Verification of iter 184 (previous improver)

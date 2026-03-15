@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,7 +13,7 @@ vi.mock("./memory.js", () => ({
 }));
 
 import { getMemoryStore } from "./memory.js";
-import { detectProject, buildSessionWarmup } from "./init.js";
+import { detectProject, buildSessionWarmup, getDirectoryOverview } from "./init.js";
 
 const mocked = vi.mocked(getMemoryStore);
 
@@ -204,5 +204,60 @@ describe("buildSessionWarmup", () => {
     const result = buildSessionWarmup(dir);
     expect(result).toContain("**System**:");
     expect(result).toContain("Platform:");
+  });
+
+  it("includes directory overview when files exist", () => {
+    writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
+    mkdirSync(join(dir, "reports"));
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("**Directory**:");
+    expect(result).toContain("data.csv");
+    expect(result).toContain("reports/");
+  });
+});
+
+describe("getDirectoryOverview", () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "kota-dir-test-")); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it("returns null for empty directory", () => {
+    expect(getDirectoryOverview(dir)).toBeNull();
+  });
+
+  it("lists files and directories", () => {
+    writeFileSync(join(dir, "readme.md"), "hello");
+    writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
+    mkdirSync(join(dir, "src"));
+    const result = getDirectoryOverview(dir)!;
+    expect(result).toContain("src/");
+    expect(result).toContain("readme.md");
+    expect(result).toContain("data.csv");
+  });
+
+  it("skips hidden entries and noise directories", () => {
+    mkdirSync(join(dir, ".git"));
+    mkdirSync(join(dir, "node_modules"));
+    mkdirSync(join(dir, "src"));
+    writeFileSync(join(dir, ".env"), "SECRET=x");
+    writeFileSync(join(dir, "index.ts"), "");
+    const result = getDirectoryOverview(dir)!;
+    expect(result).toContain("src/");
+    expect(result).toContain("index.ts");
+    expect(result).not.toContain(".git");
+    expect(result).not.toContain("node_modules");
+    expect(result).not.toContain(".env");
+  });
+
+  it("truncates file list beyond 15 entries", () => {
+    for (let i = 0; i < 20; i++) writeFileSync(join(dir, `file${i}.txt`), "");
+    const result = getDirectoryOverview(dir)!;
+    expect(result).toContain("+5 more");
+  });
+
+  it("truncates directory list beyond 10 entries", () => {
+    for (let i = 0; i < 13; i++) mkdirSync(join(dir, `dir${i}`));
+    const result = getDirectoryOverview(dir)!;
+    expect(result).toContain("+3 more");
   });
 });
