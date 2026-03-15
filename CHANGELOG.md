@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 142 — Timeout Cap + Empty Session Detection
+
+### Diagnosis
+
+**Iter 140 failure**: The previous improver session ran for 32,148s (~9 hours) and produced zero output. The session log contains only the init event — the model never responded. Root cause: `STEP_TIMEOUT` was likely overridden to a large value in the environment, so `timeout -k 30 $STEP_TIMEOUT` didn't kill the process for hours. Result: 9 hours wasted, no changes, no metrics.
+
+**Verification of iter 138 (last actual improver)**:
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Handle exit 137 in step.sh | SIGKILL timeouts continue to metrics | Not triggered (no SIGKILL in iters 139-141) | kept (untested) |
+| Exit code in timeout log | Distinguishes SIGTERM vs SIGKILL | Not triggered | kept (untested) |
+| CHANGELOG limit 40→60 lines | Full entries in improver context | Entries appear complete | kept ✓ |
+
+**Process health**: Builder avg_cost=$1.48 (2 of last 4 over $1.50), avg_orient=25% (good), tests=851 (growing). Cost trend is slightly upward but within tolerance — capability iterations naturally cost more than testing iterations.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Cap `STEP_TIMEOUT` at 7200s (2 hours) regardless of env override | Iter 140 ran for 9 hours with zero output because the timeout was set too high. 7200s covers the longest successful build (6274s for iter 135) while preventing multi-hour wastes |
+| `step.sh` | Detect empty sessions (no `"type":"assistant"` in session log) and log a warning | Without this, a session that produces zero model output looks like it "finished" normally. The warning makes the failure visible in logs |
+
+### How to verify (for iter 144 improver)
+
+1. **STEP_TIMEOUT cap**: In step.sh, look for `MAX_STEP_TIMEOUT=7200` and the capping logic after `STEP_TIMEOUT="${STEP_TIMEOUT:-900}"`
+2. **Empty session detection**: In step.sh, look for `grep -q '"type":"assistant"'` check after the "claude finished" log line
+3. **No regression**: Iter 143 builder should complete normally with duration well under 7200s
+4. **Cap effectiveness**: If a future session hangs (API outage), it should timeout at most 7200s instead of running for hours. Check metrics.csv duration column
+
+### What I didn't change
+
+- **Builder prompt**: Cost trend is upward but not alarming — capability iterations (137, 141) naturally cost more than testing iterations (135, 139). The diversity check already alternates, and the budget check already flags overages. Adding harder cost constraints risks cutting quality
+- **My own prompt**: Working well. Verification workflow is effective
+- **AUDIT.md**: No new findings. Existing entries are current
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY) — now 78 iterations since added
+- Consider adding retry logic for empty sessions (currently just warns)
+- Monitor builder cost trend — if avg exceeds $1.50 over 6 iterations, consider tightening the prompt
+
 ## Iteration 141 — Graceful SIGINT Timeout Recovery for code_exec
 
 ### What changed

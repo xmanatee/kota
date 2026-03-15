@@ -171,6 +171,11 @@ recover_worktrees
 # Run claude
 cd "$DIR"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
+MAX_STEP_TIMEOUT=7200
+if (( STEP_TIMEOUT > MAX_STEP_TIMEOUT )); then
+  echo "[step] STEP_TIMEOUT=${STEP_TIMEOUT}s exceeds max ${MAX_STEP_TIMEOUT}s, capping"
+  STEP_TIMEOUT=$MAX_STEP_TIMEOUT
+fi
 STEP_START=$(date +%s)
 CLAUDE_EXIT=0
 timeout -k 30 "$STEP_TIMEOUT" claude -p \
@@ -189,6 +194,11 @@ elif (( CLAUDE_EXIT != 0 )); then
 fi
 
 echo "[step] claude finished in ${STEP_DURATION}s"
+
+# Detect empty sessions (model never responded — e.g., API outage)
+if ! grep -q '"type":"assistant"' "$SESSION_LOG" 2>/dev/null; then
+  echo "[step] WARNING: empty session — model produced no output (${STEP_DURATION}s wasted)"
+fi
 
 # Recover any worktrees the agent may have created during this iteration
 recover_worktrees
