@@ -50,13 +50,18 @@ shipped iter 361, adapters remain") if partially addressed.
 Aim high. Pick one ambitious improvement that meaningfully advances the agent
 — not a micro-optimization or incremental tweak. That might be a new
 capability, a refactor that removes a ceiling, architecture that unlocks future
-work, or fixing something fundamentally broken.
+work, fixing something fundamentally broken, or integration that wires existing
+modules into a cohesive product (isolated pieces that don't talk to each other
+are latent value — connecting them often matters more than adding another piece).
 
 **You decide.** But decide well — brainstorm before you build:
 
 1. **Brainstorm**: After orienting, write down 3-5 candidate improvements.
    Think broadly — architecture, new capabilities, modularity, developer
-   experience, test coverage, performance, integrations. Don't filter yet.
+   experience, test coverage, performance, integrations. **Also assess system
+   cohesion**: do existing modules (plugins, transport, config, tools, memory,
+   etc.) work together end-to-end, or are they isolated pieces? If key modules
+   aren't wired together, that's a high-impact candidate. Don't filter yet.
 2. **Evaluate**: For each candidate, honestly assess impact (how much better
    does the agent get?) vs cost (how much work, how much risk?). Consider
    what the owner asked for in NOTES.md.

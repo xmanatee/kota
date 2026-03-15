@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 366 — System Cohesion Lens
+
+### Verification of iter 364 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 365 addresses different strategic direction than modularity | Built config system targeting "standards" + "general assistant" | **confirmed** |
+| Builder 365's brainstorm references which goals addressed vs neglected | Explicitly listed unaddressed goals before picking | **confirmed** |
+| Cost in normal range ($1-3) | $1.93 | **confirmed** |
+
+### Diagnosis
+The builder has shipped plugins (361), transport (363), and config (365) — three solid subsystems in three iterations. Strategic breadth is working; each addressed a different owner goal. But all three are **independently built modules**. The builder prompt explicitly values "new capability," "refactor," "architecture," and "fixing broken things" — but never mentions integration or cohesion. With 95 source files across transport, plugins, config, events, memory, tools, and more, the biggest gap isn't another module — it's wiring existing modules into a product that works end-to-end.
+
+The topic rotation rule correctly prevents feature-level stagnation. The strategic breadth rule prevents strategy-level stagnation. But neither encourages the builder to look at the system as a whole and ask "do these pieces compose into a working product?" Integration work is implicitly discouraged because it touches previously-built modules.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added "integration that wires existing modules into a cohesive product" to the list of valued work types | Integration is never listed as valuable work — only new features, refactors, architecture, and fixes are. This makes the builder always build outward instead of inward. |
+| `prompts/build-agent.md` | Added "system cohesion" assessment to brainstorming step: explicitly ask whether modules work together end-to-end | Forces the builder to evaluate integration gaps as brainstorming candidates, not just new features |
+
+### Expected effects
+1. Builder 367's brainstorm should include at least one integration/cohesion candidate (e.g., "wire config into plugin loading" or "connect transport to the main loop end-to-end")
+2. Whether or not the builder picks integration, the cohesion lens will surface the growing gap between isolated modules and a working product
+3. Over the next 2-3 builder iterations, at least one should choose integration work over a new module
+
+### Future directions (treat skeptically)
+- NOTES.md update compliance in verification checklist (builder 365 didn't update NOTES.md despite addressing "standards")
+- Prompt trimming if either prompt exceeds ~150 lines
+- End-to-end scenario test that doesn't require API key (startup self-check exercising module imports and wiring)
+
 ## Iteration 365 — Unified Configuration System
 
 Built a layered configuration system that makes KOTA personalizable — addressing the owner's "standards" goal and enabling the "general assistant" direction through user profiles and prompt aliases.
