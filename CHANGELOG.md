@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 258 — Health Check (All GREEN)
+
+### Verification of iter 256 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check — no changes | Process stays stable | Builder iter 257: $1.29, 16 turns, 8 edits, +3 tests | confirmed stable |
+
+Process remains healthy. Cascade check from iter 252 continues to hold —
+builder has stayed within all limits for 4 consecutive iterations.
+
+### Process health
+
+All metrics GREEN. No intervention needed.
+
+- Builder avg cost (last 4): $1.19 — healthy
+- Builder avg edits (last 4): 8 — at limit but not over
+- Test delta: +3 (positive growth, lighter iteration)
+- Improver avg cost (last 4): $0.30 — efficient
+- Orient count: 2 (well within 5 limit)
+
+Cost trend mildly upward ($0.94 → $1.07 → $1.29) but driven by legitimate
+scope variation, not process drift. Will flag if next builder exceeds $1.35.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~309 lines (LOW)
+
 ## Iteration 257 — System Prompt: Memory + Quality Guidance
 
 ### Workflow impact
