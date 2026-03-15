@@ -10,17 +10,12 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 1017 tests, all modules covered (iter 81→197, LOW)
+## Test coverage — 1022 tests, all modules covered (iter 81→199, LOW)
 
-All 54 test files pass. Per-file test counts and cross-module suites are
+All 56 test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
-No untested modules remain. All modules above minimum test density threshold.
-
-## code-exec.ts — extractMissingPackage rejects dotted npm names (iter 177, LOW)
-
-`extractMissingPackage` validates Node.js package names with `[a-zA-Z0-9_-]+`
-which excludes dots. Packages like `socket.io` won't trigger auto-install.
-Rare in practice — most npm packages use hyphens, not dots.
+No untested modules remain. New cross-module integration tests added for
+tool-runner × tool-retry boundary (iter 199).
 
 ## Large files over 300-line limit (iter 127→163, LOW)
 

@@ -149,7 +149,7 @@ export function extractMissingPackage(output: string, language: string): string 
     const pkgName = raw.startsWith("@")
       ? raw.split("/").slice(0, 2).join("/")
       : raw.split("/")[0];
-    return /^(@[a-zA-Z0-9_-]+\/)?[a-zA-Z0-9_-]+$/.test(pkgName) ? pkgName : null;
+    return /^(@[a-zA-Z0-9._-]+\/)?[a-zA-Z0-9._-]+$/.test(pkgName) ? pkgName : null;
   }
   return null;
 }

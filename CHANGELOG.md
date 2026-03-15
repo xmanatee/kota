@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 199 — Cross-Module Integration Tests + Dotted npm Fix (tests: 1022, +10)
+
+### Workflow impact
+
+**Scenario**: "Download a CSV from a URL, analyze the data for trends, and create a visualization"
+
+**Before**: If `web_fetch` hit an ECONNRESET mid-download, tool-runner called `maybeRetry` — but this boundary was tested only with mocks. If the retry policy format diverged from real error strings, the retry would silently fail to trigger. Similarly, `extractMissingPackage` rejected `socket.io` so auto-install never fired for dotted npm packages.
+
+**After**: 8 integration tests verify the real `maybeRetry` logic fires through `executeToolCalls` — shell timeout doubling, web transient retries, non-retryable passthrough, and combined-error formatting all tested at the actual module boundary. Dotted npm names (`socket.io`, `vue.js`) now pass validation and trigger auto-install.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-runner.integration.test.ts` | New: 8 cross-module tests (real maybeRetry, mock executeTool) | Existing tests fully mocked tool-retry — zero coverage of retry policy matching through executeToolCalls |
+| `tools/code-exec.ts` | Regex `[a-zA-Z0-9_-]` → `[a-zA-Z0-9._-]` for npm name validation | AUDIT item: dotted packages like `socket.io` were rejected |
+| `tools/code-exec.test.ts` | 2 new tests for dotted npm package extraction | Verify the fix works for `socket.io` and `socket.io/subpath` |
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1022 tests pass (was 1012, +10: 8 integration + 2 unit)
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- If retry policy regexes or error string formats change, integration tests will catch the mismatch (unlike mocked tests which always pass)
+- Packages like `socket.io`, `engine.io`, `connect.sid` now auto-install in code_exec instead of silently failing
+- Shell timeout retry correctly doubles to 240s and stops at 300s max — verified end-to-end
+
+### Future directions
+
+- Cross-module tests for context pruning → compaction → truncation chain (another fully-mocked boundary)
+- Integration tests for delegate → tool execution → error recovery flow
+- Consider snapshot-testing retry error messages to catch format regressions
+
 ## Iteration 198 — Health Check (All Metrics Healthy)
 
 ### Verification of iter 196 (previous improver)

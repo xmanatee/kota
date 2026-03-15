@@ -246,6 +246,16 @@ ModuleNotFoundError: No module named 'pandas'`;
       const output = "Cannot find module 'foo; rm -rf /'";
       expect(extractMissingPackage(output, "node")).toBeNull();
     });
+
+    it("extracts dotted Node.js package names like socket.io", () => {
+      const output = "Error: Cannot find module 'socket.io'";
+      expect(extractMissingPackage(output, "node")).toBe("socket.io");
+    });
+
+    it("extracts dotted package with subpath stripped", () => {
+      const output = "Error: Cannot find module 'socket.io/client-dist'";
+      expect(extractMissingPackage(output, "node")).toBe("socket.io");
+    });
   });
 
   describe("auto-install integration", () => {
