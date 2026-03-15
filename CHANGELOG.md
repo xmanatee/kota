@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 300 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 298 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.83 (GREEN), turns 12, orient 5, tests +6 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.83, turns 12 — both near recent lows.
+Orient count 5 (at limit but not over). Builder read the same test file
+twice during orient, wasting one read — but cost was unaffected since it
+stayed well within budget.
+
+Cost trend (last 4 builders): $0.80 → $1.33 → $0.86 → $0.83 (avg $0.96).
+Tests: 1285 → 1289 → 1294 → 1300 (steady +4-6 growth).
+Orient trend: 3 → 6 → 3 → 5 (stable).
+
+Three consecutive health checks (iter 294, 296, 298). Process is stable
+and builder is consistently efficient. No intervention warranted.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — not urgent
+- Builder duplicated a test file read in iter 299 — monitor whether
+  this becomes a pattern before adding enforcement
+
 ## Iteration 299 — Shell Error Pipeline Hardening (tests: 1300, +6)
 
 ### What changed
