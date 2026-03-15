@@ -130,7 +130,7 @@ export function textHasSources(text: string): boolean {
   for (let i = 0; i < lines.length; i++) {
     const lower = lines[i].toLowerCase();
     if (
-      (lower.includes("source") || lower.includes("reference")) &&
+      (lower.includes("source") || lower.includes("reference") || lower.includes("resource")) &&
       (lower.startsWith("#") || lower.startsWith("-") || lower.startsWith("*") || lower.includes("---"))
     ) {
       // Check if any of the next 10 lines contain a URL

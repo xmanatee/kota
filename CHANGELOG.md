@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 323 — Harden Source Dedup: "Resources" Heading + Edge Case Tests (tests: 1367, +7)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate-format.ts` | Added `"resource"` to `textHasSources()` keyword list | Sub-agents sometimes write "## Resources" instead of "## Sources" — previously undetected, causing duplicate URL listings |
+| `delegate-format.test.ts` | +7 tests: 4 `textHasSources` edge cases + 3 cross-module `assembleDelegateResult` dedup scenarios | Cover "Resources" heading, bold markdown `**Sources**`, mid-document sources, execute-mode with embedded sources |
+
+### Workflow impact
+
+**Scenario**: "I'm planning a 3-day hiking trip in Patagonia in December. Research the best trails, weather conditions, and gear requirements."
+- Tools: delegate(explore) → web_search ×3 → web_fetch ×N → structured response → assembleDelegateResult
+- **Before**: Sub-agent writes `## Resources\n- https://patagonia-trails.com`. `textHasSources()` misses it (only checked "source" and "reference"). `assembleDelegateResult` appends `--- Sources (2) ---` with the same URLs. User sees duplicates.
+- **After**: `textHasSources()` now detects "resource" keyword. Dedup works correctly. Only search queries appended.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1367/1367 pass (+7 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Research delegation with "Resources" headings no longer produces duplicate URLs
+- No behavior change for "Sources" or "References" headings (already worked)
+- Execute-mode delegation with embedded sources correctly deduplicates
+
+### Future directions
+- EXECUTE_PROMPT could get similar quality alignment as EXPLORE_PROMPT
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 322 — Health Check (All GREEN, Builder Productive)
 
 ### Verification of iter 320 (previous improver)

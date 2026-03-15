@@ -401,4 +401,84 @@ describe("textHasSources", () => {
     const text = "The source of truth is the database. See https://example.com";
     expect(textHasSources(text)).toBe(false);
   });
+
+  it("detects 'Resources' heading with URLs", () => {
+    const text = "## Resources\n- https://example.com/guide\n- https://other.com/docs";
+    expect(textHasSources(text)).toBe(true);
+  });
+
+  it("detects bold markdown source heading with URLs", () => {
+    const text = "**Sources**\n- https://example.com";
+    expect(textHasSources(text)).toBe(true);
+  });
+
+  it("detects sources section far from end of text", () => {
+    const text = [
+      "# Analysis",
+      "Lots of findings here.",
+      "",
+      "## Sources",
+      "- https://a.com",
+      "- https://b.com",
+      "",
+      "## Appendix",
+      "Additional notes follow.",
+    ].join("\n");
+    expect(textHasSources(text)).toBe(true);
+  });
+
+  it("returns false for numbered list without heading marker", () => {
+    const text = "1. Source code at https://github.com/foo/bar";
+    expect(textHasSources(text)).toBe(false);
+  });
+});
+
+// --- Cross-module: assembleDelegateResult + textHasSources edge cases ---
+
+describe("assembleDelegateResult source dedup edge cases", () => {
+  it("deduplicates when sub-agent uses Resources heading", () => {
+    const text = [
+      "Trail recommendations for Patagonia.",
+      "",
+      "## Resources",
+      "- https://patagonia-trails.com",
+      "- https://weather.gov/patagonia",
+    ].join("\n");
+    const meta = makeMeta({
+      urlsFetched: ["https://patagonia-trails.com", "https://weather.gov/patagonia"],
+      searchQueries: ["patagonia hiking trails december"],
+    });
+    const result = assembleDelegateResult(text, meta, new Set(), []);
+    expect(result.content).not.toContain("--- Sources (2) ---");
+    expect(result.content).toContain("Search queries (1)");
+  });
+
+  it("deduplicates in execute mode with modified files and embedded sources", () => {
+    const text = [
+      "Updated the config file.",
+      "",
+      "### References",
+      "- https://docs.example.com/config",
+    ].join("\n");
+    const meta = makeMeta({
+      mode: "execute",
+      urlsFetched: ["https://docs.example.com/config"],
+      searchQueries: [],
+    });
+    const modified = new Set(["config.yaml"]);
+    const result = assembleDelegateResult(text, meta, modified, []);
+    expect(result.content).toContain("Modified files (1)");
+    expect(result.content).toContain("- config.yaml");
+    expect(result.content).not.toContain("--- Sources (1) ---");
+  });
+
+  it("appends full sources when sub-agent mentions source in prose only", () => {
+    const text = "According to the source documentation, the API uses OAuth2.";
+    const meta = makeMeta({
+      urlsFetched: ["https://api.example.com/docs"],
+    });
+    const result = assembleDelegateResult(text, meta, new Set(), []);
+    expect(result.content).toContain("--- Sources (1) ---");
+    expect(result.content).toContain("https://api.example.com/docs");
+  });
 });
