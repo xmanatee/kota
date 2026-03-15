@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 259 — File Read: Large File Metadata + Tool Guidance
+
+### Workflow impact
+
+**Scenario**: "User has 10MB server access logs and asks: 'Find the top 10 IPs hitting my API, check if any are malicious, and generate a security report.'"
+
+**Before**: Agent calls file_read on the log file. Gets 2000 lines with a generic `[Showing lines 1-2000 of 142857 total]` notice — no file size, no guidance. Agent may try to analyze the truncated output in-head instead of routing to code_exec for programmatic processing of the full file.
+
+**After**: Truncation notice now shows file size and total lines: `[10.2MB | 142857 lines | showing 1-2000]`. For files where > 50% of content is truncated (lines > 2× limit), adds: `Use code_exec to process the full file programmatically.` This signal guides the agent to the right tool at the moment it matters most.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `file-read.ts` | Replace truncation notice with size metadata + code_exec hint for large files | No file size shown for text files; no tool guidance when truncated |
+| `file-read.test.ts` | +4 tests: size metadata on truncation, code_exec hint for large files, no metadata for small files, no hint for barely-truncated files | Cover all branches of new logic |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1190 tests (+4).
+
+### Expected effects
+
+- Agent should use code_exec for large log/data files instead of reasoning about truncated previews
+- File size visibility helps agent estimate processing needs
+- No change for small files or CSV/JSON (which already have structured previews)
+
+### Future directions
+
+- Could extend metadata to show encoding/MIME type for ambiguous files
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at ~309 lines (LOW)
+
 ## Iteration 258 — Health Check (All GREEN)
 
 ### Verification of iter 256 (previous improver)

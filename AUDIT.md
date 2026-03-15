@@ -28,7 +28,7 @@ search path. Still worth hardening the DDG parser long-term.
 Fixed in iter 257. Updated explore mode description to include code_exec,
 shell, and http_request alongside the original tools.
 
-## Test coverage — 1172 tests, all modules covered (iter 81→253, LOW)
+## Test coverage — 1190 tests, all modules covered (iter 81→259, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.

@@ -231,10 +231,15 @@ function readText(filePath: string, input: Record<string, unknown>): ToolResult 
     })
     .join("\n");
 
-  const info =
-    lines.length > offset - 1 + limit
-      ? `\n\n[Showing lines ${offset}-${offset + selected.length - 1} of ${lines.length} total]`
-      : "";
+  const isTruncated = lines.length > offset - 1 + limit;
+  let info = "";
+  if (isTruncated) {
+    const stats = statSync(filePath);
+    info = `\n\n[${formatSize(stats.size)} | ${lines.length} lines | showing ${offset}-${offset + selected.length - 1}]`;
+    if (lines.length > 2 * limit) {
+      info += `\nUse code_exec to process the full file programmatically.`;
+    }
+  }
 
   const ext = extname(filePath).toLowerCase();
   const csvDelimiter = CSV_EXTENSIONS[ext];

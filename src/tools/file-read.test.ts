@@ -166,6 +166,41 @@ describe("file_read: image files", () => {
     expect(result.content).toContain("Image:");
   });
 
+  it("shows file size metadata when text file is truncated", async () => {
+    const path = join(TEST_DIR, "large.txt");
+    const content = Array.from({ length: 3000 }, (_, i) => `log line ${i}`).join("\n");
+    writeFileSync(path, content);
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("3000 lines | showing 1-2000");
+    expect(result.content).toMatch(/\d+(\.\d+)?(B|KB|MB)/);
+  });
+
+  it("shows code_exec hint when file is much larger than display limit", async () => {
+    const path = join(TEST_DIR, "huge.txt");
+    const content = Array.from({ length: 5000 }, (_, i) => `entry ${i}`).join("\n");
+    writeFileSync(path, content);
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("code_exec");
+    expect(result.content).toContain("5000 lines");
+  });
+
+  it("no metadata for small files that fit in display limit", async () => {
+    const path = join(TEST_DIR, "small.txt");
+    writeFileSync(path, "short\nfile\n");
+    const result = await runFileRead({ path });
+    expect(result.content).not.toContain("lines | showing");
+    expect(result.content).not.toContain("code_exec");
+  });
+
+  it("no code_exec hint when file barely exceeds limit", async () => {
+    const path = join(TEST_DIR, "medium.txt");
+    const content = Array.from({ length: 2500 }, (_, i) => `line ${i}`).join("\n");
+    writeFileSync(path, content);
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("2500 lines");
+    expect(result.content).not.toContain("code_exec");
+  });
+
   it("treats non-image extensions as text", async () => {
     const path = join(TEST_DIR, "data.csv");
     writeFileSync(path, "a,b,c\n1,2,3");
