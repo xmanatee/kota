@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { runCodeExec, cleanupSessions, detectPackageHint } from "./code-exec.js";
+import { runCodeExec, cleanupSessions, detectPackageHint, extractMissingPackage } from "./code-exec.js";
 
 afterAll(() => {
   cleanupSessions();
@@ -194,6 +194,45 @@ ModuleNotFoundError: No module named 'pandas'`;
       expect(detectPackageHint("ZeroDivisionError: division by zero", "python")).toBeNull();
       expect(detectPackageHint("42", "node")).toBeNull();
     });
+  });
+
+  describe("extractMissingPackage", () => {
+    it("extracts package from Python ModuleNotFoundError", () => {
+      const output = "ModuleNotFoundError: No module named 'pandas'";
+      expect(extractMissingPackage(output, "python")).toBe("pandas");
+    });
+
+    it("extracts top-level from dotted import", () => {
+      const output = "ModuleNotFoundError: No module named 'sklearn.ensemble'";
+      expect(extractMissingPackage(output, "python")).toBe("sklearn");
+    });
+
+    it("returns null for non-Python", () => {
+      const output = "ModuleNotFoundError: No module named 'pandas'";
+      expect(extractMissingPackage(output, "node")).toBeNull();
+    });
+
+    it("returns null when no ModuleNotFoundError", () => {
+      expect(extractMissingPackage("ZeroDivisionError", "python")).toBeNull();
+      expect(extractMissingPackage("42", "python")).toBeNull();
+    });
+
+    it("rejects package names with invalid characters", () => {
+      const output = "ModuleNotFoundError: No module named 'foo; rm -rf /'";
+      expect(extractMissingPackage(output, "python")).toBeNull();
+    });
+  });
+
+  describe("auto-install integration", () => {
+    it("gracefully degrades for non-existent packages", async () => {
+      const result = await runCodeExec({
+        code: "import nonexistent_pkg_xyzzy_99999",
+        language: "python",
+      });
+      // Auto-install fails silently, falls through to detectPackageHint
+      expect(result.content).toContain("ModuleNotFoundError");
+      expect(result.content).toContain("nonexistent_pkg_xyzzy_99999");
+    }, 90_000);
   });
 
   describe("timeout handling", () => {

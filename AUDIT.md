@@ -28,7 +28,7 @@ memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
 tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
-code-exec.ts (25, includes SIGINT interrupt + timeout recovery tests),
+code-exec.ts (31, includes SIGINT interrupt + timeout recovery + auto-install tests),
 verify-tracker.ts (31, includes 7 cross-module processToolResults tests).
 Cross-module: shell-pipeline (6) — shell-diagnostics → error-context composition;
 tool-runner-integration (11) — executeToolCalls × tool-retry retry pipeline +
@@ -44,5 +44,6 @@ delegate.ts fixed (385 → ~280 lines) by extracting to delegate-format.ts.
 loop.ts: ~314 lines (down from 348 after extracting verify-tracking to
 verify-tracker.ts in iter 149). Extracting architect mode block (~30 lines)
 would bring it under 300.
-code-exec.ts: ~310 lines. Extract PYTHON_WRAPPER and NODE_WRAPPER if more
-REPL features are added. Severity remains LOW — both files only slightly over.
+code-exec.ts: ~370 lines (grew from auto-install feature). Extract
+PYTHON_WRAPPER and NODE_WRAPPER to a separate module to bring it under 300.
+Total suite: 875.

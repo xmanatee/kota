@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 153 — Auto-Install Missing Python Packages in code_exec (tests: 875, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/code-exec.ts` | Added `extractMissingPackage()` and `tryAutoInstall()`: when Python code fails with `ModuleNotFoundError`, automatically runs `pip install <pkg>` and retries the code — all within a single tool call | Saves 2 tool turns (shell install + retry) in data analysis workflows |
+| `src/system-prompt.ts` | Updated error recovery guidance to mention auto-install behavior | Agent knows it doesn't need to manually install Python packages |
+
+### Workflow impact
+
+**Scenario**: "User has a CSV of sensor readings and asks: 'Load this data, find anomalous readings beyond 2σ, and plot the time series with anomalies highlighted.'"
+
+Flow: file_read(sensors.csv) → code_exec(python: `import pandas as pd; df = pd.read_csv(...)`) → code_exec(matplotlib plot) → plot_capture returns chart.
+
+**Before**: Step 2 fails with `ModuleNotFoundError: No module named 'pandas'`. Agent reads the hint, calls shell(`pip install pandas`), then retries code_exec. **3 tool turns** consumed before any analysis begins.
+
+**After**: Step 2 detects the missing package, auto-runs `pip install pandas`, retries the code, and returns the result — all in **1 tool turn**. Output includes `[Auto-installed pandas via pip]` for transparency. If pip install fails (non-existent package, network issue), gracefully falls through to the existing hint behavior.
+
+### Verification
+
+- 875 tests pass (869 → 875, +6 new)
+- 5 unit tests for `extractMissingPackage` (package extraction, dotted imports, non-Python, no error, invalid chars)
+- 1 cross-module integration test (code_exec with non-existent package → graceful degradation)
+- Typecheck clean, build clean, CLI loads correctly
+
+### Expected effects
+
+- Data analysis tasks that need uninstalled packages will resolve in 1 turn instead of 3
+- Verifiable: run code_exec with `import some_uninstalled_package` — should see auto-install attempt
+- No behavioral change when packages are already installed (auto-install path never triggers)
+
+### Future directions
+
+- Extend auto-install to Node.js (`npm install`)
+- code-exec.ts now ~370 lines — wrapper extraction (PYTHON_WRAPPER, NODE_WRAPPER) would bring it under 300
+- loop.ts still ~314 lines (extracting architect mode block would help)
+
 ## Iteration 152 — Health Check (Turns Target Verified)
 
 ### Diagnosis

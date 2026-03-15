@@ -77,7 +77,7 @@ Sub-agents get their own context. Results include metadata (turns, tools, source
 ## Error recovery
 - file_edit fails (string not found): re-read the file with file_read to get exact content.
 - shell command fails: read the error output, adjust the approach, retry differently.
-- code_exec import error: install the missing package via shell (pip install X / npm install X), then retry in code_exec.
+- code_exec import error: Python auto-installs missing packages via pip. If that fails, use shell (pip install X / npm install X).
 - web_fetch returns empty or error: try an alternative URL, or use web_search to find a working source.
 - Stuck after 3 attempts: use ask_user to explain what's going wrong and ask for guidance.
 

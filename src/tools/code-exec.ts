@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execFile as execFileCb, type ChildProcess } from "node:child_process";
+import { promisify } from "node:util";
 import { which } from "../runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { extractPlots, readPlotFiles } from "../plot-capture.js";
@@ -8,6 +9,7 @@ const SENTINEL = "__KOTA_EXEC__";
 const DONE_MARKER = "__KOTA_DONE__";
 const DEFAULT_TIMEOUT = 30_000;
 const MAX_OUTPUT = 50_000;
+const execFileP = promisify(execFileCb);
 
 // Python wrapper: reads code blocks delimited by SENTINEL, executes them,
 // prints DONE_MARKER after each. State accumulates in _g dict.
@@ -294,7 +296,17 @@ export async function runCodeExec(
   const session = sessions[language];
   if (reset) session.kill();
 
-  const { output, isError } = await session.execute(code, timeoutMs);
+  let { output, isError } = await session.execute(code, timeoutMs);
+
+  // Auto-install missing Python packages and retry (one attempt)
+  const missingPkg = extractMissingPackage(output, language);
+  if (missingPkg) {
+    const retry = await tryAutoInstall(missingPkg, code, session, timeoutMs);
+    if (retry) {
+      output = retry.output;
+      isError = retry.isError;
+    }
+  }
 
   // Separate plot markers from text output (Python matplotlib auto-capture)
   const { text: cleanOutput, plotPaths } = extractPlots(output);
@@ -338,4 +350,35 @@ export function detectPackageHint(output: string, language: Language): string | 
     }
   }
   return null;
+}
+
+/** Extract the missing package name from a Python ModuleNotFoundError. */
+export function extractMissingPackage(output: string, language: string): string | null {
+  if (language !== "python") return null;
+  const m = output.match(/ModuleNotFoundError: No module named '([^']+)'/);
+  if (!m) return null;
+  const pkg = m[1].split(".")[0];
+  return /^[a-zA-Z0-9_-]+$/.test(pkg) ? pkg : null;
+}
+
+/** Try to pip-install a missing package and re-run the code. Returns null on failure. */
+async function tryAutoInstall(
+  pkg: string,
+  code: string,
+  session: REPLSession,
+  timeoutMs: number,
+): Promise<{ output: string; isError: boolean } | null> {
+  try {
+    await execFileP("python3", ["-m", "pip", "install", "--quiet", pkg], {
+      timeout: 60_000,
+    });
+  } catch {
+    return null;
+  }
+  const retryCode = "import importlib; importlib.invalidate_caches()\n" + code;
+  const result = await session.execute(retryCode, timeoutMs);
+  return {
+    output: `[Auto-installed ${pkg} via pip]\n${result.output}`,
+    isError: result.isError,
+  };
 }
