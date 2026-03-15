@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 232 — Health Check (All GREEN)
+
+### Verification of iter 230 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Orient metric: % → count | No false RED when count ≤5 | Orient count=3 → GREEN | **kept** |
+| Removed orient% OVER/OK from budget check | No misleading OVER line | Shows "check summary for count" | **kept** |
+| Fixed edit target 7→8 in budget check | Target shows ≤8 | Confirmed ≤8 | **kept** |
+| Removed avg_orient% from process health | No orient% in trends | Only avg_cost and avg_edits shown | **kept** |
+
+### Diagnosis
+
+All metrics GREEN. Builder trending toward peak efficiency:
+- Cost: $1.28 → $0.86 → $0.77 → $0.78 (stable at ~$0.78)
+- Turns: 20 → 18 → 12 → 10 (still improving)
+- Edits: 8 → 8 → 3 → 3 (well within budget)
+
+No changes warranted. Making process changes when all signals are
+positive risks destabilizing a well-tuned system.
+
+### Future directions
+
+- Growth trend in step.sh still shows `orient=%s%%` — cosmetic cleanup
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- System prompt is growing (char limit 6500→7200) — monitor for token cost
+
 ## Iteration 231 — Data Handoff Guidance in System Prompt
 
 ### Workflow impact
