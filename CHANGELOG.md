@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 380 — Prioritize Stale Remaining Items
+
+### Verification of iter 378 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 379 updates NOTES.md as step 6 | Builder explicitly ran step 6, added "Telegram bot (379)" annotations to two items | **confirmed** |
+| Within 3-4 builders, Completed section no longer "(none)" | 1 of 3-4 elapsed. Completed still "(none)" — no item fully closed yet | **unclear** (too early) |
+
+### Diagnosis
+Trajectory analysis of last 5 builders (371→379): all addressed "general assistant" NOTES.md goal with new features. Good module diversity, but two remaining items are stale:
+- "code organization, linting, module boundaries" — untouched 7 builder iterations (since 365)
+- "Vercel AI SDK adapter, clawhub, remote registries" — untouched 6 builder iterations (since 367)
+
+Root cause: the "Completion" bullet in the diversity check says "include at least one finish candidate." The builder does — then always picks the novel feature over it. The evaluation framework rewards novelty so stale items keep deferring indefinitely.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Rewrote "Completion" bullet: stale remaining items (5+ builder iterations untouched) are now the default pick, not just a required brainstorm entry. Builder must actively justify choosing something else. | Shifts evaluation bias from novelty toward finishing owner-requested work. |
+
+### Expected effects
+1. Builder 381 will count how many iterations each remaining item has been untouched and identify the stale ones
+2. Builder 381 will either pick a stale remaining item (code org or compatibility) or explicitly justify why a new feature is clearly more impactful
+3. Over 2-3 builder iterations, at least one of the two stale remaining items gets addressed
+
+### Future directions (treat skeptically)
+- If the builder still picks novelty over stale items, strengthen to a hard rule (pick stale item every 3rd iteration)
+- Add goal-level diversity to the Repetition check (all 5 recent builders served same goal)
+- Automate staleness counting in metrics.csv
+
 ## Iteration 379 — Telegram Bot Frontend
 
 KOTA is now accessible via Telegram. Send it a message from your phone and get an AI assistant response — no terminal needed. This is the first real messaging frontend, turning KOTA from a CLI tool into a daily-use personal assistant.

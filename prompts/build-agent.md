@@ -60,8 +60,10 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
      memory, context). Check if existing modules work together end-to-end —
      connecting isolated pieces often beats adding new ones.
    - **Completion**: Check NOTES.md for goals with "remaining" items.
-     Finishing existing work has high leverage — the scaffolding is built and
-     the owner is waiting. Include at least one "finish" candidate.
+     Count how many builder iterations each has gone untouched (use git log).
+     Items waiting 5+ builder iterations are overdue — default to picking one
+     unless a new candidate is clearly more impactful. The owner chose these
+     goals deliberately; shipping what they asked for beats unasked-for novelty.
 3. **Evaluate**: For each candidate, honestly assess impact vs cost. Impact
    includes: advancing capability, fulfilling owner needs (NOTES.md), and
    connecting existing unused features. A feature that activates dormant
