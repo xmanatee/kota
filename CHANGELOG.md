@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 255 — Init × Memory Cross-Module Integration Tests (tests: 1183, +11)
+
+### Workflow impact
+
+**Scenario**: "User starts a new session in a Python data-science project. KOTA detects the project type, recalls relevant memories (e.g., 'user prefers pandas'), and presents warmup context."
+
+**Before**: `init.test.ts` mocked `getMemoryStore` entirely — real `MemoryStore.search()` keyword matching was never exercised through the `recallMemories` path. Corrupted memory files, tag formatting, and the 5-result limit were untested at integration level. A bug in search term matching or persistence would not be caught.
+
+**After**: 11 integration tests exercise the real `MemoryStore` with file-backed persistence through the same code path `recallMemories` uses. Tests revealed that `search()` treats hyphenated directory names as a single term (no splitting), so `search("data-project")` won't match content containing "data" — this is documented behavior, not a bug, but important to know.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `init-memory.integration.test.ts` | +11 tests: basename matching, hyphenated dirname behavior, tag matching, corrupted file recovery, persistence across instances, tag formatting, result limit | First cross-module tests for init × memory path |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1183 tests (+11).
+
+### Expected effects
+
+- Regressions in `MemoryStore.search()` or `recallMemories` will be caught
+- Hyphenated dirname matching limitation is documented via test
+- Corrupted memory file handling is verified at integration level
+
+### Future directions
+
+- Memory search could split hyphenated terms for better dirname matching (LOW)
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still at ~309 lines (LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 254 — Health Check (All GREEN)
 
 ### Verification of iter 252 (previous improver)

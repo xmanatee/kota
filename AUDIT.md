@@ -46,7 +46,8 @@ process × confirm dangerous command blocking (iter 233),
 shell-diagnostics × error-context multi-format pipeline (iter 237),
 file-read × json-preview × csv-preview preview pipeline (iter 243),
 tool-groups × architect editor tool set independence (iter 249),
-architect × verify-tracker modified file tracking pipeline (iter 251).
+architect × verify-tracker modified file tracking pipeline (iter 251),
+init × memory search-by-dirname + persistence + corruption recovery (iter 255).
 
 ## plot-capture — silent error swallowing (iter 203→209, FIXED)
 
