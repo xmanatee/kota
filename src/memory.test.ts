@@ -89,6 +89,73 @@ describe("MemoryStore", () => {
       const results = store.search("ts great");
       expect(results.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("filters by tag", () => {
+      const results = store.search("", { tag: "frontend" });
+      expect(results).toHaveLength(1);
+      expect(results[0].content).toContain("React");
+    });
+
+    it("tag filter is case-insensitive", () => {
+      const results = store.search("", { tag: "LANG" });
+      expect(results).toHaveLength(2);
+    });
+
+    it("combines tag filter with keyword search", () => {
+      const results = store.search("TypeScript", { tag: "test" });
+      expect(results).toHaveLength(1);
+      expect(results[0].content).toContain("Vitest");
+    });
+
+    it("filters by since date", () => {
+      // All memories were just created, so a past date returns all
+      const results = store.search("", { since: "2020-01-01" });
+      expect(results).toHaveLength(4);
+      // A future date returns none
+      const none = store.search("", { since: "2099-01-01" });
+      expect(none).toHaveLength(0);
+    });
+
+    it("combines tag and since filters", () => {
+      const results = store.search("", { tag: "lang", since: "2020-01-01" });
+      expect(results).toHaveLength(2);
+    });
+
+    it("ignores invalid since date", () => {
+      const results = store.search("TypeScript", { since: "not-a-date" });
+      expect(results).toHaveLength(2); // same as without filter
+    });
+  });
+
+  describe("update", () => {
+    it("updates content of existing memory", () => {
+      const id = store.save("original content", ["tag1"]);
+      expect(store.update(id, { content: "updated content" })).toBe(true);
+      const mem = store.list().find((m) => m.id === id)!;
+      expect(mem.content).toBe("updated content");
+      expect(mem.tags).toEqual(["tag1"]); // tags unchanged
+    });
+
+    it("updates tags of existing memory", () => {
+      const id = store.save("some content", ["old"]);
+      store.update(id, { tags: ["new", "updated"] });
+      const mem = store.list().find((m) => m.id === id)!;
+      expect(mem.tags).toEqual(["new", "updated"]);
+      expect(mem.content).toBe("some content"); // content unchanged
+    });
+
+    it("returns false for non-existent ID", () => {
+      expect(store.update("nonexistent", { content: "x" })).toBe(false);
+    });
+
+    it("persists updates to disk", () => {
+      const id = store.save("before", ["a"]);
+      store.update(id, { content: "after", tags: ["b"] });
+      const store2 = new MemoryStore(dir);
+      const mem = store2.list().find((m) => m.id === id)!;
+      expect(mem.content).toBe("after");
+      expect(mem.tags).toEqual(["b"]);
+    });
   });
 
   describe("auto-prune", () => {

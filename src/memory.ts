@@ -67,13 +67,26 @@ export class MemoryStore {
     return id;
   }
 
-  /** Search memories by keyword (matches content and tags). */
-  search(query: string): Memory[] {
+  /** Search memories by keyword, with optional tag and time filters. */
+  search(query: string, options?: { tag?: string; since?: string }): Memory[] {
     this.ensureLoaded();
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return this.memories;
+    let pool = this.memories;
 
-    return this.memories
+    if (options?.tag) {
+      const tagLower = options.tag.toLowerCase();
+      pool = pool.filter((m) => m.tags.some((t) => t.toLowerCase() === tagLower));
+    }
+    if (options?.since) {
+      const sinceDate = new Date(options.since).getTime();
+      if (!isNaN(sinceDate)) {
+        pool = pool.filter((m) => new Date(m.created).getTime() >= sinceDate);
+      }
+    }
+
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return pool;
+
+    return pool
       .map((m) => {
         const text = (m.content + " " + m.tags.join(" ")).toLowerCase();
         const hits = terms.filter((t) => text.includes(t)).length;
@@ -88,6 +101,17 @@ export class MemoryStore {
   list(): Memory[] {
     this.ensureLoaded();
     return this.memories;
+  }
+
+  /** Update an existing memory's content or tags. Returns true if found. */
+  update(id: string, updates: { content?: string; tags?: string[] }): boolean {
+    this.ensureLoaded();
+    const memory = this.memories.find((m) => m.id === id);
+    if (!memory) return false;
+    if (updates.content !== undefined) memory.content = updates.content;
+    if (updates.tags !== undefined) memory.tags = updates.tags;
+    this.persist();
+    return true;
   }
 
   /** Delete a memory by ID. Returns true if found. */

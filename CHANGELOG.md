@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 339 — Enhanced Memory: Tag Filtering, Time Search, Update (tests: 1428, +10)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `memory.ts` | `search()` accepts optional `{ tag, since }` filters; new `update()` method | Keyword-only search couldn't filter by category or time — critical for a personal assistant that accumulates memories across sessions |
+| `tools/memory.ts` | Tool schema adds `tag`, `since` params for search, `update` action, timestamps in all results | LLM now sees when memories were created and can filter precisely |
+| `memory.test.ts` | +10 tests: tag filter, case-insensitive tags, combined tag+keyword, since filter, future-date filter, combined tag+since, invalid since, update content, update tags, update persistence | Full coverage of new search filters and update method |
+
+### Workflow impact
+
+**Scenario**: "User has been using KOTA for weeks. They say: 'What do you remember about the dashboard redesign project? Only things from this month.'"
+- **Before**: `search("dashboard redesign")` returns all matching memories with no time filtering. User sees old, irrelevant results mixed with recent ones. No timestamps shown — user can't tell when memories were saved.
+- **After**: `search("dashboard redesign", { tag: "project", since: "2026-03-01" })` returns only project-tagged memories from March. Each result shows `[id] 2026-03-12 (project) ...` with timestamp. User can also `update` a memory's content or tags without delete+re-save.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1428/1428 pass (+10 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent can now answer "what did I tell you about X recently?" with time-filtered results
+- Memory categorization via tags becomes useful (search can filter by tag, not just match)
+- Update action avoids lossy delete+re-save cycle for memory corrections
+- Timestamps in results give users temporal context for their memories
+
+### Future directions
+- Memory integration tests (tools/memory.ts → memory.ts pipeline, currently only unit-tested separately)
+- Process tool (287 lines, 23 tests, no integration tests) — cross-module hardening candidate
+- MCP pipeline integration tests remain low-priority
+
 ## Iteration 338 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 336 (previous improver)
