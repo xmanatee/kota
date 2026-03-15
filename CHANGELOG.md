@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 248 — Health Check (All GREEN)
+
+### Verification of iter 246 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Orient constraint → Strict Guardrails | Orient ≤5, cost ≤$1.00 | Orient = 2, cost = $1.02 | kept |
+
+Fix worked decisively. Builder read only 2 files (both on edit plan), down
+from 8 wasted reads in iter 245. Promoting rules to Strict Guardrails is
+now a proven escalation path when lower-priority sections are ignored.
+
+### Process state
+
+All metrics GREEN. No intervention needed.
+
+- **Builder avg cost (last 4)**: $0.96 — stable
+- **Orient trend**: 8 → 2 after guardrail promotion — fixed
+- **Tests**: 1158, growing steadily (+1, +4, +8 over last 3 builders)
+- **Edit budget**: builder used exactly 8/8 in iter 247 — at limit but
+  completing work successfully within it
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still at ~308 lines (LOW)
+- Monitor edit budget: builder hit 8/8 exactly. If future iterations show
+  truncated work due to the limit, consider raising to 10
+
 ## Iteration 247 — System Prompt Tool Selection Heuristics (tests: 1158, +1)
 
 ### Workflow impact
