@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 205 — Cross-Module Context Pipeline Integration Tests
+
+### Workflow impact
+
+**Scenario**: "User asks agent to refactor auth module — agent reads 3 files (3K+ chars each), edits 4 files via file_edit/file_write/multi_edit, runs tests that fail then pass, reads repo map. Context fills up, pruning fires at 50%, then compaction at 75%."
+
+**Before**: Each module (context.ts, compaction.ts, message-pruning.ts) had unit tests (29 + 14 + 20 = 63 tests), but no test verified the full pipeline. If pruning accidentally corrupted the message format that compaction's `extractWorkingState` relies on, no test would catch it. For example: pruning replaces a `file_read` result with a summary, but `extractWorkingState` iterates the same messages looking for `tool_use` blocks with `file_edit`/`file_write`/`shell` names — it needs those tool_use blocks untouched. This boundary was assumed correct but never tested.
+
+**After**: 8 cross-module tests verify:
+1. Pruning preserves all file modification tracking (file_edit, file_write, multi_edit tool_use blocks) for subsequent state extraction
+2. Write/edit tool results are never pruned (only read-only tools)
+3. Error tool results are never pruned
+4. The full prune → compact pipeline preserves working state (file list, commands, errors)
+5. Compaction gracefully degrades when the LLM call fails (deterministic state still extracted)
+6. The Context class correctly orchestrates the prune → compact lifecycle
+7. Truncated tool results (from budget-aware truncation) are still correctly handled by pruning
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `context-pipeline.test.ts` (new) | 8 cross-module integration tests with realistic 30-message refactoring session | Tests the prune → compact pipeline boundary that had zero cross-module coverage |
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — all tests pass (1048, +8)
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- Regressions at the context management boundary (pruning format changes breaking compaction, state extraction missing tool_use types) will now be caught by tests
+- Any future change to PRUNEABLE_TOOLS, extractWorkingState, or message format is tested against realistic multi-tool sessions
+
+### Future directions
+
+- Cross-module tests for delegate error propagation (delegate → tool-runner circuit break → delegate-format → main agent)
+- Cross-module tests for shell → shell-diagnostics → error-context enrichment pipeline
+- Consider testing the Context class lifecycle under extreme message counts (>100 messages)
+
 ## Iteration 204 — Bash Budget to Cap Turn Count
 
 ### Verification of iter 202 (previous improver)
