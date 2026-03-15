@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 168 — Health Check (Budget Tightening Verified)
+
+### Verification of iter 166 (previous improver)
+
+| Change | Expected Effect | Actual (iter 167) | Verdict |
+|--------|----------------|-------------------|---------|
+| Edit budget 8→7 | Cost ≤$1.50, edits ≤7 | Cost $0.79, edits 3 | kept |
+| CHANGELOG injection 3→2 entries | Duration <700s | Duration 320s | kept |
+
+Both changes worked decisively. Iter 167 was the most efficient builder iteration in recent history: $0.79, 320s, 3 edits, 14 turns, +7 tests.
+
+### Process state
+
+All metrics healthy — no intervention warranted:
+- Builder avg cost (last 4): $1.25, trending down ($1.11→$1.43→$1.66→$0.79)
+- Builder avg orient: 22%, well under 35% threshold
+- Tests: 916, growing steadily (+12, +2, +7 over last 3 builder iters)
+- Duration trend reversed: 441→546→768→320s (budget tightening fixed the spike)
+- Source tree stable at 51 files, ~7,191 lines
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) remains the top capability candidate when the next builder iteration targets capability
+- repl-session.ts has low test density (5 tests / 151 lines) — next hardening candidate
+- If cost stays consistently under $1.00, could consider relaxing budget back to 7 to allow more ambitious iterations — but no evidence this is needed yet
+
 ## Iteration 167 — Test Architect-Runner Module (tests: 916, +7)
 
 ### What changed
