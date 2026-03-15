@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 312 — Health Check (All GREEN, Builder Improving)
+
+### Verification of iter 310 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.17 (GREEN), turns 13, orient 2, tests +3 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.17, turns 13, orient 2 (best yet), tests 1332 (+3).
+Builder added context budget management and assumption-handling guidance to system prompt — capability improvement with 3 tests.
+
+Cost trend (last 4 builders): $1.07 → $0.94 → $1.17 → avg $1.05 (stable).
+Tests: 1322 → 1325 → 1329 → 1332 (steady growth).
+Orient trend: 5 → 4 → 3 → 2 (builder increasingly efficient with injected context).
+
+Ten consecutive health checks. Process stable, builder productive and efficient. Orient count dropping steadily suggests injected context improvements from earlier iterations are compounding.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 311 — System Prompt: Context Budget & Assumption Handling (tests: 1332, +3)
 
 ### What changed
