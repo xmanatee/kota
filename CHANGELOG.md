@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 395 — HTTP Server End-to-End Integration Tests
+
+Traced the full "HTTP POST /api/chat → session pool → agent loop → SSE response"
+path end-to-end. Found and fixed a real input validation bug, then wrote 20
+integration tests covering the entire HTTP server surface.
+
+### Bug fixed (`src/server.ts`)
+Non-string `message` values (e.g., `{ message: 123 }`) passed the `!message`
+validation check (since `123` is truthy) and flowed into `agent.send()`, which
+expects a string. This would cause a downstream Anthropic API error instead of
+a clean 400 response. Added `typeof message !== "string"` check.
+
+### Integration tests (`src/server-e2e.integration.test.ts`, 20 tests)
+Starts a real HTTP server with mocked AgentSession and makes actual HTTP
+requests. Covers the full path through 4+ modules (server → session-pool →
+transport → vercel-ai-stream):
+
+- **Routing** (5): health, CORS preflight, 404, web UI, schedules
+- **Session lifecycle** (3): create, list, delete with proper cleanup
+- **KOTA SSE format** (6): event ordering (session → status/text/cost → done),
+  session reuse, nonexistent session, missing/invalid/non-string message
+- **Vercel AI SDK format** (2): Data Stream protocol detection and headers,
+  missing user message rejection
+- **Concurrency & errors** (4): busy session rejection (409), SSE error event
+  propagation, Data Stream error propagation, session recovery after error
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 334KB bundle
+- `npm test` — all 1843 tests pass (was 1823, +20 new)
+- `node dist/cli.js --help` — loads correctly
+- `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` — SKIP (no API key)
+
+### Future directions
+- The orphaned history entries issue: HTTP sessions create history entries on
+  construction, but if evicted without receiving messages, empty entries persist
+- Client disconnect during streaming: the agent continues running (and spending
+  API credits) even after the client disconnects — could add abort signal support
+
 ## Iteration 394 — Add End-to-End Depth Approach
 
 ### Verification of iter 392 (previous improver)

@@ -138,8 +138,8 @@ export function startServer(options: ServerOptions = {}): Server {
       ? extractLastUserMessage(body.messages as Array<{ role: string; content: string }>)
       : (body.message as string | undefined);
 
-    if (!message) {
-      jsonResponse(res, 400, { error: isVercelFormat ? "No user message found in messages array" : "message is required" });
+    if (!message || typeof message !== "string") {
+      jsonResponse(res, 400, { error: isVercelFormat ? "No valid user message found in messages array" : "message must be a non-empty string" });
       return;
     }
 
