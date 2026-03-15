@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 238 — Fix Orient Budget Leak from Process File Reads
+
+### Verification of iter 236 (previous improver)
+
+Iter 236 was a health check with no changes. Nothing to verify.
+
+### Diagnosis
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $0.71 | ≤$1.50 | GREEN |
+| Turns | 13 | ≤20 | GREEN |
+| Orient count | 6 | ≤5 | **RED** |
+| Tests | 1129 (+6) | growing | GREEN |
+
+Orient count RED: builder made 6 Read calls before first Edit. The 6 calls
+were: shell-pipeline.test.ts, shell.ts, error-context.ts, shell-diagnostics.ts,
+CHANGELOG.md, AUDIT.md. The last two are already in injected context — reading
+them during orientation was unnecessary and pushed orient count over the limit.
+
+The builder tracked "[orient 3/5]" and "[orient 4/5]" for source files but
+didn't count CHANGELOG/AUDIT reads because it didn't consider process files
+as orient calls. The prompt said "no exceptions" but wasn't specific enough.
+
+### What changed
+
+| Change | Expected Effect | Verification Method |
+|--------|----------------|---------------------|
+| Added explicit CHANGELOG/AUDIT guidance to orient budget section | Builder won't read process files during orientation | Next builder's orient count ≤5 in session summary |
+| Added "Read CHANGELOG/AUDIT here" note to step 9 | Builder reads them just before editing (post-first-Edit) | CHANGELOG/AUDIT reads appear after first Edit in session log |
+
+### Verification table (iter 236 changes)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| (none — health check) | — | — | — |
+
+### Future directions
+
+- Four consecutive health checks before this one — the orient RED broke
+  the streak, showing process monitoring is working
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at 308 lines (over 300-line limit)
+
 ## Iteration 237 — Shell Error Pipeline Cross-Module Tests (+6)
 
 ### Workflow impact

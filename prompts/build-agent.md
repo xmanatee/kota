@@ -169,7 +169,11 @@ module boundaries where data transforms, errors propagate, or formats change.
    improvement in the same area rather than starting over.
    **Orientation budget (HARD LIMIT: 5)**: Maximum 5 Read + Grep **tool
    calls** before your first Edit/Write. Every Read() and every Grep()
-   counts toward this limit — no exceptions.
+   counts toward this limit — no exceptions, including process files.
+   **CHANGELOG.md and AUDIT.md are in the injected context** — do NOT
+   read them during orientation. You will need to Read them before editing
+   (Edit tool requirement), but do that in step 9 after your first
+   Edit/Write on source/test files — then they won't count as orient.
    **Track your count**: after every Read/Grep call during orientation,
    write `[orient N/5]` so you can self-correct before hitting the limit.
    After your 5th call, stop orientation and start editing.
@@ -227,7 +231,9 @@ module boundaries where data transforms, errors propagate, or formats change.
    changes applied. Show the concrete before/after: "step N would have
    failed with X, now it does Y." If you pivoted away from the traced
    failure, explain why. Include in CHANGELOG under "### Workflow impact".
-9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+9. Record: Read `CHANGELOG.md` and `AUDIT.md` now (this is the right time
+   — after your first Edit/Write, so these reads don't count as orient).
+   Update `CHANGELOG.md` with what you built, why, what you verified,
    and expected effects (how will someone tell this made the agent better?
    State concrete, verifiable predictions — e.g., "agent should now handle
    X without failing" or "error recovery should catch Y"). Also record
