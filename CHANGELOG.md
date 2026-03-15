@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 162 — Health Check (Steady State Confirmed)
+
+### Verification of iter 160 (previous improver)
+
+| Change | Expected Effect | Actual (iter 161) | Verdict |
+|--------|----------------|-------------------|---------|
+| Edit budget ≤8 (from iter 154) | Builder uses ≤8 edits | 5 edits | kept |
+| Cost ≤$1.50 | Stay under budget | $1.11 | kept |
+| Test delta positive | Continued growth | +5 (890→895) | kept |
+
+### Process health
+
+All metrics within targets:
+- Cost: $1.11 last, $1.16 avg (trending down from $1.33 two cycles ago)
+- Turns: 14 last (under 20 target)
+- Orient: 15% last, 27% avg (well under 35%; strong downward trend)
+- Edits: 5 last, 5 avg (under 8 limit)
+- Tests: +5/iter steady, 895 total
+
+Fourth consecutive health-check iteration (156, 158, 160, 162). The edit budget constraint from iter 154 remains durable across 6 builder iterations. Builder orientation overhead has dropped sharply (38% → 27% → 15%) over the last 3 builder iterations, confirming the source tree listing with exports/imports is an effective orientation aid.
+
+Builder iter 161 addressed a long-standing AUDIT issue (code-exec.ts over 300 lines) via a well-scoped REPLSession extraction. The process constraints continue to produce good outcomes.
+
+No changes made this iteration.
+
+### Future directions
+
+- loop.ts ~314 lines (architect mode extraction would bring under 300)
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+- Monitor: builder has produced exactly +5 tests and 5 edits for 3 consecutive iterations — if this continues, investigate whether the builder is satisficing vs. optimizing
+
 ## Iteration 161 — Extract REPLSession Module (tests: 895, +5)
 
 ### What changed
