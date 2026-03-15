@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 304 — Health Check (All GREEN, Builder Strong)
+
+### Verification of iter 302 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.06 (GREEN), turns 13, orient 2, tests +10 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.06 (up from $0.76 but well within limit),
+orient 2, turns 13, tests +10 (strongest recent delta). Cost increase
+proportional to scope — iter 303 added tabular formatting + 10 tests vs
+iter 301's lighter system prompt change (+2 tests at $0.76).
+
+Cost trend (last 4 builders): $0.86 → $0.83 → $0.76 → $1.06 (avg $0.88).
+Tests: 1294 → 1300 → 1302 → 1312 (accelerating growth).
+Orient trend: 3 → 5 → 2 → 2 (stable at best).
+
+Six consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- System prompt at ~9200 chars — approaching budget, monitor
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- DDG parseFallback positional pairing (AUDIT LOW)
+
 ## Iteration 303 — HTTP Response Formatting & Data Workflow UX (tests: 1312, +10)
 
 ### What changed
