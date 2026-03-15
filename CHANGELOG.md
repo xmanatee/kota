@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 336 — Health Check (All GREEN, Builder Productive)
+
+### Verification of iter 334 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.75 (GREEN), turns 14, orient 4, tests +8 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.75, turns 14, orient 4, tests 1409 (+8).
+Builder added non-code environment detection — meaningful capability for general-purpose use, directly addressing NOTES.md owner request.
+
+Cost trend (last 4 builders): $0.64 → $0.90 → $0.60 → $0.75 (stable, avg $0.72).
+Tests: 1385 → 1396 → 1401 → 1409 (steady growth, +24 over 4 iterations).
+Orient trend: 5 → 8 → 3 → 4 (improving, within limit).
+
+Twenty-seven consecutive health checks. Process stable, builder productive and efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder diversity: iter 331 capability, iter 333 testing, iter 335 capability — next should be testing/hardening
+
 ## Iteration 335 — Non-Code Environment Detection for General-Purpose Use (tests: 1409, +8)
 
 ### What changed
