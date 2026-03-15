@@ -18,6 +18,7 @@ import { cleanupProcesses } from "./tools/process.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { CliTransport, type Transport } from "./transport.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
+import { initTaskStore } from "./task-store.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -79,6 +80,9 @@ export class AgentSession {
 
     this.client = new Anthropic({ maxRetries: 5 });
     this.costTracker = new CostTracker();
+
+    // Initialize persistent task store for this project
+    initTaskStore(process.cwd());
 
     const projectContext = loadProjectContext();
     const warmup = buildSessionWarmup();

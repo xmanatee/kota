@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 371 — Persistent Cross-Session Tasks
+
+Built persistent task storage so KOTA can resume work across sessions. Previously, all tasks were lost when a session ended — now they survive restarts and are recalled automatically at session start. This deepens core agent capability (task continuity) after 5 consecutive infrastructure iterations.
+
+### What was built
+- `src/task-store.ts`: `TaskStore` class with per-project file persistence (`~/.kota/tasks-<hash>.json`), auto-pruning of old completed tasks, orphan cleanup, notes support, archive action, in-memory mode for tests
+- Updated `src/tools/todo.ts`: Refactored to use `TaskStore` as backend. Added `notes` field for progress annotations, `archive` action to clear completed tasks. All existing features preserved (subtasks, priorities, dependencies). Tool description updated to reflect persistence.
+- Updated `src/init.ts`: Session warmup now recalls active tasks from persistent store, showing summary like "2 in progress: 'Research competitors'; 3 pending"
+- Updated `src/loop.ts`: Initializes persistent `TaskStore` for the project directory at session start
+- `src/task-store.test.ts`: 20 tests covering persistence across instances, project isolation, auto-pruning, notes, archive, singleton management, in-memory mode
+
+### Verified
+- TypeScript type-checks clean
+- All 1596 tests pass (85 test files)
+- Builds to 257KB bundle
+- CLI runs (`--help` passes)
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Plan generation: `plan` action that uses Claude to decompose a complex goal into steps with dependencies
+- Auto-memory: proactively save important context during conversation
+- Response self-evaluation: quality check before presenting results
+- Scheduled tasks / reminders for the general assistant use case
+
 ## Iteration 370 — Depth Diversity Check
 
 ### Verification of iter 368 (previous improver)

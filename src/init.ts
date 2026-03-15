@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { join, basename } from "node:path";
 import { getMemoryStore } from "./memory.js";
+import { getTaskStore } from "./task-store.js";
 
 /** Detect project type from config files in cwd. */
 export function detectProject(cwd: string): string | null {
@@ -180,6 +181,12 @@ function recallMemories(cwd: string): string | null {
     .join("\n");
 }
 
+/** Recall active tasks from persistent task store. */
+function recallTasks(): string | null {
+  const store = getTaskStore();
+  return store.getActiveSummary();
+}
+
 /** List top-level files and directories, skipping noise. */
 export function getDirectoryOverview(cwd: string): string | null {
   const skipDirs = new Set([
@@ -242,6 +249,9 @@ export function buildSessionWarmup(cwd?: string): string {
 
   const memories = recallMemories(dir);
   if (memories) sections.push(`**Recalled from memory**:\n${memories}`);
+
+  const tasks = recallTasks();
+  if (tasks) sections.push(`**Active tasks from previous session**:\n${tasks}`);
 
   if (sections.length === 0) return "";
   return "\n\n## Session Context (auto-detected)\n\n" + sections.join("\n\n");

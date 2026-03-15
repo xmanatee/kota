@@ -1,6 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { runTodo, getTodoState } from "./tools/todo.js";
 import { Context } from "./context.js";
+import { initTaskStore, resetTaskStore } from "./task-store.js";
+
+beforeAll(() => {
+  initTaskStore(process.cwd(), null); // in-memory mode for tests
+});
+
+afterAll(() => {
+  resetTaskStore();
+});
 
 describe("todo → context integration", () => {
   beforeEach(async () => {

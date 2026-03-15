@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { runTodo, getTodoState } from "./todo.js";
+import { initTaskStore, resetTaskStore } from "../task-store.js";
+
+beforeAll(() => {
+  initTaskStore(process.cwd(), null); // in-memory mode for tests
+});
+
+afterAll(() => {
+  resetTaskStore();
+});
 
 describe("runTodo", () => {
   beforeEach(async () => {
@@ -47,7 +56,7 @@ describe("runTodo", () => {
       await runTodo({ action: "add", task: "Task" });
       const result = await runTodo({ action: "update", id: 1 });
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("status, priority, or blocked_by required");
+      expect(result.content).toContain("status, priority, blocked_by, or notes required");
     });
 
     it("returns error for non-existent task", async () => {
@@ -341,6 +350,6 @@ describe("blocked_by (dependencies)", () => {
     await runTodo({ action: "add", task: "Task" });
     const result = await runTodo({ action: "update", id: 1 });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("status, priority, or blocked_by required");
+    expect(result.content).toContain("status, priority, blocked_by, or notes required");
   });
 });

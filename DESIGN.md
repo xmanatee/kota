@@ -162,6 +162,23 @@ Auto-detects project type (Node.js, Python, Rust, Go), git state (branch, dirty 
 
 Reads `.kota.md` files from working directory up to root (like Claude Code's CLAUDE.md). Injected into system prompt.
 
+### Persistent Tasks (`src/task-store.ts`)
+
+Cross-session task tracking that survives session restarts. Tasks are stored per-project in `~/.kota/tasks-<hash>.json` where `<hash>` is derived from the project directory path.
+
+**Key capabilities**:
+- **Project-scoped isolation**: Each project gets its own task file. No cross-contamination.
+- **Session resume**: Active tasks recalled during session warmup — the agent knows what was in progress.
+- **Auto-pruning**: Completed tasks beyond 15 are automatically pruned (oldest first). Orphaned children are also removed.
+- **Notes**: Tasks can carry progress notes for cross-session context (e.g., "found 3 sources, comparing").
+- **Archive**: Explicitly clear all completed tasks via `archive` action.
+
+**Integration with todo tool**: The `todo` tool uses `TaskStore` as its backend. All existing features (subtasks, priorities, dependencies) are preserved. Tasks persist automatically — no special action needed.
+
+**Session warmup**: `buildSessionWarmup()` in `init.ts` checks for active tasks and includes a summary (e.g., "2 in progress: 'Research competitors', 'Write report'; 3 pending") so the agent can resume from where it left off.
+
+**In-memory mode**: When `storageDir` is `null`, the store operates without file I/O (used in tests and sub-agents).
+
 ### Persistent Memory (`src/memory.ts`)
 
 Cross-session memory in `~/.kota/memory.json`. Save/search/list/delete with keyword ranking. Auto-prune at 100 entries.
