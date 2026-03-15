@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { KotaPlugin, PluginContext } from "./plugin-types.js";
@@ -7,6 +7,7 @@ import { clearCustomGroups, registerCustomGroup } from "./tool-groups.js";
 import { clearCustomTools, registerTool } from "./tools/index.js";
 
 const PLUGIN_DIR = ".kota/plugins";
+const PACKAGES_DIR = ".kota/packages";
 
 /**
  * Discovers and manages KOTA plugins from `.kota/plugins/`.
@@ -20,23 +21,29 @@ export class PluginManager {
     this.verbose = verbose;
   }
 
-  /** Load all plugins from .kota/plugins/ relative to cwd. */
+  /** Load all plugins from .kota/plugins/ and .kota/packages/ relative to cwd. */
   async loadAll(cwd?: string): Promise<void> {
-    const dir = resolve(cwd || process.cwd(), PLUGIN_DIR);
-    if (!existsSync(dir)) return;
+    const base = cwd || process.cwd();
 
-    const files = readdirSync(dir)
-      .filter((f) => f.endsWith(".js") || f.endsWith(".mjs"))
-      .sort();
+    // 1. Load file-based plugins from .kota/plugins/
+    const pluginDir = resolve(base, PLUGIN_DIR);
+    if (existsSync(pluginDir)) {
+      const files = readdirSync(pluginDir)
+        .filter((f) => f.endsWith(".js") || f.endsWith(".mjs"))
+        .sort();
 
-    for (const file of files) {
-      try {
-        await this.loadPlugin(join(dir, file), file);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Plugin ${file} failed to load: ${msg}`);
+      for (const file of files) {
+        try {
+          await this.loadPlugin(join(pluginDir, file), file);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[kota] Plugin ${file} failed to load: ${msg}`);
+        }
       }
     }
+
+    // 2. Load npm-installed packages from .kota/packages/
+    await this.loadNpmPackages(base);
 
     if (this.plugins.length > 0) {
       const toolCount = this.plugins.reduce((n, p) => n + (p.tools?.length ?? 0), 0);
@@ -44,6 +51,53 @@ export class PluginManager {
         `[kota] Plugins: ${this.plugins.length} loaded, ${toolCount} tool(s) registered`,
       );
     }
+  }
+
+  /** Load tools from npm packages installed in .kota/packages/node_modules/. */
+  private async loadNpmPackages(cwd: string): Promise<void> {
+    const pkgJsonPath = resolve(cwd, PACKAGES_DIR, "package.json");
+    if (!existsSync(pkgJsonPath)) return;
+
+    let deps: Record<string, string>;
+    try {
+      const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+      deps = pkgJson.dependencies || {};
+    } catch {
+      return;
+    }
+
+    const nodeModules = resolve(cwd, PACKAGES_DIR, "node_modules");
+    if (!existsSync(nodeModules)) return;
+
+    for (const pkgName of Object.keys(deps).sort()) {
+      try {
+        await this.loadNpmPackage(nodeModules, pkgName);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[kota] npm package "${pkgName}" failed to load: ${msg}`);
+      }
+    }
+  }
+
+  /** Load a single npm package as a KOTA plugin. */
+  private async loadNpmPackage(nodeModules: string, pkgName: string): Promise<void> {
+    // Resolve the package's main entry
+    const pkgDir = join(nodeModules, ...pkgName.split("/"));
+    const pkgJsonPath = join(pkgDir, "package.json");
+    if (!existsSync(pkgJsonPath)) {
+      throw new Error(`package.json not found in ${pkgDir}`);
+    }
+
+    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+    const main = pkgJson.exports?.["."] ?? pkgJson.main ?? "index.js";
+    const mainPath = typeof main === "string" ? main : (main?.default ?? main?.import ?? "index.js");
+    const entryPath = join(pkgDir, mainPath);
+
+    if (!existsSync(entryPath)) {
+      throw new Error(`entry point "${mainPath}" not found`);
+    }
+
+    await this.loadPlugin(entryPath, `npm:${pkgName}`);
   }
 
   /** Load a single plugin from a file path. */

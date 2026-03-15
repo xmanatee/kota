@@ -410,6 +410,38 @@ export default {
 };
 ```
 
+### Remote Tool Registry (`src/registry.ts`)
+
+Install, remove, and manage KOTA tools from external sources — npm packages, URLs, and GitHub repos. This connects the plugin system, tool format adapters, and Vercel AI SDK compatibility into a real distribution mechanism.
+
+**Sources**:
+- **npm**: `kota tools install <package>` or `kota tools install npm:@scope/package` — installs to `.kota/packages/` via npm, auto-loaded on startup
+- **URL**: `kota tools install https://example.com/tool.mjs` — downloads to `.kota/plugins/`
+- **GitHub**: `kota tools install github:user/repo` or `kota tools install user/repo` — installs via npm's GitHub support
+
+**Manifest** (`.kota/tools.json`): Tracks installed tools with source type, URI, version, file paths, and install timestamp. Used for list, remove, and update operations.
+
+**CLI commands**:
+- `kota tools install <source>` — install from npm, URL, or GitHub
+- `kota tools list` — show installed tools with source, version, URI
+- `kota tools remove <name>` — uninstall and clean up files
+- `kota tools update <name>` — reinstall latest version
+
+**PluginManager integration**: `loadAll()` now loads from two locations:
+1. `.kota/plugins/` — file-based plugins (manual drops + URL downloads)
+2. `.kota/packages/node_modules/` — npm-installed packages (reads dependencies from `.kota/packages/package.json`)
+
+**Name derivation**: `kota-` and `tool-` prefixes are stripped automatically (e.g., `kota-weather` → `weather`, `@scope/tool-calc` → `calc`).
+
+**Example workflow**:
+```bash
+kota tools install kota-weather              # npm package
+kota tools install https://raw.github.../tool.mjs  # URL download
+kota tools install user/kota-search          # GitHub repo
+kota tools list                              # show all installed
+kota tools remove weather                    # uninstall
+```
+
 ### Vercel AI SDK Streaming (`src/vercel-ai-stream.ts`)
 
 KOTA's HTTP server speaks the Vercel AI SDK Data Stream Protocol v1, enabling direct integration with `useChat()` from any Next.js/React app. When `POST /api/chat` receives a body with `messages` (array), the response switches to the Data Stream Protocol format automatically.

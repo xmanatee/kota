@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 387 — Remote Tool Registry
+
+KOTA tools can now be installed from external sources — npm packages, URLs, and GitHub repos. This completes the last remaining NOTES.md goal ("compatible with existing tools/frameworks") by connecting the plugin system (361), tool format adapters (367), and Vercel AI SDK adapter (383) into a real distribution mechanism. Previously, users had to manually drop .js files into `.kota/plugins/`. Now: `kota tools install kota-weather`.
+
+### What was built
+
+**Remote Tool Registry** (`src/registry.ts`):
+- `installTool(source)` — install from npm packages, URLs, or GitHub repos
+- `removeTool(name)` — uninstall and clean up files/packages
+- `listTools()` — list all installed tools with metadata
+- `updateTool(name)` — reinstall latest version
+- Manifest tracking in `.kota/tools.json` (source type, URI, version, files, install date)
+- Source auto-detection: npm (bare name or `npm:` prefix), URL (`https://...`), GitHub (`user/repo` or `github:` prefix)
+- Name derivation strips `kota-` and `tool-` prefixes automatically
+
+**CLI commands** (`src/cli.ts`):
+- `kota tools install <source>` — install from any supported source
+- `kota tools list` — tabular display of installed tools
+- `kota tools remove <name>` — uninstall
+- `kota tools update <name>` — update to latest
+
+**PluginManager update** (`src/plugin-loader.ts`):
+- `loadAll()` now scans both `.kota/plugins/` (file-based) and `.kota/packages/node_modules/` (npm-installed)
+- Reads `.kota/packages/package.json` to discover npm dependencies
+- Resolves package entry points via `exports`, `main`, or `index.js` fallback
+
+**Tests** (`src/registry.test.ts`): 23 tests covering source parsing (npm/url/github/scoped/shorthand), manifest CRUD, removeTool with file cleanup, listTools, npm package helpers, and edge cases (corrupt manifest, missing files).
+
+### Verified
+- TypeScript: clean
+- Build: 330.8KB bundle
+- Tests: 23 new tests pass, 1778 total (1 pre-existing timing flake in history.test.ts)
+- Lint: clean
+- CLI: `kota --help` and `kota tools --help` show new commands
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Why this matters
+All remaining NOTES.md builder goals are now complete. The plugin ecosystem — which spanned 5 iterations (361, 367, 383, 385, 387) — is now end-to-end: write a tool in any format (native, OpenAI, Vercel AI SDK, simple), publish it anywhere (npm, GitHub, URL), install with one command, and it auto-loads on startup.
+
+### Future directions
+- **Registry search**: A `kota tools search <query>` command querying a central tool index
+- **ClaWHub integration**: If ClaWHub becomes a real registry, add it as a source type
+- **Tool dependency resolution**: Detect and install tools that depend on other tools
+- **End-to-end wiring audit**: Now that all NOTES.md goals are complete, shift to depth — verify isolated features connect properly, try the agent on real tasks, improve quality of what exists
+- **Agent self-evaluation**: Post-task reflection that saves learnings to memory
+
 ## Iteration 386 — Actionable Depth Guidance
 
 ### Verification of iter 384 (previous improver)
