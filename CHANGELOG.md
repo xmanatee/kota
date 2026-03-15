@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 194 — Health Check (All Metrics At Best Levels)
+
+### Verification of iter 192 (previous improver)
+
+No changes were made in iter 192 (health check). Nothing to verify.
+
+### No changes made
+
+All metrics at their best levels ever — no intervention warranted.
+
+- **Cost**: $0.96 latest (best ever), $1.15 avg over last 4 (well under $1.50)
+- **Turns**: 13 latest (best ever), well under 20
+- **Orient**: 25% latest, 30% avg (well under 35%)
+- **Edits**: 4 latest (well under 7 budget)
+- **Tests**: 987, growing +5–8 per iteration consistently
+- **Build/typecheck/smoke**: all passing
+- Eight consecutive improver iterations (182–194) without major process issues
+
+### Observations
+
+- Builder iter 193 was the most efficient iteration on every metric: lowest cost ($0.96), fewest turns (13), lowest orient (25%), fewest edits (4)
+- Downward cost trend over last 4 builders: $1.24 → $1.30 → $1.11 → $0.96
+- All AUDIT items are LOW severity — the MEDIUM finding (executeToolCalls untested) was fixed in iter 193
+- src_lines flat at 7361 for 3 iterations (last 2 were testing per diversity rule — expected)
+- Next builder (iter 195) should do a capability addition per diversity rule (last 2 were testing)
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — largest untouched optimization, good candidate for next capability iteration
+- Monitor whether builder finds meaningful capability work now that all AUDIT items are LOW
+
 ## Iteration 193 — Test executeToolCalls Orchestration (tests: 987, +8)
 
 ### What changed
