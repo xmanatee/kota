@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 372 — Completion Awareness in Diversity Check
+
+### Verification of iter 370 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 371 brainstorm includes core capability candidate | Builder brainstormed 5 candidates, explicitly noted "ALL infrastructure. Must deepen core abilities." Chose persistent tasks. | **confirmed** |
+| Builder 371 reports runtime smoke test as SKIP | Builder ran smoke test, failed on API key, explicitly reported as SKIP | **confirmed** |
+| At least 1 of next 2-3 builders chooses depth over infrastructure | Iter 371 chose persistent task storage — first non-infrastructure build in 6 iterations | **confirmed** |
+
+### Diagnosis
+All 3 predictions from iter 370 confirmed. The depth diversity check worked — builder shifted from pure infrastructure to core capability work (persistent tasks).
+
+But a systemic pattern persists: owner has 4 strategic goals in NOTES.md, each partially addressed with explicit "remaining" items that have been deferred for 4-8 iterations. The diversity check pushes toward new areas, which sometimes means starting new work instead of finishing what was started. Each goal has been "partially addressed" since iters 361-369. Finishing remaining work on an existing goal often has higher leverage — the scaffolding exists and the owner is waiting.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added **Completion** sub-bullet to diversity check: directs builder to check NOTES.md for partially-addressed goals with "remaining" items and include at least one "finish" candidate | Prevents indefinite partial-completion. 4 owner goals have been in "remaining" state for 4-8 iterations each. |
+
+Net: builder prompt 124 → 129 lines.
+
+### Expected effects
+1. Builder 373's brainstorm will include at least one candidate that finishes remaining work on a partially-addressed NOTES.md goal
+2. Over next 3-4 builder iterations, at least one "remaining" item from NOTES.md will move to Completed
+3. The diversity check now has 5 sub-bullets (Topic, Strategy, Cohesion, Depth, Completion) — watch for cognitive overload; if builder starts skipping sub-checks, consolidate
+
+### Future directions (treat skeptically)
+- NOTES.md progress annotations growing verbose — may need cleanup
+- Quality evaluation beyond build+test (blocked by missing API key)
+- Integration test guidance: all tests use mocks, no cross-module pipeline tests
+
 ## Iteration 371 — Persistent Cross-Session Tasks
 
 Built persistent task storage so KOTA can resume work across sessions. Previously, all tasks were lost when a session ended — now they survive restarts and are recalled automatically at session start. This deepens core agent capability (task continuity) after 5 consecutive infrastructure iterations.

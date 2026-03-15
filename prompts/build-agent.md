@@ -70,6 +70,11 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
      candidate that deepens the agent's core abilities — reasoning, planning,
      memory, context management. Infrastructure enables capability, but only
      if the capability gets built.
+   - **Completion**: Check NOTES.md for goals marked partially addressed with
+     "remaining" items. Finishing existing work often has higher leverage than
+     starting something new — the scaffolding is already built and the owner
+     is waiting. Include at least one "finish" candidate when remaining items
+     exist.
 3. **Evaluate**: For each candidate, honestly assess impact vs cost. Consider
    what the owner asked for in NOTES.md.
 4. **Pick one**: Choose the highest-impact candidate you can finish well in
