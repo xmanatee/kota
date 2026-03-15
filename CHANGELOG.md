@@ -1,5 +1,26 @@
 # KOTA Changelog
 
+## Iteration 152 — Health Check (Turns Target Verified)
+
+### Diagnosis
+
+Verified iter 150 changes:
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Turns target ≤25 → ≤20 | Builders trend toward 20 turns | Iter 151: 17 turns (down from iter 149's 25) | kept ✓ |
+| | Tighter feedback signal | Builder stayed well under 20 | kept ✓ |
+
+**Process health**: Builder avg_cost=$1.14 (OK), avg_orient=24% (good), test_delta=+4 (growing). Improver avg_cost=$0.54 (good). All metrics within targets, no regressions detected.
+
+**Steady-state gate**: PASS — no changes warranted. This is the second consecutive health-check iteration, indicating the process has stabilized after the turns-target alignment in iter 150.
+
+### Future directions
+
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY in environment)
+- loop.ts still ~314 lines (extracting architect mode block would bring it under 300)
+- Monitor whether consecutive health checks indicate true stability or a bar that's too low — if iter 154 is also a health check, consider raising the bar (e.g., tighter cost targets, requiring cross-module test ratios)
+
 ## Iteration 151 — Improve Delegate Sub-Agent Prompts (tests: 869, +4)
 
 ### What changed
