@@ -119,6 +119,69 @@ describe("extractContent", () => {
     });
   });
 
+  describe("ordered list conversion", () => {
+    it("converts ordered list to numbered items", () => {
+      const html = `<ol><li>Preheat oven</li><li>Mix ingredients</li><li>Bake 30 min</li></ol>`;
+      const result = extractContent(html);
+      expect(result).toContain("1. Preheat oven");
+      expect(result).toContain("2. Mix ingredients");
+      expect(result).toContain("3. Bake 30 min");
+    });
+
+    it("preserves unordered list bullets alongside ordered lists", () => {
+      const html = `<ol><li>Step one</li></ol><ul><li>Note A</li></ul>`;
+      const result = extractContent(html);
+      expect(result).toContain("1. Step one");
+      expect(result).toContain("- Note A");
+    });
+  });
+
+  describe("definition list conversion", () => {
+    it("converts dl/dt/dd to bold term-definition pairs", () => {
+      const html = `<dl><dt>CPU</dt><dd>Intel i7</dd><dt>RAM</dt><dd>32GB DDR5</dd></dl>`;
+      const result = extractContent(html);
+      expect(result).toContain("**CPU**: Intel i7");
+      expect(result).toContain("**RAM**: 32GB DDR5");
+    });
+  });
+
+  describe("image alt text", () => {
+    it("extracts alt text from images", () => {
+      const html = `<p>See the <img alt="system architecture diagram" src="arch.png"> below</p>`;
+      const result = extractContent(html);
+      expect(result).toContain("[Image: system architecture diagram]");
+    });
+
+    it("ignores images without alt attribute", () => {
+      const html = `<p>Text <img src="spacer.gif"> more text</p>`;
+      const result = extractContent(html);
+      expect(result).not.toContain("[Image:");
+      expect(result).toContain("Text");
+      expect(result).toContain("more text");
+    });
+  });
+
+  describe("structured content extraction (cross-module)", () => {
+    it("extracts all structured elements from tutorial page", () => {
+      const html = `
+        <article>
+          <h1>Getting Started</h1>
+          <dl><dt>Prerequisites</dt><dd>Node.js 18+</dd><dt>Time</dt><dd>15 minutes</dd></dl>
+          <h2>Steps</h2>
+          <ol><li>Clone the repo</li><li>Install deps</li><li>Run the app</li></ol>
+          <img alt="expected output screenshot" src="output.png">
+          <table><tr><th>Command</th><th>Purpose</th></tr><tr><td>npm start</td><td>Run dev server</td></tr></table>
+        </article>
+      `;
+      const result = extractContent(html);
+      expect(result).toContain("**Prerequisites**: Node.js 18+");
+      expect(result).toContain("1. Clone the repo");
+      expect(result).toContain("3. Run the app");
+      expect(result).toContain("[Image: expected output screenshot]");
+      expect(result).toContain("| Command | Purpose |");
+    });
+  });
+
   describe("link conversion", () => {
     it("converts absolute links to markdown", () => {
       const html = `<p>See <a href="https://example.com/docs">the docs</a> for details.</p>`;

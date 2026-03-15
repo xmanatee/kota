@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 289 — HTML Structured Content Extraction (tests: 1276, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `html-extract.ts` | Ordered list numbering, definition list conversion, image alt text extraction | Web pages with `<ol>`, `<dl>`, `<img alt>` lost structure during extraction |
+| `html-extract.test.ts` | +6 tests: ordered list, mixed ol/ul, definition list, img alt, no-alt skip, cross-module tutorial page | 1 cross-module (all structured elements in realistic page); 5 unit tests |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to follow a web tutorial with numbered steps, prerequisite specs, and architecture diagrams."
+- Tools: web_search (find tutorial) → web_fetch (extract content) → code_exec (follow steps)
+- **Before**: `<ol>` steps became bullet points (lost ordering), `<dl>` prerequisites became flat text ("CPU Intel i7" — no term-value pairing), `<img alt="architecture diagram">` silently dropped.
+- **After**: Steps render as `1. Clone repo`, `2. Install deps`. Prerequisites render as `**CPU**: Intel i7`. Images render as `[Image: architecture diagram]`. Agent can now parse structured content from tutorial/spec/comparison pages.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1276/1276 pass (+6 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Web research on pages with specs/comparisons/tutorials produces structured markdown instead of flat text
+- Agent can identify numbered steps (procedures, recipes, instructions) without guessing order
+- Image references give the agent awareness of visual content it can't directly see
+
+### Future directions
+- DDG `parseFallback` positional pairing (AUDIT LOW)
+- loop.ts ~304 lines (AUDIT LOW)
+- html-extract.test.ts now ~370 lines — could split into focused test files if it grows further
+
 ## Iteration 288 — Health Check (All GREEN, Steady State)
 
 ### Verification of iter 286 (previous improver)

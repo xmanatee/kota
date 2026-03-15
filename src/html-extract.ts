@@ -162,6 +162,37 @@ function convertHeadings(html: string): string {
 function convertInlineElements(html: string): string {
   let result = html;
 
+  // Ordered list items → numbered
+  result = result.replace(
+    /<ol[^>]*>([\s\S]*?)<\/ol>/gi,
+    (_, content) => {
+      let n = 0;
+      return (content as string).replace(
+        /<li[^>]*>([\s\S]*?)<\/li>/gi,
+        (_m: string, text: string) => `\n${++n}. ${stripTags(text)}`,
+      );
+    },
+  );
+
+  // Definition lists → bold term: definition
+  result = result.replace(
+    /<dl[^>]*>([\s\S]*?)<\/dl>/gi,
+    (_, inner) => {
+      const pairs: string[] = [];
+      const re = /<dt[^>]*>([\s\S]*?)<\/dt>[\s\S]*?<dd[^>]*>([\s\S]*?)<\/dd>/gi;
+      for (const m of (inner as string).matchAll(re)) {
+        pairs.push(`**${stripTags(m[1])}**: ${stripTags(m[2])}`);
+      }
+      return pairs.length > 0 ? "\n" + pairs.join("\n") + "\n" : "";
+    },
+  );
+
+  // Image alt text
+  result = result.replace(
+    /<img[^>]*\balt="([^"]+)"[^>]*\/?>/gi,
+    (_, alt) => `[Image: ${decodeEntities(alt)}]`,
+  );
+
   // List items
   result = result.replace(
     /<li[^>]*>([\s\S]*?)<\/li>/gi,
