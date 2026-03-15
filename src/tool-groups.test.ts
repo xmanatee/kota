@@ -224,5 +224,14 @@ describe("tool-groups", () => {
       // "search" alone doesn't trigger web (could be file search)
       expect(detectToolGroups("Search for the function in the codebase")).not.toContain("web");
     });
+
+    it("matches word stems like analyze, visualize, statistics, visualization", () => {
+      // These failed before the trailing \b fix — stems didn't match inflected forms
+      expect(detectToolGroups("Analyze the sales data")).toContain("code");
+      expect(detectToolGroups("Visualize the results")).toContain("code");
+      expect(detectToolGroups("Run some statistical analysis")).toContain("code");
+      expect(detectToolGroups("Create a visualization")).toContain("code");
+      expect(detectToolGroups("Show me statistics for Q1")).toContain("code");
+    });
   });
 });

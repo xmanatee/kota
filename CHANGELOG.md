@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 203 — Fix Stem Matching in Tool Detection + Cross-Module Data Analysis Tests (tests: 1040, +15)
+
+### Workflow impact
+
+**Scenario**: "User has `sales_data.csv`, asks agent to analyze anomalies and plot monthly trends"
+
+**Before**: `detectToolGroups` used `\b` at both ends of keyword patterns. Stem keywords like `analyz`, `visualiz`, `statistic` could not match their inflected forms ("analyze", "visualize", "statistics", "visualization", "statistical"). So "Analyze the sales data" only matched because of the `csv` keyword — prompts without `csv` like "Analyze the error logs" or "Visualize the results" did NOT auto-enable the `code` group. The agent wasted a turn calling `enable_tools(["code"])`.
+
+**After**: Trailing `\b` removed from all `GROUP_SIGNALS` patterns (start-of-word boundary retained). "Analyze", "visualize", "statistics", "visualization", "statistical" all correctly trigger `code` group auto-detection. Also affects `management` and `advanced_editing` groups, though no stem bugs existed there — the fix is preventive.
+
+Cross-module integration tests verify the full data analysis pipeline: prompt detection → tool availability → code execution output → plot capture parsing → error/package hint propagation.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` | Removed trailing `\b` from all 4 `GROUP_SIGNALS` regex patterns | Stem keywords (`analyz`, `visualiz`, `statistic`) couldn't match inflected forms ("analyze", "visualization", etc.) |
+| `tool-groups.test.ts` | Added 5 assertions: stem matching regression tests | Prevents future reintroduction of the `\b` bug |
+| `code-exec-integration.test.ts` (new) | 15 cross-module tests: tool-groups→code_exec availability, code_exec→plot-capture parsing, plot-capture file errors, package hint flow | Exercises boundaries between 4 modules in the data analysis pipeline |
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1040 tests pass (was 1025, +15)
+- `node dist/cli.js --help` — pass
+- Scenario re-trace: "Analyze the sales data" now matches `code` via the `analyz` stem (verified: old regex returned `false`, fixed regex returns `true`). Plot capture correctly separates markers from text output. Missing package errors produce install hints end-to-end.
+
+### Expected effects
+
+- Data analysis prompts without explicit keywords like "csv" or "python" now auto-enable `code_exec` — saves 1 turn per session for prompts like "Analyze the error logs", "Visualize the distribution", "Show statistics"
+- Cross-module tests catch regressions at module boundaries (plot marker format changes, package hint extraction, tool availability after detection)
+
+### Future directions
+
+- Consider whether `code_exec` belongs in core tools (always available) since computation is fundamental to a general agent
+- The plot capture flow silently swallows file read errors — could add a warning message to the tool result when plot files are missing
+- Cross-module test for delegate + code_exec: verify execute-mode sub-agents can use code_exec
+
 ## Iteration 202 — Orient Self-Tracking to Reduce Orientation Overhead
 
 ### Verification of iter 200 (previous improver)

@@ -64,10 +64,10 @@ export function getEnabledGroups(): string[] {
 }
 
 const GROUP_SIGNALS: Record<string, RegExp> = {
-  web: /\b(research|browse|internet|website|online|url|https?:|web.?search|look.up)\b/i,
-  code: /\b(python|calculate|compute|plot|chart|graph|visualiz|analyz|csv|statistic|pandas|numpy|matplotlib|data.analysis)\b/i,
-  management: /\b(plan|planning|tasks?|track|tracking|schedule|monitor|remember|background|watcher?|milestone|deadline)\b/i,
-  advanced_editing: /\b(refactor|refactoring|rename|renaming|codebase|bulk|batch)\b/i,
+  web: /\b(research|browse|internet|website|online|url|https?:|web.?search|look.up)/i,
+  code: /\b(python|calculate|compute|plot|chart|graph|visualiz|analyz|csv|statistic|pandas|numpy|matplotlib|data.analysis)/i,
+  management: /\b(plan|planning|tasks?|track|tracking|schedule|monitor|remember|background|watcher?|milestone|deadline)/i,
+  advanced_editing: /\b(refactor|refactoring|rename|renaming|codebase|bulk|batch)/i,
 };
 
 /** Detect tool groups that should be auto-enabled based on prompt content. */
