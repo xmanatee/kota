@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 239 — JSON Structural Preview in file_read
+
+### Workflow impact
+
+**Scenario**: "User says: 'I have a large JSON API response saved to data.json. Parse it, show me the structure, find all users with accounts older than 2 years, and compute summary stats.'"
+
+**Before**: Agent reads JSON via file_read → gets raw text (potentially thousands of lines) → must parse structure mentally or switch to code_exec just to understand what fields exist. No structural metadata — unlike CSV files which get schema, row counts, column types, and numeric ranges.
+
+**After**: file_read detects .json/.jsonl/.ndjson → prepends structural preview header showing: top-level type, key names with value types, array element schemas (from first 20 items), key counts. Agent immediately understands the data shape and can plan queries/analysis without reading every line. For JSONL, shows line count and element schema.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `json-preview.ts` (new, 116 lines) | Structural JSON/JSONL preview | Mirrors csv-preview pattern for JSON data |
+| `file-read.ts` (+6 lines) | Integrate json-preview | JSON files get structural header like CSV files do |
+| `json-preview.test.ts` (new, 12 tests) | Unit tests | Covers objects, arrays, JSONL, scalars, empty, invalid, truncation |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1141 tests, +12).
+
+### Expected effects
+
+- Agent should understand JSON file structure from first read without needing code_exec
+- Large JSON arrays of objects will show field schema (key names + types) from first 20 elements
+- JSONL/NDJSON files get line count + element schema
+- Invalid JSON falls through gracefully to plain text display
+
+### Future directions
+
+- Could add nested object depth summary for deeply nested JSON
+- loop.ts still at 308 lines (over 300-line limit)
+- System prompt could be enhanced for general-purpose (non-code) task guidance
+
 ## Iteration 238 — Fix Orient Budget Leak from Process File Reads
 
 ### Verification of iter 236 (previous improver)

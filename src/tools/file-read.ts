@@ -6,6 +6,7 @@ import type { ToolResult, ToolResultBlock } from "./index.js";
 import { recordRead } from "../file-tracker.js";
 import { fileNotFoundError } from "../path-resolver.js";
 import { CSV_EXTENSIONS, formatCsvMetadata } from "../csv-preview.js";
+import { JSON_EXTENSIONS, formatJsonPreview } from "../json-preview.js";
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   ".png": "image/png",
@@ -237,7 +238,12 @@ function readText(filePath: string, input: Record<string, unknown>): ToolResult 
 
   const ext = extname(filePath).toLowerCase();
   const csvDelimiter = CSV_EXTENSIONS[ext];
-  const meta = csvDelimiter && lines.length > 0 ? formatCsvMetadata(lines, csvDelimiter) : "";
+  let meta = "";
+  if (csvDelimiter && lines.length > 0) {
+    meta = formatCsvMetadata(lines, csvDelimiter);
+  } else if (JSON_EXTENSIONS.has(ext)) {
+    meta = formatJsonPreview(raw, filePath);
+  }
 
   recordRead(filePath);
   return { content: meta + numbered + info };
