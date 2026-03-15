@@ -30,10 +30,38 @@ describe("SYSTEM_PROMPT", () => {
       "### Planning & Strategy",
       "### Automation & Monitoring",
       "### Debugging & Diagnosis",
+      "### Everyday Assistance",
     ];
     for (const workflow of workflows) {
       expect(SYSTEM_PROMPT).toContain(workflow);
     }
+  });
+
+  it("identifies as personal assistant, not just task runner", () => {
+    expect(SYSTEM_PROMPT).toContain("personal assistant");
+    expect(SYSTEM_PROMPT).toContain("whatever the user needs");
+  });
+
+  it("guides when NOT to use tools for conversational tasks", () => {
+    expect(SYSTEM_PROMPT).toContain("Not every question needs a tool");
+    expect(SYSTEM_PROMPT).toContain("Direct knowledge");
+    expect(SYSTEM_PROMPT).toContain("conversational responses");
+    expect(SYSTEM_PROMPT).toContain("not by default");
+  });
+
+  it("everyday assistance covers advice, drafting, brainstorming, explanations", () => {
+    const section = SYSTEM_PROMPT.split("### Everyday Assistance")[1]?.split("###")[0] || "";
+    expect(section).toContain("comparison table");
+    expect(section).toContain("Email/message drafting");
+    expect(section).toContain("Brainstorming");
+    expect(section).toContain("Explanations");
+    expect(section).toContain("Meeting/presentation prep");
+  });
+
+  it("everyday assistance guides matching explanation depth to user expertise", () => {
+    const section = SYSTEM_PROMPT.split("### Everyday Assistance")[1]?.split("###")[0] || "";
+    expect(section).toContain("match depth");
+    expect(section).toContain("analogies");
   });
 
   it("references all 19 built-in tool names", () => {
@@ -49,9 +77,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 10200 characters to keep token cost manageable", () => {
-    // ~10500 chars ≈ ~2625 tokens, cached at 0.1x. Budget raised for research quality guidance (iter 317).
-    expect(SYSTEM_PROMPT.length).toBeLessThan(10500);
+  it("stays under 11500 characters to keep token cost manageable", () => {
+    // ~11500 chars ≈ ~2875 tokens, cached at 0.1x. Budget raised for everyday assistance patterns (iter 325).
+    expect(SYSTEM_PROMPT.length).toBeLessThan(11500);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {

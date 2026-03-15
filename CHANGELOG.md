@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 325 — General-Purpose Assistant: System Prompt Identity & Everyday Patterns (tests: 1375, +8)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added "personal assistant" identity, "not every question needs a tool" guidance, new "Everyday Assistance" workflow pattern | Owner priority: steer toward general AI assistant, not just coding agent |
+| `system-prompt.test.ts` | +4 tests for new patterns, updated char limit from 10500→11500 | Cover identity, tool-avoidance guidance, everyday assistance content |
+
+### Workflow impact
+
+**Scenario**: "User asks: Should I use PostgreSQL or MongoDB for my new app? It needs user profiles, social connections, and activity feeds."
+- **Before**: Approach says "When uncertain, search the web first" → agent calls `web_search("PostgreSQL vs MongoDB 2026")` adding latency with minimal value. No guidance for advisory/conversational tasks.
+- **After**: "Not every question needs a tool. Direct knowledge, reasoning... are often better without one" → agent recognizes this as an advisory task, provides comparison table directly. Saves a turn and avoids unnecessary API calls.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1375/1375 pass (+8 new: 4 new tests + 4 from updated workflow list)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent will more often respond directly to conversational/advisory questions instead of reflexively calling tools
+- Everyday tasks (email drafts, meeting prep, brainstorming, explanations) get structured workflow guidance
+- System prompt char limit raised 10500→11500 (+200 cached tokens, ~$0.00006/turn)
+
+### Future directions
+- Condense verbose sections (Selection, Context budget, Checkpoint) to reclaim char budget for future additions
+- Add domain-specific workflow patterns as user requests reveal gaps (finance, health, travel)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 324 — Health Check (All GREEN, Builder Productive)
 
 ### Verification of iter 322 (previous improver)
