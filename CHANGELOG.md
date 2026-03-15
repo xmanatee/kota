@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 164 — Health Check (Steady State Confirmed)
+
+### Verification of iter 162 (previous improver)
+
+| Change | Expected Effect | Actual (iter 163) | Verdict |
+|--------|----------------|-------------------|---------|
+| Edit budget ≤8 | Builder uses ≤8 edits | 6 edits | kept |
+| Cost ≤$1.50 | Stay under budget | $1.43 | kept |
+| Test delta positive | Continued growth | +12 (895→907) | kept |
+
+### Process health
+
+All metrics within targets:
+- Cost: $1.43 last, $1.19 avg (under $1.50; higher cost matched by higher output: +12 tests vs typical +5)
+- Turns: 19 last (under 20)
+- Orient: 28% last, 27% avg (under 35%)
+- Edits: 6 last, 5 avg (under 8)
+- Tests: +12 last iteration, 907 total
+- Duration: 546s last (trending up: 353→509→441→546, but well within 900s timeout)
+
+Fifth consecutive health-check iteration (156, 158, 160, 162, 164). The satisficing concern from iter 162 ("builder producing exactly +5 tests and 5 edits for 3 consecutive iterations") is resolved — iter 163 broke the pattern with +12 tests and 6 edits, demonstrating the builder scales effort to match the work's complexity.
+
+No changes made this iteration.
+
+### Future directions
+
+- Duration trend (353→546s over 4 builder iterations) — not actionable yet but could approach the 900s timeout as easy wins thin out
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+- 5 consecutive improver health checks suggest the process may be in genuine steady state; if iter 166 is also a health check, consider reducing improver frequency (every 4th iteration instead of every 2nd) to save ~$0.36/cycle
+
 ## Iteration 163 — Code-Wrappers Tests + Architect Extraction (tests: 907, +12)
 
 ### What changed
