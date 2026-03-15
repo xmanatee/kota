@@ -58,13 +58,52 @@ const KNOWN_TOOL_NAMES = new Set([
   ...Object.values(TOOL_GROUPS).flat(),
 ]);
 
+// --- Plugin group registration ---
+
+const customGroupNames = new Set<string>();
+
+/** Register a tool group (or extend an existing one) from a plugin. */
+export function registerCustomGroup(name: string, toolNames: string[], pattern?: RegExp): void {
+  if (!TOOL_GROUPS[name]) {
+    TOOL_GROUPS[name] = [];
+    customGroupNames.add(name);
+  }
+  for (const t of toolNames) {
+    if (!TOOL_GROUPS[name].includes(t)) {
+      TOOL_GROUPS[name].push(t);
+      KNOWN_TOOL_NAMES.add(t);
+    }
+  }
+  if (pattern) {
+    GROUP_SIGNALS[name] = pattern;
+  }
+}
+
+/** Remove all plugin-registered groups and rebuild KNOWN_TOOL_NAMES. */
+export function clearCustomGroups(): void {
+  for (const name of customGroupNames) {
+    delete TOOL_GROUPS[name];
+    delete GROUP_SIGNALS[name];
+  }
+  customGroupNames.clear();
+  rebuildKnownNames();
+}
+
+function rebuildKnownNames(): void {
+  KNOWN_TOOL_NAMES.clear();
+  for (const n of CORE_TOOL_NAMES) KNOWN_TOOL_NAMES.add(n);
+  for (const tools of Object.values(TOOL_GROUPS)) {
+    for (const t of tools) KNOWN_TOOL_NAMES.add(t);
+  }
+}
+
 export function filterTools(tools: Anthropic.Tool[]): Anthropic.Tool[] {
   const active = getActiveToolNames();
   // Include active built-in tools + any custom-registered tools (not in any group/core)
   const filtered = tools.filter((t) => active.has(t.name) || !KNOWN_TOOL_NAMES.has(t.name));
-  // enable_tools is not in allTools but must always be available
+  // enable_tools is not in allTools but must always be available — rebuild with current groups
   if (!filtered.some((t) => t.name === "enable_tools")) {
-    filtered.push(enableToolsTool);
+    filtered.push(buildEnableToolsTool());
   }
   return filtered;
 }
@@ -93,31 +132,36 @@ export function detectToolGroups(prompt: string): string[] {
   return groups;
 }
 
-const GROUP_DESCRIPTIONS = Object.entries(TOOL_GROUPS)
-  .map(([name, tools]) => `- ${name}: ${tools.join(", ")}`)
-  .join("\n");
-
 const CORE_LIST = [...CORE_TOOL_NAMES]
   .filter((n) => n !== "enable_tools")
   .sort()
   .join(", ");
 
-export const enableToolsTool: Anthropic.Tool = {
-  name: "enable_tools",
-  description:
-    `Enable additional tool groups. Call this before using specialized tools.\n\nGroups:\n${GROUP_DESCRIPTIONS}\n- all: enable everything\n\nYou can also pass tool names (e.g. "web_search") — the parent group will be enabled.\n\nCore (always available): ${CORE_LIST}`,
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      groups: {
-        type: "array",
-        items: { type: "string" },
-        description: 'Groups to enable, e.g. ["web", "code"]',
+/** Build enable_tools with current group info (includes plugin groups). */
+function buildEnableToolsTool(): Anthropic.Tool {
+  const desc = Object.entries(TOOL_GROUPS)
+    .map(([name, tools]) => `- ${name}: ${tools.join(", ")}`)
+    .join("\n");
+  return {
+    name: "enable_tools",
+    description:
+      `Enable additional tool groups. Call this before using specialized tools.\n\nGroups:\n${desc}\n- all: enable everything\n\nYou can also pass tool names (e.g. "web_search") — the parent group will be enabled.\n\nCore (always available): ${CORE_LIST}`,
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        groups: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Groups to enable, e.g. ["web", "code"]',
+        },
       },
+      required: ["groups"],
     },
-    required: ["groups"],
-  },
-};
+  };
+}
+
+/** For backwards compat — static reference rebuilt lazily. */
+export const enableToolsTool: Anthropic.Tool = buildEnableToolsTool();
 
 export async function runEnableTools(
   input: Record<string, unknown>,

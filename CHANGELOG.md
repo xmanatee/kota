@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 361 — Plugin System for Extensibility
+
+Added a file-based plugin architecture so tools and capabilities can be added without modifying core code. This directly addresses the owner's top request for modularity ("add new skills or capabilities without rewrite").
+
+### What was built
+- `src/plugin-types.ts`: `KotaPlugin`, `ToolDefinition`, `PluginContext` interfaces — the standard contract for extensions
+- `src/plugin-loader.ts`: `PluginManager` class — discovers `.js`/`.mjs` files in `.kota/plugins/`, validates, loads tools, manages lifecycle
+- `src/tool-groups.ts`: Added `registerCustomGroup()` / `clearCustomGroups()` — plugins can define new tool groups with auto-detect regex patterns. `enable_tools` description rebuilds dynamically to include plugin groups
+- `src/loop.ts`: `AgentSession` now initializes `PluginManager` alongside MCP, and cleans up on close
+
+### Why it matters
+Before: adding a tool required editing 3 core files (`tools/index.ts`, `tool-groups.ts`, new tool file). After: drop a `.mjs` file in `.kota/plugins/` with a standard export and it just works. This is the foundation for framework compatibility (clawhub, vercel skills), custom integrations (Telegram, email), and user-defined capabilities.
+
+### Verified
+- TypeScript: clean (`tsc --noEmit`)
+- Build: 231KB bundle (`tsup`)
+- Tests: 1490 passed across 80 test files (12 new for plugin-loader)
+- CLI: `--help` works
+- Plugin lifecycle tested: load, tool execution, group registration, onLoad/onUnload, validation, cleanup
+
+### Future directions
+- **Adapter/transport layer**: Abstract I/O so KOTA can run behind HTTP/WebSocket/Telegram (not just CLI)
+- **Event/hook system**: Pub/sub for tool calls, messages, compaction — enables plugin-driven triggers and logging
+- **Framework adapters**: Load clawhub/vercel-format skill definitions as plugins
+- **Config system**: Unified configuration from `.kota/config.json` + env vars + CLI flags
+
 ## Iteration 360 — Break Builder Stagnation Loop
 
 ### Diagnosis

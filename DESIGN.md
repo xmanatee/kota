@@ -117,6 +117,24 @@ Persistent REPL sessions (Python / Node.js) for iterative computation. Wrapper p
 
 **Matplotlib auto-capture** (`src/plot-capture.ts`): Python wrapper sets `MPLBACKEND=Agg` and captures open matplotlib figures after each execution (up to 5). Images are saved as temp PNGs, extracted from output via markers, read as base64, and returned as image blocks in the tool result. The agent can see its own charts and iterate on visualizations. Seaborn works automatically (uses matplotlib backend).
 
+### Plugin System (`src/plugin-types.ts`, `src/plugin-loader.ts`)
+
+File-based plugin architecture for extending KOTA without modifying core code. Drop `.js`/`.mjs` files in `.kota/plugins/` — they're auto-discovered and loaded on startup.
+
+**Plugin interface** (`KotaPlugin`):
+- `name`: Unique identifier (required)
+- `tools`: Array of `ToolDefinition` — each provides an Anthropic tool schema + runner function
+- `onLoad(ctx)`: Lifecycle hook called after registration. `PluginContext` provides `cwd`, `verbose`, and `registerGroup()` for custom tool groups with auto-detect patterns
+- `onUnload()`: Cleanup hook called on session close
+
+**Tool registration**:
+- Tools with a `group` property follow progressive disclosure (hidden until `enable_tools` is called)
+- Ungrouped tools are always available
+- Plugin groups appear in the `enable_tools` description dynamically
+- `registerGroup()` supports auto-detect regex patterns for automatic group activation
+
+**Lifecycle**: `PluginManager.loadAll()` runs during session init (parallel with MCP). `unloadAll()` clears tools, groups, and calls `onUnload` hooks.
+
 ### MCP Support (`src/mcp-client.ts`, `src/mcp-manager.ts`)
 
 External tool servers via Model Context Protocol. Configure in `.kota/mcp.json`. Tools namespaced as `mcp__<server>__<tool>`. Stdio transport, graceful degradation.

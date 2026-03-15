@@ -13,6 +13,7 @@ import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { VerifyTracker, detectVerifyCommands, processToolResults } from "./verify-tracker.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { McpManager } from "./mcp-manager.js";
+import { PluginManager } from "./plugin-loader.js";
 import { cleanupProcesses } from "./tools/process.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 
@@ -48,6 +49,7 @@ export class AgentSession {
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker: VerifyTracker;
   private mcpManager: McpManager | null = null;
+  private pluginManager: PluginManager;
   private sigintHandler: () => void;
   private closed = false;
   private initialized = false;
@@ -102,8 +104,10 @@ export class AgentSession {
       costTracker: this.costTracker,
     });
 
-    // Initialize MCP servers asynchronously (awaited before first send)
-    this.initPromise = this.initMcp();
+    this.pluginManager = new PluginManager(this.verbose);
+
+    // Initialize MCP servers + plugins asynchronously (awaited before first send)
+    this.initPromise = this.initExtensions();
 
     // SIGINT handler: save session before exit
     this.sigintHandler = () => {
@@ -116,19 +120,22 @@ export class AgentSession {
     process.on("SIGINT", this.sigintHandler);
   }
 
-  private async initMcp(): Promise<void> {
+  private async initExtensions(): Promise<void> {
+    // Load MCP servers
     const config = McpManager.loadConfig();
-    if (!config) {
-      this.initialized = true;
-      return;
+    if (config) {
+      this.mcpManager = new McpManager();
+      await this.mcpManager.initialize(config);
+      if (this.mcpManager.getToolCount() > 0 && this.verbose) {
+        console.error(
+          `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
+        );
+      }
     }
-    this.mcpManager = new McpManager();
-    await this.mcpManager.initialize(config);
-    if (this.mcpManager.getToolCount() > 0 && this.verbose) {
-      console.error(
-        `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
-      );
-    }
+
+    // Load plugins from .kota/plugins/
+    await this.pluginManager.loadAll();
+
     this.initialized = true;
   }
 
@@ -290,6 +297,7 @@ export class AgentSession {
     cleanupProcesses();
     cleanupSessions();
     resetGroups();
+    this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     console.error(`[kota] Done \u2014 ${this.costTracker.getSummary()}`);
   }
