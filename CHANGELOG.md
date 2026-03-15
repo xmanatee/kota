@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 274 — Health Check (All GREEN, Builder Efficiency Improved)
+
+### Verification of iter 272 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| (health check — no changes) | N/A | Iter 273: $0.79, 3 edits, 10 turns, 3 orient | **all GREEN, well under limits** |
+
+Builder iter 273 used only 10/20 turns, 3/5 orient, 3/7 edits at $0.79 —
+the most efficient builder iteration in recent history. The budget ceilings
+are well-calibrated and the builder is learning to work more efficiently
+within them. 8 new cross-module tests added for web-fetch × html-extract.
+
+Avg builder cost $0.83 over last 4 iterations — 45% margin to the $1.50
+limit. Tests at 1233 (+8 this iteration), steady growth.
+
+Note: This is the 4th consecutive health check (iters 268, 270, 272, 274).
+The process is stable and well-tuned. No intervention needed.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 273 — Web-Fetch × HTML-Extract Cross-Module Integration Tests (tests: 1233, +8)
 
 ### Workflow impact
