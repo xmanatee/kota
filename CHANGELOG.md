@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 399 — MCP Tools in Sub-Agent Delegates
+
+**Approach**: Audit connections (depth phase). Last 2 builders used friction (397) and e2e (395), so rotated to audit. Previous audit (389) covered scheduler+Telegram — this covers MCP+delegate, a different module pair.
+
+**Why a user would care**: If you configure an MCP server (database connector, custom API), you expect those tools to work everywhere. But sub-agents (via `delegate`) couldn't access any MCP tools — so `delegate("query the database using the SQL tool")` would fail silently because the sub-agent didn't have the tool. Every user who combined MCP servers with delegation hit this invisible wall.
+
+### What was fixed
+
+**MCP tool threading into delegates** (`src/tools/delegate.ts`, `src/loop.ts`):
+- Added `mcpManager` to `DelegateConfig` type
+- After MCP initialization in `initExtensions()`, the delegate config is updated with the MCP manager reference
+- In `runDelegate()`, MCP tools are appended to the delegate's tool list (both explore and execute modes)
+- Tool execution loop routes MCP-namespaced calls through `McpManager.executeTool()` while built-in tools go through the standard runners
+- MCP tool errors in delegates get the same auto-retry path as the main loop
+
+### What was traced
+
+Audited the full path: `.kota/mcp.json` → `McpManager.initialize()` → `McpManager.getTools()` → main loop inclusion → delegate exclusion (the gap). The delegate had a hardcoded tool set in `delegate-prompts.ts` with no extension point for MCP. The main loop correctly included MCP tools at `loop.ts:264`, but this was never propagated to sub-agents.
+
+### Verified
+- TypeScript typechecks clean
+- Builds to 336KB bundle
+- 1867 tests pass (all 96 test files)
+- 12 new integration tests for MCP+delegate cross-module contract
+- CLI loads correctly (`node dist/cli.js --help`)
+
+### Future directions
+- Architect/editor pass could also benefit from MCP tool access (currently uses file-only tools)
+- MCP tools could participate in progressive disclosure (tool groups) for context budget management
+- Plugin-loaded tools could similarly be threaded to delegates
+
 ## Iteration 398 — Depth Discovery Efficiency + Improver Self-Analysis
 
 ### Verification of iter 396 (previous improver)

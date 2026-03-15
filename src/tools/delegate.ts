@@ -10,6 +10,7 @@ import {
   exploreRunners,
   exploreTools,
 } from "../delegate-prompts.js";
+import type { McpManager } from "../mcp-manager.js";
 import { maybeRetry } from "../tool-retry.js";
 import type { Transport } from "../transport.js";
 import {
@@ -63,6 +64,7 @@ export type DelegateConfig = {
   projectContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;
+  mcpManager?: McpManager;
 };
 
 let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
@@ -87,8 +89,13 @@ export async function runDelegate(
   }
 
   const isExecute = mode === "execute";
-  const tools = isExecute ? executeTools : exploreTools;
+  const builtinTools = isExecute ? executeTools : exploreTools;
   const runners = isExecute ? executeRunners : exploreRunners;
+
+  // Include MCP tools so sub-agents can use external tool servers
+  const mcpMgr = delegateConfig.mcpManager;
+  const mcpTools = mcpMgr ? mcpMgr.getTools() : [];
+  const tools = mcpTools.length > 0 ? [...builtinTools, ...mcpTools] : builtinTools;
   const maxTurns = isExecute ? EXECUTE_MAX_TURNS : EXPLORE_MAX_TURNS;
   const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
   const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
@@ -185,23 +192,28 @@ export async function runDelegate(
     const results = await Promise.all(
       toolBlocks.map(async (block) => {
         if (block.type !== "tool_use") return null;
-        const runner = runners[block.name];
-        if (!runner) {
+        const toolInput = block.input as Record<string, unknown>;
+
+        // Route MCP tools through the manager, built-in tools through runners
+        const isMcp = mcpMgr?.isMcpTool(block.name);
+        const runner = isMcp ? undefined : runners[block.name];
+        if (!runner && !isMcp) {
           return {
             tool_use_id: block.id,
             content: `Unknown tool: ${block.name}`,
             is_error: true as const,
           };
         }
-        const toolInput = block.input as Record<string, unknown>;
-        let result = await runner(toolInput);
+        let result = isMcp
+          ? await mcpMgr!.executeTool(block.name, toolInput)
+          : await runner!(toolInput);
 
         // Auto-retry transient failures (timeouts, network, 503s)
         if (result.is_error) {
-          const retried = await maybeRetry(
-            block.name, toolInput, result,
-            async (_n, i) => runner(i),
-          );
+          const executor = isMcp
+            ? async (_n: string, i: Record<string, unknown>) => mcpMgr!.executeTool(block.name, i)
+            : async (_n: string, i: Record<string, unknown>) => runner!(i);
+          const retried = await maybeRetry(block.name, toolInput, result, executor);
           if (retried) result = retried;
         }
 

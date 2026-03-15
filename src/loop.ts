@@ -66,6 +66,7 @@ export class AgentSession {
   private closed = false;
   private initialized = false;
   private initPromise: Promise<void>;
+  private projectContext: string;
   private conversationId: string | null = null;
 
   constructor(options: LoopOptions = {}) {
@@ -92,7 +93,8 @@ export class AgentSession {
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
 
-    const projectContext = loadProjectContext();
+    this.projectContext = loadProjectContext();
+    const projectContext = this.projectContext;
     const warmup = buildSessionWarmup();
     const userProfile = options.config ? buildUserProfile(options.config) : "";
     const systemPrompt = SYSTEM_PROMPT + projectContext + userProfile + warmup;
@@ -179,11 +181,23 @@ export class AgentSession {
     if (config) {
       this.mcpManager = new McpManager();
       await this.mcpManager.initialize(config);
-      if (this.mcpManager.getToolCount() > 0 && this.verbose) {
-        this.transport.emit({
-          type: "status",
-          message: `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
+      if (this.mcpManager.getToolCount() > 0) {
+        // Update delegate config so sub-agents can use MCP tools
+        setDelegateConfig({
+          model: this.editorModel,
+          client: this.client,
+          cwd: process.cwd(),
+          projectContext: this.projectContext || undefined,
+          costTracker: this.costTracker,
+          transport: this.transport,
+          mcpManager: this.mcpManager,
         });
+        if (this.verbose) {
+          this.transport.emit({
+            type: "status",
+            message: `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
+          });
+        }
       }
     }
 
