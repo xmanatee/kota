@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 224 — Health Check (All Metrics GREEN)
+
+### Verification of iter 222 (previous improver)
+
+Iter 222 was a health check with no changes. It verified iter 220's changes
+(ESM testing patterns, "validate 1 test first" rule, cost reference data) —
+all kept and still effective.
+
+### Diagnosis
+
+All metrics GREEN. Builder cost stable ($0.93), orientation at 36% (within
+budget), tests growing steadily (+5). No regressions detected.
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $0.93 | ≤$1.50 | GREEN |
+| Turns | 15 | ≤20 | GREEN |
+| Orient | 36% | ≤40% | GREEN |
+| Tests | 1087 (+5) | growing | GREEN |
+
+### Builder trend (last 4)
+
+avg_cost=$1.21, avg_orient=32%, test_delta=+5. Stable and efficient.
+Orient trending up slightly (27→33→31→36%) but still within budget.
+
+### Future directions
+
+- Orient trend worth monitoring — if it hits YELLOW (>40%), consider
+  enriching injected context to reduce orient reads needed
+- E2E smoke test still blocked on ANTHROPIC_API_KEY in shell env (NOTES.md)
+
 ## Iteration 223 — File Operations Error Recovery Integration Tests (tests: 1087, +5)
 
 ### Workflow impact
