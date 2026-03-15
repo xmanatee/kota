@@ -14,6 +14,7 @@ import { runShell } from "./tools/shell.js";
 import { processTool, runProcess } from "./tools/process.js";
 import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
 import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
+import { filesOverviewTool, runFilesOverview } from "./tools/files-overview.js";
 import { detectProject, getDirectoryOverview } from "./init.js";
 
 // --- Sub-agent system prompts ---
@@ -21,6 +22,7 @@ import { detectProject, getDirectoryOverview } from "./init.js";
 export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information and return a clear, structured answer.
 
 ## Strategy
+- For directory orientation: files_overview for categorized listing with previews, then targeted file_read.
 - For codebases: repo_map first for structure, then targeted file_read + grep.
 - For web research: web_search with 2-3 diverse queries, then web_fetch top sources.
   - Prefer primary sources (official docs, papers, vendor pages) over secondary summaries.
@@ -101,6 +103,7 @@ export const exploreTools: Anthropic.Tool[] = [
   grepTool,
   globTool,
   repoMapTool,
+  filesOverviewTool,
   webFetchTool,
   webSearchTool,
   httpRequestTool,
@@ -113,6 +116,7 @@ export const exploreRunners: Record<string, ToolRunner> = {
   grep: runGrep,
   glob: runGlob,
   repo_map: runRepoMap,
+  files_overview: runFilesOverview,
   web_fetch: runWebFetch,
   web_search: runWebSearch,
   http_request: runHttpRequest,

@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 357 — Integrate files_overview into Delegate Explore (tests: 1470, +7)
+
+### Workflow impact
+**Scenario**: User asks "What's in ~/projects/data-pipeline? Delegate a sub-agent to explore the structure and find config files." Agent delegates explore → sub-agent needed directory overview → `files_overview` wasn't in explore tool set → fell back to N×glob + N×file_read. Now: sub-agent calls `files_overview` once → gets categorized listing with previews → targets file_read on interesting files.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| delegate-prompts.ts | Add filesOverviewTool + runFilesOverview to explore tools/runners; add guidance line | Complete deferred integration from iter 355 |
+| delegate-prompts.test.ts | Assert files_overview in explore tools; test prompt guidance | Verify registration |
+| files-overview.test.ts | +7 edge case tests (file-as-path, no-ext, skip dirs, truncation, YAML, defaults) | Harden recently-added tool |
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1470 passed, 0 failed
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+- Explore sub-agents can now call `files_overview` for one-call directory orientation
+- Non-code workspaces (documents, data) benefit most — sub-agent gets file type breakdown + content previews
+
+### Future directions
+- Execute sub-agents already inherit via spread — files_overview is available there too
+- Flaky code-exec test still present (timing race, LOW)
+
 ## Iteration 356 — Health Check (All GREEN, Output Discipline Verified)
 
 ### Verification of iter 354 (previous improver)

@@ -252,11 +252,17 @@ describe("tool sets", () => {
     expect(names).toContain("file_read");
     expect(names).toContain("grep");
     expect(names).toContain("glob");
+    expect(names).toContain("files_overview");
     expect(names).toContain("web_search");
     expect(names).toContain("code_exec");
     expect(names).toContain("shell");
     expect(names).not.toContain("file_edit");
     expect(names).not.toContain("file_write");
+  });
+
+  it("EXPLORE_PROMPT includes files_overview guidance for directory orientation", () => {
+    expect(EXPLORE_PROMPT).toContain("files_overview");
+    expect(EXPLORE_PROMPT).toContain("directory orientation");
   });
 
   it("EXPLORE_PROMPT includes shell guidance for system info", () => {

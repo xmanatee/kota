@@ -72,4 +72,49 @@ describe("files_overview", () => {
     const r = await runFilesOverview({ path: empty });
     expect(r.content).toContain("empty");
   });
+
+  it("returns error when path is a file, not a directory", async () => {
+    const r = await runFilesOverview({ path: join(dir, "readme.md") });
+    expect(r.is_error).toBe(true);
+    expect(r.content).toContain("not a directory");
+  });
+
+  it("categorizes files without extension as Other", async () => {
+    await writeFile(join(dir, "Makefile"), "all:\n\techo hi");
+    const r = await runFilesOverview({ path: dir });
+    expect(r.content).toContain("Other");
+    expect(r.content).toContain("Makefile");
+  });
+
+  it("skips node_modules and .git directories", async () => {
+    await mkdir(join(dir, "node_modules"), { recursive: true });
+    await writeFile(join(dir, "node_modules", "pkg.js"), "module.exports = {}");
+    await mkdir(join(dir, ".git"), { recursive: true });
+    await writeFile(join(dir, ".git", "HEAD"), "ref: refs/heads/main");
+    const r = await runFilesOverview({ path: dir });
+    expect(r.content).not.toContain("pkg.js");
+    expect(r.content).not.toContain("HEAD");
+  });
+
+  it("truncates categories with more than 20 files", async () => {
+    const manyDir = join(dir, "many-test");
+    await mkdir(manyDir, { recursive: true });
+    for (let i = 0; i < 25; i++) {
+      await writeFile(join(manyDir, `file${i}.txt`), `content ${i}`);
+    }
+    const r = await runFilesOverview({ path: manyDir });
+    expect(r.content).toContain("... and 5 more");
+  });
+
+  it("defaults to cwd when no path given", async () => {
+    // Just verify it doesn't crash — result depends on actual cwd
+    const r = await runFilesOverview({});
+    expect(r.is_error).toBeUndefined();
+  });
+
+  it("shows YAML top-level keys preview", async () => {
+    await writeFile(join(dir, "config.yaml"), "name: myapp\nversion: 1.0\nport: 8080");
+    const r = await runFilesOverview({ path: dir });
+    expect(r.content).toContain("keys: name, version, port");
+  });
 });
