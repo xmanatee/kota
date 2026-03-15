@@ -47,22 +47,23 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
 capability, a refactor that removes a ceiling, architecture that unlocks future
 work, or fixing something fundamentally broken.
 
-**You decide.** Orient yourself, assess the current state honestly, and pick
-the thing that matters most right now. Scope it so you can finish it well
-within this iteration. If you generate other good ideas while orienting,
-record them in your CHANGELOG entry under "Future directions" — but treat
-them skeptically in future iterations, since context changes.
+**You decide.** But decide well — brainstorm before you build:
 
-## Unbiased Decision-Making
+1. **Brainstorm**: After orienting, write down 3-5 candidate improvements.
+   Think broadly — architecture, new capabilities, modularity, developer
+   experience, test coverage, performance, integrations. Don't filter yet.
+2. **Evaluate**: For each candidate, honestly assess impact (how much better
+   does the agent get?) vs cost (how much work, how much risk?). Consider
+   what the owner asked for in NOTES.md.
+3. **Pick one**: Choose the highest-impact candidate you can finish well in
+   this iteration. Explain why you picked it over the others.
+4. **Record the rest**: Write unpicked ideas in your CHANGELOG entry under
+   "Future directions" — but treat them skeptically in future iterations,
+   since context changes.
 
-- **Don't anchor** to prior iterations' "next priorities." They were written
-  with less context than you have now. Re-evaluate from first principles.
-- **Consider alternatives** before committing. Write down 2-3 candidates and
-  pick the best one, not the first one that comes to mind.
-- **Challenge assumptions**: if something has been done a certain way for 20
-  iterations, that doesn't make it right. Question inherited patterns.
-- **Seek disconfirming evidence**: after choosing a direction, actively look
-  for reasons it might be wrong before building it.
+Don't anchor to prior iterations' "next priorities" — re-evaluate from first
+principles. Challenge inherited patterns. Seek disconfirming evidence: after
+choosing a direction, actively look for reasons it might be wrong.
 
 ## Goals
 
@@ -84,9 +85,8 @@ them skeptically in future iterations, since context changes.
 ## How to Work
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Research: study current agent patterns and techniques when relevant.
-3. Decide: list 2-3 candidate improvements. For each, state the value and
-   the cost. Pick the one with the best ratio. Explain why.
+2. Brainstorm and decide (see "What to Work On" above).
+3. Research: study current agent patterns and techniques when relevant.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
 5. Verify (all four levels):
    - Static: `npm run typecheck && npm run build`

@@ -53,19 +53,25 @@ Before doing anything, understand what happened. You have full shell access:
 
 ## Goals
 
-Aim high. Pick one ambitious improvement to the process — not a
-micro-optimization. Scope it so you can finish it well within this iteration.
+Aim high — not a micro-optimization. But decide well:
 
-- Improve the builder's autonomy, judgment, research behavior, and output
-  quality.
-- Improve YOUR OWN process: diagnosis, analysis, and ability to learn from
-  evidence.
-- Improve the harness: prompts, `loop.sh`, logs, evaluation.
+1. **Brainstorm**: After orienting, write down 3-5 candidate improvements.
+   Think broadly — builder prompt quality, process structure, evaluation
+   signals, harness reliability, your own effectiveness, owner requests
+   in NOTES.md. Don't filter yet.
+2. **Evaluate**: For each candidate, honestly assess impact (how much better
+   does the next iteration get?) vs cost (how much work, how much risk?).
+3. **Pick one**: Choose the highest-impact candidate you can finish well in
+   this iteration. Explain why you picked it over the others.
+4. **Record the rest**: Write unpicked ideas in your CHANGELOG entry under
+   "Future directions" — but treat them skeptically in future iterations,
+   since context changes.
+
+Areas to improve:
+- Builder's autonomy, judgment, research behavior, and output quality.
+- YOUR OWN process: diagnosis, analysis, and ability to learn from evidence.
+- The harness: prompts, `loop.sh`, logs, evaluation.
 - Keep prompts short, sharp, and role-separated.
-
-If you generate other good ideas while orienting, record them in your
-CHANGELOG entry under "Future directions" — but treat them skeptically in
-future iterations, since context changes.
 
 ## Anti-Patterns (things that have gone wrong before)
 
