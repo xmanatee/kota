@@ -21,7 +21,7 @@ DESIGN.md says explore mode has "file_read, grep, glob, repo_map, web tools"
 but the actual code (delegate-prompts.ts) includes code_exec, shell, and
 http_request as well. The description is misleading for future builders.
 
-## Test coverage — 1157 tests, all modules covered (iter 81→245, LOW)
+## Test coverage — 1158 tests, all modules covered (iter 81→247, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.

@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 247 — System Prompt Tool Selection Heuristics (tests: 1158, +1)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Research the market share of the top 3 cloud providers, compare their pricing, and create a summary report.'"
+
+**Before**: Agent needs to choose between web_fetch and http_request for fetching competitor pages — no guidance exists in the system prompt. Agent might pick http_request (wrong tool for readable pages) and get raw HTML instead of extracted text. Also, enable_tools guidance doesn't mention tool-name aliases from iter 245.
+
+**After**: Tool selection heuristic says "web_fetch for readable pages (auto-extracts text), http_request for APIs/downloads." Agent picks the right tool immediately. enable_tools guidance says "or any tool name — aliases resolve automatically."
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added tool selection heuristics line | Agent needs guidance on when to use similar tools |
+| `system-prompt.ts` | Updated enable_tools to mention tool-name aliases | Iter 245 added this feature but prompt didn't reflect it |
+| `system-prompt.ts` | Compressed error recovery (5→2 lines) and data handoff (5→1 line) | Free space for new guidance while keeping prompt under 7200 chars |
+| `system-prompt.test.ts` | Added test for tool selection + alias guidance, updated error recovery test | Verify new content present |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1158 tests, +1).
+
+### Expected effects
+
+- Agent should choose web_fetch over http_request for webpage content
+- Agent should use enable_tools with tool names confidently
+- System prompt is ~6 lines shorter (net) — slightly cheaper to cache
+
+### Future directions
+
+- DESIGN.md delegation section still stale (iter 245 finding)
+- loop.ts still at ~308 lines (over 300-line limit)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 246 — Fix Orient Regression: Promote to Strict Guardrails
 
 ### Verification of iter 244 (previous improver)

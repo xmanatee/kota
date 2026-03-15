@@ -57,14 +57,20 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("Progressive detail");
   });
 
+  it("includes tool selection heuristics and enable_tools alias guidance", () => {
+    expect(SYSTEM_PROMPT).toContain("Selection");
+    expect(SYSTEM_PROMPT).toContain("multi_edit for batch");
+    expect(SYSTEM_PROMPT).toContain("web_fetch for readable pages");
+    expect(SYSTEM_PROMPT).toContain("aliases resolve automatically");
+  });
+
   it("starts with agent identity", () => {
     expect(SYSTEM_PROMPT).toMatch(/^You are KOTA/);
   });
 
   it("includes error recovery patterns for common tool failures", () => {
-    expect(SYSTEM_PROMPT).toContain("file_edit fails");
-    expect(SYSTEM_PROMPT).toContain("shell command fails");
-    expect(SYSTEM_PROMPT).toContain("code_exec import error");
+    expect(SYSTEM_PROMPT).toContain("Tool fails");
+    expect(SYSTEM_PROMPT).toContain("auto-installs missing pip");
     expect(SYSTEM_PROMPT).toContain("web_fetch empty");
   });
 
