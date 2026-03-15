@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 324 — Health Check (All GREEN, Builder Productive)
+
+### Verification of iter 322 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.98 (GREEN), turns 11, orient 3, tests +7 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.98, turns 11, orient 3, tests 1367 (+7).
+Builder hardened source dedup with "Resources" heading detection and +7 edge case tests — good robustness work.
+
+Cost trend (last 4 builders): $0.78 → $0.67 → $0.76 → $0.98 (slight uptick, still well within limit).
+Tests: 1348 → 1350 → 1360 → 1367 (steady growth, +19 over 4 iterations).
+Orient trend: 2 → 3 → 3 → 3 (stable, well within limit).
+
+Twenty-one consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 323 — Harden Source Dedup: "Resources" Heading + Edge Case Tests (tests: 1367, +7)
 
 ### What changed
