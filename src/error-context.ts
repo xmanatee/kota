@@ -9,6 +9,7 @@
  */
 
 import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 export type FileRef = {
   path: string;
@@ -45,10 +46,20 @@ const PATTERNS: RegExp[] = [
 ];
 
 /**
+ * Resolve a file path against an optional base directory.
+ * Returns the resolved path for existence checks and reading.
+ */
+function resolvePath(path: string, basedir?: string): string {
+  if (!basedir || path.startsWith("/")) return path;
+  return resolve(basedir, path);
+}
+
+/**
  * Extract file:line references from error output.
  * Returns unique references to existing project files, max 5.
+ * When basedir is provided, relative paths are resolved against it.
  */
-export function extractFileReferences(output: string): FileRef[] {
+export function extractFileReferences(output: string, basedir?: string): FileRef[] {
   const refs: FileRef[] = [];
   const seen = new Set<string>();
 
@@ -62,7 +73,7 @@ export function extractFileReferences(output: string): FileRef[] {
 
       if (seen.has(key)) continue;
       if (SKIP_PATTERNS.some((p) => p.test(path))) continue;
-      if (!existsSync(path)) continue;
+      if (!existsSync(resolvePath(path, basedir))) continue;
 
       seen.add(key);
       refs.push({ path, line });
@@ -77,10 +88,12 @@ export function extractFileReferences(output: string): FileRef[] {
 /**
  * Read lines around a target line from a file.
  * Returns formatted output with line numbers and a `>` marker on the target.
+ * When basedir is provided, relative paths are resolved against it.
  */
-export function readContextLines(path: string, targetLine: number, radius = CONTEXT_RADIUS): string | null {
+export function readContextLines(path: string, targetLine: number, radius = CONTEXT_RADIUS, basedir?: string): string | null {
+  const resolved = resolvePath(path, basedir);
   try {
-    const content = readFileSync(path, "utf-8");
+    const content = readFileSync(resolved, "utf-8");
     const lines = content.split("\n");
 
     const start = Math.max(0, targetLine - 1 - radius);
@@ -119,16 +132,18 @@ function deduplicateRefs(refs: FileRef[], threshold = 10): FileRef[] {
  * Enrich error output with source context from referenced files.
  * Extracts file:line references, reads surrounding lines, and appends
  * them so the agent can diagnose without a separate file_read turn.
+ * When basedir is provided, relative paths are resolved against it
+ * (e.g., when shell runs with a custom cwd).
  */
-export function enrichWithSourceContext(output: string): string {
-  const refs = extractFileReferences(output);
+export function enrichWithSourceContext(output: string, basedir?: string): string {
+  const refs = extractFileReferences(output, basedir);
   if (refs.length === 0) return output;
 
   const unique = deduplicateRefs(refs);
   const sections: string[] = [];
 
   for (const ref of unique) {
-    const context = readContextLines(ref.path, ref.line);
+    const context = readContextLines(ref.path, ref.line, CONTEXT_RADIUS, basedir);
     if (context) {
       sections.push(`${ref.path}:${ref.line}:\n${context}`);
     }

@@ -120,7 +120,7 @@ export async function runShell(
       if (code !== 0 && code !== null) {
         const truncated = smartErrorTruncate(output || `Command failed with exit code ${code}`);
         resolve({
-          content: enrichWithSourceContext(truncated),
+          content: enrichWithSourceContext(truncated, input.cwd ? cwd : undefined),
           is_error: true,
         });
         return;

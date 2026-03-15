@@ -225,3 +225,53 @@ describe("enrichWithSourceContext", () => {
     expect(result).toContain("src/b.ts:1:");
   });
 });
+
+describe("basedir resolution (cross-module: shell cwd → error-context)", () => {
+  it("extractFileReferences resolves relative paths against basedir", () => {
+    mockExists.mockImplementation((p: string) => p === "/tmp/project/src/app.ts");
+    const refs = extractFileReferences(
+      "src/app.ts(10,5): error TS2345: type mismatch",
+      "/tmp/project",
+    );
+    expect(refs).toEqual([{ path: "src/app.ts", line: 10 }]);
+  });
+
+  it("extractFileReferences skips files not found under basedir", () => {
+    mockExists.mockReturnValue(false);
+    const refs = extractFileReferences(
+      "src/missing.ts(1,1): error TS0000: nope",
+      "/tmp/project",
+    );
+    expect(refs).toHaveLength(0);
+  });
+
+  it("readContextLines reads file relative to basedir", () => {
+    mockRead.mockReturnValue("line1\nline2\nline3\n");
+    const result = readContextLines("src/foo.ts", 2, 1, "/tmp/project");
+    expect(result).toContain(">2: line2");
+    expect(mockRead).toHaveBeenCalledWith("/tmp/project/src/foo.ts", "utf-8");
+  });
+
+  it("enrichWithSourceContext threads basedir to extract and read", () => {
+    mockExists.mockImplementation((p: string) => p === "/opt/app/lib/utils.py");
+    mockRead.mockReturnValue("import os\ndef main():\n  pass\n");
+    const input = '  File "lib/utils.py", line 2, in main';
+    const result = enrichWithSourceContext(input, "/opt/app");
+    expect(result).toContain("--- Referenced source ---");
+    expect(result).toContain("lib/utils.py:2:");
+    expect(result).toContain(">2: def main():");
+    expect(mockRead).toHaveBeenCalledWith("/opt/app/lib/utils.py", "utf-8");
+  });
+
+  it("absolute paths bypass basedir resolution", () => {
+    mockExists.mockImplementation((p: string) => p === "/abs/file.ts");
+    mockRead.mockReturnValue("content\n");
+    const refs = extractFileReferences(
+      "    at fn (/abs/file.ts:1:1)",
+      "/other/dir",
+    );
+    expect(refs).toEqual([{ path: "/abs/file.ts", line: 1 }]);
+    // existsSync should have been called with the absolute path directly
+    expect(mockExists).toHaveBeenCalledWith("/abs/file.ts");
+  });
+});

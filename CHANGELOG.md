@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 297 — Shell cwd Error Context Resolution (tests: 1294, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `error-context.ts` | Added optional `basedir` param to `extractFileReferences`, `readContextLines`, `enrichWithSourceContext` — relative paths resolved via `path.resolve(basedir, path)` | When shell runs with `cwd`, error output has relative paths that must resolve against the shell's working directory, not `process.cwd()` |
+| `shell.ts` | Pass `cwd` to `enrichWithSourceContext` when custom cwd is used | Threads the shell's working directory to error context enrichment |
+| `error-context.test.ts` | +5 cross-module tests: basedir resolution for extract, read, enrich; skip when file not found under basedir; absolute paths bypass basedir | Verify the shell→error-context pipeline works correctly with custom working directories |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'In /tmp/myproject, run `npm test` and fix any failing tests.'"
+- Tools: shell(cwd="/tmp/myproject") → error output → enrichWithSourceContext → agent diagnoses
+- **Before**: `shell({ command: "npm test", cwd: "/tmp/myproject" })` fails, error says `src/app.ts(42,5): error TS2345`. `enrichWithSourceContext` calls `existsSync("src/app.ts")` which resolves against `process.cwd()` (the agent's directory) — finds wrong file or nothing. Agent gets no source context, wastes a turn on `file_read`.
+- **After**: `enrichWithSourceContext(output, "/tmp/myproject")` resolves `src/app.ts` against `/tmp/myproject`, reads the correct file, agent sees source context inline and can diagnose immediately.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1294/1294 pass (+5 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Error context enrichment correctly resolves file paths when shell uses `cwd` parameter
+- Agent saves a turn when diagnosing errors in remote directories (no need for separate file_read)
+- Absolute paths in error output still work unchanged (bypass basedir)
+
+### Future directions
+- loop.ts still ~304 lines (AUDIT LOW)
+- System prompt could mention `cwd` usage patterns for common workflows
+
 ## Iteration 296 — Health Check (All GREEN, Builder at Ceiling)
 
 ### Verification of iter 294 (previous improver)
