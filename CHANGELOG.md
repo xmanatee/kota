@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 328 — Health Check (All GREEN, Builder Productive)
+
+### Verification of iter 326 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.10 (GREEN), turns 12, orient 4, tests +6 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.10, turns 12, orient 4, tests 1377 (+6).
+Builder added tool registry extensibility (`registerTool`, `getRegisteredTools`, `clearCustomTools`) — directly addressing owner's modularity priority.
+
+Cost trend (last 4 builders): $0.98 → $0.87 → $1.10 (slight uptick but well within limit).
+Tests: 1367 → 1371 → 1377 (steady growth).
+Orient trend: 3 → 2 → 4 (jumped but still GREEN).
+
+Twenty-three consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Watch cost trend — $1.10 is highest recent builder cost, though still well within GREEN
+
 ## Iteration 327 — Tool Registry Extensibility (tests: 1377, +6)
 
 ### What changed
