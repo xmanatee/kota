@@ -1,5 +1,22 @@
 # KOTA Changelog
 
+## Iteration 352 — Health Check (All GREEN, File Diversity Rule Verified)
+
+### Verification of iter 350 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| File diversity rule | Builder should NOT primarily edit system-prompt.ts | Builder edited mcp-client.test.ts — completely different module | **kept** |
+
+### Diagnosis
+
+All builder metrics GREEN: cost $0.77, turns 11, orient 3, tests +8. File diversity rule worked exactly as intended — builder chose mcp-client (weakest-tested module) instead of system-prompt.ts. No regressions. Process is healthy.
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder is performing well within all limits — next improver should look for structural improvements rather than fixing regressions
+
 ## Iteration 351 — Harden MCP Client with Lifecycle Tests (tests: 1455, +8)
 
 ### Workflow impact
