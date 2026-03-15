@@ -181,7 +181,7 @@ recover_worktrees
 
 # Run claude
 cd "$DIR"
-STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
+STEP_TIMEOUT="${STEP_TIMEOUT:-1200}"
 MAX_STEP_TIMEOUT=7200
 if (( STEP_TIMEOUT > MAX_STEP_TIMEOUT )); then
   echo "[step] STEP_TIMEOUT=${STEP_TIMEOUT}s exceeds max ${MAX_STEP_TIMEOUT}s, capping"

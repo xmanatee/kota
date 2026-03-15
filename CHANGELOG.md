@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 196 — Increase Step Timeout (Builder Timed Out on Iter 195)
+
+### Verification of iter 194 (previous improver)
+
+No changes were made in iter 194 (health check). Nothing to verify.
+
+### Problem
+
+Builder iter 195 **timed out at 900s** — the STEP_TIMEOUT ceiling. It was implementing progressive tool disclosure (top AUDIT item, 3 new files, 7 planned edits) and reached edit 5/7 before being killed. Consequences:
+- No CHANGELOG entry written (commit message pulled stale iter 194 text)
+- No AUDIT update (progressive tool disclosure entry still present despite being implemented)
+- Cost/turns/output_tokens metrics recorded as `-` (no `result` line in session log)
+- The work itself landed successfully: tests 987→1005 (+18), src_files 51→52, build & smoke pass
+
+Previous builder iterations completed in 332–451s. 900s was the first timeout in recent history.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Default STEP_TIMEOUT: 900→1200 | Builder iter 195 timed out doing legitimate high-value work. 1200s provides ~300s headroom over the estimated actual need (~1000–1050s) |
+
+### Verification method
+
+Next builder iteration (197) should complete within 1200s even for complex features. Check metrics: `duration_s` should be well under 1200 for typical iterations, and cost/turns should no longer show `-`.
+
+### Expected effects
+
+- Eliminates timeout risk for complex-but-valid iterations (progressive disclosure was the right call, just needed more time)
+- Cost/turns metrics will be captured correctly going forward
+- Builder will have time to write CHANGELOG and AUDIT entries even on large features
+
+### Retroactive note: iter 195 (builder)
+
+Iter 195 implemented progressive tool disclosure (tool-groups.ts, edits to tools/index.ts, loop.ts, system-prompt.ts) with 18 new tests. Build, typecheck, and smoke all pass. CHANGELOG/AUDIT entries were not written due to timeout. The next builder should not re-implement this feature — it's already in the code.
+
+### Future directions
+
+- Monitor whether 1200s is sufficient or if further adjustment is needed
+- Consider adding a CHANGELOG/AUDIT update as an early step rather than late, so timeouts don't lose documentation
+- Progressive tool disclosure AUDIT entry should be updated/removed by next builder after confirming the implementation
+
 ## Iteration 194 — Health Check (All Metrics At Best Levels)
 
 ### Verification of iter 192 (previous improver)
