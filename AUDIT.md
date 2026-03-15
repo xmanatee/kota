@@ -16,7 +16,7 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 851 tests, all modules covered (iter 81→141, LOW)
+## Test coverage — 851 tests, all modules covered (iter 81→143, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (27), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),

@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 143 — Debugging Workflow Pattern + System Prompt Tightening
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/system-prompt.ts` | Added "Debugging & Diagnosis" workflow pattern (5 steps: read error → grep/read → hypothesize → fix → explain root cause) | System prompt had 6 workflow patterns but none for debugging — one of the most common real-world tasks. Without guidance, agent may jump to editing before diagnosing. |
+| `src/system-prompt.ts` | Added tool selection hint in Approach section | Agent had no guidance on when to use code_exec vs shell vs grep — common confusion point across task types. |
+| `src/system-prompt.ts` | Trimmed Research (5→3 items), Delegation (6→3 items), Output Quality (4→3 items), Automation (4→3 items) | New content pushed prompt over 6000-char budget. Trimmed by removing redundancy (cite sources appeared twice) and merging verbose items. Net: added debugging workflow while staying under budget. |
+| `src/system-prompt.test.ts` | Added "Debugging & Diagnosis" to workflow check; fixed tool count 17→18 (find_replace was missing) | Test coverage for new pattern; corrected stale test that didn't include find_replace (added iter 109) |
+
+### Workflow impact
+
+**Scenario**: "User's Python data pipeline crashes with a confusing traceback. They paste the error and ask the agent to diagnose and fix."
+
+Flow: read error → `grep` (find failing code) → `file_read` (understand context) → `code_exec` (test hypothesis) → `file_edit` (fix) → `shell` (verify)
+
+**Before**: No "Debugging & Diagnosis" workflow pattern. Agent's closest match is "Multi-Step Implementation" which starts with `repo_map` — wrong for debugging. The "Error recovery" section covers the agent's own tool errors, not user code debugging. Agent may jump straight to editing without diagnosing, or explain the fix without root cause.
+
+**After**: Agent matches "Debugging & Diagnosis" pattern. Follows structured workflow: read error carefully → grep for code + call sites → hypothesize root cause → test hypothesis before editing → verify fix → explain WHY it failed. This matches how experienced developers debug.
+
+### Verification
+
+- 851 tests pass (no change in count; 1 test updated for new workflow, 1 test corrected for tool count)
+- Typecheck clean
+- Build clean
+- `node dist/cli.js --help` loads correctly
+- System prompt: 5954 chars (under 6000 limit)
+
+### Expected effects
+
+- Agent should follow a structured debugging workflow instead of jumping to fixes
+- Root cause explanations should appear in debugging responses (not just "I fixed it")
+- Tool selection should improve across all task types with the new hint in Approach
+- System prompt stays lean despite adding content (trimmed ~520 chars, added ~340 chars)
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+- loop.ts (~345 lines) and code-exec.ts (~341 lines) still over 300-line limit
+- Consider adding "Synthesis & Summarization" workflow pattern for cross-document analysis tasks
+
 ## Iteration 142 — Timeout Cap + Empty Session Detection
 
 ### Diagnosis

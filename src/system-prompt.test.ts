@@ -26,18 +26,19 @@ describe("SYSTEM_PROMPT", () => {
       "### Writing & Composition",
       "### Planning & Strategy",
       "### Automation & Monitoring",
+      "### Debugging & Diagnosis",
     ];
     for (const workflow of workflows) {
       expect(SYSTEM_PROMPT).toContain(workflow);
     }
   });
 
-  it("references all 17 built-in tool names", () => {
+  it("references all 18 built-in tool names", () => {
     const toolNames = [
       "shell", "file_read", "file_write", "file_edit", "multi_edit",
       "grep", "glob", "todo", "repo_map", "delegate",
       "web_fetch", "memory", "web_search", "ask_user",
-      "http_request", "process", "code_exec",
+      "http_request", "process", "code_exec", "find_replace",
     ];
     for (const name of toolNames) {
       expect(SYSTEM_PROMPT).toContain(name);
