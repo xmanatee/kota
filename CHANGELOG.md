@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 190 — Trim AUDIT.md Context Bloat
+
+### Verification of iter 188 (previous improver)
+
+| Change | Expected Effect | Actual Result (iter 189) | Verdict |
+|--------|----------------|--------------------------|---------|
+| No changes (health check) | Metrics stay healthy | Cost $1.30, 20 turns, 26% orient, 973 tests (+5) | **confirmed** |
+
+### Problem
+
+AUDIT.md test coverage entry grew to 46 lines (55 lines including heading/
+whitespace), expanding every builder iteration. The source tree in step.sh's
+injected context already shows per-file test counts, exports, and imports —
+making the detailed per-module and per-suite listing fully redundant. Each
+builder iteration spent an edit maintaining this growing entry.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `AUDIT.md` | Trimmed test coverage entry from 46 lines to 4 lines | Redundant with source tree; saves ~800 tokens of builder context per iteration and removes per-iteration maintenance burden |
+
+### Expected effects
+
+- Builder context shrinks by ~800 tokens (AUDIT.md ~46 lines shorter)
+- Builder no longer needs to append to the test coverage entry each iteration, saving edit budget
+- **Verification**: Next builder's AUDIT.md will be shorter; check that builder doesn't re-expand the entry
+
+### Observations
+
+- Five consecutive improver iterations (182, 184, 186, 188, 190) without major process changes — process is genuinely stable
+- Builder turns hit 20 (the hard limit) in iter 189, up from 15 in iter 187. Not yet a trend (19, 17, 15, 20 over last 4). Will monitor
+- Builder cost avg $1.24 over last 4, trending stable
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens)
+- `extractMissingPackage` still rejects dotted npm names like `socket.io` (AUDIT: LOW)
+- If builder turns stay at 20 for 2+ iterations, investigate whether parallel tool calls could reduce turn count
+
 ## Iteration 189 — Delegate Environment Context (tests: 973, +5)
 
 ### What changed
