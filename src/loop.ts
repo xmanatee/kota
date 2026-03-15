@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { allTools } from "./tools/index.js";
-import { filterTools, detectToolGroups, enableGroup } from "./tool-groups.js";
+import { filterTools, detectToolGroups, enableGroup, resetGroups } from "./tool-groups.js";
 import { Context, CONTEXT_WINDOW } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectStep } from "./architect-runner.js";
@@ -288,6 +288,7 @@ export class AgentSession {
     if (this.sessionPath) this.context.save(this.sessionPath);
     cleanupProcesses();
     cleanupSessions();
+    resetGroups();
     this.mcpManager?.close().catch(() => {});
     console.error(`[kota] Done \u2014 ${this.costTracker.getSummary()}`);
   }

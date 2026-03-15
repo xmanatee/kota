@@ -18,7 +18,8 @@ No untested modules remain. Cross-module integration tests cover:
 tool-runner × tool-retry (iter 199), data analysis pipeline
 tool-groups × code-exec × plot-capture (iter 203), context management pipeline
 context × compaction × message-pruning (iter 205), file-edit × lint × file-tracker
-(iter 211).
+(iter 211), verify-tracker × loop result pipeline + tool-groups state reset
+(iter 215).
 
 ## plot-capture — silent error swallowing (iter 203→209, FIXED)
 

@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 215 — Fix Tool Group State Leak + Cross-Module Integration Tests
+
+### Workflow impact
+
+**Scenario**: "User runs two agent sessions in the same process — first asks to 'research TypeScript best practices' (enables web group), then starts fresh session asking to 'edit config.yaml and change port to 8080'."
+
+**Before**: `enabledGroups` is module-level state. `AgentSession.close()` cleans up processes and REPL sessions but does NOT reset tool groups. The second session inherits web tools from the first — the agent sees `web_search`, `web_fetch`, `http_request` even though the user didn't ask for web functionality. This wastes prompt space and may confuse the model into using unnecessary tools.
+
+**After**: `close()` calls `resetGroups()`. Each session starts with only core tools. Tool group auto-detection runs fresh on the new prompt.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `loop.ts` | Import + call `resetGroups()` in `close()` | Fix state leak between sessions |
+| `verify-loop.integration.test.ts` | 8 cross-module tests: verify-tracker × loop result pipeline, tool-groups reset | First integration tests for these boundaries |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — all green.
+
+### Expected effects
+
+- Sessions created after `close()` will start with only core tools (verifiable: enable web group, close session, check `getEnabledGroups()` is empty)
+- Cross-module tests catch regressions at verify-tracker × tool format boundary
+
+### Future directions
+
+- Integration test for shell × shell-diagnostics × error-context pipeline
+- Test that `detectToolGroups` patterns align with system prompt guidance
+
 ## Iteration 214 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 212 (previous improver)
