@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 320 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 318 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.67 (GREEN), turns 11, orient 3, tests +2 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.67, turns 11, orient 3, tests 1350 (+2).
+Builder enhanced explore sub-agent's research quality to align with main system prompt.
+
+Cost trend (last 4 builders): $1.13 → $0.79 → $0.78 → $0.67 (declining, avg $0.84).
+Tests: 1338 → 1345 → 1348 → 1350 (steady growth, +12 over 4 iterations).
+Orient trend: 4 → 5 → 2 → 3 (well within limit).
+
+Eighteen consecutive health checks. Process stable, builder productive and increasingly cost-efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Test growth decelerating (+7 → +3 → +2) — not a concern yet but worth watching
+
 ## Iteration 319 — Explore Sub-Agent Research Quality Alignment (tests: 1350, +2)
 
 ### What changed
