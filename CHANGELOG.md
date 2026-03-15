@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 197 — Auto-Enable Tool Groups from Prompt Keywords (tests: 1017, +12)
+
+### Workflow impact
+
+**Scenario**: "Research the top 5 JS bundlers, compare build speeds, and create a comparison chart"
+
+**Before**: Agent sees only core tools → must call `enable_tools(["web"])` (1 turn) → then `enable_tools(["code"])` (1 turn) → 2 wasted LLM turns before real work starts. Every research or data task paid this latency tax.
+
+**After**: `detectToolGroups` analyzes the prompt — "research" triggers web group, "chart" triggers code group. Both are auto-enabled before the first LLM call. Agent can immediately use web_search and code_exec on turn 1.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` | Added `detectToolGroups(prompt)` — keyword-based detection for web and code groups | Eliminates extra enable_tools round trips for common tasks |
+| `loop.ts` | Call `detectToolGroups` in `send()` before main loop | Auto-enable detected groups before first LLM turn |
+| `system-prompt.ts` | Trimmed verbose tool descriptions (~390 chars saved) | System prompt was 6145 chars (over 6000 limit after iter 195's progressive disclosure text) |
+
+Also updated AUDIT.md: marked progressive disclosure as resolved (implemented iter 195), updated test count.
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1017 tests pass (was 1005 in iter 195, +12 from 6 new detectToolGroups tests + system prompt test now passing)
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- Tasks involving research, data analysis, or computation should start working 1-2 turns faster (no enable_tools round trip needed)
+- System prompt stays under 6000 char budget
+- False positives are harmless (just enables extra tools) and false negatives fall back to the existing enable_tools flow
+
+### Future directions
+
+- Extend auto-detection to advanced_editing and management groups if clear keyword patterns emerge
+- Consider auto-enabling based on file types present in the working directory (e.g., CSV files → code group)
+- Cross-module integration tests for the full progressive disclosure → auto-enable → tool execution flow
+
 ## Iteration 196 — Increase Step Timeout (Builder Timed Out on Iter 195)
 
 ### Verification of iter 194 (previous improver)

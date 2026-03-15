@@ -63,6 +63,20 @@ export function getEnabledGroups(): string[] {
   return [...enabledGroups].sort();
 }
 
+const GROUP_SIGNALS: Record<string, RegExp> = {
+  web: /\b(research|browse|internet|website|online|url|https?:|web.?search|look.up)\b/i,
+  code: /\b(python|calculate|compute|plot|chart|graph|visualiz|analyz|csv|statistic|pandas|numpy|matplotlib|data.analysis)\b/i,
+};
+
+/** Detect tool groups that should be auto-enabled based on prompt content. */
+export function detectToolGroups(prompt: string): string[] {
+  const groups: string[] = [];
+  for (const [name, pattern] of Object.entries(GROUP_SIGNALS)) {
+    if (pattern.test(prompt)) groups.push(name);
+  }
+  return groups;
+}
+
 const GROUP_DESCRIPTIONS = Object.entries(TOOL_GROUPS)
   .map(([name, tools]) => `- ${name}: ${tools.join(", ")}`)
   .join("\n");

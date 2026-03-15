@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { allTools } from "./tools/index.js";
-import { filterTools } from "./tool-groups.js";
+import { filterTools, detectToolGroups, enableGroup } from "./tool-groups.js";
 import { Context, CONTEXT_WINDOW } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectStep } from "./architect-runner.js";
@@ -137,6 +137,7 @@ export class AgentSession {
     if (!this.initialized) await this.initPromise;
 
     this.context.addUserMessage(prompt);
+    for (const g of detectToolGroups(prompt)) enableGroup(g);
     let lastResult = "";
 
     // MCP tools always included; built-in tools filtered by active groups

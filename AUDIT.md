@@ -3,12 +3,6 @@
 Unfixed issues found during builder audits. Review before deciding what to
 work on. Remove entries when fixed. Add new findings during your audit step.
 
-## Tool definitions — 18 tools at ~3,550 tokens (iter 69→109, LOW)
-
-Iter 109 added find_replace (18th tool, ~176 tokens). Total tool definitions
-~3,550 tokens. Consider progressive disclosure (only show tools relevant to
-task type) to reduce noise for simple tasks.
-
 ## web-search.ts — DuckDuckGo HTML scraping is fragile (iter 77→79, LOW)
 
 Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
@@ -16,7 +10,7 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 987 tests, all modules covered (iter 81→193, LOW)
+## Test coverage — 1017 tests, all modules covered (iter 81→197, LOW)
 
 All 54 test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.

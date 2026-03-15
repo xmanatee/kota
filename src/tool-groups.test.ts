@@ -9,6 +9,7 @@ import {
   getEnabledGroups,
   enableToolsTool,
   runEnableTools,
+  detectToolGroups,
 } from "./tool-groups.js";
 
 describe("tool-groups", () => {
@@ -161,6 +162,43 @@ describe("tool-groups", () => {
     it("handles mix of valid and invalid groups", async () => {
       const result = await runEnableTools({ groups: ["web", "bad"] });
       expect(result.is_error).toBe(true);
+    });
+  });
+
+  describe("detectToolGroups", () => {
+    it("detects web group from research keywords", () => {
+      expect(detectToolGroups("Research the top JS frameworks")).toContain("web");
+      expect(detectToolGroups("Look up current pricing")).toContain("web");
+      expect(detectToolGroups("Browse the internet for examples")).toContain("web");
+    });
+
+    it("detects code group from computation keywords", () => {
+      expect(detectToolGroups("Calculate the standard deviation")).toContain("code");
+      expect(detectToolGroups("Plot a histogram of the data")).toContain("code");
+      expect(detectToolGroups("Analyze this CSV file")).toContain("code");
+      expect(detectToolGroups("Use python to process the data")).toContain("code");
+    });
+
+    it("detects multiple groups from a single prompt", () => {
+      const groups = detectToolGroups("Research bundler benchmarks and plot a comparison chart");
+      expect(groups).toContain("web");
+      expect(groups).toContain("code");
+    });
+
+    it("returns empty for prompts with no signals", () => {
+      expect(detectToolGroups("Fix the bug in auth.ts")).toEqual([]);
+      expect(detectToolGroups("Read the README file")).toEqual([]);
+      expect(detectToolGroups("Hello, how are you?")).toEqual([]);
+    });
+
+    it("is case insensitive", () => {
+      expect(detectToolGroups("RESEARCH best practices")).toContain("web");
+      expect(detectToolGroups("CALCULATE the sum")).toContain("code");
+    });
+
+    it("does not match partial words incorrectly", () => {
+      // "search" alone doesn't trigger web (could be file search)
+      expect(detectToolGroups("Search for the function in the codebase")).not.toContain("web");
     });
   });
 });
