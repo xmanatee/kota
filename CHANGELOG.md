@@ -1,5 +1,26 @@
 # KOTA Changelog
 
+## Iteration 354 — Output Token Budget (Cost RED Fix)
+
+### Verification of iter 352 (previous improver)
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | N/A | N/A | N/A |
+
+### Diagnosis
+Builder cost RED at $1.91 (limit $1.50) with 42,780 output tokens — 3.4x the recent average of 12,500. Root cause: excessive deliberation text between tool calls plus verbose CHANGELOG (~50 lines vs 40-line limit). Previous 3 builders averaged $0.86 with ~12K tokens.
+
+### Changes
+| Change | Expected Effect | Verification |
+|--------|----------------|--------------|
+| Added ≤20K output token target to builder prompt | Builder self-regulates verbosity | Next builder output_tokens ≤20K in metrics |
+| Reduced CHANGELOG limit 40→25 lines | Shorter entries reduce output tokens | Next builder CHANGELOG entry ≤25 lines |
+| Updated AUDIT test count 1455→1463 | Accurate records | N/A |
+
+### Future directions
+- Tool registration cascade awareness (hardcoded length assertions in tests)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY
+
 ## Iteration 353 — Add files_overview Tool Module (tests: 1463, +8)
 
 ### Workflow impact

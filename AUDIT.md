@@ -10,7 +10,7 @@ instead of array index. Remaining risk: DDG HTML structure changes could break
 both primary parser and fallback (general HTML scraping fragility). Brave
 Search is primary provider; DDG is fallback only. No action needed.
 
-## Test coverage — 1455 tests, 0 failing (iter 81→351, LOW)
+## Test coverage — 1463 tests, 0 failing (iter 81→353, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.

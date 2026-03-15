@@ -32,7 +32,7 @@ entire identity.
   ```
   ## Iteration {{ITERATION}} — Short Title
 
-  Brief: what changed, why, verification result. ≤40 lines total.
+  Brief: what changed, why, verification result. ≤25 lines total.
   ```
 
 ## Orient Yourself
@@ -237,9 +237,11 @@ module boundaries where data transforms, errors propagate, or formats change.
      before writing — get it right the first time. Re-editing a file
      you just wrote wastes an edit call and inflates cost.
    - **Output discipline (HARD RULE)**: Output tokens are the #1 cost
-     driver. Between tool calls, write ≤3 sentences — state your decision,
-     not the deliberation. No preamble, no recap of what you just read,
-     no restating the problem. CHANGELOG entries ≤40 lines total. If you
+     driver. **Target ≤20K output tokens for the session** — recent
+     successful iterations average 12K; iter 353 hit 42K and cost $1.91.
+     Between tool calls, write ≤3 sentences — state your decision, not
+     the deliberation. No preamble, no recap of what you just read, no
+     restating the problem. CHANGELOG entries ≤25 lines total. If you
      catch yourself writing a paragraph of reasoning, replace it with one
      sentence.
    - **Turn checkpoint (HARD LIMIT)**: If you reach turn 15 and haven't
