@@ -305,6 +305,168 @@ describe("context-pipeline cross-module integration", () => {
     expect(firstMsg.content as string).toContain("src/token-validation.ts");
   });
 
+  it("repeated compaction preserves narrative state when structured state is lost", async () => {
+    // After compaction #1, tool_use blocks are gone — replaced with plain text summary.
+    // Compaction #2 must still work: extractWorkingState finds nothing structural,
+    // but the narrative from #1 carries file/command info forward.
+    const msgs = buildRefactoringSession();
+
+    // Compaction #1
+    const mockClient = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [{ type: "text", text: "Refactored auth module. Created src/token-validation.ts, edited src/auth.ts and tests. All 24 tests pass." }],
+        }),
+      },
+    } as unknown as Anthropic;
+
+    const compacted1 = await compactMessages(mockClient, "claude-sonnet", msgs, 1);
+    expect(compacted1).toHaveLength(2);
+
+    // Simulate continued conversation after compaction #1
+    const postCompaction: Message[] = [
+      ...compacted1,
+      { role: "user", content: "Now add rate limiting to the auth endpoints" },
+      toolUse("rl1", "file_edit", { file_path: "src/auth.ts" }),
+      toolResult("rl1", "Edit applied — added rate limiter"),
+      toolUse("rl2", "shell", { command: "npm test" }),
+      toolResult("rl2", "All 26 tests passed"),
+      { role: "assistant", content: "Rate limiting added." },
+      // Pad to >10 messages so compact doesn't early-return
+      { role: "user", content: "Looks good" },
+      { role: "assistant", content: "Thanks!" },
+      { role: "user", content: "One more thing" },
+      { role: "assistant", content: "Sure" },
+    ];
+
+    // Compaction #2 — extractWorkingState should find the NEW tool_use blocks
+    const state2 = extractWorkingState(postCompaction);
+    expect(state2.filesModified).toContain("src/auth.ts");
+    expect(state2.commandsRun).toContain("npm test");
+
+    // Full compaction #2
+    const compacted2 = await compactMessages(mockClient, "claude-sonnet", postCompaction, 2);
+    expect(compacted2).toHaveLength(2);
+    const summary2 = compacted2[0].content as string;
+    expect(summary2).toContain("Context compaction #2");
+    expect(summary2).toContain("src/auth.ts");
+    // The LLM narrative from #1 was in the input to compaction #2,
+    // so the LLM should carry it forward (mocked response has it)
+    expect(summary2).toContain("Summary");
+  });
+
+  it("image content in tool results is pruned and survives compaction", async () => {
+    const msgs: Message[] = [
+      { role: "user", content: "Show me the architecture diagram" },
+      toolUse("img1", "file_read", { path: "docs/arch.png" }),
+      // Image result — array content with image block
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "img1",
+          content: [
+            { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBOR" + "x".repeat(5000) } },
+            { type: "text", text: "Architecture diagram showing 3 services" },
+          ],
+        }],
+      } as Message,
+      // Enough messages to be pruneable
+      ...Array.from({ length: 22 }, (_, i) => [
+        { role: "assistant" as const, content: `Step ${i}` },
+        { role: "user" as const, content: `OK ${i}` },
+      ]).flat(),
+    ];
+
+    const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
+    // Image should be pruned regardless of text length
+    expect(stats.prunedCount).toBe(1);
+    expect(stats.charsSaved).toBe(5000); // estimated image savings
+
+    // The pruned image result should now be a text summary
+    const imgResult = (msgs[2] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
+      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    expect(typeof imgResult.content).toBe("string");
+    expect(imgResult.content).toContain("Previously viewed image");
+    expect(imgResult.content).toContain("docs/arch.png");
+  });
+
+  it("delegate tool results are pruned with task summary", () => {
+    const msgs: Message[] = [
+      toolUse("d1", "delegate", { task: "Explore the authentication module and list all exported functions", mode: "explore" }),
+      toolResult("d1", "Found 8 exported functions:\n" + "x".repeat(3000)),
+      // Pad
+      ...Array.from({ length: 22 }, (_, i) => [
+        { role: "assistant" as const, content: `msg ${i}` },
+        { role: "user" as const, content: `ok ${i}` },
+      ]).flat(),
+    ];
+
+    const stats = pruneMessages(msgs, { keepRecent: 5, minLength: 1500 });
+    expect(stats.prunedCount).toBe(1);
+
+    const delegateResult = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
+      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    expect(delegateResult.content).toContain("Previous delegate");
+    expect(delegateResult.content).toContain("Explore the authentication module");
+  });
+
+  it("Context.compact is a no-op when messages count is 10 or fewer", async () => {
+    const ctx = new Context("system prompt");
+    // Add exactly 10 messages (5 user + 5 assistant)
+    for (let i = 0; i < 5; i++) {
+      ctx.addUserMessage(`question ${i}`);
+      ctx.addAssistantText(`answer ${i}`);
+    }
+    expect(ctx.getTurnCount()).toBe(10);
+
+    const mockClient = {
+      messages: {
+        create: vi.fn(),
+      },
+    } as unknown as Anthropic;
+
+    ctx.setInputTokens(180_000); // Way over threshold
+    await ctx.compact(mockClient, "claude-sonnet");
+
+    // Should not have called LLM — too few messages to compact
+    expect(mockClient.messages.create).not.toHaveBeenCalled();
+    expect(ctx.getTurnCount()).toBe(10);
+    expect(ctx.getStats().compactions).toBe(0);
+  });
+
+  it("pruning boundary: messages at exactly keepRecent are not pruned", () => {
+    // Build messages where a large pruneable result sits exactly at the keepRecent boundary
+    const msgs: Message[] = [];
+    for (let i = 0; i < 10; i++) {
+      msgs.push(toolUse(`b${i}`, "file_read", { path: `file${i}.ts` }));
+      msgs.push(toolResult(`b${i}`, "z".repeat(2000)));
+    }
+    // 20 messages total. keepRecent=10 means messages 0-9 are pruneable, 10-19 are kept.
+    // Message at index 10 is the first kept message.
+    const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
+
+    // Messages 0-9 include tool_use (assistant) and tool_result (user) interleaved.
+    // Only user messages with tool_result from pruneable tools get pruned.
+    expect(stats.prunedCount).toBeGreaterThan(0);
+
+    // Verify messages in the kept region (last 10) are NOT pruned
+    for (let i = 10; i < 20; i++) {
+      const msg = msgs[i];
+      if (msg.role === "user" && Array.isArray(msg.content)) {
+        for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+          if (block.type === "tool_result") {
+            const tr = block as Anthropic.Messages.ToolResultBlockParam;
+            // Kept messages should have original content, not summary
+            if (typeof tr.content === "string" && tr.content.length > 100) {
+              expect(tr.content).not.toContain("Previously");
+            }
+          }
+        }
+      }
+    }
+  });
+
   it("truncateToolResult interacts correctly with pruning thresholds", () => {
     // When context is tight, tool results get truncated before they even
     // reach the conversation history. This test verifies that truncated

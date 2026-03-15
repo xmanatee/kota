@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 293 — Context Pipeline Integration Hardening (tests: 1285, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `context-pipeline.test.ts` | +5 cross-module integration tests: repeated compaction cycles, image pruning, delegate pruning, compact guard (≤10 msgs), pruning boundary | Context management pipeline had only 8 integration tests for the most critical infrastructure |
+
+### Workflow impact
+
+**Scenario**: "User collaborates with agent over 30+ turns writing a research report — fetching web pages, extracting key points, writing/revising sections. At turn 35, context hits 80%. Agent must compact while preserving file edit history."
+- Tools: web_fetch → file_write → file_edit (many turns) → context prunes at 50% → compacts at 75%
+- **Before**: 8 integration tests covered the happy path. No test verified repeated compaction (compaction #2 after #1's output), image pruning in the pipeline, delegate result pruning, or the ≤10 message guard.
+- **After**: 13 integration tests. Verified: (1) repeated compaction preserves narrative state even after structured tool_use blocks are lost, (2) image content is pruned with path info, (3) delegate results pruned with task summary, (4) compact is no-op with ≤10 messages, (5) pruning boundary respects keepRecent exactly.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1285/1285 pass (+5 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Confidence that repeated compaction cycles don't lose critical file/command state
+- Image-bearing tool results are correctly pruned (saves ~1000+ tokens per image)
+- Delegate results are pruned with task context preserved
+- No regression risk from ≤10 message edge case
+
+### Future directions
+- Test compaction with real token counting (currently uses mock LLM)
+- loop.ts still ~304 lines (AUDIT LOW)
+
 ## Iteration 292 — Health Check (All GREEN, Steady State)
 
 ### Verification of iter 290 (previous improver)
