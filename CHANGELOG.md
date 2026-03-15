@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 261 — Delegate Transient Retry + Error Pipeline Integration Tests
+
+### Workflow impact
+
+**Scenario**: "User delegates: 'Explore the server directory, find all API endpoints missing auth middleware.' Sub-agent encounters transient network errors (timeout on web_fetch) and file-not-found errors."
+
+**Before**: Delegate sub-agents had no transient error retry. A web_fetch 503 or shell ETIMEDOUT in a sub-agent would fail immediately, while the same error in the main loop would be auto-retried by tool-retry.ts. This asymmetry meant sub-agents were less resilient than the main agent.
+
+**After**: Delegate tool execution now uses `maybeRetry` from tool-retry.ts — same retry logic as the main loop. Transient failures (ETIMEDOUT, ECONNRESET, HTTP 503) are retried once before being reported as errors.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `delegate.ts` | Import `maybeRetry`, add retry around `runner(toolInput)` | Sub-agents lacked transient error retry |
+| `delegate-error.integration.test.ts` | +6 cross-module tests: circuit break, varied errors, unknown tool, recovery, turn limit, transient retry | No integration tests for delegate error pipeline |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1196 tests (+6).
+
+### Expected effects
+
+- Sub-agent web_fetch/shell/http_request calls now survive transient failures
+- Circuit breaker and error recovery continue to work correctly (verified by integration tests)
+- No behavior change for non-transient errors
+
+### Future directions
+
+- Delegate lacks diverse-failure guidance (tool-runner has 5-failure injection; delegate only has 3-identical circuit break)
+- AUDIT test count needs updating to 1196
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 260 — Health Check (All GREEN)
 
 ### Verification of iter 258 (previous improver)

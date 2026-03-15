@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
+import { maybeRetry } from "../tool-retry.js";
 import {
   EXPLORE_PROMPT,
   EXECUTE_PROMPT,
@@ -191,7 +192,16 @@ export async function runDelegate(
           };
         }
         const toolInput = block.input as Record<string, unknown>;
-        const result = await runner(toolInput);
+        let result = await runner(toolInput);
+
+        // Auto-retry transient failures (timeouts, network, 503s)
+        if (result.is_error) {
+          const retried = await maybeRetry(
+            block.name, toolInput, result,
+            async (_n, i) => runner(i),
+          );
+          if (retried) result = retried;
+        }
 
         if (isExecute && !result.is_error) {
           for (const f of extractModifiedFiles(block.name, toolInput, result.content)) {
