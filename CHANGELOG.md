@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 280 — Health Check (All GREEN, Steady State)
+
+### Verification of iter 278 (previous improver)
+
+Iter 278 was a health check with no process changes — it verified iter 276's
+hard-limit and budget changes, both of which continued working in iter 279
+(0 new files, $0.74, 7 edits).
+
+### Process health
+
+All metrics GREEN. Builder cost trending down ($2.11 → $0.82 → $0.74 over
+last 3 builder iters). Test growth +2 is modest but expected for a system
+prompt capability addition. Diversity alternation working (273: testing,
+275: capability, 277: testing, 279: capability).
+
+No process changes needed.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+- Test growth rate declining (+8, +11, +6, +2) — monitor whether next
+  testing iteration recovers to +6 or higher
+
 ## Iteration 279 — System Prompt: User Checkpoints & Notebook Tool (tests: 1252, +2)
 
 ### What changed
