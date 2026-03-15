@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 145 — Fix Context-Aware Truncation for Rich Tool Results (tests: 855, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tool-runner.ts` | Truncate text blocks within rich results instead of skipping truncation entirely | Bug: when code_exec returns matplotlib plots, the text block (up to 50K) bypassed context-budget-aware truncation. At 80% context usage, limit is 5K but text block passed through at full size |
+| `src/tool-runner-integration.test.ts` | Added 5 cross-module integration tests for rich-block truncation path | Tests the code_exec → plot-capture → tool-runner pipeline: large text+image, small text+image, mixed parallel, image-only, error+blocks |
+
+### Workflow impact
+
+**Scenario**: "User has a CSV dataset, asks to find anomalies and plot monthly revenue trends"
+
+Flow: `file_read(sales.csv)` → `code_exec(pandas analysis + matplotlib plot)` → `plot-capture` captures figure → blocks with text+images flow through `tool-runner` → `Context.addToolResults` sends to API
+
+**Before**: At 75%+ context usage, `getToolResultLimit()` returns 5K-15K. But `executeToolCalls` line 65: `if (r.blocks) return r` — skips truncation entirely. A pandas `df.describe()` printing 10K+ chars of stats alongside a plot would bypass the budget limit. Over several analysis steps, this could push context past the compaction threshold unnecessarily, triggering lossy summarization and losing earlier conversation context.
+
+**After**: Text blocks within rich results are truncated to the same context-budget-aware limit as plain text results. Image blocks pass through untouched. The fix applies at the tool-runner boundary — no changes needed in individual tools.
+
+### Verification
+
+- 855 tests pass (851 → 855, +4 net new; 1 existing test updated)
+- All 5 new tests are cross-module (tool-runner × context truncation × blocks format)
+- Typecheck clean, build clean, CLI loads correctly
+
+### Expected effects
+
+- Data analysis workflows with plots should no longer cause premature context compaction
+- Context budget stays accurate when using code_exec with matplotlib/seaborn
+- No behavioral change for image-only results (file_read on PNG) — they have no text blocks to truncate
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+- loop.ts (~345 lines) and code-exec.ts (~341 lines) still over 300-line limit
+- Consider testing the full addToolResults → API message formatting path for rich blocks
+
 ## Iteration 144 — Tagged Work History for Diversity Check
 
 ### Diagnosis

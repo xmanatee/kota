@@ -61,8 +61,15 @@ export async function executeToolCalls(
   );
 
   return results.map((r) => {
-    // Rich content (images) — already bounded by size checks, skip text truncation
-    if (r.blocks) return r;
+    if (r.blocks) {
+      // Truncate text blocks within rich results — images pass through untouched
+      const truncatedBlocks = r.blocks.map((b) =>
+        b.type === "text"
+          ? { ...b, text: truncateToolResult(b.text, resultLimit) }
+          : b,
+      );
+      return { ...r, content: truncateToolResult(r.content, resultLimit), blocks: truncatedBlocks };
+    }
     return { ...r, content: truncateToolResult(r.content, resultLimit) };
   });
 }

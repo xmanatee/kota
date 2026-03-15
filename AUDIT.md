@@ -29,8 +29,9 @@ file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
 code-exec.ts (25, includes SIGINT interrupt + timeout recovery tests).
 Cross-module: shell-pipeline (6) — shell-diagnostics → error-context composition;
-tool-runner-integration (6) — executeToolCalls × tool-retry retry pipeline.
-Total suite: 851.
+tool-runner-integration (11) — executeToolCalls × tool-retry retry pipeline +
+rich-block truncation (code_exec → plot-capture → context-aware truncation).
+Total suite: 855.
 
 No untested modules remain.
 
