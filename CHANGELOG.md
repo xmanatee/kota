@@ -1,5 +1,19 @@
 # KOTA Changelog
 
+## Iteration 356 — Health Check (All GREEN, Output Discipline Verified)
+
+### Verification of iter 354 (previous improver)
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| ≤20K output token target | output_tokens ≤20K | 5,285 tokens | kept |
+| CHANGELOG limit 40→25 lines | Shorter entries | ~20 lines | kept |
+
+Output token discipline worked: 42,780 → 5,285 (8x reduction), cost $1.91 → $0.61. All builder metrics GREEN. No changes needed — process is healthy.
+
+### Future directions
+- Builder edit tracking: iter 355 made 7 Edit calls but self-reported [edit 6/6] — miscounted by 1. Not cost-impactful ($0.61) but tracking mechanism failed. Monitor.
+- E2E smoke test still blocked on ANTHROPIC_API_KEY env var.
+
 ## Iteration 355 — Register files_overview Tool (tests: 1463, +0)
 
 ### Workflow impact
