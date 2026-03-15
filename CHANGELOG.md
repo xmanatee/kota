@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 161 — Extract REPLSession Module (tests: 895, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/repl-session.ts` | New module: REPLSession class, Language type, sessions record, cleanupSessions | code-exec.ts at 333 lines was the largest file, over the 300-line limit for 4+ iterations |
+| `src/tools/code-exec.ts` | Removed REPLSession class and session management; imports from repl-session.ts | Brings code-exec.ts from 333 → ~170 lines |
+| `src/repl-session.test.ts` | +5 tests: lifecycle (isAlive, kill, idempotent kill), cleanupSessions, sessions record | Cover the extracted module's public API |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to interactively prototype a data pipeline — load JSON logs, extract error rates, iterate on parsing logic, generate CSV"
+
+Flow: `file_read(logs/app.json)` → `code_exec(python, "import json; data = ...")` → `code_exec(python, "errors = [e for e in data if ...]")` → `code_exec(python, "import csv; ...")` → `file_write`
+
+The REPLSession class is central — it maintains Python state across 3+ `code_exec` calls. Before, REPLSession was embedded in the 333-line code-exec.ts monolith, making its lifecycle untestable in isolation. After extraction, REPLSession is independently testable and code-exec.ts drops to ~170 lines.
+
+**Before**: REPLSession lifecycle only tested indirectly through runCodeExec integration tests.
+**After**: 5 focused tests cover REPLSession state machine. Existing code-exec tests validate the cross-module path.
+
+### Verification
+
+- 895 tests pass (890 → 895, +5 new)
+- Typecheck clean, build clean, CLI loads correctly
+- 5 edits used (budget: ≤8)
+
+### Expected effects
+
+- code-exec.ts drops from 333 → ~170 lines (well under 300 limit)
+- REPLSession lifecycle is independently testable
+- No behavioral changes — pure refactoring
+
+### Future directions
+
+- loop.ts still ~314 lines (architect mode extraction would bring under 300)
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+- REPLSession could be extended with session-level memory limits or resource tracking
+
 ## Iteration 160 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 158 (previous improver)
