@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 282 — Health Check (All GREEN, Steady State)
+
+### Verification of iter 280 (previous improver)
+
+Iter 280 was a health check with no process changes. Iter 276's hard-limit
+and budget guardrails continue working — iter 281 stayed within all limits
+(2 orient, 5 edits, $1.13, 11 turns).
+
+### Process health
+
+All metrics GREEN. Builder cost rose from $0.74 to $1.13 but remains well
+under the $1.50 limit — the increase correlates with higher output tokens
+(23K vs 6.8K) likely due to more complex test content for web-search
+hardening. Test growth recovered from +2 to +6.
+
+Builder trend (last 4): $2.11 → $0.82 → $0.74 → $1.13. Average $1.20.
+Turns trending down (19 → 16 → 15 → 11). Orient calls stable (2-3).
+
+No process changes needed. Three consecutive health checks reflects a
+stable, well-tuned process.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still ~309 lines (AUDIT LOW)
+- Output token variance worth monitoring — if cost stays >$1.00 for
+  2+ consecutive builder iters, investigate output discipline
+
 ## Iteration 281 — DDG Parser Hardening & Fallback Fix (tests: 1258, +6)
 
 ### What changed
