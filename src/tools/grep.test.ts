@@ -130,6 +130,65 @@ describe("grep: count_only mode", () => {
   });
 });
 
+describe("grep: files_only + file_glob filter", () => {
+  it("returns only matching files filtered by glob", async () => {
+    const result = await runGrep({
+      pattern: "42",
+      path: TEST_DIR,
+      files_only: true,
+      file_glob: "*.py",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("world.py");
+    expect(result.content).not.toContain("hello.ts");
+  });
+
+  it("returns no matches when glob excludes all matching files", async () => {
+    const result = await runGrep({
+      pattern: "42",
+      path: TEST_DIR,
+      files_only: true,
+      file_glob: "*.md",
+    });
+    expect(result.content).toBe("No matches found.");
+  });
+});
+
+describe("grep: count_only + file_glob filter", () => {
+  it("returns counts only for files matching glob", async () => {
+    const result = await runGrep({
+      pattern: "42",
+      path: TEST_DIR,
+      count_only: true,
+      file_glob: "*.py",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("world.py");
+    expect(result.content).not.toContain("hello.ts");
+    expect(result.content).toContain("Total:");
+  });
+});
+
+describe("grep: invalid regex handling", () => {
+  it("returns error for invalid regex in default mode", async () => {
+    const result = await runGrep({ pattern: "[invalid", path: TEST_DIR });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Search error");
+  });
+
+  it("returns error for invalid regex in files_only mode", async () => {
+    const result = await runGrep({ pattern: "[invalid", path: TEST_DIR, files_only: true });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Search error");
+  });
+
+  it("returns error for invalid regex in count_only mode", async () => {
+    const result = await runGrep({ pattern: "[invalid", path: TEST_DIR, count_only: true });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Search error");
+  });
+});
+
 describe("formatCountOutput", () => {
   it("sums counts and filters zero-count entries", () => {
     const raw = "src/a.ts:5\nsrc/b.ts:0\nsrc/c.ts:3";

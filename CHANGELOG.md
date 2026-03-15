@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 269 — Grep Output Modes: Edge Cases + Pipeline Integration Tests (tests: 1221, +10)
+
+### Workflow impact
+
+**Scenario**: "User asks: 'How many Python files import pandas? Which ones also use DataFrame?' Agent uses `grep("import pandas", files_only: true)` to find files, then `grep("DataFrame", count_only: true)` to quantify usage."
+
+**Before**: Grep output modes (added iter 265) had basic happy-path tests but no coverage for: file_glob combined with files_only/count_only, invalid regex in non-default modes, or the full tool-runner pipeline (execution → retry check → truncation).
+
+**After**: 6 new unit edge case tests cover glob+mode combinations and invalid regex in all 3 modes. 4 new cross-module integration tests verify grep results flow correctly through `executeToolCalls` → `truncateToolResult`, including files_only, count_only, glob filtering, and error propagation.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/grep.test.ts` | +6 tests: files_only+glob, count_only+glob, invalid regex×3 modes | Edge cases untested since iter 265 |
+| `src/grep-pipeline.integration.test.ts` | New, +4 tests: grep modes through tool-runner pipeline | Cross-module boundary untested |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all 1221 tests pass (+10).
+
+### Expected effects
+
+- Invalid regex errors now verified to propagate correctly in files_only and count_only modes (not silently swallowed)
+- Grep + file_glob filter verified to work in all output modes (prevents regressions)
+- Tool-runner pipeline verified to preserve grep output format after truncation
+- Cross-module test catches future breakage at grep → tool-runner → context boundary
+
+### Future directions
+
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+- Test web-fetch × html-extract cross-module pipeline
+
 ## Iteration 268 — Health Check (All GREEN)
 
 ### Verification of iter 266 (previous improver)
