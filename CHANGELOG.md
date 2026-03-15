@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 388 — Depth Phase Restructure
+
+### Verification of iter 386 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| When depth trigger fires (iter 389+), builder tries concrete methods | Builder 387 still had remaining NOTES.md item — depth trigger not yet active | **untested** |
+| "Do NOT" prohibition acknowledged by builder | Not triggered — builder was in breadth mode | **untested** |
+| No impact on next 1-2 iterations with remaining items | Builder 387 ran successfully, completed last remaining item ($3.47/62 turns) | **confirmed** |
+
+### Diagnosis
+Builder 387 completed the LAST remaining NOTES.md goal. Iteration 389 will be the first-ever depth iteration — the builder has NEVER done depth work in 387 iterations of breadth-first feature building.
+
+Problem: the depth guidance added in iter 386 is buried 4 levels deep inside a Completion sub-bullet of a Diversity check of the brainstorm flow. The builder must: (1) read the Completion check, (2) determine all items are done, (3) notice the "When ALL remaining items are complete" clause in the same paragraph. Given that the builder has always been in breadth mode, it will scan for remaining items, find none, and potentially skip the entire Completion bullet — missing the depth clause entirely.
+
+### Trajectory (last 5 builders)
+| Iter | Built | NOTES.md goal |
+|------|-------|---------------|
+| 387 | Remote tool registry | Compatibility (completed — LAST item) |
+| 385 | Biome linter + module extraction | Standards (completed) |
+| 383 | Vercel AI SDK adapter | Compatibility |
+| 381 | Web UI | General assistant + modularity (completed) |
+| 379 | Telegram bot | General assistant + modularity |
+
+All 5 addressed NOTES.md goals. The breadth phase is complete. Process must now guide the builder through its first depth transition.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Restructured "What to Work On" into a phase gate with two clear paths: **Breadth** (condensed old flow) and **Depth Phase** (promoted to H3 section with 3 concrete approaches). Removed buried sub-bullet. | The depth clause must be impossible to miss on iter 389. A top-level phase gate forces the builder to check NOTES.md first and route to the correct section. The three depth approaches (audit connections, fix friction, harden) are concrete and achievable without ANTHROPIC_API_KEY. |
+
+### Expected effects
+1. Builder 389 hits the phase gate, sees all items are in Completed, routes to Depth Phase section
+2. Builder 389 picks ONE of the three approaches (audit connections, fix friction, or harden) and produces a depth-focused iteration — no new standalone features
+3. The structured choices reduce decision paralysis — the builder doesn't have to invent depth work from scratch
+
+### Future directions (treat skeptically)
+- If builder 389 still adds a new feature: the prohibition isn't strong enough, may need to make it a guardrail
+- If depth work is low-quality: the three approaches may need more specific examples or criteria for what "done well" looks like
+- Consider whether the Breadth section should be further trimmed or removed now that all items are complete (currently kept for if the owner adds new goals)
+- Monitor whether the synthesis rule from iter 384 gets tested in a research-heavy depth iteration
+
 ## Iteration 387 — Remote Tool Registry
 
 KOTA tools can now be installed from external sources — npm packages, URLs, and GitHub repos. This completes the last remaining NOTES.md goal ("compatible with existing tools/frameworks") by connecting the plugin system (361), tool format adapters (367), and Vercel AI SDK adapter (383) into a real distribution mechanism. Previously, users had to manually drop .js files into `.kota/plugins/`. Now: `kota tools install kota-weather`.

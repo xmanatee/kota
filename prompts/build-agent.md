@@ -47,40 +47,46 @@ Build on what exists; do not redo completed work.
 Aim high. Pick one ambitious improvement that meaningfully advances the agent
 — not a micro-optimization or incremental tweak.
 
-**You decide.** But decide well:
+**Phase gate**: Check NOTES.md. If there are remaining `b:` items not yet in
+Completed, follow **Breadth** below. If ALL `b:` items are in Completed,
+skip to **Depth Phase** below.
 
-1. **Brainstorm**: After orienting, write down 3-5 candidate improvements.
-   Think broadly — new capabilities, architecture, integrations, refactors,
-   developer experience, test coverage, performance. Don't filter yet.
-2. **Diversity check**: Before evaluating, verify you're not repeating:
-   - **Repetition**: `git log --oneline -10 | grep build-agent` — if last 2+
-     builder iterations touched the same module OR served the same NOTES.md
-     goal, choose a different area and goal.
-   - **Balance**: Mix infrastructure with core depth (reasoning, planning,
-     memory, context). Check if existing modules work together end-to-end —
-     connecting isolated pieces often beats adding new ones.
-   - **Completion**: Check NOTES.md for goals with "remaining" items.
-     Count how many builder iterations each has gone untouched (use git log).
-     Items waiting 5+ builder iterations are overdue — default to picking one
-     unless a new candidate is clearly more impactful. The owner chose these
-     goals deliberately; shipping what they asked for beats unasked-for novelty.
-     When ALL remaining items are complete, shift from breadth to depth.
-     Do NOT add new standalone features. Instead: check if existing modules
-     connect end-to-end (features built in isolation often need wiring),
-     try the agent on a real task to find where it breaks, and review tool
-     UX and error messages. Quality of what exists beats quantity added.
-3. **Evaluate**: For each candidate, honestly assess impact vs cost. Impact
-   includes: advancing capability, fulfilling owner needs (NOTES.md), and
-   connecting existing unused features. A feature that activates dormant
-   infrastructure can be higher impact than a new standalone capability.
-4. **Pick one**: Choose the highest-impact candidate you can finish well in
-   this iteration. Explain why you picked it over the others.
-5. **Record the rest**: Write unpicked ideas in your CHANGELOG entry under
-   "Future directions."
+### Breadth (remaining NOTES.md items exist)
+
+1. **Brainstorm**: Write down 3-5 candidates. Think broadly.
+2. **Diversity check**: `git log --oneline -10 | grep build-agent` — if
+   last 2+ builders touched the same module or goal, choose differently.
+   Mix infrastructure with core depth. Check NOTES.md staleness: items
+   waiting 5+ builder iterations are overdue — default to picking one.
+3. **Evaluate**: Assess impact vs cost for each candidate.
+4. **Pick one**: Choose the highest-impact candidate you can finish well.
+5. **Record the rest** in CHANGELOG under "Future directions."
+
+### Depth Phase (all NOTES.md items complete)
+
+Do NOT add new standalone features. The agent has broad coverage — now make
+what exists actually work well together.
+
+Pick ONE of these approaches:
+
+1. **Audit connections**: Choose two modules built in different iterations
+   (e.g. scheduler + Telegram, registry + plugins). Read both. Trace the
+   call path between them. Write a test that exercises the integration, or
+   fix the gap if they don't actually connect.
+2. **Fix real friction**: Run `node dist/cli.js --help`. Pick a command.
+   Read its implementation end-to-end. Find a rough edge — unclear error
+   message, missing validation, inconsistent behavior, dead code path — and
+   fix it properly with tests.
+3. **Harden**: Find the module with the weakest test coverage (lowest
+   test-to-code ratio). Add edge-case tests. Fix bugs they reveal.
+
+Ship ONE of these thoroughly. Depth means one thing done well, not three
+things started.
+
+---
 
 Don't anchor to prior iterations' "next priorities" — re-evaluate from first
-principles. Challenge inherited patterns. Seek disconfirming evidence: after
-choosing a direction, actively look for reasons it might be wrong.
+principles. Challenge inherited patterns.
 
 ## Goals
 
