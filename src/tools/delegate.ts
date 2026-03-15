@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
+import type { Transport } from "../transport.js";
 import { maybeRetry } from "../tool-retry.js";
 import {
   EXPLORE_PROMPT,
@@ -61,6 +62,7 @@ export type DelegateConfig = {
   cwd?: string;
   projectContext?: string;
   costTracker?: CostTracker;
+  transport?: Transport;
 };
 
 let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
@@ -116,8 +118,9 @@ export async function runDelegate(
 
   let naturalEnd = false;
 
+  const transport = delegateConfig.transport;
   const taskPreview = task.length > 60 ? task.slice(0, 57) + "..." : task;
-  console.error(`[kota] delegate(${mode}) starting: ${taskPreview}`);
+  if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) starting: ${taskPreview}` });
 
   for (let turn = 0; turn < maxTurns; turn++) {
     let response: Anthropic.Message;
@@ -130,21 +133,20 @@ export async function runDelegate(
         messages,
       });
 
-      // Stream sub-agent text to stderr for live progress
       let lastCharNewline = true;
       stream.on("text", (delta) => {
-        process.stderr.write(delta);
+        if (transport) transport.emit({ type: "progress", content: delta, source: `delegate(${mode})` });
         lastCharNewline = delta.endsWith("\n");
       });
 
       response = await stream.finalMessage();
-      if (!lastCharNewline) {
-        process.stderr.write("\n");
+      if (!lastCharNewline && transport) {
+        transport.emit({ type: "progress", content: "\n", source: `delegate(${mode})` });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
-        console.error(`[kota] delegate(${mode}) context overflow at turn ${turn + 1}`);
+        if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) context overflow at turn ${turn + 1}` });
         completionReason = "context_overflow";
         if (lastText) break;
         return {
@@ -164,7 +166,7 @@ export async function runDelegate(
       .map((b) => (b as Anthropic.Messages.ToolUseBlock).name);
     for (const name of toolNames) toolsUsed.add(name);
     const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
-    console.error(`[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}`);
+    if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}` });
 
     for (const block of response.content) {
       if (block.type === "text") {
@@ -238,7 +240,7 @@ export async function runDelegate(
       if (sig === lastErrorSig) {
         identicalErrorCount++;
         if (identicalErrorCount >= IDENTICAL_FAILURE_LIMIT) {
-          console.error(`[kota] delegate(${mode}) circuit break — same error ${IDENTICAL_FAILURE_LIMIT}x`);
+          if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) circuit break — same error ${IDENTICAL_FAILURE_LIMIT}x` });
           completionReason = "circuit_break";
           lastText = (lastText ? lastText + "\n\n" : "") +
             `Sub-agent stopped: repeated the same failing operation ${IDENTICAL_FAILURE_LIMIT} times. ` +
@@ -272,7 +274,7 @@ export async function runDelegate(
     completionReason = "turn_limit";
   }
 
-  console.error(`[kota] delegate(${mode}) done — ${totalTurns} turn(s)`);
+  if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) done — ${totalTurns} turn(s)` });
 
   const meta: DelegateMetadata = {
     mode,

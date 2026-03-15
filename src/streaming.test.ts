@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { streamMessage, type StreamConfig } from "./streaming.js";
+import { CliTransport, BufferTransport } from "./transport.js";
 
 let stdoutSpy: ReturnType<typeof vi.spyOn>;
 let stderrSpy: ReturnType<typeof vi.spyOn>;
@@ -44,7 +45,7 @@ function cfg(client: unknown): StreamConfig {
     system: [{ type: "text", text: "test" }],
     messages: [{ role: "user", content: "Hello" }],
     tools: [],
-    verbose: false,
+    transport: new CliTransport(false),
   };
 }
 
@@ -212,7 +213,7 @@ describe("streamMessage", () => {
     const config = {
       ...cfg(client),
       thinkingConfig: { type: "enabled" as const, budget_tokens: 1000 },
-      verbose: true,
+      transport: new CliTransport(true),
     };
 
     await streamMessage(config);
@@ -240,7 +241,7 @@ describe("streamMessage", () => {
     const config = {
       ...cfg(client),
       thinkingConfig: { type: "enabled" as const, budget_tokens: 1000 },
-      verbose: false,
+      transport: new CliTransport(false),
     };
 
     await streamMessage(config);

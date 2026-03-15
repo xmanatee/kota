@@ -3,6 +3,7 @@ import type { ToolResultBlock } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import { maybeRetry } from "./tool-retry.js";
 import type { McpManager } from "./mcp-manager.js";
+import type { Transport } from "./transport.js";
 
 type ToolUseBlock = {
   type: "tool_use";
@@ -27,13 +28,15 @@ export async function executeToolCalls(
   resultLimit: number,
   verbose: boolean,
   mcpManager?: McpManager,
+  transport?: Transport,
 ): Promise<ToolResultEntry[]> {
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
-      if (verbose) {
-        console.error(
-          `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
-        );
+      if (verbose && transport) {
+        transport.emit({
+          type: "status",
+          message: `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
+        });
       }
       const input = block.input as Record<string, unknown>;
 

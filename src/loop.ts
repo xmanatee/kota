@@ -16,6 +16,7 @@ import { McpManager } from "./mcp-manager.js";
 import { PluginManager } from "./plugin-loader.js";
 import { cleanupProcesses } from "./tools/process.js";
 import { cleanupSessions } from "./tools/code-exec.js";
+import { CliTransport, type Transport } from "./transport.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -29,6 +30,7 @@ export type LoopOptions = {
   sessionPath?: string;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
+  transport?: Transport;
 };
 
 /**
@@ -50,6 +52,7 @@ export class AgentSession {
   private verifyTracker: VerifyTracker;
   private mcpManager: McpManager | null = null;
   private pluginManager: PluginManager;
+  private transport: Transport;
   private sigintHandler: () => void;
   private closed = false;
   private initialized = false;
@@ -62,6 +65,7 @@ export class AgentSession {
     this.verbose = options.verbose || false;
     this.architectMode = options.architectMode || false;
     this.sessionPath = options.sessionPath;
+    this.transport = options.transport || new CliTransport(this.verbose);
 
     const thinkingBudget = options.thinkingBudget || 10_000;
     this.thinkingConfig = options.thinkingEnabled
@@ -71,25 +75,22 @@ export class AgentSession {
       ? thinkingBudget + this.maxTokens
       : this.maxTokens;
 
-    // SDK auto-retries 429, 500, 502, 503, 504 on connection failures
     this.client = new Anthropic({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
-    // Build system prompt with project context and session warmup
     const projectContext = loadProjectContext();
     const warmup = buildSessionWarmup();
     const systemPrompt = SYSTEM_PROMPT + projectContext + warmup;
     if (projectContext && this.verbose) {
-      console.error("[kota] Loaded project context from .kota.md");
+      this.transport.emit({ type: "status", message: "[kota] Loaded project context from .kota.md" });
     }
     if (warmup && this.verbose) {
-      console.error("[kota] Session warmup loaded");
+      this.transport.emit({ type: "status", message: "[kota] Session warmup loaded" });
     }
 
-    // Load or create context
     if (this.sessionPath && existsSync(this.sessionPath)) {
       this.context = Context.load(this.sessionPath, systemPrompt);
-      if (this.verbose) console.error(`[kota] Resumed session from ${this.sessionPath}`);
+      if (this.verbose) this.transport.emit({ type: "status", message: `[kota] Resumed session from ${this.sessionPath}` });
     } else {
       this.context = new Context(systemPrompt);
     }
@@ -102,18 +103,17 @@ export class AgentSession {
       cwd: process.cwd(),
       projectContext: projectContext || undefined,
       costTracker: this.costTracker,
+      transport: this.transport,
     });
 
     this.pluginManager = new PluginManager(this.verbose);
 
-    // Initialize MCP servers + plugins asynchronously (awaited before first send)
     this.initPromise = this.initExtensions();
 
-    // SIGINT handler: save session before exit
     this.sigintHandler = () => {
       if (this.sessionPath) {
         this.context.save(this.sessionPath);
-        console.error(`\n[kota] Session saved to ${this.sessionPath}`);
+        this.transport.emit({ type: "status", message: "\n[kota] Session saved to " + this.sessionPath });
       }
       process.exit(0);
     };
@@ -121,21 +121,19 @@ export class AgentSession {
   }
 
   private async initExtensions(): Promise<void> {
-    // Load MCP servers
     const config = McpManager.loadConfig();
     if (config) {
       this.mcpManager = new McpManager();
       await this.mcpManager.initialize(config);
       if (this.mcpManager.getToolCount() > 0 && this.verbose) {
-        console.error(
-          `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
-        );
+        this.transport.emit({
+          type: "status",
+          message: `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
+        });
       }
     }
 
-    // Load plugins from .kota/plugins/
     await this.pluginManager.loadAll();
-
     this.initialized = true;
   }
 
@@ -150,7 +148,6 @@ export class AgentSession {
     // MCP tools always included; built-in tools filtered by active groups
     const mcpTools = this.mcpManager ? this.mcpManager.getTools() : [];
 
-    // Architect/Editor split: two-pass before the main verification loop
     if (this.architectMode) {
       const result = await runArchitectStep({
         client: this.client,
@@ -163,6 +160,7 @@ export class AgentSession {
         costTracker: this.costTracker,
         verbose: this.verbose,
         thinkingConfig: this.thinkingConfig,
+        transport: this.transport,
       });
       if (result) {
         lastResult = result.lastResult;
@@ -178,24 +176,25 @@ export class AgentSession {
     const failureTracker = new FailureTracker();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      // Prune old read-only tool results before checking compaction
       const pruneStats = this.context.maybePrune();
       if (pruneStats.prunedCount > 0) {
-        console.error(
-          `[kota] Pruned ${pruneStats.prunedCount} old tool results (saved ~${Math.round(pruneStats.charsSaved / 4)} tokens)`,
-        );
+        this.transport.emit({
+          type: "status",
+          message: `[kota] Pruned ${pruneStats.prunedCount} old tool results (saved ~${Math.round(pruneStats.charsSaved / 4)} tokens)`,
+        });
       }
 
       if (this.context.needsCompaction()) {
-        if (this.verbose) console.error("[kota] Compacting context...");
+        if (this.verbose) this.transport.emit({ type: "status", message: "[kota] Compacting context..." });
         await this.context.compact(this.client, this.model);
       }
 
       if (this.verbose) {
         const stats = this.context.getStats();
-        console.error(
-          `[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`,
-        );
+        this.transport.emit({
+          type: "status",
+          message: `[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`,
+        });
       }
 
       // Build system blocks: static prompt (cached) + dynamic state (uncached)
@@ -210,7 +209,6 @@ export class AgentSession {
       // Progressive disclosure: filter built-in tools by active groups, include MCP tools
       const activeTools = [...filterTools(allTools), ...mcpTools];
 
-      // Stream the response with retry for mid-stream failures
       const { response, streamedText } = await streamMessage({
         client: this.client,
         model: this.model,
@@ -219,37 +217,39 @@ export class AgentSession {
         messages: this.context.getMessages(),
         tools: activeTools,
         thinkingConfig: this.thinkingConfig,
-        verbose: this.verbose,
+        transport: this.transport,
       });
 
       if (streamedText) {
-        process.stdout.write("\n");
+        this.transport.emit({ type: "text", content: "\n" });
         lastResult = streamedText;
       }
 
-      // Track token usage for compaction decisions and cost
       this.context.setInputTokens(response.usage.input_tokens);
       this.costTracker.addUsage(this.model, response.usage);
       const budgetPct = Math.round(this.context.getBudgetPercent() * 100);
-      console.error(
-        `[kota] Turn ${i + 1} \u2014 ${this.costTracker.getSummary()} \u2014 context: ${budgetPct}%`,
-      );
+      this.transport.emit({
+        type: "cost",
+        summary: `Turn ${i + 1} — ${this.costTracker.getSummary()}`,
+        budgetPercent: budgetPct,
+      });
 
       if (this.verbose) {
         const u = response.usage;
-        console.error(
-          `[kota] Tokens: input=${u.input_tokens}/${CONTEXT_WINDOW}` +
-          (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
-          (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
-        );
+        this.transport.emit({
+          type: "status",
+          message: `[kota] Tokens: input=${u.input_tokens}/${CONTEXT_WINDOW}` +
+            (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
+            (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
+        });
       }
 
-      // Prune with fresh token count — fixes one-turn-late pruning
       const postPrune = this.context.maybePrune();
       if (postPrune.prunedCount > 0) {
-        console.error(
-          `[kota] Pruned ${postPrune.prunedCount} old tool results (saved ~${Math.round(postPrune.charsSaved / 4)} tokens)`,
-        );
+        this.transport.emit({
+          type: "status",
+          message: `[kota] Pruned ${postPrune.prunedCount} old tool results (saved ~${Math.round(postPrune.charsSaved / 4)} tokens)`,
+        });
       }
 
       this.context.addAssistantMessage(response);
@@ -259,10 +259,9 @@ export class AgentSession {
       );
       if (toolBlocks.length === 0) break;
 
-      // Execute tool calls in parallel with budget-aware truncation
       const resultLimit = this.context.getToolResultLimit();
       const validResults = await executeToolCalls(
-        toolBlocks, resultLimit, this.verbose, this.mcpManager ?? undefined,
+        toolBlocks, resultLimit, this.verbose, this.mcpManager ?? undefined, this.transport,
       );
       this.context.addToolResults(validResults);
 
@@ -270,11 +269,13 @@ export class AgentSession {
 
       if (this.sessionPath) this.context.save(this.sessionPath);
 
-      // Failure tracking: detect stuck loops (identical or diverse failures)
       const action = failureTracker.record(validResults);
       if (action !== "continue") {
         const msg = FailureTracker.getMessage(action);
-        console.error(`[kota] ${action === "circuit_break" ? "Circuit breaker" : "Failure guidance"}: ${msg}`);
+        this.transport.emit({
+          type: "error",
+          message: `[kota] ${action === "circuit_break" ? "Circuit breaker" : "Failure guidance"}: ${msg}`,
+        });
         this.context.addUserMessage(msg);
       }
     }
@@ -299,7 +300,7 @@ export class AgentSession {
     resetGroups();
     this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
-    console.error(`[kota] Done \u2014 ${this.costTracker.getSummary()}`);
+    this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });
   }
 }
 

@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 363 — Transport Layer (Decouple Agent I/O)
+
+Built a typed event system that decouples all agent output from the terminal.
+This is the foundation for embedding KOTA in any frontend (Telegram, web,
+Discord) without modifying core code — directly addressing the owner's top
+modularity request.
+
+### What was built
+- `src/transport.ts`: `AgentEvent` union type (7 event kinds), `Transport`
+  interface, plus three implementations: `CliTransport` (terminal, default),
+  `BufferTransport` (testing/batch), `NullTransport` (headless)
+- Refactored 5 core modules to emit events instead of writing to stdout/stderr:
+  `loop.ts`, `streaming.ts`, `architect.ts`, `tools/delegate.ts`, `tool-runner.ts`
+- Zero direct `process.stdout.write` / `console.error` calls remain in the
+  agent core — all I/O goes through the transport
+- `AgentSession` accepts an optional `transport` in `LoopOptions`, defaulting
+  to `CliTransport` for backward compatibility
+- Transport is threaded through the full call chain: session → streaming →
+  architect → delegate → tool execution
+
+### Verified
+- TypeScript: clean (`tsc --noEmit`)
+- Build: 233KB bundle (tsup)
+- Tests: 1501 passed (including 8 new transport tests)
+- CLI: `--help` and runtime smoke test pass
+- No direct I/O in core modules (verified via grep)
+
+### Future directions
+- HTTP/WebSocket server transport (expose as API)
+- Telegram bot transport (concrete integration)
+- Event filtering/middleware (rate-limit status events, batch text tokens)
+- Confirm dialog abstraction (currently `confirm.ts` still uses readline)
+
 ## Iteration 362 — Close Feedback Loops (NOTES.md + Improver Verification)
 
 ### Verification of iter 360 (previous improver)

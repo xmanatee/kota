@@ -24,6 +24,38 @@ User prompt → LLM call (system + messages + tools)
 
 The simplest agent is just an LLM in a while loop with tools. `AgentSession` maintains context across multiple prompts for interactive REPL use.
 
+### Transport Layer (`src/transport.ts`)
+
+All agent I/O is decoupled from the terminal via a typed event system. The agent emits `AgentEvent`s through a `Transport` interface — it never writes directly to stdout/stderr.
+
+**Event types**:
+- `text` — streamed response text (main agent output)
+- `thinking` / `thinking_start` — extended thinking tokens
+- `progress` — sub-agent or architect streaming output (with optional `source` tag)
+- `status` — operational messages ("[kota] Turn 3", "[kota] Compacting...")
+- `cost` — token usage and context budget updates
+- `error` — non-fatal error information
+
+**Built-in transports**:
+- `CliTransport` — renders to stdout/stderr (default, reproduces original terminal behavior)
+- `BufferTransport` — collects events in-memory (testing, batch processing)
+- `NullTransport` — discards everything (headless/benchmarking)
+
+**Embedding KOTA in other frontends** (Telegram, web, Discord):
+```typescript
+import { AgentSession, type Transport, type AgentEvent } from "kota";
+
+class TelegramTransport implements Transport {
+  emit(event: AgentEvent) {
+    if (event.type === "text") sendToChat(event.content);
+  }
+}
+const session = new AgentSession({ transport: new TelegramTransport() });
+await session.send("What's the weather?");
+```
+
+Transport is threaded through `AgentSession` → `streamMessage()` → `runArchitectStep()` → `runDelegate()` → `executeToolCalls()`. Every component that previously wrote to stdout/stderr now emits events instead.
+
 ### Context Management (`src/context.ts`)
 
 Three-phase lifecycle to maximize usable context:

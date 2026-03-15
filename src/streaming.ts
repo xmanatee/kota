@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { Transport } from "./transport.js";
 
 const STREAM_MAX_RETRIES = 3;
 
@@ -29,7 +30,7 @@ export type StreamConfig = {
   messages: Anthropic.MessageParam[];
   tools: Anthropic.Tool[];
   thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
-  verbose: boolean;
+  transport: Transport;
 };
 
 /** Stream an API call with retry for mid-stream failures. */
@@ -37,7 +38,7 @@ export async function streamMessage(config: StreamConfig): Promise<{
   response: Anthropic.Message;
   streamedText: string;
 }> {
-  const { client, model, maxTokens, system, messages, tools, thinkingConfig, verbose } = config;
+  const { client, model, maxTokens, system, messages, tools, thinkingConfig, transport } = config;
 
   for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
     try {
@@ -56,18 +57,14 @@ export async function streamMessage(config: StreamConfig): Promise<{
         stream.on("thinking", (delta) => {
           if (!thinkingStarted) {
             thinkingStarted = true;
-            if (verbose) {
-              process.stderr.write("[thinking] ");
-            } else {
-              process.stderr.write("[kota] Thinking...\n");
-            }
+            transport.emit({ type: "thinking_start" });
           }
-          if (verbose) process.stderr.write(delta);
+          transport.emit({ type: "thinking", content: delta });
         });
       }
 
       stream.on("text", (text) => {
-        process.stdout.write(text);
+        transport.emit({ type: "text", content: text });
         streamedText += text;
       });
 
@@ -76,11 +73,12 @@ export async function streamMessage(config: StreamConfig): Promise<{
     } catch (err) {
       if (attempt === STREAM_MAX_RETRIES || !isRetryable(err)) throw err;
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `\n[kota] Stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg}`,
-      );
+      transport.emit({
+        type: "error",
+        message: `\n[kota] Stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg}`,
+      });
       await backoff(attempt);
-      console.error("[kota] Retrying...");
+      transport.emit({ type: "status", message: "[kota] Retrying..." });
     }
   }
   throw new Error("unreachable");

@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { allTools, executeTool } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
+import type { Transport } from "./transport.js";
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.
 
@@ -41,11 +42,12 @@ export type ArchitectOptions = {
   costTracker?: CostTracker;
   verbose?: boolean;
   thinking?: Anthropic.Messages.ThinkingConfigParam;
+  transport?: Transport;
 };
 
 export async function runArchitectPass(opts: ArchitectOptions): Promise<string> {
-  const { client, model, maxTokens, systemContext, messages, costTracker, verbose, thinking } = opts;
-  if (verbose) console.error("[kota] Architect pass — reasoning...");
+  const { client, model, maxTokens, systemContext, messages, costTracker, verbose, thinking, transport } = opts;
+  if (verbose && transport) transport.emit({ type: "status", message: "[kota] Architect pass — reasoning..." });
 
   const systemText = `${ARCHITECT_SYSTEM}\n\nProject context:\n${systemContext}`;
   const stream = client.messages.stream({
@@ -59,16 +61,16 @@ export async function runArchitectPass(opts: ArchitectOptions): Promise<string> 
   let plan = "";
   if (thinking) {
     stream.on("thinking", (delta) => {
-      if (verbose) process.stderr.write(delta);
+      if (transport) transport.emit({ type: "thinking", content: delta });
     });
   }
   stream.on("text", (text) => {
-    process.stderr.write(text);
+    if (transport) transport.emit({ type: "progress", content: text, source: "architect" });
     plan += text;
   });
 
   const response = await stream.finalMessage();
-  if (plan) process.stderr.write("\n");
+  if (plan && transport) transport.emit({ type: "progress", content: "\n", source: "architect" });
   if (costTracker) costTracker.addUsage(model, response.usage);
   return plan;
 }
@@ -80,6 +82,7 @@ export type EditorOptions = {
   plan: string;
   costTracker?: CostTracker;
   verbose?: boolean;
+  transport?: Transport;
 };
 
 export type EditorResult = {
@@ -90,11 +93,9 @@ export type EditorResult = {
 const EDIT_TOOL_NAMES = new Set(["file_edit", "file_write", "multi_edit"]);
 
 export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> {
-  const { client, model, maxTokens, plan, costTracker, verbose } = opts;
-  if (verbose) console.error("[kota] Editor pass — executing plan...");
+  const { client, model, maxTokens, plan, costTracker, verbose, transport } = opts;
+  if (verbose && transport) transport.emit({ type: "status", message: "[kota] Editor pass — executing plan..." });
 
-  // Editor uses its own explicit tool set — bypass tool-group gating
-  // so the architect's plan can rely on these tools being available.
   const editorTools = allTools.filter((t) => EDITOR_TOOL_SET.has(t.name));
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
     { type: "text", text: EDITOR_SYSTEM, cache_control: { type: "ephemeral" } },
@@ -118,26 +119,26 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
 
       let text = "";
       stream.on("text", (t) => {
-        process.stdout.write(t);
+        if (transport) transport.emit({ type: "text", content: t });
         text += t;
       });
 
       response = await stream.finalMessage();
       if (text) {
-        process.stdout.write("\n");
+        if (transport) transport.emit({ type: "text", content: "\n" });
         lastText = text;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
-        console.error(`[kota] Editor context overflow at turn ${turn + 1}`);
+        if (transport) transport.emit({ type: "error", message: `[kota] Editor context overflow at turn ${turn + 1}` });
         break;
       }
       throw err;
     }
 
     if (costTracker) costTracker.addUsage(model, response.usage);
-    if (verbose) console.error(`[kota] Editor turn ${turn + 1}/${MAX_EDITOR_TURNS}`);
+    if (verbose && transport) transport.emit({ type: "status", message: `[kota] Editor turn ${turn + 1}/${MAX_EDITOR_TURNS}` });
 
     messages.push({ role: "assistant", content: response.content });
 
@@ -147,10 +148,8 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
     const results = await Promise.all(
       toolBlocks.map(async (block) => {
         if (block.type !== "tool_use") return null;
-        if (verbose) {
-          console.error(
-            `[kota] Editor: ${block.name}(${JSON.stringify(block.input).slice(0, 80)})`,
-          );
+        if (verbose && transport) {
+          transport.emit({ type: "status", message: `[kota] Editor: ${block.name}(${JSON.stringify(block.input).slice(0, 80)})` });
         }
         const result = await executeTool(
           block.name,

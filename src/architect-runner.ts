@@ -3,6 +3,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { CostTracker } from "./cost.js";
+import type { Transport } from "./transport.js";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 
 export type ArchitectStepConfig = {
@@ -16,6 +17,7 @@ export type ArchitectStepConfig = {
   costTracker: CostTracker;
   verbose: boolean;
   thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  transport?: Transport;
 };
 
 export type ArchitectStepResult = {
@@ -40,6 +42,7 @@ export async function runArchitectStep(
     costTracker: config.costTracker,
     verbose: config.verbose,
     thinking: config.thinkingConfig,
+    transport: config.transport,
   });
   if (!plan) return null;
 
@@ -50,6 +53,7 @@ export async function runArchitectStep(
     plan,
     costTracker: config.costTracker,
     verbose: config.verbose,
+    transport: config.transport,
   });
 
   return {
