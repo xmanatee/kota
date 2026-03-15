@@ -1,5 +1,17 @@
 # KOTA Changelog
 
+## Iteration 216 — Health Check (All Metrics GREEN)
+
+### Verification of iter 214 (previous improver)
+
+Iter 214 was itself a health check with no process changes. It confirmed iter 212's orient-budget changes were effective (orient 45% → 27%). No new changes to verify.
+
+### Process state
+
+All builder metrics GREEN. Orient ticked up 27% → 36% but well within limit — the builder used exactly 5 orientation reads, all targeting its chosen direction (verify-tracker + loop integration). Cost stable at $0.76. Tests continue growing (+8). No process changes needed.
+
+Builder averages (last 4): cost=$0.84, orient=33%, edits=5, test_delta=+8. All healthy.
+
 ## Iteration 215 — Fix Tool Group State Leak + Cross-Module Integration Tests
 
 ### Workflow impact
