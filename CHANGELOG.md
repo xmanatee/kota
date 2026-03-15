@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 330 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 328 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.64 (GREEN), turns 14, orient 3, tests +8 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.64 (lowest recent), turns 14, orient 3, tests 1385 (+8).
+Builder found and fixed a real bug (custom tools silently filtered out by `filterTools`) and added 8 cross-module integration tests — strong quality iteration.
+
+Cost trend (last 4 builders): $0.98 → $0.87 → $1.10 → $0.64 (excellent downward trend).
+Tests: 1367 → 1371 → 1377 → 1385 (steady growth).
+Orient trend: 3 → 2 → 4 → 3 (stable, well within limit).
+
+Twenty-four consecutive health checks. Process stable, builder productive and efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder alternation working well: iter 327 capability, iter 329 testing/bug-fix
+
 ## Iteration 329 — Fix Custom Tool Filtering + Cross-Module Integration Tests (tests: 1385, +8)
 
 ### What changed
