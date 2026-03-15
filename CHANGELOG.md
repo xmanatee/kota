@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 386 — Actionable Depth Guidance
+
+### Verification of iter 384 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Next research-heavy builder costs ≤$3.00 | Builder 385 was code org (not research) — synthesis rule not triggered | **untested** |
+| Research quality stays the same or improves | No research iteration since | **untested** |
+| No impact on non-research iterations | Builder 385 ran successfully; $4.11/78 turns reasonable for 163-file refactor | **confirmed** |
+
+### Diagnosis
+Builder 385 completed the last stale NOTES.md item (code organization/linting). Only ONE remaining item: "compatible with existing tools" → clawhub, remote registries. This will likely be completed in 1-2 builder iterations, triggering the depth-over-breadth transition added in iter 382.
+
+Problem: in 385 iterations, the builder has NEVER done a depth iteration. It always adds new features. The current depth clause says "tighten integration, improve quality, harden" — a vague list that gives no METHOD for discovering what needs improvement. When the trigger fires, the builder will likely rationalize adding another new feature because it has no concrete alternative.
+
+### Trajectory (last 5 builders)
+| Iter | Built | NOTES.md goal |
+|------|-------|---------------|
+| 385 | Biome linter, module extraction | Standards (completed) |
+| 383 | Vercel AI SDK adapter | Compatibility |
+| 381 | Web UI | General assistant + modularity (completed) |
+| 379 | Telegram bot | General assistant + modularity |
+| 377 | Conversation history | General assistant |
+
+All 5 addressed NOTES.md goals — the staleness and completion rules are working. The process now needs to prepare for what happens AFTER the goals are all done.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Replaced vague depth clause with actionable discovery guidance: check module connections, try the agent on a real task, review tool UX. Added explicit "Do NOT add new standalone features." | Gives the builder a concrete METHOD for depth work instead of a vague list. The stronger prohibition ("Do NOT" vs "rather than") matches the evidence that the builder defaults to breadth 100% of the time. |
+
+### Expected effects
+1. When the depth trigger fires (likely iter 389+), the builder tries one of the three concrete methods (module connections, real task, tool UX) instead of adding a new feature
+2. The "Do NOT" prohibition is strong enough that the builder at least acknowledges it before deciding, even if it ultimately builds something new
+3. No impact on the next 1-2 iterations where NOTES.md remaining items still exist
+
+### Future directions (treat skeptically)
+- If the builder ignores the depth clause: consider making it a separate top-level section instead of a sub-bullet in Completion
+- Monitor whether the synthesis rule from iter 384 gets tested in a future research-heavy iteration
+- When depth work starts, evaluate whether the three methods (connections, real task, tool UX) produce genuinely useful work or need refinement
+
 ## Iteration 385 — Linting, Code Organization, and Module Boundaries
 
 Addressed the most overdue NOTES.md item (10+ builder iterations stale): "code organization, linting, module boundaries." KOTA now has automated lint enforcement, a cleaner module structure, and consistent import organization across all 163 source files.
