@@ -93,6 +93,58 @@ function convertCodeBlocks(
   return result;
 }
 
+/**
+ * Convert HTML tables to Markdown table format.
+ * Uses placeholders (like code blocks) to protect content from later stripping.
+ */
+function convertTables(html: string, placeholders: string[]): string {
+  const ph = (content: string): string => {
+    const idx = placeholders.length;
+    placeholders.push(content);
+    return `\n\n__KOTA_CODE_${idx}__\n\n`;
+  };
+
+  return html.replace(
+    /<table[^>]*>([\s\S]*?)<\/table>/gi,
+    (_, tableBody) => {
+      const rows: string[][] = [];
+
+      for (const rowMatch of (tableBody as string).matchAll(
+        /<tr[^>]*>([\s\S]*?)<\/tr>/gi,
+      )) {
+        const cells: string[] = [];
+        for (const cellMatch of rowMatch[1].matchAll(
+          /<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi,
+        )) {
+          cells.push(
+            stripTags(cellMatch[1].replace(/<br\s*\/?>/gi, " "))
+              .replace(/\|/g, "\\|")
+              .replace(/\s+/g, " ")
+              .trim(),
+          );
+        }
+        if (cells.length > 0) rows.push(cells);
+      }
+
+      if (rows.length === 0) return "";
+
+      const maxCols = Math.max(...rows.map((r) => r.length));
+      for (const row of rows) {
+        while (row.length < maxCols) row.push("");
+      }
+
+      const lines: string[] = [];
+      lines.push("| " + rows[0].join(" | ") + " |");
+      lines.push("| " + rows[0].map(() => "---").join(" | ") + " |");
+      for (let i = 1; i < rows.length; i++) {
+        lines.push("| " + rows[i].join(" | ") + " |");
+      }
+
+      return ph(lines.join("\n"));
+    },
+  );
+}
+
 /** Convert headings to Markdown # syntax. */
 function convertHeadings(html: string): string {
   let result = html;
@@ -204,6 +256,7 @@ export function extractContent(html: string): string {
   // Phase 2: Convert semantic elements to Markdown
   const placeholders: string[] = [];
   text = convertCodeBlocks(text, placeholders);
+  text = convertTables(text, placeholders);
   text = convertHeadings(text);
   text = convertInlineElements(text);
 

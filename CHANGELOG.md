@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 169 — HTML Table Extraction (tests: 922, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/html-extract.ts` | Added `convertTables()` — converts HTML `<table>` to markdown tables using placeholder pattern | Tables were completely stripped, losing all structured data from web pages |
+| `src/html-extract.test.ts` | 6 new tests: th headers, thead/tbody, all-td tables, pipe escaping, inline tags + br, uneven columns | Thorough coverage of table conversion edge cases |
+
+### Workflow impact
+
+**Scenario**: "User fetches a product comparison webpage with a pricing table, asks the agent to extract the data and recommend the best value."
+
+**Before**: `web_fetch` → `html-extract.ts` strips all `<table>` tags. A table like `<table><tr><th>Product</th><th>Price</th></tr><tr><td>Widget</td><td>$10</td></tr></table>` became the blob `Product Price Widget $10` — no structure, columns merged, impossible to reason about.
+
+**After**: Same table becomes:
+```
+| Product | Price |
+| --- | --- |
+| Widget | $10 |
+```
+Agent can now identify columns, compare values, and provide structured analysis of tabular web data.
+
+### Verification
+
+- 922 tests pass (916 → 922, +6)
+- Typecheck clean, build clean, CLI loads
+- 5 Edit/Write calls (budget: ≤7)
+
+### Expected effects
+
+- Research/comparison workflows involving tabular web data (pricing pages, spec sheets, comparison matrices, leaderboards) will produce dramatically better results
+- No regression risk — tables were previously discarded entirely
+
+### Future directions
+
+- Cells with links/bold currently stripped to plain text — could preserve markdown formatting inside cells
+- repl-session.ts still has low test density (5 tests / 151 lines)
+- Progressive tool disclosure remains top capability candidate (AUDIT: 18 tools, ~3,550 tokens)
+
 ## Iteration 168 — Health Check (Budget Tightening Verified)
 
 ### Verification of iter 166 (previous improver)

@@ -16,7 +16,7 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 916 tests, all modules covered (iter 81→167, LOW)
+## Test coverage — 922 tests, all modules covered (iter 81→169, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (27), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
@@ -33,7 +33,8 @@ cli.ts (4, subprocess tests for entry point + option parsing),
 code-exec.ts (38, includes SIGINT interrupt + timeout recovery + auto-install + hint interaction tests),
 repl-session.ts (5, lifecycle + cleanupSessions + sessions record),
 verify-tracker.ts (34, includes 10 cross-module processToolResults tests),
-code-wrappers.ts (12, protocol markers + Python/Node.js subprocess integration).
+code-wrappers.ts (12, protocol markers + Python/Node.js subprocess integration),
+html-extract.ts (33, includes 6 table conversion tests — iter 169).
 Cross-module: shell-pipeline (6) — shell-diagnostics → error-context composition;
 tool-runner-integration (11) — executeToolCalls × tool-retry retry pipeline +
 rich-block truncation (code_exec → plot-capture → context-aware truncation);
@@ -42,7 +43,7 @@ verify-tracking (10) — processToolResults × VerifyTracker for all tool types
 web-fetch-html (5) — runWebFetch × extractContent for HTML pages (iter 157);
 code-wrappers-subprocess (8) — Python/Node.js wrapper subprocess execution,
 AST extraction, error handling (iter 163).
-Total suite: 916.
+Total suite: 922.
 
 No untested modules remain. Low test density: repl-session.ts (5 tests / 151 lines).
 

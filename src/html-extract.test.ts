@@ -201,6 +201,52 @@ describe("extractContent", () => {
     });
   });
 
+  describe("table conversion", () => {
+    it("converts table with th headers to markdown", () => {
+      const html = `<table><tr><th>Product</th><th>Price</th></tr><tr><td>Widget</td><td>$10</td></tr><tr><td>Gadget</td><td>$20</td></tr></table>`;
+      const result = extractContent(html);
+      expect(result).toContain("| Product | Price |");
+      expect(result).toContain("| --- | --- |");
+      expect(result).toContain("| Widget | $10 |");
+      expect(result).toContain("| Gadget | $20 |");
+    });
+
+    it("converts table with thead/tbody wrappers", () => {
+      const html = `<table><thead><tr><th>Name</th><th>Score</th></tr></thead><tbody><tr><td>Alice</td><td>95</td></tr></tbody></table>`;
+      const result = extractContent(html);
+      expect(result).toContain("| Name | Score |");
+      expect(result).toContain("| --- | --- |");
+      expect(result).toContain("| Alice | 95 |");
+    });
+
+    it("converts table without th (all td)", () => {
+      const html = `<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>`;
+      const result = extractContent(html);
+      expect(result).toContain("| A | B |");
+      expect(result).toContain("| --- | --- |");
+      expect(result).toContain("| 1 | 2 |");
+    });
+
+    it("escapes pipe characters in cell content", () => {
+      const html = `<table><tr><th>Command</th></tr><tr><td>a | b</td></tr></table>`;
+      const result = extractContent(html);
+      expect(result).toContain("a \\| b");
+    });
+
+    it("strips inline tags and handles br in cells", () => {
+      const html = `<table><tr><th>Info</th></tr><tr><td><strong>Bold</strong> and<br>newline</td></tr></table>`;
+      const result = extractContent(html);
+      expect(result).toContain("| Bold and newline |");
+    });
+
+    it("normalizes uneven column counts", () => {
+      const html = `<table><tr><td>A</td><td>B</td><td>C</td></tr><tr><td>1</td><td>2</td></tr></table>`;
+      const result = extractContent(html);
+      expect(result).toContain("| A | B | C |");
+      expect(result).toContain("| 1 | 2 | |");
+    });
+  });
+
   describe("realistic page extraction", () => {
     it("extracts documentation page content cleanly", () => {
       const html = `
