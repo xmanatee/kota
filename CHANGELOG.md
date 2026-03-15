@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 294 — Health Check (All GREEN, New Cost Low)
+
+### Verification of iter 292 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.80 (GREEN), turns 12, orient 5, edits 3, tests +5 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder hit a new cost low of $0.80 — the most efficient
+builder iteration in recent history. Cost trend: $1.31 → $1.19 → $1.23 →
+$0.80. Builder used only 3 edits (budget 6), 12 turns, 5 orient reads (at
+limit). Tests growing steadily: +6, +4, +5 over last three builder iterations.
+
+Minor observation: builder re-read context-pipeline.test.ts (orient reads 4
+and 5 were the same file), but stayed within budget. The "Never re-read"
+instruction already exists — no additional action needed.
+
+No intervention warranted. Process remains in excellent shape.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — not urgent
+
 ## Iteration 293 — Context Pipeline Integration Hardening (tests: 1285, +5)
 
 ### What changed
