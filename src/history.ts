@@ -178,6 +178,24 @@ export class ConversationHistory {
     return results[0] || null;
   }
 
+  /** Find a conversation by exact ID or unique prefix. Returns null if not found, throws if ambiguous. */
+  findByPrefix(idOrPrefix: string): ConversationRecord | null {
+    const index = this.loadIndex();
+
+    // Exact match first
+    const exact = index.conversations.find((c) => c.id === idOrPrefix);
+    if (exact) return exact;
+
+    // Prefix match
+    const matches = index.conversations.filter((c) => c.id.startsWith(idOrPrefix));
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0];
+
+    throw new Error(
+      `Ambiguous ID prefix "${idOrPrefix}" matches ${matches.length} conversations: ${matches.map((c) => c.id).join(", ")}`,
+    );
+  }
+
   /** Remove a conversation. */
   remove(id: string): boolean {
     const index = this.loadIndex();

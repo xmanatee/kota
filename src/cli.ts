@@ -3,7 +3,7 @@ import { Command } from "commander";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { getHistory } from "./history.js";
+import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { installTool, listTools, removeTool, updateTool } from "./registry.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
@@ -50,13 +50,13 @@ program
 
     if (skipConfirm) setSkipConfirmations(true);
 
-    // Resolve --continue flag: true means "most recent", string means specific ID
+    // Resolve --continue flag: true means "most recent", string means specific ID/prefix
     let resumeId: string | undefined;
     if (opts.continue) {
+      const history = getHistory();
       if (typeof opts.continue === "string") {
-        resumeId = opts.continue;
+        resumeId = resolveConversationId(history, opts.continue);
       } else {
-        const history = getHistory();
         const recent = history.getMostRecent(process.cwd());
         if (recent) {
           resumeId = recent.id;
@@ -285,6 +285,21 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
   });
 }
 
+/** Resolve an ID or prefix to a full conversation ID. Exits on failure. */
+function resolveConversationId(history: ConversationHistory, idOrPrefix: string): string {
+  try {
+    const record = history.findByPrefix(idOrPrefix);
+    if (!record) {
+      console.error(`Conversation "${idOrPrefix}" not found.`);
+      process.exit(1);
+    }
+    return record.id;
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+}
+
 // --- History subcommand ---
 
 const historyCmd = program.command("history").description("Manage conversation history");
@@ -308,25 +323,25 @@ historyCmd
       return;
     }
 
-    console.log(`${"ID".padEnd(16)} ${"Updated".padEnd(22)} ${"Msgs".padEnd(6)} Title`);
+    console.log(`${"ID".padEnd(17)} ${"Updated".padEnd(22)} ${"Msgs".padEnd(6)} Title`);
     console.log("-".repeat(80));
     for (const c of list) {
       const updated = new Date(c.updatedAt).toLocaleString("en-US", {
         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
       });
-      const id = c.id.slice(0, 14);
-      console.log(`${id.padEnd(16)} ${updated.padEnd(22)} ${String(c.messageCount).padEnd(6)} ${c.title}`);
+      console.log(`${c.id.padEnd(17)} ${updated.padEnd(22)} ${String(c.messageCount).padEnd(6)} ${c.title}`);
     }
   });
 
 historyCmd
   .command("show <id>")
   .description("Show conversation details")
-  .action((id) => {
+  .action((idOrPrefix) => {
     const history = getHistory();
-    const data = history.load(id);
+    const fullId = resolveConversationId(history, idOrPrefix);
+    const data = history.load(fullId);
     if (!data) {
-      console.error(`Conversation ${id} not found.`);
+      console.error(`Conversation "${idOrPrefix}" not found.`);
       process.exit(1);
     }
 
@@ -357,26 +372,29 @@ historyCmd
   .description("Resume a previous conversation")
   .option("-m, --model <model>", "Model to use")
   .option("-v, --verbose", "Show debug output")
-  .action(async (id, opts) => {
+  .action(async (idOrPrefix, opts) => {
     const config = loadConfig();
+    const history = getHistory();
+    const fullId = resolveConversationId(history, idOrPrefix);
     const model = opts.model || config.model || "claude-sonnet-4-6";
     await interactiveMode({
       model,
       verbose: opts.verbose || config.verbose,
       config,
-      resumeConversation: id,
+      resumeConversation: fullId,
     }, config);
   });
 
 historyCmd
   .command("delete <id>")
   .description("Delete a conversation")
-  .action((id) => {
+  .action((idOrPrefix) => {
     const history = getHistory();
-    if (history.remove(id)) {
-      console.log(`Conversation ${id} deleted.`);
+    const fullId = resolveConversationId(history, idOrPrefix);
+    if (history.remove(fullId)) {
+      console.log(`Conversation ${fullId} deleted.`);
     } else {
-      console.error(`Conversation ${id} not found.`);
+      console.error(`Conversation "${idOrPrefix}" not found.`);
       process.exit(1);
     }
   });

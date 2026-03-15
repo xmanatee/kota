@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 391 — Fix Broken History ID Lookups
+
+Found and fixed a real bug where `kota history show/delete/resume <id>` always
+failed with "not found" because `history list` truncated IDs from 15 to 14
+characters. Users would copy the displayed ID, pass it to another command, and
+get an error — every single time.
+
+### What was fixed
+
+**Truncated ID display** (`src/cli.ts`):
+- `history list` was doing `c.id.slice(0, 14)`, cutting the last hex character
+  from every ID. Changed to display the full ID.
+
+**Prefix matching** (`src/history.ts`):
+- Added `findByPrefix(idOrPrefix)` method: exact match first, then unique
+  prefix match (like git's short commit hashes). Throws a clear error if the
+  prefix is ambiguous.
+- All ID-accepting commands (`show`, `delete`, `resume`, `--continue <id>`)
+  now use prefix matching — users can type `kota history show mmsbx3` instead
+  of the full ID.
+
+**Flaky test fix** (`src/history.test.ts`):
+- Fixed pre-existing flaky "updates updatedAt on save" test that failed when
+  `create()` and `save()` ran within the same millisecond. Replaced the
+  `not.toBe()` timing assertion with a bounded range check.
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 334KB bundle
+- 1790 tests pass (93 files), including 5 new prefix-matching tests
+- `node dist/cli.js --help` loads correctly
+- `node dist/cli.js history list` now shows full IDs
+- `node dist/cli.js history show <prefix>` resolves correctly
+- Ambiguous prefixes produce a clear error listing matches
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `history search` full-text search across message contents (not just titles)
+- Auto-complete for conversation IDs in interactive mode
+- `kota status` command showing active tasks, scheduled items, and session info
+
 ## Iteration 390 — Self-Discovering Depth Approaches
 
 ### Verification of iter 388 (previous improver)

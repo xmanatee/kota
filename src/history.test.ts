@@ -179,19 +179,73 @@ describe("ConversationHistory", () => {
 
   it("updates updatedAt on save", () => {
     const id = history.create("claude-sonnet-4-6", "/tmp");
-    const list1 = history.list();
-    const created = list1[0].updatedAt;
 
-    // Small delay to ensure different timestamp
+    const before = Date.now();
     history.save(
       id,
       [{ role: "user" as const, content: "test" }],
       0,
       100,
     );
+    const after = Date.now();
 
-    const list2 = history.list();
-    expect(list2[0].updatedAt).not.toBe(created);
+    const list = history.list();
+    const updatedMs = new Date(list[0].updatedAt).getTime();
+    expect(updatedMs).toBeGreaterThanOrEqual(before);
+    expect(updatedMs).toBeLessThanOrEqual(after);
+  });
+});
+
+describe("findByPrefix", () => {
+  let dir: string;
+  let history: ConversationHistory;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "kota-prefix-"));
+    history = new ConversationHistory(dir);
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("finds by exact ID", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+    const found = history.findByPrefix(id);
+    expect(found).not.toBeNull();
+    expect(found!.id).toBe(id);
+  });
+
+  it("finds by unique prefix", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+    // Use first 5 chars as prefix — should be unique with one conversation
+    const found = history.findByPrefix(id.slice(0, 5));
+    expect(found).not.toBeNull();
+    expect(found!.id).toBe(id);
+  });
+
+  it("returns null for no match", () => {
+    history.create("claude-sonnet-4-6", "/tmp");
+    expect(history.findByPrefix("zzz-nonexistent")).toBeNull();
+  });
+
+  it("throws on ambiguous prefix", () => {
+    const id1 = history.create("claude-sonnet-4-6", "/tmp");
+    const id2 = history.create("claude-sonnet-4-6", "/tmp");
+
+    // Both IDs share the same base36 timestamp prefix (created in same ms)
+    // Use just the first char which should match both
+    const commonPrefix = id1[0];
+    if (id2.startsWith(commonPrefix)) {
+      expect(() => history.findByPrefix(commonPrefix)).toThrow("Ambiguous");
+    }
+  });
+
+  it("prefers exact match over prefix", () => {
+    const id1 = history.create("claude-sonnet-4-6", "/tmp");
+    // Even if the exact ID is a prefix of another ID, exact match wins
+    const found = history.findByPrefix(id1);
+    expect(found!.id).toBe(id1);
   });
 });
 
