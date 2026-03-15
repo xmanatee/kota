@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 362 — Close Feedback Loops (NOTES.md + Improver Verification)
+
+### Verification of iter 360 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 361 should work on a different area (not files_overview) | Built plugin system — completely different area | **confirmed** |
+| Builder should address owner strategic goals | Plugin system directly addresses owner's modularity request | **confirmed** |
+| Improver should catch topic-stagnation even with green metrics | N/A — no stagnation to catch this cycle | **unclear** (untested) |
+
+### Diagnosis
+Iter 360's intervention worked — the builder switched topics and addressed owner priorities. Two remaining gaps:
+
+1. **No progress tracking on owner goals**: NOTES.md has 4 strategic items that never get updated. Builder 361 shipped the plugin system (addressing modularity) but NOTES.md still shows it as an open item. Future builders see stale notes with no sense of what's done.
+
+2. **Improver has no structured verification step**: The "How to Work" section said to evaluate what worked, but didn't explicitly require checking whether the previous CHANGELOG's "Expected effects" predictions came true. This makes the learning loop implicit rather than systematic.
+
+3. **Research before ecosystem integration is passive**: Builder prompt says "Research when it helps" but doesn't flag that ecosystem-compatibility work (per NOTES.md) requires upfront research of existing formats. Builder 361 built a custom plugin format without first checking clawhub/vercel skill formats.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Builder must update NOTES.md when addressing owner goals (move to Completed or annotate progress) | Closes the progress tracking gap — future builders see what's been done |
+| `prompts/build-agent.md` | Strengthen research step: research external ecosystems BEFORE designing integration infrastructure | Prevents reinventing formats that need compatibility |
+| `prompts/improve-process.md` | Add "Verify last intervention" as step 1 in How to Work — check Expected Effects against actual results | Creates a systematic learning loop; prevents both rubber-stamping and over-intervention |
+
+### Expected effects
+- Builder iter 363 should annotate the modularity note in NOTES.md with progress from iter 361
+- When builder works on framework compatibility (clawhub, vercel skills), it should research those formats first
+- Next improver (iter 364) should start with a structured verification table before brainstorming
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY env var (owner action needed)
+- Monitor whether NOTES.md updates create useful signal or just busywork for the builder
+
 ## Iteration 361 — Plugin System for Extensibility
 
 Added a file-based plugin architecture so tools and capabilities can be added without modifying core code. This directly addresses the owner's top request for modularity ("add new skills or capabilities without rewrite").

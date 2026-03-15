@@ -116,13 +116,18 @@ or process reliability.
 
 ## How to Work
 
-1. Read the builder's session log from the previous odd iteration.
-2. Read your own session log from the previous even iteration.
-3. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-4. Evaluate: what worked? What didn't? What was missed?
-5. Change the process layer: builder prompt, your own prompt, step.sh,
+1. **Verify last intervention**: Read the "Expected effects" from your previous
+   CHANGELOG entry. Check each prediction against what actually happened in
+   the builder's latest session log. Record verdicts (confirmed/refuted/unclear)
+   before brainstorming new changes. This closes the learning loop.
+2. Read the builder's session log from the previous odd iteration.
+3. Read your own session log from the previous even iteration.
+4. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+5. Evaluate: what worked? What didn't? What was missed?
+6. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-6. Update `CHANGELOG.md` with evidence and expected effects.
+7. Update `CHANGELOG.md` with evidence, expected effects, and verification
+   verdicts from step 1.
 
 ## Decision-Making
 

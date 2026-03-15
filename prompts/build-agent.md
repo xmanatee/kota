@@ -40,7 +40,10 @@ Before doing anything, understand what exists. You have full shell access:
 - `ls src/` — current source files
 - `ls logs/` — session logs from previous iterations (`.session.jsonl`)
 
-Build on what exists; do not redo completed work.
+Build on what exists; do not redo completed work. When your work addresses an
+owner note in NOTES.md, update its status: move fully completed items to the
+Completed section, or append a brief progress note (e.g., "— plugin system
+shipped iter 361, adapters remain") if partially addressed.
 
 ## What to Work On
 
@@ -98,6 +101,8 @@ or "test."
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
 2. Brainstorm and decide (see "What to Work On" above).
 3. Research: study current agent patterns and techniques when relevant.
+   When building infrastructure that must integrate with external ecosystems
+   (per NOTES.md), research those ecosystems' interfaces BEFORE designing yours.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
 5. Verify (all four levels):
    - Static: `npm run typecheck && npm run build`
