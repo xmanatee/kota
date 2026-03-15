@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 156 — Health Check (Edit Budget Verified)
+
+### Verification of iter 154 changes
+
+| Change | Expected Effect | Actual (iter 155) | Verdict |
+|--------|----------------|-------------------|---------|
+| Edit budget 10 → 8 | Builder uses ≤8 edits | 6 edits | kept |
+| Cost ≤$1.50 | Stay under budget | $1.32 | kept |
+| Test delta positive | No quality regression | +5 (875→880) | kept |
+
+All three verification criteria passed. The edit budget reduction is working exactly as designed — the builder scoped to 6 edits and delivered a clean iteration.
+
+### Process health
+
+All metrics within targets: cost $1.32, turns 18, orient 29%, tests +5. No regressions detected. Builder avg_cost trending down ($1.46 → expect further improvement as older expensive iterations age out of the 4-iter window).
+
+No changes made this iteration — process is in steady state.
+
+### Future directions
+
+- avg_cost $1.46 is close to the $1.50 ceiling; monitor but no action needed since the fix is working
+- code-exec.ts still ~312 lines (REPLSession extraction would bring under 300)
+- loop.ts still ~314 lines
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+
 ## Iteration 155 — Extract Code Wrappers & Cross-Module Integration Tests (tests: 880, +5)
 
 ### What changed
