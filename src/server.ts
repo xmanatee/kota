@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { AgentSession, type LoopOptions } from "./loop.js";
 import { loadConfig, type KotaConfig } from "./config.js";
 import { NullTransport, type Transport, type AgentEvent } from "./transport.js";
+import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js";
 
 // --- SSE Transport ---
 
@@ -215,6 +216,31 @@ export function startServer(options: ServerOptions = {}): Server {
   const config = options.config ?? loadConfig();
   const pool = new SessionPool();
 
+  // Initialize scheduler for the current project
+  initScheduler(process.cwd());
+  const scheduler = getScheduler();
+
+  // Track SSE clients listening for notifications
+  const notificationClients = new Set<SseTransport>();
+
+  const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
+    for (const client of notificationClients) {
+      if (client.isClosed) {
+        notificationClients.delete(client);
+        continue;
+      }
+      for (const item of dueItems) {
+        client.send("notification", {
+          type: "reminder",
+          id: item.id,
+          description: item.description,
+          scheduledFor: item.triggerAt,
+          repeat: item.repeatLabel || null,
+        });
+      }
+    }
+  });
+
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
   cleanupTimer.unref();
 
@@ -332,6 +358,38 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
+    // Scheduler endpoints
+    if (req.method === "GET" && path === "/api/schedules") {
+      json(res, 200, { schedules: scheduler.pending() });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/notifications") {
+      setCors(res);
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      const sse = new SseTransport(res);
+      notificationClients.add(sse);
+      // Send any currently overdue items immediately
+      const overdue = scheduler.getDue();
+      for (const item of overdue) {
+        scheduler.markFired(item.id);
+        sse.send("notification", {
+          type: "reminder",
+          id: item.id,
+          description: item.description,
+          scheduledFor: item.triggerAt,
+          repeat: item.repeatLabel || null,
+        });
+      }
+      sse.send("connected", { message: "Listening for notifications" });
+      res.on("close", () => notificationClients.delete(sse));
+      return;
+    }
+
     const deleteMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
     if (req.method === "DELETE" && deleteMatch) {
       const deleted = pool.delete(deleteMatch[1]);
@@ -351,17 +409,22 @@ export function startServer(options: ServerOptions = {}): Server {
 
   server.on("close", () => {
     clearInterval(cleanupTimer);
+    stopScheduler();
+    for (const client of notificationClients) client.end();
+    notificationClients.clear();
     pool.closeAll();
   });
 
   server.listen(port, () => {
     console.log(`KOTA server listening on http://localhost:${port}`);
     console.log("Endpoints:");
-    console.log("  POST /api/chat         — Send message, get SSE stream");
-    console.log("  POST /api/sessions     — Create a new session");
-    console.log("  GET  /api/sessions     — List active sessions");
+    console.log("  POST /api/chat           — Send message, get SSE stream");
+    console.log("  POST /api/sessions       — Create a new session");
+    console.log("  GET  /api/sessions       — List active sessions");
     console.log("  DELETE /api/sessions/:id — Close a session");
-    console.log("  GET  /api/health       — Health check");
+    console.log("  GET  /api/schedules      — List pending scheduled items");
+    console.log("  GET  /api/notifications  — SSE stream for due reminders");
+    console.log("  GET  /api/health         — Health check");
   });
 
   return server;

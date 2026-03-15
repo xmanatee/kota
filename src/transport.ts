@@ -14,7 +14,8 @@ export type AgentEvent =
   | { type: "progress"; content: string; source?: string }
   | { type: "status"; message: string }
   | { type: "cost"; summary: string; budgetPercent: number }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "notification"; id: number; description: string; scheduledFor: string };
 
 /** Receives agent events and renders them for a specific frontend. */
 export interface Transport {
@@ -56,6 +57,9 @@ export class CliTransport implements Transport {
       }
       case "error":
         console.error(event.message);
+        break;
+      case "notification":
+        console.error(`[reminder] ${event.description}`);
         break;
     }
   }

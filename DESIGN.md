@@ -65,6 +65,8 @@ Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable 
 - `POST /api/sessions` — Create a new session, returns `{ session_id }`
 - `GET /api/sessions` — List active sessions with busy/idle status
 - `DELETE /api/sessions/:id` — Close and clean up a session
+- `GET /api/schedules` — List pending scheduled items (JSON)
+- `GET /api/notifications` — SSE stream for real-time reminder notifications
 - `GET /api/health` — Health check with session count
 
 **SSE event stream** (maps 1:1 to `AgentEvent` types):
@@ -178,6 +180,29 @@ Cross-session task tracking that survives session restarts. Tasks are stored per
 **Session warmup**: `buildSessionWarmup()` in `init.ts` checks for active tasks and includes a summary (e.g., "2 in progress: 'Research competitors', 'Write report'; 3 pending") so the agent can resume from where it left off.
 
 **In-memory mode**: When `storageDir` is `null`, the store operates without file I/O (used in tests and sub-agents).
+
+### Scheduler (`src/scheduler.ts`, `src/tools/schedule.ts`)
+
+Time-aware scheduling for reminders and recurring tasks. Enables the agent to "remind me in 30 minutes" or "check this every hour" — a core personal assistant capability.
+
+**Time parsing** (`parseTime`):
+- ISO datetime: `"2025-06-15T14:00:00Z"`
+- Relative: `"in 30 minutes"`, `"in 2 hours"`, `"in 1 day"`
+- Time today/tomorrow: `"at 3pm"`, `"tomorrow at 9am"`, `"at 15:00"`
+
+**Repeat parsing** (`parseRepeat`):
+- Named: `"daily"`, `"hourly"`
+- Interval: `"every 30 minutes"`, `"every 2 hours"`
+
+**Persistence**: Same project-scoping pattern as TaskStore — `~/.kota/schedules-<hash>.json`. Auto-prunes old fired items (keeps last 20). In-memory mode for tests.
+
+**Schedule tool** (in `management` group): `add` (create reminder with time + optional repeat), `list` (pending items), `cancel` (by ID). Auto-detected from prompts containing "remind", "schedule", "alarm", etc.
+
+**Session warmup**: Overdue and upcoming items appear at session start, so the agent can notify the user about missed reminders.
+
+**Server integration**: When running `kota serve`, a 30-second timer checks for due items and pushes them as SSE notifications to connected clients via `GET /api/notifications`. Also exposes `GET /api/schedules` for listing pending items.
+
+**Repeating items**: After firing, the next trigger time advances by the interval. If multiple intervals were missed, jumps to the next future occurrence rather than firing repeatedly.
 
 ### Persistent Memory (`src/memory.ts`)
 

@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 373 — Scheduled Tasks and Reminders
+
+Built a scheduler so KOTA can set reminders, run recurring checks, and notify
+users when things are due. A personal assistant that can't say "remind me in 30
+minutes" is incomplete — this fills that gap.
+
+### What was built
+- `src/scheduler.ts`: `Scheduler` class with per-project file persistence
+  (`~/.kota/schedules-<hash>.json`), natural time parsing ("in 30 minutes",
+  "tomorrow at 9am", "at 3pm"), repeat intervals ("every 2 hours", "daily"),
+  auto-pruning of old fired items, repeating item rescheduling, in-memory mode
+  for tests, timer-based periodic due checking
+- `src/tools/schedule.ts`: `schedule` tool with `add`, `list`, `cancel` actions.
+  Human-friendly time display ("today at 3:00 PM", "tomorrow at 9:00 AM")
+- Updated `src/init.ts`: Session warmup now shows overdue and upcoming scheduled
+  items, so the agent can notify the user about missed reminders
+- Updated `src/server.ts`: `GET /api/notifications` SSE endpoint for real-time
+  reminder push. `GET /api/schedules` for listing pending items. 30-second timer
+  auto-fires due items and pushes to connected notification clients
+- Updated `src/transport.ts`: Added `notification` event type for reminders
+- Updated `src/tool-groups.ts`: `schedule` added to management group; auto-detect
+  patterns expanded ("remind", "alarm", "notify me", "every N hours")
+- Updated `src/loop.ts`: Scheduler initialized on session start, cleaned up on close
+- Updated `src/system-prompt.ts`: Schedule tool listed in coordination tools
+
+### Verified
+- TypeScript: `npm run typecheck` — clean
+- Build: `npm run build` — 271KB bundle
+- Tests: 1634 tests pass (38 new: 22 scheduler, 16 schedule tool)
+- Load: `node dist/cli.js --help` — loads correctly
+- Runtime: SKIP — no ANTHROPIC_API_KEY set
+
+### Future directions
+- Concrete Telegram/web frontend that uses the notifications endpoint
+- Scheduled task execution — "run this shell command every hour" (not just reminders)
+- Calendar-aware scheduling — "next Monday", "every weekday at 9am"
+- Finishing remaining NOTES.md items: Vercel AI SDK adapter, clawhub integration
+
 ## Iteration 372 — Completion Awareness in Diversity Check
 
 ### Verification of iter 370 (previous improver)

@@ -19,6 +19,7 @@ import { codeExecTool, runCodeExec } from "./code-exec.js";
 import { findReplaceTool, runFindReplace } from "./find-replace.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 import { filesOverviewTool, runFilesOverview } from "./files-overview.js";
+import { scheduleTool, runSchedule } from "./schedule.js";
 import { runEnableTools } from "../tool-groups.js";
 
 export type ToolResultBlock =
@@ -54,6 +55,7 @@ const runners: Record<string, ToolRunner> = {
   find_replace: runFindReplace,
   notebook: runNotebook,
   files_overview: runFilesOverview,
+  schedule: runSchedule,
   enable_tools: runEnableTools,
 };
 
@@ -78,6 +80,7 @@ export const allTools: Anthropic.Tool[] = [
   findReplaceTool,
   notebookTool,
   filesOverviewTool,
+  scheduleTool,
 ];
 
 export async function executeTool(

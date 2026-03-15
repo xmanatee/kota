@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import { join, basename } from "node:path";
 import { getMemoryStore } from "./memory.js";
 import { getTaskStore } from "./task-store.js";
+import { getScheduler } from "./scheduler.js";
 
 /** Detect project type from config files in cwd. */
 export function detectProject(cwd: string): string | null {
@@ -187,6 +188,12 @@ function recallTasks(): string | null {
   return store.getActiveSummary();
 }
 
+/** Check for pending/overdue scheduled items. */
+function recallSchedules(): string | null {
+  const scheduler = getScheduler();
+  return scheduler.getPendingSummary();
+}
+
 /** List top-level files and directories, skipping noise. */
 export function getDirectoryOverview(cwd: string): string | null {
   const skipDirs = new Set([
@@ -252,6 +259,9 @@ export function buildSessionWarmup(cwd?: string): string {
 
   const tasks = recallTasks();
   if (tasks) sections.push(`**Active tasks from previous session**:\n${tasks}`);
+
+  const schedules = recallSchedules();
+  if (schedules) sections.push(`**Scheduled reminders**:\n${schedules}`);
 
   if (sections.length === 0) return "";
   return "\n\n## Session Context (auto-detected)\n\n" + sections.join("\n\n");

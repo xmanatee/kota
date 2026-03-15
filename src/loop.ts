@@ -19,6 +19,7 @@ import { cleanupSessions } from "./tools/code-exec.js";
 import { CliTransport, type Transport } from "./transport.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
 import { initTaskStore } from "./task-store.js";
+import { initScheduler, getScheduler, resetScheduler } from "./scheduler.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -81,8 +82,9 @@ export class AgentSession {
     this.client = new Anthropic({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
-    // Initialize persistent task store for this project
+    // Initialize persistent stores for this project
     initTaskStore(process.cwd());
+    initScheduler(process.cwd());
 
     const projectContext = loadProjectContext();
     const warmup = buildSessionWarmup();
@@ -321,6 +323,7 @@ export class AgentSession {
     cleanupProcesses();
     cleanupSessions();
     resetGroups();
+    resetScheduler();
     this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });

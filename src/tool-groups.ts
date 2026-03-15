@@ -4,7 +4,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
   web: ["web_search", "web_fetch", "http_request"],
   code: ["code_exec", "notebook"],
   advanced_editing: ["multi_edit", "find_replace", "repo_map"],
-  management: ["todo", "memory", "process"],
+  management: ["todo", "memory", "process", "schedule"],
 };
 
 export const CORE_TOOL_NAMES = new Set([
@@ -119,7 +119,7 @@ export function getEnabledGroups(): string[] {
 const GROUP_SIGNALS: Record<string, RegExp> = {
   web: /\b(research|browse|internet|website|online|url|https?:|web.?search|look.up|fetch.*(from|api|endpoint|server)|download|api.?(call|request|endpoint|data)|compare\b.*\b(option|tool|framework|service|provider|solution|platform|approach)|pros?.and.cons|report.on|review.*(option|tool|alternative|approach)|summarize.*(finding|source|article|result)|competitive.analysis|benchmark|what.is.the.best|recommend|find.*(hotel|flight|restaurant|venue|product|service)|latest.*(news|trend|update|release)|how.much.does|price|pricing|current.*(rate|price|status|weather)|look.?into)/i,
   code: /\b(python|calculate|compute|plot|chart|graph|visualiz|analyz|csv|statistic|pandas|numpy|matplotlib|data.analysis|spreadsheet|budget|forecast|convert.*(unit|currency|format)|formula|regression|correlat|aggregate|pivot|histogram|notebook|jupyter)/i,
-  management: /\b(plan|planning|tasks?|track|tracking|schedule|monitor|remember|background|watcher?|milestone|deadline|organize|prioritize|checklist|roadmap|project.management|breakdown|to.?do.?list|action.items|itinerary|agenda|timeline|phase|step.by.step|brainstorm|meeting.notes|retrospective|sprint)/i,
+  management: /\b(plan|planning|tasks?|track|tracking|schedule|monitor|remember|remind|reminder|background|watcher?|milestone|deadline|organize|prioritize|checklist|roadmap|project.management|breakdown|to.?do.?list|action.items|itinerary|agenda|timeline|phase|step.by.step|brainstorm|meeting.notes|retrospective|sprint|alarm|notify.me|alert.me|every\s+\d+\s+(minute|hour|day))/i,
   advanced_editing: /\b(refactor|refactoring|rename|renaming|codebase|bulk|batch)/i,
 };
 
