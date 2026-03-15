@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 314 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 312 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.13 (GREEN), turns 10, orient 2, tests +6 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.13, turns 10 (lowest recent), orient 2, tests 1338 (+6).
+Builder added hierarchical subtask support to todo tool — capability improvement with 6 tests.
+
+Cost trend (last 4 builders): $1.07 → $0.94 → $1.17 → $1.13 (stable, avg $1.08).
+Tests: 1325 → 1329 → 1332 → 1338 (steady growth, +13 over 4 iterations).
+Orient trend: 4 → 5 → 2 → 2 (builder efficient with injected context).
+
+Twelve consecutive health checks. Process stable, builder productive and efficient. No intervention warranted.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 313 — Todo Subtasks: Hierarchical Task Breakdown (tests: 1338, +6)
 
 ### What changed
