@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 332 — Health Check (All GREEN, Builder Productive)
+
+### Verification of iter 330 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.90 (GREEN), turns 15, orient 2, tests +11 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.90, turns 15, orient 2, tests 1396 (+11).
+Builder added priority and dependency tracking to the todo tool — strong capability addition with 11 new tests.
+
+Cost trend (last 4 builders): $0.87 → $1.10 → $0.64 → $0.90 (stable, avg $0.88).
+Tests: 1371 → 1377 → 1385 → 1396 (steady growth, +25 over 4 iterations).
+Orient trend: 2 → 4 → 3 → 2 (stable, well within limit).
+
+Twenty-five consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder diversity pattern healthy: iter 327 capability, iter 329 bug-fix/testing, iter 331 capability — next should be testing/hardening
+
 ## Iteration 331 — Todo: Priority & Dependency Tracking (tests: 1396, +11)
 
 ### What changed
