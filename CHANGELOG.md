@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 144 — Tagged Work History for Diversity Check
+
+### Diagnosis
+
+Verified iter 142 changes (timeout cap + empty session detection):
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| STEP_TIMEOUT cap at 7200s | Prevents multi-hour wastes | Present in step.sh. Iter 143 ran 500s, well under cap | kept ✓ |
+| Empty session detection | Makes empty sessions visible | Present in step.sh. Not triggered (143 had output) | kept (untested) |
+
+**Process health**: Builder avg_cost=$1.51 (borderline), avg_orient=20% (good), tests=851 (flat for 2 consecutive builder iterations). Diversity check should force testing in iter 145.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Tag work history entries with `[builder]`/`[improver]` prefix; append test count and delta for builder iterations | Diversity check requires distinguishing builder from improver iterations. Previously the builder had to infer this from titles. Test deltas surface stagnation at a glance (851, +0 for 2 iterations) without cross-referencing metrics |
+
+### How to verify (for iter 146 improver)
+
+1. **Tags in work history**: Check the "Recent work history" section in iter 145's injected context (in the builder session summary or CHANGELOG). Each entry should have `[builder]` or `[improver]` prefix
+2. **Test deltas**: Builder entries should show `(tests: N, +M)` suffix
+3. **Diversity check clarity**: Iter 145 builder should correctly identify the last 2 builder iterations were capability additions (visible from `[builder]` tags) and choose a testing focus
+4. **No regression**: Work history should still show all 6 recent iterations correctly
+
+### What I didn't change
+
+- **Builder prompt**: The diversity check text already says "last 2+ builder iterations" — the new tags make this unambiguous without needing a prompt change
+- **My own prompt**: Working efficiently. Orient overhead was 69% in iter 142 due to failure investigation; this iteration uses injected context directly
+- **AUDIT.md**: No new findings. All items are LOW priority and current
+
+### Future directions
+
+- E2E smoke test still not running (~82 iterations since added). Requires ANTHROPIC_API_KEY in environment
+- Tests flat at 851 for 2 builder iterations — diversity check should correct in iter 145
+- Monitor builder cost trend — avg $1.51, borderline. The `(tests: N, +M)` annotation may help builders self-regulate by making test stagnation visible
+- Consider adding a "testing iteration checklist" to builder prompt if iter 145 testing quality is low
+
 ## Iteration 143 — Debugging Workflow Pattern + System Prompt Tightening
 
 ### What changed

@@ -31,7 +31,18 @@ generate_context() {
   [ -f "$DIR/NOTES.md" ] && { echo "### Project owner notes (NOTES.md)"; cat "$DIR/NOTES.md"; echo ""; }
   echo "### Recent work history (what each iteration did)"
   grep '^## Iteration' "$DIR/CHANGELOG.md" 2>/dev/null | head -6 | while IFS= read -r line; do
-    echo "  $line"
+    iter_num=$(echo "$line" | grep -oE 'Iteration [0-9]+' | grep -oE '[0-9]+')
+    if [ -z "$iter_num" ]; then echo "  $line"; continue; fi
+    if (( iter_num % 2 == 0 )); then echo "  [improver] $line"; continue; fi
+    tests=$(awk -F, -v i="$iter_num" '$1==i{print $10}' "$DIR/metrics.csv" 2>/dev/null)
+    prev=$(awk -F, -v i="$((iter_num-2))" '$1==i{print $10}' "$DIR/metrics.csv" 2>/dev/null)
+    if [ -n "$tests" ] && [ "$tests" != "-" ] && [ -n "$prev" ] && [ "$prev" != "-" ]; then
+      echo "  [builder] $line (tests: $tests, +$((tests-prev)))"
+    elif [ -n "$tests" ] && [ "$tests" != "-" ]; then
+      echo "  [builder] $line (tests: $tests)"
+    else
+      echo "  [builder] $line"
+    fi
   done
   echo ""
   echo "### Last 3 CHANGELOG entries"
