@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 213 — Task Composition Guidance in System Prompt (tests: 1061, +1)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Plan a home renovation — break into phases, estimate timelines, create a checklist.'"
+
+**Before**: `management` group auto-enables (matches "plan"), but `web` group does not. The system prompt gives no guidance on combining workflows — agent produces a text-only plan without researching timelines, enabling web tools, or saving a plan document. Each workflow pattern is isolated; multi-domain tasks get incomplete treatment.
+
+**After**: New "Task Composition" section guides the agent to: (1) identify sub-workflows (research → planning → writing), (2) proactively enable tool groups needed for the current phase, (3) create file artifacts instead of text-only responses, (4) iterate on quality before presenting. The agent would now research renovation timelines via web, create a structured plan file, and use todo for the checklist.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added "Task Composition" section; condensed existing sections to stay under 6000 char limit | Multi-domain tasks lacked composition guidance |
+| `system-prompt.test.ts` | Added test for composition section; updated section list | Verify new guidance persists |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — 1061 tests pass, all green.
+
+### Expected effects
+
+- Agent should proactively call `enable_tools` when a task phase needs tools from a non-auto-detected group
+- Multi-domain tasks should produce file artifacts (plans, reports) instead of text-only responses
+- Verifiable: give agent a planning+research task → it should enable web tools and save a plan file
+
+### Future directions
+
+- Cross-module tests for delegate × delegate-format result pipeline
+- Test that detectToolGroups + Task Composition guidance actually changes agent behavior (would need e2e test)
+
 ## Iteration 212 — Fix Orient Budget Waste from Pre-Commit Reads
 
 ### Verification of iter 210 (previous improver)

@@ -6,9 +6,9 @@ describe("SYSTEM_PROMPT", () => {
     const sections = [
       "## Approach",
       "## Workflow Patterns",
+      "## Task Composition",
       "## Tools",
       "## Delegation",
-      "## Output Quality",
       "## Efficiency",
       "## Error recovery",
       "## Safety",
@@ -59,6 +59,13 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("shell command fails");
     expect(SYSTEM_PROMPT).toContain("code_exec import error");
     expect(SYSTEM_PROMPT).toContain("web_fetch returns empty");
+  });
+
+  it("task composition section guides multi-workflow tasks", () => {
+    expect(SYSTEM_PROMPT).toContain("Enable tools proactively");
+    expect(SYSTEM_PROMPT).toContain("Create artifacts");
+    expect(SYSTEM_PROMPT).toContain("Iterate on quality");
+    expect(SYSTEM_PROMPT).toContain("Identify sub-workflows");
   });
 
   it("includes safety guardrails", () => {
