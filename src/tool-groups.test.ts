@@ -185,6 +185,28 @@ describe("tool-groups", () => {
       expect(groups).toContain("code");
     });
 
+    it("detects management group from planning keywords", () => {
+      expect(detectToolGroups("Create a plan for the migration")).toContain("management");
+      expect(detectToolGroups("Break this into tasks")).toContain("management");
+      expect(detectToolGroups("Track progress on the sprint")).toContain("management");
+      expect(detectToolGroups("Remember this for later")).toContain("management");
+      expect(detectToolGroups("Start a background server")).toContain("management");
+      expect(detectToolGroups("Set a deadline for the feature")).toContain("management");
+    });
+
+    it("detects advanced_editing group from refactoring keywords", () => {
+      expect(detectToolGroups("Refactor the auth module")).toContain("advanced_editing");
+      expect(detectToolGroups("Rename the function across files")).toContain("advanced_editing");
+      expect(detectToolGroups("Give me an overview of the codebase")).toContain("advanced_editing");
+      expect(detectToolGroups("Bulk update all config files")).toContain("advanced_editing");
+    });
+
+    it("detects management + code for data planning prompts", () => {
+      const groups = detectToolGroups("Plan a data analysis pipeline and compute statistics");
+      expect(groups).toContain("management");
+      expect(groups).toContain("code");
+    });
+
     it("returns empty for prompts with no signals", () => {
       expect(detectToolGroups("Fix the bug in auth.ts")).toEqual([]);
       expect(detectToolGroups("Read the README file")).toEqual([]);
@@ -194,6 +216,8 @@ describe("tool-groups", () => {
     it("is case insensitive", () => {
       expect(detectToolGroups("RESEARCH best practices")).toContain("web");
       expect(detectToolGroups("CALCULATE the sum")).toContain("code");
+      expect(detectToolGroups("PLANNING the roadmap")).toContain("management");
+      expect(detectToolGroups("REFACTORING the module")).toContain("advanced_editing");
     });
 
     it("does not match partial words incorrectly", () => {

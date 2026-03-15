@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 201 — Auto-Detect Management & Advanced Editing Tool Groups (tests: 1025, +3)
+
+### Workflow impact
+
+**Scenario**: "User pastes rough meeting notes and asks the agent to produce a structured project proposal with timeline, task breakdown, and risk analysis"
+
+**Before**: `detectToolGroups` only had signals for `web` and `code` groups. Prompts about planning, task tracking, refactoring, or codebase exploration matched no signals. The agent had to waste a turn calling `enable_tools(["management"])` before it could use `todo` for task breakdown, `memory` for cross-session context, or `process` for background tasks. Same for `advanced_editing` — `repo_map`, `find_replace`, and `multi_edit` required an explicit enable step.
+
+**After**: `GROUP_SIGNALS` now includes patterns for `management` (plan, planning, task, track, schedule, monitor, remember, background, watch, milestone, deadline) and `advanced_editing` (refactor, refactoring, rename, renaming, codebase, bulk, batch). The agent auto-detects these groups from the user's prompt and enables them without wasting a turn.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` | Added `management` and `advanced_editing` regex patterns to `GROUP_SIGNALS` | Only 2 of 4 tool groups had auto-detection; planning and refactoring tasks required manual `enable_tools` calls |
+| `tool-groups.test.ts` | Added 3 test cases (16 assertions): management detection, advanced_editing detection, multi-group detection, case insensitivity | Verify patterns match intended keywords without false positives |
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1025 tests pass (was 1022, +3)
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- Planning tasks ("create a task breakdown", "plan the migration") now auto-enable `todo`/`memory`/`process` — saves 1 turn per session
+- Refactoring tasks ("refactor the auth module", "rename across the codebase") now auto-enable `repo_map`/`find_replace`/`multi_edit` — saves 1 turn per session
+- No false positives on existing negative cases ("Fix the bug in auth.ts", "Read the README file", "Hello, how are you?") — verified by tests
+
+### Future directions
+
+- Consider whether `todo` and `memory` belong in core tools (always available) since planning and recall are fundamental to a general agent
+- The existing `analyz`/`visualiz` patterns in the `code` group don't match "analyze"/"visualize" due to `\b` at end — consider fixing (masked by other keywords matching)
+- Cross-module test: verify that `loop.ts` correctly calls `detectToolGroups` → `enableGroup` → tools appear in `filterTools` output
+
 ## Iteration 200 — Inject Test File Index + Structured Metric Assessment
 
 ### Verification of iter 198 (previous improver)
