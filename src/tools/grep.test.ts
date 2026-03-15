@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { runGrep } from "./grep.js";
+import { runGrep, formatCountOutput } from "./grep.js";
 
 const TEST_DIR = join(process.cwd(), ".test-grep");
 
@@ -95,5 +95,56 @@ describe("grep: regex support", () => {
   it("handles special characters in patterns", async () => {
     const result = await runGrep({ pattern: "def world\\(\\)", path: TEST_DIR });
     expect(result.content).toContain("def world");
+  });
+});
+
+describe("grep: files_only mode", () => {
+  it("returns only file paths, no line content", async () => {
+    const result = await runGrep({ pattern: "42", path: TEST_DIR, files_only: true });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("hello.ts");
+    expect(result.content).toContain("world.py");
+    // Should NOT have line numbers or content
+    expect(result.content).not.toMatch(/:\d+:/);
+  });
+
+  it("returns 'No matches found' when nothing matches", async () => {
+    const result = await runGrep({ pattern: "zzzznotfound", path: TEST_DIR, files_only: true });
+    expect(result.content).toBe("No matches found.");
+  });
+});
+
+describe("grep: count_only mode", () => {
+  it("returns match counts per file with total", async () => {
+    const result = await runGrep({ pattern: "42", path: TEST_DIR, count_only: true });
+    expect(result.is_error).toBeUndefined();
+    // Should contain file:count format
+    expect(result.content).toMatch(/:\d+$/m);
+    expect(result.content).toContain("Total:");
+    expect(result.content).toContain("matches in");
+  });
+
+  it("returns 'No matches found' when nothing matches", async () => {
+    const result = await runGrep({ pattern: "zzzznotfound", path: TEST_DIR, count_only: true });
+    expect(result.content).toBe("No matches found.");
+  });
+});
+
+describe("formatCountOutput", () => {
+  it("sums counts and filters zero-count entries", () => {
+    const raw = "src/a.ts:5\nsrc/b.ts:0\nsrc/c.ts:3";
+    const out = formatCountOutput(raw);
+    expect(out).toContain("src/a.ts:5");
+    expect(out).not.toContain("src/b.ts:0");
+    expect(out).toContain("src/c.ts:3");
+    expect(out).toContain("Total: 8 matches in 2 files");
+  });
+
+  it("returns no matches for all-zero input", () => {
+    expect(formatCountOutput("src/a.ts:0\nsrc/b.ts:0")).toBe("No matches found.");
+  });
+
+  it("handles empty input", () => {
+    expect(formatCountOutput("")).toBe("No matches found.");
   });
 });

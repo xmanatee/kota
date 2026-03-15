@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 265 — Grep Output Modes: files_only + count_only (tests: 1210, +7)
+
+### Workflow impact
+
+**Scenario**: "User has employee JSON data and asks agent to analyze retention patterns. Agent explores codebase to understand data loading patterns."
+
+**Before**: Every `grep("import", path: "src/")` returned up to 50 full content lines with file paths and line numbers. For exploration queries like "which files import pandas?" or "how many TODOs exist?", the agent received verbose output wasting context tokens.
+
+**After**: `grep("import.*pandas", files_only: true)` returns only file paths. `grep("TODO", count_only: true)` returns `src/a.ts:3\nTotal: 3 matches in 1 files`. Both modes dramatically reduce token consumption during codebase exploration.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `grep.ts` | Add `files_only` and `count_only` params with rg/grep flag mapping | Token-efficient exploration modes |
+| `grep.ts` | Add `formatCountOutput()` to sum counts, filter zeros, append total | Clean count output with summary |
+| `grep.test.ts` | +7 tests (files_only, count_only, formatCountOutput unit tests) | Verify new modes and edge cases |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1210 tests (+7).
+
+### Expected effects
+
+- Agent exploration queries (files_only) should use ~5x fewer tokens than full-content grep
+- Count queries give the agent quantitative signals without reading content
+- formatCountOutput filters zero-count entries (grep -c includes them, rg --count doesn't) for consistent behavior
+
+### Future directions
+
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still at ~309 lines (AUDIT LOW)
+- AUDIT entry for PDF support (iter 235 "FIXED") is stale — PDF was re-added later
+
 ## Iteration 264 — Health Check (All GREEN)
 
 ### Verification of iter 262 (previous improver)

@@ -5,7 +5,8 @@ import type { ToolResult } from "./index.js";
 export const grepTool: Anthropic.Tool = {
   name: "grep",
   description:
-    "Search file contents using regex patterns. Returns matching lines with file paths and line numbers.",
+    "Search file contents using regex patterns. Returns matching lines with file paths and line numbers. " +
+    "Use files_only for file lists, count_only for match counts — both reduce output size.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -29,6 +30,14 @@ export const grepTool: Anthropic.Tool = {
         type: "number",
         description: "Lines of context to show around each match (default: 0)",
       },
+      files_only: {
+        type: "boolean",
+        description: "Return only file paths that contain matches (no line content)",
+      },
+      count_only: {
+        type: "boolean",
+        description: "Return match counts per file (e.g. 'src/foo.ts:12') and total",
+      },
     },
     required: ["pattern"],
   },
@@ -37,6 +46,23 @@ export const grepTool: Anthropic.Tool = {
 /** Escape a string for safe interpolation inside single quotes in shell commands. */
 function shellEscape(s: string): string {
   return s.replace(/'/g, "'\\''");
+}
+
+/** Format rg --count output: add total and filter zero-count lines (grep -c includes them). */
+export function formatCountOutput(raw: string): string {
+  const lines = raw.split("\n").filter(Boolean);
+  const entries: string[] = [];
+  let total = 0;
+  for (const line of lines) {
+    const sep = line.lastIndexOf(":");
+    if (sep === -1) continue;
+    const count = parseInt(line.slice(sep + 1), 10);
+    if (isNaN(count) || count === 0) continue;
+    entries.push(line);
+    total += count;
+  }
+  if (entries.length === 0) return "No matches found.";
+  return entries.join("\n") + `\n\nTotal: ${total} matches in ${entries.length} files`;
 }
 
 export async function runGrep(
@@ -62,16 +88,32 @@ export async function runGrep(
     }
   })();
 
+  const filesOnly = Boolean(input.files_only);
+  const countOnly = Boolean(input.count_only);
+
   let cmd: string;
   if (hasRg) {
-    cmd = `rg -n --no-heading -m ${maxResults}`;
-    if (contextLines > 0) cmd += ` -C ${contextLines}`;
+    if (filesOnly) {
+      cmd = `rg --files-with-matches`;
+    } else if (countOnly) {
+      cmd = `rg --count`;
+    } else {
+      cmd = `rg -n --no-heading -m ${maxResults}`;
+      if (contextLines > 0) cmd += ` -C ${contextLines}`;
+    }
     if (fileGlob) cmd += ` --glob '${shellEscape(fileGlob)}'`;
     cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
   } else {
-    cmd = `grep -rn --include='${shellEscape(fileGlob || "*")}'`;
-    cmd += ` -m ${maxResults}`;
-    if (contextLines > 0) cmd += ` -C ${contextLines}`;
+    if (filesOnly) {
+      cmd = `grep -rl`;
+    } else if (countOnly) {
+      cmd = `grep -rc`;
+    } else {
+      cmd = `grep -rn -m ${maxResults}`;
+      if (contextLines > 0) cmd += ` -C ${contextLines}`;
+    }
+    if (fileGlob) cmd += ` --include='${shellEscape(fileGlob)}'`;
+    else if (!filesOnly && !countOnly) cmd += ` --include='${shellEscape("*")}'`;
     cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
   }
 
@@ -84,6 +126,10 @@ export async function runGrep(
     }).trim();
 
     if (!output) return { content: "No matches found." };
+
+    if (countOnly) {
+      return { content: formatCountOutput(output) };
+    }
     return { content: output };
   } catch (err: unknown) {
     const e = err as { status?: number; stdout?: string };

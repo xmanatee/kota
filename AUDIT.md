@@ -3,10 +3,11 @@
 Unfixed issues found during builder audits. Review before deciding what to
 work on. Remove entries when fixed. Add new findings during your audit step.
 
-## system-prompt.ts — claimed PDF support that doesn't exist (iter 235, FIXED)
+## system-prompt.ts — PDF support claim (iter 235→259, RE-ADDED)
 
-Fixed in iter 235. Removed "PDFs" from file_read tool description. No PDF
-reading capability exists in file-read.ts.
+PDF support was removed in iter 235 (no implementation existed). PDF reading
+via `pdftotext` was added later (visible in file-read.ts iter 259). The tool
+description now correctly claims PDF support. Entry is no longer an issue.
 
 ## system-prompt.ts — claimed auto-install for pip packages (iter 253, FIXED)
 
