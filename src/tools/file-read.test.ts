@@ -314,3 +314,42 @@ describe("file_read: PDF files", () => {
     expect(result.is_error).toBe(true);
   });
 });
+
+describe("file_read: CSV/TSV metadata", () => {
+  it("prepends metadata for CSV files", async () => {
+    const path = join(TEST_DIR, "sales.csv");
+    writeFileSync(path, "date,region,sales\n2024-01-15,North,1000\n2024-01-16,South,2000\n");
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("[CSV: 2 data rows × 3 columns | date, region, sales]");
+    expect(result.content).toContain("2024-01-15");
+  });
+
+  it("handles TSV files with tab delimiter", async () => {
+    const path = join(TEST_DIR, "data.tsv");
+    writeFileSync(path, "name\tage\tcity\nAlice\t30\tNYC\n");
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("[CSV: 1 data rows × 3 columns | name, age, city]");
+  });
+
+  it("strips quotes from CSV headers", async () => {
+    const path = join(TEST_DIR, "quoted.csv");
+    writeFileSync(path, '"First Name","Last Name","Age"\nJohn,Doe,42\n');
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("First Name, Last Name, Age");
+  });
+
+  it("handles CSV with only headers (no data rows)", async () => {
+    const path = join(TEST_DIR, "empty-data.csv");
+    writeFileSync(path, "col1,col2,col3\n");
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("[CSV: 0 data rows × 3 columns");
+  });
+
+  it("shows total metadata even with offset/limit", async () => {
+    const path = join(TEST_DIR, "paged.csv");
+    writeFileSync(path, "a,b\n1,2\n3,4\n5,6\n7,8\n9,10\n");
+    const result = await runFileRead({ path, offset: 3, limit: 2 });
+    expect(result.content).toContain("[CSV: 5 data rows × 2 columns");
+    expect(result.content).toContain("3,4");
+  });
+});

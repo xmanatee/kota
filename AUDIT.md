@@ -46,7 +46,9 @@ AST extraction, error handling (iter 163).
 repl-session-execute (7) — REPLSession.execute × code-wrappers sentinel protocol:
 Python/Node.js execution, state persistence, stderr collection, restart after
 kill, SIGINT timeout, output cleanliness (iter 171).
-Total suite: 929.
+csv-metadata (5) — CSV/TSV metadata prepending in file_read: header detection,
+quoted headers, TSV delimiter, empty data, offset/limit with metadata (iter 173).
+Total suite: 934.
 
 No untested modules remain. All modules above minimum test density threshold.
 

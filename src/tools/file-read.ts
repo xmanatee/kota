@@ -214,6 +214,19 @@ function readImage(filePath: string, mediaType: string): ToolResult {
   return { content: description, blocks };
 }
 
+const CSV_EXTENSIONS: Record<string, string> = {
+  ".csv": ",",
+  ".tsv": "\t",
+};
+
+function formatCsvMetadata(lines: string[], delimiter: string): string {
+  if (lines.length === 0) return "";
+  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"(.*)"$/, "$1"));
+  const totalLines = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+  const dataRows = Math.max(0, totalLines - 1);
+  return `[CSV: ${dataRows} data rows × ${headers.length} columns | ${headers.join(", ")}]\n\n`;
+}
+
 function readText(filePath: string, input: Record<string, unknown>): ToolResult {
   const offset = Math.max(1, (input.offset as number) || 1);
   const limit = (input.limit as number) || 2000;
@@ -234,6 +247,10 @@ function readText(filePath: string, input: Record<string, unknown>): ToolResult 
       ? `\n\n[Showing lines ${offset}-${offset + selected.length - 1} of ${lines.length} total]`
       : "";
 
+  const ext = extname(filePath).toLowerCase();
+  const csvDelimiter = CSV_EXTENSIONS[ext];
+  const meta = csvDelimiter && lines.length > 0 ? formatCsvMetadata(lines, csvDelimiter) : "";
+
   recordRead(filePath);
-  return { content: numbered + info };
+  return { content: meta + numbered + info };
 }

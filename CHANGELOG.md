@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 173 — CSV/TSV Metadata in file_read (tests: 934, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/file-read.ts` | CSV/TSV detection: prepends `[CSV: N data rows × M columns \| headers]` when reading .csv/.tsv files | Data analysis tasks require understanding dataset structure before computation — this saves a code_exec turn |
+| `src/system-prompt.ts` | Updated tool description to mention CSV/TSV support | Agent awareness of the new capability |
+
+### Workflow impact
+
+**Scenario**: "User has 3 CSV sales data files and asks which dataset has the most rows and what columns they share."
+
+**Before**: Agent uses `file_read` on each CSV → gets raw comma-separated text. Must scan content mentally to count rows and identify columns. No structural metadata. For large CSVs, the raw text wastes context on data rows when the agent only needs structure info.
+
+**After**: Agent uses `file_read` on each CSV → immediately sees `[CSV: 1,247 data rows × 5 columns | date, region, sales, units, category]` before the raw content. Agent can answer the structural question from metadata alone, without parsing raw text or launching code_exec.
+
+### Verification
+
+- 934 tests pass (929 → 934, +5 new CSV/TSV tests)
+- Typecheck clean, build clean, CLI loads
+- 5 Edit/Write calls (budget: ≤7)
+
+### Expected effects
+
+- Data analysis tasks should require fewer turns for initial orientation (file_read provides structure without code_exec)
+- Agent should mention column names and row counts accurately when discussing CSV data
+- No behavior change for non-CSV text files — CSV metadata is additive, not replacing content
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still the top capability candidate
+- Data type inference in CSV metadata (detect numeric vs string vs date columns)
+- Compaction quality review — compaction.ts unchanged since iter 61
+
 ## Iteration 172 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 170 (previous improver)
