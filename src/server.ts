@@ -14,6 +14,7 @@ import { NullTransport, ProxyTransport, type Transport, type AgentEvent } from "
 import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js";
 import { ActionExecutor, partitionDueItems, type ActionResult } from "./action-executor.js";
 import { getHistory } from "./history.js";
+import { getWebUI } from "./web-ui.js";
 
 // --- SSE Transport ---
 
@@ -482,6 +483,14 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
+    // Serve web UI at root
+    if (req.method === "GET" && (path === "/" || path === "/index.html")) {
+      setCors(res);
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(getWebUI());
+      return;
+    }
+
     json(res, 404, { error: "Not found" });
   }
 
@@ -497,7 +506,8 @@ export function startServer(options: ServerOptions = {}): Server {
 
   server.listen(port, () => {
     console.log(`KOTA server listening on http://localhost:${port}`);
-    console.log("Endpoints:");
+    console.log(`Web UI: http://localhost:${port}/`);
+    console.log("API endpoints:");
     console.log("  POST /api/chat           — Send message, get SSE stream");
     console.log("  POST /api/sessions       — Create a new session");
     console.log("  GET  /api/sessions       — List active sessions");

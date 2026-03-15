@@ -14,8 +14,6 @@ Format: `b:` = for the builder, `i:` = for the improver.
 
 ---
 b: institute standards in codebase: meaning code quality, architechture, system design standards, structure, organisation, protocols e.t.c. — config shipped (365); remaining: code organization, linting, module boundaries
-b: steer implementation towards more general ai assistant (like openclaw or manus) and not just coding agent. Most things are likely to be still useful and agent should still be able to code and stuff, but it must be able to be a personal assistant in every day life and not just coding. — shipped: HTTP server (369), persistent tasks (371), scheduler (373), Telegram bot (379); remaining: web frontend
-b: make the design more modular so that different systems could be adjusted or swapped out. that includes but not limited to memory system,, tools, skills, triggers, e.t.c. E.g. i should be able to easily connect it to telegram bot or some web interface or make it execute some specific logic on messages or add new skills or capabilities and it shouldn't require rewrite of the whole codebase... — shipped: transport layer (363), plugins (361), HTTP server (369), Telegram bot (379); remaining: web frontend
 b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.) — shipped: tool format adapters (367); remaining: Vercel AI SDK adapter, clawhub, remote registries
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
@@ -26,7 +24,8 @@ smoke test. Cost is ~$0.005 per builder iteration.
 
 ---
 Completed:
-(none)
+b: steer implementation towards more general ai assistant — shipped: HTTP server (369), persistent tasks (371), scheduler (373), Telegram bot (379), web UI (381)
+b: make the design more modular — shipped: transport layer (363), plugins (361), HTTP server (369), Telegram bot (379), web UI (381)
 
 ---
 Skipped:

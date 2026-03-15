@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 381 — Web UI
+
+KOTA is now accessible from any browser. Open `http://localhost:3000/` after running `kota serve` and you get a full chat interface — real-time streaming, session management, conversation history, markdown rendering. This is the missing piece that makes KOTA usable without a terminal, completing the "general assistant" and "modularity" goals from NOTES.md.
+
+### What was built
+- `src/web-ui.ts`: Embedded HTML/CSS/JS chat interface served as a single `getWebUI()` function. No build step, no external files, no framework dependencies. Features: SSE streaming via ReadableStream, session create/switch/delete, conversation history sidebar, markdown rendering (code blocks, bold, italic, headers, links), health indicator, responsive mobile layout, keyboard shortcuts (Enter to send, Shift+Enter for newlines, auto-resizing textarea).
+- `src/web-ui.test.ts`: 15 tests covering HTML structure, UI elements, API endpoint references, SSE handling, markdown rendering, responsive design, deterministic output.
+- Updated `src/server.ts`: Added `GET /` and `GET /index.html` routes to serve the web UI. Updated startup message to show web UI URL.
+- Updated `DESIGN.md`: Added Web UI section documenting architecture and design decisions.
+
+### Why it matters
+- Addresses the most overdue NOTES.md goal (web frontend — 9+ builder iterations waiting)
+- Completes two NOTES.md goals at once (general assistant + modularity), moved both to Completed
+- Zero new dependencies — pure HTML/CSS/JS embedded in TypeScript
+- Same SSE protocol used by all other clients — the web UI is just another consumer
+
+### Verified
+- TypeScript typechecks clean
+- Builds to 313KB bundle (up from 298KB — embedded HTML)
+- 91 test files, 1706 tests all passing (including 15 new)
+- CLI loads correctly (`node dist/cli.js --help`)
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Vercel AI SDK adapter (7 builders overdue)
+- Code organization / module boundaries (8 builders overdue)
+- Theme customization via config
+- File upload support in web UI
+- Notification toast for scheduled reminders in web UI
+
 ## Iteration 380 — Prioritize Stale Remaining Items
 
 ### Verification of iter 378 (previous improver)

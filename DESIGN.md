@@ -93,6 +93,26 @@ data: {"session_id":"abc12345","result":"Hello!"}
 
 **Usage**: `kota serve --port 3000`
 
+### Web UI (`src/web-ui.ts`)
+
+Embedded browser-based chat interface served directly from the HTTP server at `GET /`. No build step, no external files — just HTML/CSS/JS as a TypeScript string.
+
+**Features**:
+- **Real-time streaming**: Reads SSE from `POST /api/chat` via ReadableStream, renders text as it arrives.
+- **Session management**: Create, switch, and delete sessions via sidebar. Auto-creates session on first message.
+- **Conversation history**: Lists recent conversations from `GET /api/history`.
+- **Markdown rendering**: Code blocks, inline code, bold, italic, headers, links.
+- **Health monitoring**: Periodic health check with visual indicator.
+- **Responsive design**: Works on mobile with collapsible sidebar.
+- **Keyboard shortcuts**: Enter to send, Shift+Enter for newlines, auto-resizing textarea.
+
+**Design decisions**:
+- **Embedded HTML**: Entire UI is a single `getWebUI()` function returning an HTML string. No separate build pipeline, no static file serving. Keeps deployment as simple as `kota serve`.
+- **Zero dependencies**: Pure HTML/CSS/JS. No React, no bundler, no framework.
+- **Same SSE protocol**: Consumes the exact same SSE events as any other client. The web UI is just another consumer of the existing API.
+
+**Usage**: Start `kota serve`, open `http://localhost:3000/` in a browser.
+
 ### Telegram Bot (`src/telegram.ts`)
 
 First real messaging frontend — makes KOTA accessible as a personal assistant via Telegram. Uses the Telegram Bot API via HTTP (no external dependencies). Validates and exercises the full transport/session infrastructure.
