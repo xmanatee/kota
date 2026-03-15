@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 313 — Todo Subtasks: Hierarchical Task Breakdown (tests: 1338, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tools/todo.ts` | Add `parent_id` field, hierarchical tree display | Flat todo list couldn't express task hierarchy — critical for planning, research decomposition, project management workflows |
+| `tools/todo.test.ts` | +6 tests: subtask CRUD, nesting, display, state | Cover new hierarchy behavior |
+
+### Workflow impact
+
+**Scenario**: "User asks: I'm planning a home renovation. Break it into phases with tasks for each phase."
+- Tools: `todo` (create/track) → `ask_user` (priorities) → `file_write` (export plan)
+- **Before**: All tasks flat — "Phase 1: Demo", "Remove cabinets", "Phase 2: Rough-in", "Electrical" at same level. No visual hierarchy, no structural grouping. Agent fakes structure via string prefixes, losing machine-readable relationships.
+- **After**: Agent creates "Phase 1: Demo" then "Remove cabinets" with `parent_id=1`. Display shows indented tree:
+  ```
+  ○ #1 [pending] Phase 1: Demo
+    ○ #2 [pending] Remove cabinets
+    ○ #3 [pending] Clear debris
+  ○ #4 [pending] Phase 2: Rough-in
+    ○ #5 [pending] Electrical
+  ```
+  Supports arbitrary nesting depth. System prompt context (`getTodoState`) shows the same tree.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1338/1338 pass (+6 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent should produce structured hierarchical plans for complex tasks
+- Planning, research, and project management workflows gain visual clarity
+- `getTodoState` in system context shows hierarchy, helping agent track nested progress
+
+### Future directions
+- Todo `remove` action (currently only `clear` removes items — no single-item delete)
+- Tool description audit — tool descriptions directly affect LLM tool selection quality
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 312 — Health Check (All GREEN, Builder Improving)
 
 ### Verification of iter 310 (previous improver)

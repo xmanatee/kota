@@ -172,3 +172,68 @@ describe("getTodoState", () => {
     await runTodoFresh({ action: "clear" });
   });
 });
+
+describe("subtasks", () => {
+  beforeEach(async () => {
+    await runTodo({ action: "clear" });
+  });
+
+  it("adds subtask with parent_id", async () => {
+    await runTodo({ action: "add", task: "Parent task" });
+    const result = await runTodo({ action: "add", task: "Child task", parent_id: 1 });
+    expect(result.content).toContain("Added task #2: Child task");
+    expect(result.content).toContain("subtask of #1");
+    expect(result.is_error).toBeUndefined();
+  });
+
+  it("rejects subtask with non-existent parent", async () => {
+    const result = await runTodo({ action: "add", task: "Orphan", parent_id: 99 });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("parent task #99 not found");
+  });
+
+  it("displays subtasks indented under parents", async () => {
+    await runTodo({ action: "add", task: "Phase 1" });
+    await runTodo({ action: "add", task: "Task A", parent_id: 1 });
+    await runTodo({ action: "add", task: "Task B", parent_id: 1 });
+    await runTodo({ action: "add", task: "Phase 2" });
+
+    const result = await runTodo({ action: "list" });
+    const lines = (result.content as string).split("\n");
+    expect(lines[0]).toBe("○ #1 [pending] Phase 1");
+    expect(lines[1]).toBe("  ○ #2 [pending] Task A");
+    expect(lines[2]).toBe("  ○ #3 [pending] Task B");
+    expect(lines[3]).toBe("○ #4 [pending] Phase 2");
+  });
+
+  it("supports nested subtasks (grandchildren)", async () => {
+    await runTodo({ action: "add", task: "Root" });
+    await runTodo({ action: "add", task: "Child", parent_id: 1 });
+    await runTodo({ action: "add", task: "Grandchild", parent_id: 2 });
+
+    const result = await runTodo({ action: "list" });
+    const lines = (result.content as string).split("\n");
+    expect(lines[0]).toBe("○ #1 [pending] Root");
+    expect(lines[1]).toBe("  ○ #2 [pending] Child");
+    expect(lines[2]).toBe("    ○ #3 [pending] Grandchild");
+  });
+
+  it("subtasks reflect in getTodoState", async () => {
+    await runTodo({ action: "add", task: "Main task" });
+    await runTodo({ action: "add", task: "Sub task", parent_id: 1 });
+    const state = getTodoState();
+    expect(state).toContain("○ #1 [pending] Main task");
+    expect(state).toContain("  ○ #2 [pending] Sub task");
+    expect(state).toContain("<current-tasks>");
+  });
+
+  it("subtask status updates independently of parent", async () => {
+    await runTodo({ action: "add", task: "Parent" });
+    await runTodo({ action: "add", task: "Child", parent_id: 1 });
+    await runTodo({ action: "update", id: 2, status: "done" });
+
+    const result = await runTodo({ action: "list" });
+    expect(result.content).toContain("○ #1 [pending] Parent");
+    expect(result.content).toContain("  ✓ #2 [done] Child");
+  });
+});
