@@ -1,14 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
+import { recordRead, recordModification } from "../file-tracker.js";
+import type { ToolResult } from "./index.js";
 
 interface NotebookCell {
   type: "code" | "markdown";
   content: string;
-}
-
-interface ToolResult {
-  content: string;
-  is_error?: boolean;
 }
 
 function splitSource(content: string): string[] {
@@ -133,6 +130,7 @@ export async function runNotebook(
     await fs.promises.mkdir(path.dirname(resolved), { recursive: true });
     const nb = buildNotebook(cells, kernel);
     await fs.promises.writeFile(resolved, JSON.stringify(nb, null, 2));
+    recordModification(resolved);
     return {
       content: `Created ${resolved} (${cells.length} cells, kernel: ${kernel})`,
     };
@@ -145,6 +143,7 @@ export async function runNotebook(
     } catch {
       return { content: `Error: file not found: ${resolved}`, is_error: true };
     }
+    recordRead(resolved);
     let nb: { cells: unknown[] };
     try {
       nb = JSON.parse(raw);
@@ -162,6 +161,7 @@ export async function runNotebook(
     }
     nb.cells.push(...cells.map(buildCell));
     await fs.promises.writeFile(resolved, JSON.stringify(nb, null, 2));
+    recordModification(resolved);
     return {
       content: `Added ${cells.length} cells to ${resolved} (total: ${nb.cells.length})`,
     };

@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 277 — Notebook File-Tracker Integration & Edge Case Tests (tests: 1250, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `notebook.ts` | Added `recordRead`/`recordModification` calls from file-tracker | Notebook was the only file-mutating tool without freshness tracking — stale edits would go undetected |
+| `notebook.test.ts` | +6 tests: 2 cross-module (file-tracker integration), 4 edge cases | Hardening newest module (was 11 tests, now 17) |
+
+### Workflow impact
+
+**Scenario**: "User creates a notebook, runs a shell command that modifies it externally, then adds cells"
+- **Before**: `add_cells` wouldn't detect the external modification — agent edits based on stale data, silently overwriting external changes
+- **After**: `recordRead` before reading + `recordModification` after writing means `checkFreshness` correctly detects external modifications between operations
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1250/1250 pass (+6 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+
+- Notebook tool now participates in file-tracker freshness checks like all other file-mutating tools
+- Edge cases (malformed JSON, missing cells array, unknown kernel, empty content) have explicit test coverage
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 276 — Enforce New-File Hard Limit After $2.11 Budget Overrun
 
 ### Verification of iter 274 (previous improver)

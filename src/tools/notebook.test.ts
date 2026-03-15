@@ -3,6 +3,7 @@ import { runNotebook, notebookTool } from "./notebook.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { checkFreshness } from "../file-tracker.js";
 
 function tmpPath(name: string): string {
   return path.join(
@@ -162,5 +163,93 @@ describe("notebook tool", () => {
     });
     const nb = JSON.parse(fs.readFileSync(p, "utf-8"));
     expect(nb.cells[0].source).toEqual(["x = 1"]);
+  });
+
+  // --- Cross-module: notebook × file-tracker ---
+
+  it("tracks file modification after create", async () => {
+    const p = tmpPath("track-create.ipynb");
+    created.push(p);
+    await runNotebook({
+      action: "create",
+      path: p,
+      cells: [{ type: "code", content: "x = 1" }],
+    });
+    const resolved = path.resolve(p);
+    // After creation, file-tracker should report fresh (null = not stale)
+    expect(checkFreshness(resolved)).toBeNull();
+  });
+
+  it("tracks read and modification after add_cells", async () => {
+    const p = tmpPath("track-add.ipynb");
+    created.push(p);
+    await runNotebook({
+      action: "create",
+      path: p,
+      cells: [{ type: "markdown", content: "# Start" }],
+    });
+    await runNotebook({
+      action: "add_cells",
+      path: p,
+      cells: [{ type: "code", content: "y = 2" }],
+    });
+    const resolved = path.resolve(p);
+    // After add_cells, tracked as fresh (null = not stale)
+    expect(checkFreshness(resolved)).toBeNull();
+  });
+
+  // --- Edge cases ---
+
+  it("handles add_cells on file with invalid JSON", async () => {
+    const p = tmpPath("bad-json.ipynb");
+    created.push(p);
+    fs.writeFileSync(p, "not json at all{{{");
+    const r = await runNotebook({
+      action: "add_cells",
+      path: p,
+      cells: [{ type: "code", content: "x" }],
+    });
+    expect(r.is_error).toBe(true);
+    expect(r.content).toContain("invalid JSON");
+  });
+
+  it("handles add_cells on JSON without cells array", async () => {
+    const p = tmpPath("no-cells.ipynb");
+    created.push(p);
+    fs.writeFileSync(p, JSON.stringify({ nbformat: 4 }));
+    const r = await runNotebook({
+      action: "add_cells",
+      path: p,
+      cells: [{ type: "code", content: "x" }],
+    });
+    expect(r.is_error).toBe(true);
+    expect(r.content).toContain("missing cells array");
+  });
+
+  it("handles empty string content in cells", async () => {
+    const p = tmpPath("empty-content.ipynb");
+    created.push(p);
+    const r = await runNotebook({
+      action: "create",
+      path: p,
+      cells: [{ type: "code", content: "" }],
+    });
+    expect(r.is_error).toBeUndefined();
+    const nb = JSON.parse(fs.readFileSync(p, "utf-8"));
+    expect(nb.cells[0].source).toEqual([""]);
+  });
+
+  it("falls back to python3 for unknown kernel", async () => {
+    const p = tmpPath("unknown-kernel.ipynb");
+    created.push(p);
+    const r = await runNotebook({
+      action: "create",
+      path: p,
+      cells: [{ type: "code", content: "x" }],
+      kernel: "rust",
+    });
+    expect(r.is_error).toBeUndefined();
+    const nb = JSON.parse(fs.readFileSync(p, "utf-8"));
+    expect(nb.metadata.kernelspec.name).toBe("python3");
   });
 });
