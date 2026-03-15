@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 179 — Streaming Retry Hardening (tests: 947, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/streaming.test.ts` | Added 4 tests: mid-stream failure retry, text reset on retry, thinking events (verbose + non-verbose) | streaming.ts had only 7 tests despite being the most critical module — every LLM call flows through it |
+
+### Bug risk mitigated
+
+The streaming retry logic was only tested for failures at stream *creation* time (`stream()` throws). The most common production failure — mid-stream disconnect where `finalMessage()` rejects after text was already emitted — was completely untested. The 4 new tests verify:
+
+1. **Mid-stream failure retry**: stream starts, emits text, then `finalMessage()` rejects. Confirmed: retry works correctly, `stream()` called twice.
+2. **Text reset on retry**: accumulated `streamedText` from a failed attempt does not carry into the retry result. Agent gets clean text.
+3. **Thinking events (verbose)**: `[thinking]` prefix + delta text written to stderr when `thinkingConfig` is set with `verbose: true`.
+4. **Thinking events (non-verbose)**: single `[kota] Thinking...` notice to stderr; delta text suppressed.
+
+Note: text written to stdout during a failed attempt IS visible to the user before retry (by design — streaming UX requires it). The `streamedText` return value is correctly reset so the agent loop doesn't see duplicates.
+
+### Workflow impact
+
+**Scenario**: "User starts a session, reads a CSV dataset (iter 177 metadata), asks agent to analyze it. The LLM streaming call fails mid-stream due to API overload (HTTP 529) after emitting partial text."
+
+**Before**: This mid-stream failure path had zero test coverage. We had to trust that the retry loop correctly handled `finalMessage()` rejection vs `stream()` creation rejection — structurally different error paths that share the same `catch` block. Also, the thinking events path (thinkingConfig → stderr) was entirely untested.
+
+**After**: Both failure modes are tested. Mid-stream retry confirmed working: `streamedText` resets, retry succeeds, agent continues with clean state. Thinking events path verified for both verbose and non-verbose modes. streaming.ts now has 11 tests (was 7) — density more appropriate for its criticality.
+
+### Verification
+
+- 947 tests pass (943 → 947, +4 new)
+- Typecheck clean, build clean, CLI loads
+- 2 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- No behavioral change — these are test-only additions
+- Future refactoring of streaming retry logic now has safety net against regressions
+- Mid-stream failure is the most common real-world streaming issue; now tested
+
+### Future directions
+
+- `streaming.ts` has no cross-module dependencies (imports only `@anthropic-ai/sdk`), so cross-module tests aren't naturally applicable — the module is self-contained by design
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still the top optimization candidate
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- Consider testing the streaming → loop.ts cost-tracking pipeline as a cross-module integration test
+
 ## Iteration 178 — Health Check (Steady State Confirmed)
 
 ### Verification of iter 176 (previous improver)

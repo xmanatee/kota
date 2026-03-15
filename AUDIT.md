@@ -26,7 +26,7 @@ web-fetch.ts (33, includes 5 cross-module HTML extraction tests),
 delegate-format.ts (38), diff.ts (14), shell.ts (15),
 grep.ts (10), find-replace.ts (16), integration tests (13), init.ts (19),
 todo.ts (17, includes cross-module lifecycle + system prompt injection tests),
-memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
+memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (11),
 tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
@@ -53,7 +53,9 @@ csv-truncation (2) — runFileRead CSV × truncateToolResult: metadata preserved
 after truncation, metadata in head portion of large result (iter 177).
 system-context (3) — date/platform in session warmup: date format with day of
 week, date matches local time, platform info included (iter 175).
-Total suite: 943.
+streaming-retry (4) — mid-stream failure retry, text reset on retry,
+thinking events verbose + non-verbose stderr output (iter 179).
+Total suite: 947.
 
 No untested modules remain. All modules above minimum test density threshold.
 

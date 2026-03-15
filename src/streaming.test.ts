@@ -146,4 +146,107 @@ describe("streamMessage", () => {
     await expect(streamMessage(cfg(client))).rejects.toThrow("Bad Request");
     expect(client.messages.stream).toHaveBeenCalledTimes(1);
   });
+
+  it("retries on mid-stream failure (finalMessage rejects after text emitted)", async () => {
+    const failingStream = {
+      on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === "text") cb("partial");
+      }),
+      finalMessage: vi.fn().mockRejectedValue(new Error("stream interrupted")),
+    };
+    const successStream = createStream(["OK"]);
+    const client = {
+      messages: {
+        stream: vi.fn()
+          .mockReturnValueOnce(failingStream)
+          .mockReturnValueOnce(successStream),
+      },
+    };
+
+    const promise = streamMessage(cfg(client));
+    await vi.advanceTimersByTimeAsync(15_000);
+    const result = await promise;
+
+    expect(result.streamedText).toBe("OK");
+    expect(client.messages.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it("mid-stream retry resets accumulated text (no duplication in result)", async () => {
+    const failStream = {
+      on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === "text") { cb("partial data "); cb("more "); }
+      }),
+      finalMessage: vi.fn().mockRejectedValue(new Error("connection reset")),
+    };
+    const okStream = createStream(["final result"]);
+    const client = {
+      messages: {
+        stream: vi.fn()
+          .mockReturnValueOnce(failStream)
+          .mockReturnValueOnce(okStream),
+      },
+    };
+
+    const promise = streamMessage(cfg(client));
+    await vi.advanceTimersByTimeAsync(15_000);
+    const result = await promise;
+
+    expect(result.streamedText).toBe("final result");
+    expect(result.streamedText).not.toContain("partial");
+  });
+
+  it("emits thinking events to stderr in verbose mode", async () => {
+    const s = {
+      on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === "thinking") { cb("step 1..."); cb("step 2..."); }
+        if (event === "text") cb("answer");
+      }),
+      finalMessage: vi.fn().mockResolvedValue({
+        id: "msg_t", type: "message", role: "assistant",
+        content: [{ type: "text", text: "answer" }],
+        model: "test-model", stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 5 },
+      }),
+    };
+    const client = { messages: { stream: vi.fn().mockReturnValue(s) } };
+    const config = {
+      ...cfg(client),
+      thinkingConfig: { type: "enabled" as const, budget_tokens: 1000 },
+      verbose: true,
+    };
+
+    await streamMessage(config);
+
+    const stderrCalls = stderrSpy.mock.calls.map((c: unknown[]) => c[0]);
+    expect(stderrCalls).toContain("[thinking] ");
+    expect(stderrCalls).toContain("step 1...");
+    expect(stderrCalls).toContain("step 2...");
+  });
+
+  it("emits single thinking notice in non-verbose mode", async () => {
+    const s = {
+      on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === "thinking") { cb("internal reasoning"); }
+        if (event === "text") cb("reply");
+      }),
+      finalMessage: vi.fn().mockResolvedValue({
+        id: "msg_t", type: "message", role: "assistant",
+        content: [{ type: "text", text: "reply" }],
+        model: "test-model", stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 5 },
+      }),
+    };
+    const client = { messages: { stream: vi.fn().mockReturnValue(s) } };
+    const config = {
+      ...cfg(client),
+      thinkingConfig: { type: "enabled" as const, budget_tokens: 1000 },
+      verbose: false,
+    };
+
+    await streamMessage(config);
+
+    const stderrCalls = stderrSpy.mock.calls.map((c: unknown[]) => c[0]);
+    expect(stderrCalls).toContain("[kota] Thinking...\n");
+    expect(stderrCalls).not.toContain("internal reasoning");
+  });
 });
