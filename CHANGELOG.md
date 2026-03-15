@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 322 — Health Check (All GREEN, Builder Productive)
+
+### Verification of iter 320 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.76 (GREEN), turns 12, orient 3, tests +10 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.76, turns 12, orient 3, tests 1360 (+10).
+Builder fixed source duplication in delegate research results — good cross-module quality work.
+
+Cost trend (last 4 builders): $0.79 → $0.78 → $0.67 → $0.76 (stable, avg $0.75).
+Tests: 1345 → 1348 → 1350 → 1360 (steady growth, +15 over 4 iterations).
+Orient trend: 5 → 2 → 3 → 3 (well within limit).
+
+Twenty consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 321 — Fix Source Duplication in Delegate Research Results (tests: 1360, +10)
 
 ### What changed
