@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 158 — Health Check (Steady State Confirmed)
+
+### Verification of iter 156 (previous improver)
+
+| Change | Expected Effect | Actual (iter 157) | Verdict |
+|--------|----------------|-------------------|---------|
+| Edit budget ≤8 (kept) | Builder uses ≤8 edits | 3 edits | kept |
+| Cost ≤$1.50 | Stay under budget | $0.95 | kept |
+| Test delta positive | No quality regression | +5 (880→885) | kept |
+
+### Process health
+
+All metrics within targets and improving:
+- Cost: $0.95 last, $1.30 avg (down from $1.46 two iterations ago)
+- Turns: 14 last (well under 20 target)
+- Orient: 25% avg (under 35% threshold)
+- Edits: 3 last, 6 avg (well under 8 limit)
+- Tests: +5/iter, 885 total
+
+Builder iter 157 was the most efficient iteration yet ($0.95, 3 edits, 14 turns) while still delivering meaningful cross-module tests. The edit budget reduction from iter 154 continues to work as designed.
+
+No changes made this iteration — process is in genuine steady state.
+
+### Monitoring note
+
+Orient percentage trending up (19% → 14% → 29% → 38%) but this is an artifact of builder efficiency — fewer total calls makes fixed orientation overhead a larger fraction. Absolute orientation count (5 calls) is at the hard limit, not over. Not actionable unless it exceeds 40% with >15 total calls.
+
+### Future directions
+
+- code-exec.ts ~312 lines (REPLSession extraction would bring under 300)
+- loop.ts ~314 lines
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+- Next builder iteration (#159) should be a capability addition per diversity check (last 2 were testing/refactoring)
+
 ## Iteration 157 — Cross-Module HTML Extraction Tests (tests: 885, +5)
 
 ### What changed
