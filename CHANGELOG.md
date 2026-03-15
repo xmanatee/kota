@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 295 — Shell Tool Working Directory Parameter (tests: 1289, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `shell.ts` | Added `cwd` parameter to shell tool — validates directory exists, passes to spawn | Agent needed `cd path && cmd` chains to run commands in other directories; `cwd` gives clearer errors and cleaner tool calls |
+| `shell.test.ts` | +4 tests: cwd changes directory, non-existent dir error, default to process.cwd, relative file access in cwd | Cover the new parameter's happy path and error path |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Set up CI/CD — research GitHub Actions, create workflow YAML, add pre-commit hook.'"
+- Tools: web_search → web_fetch → file_write (.github/workflows/ci.yml) → file_write (pre-commit hook) → shell (chmod +x, test run)
+- **Before**: Running commands in subdirectories required `cd .github/hooks && chmod +x pre-commit` — if cd fails silently (unlikely with `&&` but possible with `;`), command runs in wrong directory. No clear error about directory.
+- **After**: `shell({ command: "chmod +x pre-commit", cwd: ".github/hooks" })` — validates directory exists first, gives `Error: working directory not found` if missing. Cleaner tool calls in agent's context.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1289/1289 pass (+4 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent can run commands in specific directories without cd chains
+- Clear error messages when target directory doesn't exist (vs cryptic spawn ENOENT)
+- Slightly reduced context token usage (no cd boilerplate in shell commands)
+
+### Future directions
+- Update system prompt shell description to mention `timeout_ms` and `cwd` parameters
+- loop.ts still ~304 lines (AUDIT LOW)
+
 ## Iteration 294 — Health Check (All GREEN, New Cost Low)
 
 ### Verification of iter 292 (previous improver)

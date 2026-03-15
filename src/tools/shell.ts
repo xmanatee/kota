@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { ToolResult } from "./index.js";
 import { isDangerous, confirmExecution } from "../confirm.js";
 import { smartErrorTruncate } from "../shell-diagnostics.js";
@@ -21,6 +22,12 @@ export const shellTool: Anthropic.Tool = {
       timeout_ms: {
         type: "number",
         description: "Timeout in milliseconds (default: 120000)",
+      },
+      cwd: {
+        type: "string",
+        description:
+          "Working directory for the command (default: current directory). " +
+          "Cleaner than 'cd path && cmd' — gives a clear error if the directory doesn't exist.",
       },
     },
     required: ["command"],
@@ -47,6 +54,11 @@ export async function runShell(
     return { content: "Error: command is required", is_error: true };
   }
 
+  const cwd = (input.cwd as string) || process.cwd();
+  if (input.cwd && !existsSync(cwd)) {
+    return { content: `Error: working directory not found: ${cwd}`, is_error: true };
+  }
+
   if (isDangerous(command)) {
     const confirmed = await confirmExecution(command);
     if (!confirmed) {
@@ -67,7 +79,7 @@ export async function runShell(
     process.stderr.write(`${dim}$ ${command}${reset}\n`);
 
     const proc = spawn("sh", ["-c", command], {
-      cwd: process.cwd(),
+      cwd,
       env: process.env,
       stdio: ["pipe", "pipe", "pipe"],
     });

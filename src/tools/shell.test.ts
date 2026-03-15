@@ -85,6 +85,35 @@ describe("shell: timeout", () => {
   });
 });
 
+describe("shell: working directory (cwd)", () => {
+  it("runs command in specified directory", async () => {
+    const result = await runShell({ command: "pwd", cwd: "/tmp" });
+    expect(result.is_error).toBeUndefined();
+    // /tmp may resolve to /private/tmp on macOS
+    expect(result.content).toMatch(/\/?tmp$/);
+  });
+
+  it("returns error for non-existent directory", async () => {
+    const result = await runShell({ command: "pwd", cwd: "/nonexistent_dir_xyz" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("working directory not found");
+    expect(result.content).toContain("/nonexistent_dir_xyz");
+  });
+
+  it("uses current directory when cwd not specified", async () => {
+    const result = await runShell({ command: "pwd" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toBe(process.cwd());
+  });
+
+  it("accesses files relative to cwd", async () => {
+    // /tmp should exist and be listable
+    const result = await runShell({ command: "ls -d .", cwd: "/tmp" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toBe(".");
+  });
+});
+
 describe("shell: output truncation", () => {
   it("truncates output exceeding 20K chars", async () => {
     // Generate >20K chars of output
