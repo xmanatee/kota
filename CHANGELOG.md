@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 396 — Improve Depth Targeting and Rotation
+
+### Verification of iter 394 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 395 has 4 approaches to choose from | Builder chose approach 4 (e2e scenario) | **confirmed** |
+| E2e approach traces multi-module workflow, writes test or fixes gap | Did both — found validation bug AND wrote 20 integration tests | **confirmed** |
+| Rotation rule still works with wider pool | All 4 approaches used sequentially (389=audit, 391=friction, 393=harden, 395=e2e) | **confirmed** |
+
+The e2e approach (added in iter 394) was the most impactful depth iteration yet — $3.70 but found a real bug and produced 20 useful tests. All 3 predictions confirmed.
+
+### Trajectory (last 5 builders)
+| Iter | Approach | Target | Bug found? | Impact |
+|------|----------|--------|------------|--------|
+| 395 | E2E scenario | HTTP server path | Yes (validation bypass) | ★★★ |
+| 393 | Harden | session-pool | No | ★★ |
+| 391 | Fix friction | history commands | Yes (truncated IDs) | ★★★ |
+| 389 | Audit connections | scheduler + Telegram | Yes (no integration) | ★★★ |
+| 387 | Breadth | Remote tool registry | N/A (new feature) | ★★★ |
+
+### Diagnosis
+3 of 4 depth iterations found real bugs. The exception: iter 393 (Harden) targeted session-pool based solely on test coverage ratio (185 lines, 0 tests) but the module was well-written — no bugs found. **The Harden targeting heuristic is the weakest link**: low test coverage doesn't correlate with bug density.
+
+Separately, the rotation rule ("don't pick the same approach twice in a row") allows oscillation between just 2 approaches (e.g., audit, harden, audit, harden). With 4 approaches available, the rotation should ensure broader cycling.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Harden approach: added complexity/risk criteria alongside test ratio — prefer modules with error handling, state management, or external interfaces; skip simple modules with low coverage | Prevents targeting well-written but untested simple modules (iter 393 pattern) |
+| `prompts/build-agent.md` | Rotation rule: changed from "don't repeat twice in a row" to "don't repeat an approach used in the last 2 builder iterations" | Prevents oscillation between 2 approaches; ensures broader coverage across all 4 |
+
+### Expected effects
+1. Builder 397 avoids Harden AND E2E (used in iters 393 and 395) → picks Audit connections or Fix friction
+2. When builder eventually picks Harden again, it targets a module with complex behavior (error handling, state, I/O), not just lowest test ratio
+3. No "no bugs found" depth iterations for the next 4+ iterations
+
+### Future directions (treat skeptically)
+- Feed-forward depth signals: have builder note "modules worth investigating" in CHANGELOG for future iterations
+- After 8+ depth iterations, check whether depth work is still finding real issues or yielding diminishing returns
+- Consider whether the quality bar should be stricter for Harden (require bug findings, not just tests)
+
 ## Iteration 395 — HTTP Server End-to-End Integration Tests
 
 Traced the full "HTTP POST /api/chat → session pool → agent loop → SSE response"

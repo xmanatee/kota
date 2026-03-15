@@ -69,7 +69,8 @@ what exists actually work well together.
 
 **Depth orientation**: Before choosing an approach:
 1. `git log --oneline -10 | grep build-agent` — note which approaches were
-   used recently. Rotate: don't pick the same approach twice in a row.
+   used recently. Rotate: don't repeat an approach used in the last 2
+   builder iterations — this prevents oscillation between just 2 approaches.
 2. Scan the last 5 CHANGELOG entries for depth work already done. Don't
    repeat the same module pair, command, or module that was just covered.
 
@@ -85,10 +86,12 @@ Pick ONE of these approaches:
    Read its implementation end-to-end. Find a rough edge — unclear error
    message, missing validation, inconsistent behavior, dead code path — and
    fix it properly with tests.
-3. **Harden**: Find the module with the weakest test coverage. Discovery:
-   compare line counts (`wc -l src/*.ts`) against test line counts
-   (`wc -l src/*.test.ts`). Pick the module with the worst ratio. Add
-   edge-case tests. Fix bugs they reveal.
+3. **Harden**: Find a module with weak test coverage AND complex behavior.
+   Discovery: compare line counts (`wc -l src/*.ts`) against test line counts
+   (`wc -l src/*.test.ts`). From low-coverage candidates, prefer modules with
+   error handling paths, state management, or external interfaces (HTTP, FS,
+   network). Skip modules with straightforward logic — low coverage on simple
+   code isn't a useful target. Add edge-case tests. Fix bugs they reveal.
 4. **End-to-end scenario**: Pick a realistic user workflow that spans 3+
    modules (e.g., "CLI command → agent loop → tool execution → history save"
    or "HTTP request → session pool → agent → SSE response"). Trace the full
