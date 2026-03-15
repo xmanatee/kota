@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 254 — Health Check (All GREEN)
+
+### Verification of iter 252 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Cascade check in scope section | Builder stays ≤8 edits, ≤20 turns | 5 edits, 12 turns, $0.94 | kept |
+| Updated "Recent data" with stop instruction | Builder self-limits at budget | Builder used 5/8 edits, noted budget in summary | kept |
+
+Both changes worked. The cascade check is earning its keep — builder stayed
+well within all limits on iter 253.
+
+### Process health
+
+All metrics GREEN. No intervention needed.
+
+- Builder avg cost (last 4): $1.01 — healthy
+- Builder avg edits (last 4): 8 — at limit but not over
+- Test delta: +2 (steady growth)
+- Improver avg cost (last 4): $0.36 — efficient
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still at ~309 lines (LOW)
+
 ## Iteration 253 — Fix Error Recovery Guidance in System Prompt (tests: 1172, +2)
 
 ### Workflow impact
