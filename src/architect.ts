@@ -2,26 +2,34 @@ import Anthropic from "@anthropic-ai/sdk";
 import { allTools, executeTool } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
+import { filterTools } from "./tool-groups.js";
 
-const ARCHITECT_SYSTEM = `You are an expert software architect analyzing a coding task.
+const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.
 
-Produce a detailed implementation plan:
-1. List each file that needs to be created or modified
-2. For each file, describe the exact changes (what to find, what to replace with)
-3. Order changes by dependency (create before reference)
-4. Be precise — the editor will follow your plan literally
+Produce a detailed execution plan:
+1. List each step with specific actions and expected outputs
+2. For code: specify files, exact changes (find → replace), dependency order
+3. For research: specify queries, sources to check, what to extract
+4. For analysis: specify data sources, computations, visualizations
+5. For writing: specify sections, key points, format
+6. Be precise — the executor will follow your plan literally
 
-Do NOT write actual code. Describe the changes in natural language.`;
+Do NOT execute the plan. Describe the steps in natural language.`;
 
-const EDITOR_SYSTEM = `You are a precise code editor. Execute the implementation plan using the provided tools.
+const EDITOR_SYSTEM = `You are a precise task executor. Execute the plan step-by-step using the provided tools.
 
 Rules:
 - Read files before editing to get exact content for search-and-replace
-- Use file_edit for modifications, file_write for new files
-- Follow the plan exactly — no extra changes
-- When all changes are complete, briefly confirm what was done`;
+- Follow the plan exactly — no extra steps or changes
+- When all steps are complete, briefly confirm what was done`;
 
-const EDITOR_TOOL_NAMES = new Set(["file_read", "file_write", "file_edit"]);
+export const EDITOR_TOOL_SET = new Set([
+  "file_read", "file_write", "file_edit", "multi_edit",
+  "grep", "glob",
+  "web_search", "web_fetch",
+  "code_exec",
+  "shell",
+]);
 export const MAX_EDITOR_TURNS = 30;
 const EDITOR_RESULT_LIMIT = 30_000;
 
@@ -79,7 +87,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<string> {
   const { client, model, maxTokens, plan, costTracker, verbose } = opts;
   if (verbose) console.error("[kota] Editor pass — executing plan...");
 
-  const editorTools = allTools.filter((t) => EDITOR_TOOL_NAMES.has(t.name));
+  const editorTools = filterTools(allTools).filter((t) => EDITOR_TOOL_SET.has(t.name));
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
     { type: "text", text: EDITOR_SYSTEM, cache_control: { type: "ephemeral" } },
   ];

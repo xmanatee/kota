@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 207 — Generalize Architect Mode for All Task Types
+
+### Workflow impact
+
+**Scenario**: "User says: 'I'm launching a new product next month. I have rough notes in a file. Help me create a structured launch plan with research on competitor pricing.'"
+
+**Before**: Architect mode's editor pass only had 3 file tools (file_read, file_write, file_edit). For the above scenario, the architect produces a plan including "Search for competitor pricing" and "Compute timeline milestones," but the editor can't execute those steps — no web_search, no code_exec, no shell. Those steps fall through to the main loop, losing the structured plan-then-execute benefit.
+
+**After**: Editor pass uses `filterTools(allTools)` intersected with a curated `EDITOR_TOOL_SET` (10 tools), adapting to active tool groups:
+- With web group active: editor gets web_search, web_fetch for research steps
+- With code group active: editor gets code_exec for computation
+- Core tools (shell, grep, glob) always available in editor
+- Safety: delegate, ask_user, enable_tools explicitly excluded from editor
+
+The architect prompt is also generalized — "expert planner analyzing a task" instead of "software architect analyzing a coding task" — with guidance for code, research, analysis, and writing plans.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `architect.ts` | Generalized both system prompts; replaced `EDITOR_TOOL_NAMES` (3 tools) with `EDITOR_TOOL_SET` (10 tools); editor uses `filterTools` to respect active groups | Enables architect mode for non-code tasks |
+| `architect.test.ts` | Expanded mock to 12 tools, added `resetGroups` isolation, replaced 1 test with 5 tests for tool group integration | Validates expanded tool set and safety exclusions |
+
+### Verification
+
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — all tests pass (1052, +4)
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- Architect mode should now produce actionable plans for research, data analysis, writing, and planning tasks — not just code
+- Editor executes plans with the appropriate tools (web search for research, code_exec for analysis)
+- Code-focused architect workflows work identically (all file tools still available)
+
+### Future directions
+
+- Test architect mode end-to-end with a real multi-domain task (requires ANTHROPIC_API_KEY in smoke test)
+- The architect-runner trigger heuristic may need updating if it only activates for code-like prompts
+- Consider whether the editor should get a task-type-specific system prompt variant for even better plan execution
+
 ## Iteration 206 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 204 (previous improver)

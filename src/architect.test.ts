@@ -12,11 +12,20 @@ vi.mock("./tools/index.js", () => ({
     { name: "file_edit", description: "edit", input_schema: { type: "object", properties: {} } },
     { name: "file_write", description: "write", input_schema: { type: "object", properties: {} } },
     { name: "shell", description: "shell", input_schema: { type: "object", properties: {} } },
+    { name: "grep", description: "grep", input_schema: { type: "object", properties: {} } },
+    { name: "glob", description: "glob", input_schema: { type: "object", properties: {} } },
+    { name: "web_search", description: "search", input_schema: { type: "object", properties: {} } },
+    { name: "web_fetch", description: "fetch", input_schema: { type: "object", properties: {} } },
+    { name: "code_exec", description: "code", input_schema: { type: "object", properties: {} } },
+    { name: "multi_edit", description: "multi", input_schema: { type: "object", properties: {} } },
+    { name: "delegate", description: "delegate", input_schema: { type: "object", properties: {} } },
+    { name: "ask_user", description: "ask", input_schema: { type: "object", properties: {} } },
   ],
   executeTool: mockExecuteTool,
 }));
 
-import { runArchitectPass, runEditorLoop, MAX_EDITOR_TURNS } from "./architect.js";
+import { runArchitectPass, runEditorLoop, MAX_EDITOR_TURNS, EDITOR_TOOL_SET } from "./architect.js";
+import { enableGroup, resetGroups } from "./tool-groups.js";
 
 // --- Helpers ---
 
@@ -163,6 +172,7 @@ describe("runEditorLoop", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetGroups();
     client = createMockClient();
     mockExecuteTool.mockReset();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -201,7 +211,7 @@ describe("runEditorLoop", () => {
     expect(client.messages.stream).toHaveBeenCalledTimes(2);
   });
 
-  it("only exposes file tools (not shell, etc.)", async () => {
+  it("exposes core EDITOR_TOOL_SET tools by default", async () => {
     client.messages.stream.mockReturnValue(createMockStream({ _text: "done" }));
 
     await runEditorLoop({
@@ -213,7 +223,67 @@ describe("runEditorLoop", () => {
     expect(toolNames).toContain("file_read");
     expect(toolNames).toContain("file_edit");
     expect(toolNames).toContain("file_write");
-    expect(toolNames).not.toContain("shell");
+    expect(toolNames).toContain("shell");
+    expect(toolNames).toContain("grep");
+    expect(toolNames).toContain("glob");
+    expect(toolNames).not.toContain("delegate");
+    expect(toolNames).not.toContain("ask_user");
+    expect(toolNames).not.toContain("enable_tools");
+  });
+
+  it("includes web tools when web group is enabled", async () => {
+    enableGroup("web");
+    client.messages.stream.mockReturnValue(createMockStream({ _text: "done" }));
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    const callArgs = client.messages.stream.mock.calls[0][0];
+    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    expect(toolNames).toContain("web_search");
+    expect(toolNames).toContain("web_fetch");
+  });
+
+  it("includes code_exec when code group is enabled", async () => {
+    enableGroup("code");
+    client.messages.stream.mockReturnValue(createMockStream({ _text: "done" }));
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    const callArgs = client.messages.stream.mock.calls[0][0];
+    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    expect(toolNames).toContain("code_exec");
+  });
+
+  it("includes multi_edit when advanced_editing group is enabled", async () => {
+    enableGroup("advanced_editing");
+    client.messages.stream.mockReturnValue(createMockStream({ _text: "done" }));
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    const callArgs = client.messages.stream.mock.calls[0][0];
+    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    expect(toolNames).toContain("multi_edit");
+  });
+
+  it("never includes delegate or ask_user even with all groups enabled", async () => {
+    enableGroup("all");
+    client.messages.stream.mockReturnValue(createMockStream({ _text: "done" }));
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    const callArgs = client.messages.stream.mock.calls[0][0];
+    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    expect(toolNames).not.toContain("delegate");
+    expect(toolNames).not.toContain("ask_user");
+    expect(toolNames).not.toContain("enable_tools");
   });
 
   it("tracks cost for each turn", async () => {
