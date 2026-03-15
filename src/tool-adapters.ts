@@ -5,6 +5,7 @@
  * Supported formats:
  * - Simple: { name, description, parameters, run }
  * - OpenAI function-calling: { type: "function", function: { name, description, parameters }, run }
+ * - Vercel AI SDK: { description, parameters (Zod or JSON Schema), execute }
  * - Array of simple tools
  * - Native KotaPlugin (pass-through)
  */
@@ -31,6 +32,14 @@ export type OpenAIFunctionTool = {
     parameters?: Record<string, unknown>;
   };
   run: (input: Record<string, unknown>) => unknown | Promise<unknown>;
+  group?: string;
+};
+
+/** Vercel AI SDK tool() format — uses `execute` and Zod/JSON Schema parameters. */
+export type VercelAITool = {
+  description?: string;
+  parameters: unknown; // Zod schema, AI SDK jsonSchema(), or raw JSON Schema
+  execute: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   group?: string;
 };
 
@@ -116,6 +125,118 @@ export function fromOpenAI(def: OpenAIFunctionTool): ToolDefinition {
   return { tool, runner, group: def.group };
 }
 
+// --- Zod → JSON Schema (lightweight, no zod dependency) ---
+
+/**
+ * Extract a JSON Schema from various parameter formats:
+ * - Vercel AI SDK's jsonSchema() result (has `.jsonSchema` property)
+ * - Raw JSON Schema object (has `type: "object"`)
+ * - Zod schema (has `._def.typeName`)
+ */
+export function extractJsonSchema(params: unknown): Record<string, unknown> {
+  if (!params || typeof params !== "object") {
+    return { type: "object", properties: {} };
+  }
+
+  const p = params as Record<string, unknown>;
+
+  // AI SDK's jsonSchema() — has a `jsonSchema` property
+  if (p.jsonSchema && typeof p.jsonSchema === "object") {
+    return p.jsonSchema as Record<string, unknown>;
+  }
+
+  // Already a JSON Schema object — has `type` property
+  if (typeof p.type === "string") {
+    return p;
+  }
+
+  // Zod schema — has `_def` with `typeName`
+  const def = p._def as Record<string, unknown> | undefined;
+  if (def?.typeName) {
+    return zodDefToJsonSchema(p);
+  }
+
+  return { type: "object", properties: {} };
+}
+
+/** Convert a Zod schema's _def structure to JSON Schema (handles common types). */
+export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
+  if (!schema || typeof schema !== "object") return {};
+
+  const s = schema as Record<string, unknown>;
+  const def = s._def as Record<string, unknown> | undefined;
+  if (!def?.typeName) return {};
+
+  const typeName = def.typeName as string;
+  const desc = s.description as string | undefined;
+  const base: Record<string, unknown> = {};
+  if (desc) base.description = desc;
+
+  switch (typeName) {
+    case "ZodString": return { ...base, type: "string" };
+    case "ZodNumber": return { ...base, type: "number" };
+    case "ZodBoolean": return { ...base, type: "boolean" };
+    case "ZodLiteral": return { ...base, const: def.value };
+    case "ZodEnum":
+      return { ...base, type: "string", enum: def.values as string[] };
+    case "ZodArray": {
+      const items = zodDefToJsonSchema(def.type);
+      return { ...base, type: "array", items };
+    }
+    case "ZodOptional":
+    case "ZodNullable":
+      return zodDefToJsonSchema(def.innerType);
+    case "ZodDefault":
+      return zodDefToJsonSchema(def.innerType);
+    case "ZodObject": {
+      const shape = typeof def.shape === "function"
+        ? (def.shape as () => Record<string, unknown>)()
+        : def.shape;
+      const properties: Record<string, unknown> = {};
+      const required: string[] = [];
+      if (shape && typeof shape === "object") {
+        for (const [key, val] of Object.entries(shape as Record<string, unknown>)) {
+          properties[key] = zodDefToJsonSchema(val);
+          const valDef = (val as Record<string, unknown>)?._def as Record<string, unknown> | undefined;
+          if (valDef?.typeName !== "ZodOptional" && valDef?.typeName !== "ZodDefault") {
+            required.push(key);
+          }
+        }
+      }
+      const result: Record<string, unknown> = { ...base, type: "object", properties };
+      if (required.length > 0) result.required = required;
+      return result;
+    }
+    default:
+      return base;
+  }
+}
+
+/** Convert a Vercel AI SDK tool definition to KOTA's ToolDefinition. */
+export function fromVercelAI(def: VercelAITool, name: string): ToolDefinition {
+  if (typeof def.execute !== "function") {
+    throw new Error(`Vercel AI SDK tool "${name}" must have an 'execute' function`);
+  }
+
+  const inputSchema = extractJsonSchema(def.parameters);
+
+  const tool: Anthropic.Tool = {
+    name,
+    description: def.description || "",
+    input_schema: {
+      type: "object" as const,
+      ...(inputSchema.type === "object" ? inputSchema : { properties: {} }),
+    },
+  };
+
+  const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
+    const result = await def.execute(input);
+    return normalizeResult(result);
+  };
+
+  return { tool, runner, group: def.group };
+}
+
 // --- Format detection ---
 
 function isKotaPlugin(obj: Record<string, unknown>): boolean {
@@ -128,6 +249,10 @@ function isOpenAIFormat(obj: Record<string, unknown>): boolean {
 
 function isSimpleFormat(obj: Record<string, unknown>): boolean {
   return typeof obj.name === "string" && typeof obj.run === "function";
+}
+
+function isVercelAIFormat(obj: Record<string, unknown>): boolean {
+  return typeof obj.execute === "function" && obj.parameters != null && typeof obj.run !== "function";
 }
 
 /**
@@ -191,9 +316,28 @@ export function adaptExport(exported: unknown, fileName: string): KotaPlugin {
     return { name, tools: [tool] };
   }
 
+  // Single Vercel AI SDK tool (has `execute` + `parameters`, no `name`)
+  if (isVercelAIFormat(obj)) {
+    const name = pluginNameFromFile(fileName);
+    const tool = fromVercelAI(obj as unknown as VercelAITool, name);
+    return { name, tools: [tool] };
+  }
+
+  // Map of Vercel AI SDK tools: { toolName: { execute, parameters }, ... }
+  const entries = Object.entries(obj);
+  if (entries.length > 0 && entries.every(([, v]) =>
+    v && typeof v === "object" && isVercelAIFormat(v as Record<string, unknown>),
+  )) {
+    const tools = entries.map(([key, val]) =>
+      fromVercelAI(val as unknown as VercelAITool, key),
+    );
+    return { name: pluginNameFromFile(fileName), tools };
+  }
+
   throw new Error(
     `${fileName}: unrecognized export format. Expected KotaPlugin, OpenAI function tool, ` +
-      `simple tool { name, description, run }, or an array of tools.`,
+      `simple tool { name, description, run }, Vercel AI SDK tool { execute, parameters }, ` +
+      `or an array of tools.`,
   );
 }
 
@@ -226,6 +370,10 @@ function adaptToolArray(items: Record<string, unknown>[], fileName: string): Too
     }
     if (isSimpleFormat(item)) {
       return fromSimple(item as unknown as SimpleTool);
+    }
+    if (isVercelAIFormat(item)) {
+      const name = (item.name as string) || `tool_${i}`;
+      return fromVercelAI(item as unknown as VercelAITool, name);
     }
     throw new Error(`${fileName}: tool at index ${i} is not in a recognized format`);
   });

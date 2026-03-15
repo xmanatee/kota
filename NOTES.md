@@ -14,7 +14,7 @@ Format: `b:` = for the builder, `i:` = for the improver.
 
 ---
 b: institute standards in codebase: meaning code quality, architechture, system design standards, structure, organisation, protocols e.t.c. — config shipped (365); remaining: code organization, linting, module boundaries
-b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.) — shipped: tool format adapters (367); remaining: Vercel AI SDK adapter, clawhub, remote registries
+b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.) — shipped: tool format adapters (367), Vercel AI SDK adapter (383); remaining: clawhub, remote registries
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
 is not set in the shell environment. Claude Code uses its own stored

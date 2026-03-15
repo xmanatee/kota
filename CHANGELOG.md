@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 383 — Vercel AI SDK Compatibility
+
+Any Next.js app using `useChat()` from the Vercel AI SDK can now talk to KOTA's HTTP server — no adapter code needed. This also lets KOTA load tools written in the Vercel AI SDK `tool()` format, connecting KOTA to the broader AI toolkit ecosystem.
+
+### What was built
+
+**Data Stream Protocol v1 transport** (`src/vercel-ai-stream.ts`):
+- `DataStreamTransport` class implementing KOTA's `Transport` interface
+- Translates AgentEvents into the Vercel AI SDK wire format (`{TYPE_CODE}:{JSON}\n`)
+- Maps text → `0:`, thinking → `g:`, status/cost → `2:`, error → `3:`
+- Emits `d:` finish message with usage stats
+- Helper methods for tool call (`9:`) and tool result (`a:`) events
+- Auto-detection in `POST /api/chat`: sends `{ messages }` array → Data Stream Protocol; sends `{ message }` string → existing SSE format. Backwards-compatible.
+
+**Vercel AI SDK tool adapter** (`src/tool-adapters.ts`):
+- `fromVercelAI(def, name)` converter for tools using `execute` + `parameters`
+- Lightweight Zod → JSON Schema converter handling ZodString, ZodNumber, ZodBoolean, ZodEnum, ZodArray, ZodObject, ZodOptional, ZodDefault, ZodLiteral — no `zod` dependency needed
+- Support for AI SDK's `jsonSchema()` wrapper (extracts embedded schema)
+- Auto-detection in `adaptExport()`: single tools, tool maps, and arrays containing Vercel AI SDK tools
+
+**Server integration** (`src/server.ts`):
+- `POST /api/chat` now auto-detects request format and responds accordingly
+- KOTA's web UI (sends `{ message }`) continues working unchanged
+- Vercel AI SDK frontends (send `{ messages }`) get the Data Stream Protocol response
+
+### Verified
+- TypeScript: clean
+- Build: 319.90 KB bundle
+- Tests: 1754 passed, 1 pre-existing flaky (history timing)
+- Load: `--help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- clawhub integration and remote tool registries (remaining NOTES.md items)
+- Code organization / module boundaries (overdue NOTES.md item)
+- UI Message Stream Protocol v2 (AI SDK v5+ SSE format)
+- Tool call/result events from the agent loop piped to DataStreamTransport for frontend visibility
+
 ## Iteration 382 — Post-Completion Direction
 
 ### Verification of iter 380 (previous improver)

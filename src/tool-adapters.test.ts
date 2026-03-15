@@ -3,9 +3,13 @@ import {
   normalizeResult,
   fromSimple,
   fromOpenAI,
+  fromVercelAI,
+  extractJsonSchema,
+  zodDefToJsonSchema,
   adaptExport,
   type SimpleTool,
   type OpenAIFunctionTool,
+  type VercelAITool,
 } from "./tool-adapters.js";
 
 describe("normalizeResult", () => {
@@ -162,6 +166,198 @@ describe("fromOpenAI", () => {
   });
 });
 
+describe("fromVercelAI", () => {
+  it("converts a Vercel AI SDK tool with JSON Schema parameters", async () => {
+    const vercel: VercelAITool = {
+      description: "Get weather for a location",
+      parameters: {
+        type: "object",
+        properties: { location: { type: "string" } },
+        required: ["location"],
+      },
+      execute: async ({ location }) => ({ temp: 72, location }),
+    };
+
+    const def = fromVercelAI(vercel, "get_weather");
+    expect(def.tool.name).toBe("get_weather");
+    expect(def.tool.description).toBe("Get weather for a location");
+    expect(def.tool.input_schema.properties).toEqual({ location: { type: "string" } });
+
+    const result = await def.runner({ location: "NYC" });
+    expect(JSON.parse(result.content)).toEqual({ temp: 72, location: "NYC" });
+  });
+
+  it("handles Zod-like schema objects", async () => {
+    // Simulate a Zod object schema structure
+    const zodSchema = {
+      _def: {
+        typeName: "ZodObject",
+        shape: () => ({
+          city: { _def: { typeName: "ZodString" } },
+          units: {
+            _def: { typeName: "ZodOptional", innerType: { _def: { typeName: "ZodString" } } },
+          },
+        }),
+      },
+    };
+
+    const def = fromVercelAI(
+      { description: "Weather", parameters: zodSchema, execute: async () => "sunny" },
+      "weather",
+    );
+    expect(def.tool.input_schema.properties).toEqual({
+      city: { type: "string" },
+      units: { type: "string" },
+    });
+    expect(def.tool.input_schema.required).toEqual(["city"]);
+  });
+
+  it("handles AI SDK jsonSchema() format", () => {
+    const params = {
+      jsonSchema: {
+        type: "object",
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      },
+    };
+
+    const def = fromVercelAI(
+      { description: "Search", parameters: params, execute: async () => [] },
+      "search",
+    );
+    expect(def.tool.input_schema.properties).toEqual({ query: { type: "string" } });
+  });
+
+  it("throws on missing execute", () => {
+    expect(() =>
+      fromVercelAI({ description: "bad", parameters: {} } as unknown as VercelAITool, "bad"),
+    ).toThrow("'execute' function");
+  });
+
+  it("preserves group", () => {
+    const def = fromVercelAI(
+      { description: "", parameters: {}, execute: async () => "", group: "web" },
+      "t",
+    );
+    expect(def.group).toBe("web");
+  });
+
+  it("normalizes return values", async () => {
+    const def = fromVercelAI(
+      { description: "", parameters: {}, execute: async () => 42 },
+      "num",
+    );
+    const result = await def.runner({});
+    expect(result.content).toBe("42");
+  });
+});
+
+describe("extractJsonSchema", () => {
+  it("returns empty schema for null/undefined", () => {
+    expect(extractJsonSchema(null)).toEqual({ type: "object", properties: {} });
+    expect(extractJsonSchema(undefined)).toEqual({ type: "object", properties: {} });
+  });
+
+  it("passes through JSON Schema objects", () => {
+    const schema = { type: "object", properties: { x: { type: "number" } } };
+    expect(extractJsonSchema(schema)).toEqual(schema);
+  });
+
+  it("extracts from AI SDK jsonSchema()", () => {
+    const wrapped = { jsonSchema: { type: "object", properties: { q: { type: "string" } } } };
+    expect(extractJsonSchema(wrapped)).toEqual({ type: "object", properties: { q: { type: "string" } } });
+  });
+});
+
+describe("zodDefToJsonSchema", () => {
+  it("converts ZodString", () => {
+    expect(zodDefToJsonSchema({ _def: { typeName: "ZodString" } })).toEqual({ type: "string" });
+  });
+
+  it("converts ZodNumber", () => {
+    expect(zodDefToJsonSchema({ _def: { typeName: "ZodNumber" } })).toEqual({ type: "number" });
+  });
+
+  it("converts ZodBoolean", () => {
+    expect(zodDefToJsonSchema({ _def: { typeName: "ZodBoolean" } })).toEqual({ type: "boolean" });
+  });
+
+  it("converts ZodEnum", () => {
+    expect(zodDefToJsonSchema({ _def: { typeName: "ZodEnum", values: ["a", "b"] } }))
+      .toEqual({ type: "string", enum: ["a", "b"] });
+  });
+
+  it("converts ZodArray", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodArray",
+        type: { _def: { typeName: "ZodString" } },
+      },
+    };
+    expect(zodDefToJsonSchema(schema)).toEqual({ type: "array", items: { type: "string" } });
+  });
+
+  it("converts ZodOptional (unwraps)", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodOptional",
+        innerType: { _def: { typeName: "ZodNumber" } },
+      },
+    };
+    expect(zodDefToJsonSchema(schema)).toEqual({ type: "number" });
+  });
+
+  it("converts ZodDefault (unwraps)", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodDefault",
+        innerType: { _def: { typeName: "ZodBoolean" } },
+      },
+    };
+    expect(zodDefToJsonSchema(schema)).toEqual({ type: "boolean" });
+  });
+
+  it("converts ZodObject with required fields", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodObject",
+        shape: () => ({
+          name: { _def: { typeName: "ZodString" } },
+          age: { _def: { typeName: "ZodNumber" } },
+          bio: { _def: { typeName: "ZodOptional", innerType: { _def: { typeName: "ZodString" } } } },
+        }),
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result.type).toBe("object");
+    expect(result.properties).toEqual({
+      name: { type: "string" },
+      age: { type: "number" },
+      bio: { type: "string" },
+    });
+    expect(result.required).toEqual(["name", "age"]);
+  });
+
+  it("includes description when present", () => {
+    const schema = { _def: { typeName: "ZodString" }, description: "A user name" };
+    expect(zodDefToJsonSchema(schema)).toEqual({ type: "string", description: "A user name" });
+  });
+
+  it("handles ZodLiteral", () => {
+    expect(zodDefToJsonSchema({ _def: { typeName: "ZodLiteral", value: "hello" } }))
+      .toEqual({ const: "hello" });
+  });
+
+  it("returns empty object for unknown types", () => {
+    expect(zodDefToJsonSchema({ _def: { typeName: "ZodSomethingNew" } })).toEqual({});
+  });
+
+  it("handles null/undefined input", () => {
+    expect(zodDefToJsonSchema(null)).toEqual({});
+    expect(zodDefToJsonSchema(undefined)).toEqual({});
+  });
+});
+
 describe("adaptExport", () => {
   it("passes through native KotaPlugin format", () => {
     const plugin = {
@@ -289,5 +485,72 @@ describe("adaptExport", () => {
     const plugin = adaptExport(exported, "sync.js");
     const result = await plugin.tools![0].runner({});
     expect(result.content).toBe("sync result");
+  });
+
+  it("adapts a single Vercel AI SDK tool export", async () => {
+    const exported = {
+      description: "Get weather",
+      parameters: { type: "object", properties: { city: { type: "string" } } },
+      execute: async ({ city }: { city: string }) => `Weather in ${city}: sunny`,
+    };
+    const plugin = adaptExport(exported, "weather.js");
+    expect(plugin.name).toBe("weather");
+    expect(plugin.tools).toHaveLength(1);
+    expect(plugin.tools![0].tool.name).toBe("weather");
+
+    const result = await plugin.tools![0].runner({ city: "NYC" });
+    expect(result.content).toBe("Weather in NYC: sunny");
+  });
+
+  it("adapts a map of Vercel AI SDK tools", async () => {
+    const exported = {
+      get_weather: {
+        description: "Get weather",
+        parameters: { type: "object", properties: { city: { type: "string" } } },
+        execute: async () => "sunny",
+      },
+      search: {
+        description: "Search web",
+        parameters: { type: "object", properties: { query: { type: "string" } } },
+        execute: async () => "results",
+      },
+    };
+    const plugin = adaptExport(exported, "tools.js");
+    expect(plugin.tools).toHaveLength(2);
+    expect(plugin.tools![0].tool.name).toBe("get_weather");
+    expect(plugin.tools![1].tool.name).toBe("search");
+
+    const r1 = await plugin.tools![0].runner({});
+    expect(r1.content).toBe("sunny");
+  });
+
+  it("adapts a Vercel AI SDK tool with Zod-like parameters", async () => {
+    const exported = {
+      description: "Search",
+      parameters: {
+        _def: {
+          typeName: "ZodObject",
+          shape: () => ({
+            query: { _def: { typeName: "ZodString" } },
+          }),
+        },
+      },
+      execute: async () => "found it",
+    };
+    const plugin = adaptExport(exported, "search.mjs");
+    expect(plugin.tools![0].tool.input_schema.properties).toEqual({ query: { type: "string" } });
+  });
+
+  it("adapts an array containing Vercel AI SDK tools", () => {
+    const exported = [
+      {
+        description: "Tool A",
+        parameters: { type: "object", properties: {} },
+        execute: async () => "a",
+      },
+    ];
+    const plugin = adaptExport(exported, "vercel-tools.js");
+    expect(plugin.tools).toHaveLength(1);
+    expect(plugin.tools![0].tool.name).toBe("tool_0");
   });
 });

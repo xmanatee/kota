@@ -15,6 +15,7 @@ import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js"
 import { ActionExecutor, partitionDueItems, type ActionResult } from "./action-executor.js";
 import { getHistory } from "./history.js";
 import { getWebUI } from "./web-ui.js";
+import { DataStreamTransport, DATA_STREAM_HEADERS, extractLastUserMessage } from "./vercel-ai-stream.js";
 
 // --- SSE Transport ---
 
@@ -307,9 +308,14 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
-    const message = body.message as string | undefined;
+    // Detect Vercel AI SDK format: { messages: [...] } vs KOTA format: { message: "..." }
+    const isVercelFormat = Array.isArray(body.messages);
+    const message = isVercelFormat
+      ? extractLastUserMessage(body.messages as Array<{ role: string; content: string }>)
+      : (body.message as string | undefined);
+
     if (!message) {
-      json(res, 400, { error: "message is required" });
+      json(res, 400, { error: isVercelFormat ? "No user message found in messages array" : "message is required" });
       return;
     }
 
@@ -337,6 +343,15 @@ export function startServer(options: ServerOptions = {}): Server {
     }
     session.busy = true;
 
+    if (isVercelFormat) {
+      await handleVercelChat(res, session, message);
+    } else {
+      await handleKotaChat(res, session, message);
+    }
+  }
+
+  /** Handle a chat request in KOTA's native SSE format. */
+  async function handleKotaChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
     setCors(res);
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -359,6 +374,28 @@ export function startServer(options: ServerOptions = {}): Server {
       session.busy = false;
       session.lastActive = Date.now();
       sse.end();
+    }
+  }
+
+  /** Handle a chat request in Vercel AI SDK Data Stream Protocol v1 format. */
+  async function handleVercelChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
+    setCors(res);
+    const headers = { ...DATA_STREAM_HEADERS, ...CORS_HEADERS };
+    res.writeHead(200, headers);
+
+    const stream = new DataStreamTransport(res);
+    session.proxy.target = stream;
+
+    try {
+      await session.agent.send(message);
+      stream.finish();
+    } catch (err) {
+      stream.emit({ type: "error", message: (err as Error).message });
+      stream.finish();
+    } finally {
+      session.proxy.target = new NullTransport();
+      session.busy = false;
+      session.lastActive = Date.now();
     }
   }
 
@@ -508,7 +545,7 @@ export function startServer(options: ServerOptions = {}): Server {
     console.log(`KOTA server listening on http://localhost:${port}`);
     console.log(`Web UI: http://localhost:${port}/`);
     console.log("API endpoints:");
-    console.log("  POST /api/chat           — Send message, get SSE stream");
+    console.log("  POST /api/chat           — Send message (SSE or Vercel AI SDK Data Stream)");
     console.log("  POST /api/sessions       — Create a new session");
     console.log("  GET  /api/sessions       — List active sessions");
     console.log("  DELETE /api/sessions/:id — Close a session");

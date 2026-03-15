@@ -347,12 +347,15 @@ Plugins don't need to use KOTA's native `ToolDefinition` format. The adapter lay
 - **Native KotaPlugin**: `{ name, tools: [{ tool, runner }] }` — pass-through
 - **Simple**: `{ name, description, parameters, run }` — minimal, one function per tool
 - **OpenAI function-calling**: `{ type: "function", function: { name, description, parameters }, run }` — compatible with OpenAI ecosystem tools
-- **Array**: `[simpleTool, openAITool, ...]` — multiple tools from one file, any mix of formats
+- **Vercel AI SDK**: `{ description, parameters, execute }` — compatible with tools created via `tool()` from the Vercel AI SDK. Parameters can be Zod schemas (auto-converted), `jsonSchema()` results, or raw JSON Schema objects. Also detects tool maps: `{ toolName: { execute, parameters }, ... }`
+- **Array**: `[simpleTool, openAITool, vercelTool, ...]` — multiple tools from one file, any mix of formats
 - **Hybrid KotaPlugin**: `{ name, tools: [simpleTool, ...], onLoad, onUnload }` — plugin with lifecycle hooks but simple-format tools
 
-**Result normalization**: External tool `run` functions can return strings, numbers, objects, or `{ content, text }` — all normalized to KOTA's `ToolResult`. Native `{ content: string }` passes through unchanged.
+**Zod → JSON Schema conversion**: Vercel AI SDK tools commonly use Zod schemas for parameter validation. The adapter includes a lightweight converter that handles common Zod types (ZodString, ZodNumber, ZodBoolean, ZodEnum, ZodArray, ZodObject, ZodOptional, ZodDefault, ZodLiteral) without requiring Zod as a dependency. For `jsonSchema()` results from the AI SDK, the embedded JSON Schema is extracted directly.
 
-**Programmatic API**: `fromSimple(def)` and `fromOpenAI(def)` for explicit conversion. `adaptExport(moduleExport, fileName)` for auto-detection (used by `PluginManager`).
+**Result normalization**: External tool `run`/`execute` functions can return strings, numbers, objects, or `{ content, text }` — all normalized to KOTA's `ToolResult`. Native `{ content: string }` passes through unchanged.
+
+**Programmatic API**: `fromSimple(def)`, `fromOpenAI(def)`, and `fromVercelAI(def, name)` for explicit conversion. `adaptExport(moduleExport, fileName)` for auto-detection (used by `PluginManager`).
 
 **Example — simple format plugin** (`.kota/plugins/weather.mjs`):
 ```js
@@ -379,6 +382,60 @@ export default {
   },
   run: async ({ expr }) => eval(expr),
 };
+```
+
+**Example — Vercel AI SDK format** (compatible with `tool()` from the `ai` package):
+```js
+// Single tool — name derived from filename
+export default {
+  description: "Get weather for a location",
+  parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+  execute: async ({ city }) => `Weather in ${city}: 72°F, sunny`,
+};
+```
+
+```js
+// Map of tools — names derived from object keys
+export default {
+  get_weather: {
+    description: "Get weather",
+    parameters: z.object({ city: z.string() }), // Zod schemas auto-converted
+    execute: async ({ city }) => fetchWeather(city),
+  },
+  search: {
+    description: "Web search",
+    parameters: z.object({ query: z.string() }),
+    execute: async ({ query }) => searchWeb(query),
+  },
+};
+```
+
+### Vercel AI SDK Streaming (`src/vercel-ai-stream.ts`)
+
+KOTA's HTTP server speaks the Vercel AI SDK Data Stream Protocol v1, enabling direct integration with `useChat()` from any Next.js/React app. When `POST /api/chat` receives a body with `messages` (array), the response switches to the Data Stream Protocol format automatically.
+
+**Wire format**: `{TYPE_CODE}:{JSON}\n` (not SSE). Type codes:
+- `0`: text delta
+- `2`: data annotation (status/cost metadata)
+- `3`: error
+- `9`: tool call (toolCallId, toolName, args)
+- `a`: tool result (toolCallId, result)
+- `d`: finish message (finishReason, usage)
+- `e`: finish step (finishReason, usage, isContinued)
+- `g`: reasoning (extended thinking)
+
+**Headers**: `Content-Type: text/plain; charset=utf-8`, `X-Vercel-AI-Data-Stream: v1`
+
+**Auto-detection**: `POST /api/chat` serves both formats:
+- `{ message: "...", session_id?: "..." }` → KOTA's native SSE format (used by the built-in web UI)
+- `{ messages: [{role, content}, ...] }` → Vercel AI SDK Data Stream Protocol v1 (used by `useChat()`)
+
+**Usage with Next.js**:
+```tsx
+import { useChat } from "ai/react";
+const { messages, input, handleSubmit } = useChat({
+  api: "http://localhost:3000/api/chat",
+});
 ```
 
 ### Configuration (`src/config.ts`)
