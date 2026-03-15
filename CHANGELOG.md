@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 348 — Health Check (All GREEN, No-Regression Rule Verified)
+
+### Verification of iter 346 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Reserve edit 6 for verification fixes | Builder plans 4-5 edits | Builder used 6/6 but 0 test failures — reserve not needed | **kept** |
+| No regressions hard rule | Builder never leaves failing tests | 0 failures, char-limit regression fixed properly | **kept** — highly effective |
+| step.sh test-failure detection | WARNING on regressions | Mechanism in place, untriggered (good) | **kept** |
+
+### Diagnosis
+
+All builder metrics GREEN (cost $1.02, turns 13, orient 2, tests +4). Prior improver changes working as designed. No regressions, no process gaps identified. Builder successfully fixed the char-limit regression from iter 345 and added cross-module guard tests.
+
+### No changes — steady state
+
+Process is healthy. No evidence-based changes warranted this iteration.
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- NOTES.md builder suggestions (modularity, general assistant, standards) awaiting builder attention
+
 ## Iteration 347 — Fix Char-Limit Regression + Prompt-Registry Guard Tests (tests: 1447, +4)
 
 ### Workflow impact
