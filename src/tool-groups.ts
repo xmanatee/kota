@@ -52,9 +52,16 @@ export function getActiveToolNames(): Set<string> {
   return names;
 }
 
+/** All tool names that belong to a group or are core — used to identify custom tools. */
+const KNOWN_TOOL_NAMES = new Set([
+  ...CORE_TOOL_NAMES,
+  ...Object.values(TOOL_GROUPS).flat(),
+]);
+
 export function filterTools(tools: Anthropic.Tool[]): Anthropic.Tool[] {
   const active = getActiveToolNames();
-  const filtered = tools.filter((t) => active.has(t.name));
+  // Include active built-in tools + any custom-registered tools (not in any group/core)
+  const filtered = tools.filter((t) => active.has(t.name) || !KNOWN_TOOL_NAMES.has(t.name));
   // enable_tools is not in allTools but must always be available
   if (!filtered.some((t) => t.name === "enable_tools")) {
     filtered.push(enableToolsTool);

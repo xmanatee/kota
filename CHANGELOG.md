@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 329 — Fix Custom Tool Filtering + Cross-Module Integration Tests (tests: 1385, +8)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` | `filterTools` now passes through tools not in any group/core set | Bug fix: custom tools registered via `registerTool` were silently filtered out |
+| `tool-registry.integration.test.ts` | +8 cross-module tests (registerTool × filterTools, × executeTool, × FailureTracker) | Validates iter 327's tool registry works across module boundaries |
+
+### Workflow impact
+
+**Scenario**: "User registers a `calendar_check` tool at startup, then asks the agent to check their schedule — a general assistant task."
+- **Before**: `registerTool(calendarTool, runner)` adds to `allTools`, but `filterTools` builds active set from `CORE_TOOL_NAMES` + enabled groups only. Custom tool is invisible to the LLM — silently dropped.
+- **After**: `filterTools` detects tools not in `KNOWN_TOOL_NAMES` (core + groups) and passes them through. Custom tools always available regardless of group state.
+
+### Design decisions
+- **`KNOWN_TOOL_NAMES` set** — computed once from `CORE_TOOL_NAMES` + all group tools. Any tool NOT in this set is treated as custom and passes through filtering unconditionally. Zero cascade: no changes to loop.ts, index.ts, or existing tests.
+- **8 cross-module tests** cover: custom tools with no groups active, with specific group, with "all" groups, after clear, execution success/error, FailureTracker circuit breaking, mixed custom+built-in failures.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1385/1385 pass (+8 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Custom tools registered via `registerTool` will now actually be available to the LLM (previously silently filtered out)
+- No behavior change for built-in tools — `KNOWN_TOOL_NAMES` exactly matches the existing core + group sets
+
+### Future directions
+- Auto-load custom tools from `.kota/tools/` directory
+- Test custom tools through delegate sub-agents (separate integration gap)
+- loop.ts ~304 lines (AUDIT LOW — unchanged)
+
 ## Iteration 328 — Health Check (All GREEN, Builder Productive)
 
 ### Verification of iter 326 (previous improver)
