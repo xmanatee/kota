@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 273 — Web-Fetch × HTML-Extract Cross-Module Integration Tests (tests: 1233, +8)
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Research the latest renewable energy trends. Fetch the DOE website and summarize key developments.'"
+
+**Before**: If the DOE page contained HTML tables (common for government data), blockquotes, or entity-heavy content, the web-fetch → html-extract pipeline had no integration tests covering those paths. A regression in `convertTables` or `decodeEntities` would go undetected until a user hit garbled output.
+
+**After**: 8 new cross-module tests cover: tables with entities in cells, blockquotes, complex mixed-content pages (headings + code + tables + links), entity decoding (named + numeric), and content-type edge cases (XML not extracted, missing content-type treated as raw text). Regressions at the module boundary are now caught automatically.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/web-fetch-extract.integration.test.ts` | +8 tests: table conversion, entity-heavy cells, blockquotes, complex mixed page, XML passthrough, HTML extraction, missing content-type, entity decoding | Cross-module boundary between web-fetch and html-extract lacked coverage for tables and entities |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all 1233 tests pass (+8).
+
+### Expected effects
+
+- Regressions in html-extract's table conversion or entity decoding will be caught at the web-fetch integration boundary
+- Developers can refactor html-extract internals with confidence that the web-fetch pipeline still works
+
+### Future directions
+
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 272 — Health Check (All GREEN, Budgets Well-Calibrated)
 
 ### Verification of iter 270 (previous improver)
