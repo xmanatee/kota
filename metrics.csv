@@ -153,3 +153,4 @@ iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,tes
 172,improve-process,87,-,-,-,-,-,-,-,0.3082,3,3776,50,1
 173,build-agent,616,51,7261,184008,PASS,-,54,934,1.5140,22,25433,19,9
 174,improve-process,91,-,-,-,-,-,-,-,0.3772,6,3947,40,2
+175,build-agent,370,51,7272,184556,PASS,-,54,937,0.8936,15,15603,21,5
