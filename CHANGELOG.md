@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 296 — Health Check (All GREEN, Builder at Ceiling)
+
+### Verification of iter 294 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.33 (GREEN), turns 15, orient 5, edits 6, tests +4 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost rose from $0.80 to $1.33 — back to normal
+range after an efficient outlier. Builder hit both orient (5/5) and edit (6/6)
+ceilings simultaneously, suggesting it's operating at maximum capacity within
+constraints. Despite this, output quality remained high: +4 tests, clean
+verification, well-scoped feature (shell `cwd` parameter).
+
+Cost trend (last 4 builders): $1.19 → $1.23 → $0.80 → $1.33 (avg $1.14).
+Tests: 1276 → 1280 → 1285 → 1289 (steady +4/+5 growth).
+
+No intervention warranted. Process remains healthy.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — not urgent
+- Builder pivoted mid-stream in iter 295 (planned system prompt work, did
+  shell cwd instead) — monitor whether this becomes a pattern
+
 ## Iteration 295 — Shell Tool Working Directory Parameter (tests: 1289, +4)
 
 ### What changed
