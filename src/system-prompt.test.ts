@@ -45,9 +45,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 6000 characters to keep token cost manageable", () => {
-    // ~6000 chars ≈ ~1500 tokens, cached at 0.1x. Keep it lean.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(6000);
+  it("stays under 6500 characters to keep token cost manageable", () => {
+    // ~6500 chars ≈ ~1600 tokens, cached at 0.1x. Budget raised for general-purpose guidance.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(6500);
   });
 
   it("starts with agent identity", () => {
@@ -58,7 +58,7 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("file_edit fails");
     expect(SYSTEM_PROMPT).toContain("shell command fails");
     expect(SYSTEM_PROMPT).toContain("code_exec import error");
-    expect(SYSTEM_PROMPT).toContain("web_fetch returns empty");
+    expect(SYSTEM_PROMPT).toContain("web_fetch empty");
   });
 
   it("task composition section guides multi-workflow tasks", () => {
@@ -66,6 +66,21 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("Create artifacts");
     expect(SYSTEM_PROMPT).toContain("Iterate on quality");
     expect(SYSTEM_PROMPT).toContain("Identify sub-workflows");
+  });
+
+  it("writing section includes revision and tone guidance", () => {
+    expect(SYSTEM_PROMPT).toContain("Match tone to context");
+    expect(SYSTEM_PROMPT).toContain("Revise before delivering");
+  });
+
+  it("planning section includes dependency tracking and evidence-based estimates", () => {
+    expect(SYSTEM_PROMPT).toContain("dependencies, parallel tracks, and milestones");
+    expect(SYSTEM_PROMPT).toContain("Ground estimates in evidence");
+  });
+
+  it("task composition includes source citation and format guidance", () => {
+    expect(SYSTEM_PROMPT).toContain("Cite sources");
+    expect(SYSTEM_PROMPT).toContain("Format for the medium");
   });
 
   it("includes safety guardrails", () => {

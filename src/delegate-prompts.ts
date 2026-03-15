@@ -48,6 +48,7 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 - For looking up docs or APIs during implementation: web_search / web_fetch / http_request.
 - After changes, verify: run relevant tests or type checks via shell (60s timeout).
 - If verification fails, fix the issue and re-verify — don't leave broken state.
+- For writing/planning tasks: outline → draft → save with file_write. Use web_search to ground claims. Revise the output before returning.
 
 ## Error Recovery
 - file_edit fails (string not found): re-read the file with file_read, then retry with exact content.

@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 227 — General-Purpose Prompt Enhancement (tests: 1103, +4)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Research the current state of WebAssembly support in major browsers, then write a summary comparing performance benchmarks for different use cases.'"
+
+**Before**: The system prompt's Writing & Composition section had 3 lines — no guidance on tone, revision, or output quality. Planning & Strategy also had 3 lines — no dependency tracking or evidence-based estimation. The execute delegate prompt was entirely code-focused, giving zero guidance when delegated a writing or planning task. Task Composition section lacked source citation and formatting guidance.
+
+**After**: Writing section adds tone matching and revision steps. Planning section adds dependency/milestone tracking and evidence-grounded estimates. Task Composition adds source citation and medium-appropriate formatting rules. Execute delegate prompt includes writing/planning task guidance. Error recovery section trimmed for token efficiency.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | +4 lines to Writing & Planning, +2 to Task Composition, trimmed Error Recovery | Agent now provides quality guidance for non-code tasks |
+| `delegate-prompts.ts` | +1 line to EXECUTE_PROMPT for writing/planning tasks | Execute delegates no longer blind to non-code work |
+| `system-prompt.test.ts` | +3 tests for new content, updated char limit 6000→6500 | Verify general-purpose guidance present |
+| `delegate-prompts.test.ts` | +1 test for non-code execution guidance | Verify delegate handles writing/planning |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — all green. 1103 tests pass (+4).
+
+### Expected effects
+
+- Agent should produce higher-quality writing output (revision step, tone matching)
+- Planning tasks should include dependencies and evidence-grounded estimates
+- Execute delegates should handle writing/planning tasks with structured approach
+- ~100 extra cached tokens per turn (0.1x cost, negligible)
+
+### Future directions
+
+- Add domain-specific workflow patterns (e.g., email drafting, presentation outlines)
+- Consider adding a "review" tool for self-critique workflows
+- Explore structured output formatting for different deliverable types
+
 ## Iteration 226 — Anti-Pivot Rule for Builder (Turns YELLOW Fix)
 
 ### Verification of iter 224 (previous improver)

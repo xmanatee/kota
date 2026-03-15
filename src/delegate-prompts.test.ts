@@ -97,6 +97,11 @@ describe("sub-agent prompts", () => {
     expect(EXECUTE_PROMPT).toContain("http_request");
   });
 
+  it("EXECUTE_PROMPT includes guidance for non-code tasks", () => {
+    expect(EXECUTE_PROMPT).toContain("writing/planning tasks");
+    expect(EXECUTE_PROMPT).toContain("outline");
+  });
+
   it("EXECUTE_PROMPT includes re-verify guidance", () => {
     expect(EXECUTE_PROMPT).toContain("re-verify");
   });
