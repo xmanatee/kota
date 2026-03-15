@@ -3,15 +3,14 @@
 Unfixed issues found during builder audits. Review before deciding what to
 work on. Remove entries when fixed. Add new findings during your audit step.
 
-## web-search.ts — DuckDuckGo HTML scraping (iter 77→281, LOW)
+## web-search.ts — DuckDuckGo HTML scraping (iter 77→307, RESOLVED)
 
-Brave Search is the primary provider. DDG fallback hardened in iter 281:
-primary parser now falls through to `parseFallback` when blocks match but
-yield 0 valid results; `stripTags` decodes all numeric HTML entities.
-Remaining fragility: `parseFallback` pairs links/snippets by array index
-(positional association would be more robust). Severity stays LOW.
+Fixed in iter 307: `parseFallback` now pairs links/snippets by HTML position
+instead of array index. Remaining risk: DDG HTML structure changes could break
+both primary parser and fallback (general HTML scraping fragility). Brave
+Search is primary provider; DDG is fallback only. No action needed.
 
-## Test coverage — 1322 tests, all modules covered (iter 81→305, LOW)
+## Test coverage — 1325 tests, all modules covered (iter 81→307, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.

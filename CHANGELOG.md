@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 307 — DDG Fallback Positional Snippet Pairing (tests: 1325, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `web-search.ts` | `parseFallback` pairs snippets by HTML position instead of array index | Index-based pairing misaligns when a link has no snippet — all subsequent pairs shift by one |
+| `web-search.test.ts` | +3 tests for positional pairing edge cases | Cover missing-snippet-for-first-link, orphan snippets before links, middle link without snippet |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to search the web for 'deploy script permission denied error' to diagnose a CI failure, then fetch the most relevant result page."
+- Tools: `web_search` → `web_fetch` → reasoning → `file_edit`
+- **Before**: When Brave is rate-limited and DDG fallback activates, if a result link lacks a snippet (common in DDG HTML), `parseFallback` would pair the next link's snippet with the wrong result. Agent gets misleading search result descriptions, potentially following the wrong URL.
+- **After**: Positional pairing ensures each snippet is associated with the correct link regardless of missing snippets. Verified by 3 new tests covering the exact misalignment scenario.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1325/1325 pass (+3 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- DDG fallback search results are correctly paired when some results lack snippets
+- Agent follows correct URLs during web research when Brave is unavailable
+
+### Future directions
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 306 — Health Check (All GREEN, Builder Consistent)
 
 ### Verification of iter 304 (previous improver)

@@ -220,26 +220,39 @@ function parseFallback(html: string, max: number): SearchResult[] {
   const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
   const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
 
-  const links: { url: string; title: string }[] = [];
+  // Collect links with their positions in the HTML
+  const links: { url: string; title: string; pos: number }[] = [];
   let match: RegExpExecArray | null;
   while ((match = linkRegex.exec(html)) !== null) {
     const url = resolveRedirectUrl(match[1]);
     const title = stripTags(match[2]).trim();
     if (url && title && !url.includes("duckduckgo.com")) {
-      links.push({ url, title });
+      links.push({ url, title, pos: match.index });
     }
   }
 
-  const snippets: string[] = [];
+  // Collect snippets with their positions
+  const snippets: { text: string; pos: number }[] = [];
   while ((match = snippetRegex.exec(html)) !== null) {
-    snippets.push(stripTags(match[1]).trim());
+    snippets.push({ text: stripTags(match[1]).trim(), pos: match.index });
   }
 
+  // Pair each link with the nearest subsequent snippet (before the next link)
+  let snippetIdx = 0;
   for (let i = 0; i < Math.min(links.length, max); i++) {
+    while (snippetIdx < snippets.length && snippets[snippetIdx].pos < links[i].pos) {
+      snippetIdx++;
+    }
+    const nextLinkPos = i + 1 < links.length ? links[i + 1].pos : Infinity;
+    const snippet =
+      snippetIdx < snippets.length && snippets[snippetIdx].pos < nextLinkPos
+        ? snippets[snippetIdx++].text
+        : "";
+
     results.push({
       title: links[i].title,
       url: links[i].url,
-      snippet: snippets[i] || "",
+      snippet,
     });
   }
 

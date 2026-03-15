@@ -159,6 +159,46 @@ describe("parseSearchResults — hardened edge cases", () => {
     expect(results[1].snippet).toBe("");
   });
 
+  it("fallback pairs snippets by position, not array index", () => {
+    // Link A has no snippet, Link B has one. Index-based pairing would
+    // incorrectly assign B's snippet to A. Positional pairing gets it right.
+    const html =
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.com">Link A</a>' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fb.com">Link B</a>' +
+      '<a class="result__snippet">Snippet for B</a>';
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(2);
+    expect(results[0].url).toBe("https://a.com");
+    expect(results[0].snippet).toBe(""); // no snippet between A and B
+    expect(results[1].url).toBe("https://b.com");
+    expect(results[1].snippet).toBe("Snippet for B");
+  });
+
+  it("fallback ignores orphan snippets before any link", () => {
+    const html =
+      '<a class="result__snippet">Orphan snippet</a>' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.com">Link A</a>' +
+      '<a class="result__snippet">Real snippet</a>';
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].snippet).toBe("Real snippet");
+  });
+
+  it("fallback correctly pairs when middle link lacks snippet", () => {
+    // A has snippet, B does not, C has snippet
+    const html =
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.com">A</a>' +
+      '<a class="result__snippet">Snippet A</a>' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fb.com">B</a>' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fc.com">C</a>' +
+      '<a class="result__snippet">Snippet C</a>';
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(3);
+    expect(results[0].snippet).toBe("Snippet A");
+    expect(results[1].snippet).toBe(""); // no snippet between B and C
+    expect(results[2].snippet).toBe("Snippet C");
+  });
+
   it("handles empty blocks without crashing", () => {
     const html =
       '<div class="result"></div>' +
