@@ -99,6 +99,75 @@ describe("parseSearchResults", () => {
   });
 });
 
+describe("parseSearchResults — hardened edge cases", () => {
+  it("falls through to fallback when blocks yield no valid results", () => {
+    // A result__a link exists in the HTML but outside any matched block.
+    // The only matched block (result--ad at end) has no result__a inside.
+    const html =
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Forphan.com">Orphan Result</a>' +
+      '<a class="result__snippet">Orphan snippet</a>' +
+      '<div class="result--ad"><span>Ad</span></div>';
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].url).toBe("https://orphan.com");
+    expect(results[0].title).toBe("Orphan Result");
+  });
+
+  it("decodes decimal and hex numeric HTML entities", () => {
+    const html =
+      '<div class="result">' +
+      `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent("https://example.com")}">It&#39;s a test &#x2F; demo</a>` +
+      '<a class="result__snippet">Price: &#36;99 &#x26; up</a>' +
+      "</div>";
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("It's a test / demo");
+    expect(results[0].snippet).toBe("Price: $99 & up");
+  });
+
+  it("handles direct HTTP URLs without DDG redirect", () => {
+    const html =
+      '<div class="result">' +
+      '<a class="result__a" href="https://direct-link.com/page">Direct</a>' +
+      '<a class="result__snippet">A direct URL</a>' +
+      "</div>";
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].url).toBe("https://direct-link.com/page");
+  });
+
+  it("resolves protocol-relative URLs to https", () => {
+    const html =
+      '<div class="result">' +
+      '<a class="result__a" href="//cdn.example.com/page">Proto Rel</a>' +
+      '<a class="result__snippet">Should become https</a>' +
+      "</div>";
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].url).toBe("https://cdn.example.com/page");
+  });
+
+  it("fallback handles fewer snippets than links", () => {
+    // No div.result blocks → triggers fallback. Two links but only one snippet.
+    const html =
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.com">Link A</a>' +
+      '<a class="result__snippet">Snippet A</a>' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fb.com">Link B</a>';
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(2);
+    expect(results[0].snippet).toBe("Snippet A");
+    expect(results[1].snippet).toBe("");
+  });
+
+  it("handles empty blocks without crashing", () => {
+    const html =
+      '<div class="result"></div>' +
+      '<div class="result"></div>';
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(0);
+  });
+});
+
 describe("parseBraveResults", () => {
   it("parses standard Brave API response", () => {
     const data = {

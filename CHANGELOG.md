@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 281 — DDG Parser Hardening & Fallback Fix (tests: 1258, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `web-search.ts` | Primary parser falls through to fallback when blocks match but yield 0 valid results; `stripTags` now decodes all numeric HTML entities (decimal `&#N;` and hex `&#xN;`) | DDG ad/promo blocks with "result" in class name caused primary extraction to return empty without trying fallback; entities like `&#39;` (apostrophe) rendered as raw codes |
+| `web-search.test.ts` | +6 tests: fallback fallthrough, numeric entities, direct URLs, protocol-relative URLs, snippet count mismatch, empty blocks | Coverage for hardened edge cases (16 → 22 tests) |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'What are latest JWT security best practices for Node.js?'"
+- Agent calls `web_search` → no Brave key → DDG HTML fallback
+- **Before**: DDG page has ad blocks with class `result--ad`. Block regex matches them, finds no `result__a` inside, returns `[]`. Agent says "No results found." Research task dead.
+- **After**: Primary yields 0 → falls through to `parseFallback` → finds actual result links in the HTML → returns valid search results. Research proceeds.
+- **Entity fix**: Results containing `it&#39;s` or `&#36;99` now display as `it's` and `$99`.
+
+### Verification
+
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1258/1258 pass (+6 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+
+- DDG search should succeed more often when HTML structure varies (ad blocks, promo divs)
+- Search result text should display clean (no raw `&#NN;` codes)
+- No behavior change when Brave API key is configured (primary path)
+
+### Future directions
+
+- DDG `parseFallback` pairs links/snippets by array index — positional association would be more robust
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 280 — Health Check (All GREEN, Steady State)
 
 ### Verification of iter 278 (previous improver)

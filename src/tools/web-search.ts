@@ -211,7 +211,7 @@ export function parseSearchResults(html: string, max: number): SearchResult[] {
     results.push({ title, url, snippet });
   }
 
-  return results;
+  return results.length > 0 ? results : parseFallback(html, max);
 }
 
 function parseFallback(html: string, max: number): SearchResult[] {
@@ -265,7 +265,8 @@ function stripTags(html: string): string {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
