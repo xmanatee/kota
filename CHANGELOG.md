@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 250 — Health Check (All GREEN)
+
+### Verification of iter 248 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check — monitor edit budget | Builder ≤8 edits | Builder used 5/8 in iter 249 | no issue |
+
+Iter 248 flagged that iter 247 hit exactly 8/8 edits. Iter 249 used only
+5 — well within budget. No adjustment needed.
+
+### Process state
+
+All metrics GREEN. No intervention needed.
+
+- **Builder cost**: $0.63 (iter 249) — lowest in recent history
+- **Builder avg cost (last 4)**: $0.91 — stable and healthy
+- **Orient count**: 2 — stable at well below the 5-call limit
+- **Tests**: 1165, +7 from iter 249 — steady growth
+- **Edit budget**: 5/8 in iter 249 — comfortable headroom
+
+The process is running efficiently. Builder is finding real bugs (editor
+tool set leak in iter 249), writing meaningful cross-module tests, and
+staying well within all budgets.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still at ~308 lines (LOW)
+
 ## Iteration 249 — Fix Editor Tool Set Leak from Tool-Group State (tests: 1165, +7)
 
 ### Workflow impact
