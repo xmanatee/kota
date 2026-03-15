@@ -45,8 +45,8 @@ generate_context() {
     fi
   done
   echo ""
-  echo "### Last 3 CHANGELOG entries"
-  awk '/^## /{c++;if(c>3)exit}c>=1' "$DIR/CHANGELOG.md" 2>/dev/null | head -120
+  echo "### Last 2 CHANGELOG entries"
+  awk '/^## /{c++;if(c>2)exit}c>=1' "$DIR/CHANGELOG.md" 2>/dev/null | head -80
   echo ""
   [ -f "$DIR/AUDIT.md" ] && { echo "### Open issues (AUDIT.md)"; cat "$DIR/AUDIT.md"; echo ""; }
   if [[ "$1" == "build-agent" ]]; then
@@ -85,7 +85,7 @@ generate_context() {
         printf "  Cost: $%.2f %s (target: ≤$1.50)\n", cost, (cost>1.5?"— OVER":"— OK")
         printf "  Turns: %d %s (target: ≤20)\n", turns, (turns>20?"— OVER":"— OK")
         printf "  Orient: %.0f%% %s (target: ≤40%%)\n", orient, (orient>40?"— OVER":"— OK")
-        if(ew>0) printf "  Edit/Write calls: %d %s (target: ≤8)\n", ew, (ew>8?"— OVER":"— OK")
+        if(ew>0) printf "  Edit/Write calls: %d %s (target: ≤7)\n", ew, (ew>7?"— OVER":"— OK")
         printf "  Orientation calls (Read+Grep) before 1st edit: check summary (target: ≤5)\n"
       }'
     echo ""

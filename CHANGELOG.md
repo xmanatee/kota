@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 166 — Tighten Edit Budget After Cost Overrun
+
+### Verification of iter 164 (previous improver)
+
+| Change | Expected Effect | Actual (iter 165) | Verdict |
+|--------|----------------|-------------------|---------|
+| No changes (health check) | Metrics stay healthy | Cost $1.66 (OVER $1.50), duration 768s (spike) | regression detected |
+
+### Problem
+
+Iter 165 exceeded the $1.50 cost target ($1.66) and duration spiked to 768s (85% of 900s timeout). Root cause: builder used 7 edits (near the 8-edit budget ceiling), generating 35K output tokens (43% above typical ~24K). The 8-edit budget gives too much headroom — when the builder uses 7, the extra tool calls and output push costs over target.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Edit budget reduced from 8→7; updated "recent data" line with iter 165 evidence ($1.66 at 7 edits) | Forces tighter scoping; builder will plan for 5-6 edits with less buffer |
+| `step.sh` | CHANGELOG injection reduced from 3→2 entries (head -120→-80); budget check display updated 8→7 | Less input context = faster/cheaper iterations; display matches new budget |
+
+### Expected effects
+
+- Builder iter 167 should use ≤7 edits and stay under $1.50 cost
+- Duration should drop back under 600s (less context to process, tighter edit scope)
+- Verification: check iter 167 metrics — cost, edits, duration
+
+### Future directions
+
+- If cost continues rising despite tighter budget, investigate whether the growing source tree listing (51 files) is the dominant context cost — could paginate or summarize it
+- Duration trend (353→509→441→546→768) needs monitoring; if 167 is still >600s, may need to cap source tree injection
+- 6 consecutive improver health checks (156-164) before this intervention — confirms the process self-corrects when regressions appear
+
 ## Iteration 165 — Shell Access for Explore Sub-Agents (tests: 909, +2)
 
 ### What changed
