@@ -160,4 +160,74 @@ describe("http_request → code_exec data pipeline", () => {
     const written = readFileSync(savePath, "utf-8");
     expect(JSON.parse(written).error).toBe("Dataset not found");
   });
+
+  // --- Cross-module: table formatting + truncation interaction ---
+
+  it("large tabular JSON is table-formatted then truncated cleanly", async () => {
+    // 60 rows × 5 cols → table formatted (>50 rows truncated by table), then
+    // if the table text exceeds max_response_length, truncation adds save_to hint
+    const rows = Array.from({ length: 60 }, (_, i) => ({
+      id: i, name: `product-${i}`, price: (i * 10.5).toFixed(2),
+      category: "electronics", updated: "2024-06-01",
+    }));
+    mockFetch({ body: JSON.stringify(rows), contentType: "application/json" });
+
+    const result = await runHttpRequest({
+      url: "https://api.example.com/products",
+      max_response_length: 500, // force truncation of the table
+    });
+
+    // Should have table formatting indicators
+    expect(result.content).toContain("|");
+    // Should have truncation with save_to hint
+    expect(result.content).toContain("[Truncated");
+    expect(result.content).toContain("save_to");
+  });
+
+  it("save_to preserves raw JSON while inline shows table", async () => {
+    // Same data should produce different representations:
+    // inline → markdown table; save_to → raw JSON for code_exec
+    const data = [
+      { repo: "alpha", stars: 120, stale: false },
+      { repo: "beta", stars: 45, stale: true },
+    ];
+    const jsonStr = JSON.stringify(data);
+    mockFetch({ body: jsonStr, contentType: "application/json" });
+
+    // First: inline display (table formatted)
+    const inlineResult = await runHttpRequest({ url: "https://api.example.com/repos" });
+    expect(inlineResult.content).toContain("| repo");
+    expect(inlineResult.content).toContain("| alpha");
+
+    // Second: save_to (raw JSON preserved for code_exec to parse)
+    mockFetch({ body: jsonStr, contentType: "application/json" });
+    const savePath = tempPath("repos.json");
+    const savedResult = await runHttpRequest({
+      url: "https://api.example.com/repos",
+      save_to: savePath,
+    });
+    expect(savedResult.content).toContain("Saved to");
+    const raw = readFileSync(savePath, "utf-8");
+    const parsed = JSON.parse(raw);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].repo).toBe("alpha");
+    expect(parsed[1].stale).toBe(true);
+  });
+
+  it("tabular data with pipe chars in values renders valid table via inline", async () => {
+    // Real-world: GitHub API repos with topics like "ci|cd"
+    const data = [
+      { name: "my-repo", topics: "ci|cd", url: "https://github.com/org/my-repo" },
+      { name: "other", topics: "web|api|rest", url: "https://github.com/org/other" },
+    ];
+    mockFetch({ body: JSON.stringify(data), contentType: "application/json" });
+    const result = await runHttpRequest({ url: "https://api.github.com/repos" });
+
+    // Pipes in values should be escaped, table structure intact
+    expect(result.content).toContain("\\|");
+    // Table still has proper column separators
+    const lines = result.content.split("\n");
+    const dataLines = lines.filter(l => l.includes("my-repo"));
+    expect(dataLines.length).toBe(1);
+  });
 });

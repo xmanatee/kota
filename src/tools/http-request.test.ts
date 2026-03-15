@@ -407,4 +407,66 @@ describe("formatTabularJson", () => {
     const result = formatTabularJson(rows);
     expect(result).toContain("showing 50 of 60 rows");
   });
+
+  it("escapes pipe characters in values", () => {
+    const result = formatTabularJson([
+      { cmd: "a | b", status: "ok" },
+      { cmd: "x|y|z", status: "fail" },
+    ]);
+    expect(result).not.toBeNull();
+    // Pipes in values should be escaped so table structure is preserved
+    expect(result).toContain("a \\| b");
+    expect(result).toContain("x\\|y\\|z");
+    // Table structure pipes should still be unescaped
+    const lines = result!.split("\n");
+    // Header + separator + 2 data rows = 4 lines
+    expect(lines.length).toBe(4);
+  });
+
+  it("replaces newlines in values with spaces", () => {
+    const result = formatTabularJson([
+      { id: 1, note: "line1\nline2" },
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain("line1 line2");
+    expect(result).not.toContain("\n" + "line2");
+  });
+
+  it("truncates columns beyond limit", () => {
+    const row: Record<string, number> = {};
+    for (let i = 0; i < 15; i++) row[`col${i}`] = i;
+    const result = formatTabularJson([row]);
+    expect(result).toContain("showing 10 of 15 columns");
+    expect(result).toContain("col0");
+    expect(result).toContain("col9");
+    expect(result).not.toContain("col10");
+  });
+
+  it("handles exactly 50 rows without truncation note", () => {
+    const rows = Array.from({ length: 50 }, (_, i) => ({ id: i }));
+    const result = formatTabularJson(rows);
+    expect(result).not.toBeNull();
+    expect(result).not.toContain("showing");
+    // All 50 rows + header + separator = 52 lines
+    expect(result!.split("\n").length).toBe(52);
+  });
+
+  it("returns null for array of empty objects", () => {
+    expect(formatTabularJson([{}, {}])).toBeNull();
+  });
+
+  it("handles boolean and null values", () => {
+    const result = formatTabularJson([
+      { flag: true, value: null, name: "test" },
+      { flag: false, value: 42, name: "ok" },
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain("true");
+    expect(result).toContain("false");
+    expect(result).toContain("42");
+  });
+
+  it("returns null when array has mixed objects and primitives", () => {
+    expect(formatTabularJson([{ a: 1 }, "string" as any])).toBeNull();
+  });
 });

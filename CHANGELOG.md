@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 305 — Table Formatting Hardening & Data Pipeline Tests (tests: 1322, +10)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `http-request.ts` | Escape `\|` and `\n` in formatTabularJson cell values | Pipes in API data broke markdown table rendering; newlines split rows |
+| `http-request.test.ts` | +7 edge case tests for formatTabularJson | Cover pipes, newlines, col truncation, boundary 50 rows, empty objects, booleans, mixed types |
+| `http-data-pipeline.integration.test.ts` | +3 cross-module tests | Table+truncation interaction, save_to vs inline format consistency, pipe escaping in real API flow |
+
+### Workflow impact
+
+**Scenario**: "Fetch GitHub org repos from API, find repos not updated in 6 months, save stale ones to stale-repos.json."
+- Tools: `http_request` → agent reasoning → `file_write` → `lint`
+- **Before**: If repo topics contain `|` (e.g. "ci|cd"), formatTabularJson produces malformed table — column separators break, agent misreads data. If values contain newlines, table rows split across lines.
+- **After**: Pipes escaped as `\|`, newlines replaced with spaces. Table rendering is correct regardless of data content. Verified by 3 cross-module tests and 7 unit tests.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1322/1322 pass (+10 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- API responses with pipe characters in values now render correctly as tables
+- Data analysis workflows using tabular JSON are more reliable
+- Cross-module data pipeline (http_request → save_to → file_read) tested at integration level
+
+### Future directions
+- DDG parseFallback positional pairing (AUDIT LOW)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 304 — Health Check (All GREEN, Builder Strong)
 
 ### Verification of iter 302 (previous improver)

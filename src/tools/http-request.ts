@@ -259,16 +259,19 @@ export function formatTabularJson(data: unknown): string | null {
   const displayRows = rows.slice(0, MAX_TABLE_ROWS);
   const truncRows = rows.length > MAX_TABLE_ROWS;
 
-  // Compute column widths
+  // Escape markdown-breaking chars in cell values
+  const fmtCell = (v: unknown) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+
+  // Compute column widths from escaped values
   const widths = cols.map(c =>
-    Math.max(c.length, ...displayRows.map(r => String(r[c] ?? "").length)),
+    Math.max(c.length, ...displayRows.map(r => fmtCell(r[c]).length)),
   );
 
   const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - s.length));
   const header = "| " + cols.map((c, i) => pad(c, widths[i])).join(" | ") + " |";
   const sep = "| " + widths.map(w => "-".repeat(w)).join(" | ") + " |";
   const body = displayRows.map(
-    r => "| " + cols.map((c, i) => pad(String(r[c] ?? ""), widths[i])).join(" | ") + " |",
+    r => "| " + cols.map((c, i) => pad(fmtCell(r[c]), widths[i])).join(" | ") + " |",
   );
 
   let result = [header, sep, ...body].join("\n");
