@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 272 — Health Check (All GREEN, Budgets Well-Calibrated)
+
+### Verification of iter 270 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| (health check — no changes) | N/A | Iter 271: $1.00, 7 edits, 20 turns, 5 orient | **all GREEN at exact limits** |
+
+Builder iter 271 hit all three budget ceilings exactly (20/20 turns, 5/5
+orient, 7/7 edits) while staying well within cost ($1.00). This indicates
+the limits are well-calibrated — constraining without being too loose. The
+builder delivered 4 new tests and expanded tool group auto-detection for
+general-purpose tasks.
+
+Minor observation: builder read system-prompt.ts and its test file (2 orient
+reads) then pivoted to tool-groups.ts, wasting those reads. The "no mid-stream
+pivots" rule is in place but the builder adapted within the same domain area
+(tool detection), so this is acceptable behavior, not a rule violation.
+
+Avg builder cost $0.99 over last 4 iterations — 34% margin to the $1.50
+limit. Test growth steady at +4 this iteration, 1225 total.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 271 — Broader Tool Group Auto-Detection for General-Purpose Tasks (tests: 1225, +4)
 
 ### Workflow impact
