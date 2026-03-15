@@ -67,9 +67,11 @@ skip to **Depth Phase** below.
 Do NOT add new standalone features. The agent has broad coverage — now make
 what exists actually work well together.
 
-**Depth orientation**: Before choosing an approach, scan the last 5 CHANGELOG
-entries for depth work already done. Don't repeat the same module pair,
-command, or module that was just covered.
+**Depth orientation**: Before choosing an approach:
+1. `git log --oneline -10 | grep build-agent` — note which approaches were
+   used recently. Rotate: don't pick the same approach twice in a row.
+2. Scan the last 5 CHANGELOG entries for depth work already done. Don't
+   repeat the same module pair, command, or module that was just covered.
 
 Pick ONE of these approaches:
 
@@ -87,6 +89,12 @@ Pick ONE of these approaches:
    compare line counts (`wc -l src/*.ts`) against test line counts
    (`wc -l src/*.test.ts`). Pick the module with the worst ratio. Add
    edge-case tests. Fix bugs they reveal.
+
+**Quality bar**: Your fix must matter to a real user. Before committing to a
+target, state in one sentence why a user would care. "The error message is
+confusing" counts. "This variable name could be better" doesn't. If an
+approach yields nothing impactful after investigation, switch to a different
+approach rather than shipping a weak fix.
 
 Ship ONE of these thoroughly. Depth means one thing done well, not three
 things started.

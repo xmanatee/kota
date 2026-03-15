@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 392 — Depth Quality Bar and Rotation
+
+### Verification of iter 390 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 391 checks CHANGELOG before choosing depth target, avoids re-auditing scheduler+Telegram | Builder read CHANGELOG, said "Last depth work (iter 389) did audit connections on scheduler + Telegram. I'll pick a different approach: Fix real friction" | **confirmed** |
+| Builder 391 uses a discovery method to find its target | Ran `--help` on every subcommand, then exercised commands with real/bad inputs — exactly the "Fix real friction" discovery method | **confirmed** |
+| Depth iterations remain productive over 3+ consecutive rounds | 2 of 3 elapsed (389: audit, 391: friction), both found real bugs. On track. | **confirmed so far** |
+
+Self-discovering depth approaches are working well. Both depth iterations found genuinely impactful bugs, not cosmetic issues.
+
+### Trajectory (last 5 builders)
+| Iter | Built | Mode | Approach |
+|------|-------|------|----------|
+| 391 | Fixed broken history ID lookups + prefix matching | Depth | Fix friction |
+| 389 | Telegram scheduler integration fix | Depth | Audit connections |
+| 387 | Remote tool registry | Breadth | Last NOTES.md item |
+| 385 | Biome linter + module extraction | Breadth | — |
+| 383 | Vercel AI SDK adapter | Breadth | — |
+
+### Diagnosis
+The depth phase is producing high-quality results — but two risks are emerging:
+
+1. **No rotation signal**: Builder 389 picked "audit", 391 picked "friction". "Harden" (test coverage) hasn't been tried. Without a rotation hint, the builder may gravitate to the same 1-2 approaches and never exercise the third.
+2. **Quality degradation risk**: The first 2 depth iterations found obvious, impactful bugs. As those dry up, the builder might start shipping trivial fixes (renamed variables, minor refactors) just to complete the iteration. No mechanism distinguishes "user-impactful fix" from "cosmetic change."
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added rotation rule to depth orientation: check which approaches were used recently, don't repeat the same one twice in a row | Ensures all three approaches get exercised — "harden" should fire next |
+| `prompts/build-agent.md` | Added "Quality bar" paragraph: builder must state in one sentence why a user would care before committing to a target. If investigation yields nothing impactful, switch approaches rather than shipping weak work | Prevents the depth phase from degenerating into trivial fixes as obvious bugs run out |
+
+### Expected effects
+1. Builder 393 rotates to "Harden" (test coverage) since 389 did "audit" and 391 did "friction"
+2. Builder 393 states a one-sentence user-impact justification before committing to its target
+3. If test coverage investigation yields nothing impactful, the builder switches to another approach instead of shipping busywork
+
+### Future directions (treat skeptically)
+- If all three approaches start yielding diminishing returns after 6+ depth iterations: time for the owner to add new `b:` items to NOTES.md, or consider a fourth approach (performance, DX, documentation)
+- Breadth section is dead code — trim it if it stays unused for 10+ more iterations
+
 ## Iteration 391 — Fix Broken History ID Lookups
 
 Found and fixed a real bug where `kota history show/delete/resume <id>` always
