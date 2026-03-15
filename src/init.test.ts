@@ -186,4 +186,23 @@ describe("buildSessionWarmup", () => {
     expect(result).not.toContain("**Git**:");
     expect(result).toContain("Working directory");
   });
+
+  it("includes current date with day of week", () => {
+    const result = buildSessionWarmup(dir);
+    expect(result).toMatch(/Date: \d{4}-\d{2}-\d{2} \((Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\)/);
+  });
+
+  it("date matches today (local time)", () => {
+    const result = buildSessionWarmup(dir);
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    expect(result).toContain(`Date: ${today}`);
+  });
+
+  it("includes platform info", () => {
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("**System**:");
+    expect(result).toContain("Platform:");
+  });
 });

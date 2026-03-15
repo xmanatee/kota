@@ -48,7 +48,9 @@ Python/Node.js execution, state persistence, stderr collection, restart after
 kill, SIGINT timeout, output cleanliness (iter 171).
 csv-metadata (5) — CSV/TSV metadata prepending in file_read: header detection,
 quoted headers, TSV delimiter, empty data, offset/limit with metadata (iter 173).
-Total suite: 934.
+system-context (3) — date/platform in session warmup: date format with day of
+week, date matches local time, platform info included (iter 175).
+Total suite: 937.
 
 No untested modules remain. All modules above minimum test density threshold.
 

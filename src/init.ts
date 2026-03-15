@@ -108,6 +108,16 @@ function getGitContext(cwd: string): string | null {
   return parts.length ? parts.join("\n") : null;
 }
 
+/** System context: current date and platform. */
+function getSystemContext(): string {
+  const now = new Date();
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const platforms: Record<string, string> = { darwin: "macOS", linux: "Linux", win32: "Windows" };
+  return `Date: ${date} (${days[now.getDay()]}) | Platform: ${platforms[process.platform] || process.platform}`;
+}
+
 /** Search persistent memory for entries relevant to the current project. */
 function recallMemories(cwd: string): string | null {
   const store = getMemoryStore();
@@ -137,6 +147,7 @@ export function buildSessionWarmup(cwd?: string): string {
   const sections: string[] = [];
 
   sections.push(`**Working directory**: ${dir}`);
+  sections.push(`**System**: ${getSystemContext()}`);
 
   const project = detectProject(dir);
   if (project) sections.push(`**Project**: ${project}`);

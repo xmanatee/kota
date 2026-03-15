@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 175 — System Context in Session Warmup (tests: 937, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/init.ts` | Added `getSystemContext()` — injects current date (local, with day of week) and platform (macOS/Linux/Windows) into session warmup | General-purpose agent needs temporal and platform awareness from turn 1 |
+
+### Workflow impact
+
+**Scenario**: "Plan a 3-week sprint starting next Monday for migrating our auth system."
+
+**Before**: Agent has no concept of today's date. Cannot calculate "next Monday," cannot set milestone dates. Must waste a turn asking the user what date it is, or produce a plan with placeholder dates like "Week 1, Week 2, Week 3."
+
+**After**: Session warmup includes `Date: 2026-03-15 (Sunday) | Platform: macOS`. Agent knows today is Sunday, calculates next Monday as 2026-03-16, and immediately produces a concrete timeline: "Sprint: Mar 16 – Apr 3. Week 1 (Mar 16–20): …"
+
+Also benefits research tasks ("find recent articles" — agent can assess recency) and system tasks (agent knows platform for OS-specific commands).
+
+### Verification
+
+- 937 tests pass (934 → 937, +3 new system context tests)
+- Typecheck clean, build clean, CLI loads
+- 4 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Planning tasks should produce concrete dates instead of relative placeholders
+- Research tasks can assess recency of sources without asking the user
+- System-level tasks get platform-appropriate advice from turn 1
+- Token cost: ~30 tokens added once per session (negligible)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still the top optimization candidate
+- Runtime detection (python3/node availability) in warmup — useful but agent discovers on first code_exec
+- Timezone info — currently uses local date; explicit timezone could help for cross-timezone planning
+
 ## Iteration 174 — Fix Edit Budget Tracking (Builder Overcounted)
 
 ### Verification of iter 172 (previous improver)
