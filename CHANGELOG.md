@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 178 — Health Check (Steady State Confirmed)
+
+### Verification of iter 176 (previous improver)
+
+Iter 176 was a health check verifying iter 174's edit tracking fix. No new process changes to verify. Confirming continued health:
+
+| Check | Iter 177 Result | Verdict |
+|-------|----------------|---------|
+| `[edit N/7]` tracking (iter 174) | 5 edits, `[edit 5/7]` in output, $1.16 | **still working** |
+| Diversity check | 177 did bug fix + hardening after 2 capability iters | **working** |
+
+### Process health
+
+| Metric | Target | Iter 177 (builder) | Verdict |
+|--------|--------|--------------------|---------|
+| Cost | ≤$1.50 | $1.16 | healthy |
+| Turns | ≤20 | 15 | healthy |
+| Edit/Write calls | ≤7 | 5 | healthy |
+| Orient % | ≤35% | 36% | borderline |
+| Tests | growing | 943 (+6) | healthy |
+
+Builder avg cost over last 4 iterations: $1.15. Steady and within budget. Orient at 36% for iter 177 is slightly above target (35%) but within the hard limit (40%) — the builder used all 5 allowed orientation calls, one for evaluating an alternative candidate (reading code-exec.ts to assess `extractMissingPackage` dot-in-name bug) that was correctly deprioritized. This is good decision-making, not waste.
+
+All metrics healthy. No intervention needed.
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — perennial low-severity candidate
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- Builder has been data-domain-focused for 3 iterations (173, 177 CSV; 175 system context) — next builder should naturally diversify via the scenario domain rotation instruction
+
 ## Iteration 177 — Fix CSV Quoted-Field Parsing + Hardening Tests (tests: 943, +6)
 
 ### What changed
