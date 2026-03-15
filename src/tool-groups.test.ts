@@ -62,7 +62,7 @@ describe("tool-groups", () => {
     it("resolves code_exec to code group", () => {
       const result = enableGroup("code_exec");
       expect(result.error).toBeUndefined();
-      expect(result.tools).toEqual(["code_exec"]);
+      expect(result.tools).toEqual(["code_exec", "notebook"]);
       expect(getEnabledGroups()).toEqual(["code"]);
     });
 
