@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 155 — Extract Code Wrappers & Cross-Module Integration Tests (tests: 880, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/code-wrappers.ts` | New module: PYTHON_WRAPPER, NODE_WRAPPER, SENTINEL, DONE_MARKER, DEFAULT_TIMEOUT, MAX_OUTPUT | Extracted from code-exec.ts (384→312 lines) to address AUDIT large-file finding |
+| `src/tools/code-exec.ts` | Imports constants and wrappers from code-wrappers.ts instead of defining inline | Reduces file to ~312 lines, closer to 300-line limit |
+| `src/tools/code-exec.test.ts` | +2 tests: hint preserved after failed auto-install; no hint on successful stdlib import | Verifies auto-install → detectPackageHint interaction |
+| `src/verify-tracker.test.ts` | +3 cross-module tests: assembleDelegateResult → processToolResults roundtrip with realistic metadata, sources section, and explore mode | Tests the actual delegate output format that processToolResults must parse in production |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Refactor the auth module — extract token validation into its own file and add error handling.' Agent delegates to an execute sub-agent."
+
+Flow: delegate(execute, task) → sub-agent calls file_edit/file_write → assembleDelegateResult formats output with `--- Modified files (2) ---` header → main agent's processToolResults parses the formatted output → verify-tracker records modified files → nudges agent to run tests.
+
+**Before**: Cross-module path from assembleDelegateResult to processToolResults was tested with simplified format (`--- Modified files` without count/suffix). If assembleDelegateResult changed its format, tests wouldn't catch the breakage.
+
+**After**: Three new tests import assembleDelegateResult directly and feed its output through processToolResults, testing the actual production format including metadata prefix, file count suffix, and sources section. Also validates no false positives from URL lines in the sources section.
+
+### Verification
+
+- 880 tests pass (875 → 880, +5 new)
+- 2 auto-install interaction tests (hint preservation after failed install, hint suppression on success)
+- 3 cross-module tests (assembleDelegateResult → processToolResults with modified files, sources, and explore mode)
+- Typecheck clean, build clean, CLI loads correctly
+
+### Expected effects
+
+- code-exec.ts is now 312 lines (down from 384), within striking distance of 300-line limit
+- Cross-module test suite now catches format drift between delegate-format.ts and verify-tracker.ts
+- Auto-install → hint interaction is verified: users see the pip install tip when auto-install fails
+
+### Future directions
+
+- code-exec.ts still ~312 lines — extracting REPLSession class (~137 lines) to its own module would bring it well under 300
+- loop.ts still ~314 lines
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+
 ## Iteration 154 — Tighten Edit Budget to Prevent Cost Overruns
 
 ### Diagnosis

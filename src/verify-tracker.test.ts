@@ -274,6 +274,84 @@ describe("processToolResults", () => {
   });
 });
 
+describe("cross-module: assembleDelegateResult → processToolResults", () => {
+  // Import from delegate-format to test the actual output format
+  // that processToolResults must parse in production.
+
+  it("parses realistic delegate result with modified files and metadata", async () => {
+    const { assembleDelegateResult } = await import("./tools/delegate-format.js");
+    const meta = {
+      mode: "execute",
+      turnsUsed: 5,
+      turnsMax: 15,
+      toolsUsed: ["file_edit", "file_write"],
+      completionReason: "done" as const,
+      urlsFetched: [],
+      searchQueries: [],
+    };
+    const modifiedFiles = new Set(["src/auth.ts", "src/validator.ts"]);
+    const result = assembleDelegateResult("Refactoring complete.", meta, modifiedFiles, []);
+
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "delegate", id: "d1", input: { mode: "execute", task: "refactor auth" } },
+    ], [
+      { tool_use_id: "d1", content: result.content },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(2);
+    expect(tracker.getState()).toContain("src/auth.ts");
+    expect(tracker.getState()).toContain("src/validator.ts");
+  });
+
+  it("parses delegate result with sources section without false positives", async () => {
+    const { assembleDelegateResult } = await import("./tools/delegate-format.js");
+    const meta = {
+      mode: "execute",
+      turnsUsed: 8,
+      turnsMax: 15,
+      toolsUsed: ["file_edit", "web_fetch"],
+      completionReason: "done" as const,
+      urlsFetched: ["https://docs.example.com/api"],
+      searchQueries: ["react 19 features"],
+    };
+    const modifiedFiles = new Set(["src/api.ts"]);
+    const result = assembleDelegateResult("Updated API client.", meta, modifiedFiles, []);
+
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "delegate", id: "d2", input: { mode: "execute", task: "update api" } },
+    ], [
+      { tool_use_id: "d2", content: result.content },
+    ]);
+    // Should only pick up modified files, not source URLs
+    expect(tracker.getUnverifiedCount()).toBe(1);
+    expect(tracker.getState()).toContain("src/api.ts");
+    expect(tracker.getState()).not.toContain("docs.example.com");
+  });
+
+  it("does not track files when delegate has no modifications", async () => {
+    const { assembleDelegateResult } = await import("./tools/delegate-format.js");
+    const meta = {
+      mode: "explore",
+      turnsUsed: 3,
+      turnsMax: 10,
+      toolsUsed: ["file_read", "grep"],
+      completionReason: "done" as const,
+      urlsFetched: [],
+      searchQueries: [],
+    };
+    const result = assembleDelegateResult("Found 3 usages of the function.", meta, new Set(), []);
+
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "delegate", id: "d3", input: { mode: "explore", task: "find usages" } },
+    ], [
+      { tool_use_id: "d3", content: result.content },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+});
+
 describe("detectVerifyCommands", () => {
   it("returns empty array for nonexistent directory", () => {
     const commands = detectVerifyCommands("/nonexistent/path/xyz");

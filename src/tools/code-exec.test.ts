@@ -233,6 +233,26 @@ ModuleNotFoundError: No module named 'pandas'`;
       expect(result.content).toContain("ModuleNotFoundError");
       expect(result.content).toContain("nonexistent_pkg_xyzzy_99999");
     }, 90_000);
+
+    it("preserves package hint after failed auto-install", async () => {
+      const result = await runCodeExec({
+        code: "import nonexistent_pkg_xyzzy_99998",
+        language: "python",
+      });
+      // When auto-install fails, detectPackageHint should still append a tip
+      expect(result.content).toContain("Tip: Install the missing package");
+      expect(result.content).toContain("pip install nonexistent_pkg_xyzzy_99998");
+    }, 90_000);
+
+    it("no hint when code succeeds (stdlib import)", async () => {
+      const result = await runCodeExec({
+        code: "import json; json.dumps({'ok': True})",
+        language: "python",
+      });
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).not.toContain("Tip:");
+      expect(result.content).not.toContain("Auto-installed");
+    });
   });
 
   describe("timeout handling", () => {

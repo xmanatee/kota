@@ -16,7 +16,7 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 869 tests, all modules covered (iter 81→151, LOW)
+## Test coverage — 880 tests, all modules covered (iter 81→155, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (27), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
@@ -28,22 +28,23 @@ memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
 tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
-code-exec.ts (31, includes SIGINT interrupt + timeout recovery + auto-install tests),
-verify-tracker.ts (31, includes 7 cross-module processToolResults tests).
+code-exec.ts (33, includes SIGINT interrupt + timeout recovery + auto-install + hint interaction tests),
+verify-tracker.ts (34, includes 10 cross-module processToolResults tests).
 Cross-module: shell-pipeline (6) — shell-diagnostics → error-context composition;
 tool-runner-integration (11) — executeToolCalls × tool-retry retry pipeline +
 rich-block truncation (code_exec → plot-capture → context-aware truncation);
-verify-tracking (7) — processToolResults × VerifyTracker for all tool types.
-Total suite: 869.
+verify-tracking (10) — processToolResults × VerifyTracker for all tool types
++ assembleDelegateResult → processToolResults roundtrip (3 tests, iter 155).
+Total suite: 880.
 
 No untested modules remain.
 
-## Large files over 300-line limit (iter 127→149, LOW)
+## Large files over 300-line limit (iter 127→155, LOW)
 
 delegate.ts fixed (385 → ~280 lines) by extracting to delegate-format.ts.
 loop.ts: ~314 lines (down from 348 after extracting verify-tracking to
 verify-tracker.ts in iter 149). Extracting architect mode block (~30 lines)
 would bring it under 300.
-code-exec.ts: ~370 lines (grew from auto-install feature). Extract
-PYTHON_WRAPPER and NODE_WRAPPER to a separate module to bring it under 300.
-Total suite: 875.
+code-exec.ts: ~312 lines (down from 384 after extracting wrappers to
+code-wrappers.ts in iter 155). Extracting REPLSession class (~137 lines)
+would bring it well under 300.
