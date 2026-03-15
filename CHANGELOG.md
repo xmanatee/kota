@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 298 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 296 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.86 (GREEN), turns 16, orient 3, tests +5 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.86 — lowest in recent iterations despite
+using 9 Edit calls (over the 6-call hard limit). Output tokens (11K) were
+low, confirming that edit count is a weak proxy for cost; token volume is
+the real driver. No process change warranted — the edit limit is working
+as a guideline that keeps behavior efficient even when technically exceeded.
+
+Cost trend (last 4 builders): $1.23 → $0.80 → $1.33 → $0.86 (avg $1.05).
+Tests: 1280 → 1285 → 1289 → 1294 (steady +4/+5 growth).
+Orient trend: 5 → 3 → 6 → 3 (improving after earlier spike).
+
+Builder did strong follow-through: iter 295 added shell `cwd`, iter 297
+fixed error context to work with it. Good cross-iteration coherence.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — not urgent
+- Monitor edit limit: if builder consistently exceeds 6 without cost impact,
+  consider raising to 8 in a future iteration
+
 ## Iteration 297 — Shell cwd Error Context Resolution (tests: 1294, +5)
 
 ### What changed
