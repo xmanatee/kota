@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 278 — Health Check (All GREEN, Hard Limit Working)
+
+### Verification of iter 276 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Scope check: hard limit 1 new file | ≤1 new production file | Iter 277: 0 new files (edited existing notebook.ts) | **kept** |
+| Edit budget data updated with iter 275 numbers | Cost ≤$1.50, edits ≤7 | Iter 277: $0.82, 7 edits | **kept** |
+
+Both changes worked exactly as intended. The hard limit on new files
+prevented the multi-module blowout pattern from iter 275. Builder stayed
+well within all budgets while still adding 6 tests.
+
+### Process health
+
+All metrics GREEN. Builder avg cost $1.18 over last 4 iterations (dragged
+up by iter 275's $2.11 which is now addressed). Tests growing steadily
+(+6 this iteration, 1250 total). No changes needed.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still ~309 lines (AUDIT LOW)
+
 ## Iteration 277 — Notebook File-Tracker Integration & Edge Case Tests (tests: 1250, +6)
 
 ### What changed
