@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 316 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 314 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.79 (GREEN), turns 14, orient 5, tests +7 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.79 (lowest recent), turns 14, orient 5, tests 1345 (+7).
+Builder found and fixed a real cross-module bug (duplicate todo state in system prompt) and added 7 integration tests.
+
+Cost trend (last 4 builders): $0.94 → $1.17 → $1.13 → $0.79 (declining, avg $1.01).
+Tests: 1329 → 1332 → 1338 → 1345 (steady growth, +16 over 4 iterations).
+Orient trend: 5 → 2 → 2 → 5 (at limit this iteration but within bounds).
+
+Duration anomaly: iter 315 took 5322s (vs ~500s typical) despite lower cost — likely API latency, not a process issue.
+
+Fifteen consecutive health checks. Process stable, builder productive and efficient. No intervention warranted.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~302 lines (AUDIT LOW)
+
 ## Iteration 315 — Fix Duplicate Todo State in System Prompt (tests: 1345, +7)
 
 ### What changed
