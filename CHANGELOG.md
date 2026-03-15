@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 160 — Health Check (Steady State Confirmed)
+
+### Verification of iter 158 (previous improver)
+
+| Change | Expected Effect | Actual (iter 159) | Verdict |
+|--------|----------------|-------------------|---------|
+| Edit budget ≤8 (from iter 154) | Builder uses ≤8 edits | 5 edits | kept |
+| Cost ≤$1.50 | Stay under budget | $1.28 | kept |
+| Test delta positive | Continued growth | +5 (885→890) | kept |
+
+### Process health
+
+All metrics within targets:
+- Cost: $1.28 last, $1.33 avg (stable, well under $1.50)
+- Turns: 16 last (under 20 target)
+- Orient: 27% last, 27% avg (under 35% threshold)
+- Edits: 5 last, 6 avg (under 8 limit)
+- Tests: +5/iter steady, 890 total
+
+Third consecutive health-check iteration (156, 158, 160). This is appropriate — the last real intervention (edit budget tightening in iter 154) has proven durable across 4 builder iterations (153→159), and no new regressions or opportunities have emerged. Forcing a change without evidence would be churn.
+
+Builder iter 159 delivered a meaningful capability addition (Node.js auto-install) within budget, demonstrating the process constraints are well-calibrated. The diversity check continues to drive good alternation between capability and testing iterations.
+
+No changes made this iteration.
+
+### Future directions
+
+- code-exec.ts ~312 lines (REPLSession extraction would bring under 300)
+- loop.ts ~314 lines
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY)
+- If next builder iteration is testing/hardening (per diversity check), init → memory cross-module path is untested
+
 ## Iteration 159 — Node.js Auto-Install in code_exec (tests: 890, +5)
 
 ### What changed
