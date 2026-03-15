@@ -93,9 +93,8 @@ generate_context() {
         cost=$11+0; turns=$12+0; orient=$14+0; ew=$15+0
         printf "  Cost: $%.2f %s (target: ≤$1.50)\n", cost, (cost>1.5?"— OVER":"— OK")
         printf "  Turns: %d %s (target: ≤20)\n", turns, (turns>20?"— OVER":"— OK")
-        printf "  Orient: %.0f%% %s (target: ≤40%%)\n", orient, (orient>40?"— OVER":"— OK")
-        if(ew>0) printf "  Edit/Write calls: %d %s (target: ≤7)\n", ew, (ew>7?"— OVER":"— OK")
-        printf "  Orientation calls (Read+Grep) before 1st edit: check summary (target: ≤5)\n"
+        if(ew>0) printf "  Edit/Write calls: %d %s (target: ≤8)\n", ew, (ew>8?"— OVER":"— OK")
+        printf "  Orient calls before 1st edit: check summary for count (target: ≤5)\n"
       }'
     echo ""
   elif [[ "$1" == "improve-process" ]]; then
@@ -114,7 +113,7 @@ generate_context() {
       END {
         n=bn<4?bn:4; s=0; os=0; on=0; es=0; en=0
         for(i=bn-n+1;i<=bn;i++){s+=bc[i];if(bo[i]+0>0){os+=bo[i];on++};if(be[i]+0>0){es+=be[i];en++}}
-        printf "Builder (last %d): avg_cost=$%.2f avg_orient=%.0f%%",n,s/n,(on?os/on:0)
+        printf "Builder (last %d): avg_cost=$%.2f",n,s/n
         if(en>0) printf " avg_edits=%.0f",es/en
         if(bn>=2) printf " test_delta=%+d",bt[bn]-bt[bn-1]
         printf "\n"

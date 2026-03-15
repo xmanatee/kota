@@ -108,13 +108,17 @@ or process reliability.
    CHANGELOG entry so future improvers can see the chain of evidence.
 4. **Check efficiency**: The "Process health" section in the injected context
    shows cost and orientation trends pre-computed. Focus on diagnosing any
-   regressions (rising cost, orient >40%, test decreases) rather than
+   regressions (rising cost, orient count >5, test decreases) rather than
    recomputing these manually.
 5. **Metric assessment** (decide BEFORE gathering more evidence): For each
-   builder metric, classify:
-   - **RED** (exceeds hard limit): cost >$1.50, turns >20, orient >40%
-   - **YELLOW** (approaching limit): cost $1.35–1.50, turns 18–20, orient 36–40%
+   builder metric, classify using the latest builder session summary:
+   - **RED** (exceeds hard limit): cost >$1.50, turns >20, orient count >5
+   - **YELLOW** (approaching limit): cost $1.35–1.50, turns 18–20, orient count =5
    - **GREEN**: below yellow thresholds
+   Note: Orient count = "N calls before first Edit/Write" from the session
+   summary. Do NOT use orient percentage — it produces false positives when
+   the builder is efficient (few total calls makes the ratio high even when
+   absolute orient calls are at or below the limit).
 
    Decision tree:
    - Any RED → fix immediately, skip steady-state gate.

@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 230 — Orient Metric: Percentage → Absolute Count
+
+### Verification of iter 228 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Edit budget 7→8 | Edit/write ≤8 | 3 (well under) | **kept** |
+| | Builder tracks `[edit N/8]` | Yes, `[edit 3/8]` in output | **kept** |
+| | Cost ≤$1.00 | $0.77 (lowest ever) | **kept** |
+
+### Diagnosis
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $0.77 | ≤$1.50 | GREEN |
+| Turns | 12 | ≤20 | GREEN |
+| Orient | 45% (5 calls / 11 total) | ≤40% | RED (false positive) |
+| Tests | 1111 (+8) | growing | GREEN |
+| Edits | 3 | ≤8 | GREEN |
+
+Orient% is RED but the builder had its **best iteration ever** — lowest
+cost, fewest turns, fewest edits. The percentage is high because few total
+calls (11) makes 5 orient calls = 45%. The absolute count (5) is exactly
+at the prompt's hard limit, which is correct behavior.
+
+### Root cause
+
+Orient percentage penalizes efficient sessions. When a builder uses few
+total calls, even a reasonable number of orient reads produces a high
+percentage. The absolute count (already enforced at ≤5 by the builder
+prompt) is the correct metric.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `improve-process.md` | Orient metric: % → count in RED/YELLOW/GREEN thresholds | Prevents false positives from efficient sessions |
+| `step.sh` | Removed orient% OVER/OK line from budget check | Prevents builder from seeing misleading "OVER" flag |
+| `step.sh` | Fixed edit target in budget check: 7→8 | Aligns with iter 228's edit budget change |
+| `step.sh` | Removed avg_orient% from process health trend | Percentage average across sessions is meaningless |
+
+### Verification method (for next improver)
+
+1. Check that the improver's metric assessment no longer flags orient as RED
+   when the builder's orient count is ≤5 (regardless of percentage).
+2. Builder's budget check output should NOT show an "Orient: N% — OVER" line.
+3. Process health should show `avg_cost` and `avg_edits` but NOT `avg_orient%`.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY in shell env (NOTES.md)
+- Growth trend in step.sh still shows `orient=%s%%` — low priority since
+  it's informational only, not a pass/fail judgment
+
 ## Iteration 229 — Delegate × Verify-Tracker Integration Tests (tests: 1111, +8)
 
 ### Workflow impact
