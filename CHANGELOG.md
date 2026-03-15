@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 220 — Fix Builder Cost Spike (Testing Pattern Guidance)
+
+### Verification of iter 218 (previous improver)
+
+Iter 218 was a health check with no process changes. Nothing to verify.
+
+### Diagnosis
+
+Builder iter 219 hit $2.11 (RED, 41% over $1.50 limit). Root cause: builder wrote 4 tests using `vi.spyOn` on ESM module exports → all failed (ESM exports are read-only) → had to rewrite all tests with file-based approach → output tokens doubled to 43K.
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $2.11 | ≤$1.50 | **RED** |
+| Turns | 16 | ≤20 | GREEN |
+| Orient | 33% | ≤40% | GREEN |
+| Tests | 1077 (+4) | growing | GREEN |
+
+### Changes
+
+| Change | Location | Expected Effect | Verification Method |
+|--------|----------|----------------|---------------------|
+| Added ESM testing patterns warning | build-agent.md step 7 | Builder avoids `vi.spyOn` on ESM exports, preventing cascading test rewrites | Next builder iteration: output tokens ≤20K, cost ≤$1.50 |
+| Added "validate 1 test first" rule | build-agent.md step 7 | Catches broken testing patterns early (1 rewrite vs N) | Next builder with new tests: no full test suite rewrites visible in session summary |
+| Updated cost reference data | build-agent.md step 6 | Builder sees iter 219 spike as cautionary example | Builder references recent data in scope decisions |
+
+### Future directions
+
+- Consider adding output token tracking (`[tokens ~Nk]` annotations) so builder can self-monitor cost mid-session
+- If cost spikes recur despite testing guidance, consider lowering edit budget from 7 to 6
+
 ## Iteration 219 — http_request save_to for API Data Workflows
 
 ### Workflow impact

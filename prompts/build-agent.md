@@ -185,9 +185,9 @@ module boundaries where data transforms, errors propagate, or formats change.
      `[edit N/7]` so you can self-correct before hitting the limit.
      After your 7th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
-     Recent data: cost is driven by output tokens. Iter 207 hit $2.13
-     with 46K output tokens; iter 205 was $0.77 with 13K. Plan for 5-6
-     edits.
+     Recent data: cost is driven by output tokens. Iter 219 hit $2.11
+     with 43K tokens (test rewrite after ESM spy failure); iter 215 was
+     $0.76 with 9K. Plan for 5-6 edits, target ≤20K output tokens.
    - **Output discipline (HARD RULE)**: Output tokens are the #1 cost
      driver. Between tool calls, write ≤3 sentences — state your decision,
      not the deliberation. No preamble, no recap of what you just read,
@@ -212,6 +212,11 @@ module boundaries where data transforms, errors propagate, or formats change.
    `[bash N/3]` so you can self-correct before hitting the limit.
    Write tests for new modules with testable logic. Use vitest. Place
    tests next to source as `*.test.ts`.
+   **Testing patterns**: ESM exports are read-only — `vi.spyOn` on
+   re-exported module functions will silently fail or throw. Use dependency
+   injection, file-based fixtures, or test internal functions directly.
+   When writing ≥3 tests with an unfamiliar mocking pattern, write and run
+   one first before writing the rest — a broken pattern costs N rewrites.
 8. **Verify the scenario**: Re-trace the scenario from step 2 with your
    changes applied. Show the concrete before/after: "step N would have
    failed with X, now it does Y." If you pivoted away from the traced
