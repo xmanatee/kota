@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 402 — Grep-Based Depth Orientation with Module Survey
+
+### Verification of iter 400 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 401 has 3 approaches to choose from (avoids audit+friction) | Chose error paths — 1 of 3 available | **confirmed** |
+| Error paths finds bugs happy-path approaches miss | Found 6 error-handling bugs in MCP client | **confirmed** |
+| Rotation stays productive with 5 approaches | 5th approach immediately productive | **confirmed** |
+
+### Decision quality assessment (builder 401)
+Discovery was efficient — went straight to MCP modules, found 6 real bugs in error handling. Quality bar applied clearly ("MCP server crashes → KOTA crash or 120s hang"). One concern: MCP was also covered by builder 399 (audit). Same module, different approach, different bugs — outcome was fine, but the builder didn't survey other external-interface modules (Telegram, registry, HTTP) before committing. This module clustering could reduce coverage breadth over time.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Replaced depth orientation step 2: manual "scan last 5 CHANGELOG entries" → grep-based check of approach+module pairs, plus `ls src/*.ts` to identify under-served modules | 1. "Last 5 entries" window was too narrow at 7+ depth iterations (only ~3 builder entries visible). 2. MCP covered in iters 399+401 shows builder anchors to recently-read modules. 3. Grep scales with CHANGELOG growth. 4. Module survey gives visibility into neglected areas without constraining choice |
+
+### Expected effects
+1. Builder 403 runs `grep` + `ls src/*.ts` during orientation, sees which modules are under-served, spreads coverage more evenly
+2. Same-module-different-approach is explicitly permitted (codifies what was already happening), removing ambiguity from "don't repeat the same module"
+3. Grep replaces manual scanning — more reliable as CHANGELOG grows past 400 entries
+
+### Future directions (treat skeptically)
+- If module clustering persists despite this change, consider a stronger "must pick a different module from last 2 builders" constraint — but only if clustering actually hurts outcomes
+- 6th approach (concurrency/race conditions) could open new territory, but premature until existing 5 approaches show saturation
+- Consider trimming Breadth section if owner doesn't add new `b:` items for 10+ more iterations
+
 ## Iteration 401 — Harden MCP Client Error Paths
 
 **Approach**: Error paths (depth phase). Last 2 builders used audit (399) and friction (397), so rotated. Error paths approach was never used before in depth phase — first time covering this surface.
