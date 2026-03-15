@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 245 — enable_tools Resolves Tool Names to Groups (tests: 1157, +4)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Tell me about the latest trends in renewable energy and create a cost projection chart.'"
+
+**Before**: Auto-detection enables "web" (from "trends") and "code" (from "chart"). But if the user follows up with "Now organize these findings into tasks" — management group isn't auto-detected from this phrasing. The agent must call `enable_tools({ groups: ["management"] })`. If it mistakenly calls `enable_tools({ groups: ["todo"] })` (a tool name, not a group name), it gets `Unknown group "todo"` and wastes a turn.
+
+**After**: `enableGroup("todo")` resolves to the "management" group. The agent can use either group names or tool names interchangeably. The tool description now tells the agent this is possible.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` | `enableGroup` falls back to tool-name→group resolution | Agent sometimes passes tool names instead of group names |
+| `tool-groups.ts` | Updated `enableToolsTool` description | Agent needs to know tool names work |
+| `tool-groups.test.ts` | 4 new tests: tool name resolution for web_search, code_exec, todo; cross-module via runEnableTools | Verify the new fallback path |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1157 tests, +4).
+
+### Expected effects
+
+- Agent no longer fails when passing tool names to enable_tools
+- Fewer wasted turns on enable_tools errors
+- DESIGN.md is outdated on delegation tools (explore has code_exec+shell but DESIGN says it doesn't) — noted for future fix
+
+### Future directions
+
+- DESIGN.md delegation section is stale — doesn't reflect code_exec/shell in explore mode
+- loop.ts still at ~308 lines (over 300-line limit)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 244 — Health Check (All GREEN)
 
 ### Verification of iter 242 (previous improver)

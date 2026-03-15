@@ -27,14 +27,21 @@ export function enableGroup(name: string): { tools: string[]; error?: string } {
     return { tools: Object.values(TOOL_GROUPS).flat() };
   }
   const tools = TOOL_GROUPS[name];
-  if (!tools) {
-    return {
-      tools: [],
-      error: `Unknown group "${name}". Available: ${Object.keys(TOOL_GROUPS).join(", ")}, all`,
-    };
+  if (tools) {
+    enabledGroups.add(name);
+    return { tools };
   }
-  enabledGroups.add(name);
-  return { tools };
+  // Resolve tool name → parent group (e.g. "web_search" → "web")
+  for (const [groupName, groupTools] of Object.entries(TOOL_GROUPS)) {
+    if (groupTools.includes(name)) {
+      enabledGroups.add(groupName);
+      return { tools: groupTools };
+    }
+  }
+  return {
+    tools: [],
+    error: `Unknown group or tool "${name}". Available groups: ${Object.keys(TOOL_GROUPS).join(", ")}, all`,
+  };
 }
 
 export function getActiveToolNames(): Set<string> {
@@ -91,7 +98,7 @@ const CORE_LIST = [...CORE_TOOL_NAMES]
 export const enableToolsTool: Anthropic.Tool = {
   name: "enable_tools",
   description:
-    `Enable additional tool groups. Call this before using specialized tools.\n\nGroups:\n${GROUP_DESCRIPTIONS}\n- all: enable everything\n\nCore (always available): ${CORE_LIST}`,
+    `Enable additional tool groups. Call this before using specialized tools.\n\nGroups:\n${GROUP_DESCRIPTIONS}\n- all: enable everything\n\nYou can also pass tool names (e.g. "web_search") — the parent group will be enabled.\n\nCore (always available): ${CORE_LIST}`,
   input_schema: {
     type: "object" as const,
     properties: {

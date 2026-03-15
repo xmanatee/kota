@@ -48,8 +48,29 @@ describe("tool-groups", () => {
 
     it("returns error for unknown group", () => {
       const result = enableGroup("nonexistent");
-      expect(result.error).toContain("Unknown group");
+      expect(result.error).toContain("Unknown group or tool");
       expect(result.tools).toEqual([]);
+    });
+
+    it("resolves tool name to parent group", () => {
+      const result = enableGroup("web_search");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toEqual(["web_search", "web_fetch", "http_request"]);
+      expect(getEnabledGroups()).toEqual(["web"]);
+    });
+
+    it("resolves code_exec to code group", () => {
+      const result = enableGroup("code_exec");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toEqual(["code_exec"]);
+      expect(getEnabledGroups()).toEqual(["code"]);
+    });
+
+    it("resolves todo to management group", () => {
+      const result = enableGroup("todo");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toContain("todo");
+      expect(getEnabledGroups()).toEqual(["management"]);
     });
 
     it("is idempotent — enabling same group twice does not duplicate", () => {
@@ -156,7 +177,16 @@ describe("tool-groups", () => {
     it("returns error for unknown group", async () => {
       const result = await runEnableTools({ groups: ["bad"] });
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("Unknown group");
+      expect(result.content).toContain("Unknown group or tool");
+    });
+
+    it("resolves tool names to parent groups", async () => {
+      const result = await runEnableTools({ groups: ["web_search", "code_exec"] });
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("web_search");
+      expect(result.content).toContain("code_exec");
+      expect(getEnabledGroups()).toContain("web");
+      expect(getEnabledGroups()).toContain("code");
     });
 
     it("handles mix of valid and invalid groups", async () => {
