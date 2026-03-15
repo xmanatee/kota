@@ -23,11 +23,10 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## DESIGN.md — delegation section outdated (iter 245, LOW)
+## DESIGN.md — delegation section outdated (iter 245→257, FIXED)
 
-DESIGN.md says explore mode has "file_read, grep, glob, repo_map, web tools"
-but the actual code (delegate-prompts.ts) includes code_exec, shell, and
-http_request as well. The description is misleading for future builders.
+Fixed in iter 257. Updated explore mode description to include code_exec,
+shell, and http_request alongside the original tools.
 
 ## Test coverage — 1172 tests, all modules covered (iter 81→253, LOW)
 

@@ -80,6 +80,16 @@ Sub-agents get their own context. Results include metadata (turns, tools, source
 - **Data handoff via files**: Large payloads go through files, not context. http_request(save_to="/tmp/data.json") → code_exec reads it directly. code_exec writes to /tmp/output.csv → file_read to preview. Avoids token waste.
 - **Progressive detail**: Start with summaries (head of file, shape of data), then drill into specifics. Don't read entire large files when a sample suffices.
 
+## Memory
+- Save what outlasts the session: user preferences, project patterns, key findings.
+- Recall before starting work — prior context saves redundant exploration.
+- Use specific keywords. Skip ephemeral details (file contents, temp paths).
+
+## Quality
+- Re-read your response before delivering. Does it answer the question? Anything missing?
+- File deliverables: file_read the output and verify before reporting done.
+- Multi-step tasks: verify each step's output before proceeding.
+
 ## Error recovery
 - Tool fails? Re-read the error, adjust params, try a different approach. Don't retry the same failing call.
 - code_exec missing package: run \`pip install <pkg>\` in a new code_exec call, then retry. The error output names the missing package.

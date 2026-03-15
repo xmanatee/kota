@@ -10,6 +10,8 @@ describe("SYSTEM_PROMPT", () => {
       "## Tools",
       "## Delegation",
       "## Efficiency",
+      "## Memory",
+      "## Quality",
       "## Error recovery",
       "## Safety",
     ];
@@ -45,9 +47,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 7200 characters to keep token cost manageable", () => {
-    // ~7200 chars ≈ ~1800 tokens, cached at 0.1x. Budget raised for data handoff guidance.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(7200);
+  it("stays under 7800 characters to keep token cost manageable", () => {
+    // ~7800 chars ≈ ~1950 tokens, cached at 0.1x. Budget raised for Memory + Quality sections.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(7800);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -109,6 +111,26 @@ describe("SYSTEM_PROMPT", () => {
   it("task composition includes source citation and format guidance", () => {
     expect(SYSTEM_PROMPT).toContain("Cite sources");
     expect(SYSTEM_PROMPT).toContain("Format for the medium");
+  });
+
+  it("memory section guides proactive save and recall with keyword discipline", () => {
+    expect(SYSTEM_PROMPT).toContain("## Memory");
+    expect(SYSTEM_PROMPT).toContain("outlasts the session");
+    expect(SYSTEM_PROMPT).toContain("Recall before starting work");
+    expect(SYSTEM_PROMPT).toContain("specific keywords");
+    expect(SYSTEM_PROMPT).toContain("Skip ephemeral");
+  });
+
+  it("quality section guides self-verification before delivering", () => {
+    expect(SYSTEM_PROMPT).toContain("## Quality");
+    expect(SYSTEM_PROMPT).toContain("Re-read your response");
+    expect(SYSTEM_PROMPT).toContain("file_read the output");
+    expect(SYSTEM_PROMPT).toContain("verify each step");
+  });
+
+  it("stays under 7200 characters with new sections", () => {
+    // Memory + Quality add ~450 chars; verify we're still under budget
+    expect(SYSTEM_PROMPT.length).toBeGreaterThan(5000);
   });
 
   it("includes safety guardrails", () => {

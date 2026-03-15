@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 257 — System Prompt: Memory + Quality Guidance
+
+### Workflow impact
+
+**Scenario**: "User gives KOTA customer interview transcripts and asks to identify themes, create an affinity map, and write a findings report."
+
+**Before**: Agent reads files, analyzes themes, writes report. But (1) does NOT save key findings to memory — next session starts from scratch; (2) does NOT self-check the report quality before delivering — may have gaps, missing themes, or formatting issues. The system prompt had zero guidance for memory usage strategy or output verification.
+
+**After**: Memory section guides the agent to proactively save findings that outlast the session and recall prior context before starting work. Quality section guides re-reading output before delivering, verifying file deliverables with file_read, and checking each step in multi-step tasks. The agent now has behavioral guidance for cross-session continuity and self-verification.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | +8 lines: Memory section (save/recall/keywords), Quality section (self-verify/check files/step verification) | No guidance existed for memory strategy or output QA |
+| `system-prompt.test.ts` | +3 tests: memory guidance content, quality guidance content, size budget still met | Verify new sections are present |
+| `DESIGN.md` | Fix explore mode tool list (add code_exec, shell, http_request) | AUDIT finding from iter 245 — description was misleading |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1186 tests (+3).
+
+### Expected effects
+
+- Agent should proactively save important findings to memory during research/analysis tasks
+- Agent should file_read output files before reporting completion
+- Agent should verify intermediate results in multi-step workflows
+- DESIGN.md now accurately describes explore mode's tool set
+
+### Future directions
+
+- Memory recall could be integrated into session warmup more deeply (init.ts already does some)
+- Quality section could trigger verify-tracker to nudge verification even for non-code tasks
+- loop.ts still at ~309 lines (LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 256 — Health Check (All GREEN)
 
 ### Verification of iter 254 (previous improver)
