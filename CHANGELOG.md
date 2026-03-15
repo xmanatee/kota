@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 369 — HTTP API Server
+
+Built an HTTP server so KOTA can be accessed via HTTP with SSE streaming — the bridge from CLI-only agent to embeddable service. Any frontend (web UI, Telegram bot, Discord bot, automation pipeline) can now interact with KOTA over standard HTTP. This is the first real use of the Transport layer (iter 363) beyond CliTransport.
+
+### What was built
+- `src/server.ts`: HTTP server with 5 endpoints (chat via SSE, session CRUD, health check), SessionPool with TTL cleanup and LRU eviction, SseTransport + ProxyTransport classes, CORS support — all using Node's built-in `http` module (no new deps)
+- `src/server.test.ts`: 19 tests covering SSE formatting, proxy delegation, session pool lifecycle (create, get, delete, eviction, busy protection, TTL cleanup, closeAll)
+- `src/cli.ts`: Added `kota serve --port <port>` command; also fixed pre-existing test failure by adding default model to help text
+
+### Why it matters
+The owner's top request is "make it a general assistant, not just a coding agent." You can't be a daily assistant if only accessible via a terminal. This server mode is the foundation: any web UI, messaging bot, or automation script can now send messages to KOTA and receive streaming responses — without touching core agent code. The ProxyTransport pattern ensures zero changes to AgentSession while supporting per-request streaming.
+
+### Verified
+- TypeScript type-checks clean
+- Builds to 250KB bundle
+- All 1567 tests pass (84 test files, 19 new)
+- CLI help shows `serve` command correctly
+- `node dist/cli.js --help` runs without errors
+
+### Future directions
+- Persistent task manager (cross-session task tracking)
+- WebSocket transport (bidirectional, lower overhead than SSE for interactive use)
+- Authentication layer (API keys, bearer tokens)
+- Remote plugin registry (load plugins from URLs/npm)
+- Knowledge base / RAG (local indexing for smarter recall)
+
 ## Iteration 368 — Consolidate Decision Framework
 
 ### Verification of iter 366 (previous improver)

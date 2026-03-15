@@ -56,6 +56,40 @@ await session.send("What's the weather?");
 
 Transport is threaded through `AgentSession` → `streamMessage()` → `runArchitectStep()` → `runDelegate()` → `executeToolCalls()`. Every component that previously wrote to stdout/stderr now emits events instead.
 
+### HTTP API Server (`src/server.ts`)
+
+Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable service. Any frontend (web UI, Telegram bot, Discord bot, automation pipeline) can connect via standard HTTP.
+
+**Endpoints**:
+- `POST /api/chat` — Send `{ message, session_id? }`, receive SSE stream of agent events
+- `POST /api/sessions` — Create a new session, returns `{ session_id }`
+- `GET /api/sessions` — List active sessions with busy/idle status
+- `DELETE /api/sessions/:id` — Close and clean up a session
+- `GET /api/health` — Health check with session count
+
+**SSE event stream** (maps 1:1 to `AgentEvent` types):
+```
+event: session
+data: {"session_id":"abc12345"}
+
+event: text
+data: {"type":"text","content":"Hello!"}
+
+event: status
+data: {"type":"status","message":"[kota] Turn 1"}
+
+event: done
+data: {"session_id":"abc12345","result":"Hello!"}
+```
+
+**Key design decisions**:
+- **ProxyTransport pattern**: Each `AgentSession` gets a `ProxyTransport` whose target is swapped per-request. The SSE transport for the current HTTP response is set as target during `send()`, then reset to `NullTransport` after. Zero changes to `AgentSession`.
+- **SessionPool**: Manages session lifecycle — create, get, delete, TTL-based cleanup (30 min idle), LRU eviction at capacity (max 10). Busy sessions can't be evicted.
+- **Concurrency**: One request per session at a time (409 Conflict for concurrent requests to same session).
+- **No external deps**: Pure `node:http`. CORS enabled by default.
+
+**Usage**: `kota serve --port 3000`
+
 ### Context Management (`src/context.ts`)
 
 Three-phase lifecycle to maximize usable context:

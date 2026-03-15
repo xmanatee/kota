@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import { runAgentLoop, AgentSession, type LoopOptions } from "./loop.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { loadConfig, expandAlias, type KotaConfig } from "./config.js";
+import { startServer } from "./server.js";
 
 const program = new Command();
 
@@ -15,7 +16,7 @@ program
   .command("run", { isDefault: true })
   .description("Run KOTA with a prompt")
   .argument("[prompt...]", "The task to perform")
-  .option("-m, --model <model>", "Model to use")
+  .option("-m, --model <model>", "Model to use (default: claude-sonnet-4-6)")
   .option("--editor-model <model>", "Model for editor pass and sub-agents (defaults to --model)")
   .option("--max-tokens <n>", "Max tokens per response")
   .option("-v, --verbose", "Show debug output")
@@ -62,6 +63,22 @@ program
     } else {
       await runAgentLoop(prompt, options);
     }
+  });
+
+program
+  .command("serve")
+  .description("Start KOTA as an HTTP API server with SSE streaming")
+  .option("-p, --port <port>", "Port to listen on", "3000")
+  .option("-m, --model <model>", "Model to use")
+  .option("-v, --verbose", "Show debug output")
+  .action((opts) => {
+    const config = loadConfig();
+    startServer({
+      port: Number.parseInt(opts.port, 10),
+      model: opts.model || config.model,
+      verbose: opts.verbose || config.verbose,
+      config,
+    });
   });
 
 /**
