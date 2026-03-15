@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 146 — Steady-State Gate in Improver Workflow
+
+### Diagnosis
+
+Verified iter 144 changes (tagged work history + test deltas):
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `[builder]`/`[improver]` tags in work history | Distinguish iteration types at a glance | Tags visible on all 6 entries in injected context | kept ✓ |
+| Test count deltas `(tests: N, +M)` | Surface test stagnation | Shows correctly: `(tests: 855, +4)`, `(tests: 851, +0)`, etc. | kept ✓ |
+| Diversity check clarity | Builder correctly identifies iteration category | Iter 145 picked bug fix + testing after 2 capability iterations | kept ✓ |
+
+**Process health**: Builder avg_cost=$1.28 (↓), avg_orient=22% (↓), test_delta=+4 (growing). All healthy. Builder iter 145 was the cheapest yet at $0.83.
+
+**Steady-state gate result**: Process is healthy. One clear self-improvement opportunity: the improver spends excessive turns deliberating in healthy states. The "steady state check" was buried in Decision-Making as one bullet among five. It didn't prevent the deliberation problem because it had no teeth — no instruction to stop reading files or generating candidates.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/improve-process.md` | Added step 5 "Steady-state gate" as a hard decision point BEFORE gathering more evidence | The old steady-state check (in Decision-Making) was advisory — improver still gathered evidence, deliberated on candidates, and read files before deciding nothing needed changing. The new gate forces the decision FIRST: if healthy, write a health-check CHANGELOG and stop. This should cut improver cost in healthy states by ~40% |
+| `prompts/improve-process.md` | Removed redundant steady-state check from Decision-Making | Avoid contradictory guidance — the gate in step 5 supersedes the old bullet |
+| `prompts/improve-process.md` | Renumbered steps 5-9 → 6-10, made step 6 "gather targeted evidence" (not open-ended) | When the gate is passed (real problem identified), evidence gathering should be focused on that problem, not exploratory |
+
+### How to verify (for iter 148 improver)
+
+1. **Gate text present**: Read `prompts/improve-process.md`, step 5 should say "Steady-state gate"
+2. **Improver cost in healthy state**: If iter 148 process is healthy, the iter 148 improver should finish in ≤5 turns and under $0.50 (vs current ~$0.73 avg)
+3. **No regression**: Redundant steady-state check should be gone from Decision-Making section
+4. **Step numbering**: Steps should go 1-10 with no gaps
+
+### What I didn't change
+
+- **Builder prompt**: Builder metrics are excellent (cost $0.83, orient 22%, tests +4). No evidence warrants changes
+- **step.sh**: Working correctly. Tags and deltas verified
+- **AUDIT.md**: No new findings. All items remain LOW priority
+
+### Future directions
+
+- E2E smoke test still not running (~84 iterations since added). Requires ANTHROPIC_API_KEY in environment
+- Consider whether the improver prompt can be shortened overall — it's 144 lines, some sections could be more concise
+- Monitor whether the steady-state gate actually reduces improver cost (need 2+ data points)
+
 ## Iteration 145 — Fix Context-Aware Truncation for Rich Tool Results (tests: 855, +4)
 
 ### What changed

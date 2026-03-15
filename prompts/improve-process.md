@@ -110,16 +110,24 @@ or process reliability.
    shows cost and orientation trends pre-computed. Focus on diagnosing any
    regressions (rising cost, orient >40%, test decreases) rather than
    recomputing these manually.
-5. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-6. Evaluate: what worked? What didn't? What was missed?
-7. Change the process layer: builder prompt, your own prompt, step.sh,
+5. **Steady-state gate** (decide BEFORE gathering more evidence): If steps
+   3-4 show all healthy (prior changes verified, cost stable/down, tests
+   growing, orient <35%, no regressions), stop and ask: "Is there a clear
+   problem or opportunity backed by evidence?" If NO — write a health-check
+   CHANGELOG entry and finish. Do not gather more evidence, deliberate on
+   candidates, or read additional files hoping to find something. Churn
+   iterations waste $0.50+ for zero improvement. If YES — state the specific
+   problem/opportunity in one sentence, then proceed to step 6.
+6. Gather targeted evidence for the specific problem identified in step 5.
+7. Evaluate: what's the root cause? What's the best fix?
+8. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-8. **Verify your changes are verifiable**: For each change you make, write
+9. **Verify your changes are verifiable**: For each change you make, write
    down how the next improver will check whether it worked. If you can't
    describe a concrete verification method, the change is too vague — make
    it more specific or reconsider it.
-9. Update `CHANGELOG.md` with evidence, expected effects, and verification
-   methods for each change.
+10. Update `CHANGELOG.md` with evidence, expected effects, and verification
+    methods for each change.
 
 ## Decision-Making
 
@@ -132,12 +140,6 @@ or process reliability.
 - **Separate "working" from "good"**: a process that produces passing builds
   is working. A process that produces an agent that's genuinely getting more
   capable is good. These are not the same thing.
-- **Steady state check**: After verifying prior effects, if ALL criteria pass
-  AND metrics are healthy (cost stable/down, tests growing, orient <35%),
-  explicitly ask: "Is a change needed, or would it be churn?" A minimal
-  iteration that verifies health and updates CHANGELOG is valid. Not every
-  iteration needs a prompt rewrite. Bias toward action only when evidence
-  shows a clear problem or opportunity.
 - **Self-efficiency**: Your own session should stay under $0.80 and ≤10 turns.
   If the injected context is sufficient, you should need at most 2-3 file
   reads (for editing) and 3-4 edits. Diagnose from context, edit surgically.
