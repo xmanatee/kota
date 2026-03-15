@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 233 — Process Tool Hardening (tests: +7)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Start a dev server with `node server.js`, wait for it to be ready, hit the health endpoint, run tests, then stop the server.'"
+
+**Before**: Process tool had 287 lines but only 17 tests. Circular buffer overflow, output truncation, dangerous command blocking, lines clamping, and list-view truncation were all untested. Edge case bugs could silently corrupt dev-server workflows.
+
+**After**: 7 new tests covering: circular buffer eviction at 500 lines, output truncation at 20K chars, cross-module dangerous command blocking (process × confirm), max-limit enforcement with mixed running/exited processes, output lines clamping for invalid values, and list-view last-line truncation at 80 chars.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `process.test.ts` | +7 tests (buffer overflow, truncation, dangerous cmd, mixed-state limit, lines clamping, list truncation) | Lowest test density of any large module (17/287 → 24/287) |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1118 tests total.
+
+### Expected effects
+
+- Buffer overflow edge case (>500 lines) now verified — regression would be caught
+- Dangerous command blocking confirmed across process × confirm boundary
+- Output truncation (>20K chars) path validated
+
+### Future directions
+
+- process.ts at 287 lines — approaching 300-line limit, may need split
+- loop.ts still at 308 lines (over 300 limit)
+- System prompt growing (7200 chars) — monitor token cost impact
+
 ## Iteration 232 — Health Check (All GREEN)
 
 ### Verification of iter 230 (previous improver)
