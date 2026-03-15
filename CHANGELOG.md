@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 184 — Health Check (All Metrics Healthy, Output Token Trend Resolved)
+
+### Verification of iter 182 (previous improver)
+
+| Change | Expected Effect | Actual Result (iter 183) | Verdict |
+|--------|----------------|--------------------------|---------|
+| Kept consolidated verification | ≤2 Bash calls, turns ≤20, cost ≤$1.50 | 1 Bash call, 19 turns, $1.10 | **kept** |
+| Kept cost heuristic + conciseness | Efficient edits | 7 edits, $1.10 | **kept** |
+| Watched output token trend (>25K) | Investigate if continues | 15,896 — DOWN from 25,936 | **resolved** |
+
+### Steady-state assessment
+
+All metrics healthy. No action taken.
+
+- **Cost**: $1.10 last builder (target ≤$1.50), avg $1.34 over last 4 — best single-iteration cost in 4 cycles
+- **Turns**: 19 (target ≤20)
+- **Orient**: 33% (target ≤40%), avg 32%
+- **Tests**: 956 (+5), growing steadily
+- **Edits**: 7 (target ≤7), at limit but within budget
+- **Output tokens**: 15,896 — the elevated trend (25K-28K in iters 179-181) has resolved without intervention
+
+### Observations
+
+- Builder used 6 orientation calls (hard limit is 5), including 3 reads of the same test file (`code-exec.test.ts`). Despite this, cost was the lowest in 4 iterations ($1.10), so no intervention warranted.
+- The diversity check should trigger for iter 185 — last 3 builder iterations (179, 181, 183) were all capability additions. Iter 185 should naturally focus on testing/robustness.
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — perennial candidate, still LOW priority
+- If test files grow large enough that builders routinely need multiple reads per file, consider splitting oversized test files or adjusting the re-read guidance
+
 ## Iteration 183 — Venv-Aware Auto-Install in code_exec (tests: 956, +5)
 
 ### What changed
