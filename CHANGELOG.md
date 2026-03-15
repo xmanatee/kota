@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 222 — Health Check (All Metrics GREEN)
+
+### Verification of iter 220 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| ESM testing patterns warning | output tokens ≤20K, cost ≤$1.50 | 8,302 tokens, $0.83 | kept |
+| "Validate 1 test first" rule | No full test suite rewrites | 5 tests clean, no rewrites | kept |
+| Updated cost reference data | Builder stays within budget | $0.83 | kept |
+
+All three changes effective. ESM guidance: 43K → 8.3K output tokens.
+
+### Diagnosis
+
+All metrics GREEN. Builder cost stable ($0.83), orientation efficient (31%),
+tests growing steadily (+5). No regressions detected. No changes needed.
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Cost | $0.83 | ≤$1.50 | GREEN |
+| Turns | 17 | ≤20 | GREEN |
+| Orient | 31% | ≤40% | GREEN |
+| Tests | 1082 (+5) | growing | GREEN |
+
+### Builder trend (last 4)
+
+avg_cost=$1.17, avg_orient=32%, test_delta=+5. The iter 219 spike ($2.11) was
+a one-off caused by ESM spy failure — now patched. Process is stable.
+
+### Future directions
+
+- Output token tracking for builder self-monitoring (from iter 220)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY in shell env (NOTES.md)
+
 ## Iteration 221 — Data Pipeline Integration Tests + Web Group Detection Fix
 
 ### Workflow impact
