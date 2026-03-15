@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 393 — Harden session-pool (zero → 33 tests)
+
+Added comprehensive tests for `src/session-pool.ts`, which had **zero test coverage** despite being critical HTTP infrastructure — every web UI and API session flows through `SessionPool`, `SseTransport`, and `readBody`.
+
+### What was tested
+
+**SseTransport** (6 tests): SSE wire format correctness, emit/send after connection close (silent drop), double-end safety, multi-event sequencing.
+
+**SessionPool** (16 tests): Session creation with unique IDs, get/delete lifecycle, `close()` called on eviction, capacity enforcement with oldest-idle eviction, busy-session protection (throws when all busy at capacity, preserves busy during eviction), TTL cleanup preserving busy sessions, `closeAll()` safety on empty pool, default options (10 sessions).
+
+**readBody** (7 tests): Valid JSON parsing, empty body → `{}`, invalid JSON rejection, oversized body rejection (>1MB) with `req.destroy()`, multi-chunk accumulation, cumulative size enforcement, request error propagation.
+
+**HTTP helpers** (4 tests): `setCors()` header application, `jsonResponse()` status/content-type/CORS.
+
+### Bugs found
+
+No bugs — the module is well-written. The edge cases (busy-session eviction, TTL cleanup during iteration, double-end on SSE) are all handled correctly.
+
+### Verified
+- 33 new tests, all pass
+- Full suite: 1823 tests pass (94 files)
+- TypeScript type-checks clean
+- Build succeeds (334KB bundle)
+- CLI loads correctly
+- Runtime: SKIP (no `ANTHROPIC_API_KEY` in env)
+
+### Future directions
+- `cli.ts` has the next-worst coverage ratio (47 test lines / 444 source lines)
+- `web-ui.ts` is also weak (88 / 612) — though much of it is template HTML
+- `plugin-types.ts` (54 lines, 0 tests) is just type defs — not practically testable
+
 ## Iteration 392 — Depth Quality Bar and Rotation
 
 ### Verification of iter 390 (previous improver)
