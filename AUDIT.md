@@ -46,13 +46,22 @@ AST extraction, error handling (iter 163).
 repl-session-execute (7) — REPLSession.execute × code-wrappers sentinel protocol:
 Python/Node.js execution, state persistence, stderr collection, restart after
 kill, SIGINT timeout, output cleanliness (iter 171).
-csv-metadata (5) — CSV/TSV metadata prepending in file_read: header detection,
-quoted headers, TSV delimiter, empty data, offset/limit with metadata (iter 173).
+csv-metadata (9) — CSV/TSV metadata prepending in file_read: header detection,
+quoted headers, TSV delimiter, empty data, offset/limit with metadata (iter 173),
+embedded delimiters, escaped quotes, single-line, mixed quoted/unquoted (iter 177).
+csv-truncation (2) — runFileRead CSV × truncateToolResult: metadata preserved
+after truncation, metadata in head portion of large result (iter 177).
 system-context (3) — date/platform in session warmup: date format with day of
 week, date matches local time, platform info included (iter 175).
-Total suite: 937.
+Total suite: 943.
 
 No untested modules remain. All modules above minimum test density threshold.
+
+## code-exec.ts — extractMissingPackage rejects dotted npm names (iter 177, LOW)
+
+`extractMissingPackage` validates Node.js package names with `[a-zA-Z0-9_-]+`
+which excludes dots. Packages like `socket.io` won't trigger auto-install.
+Rare in practice — most npm packages use hyphens, not dots.
 
 ## Large files over 300-line limit (iter 127→163, LOW)
 

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { runFileRead } from "./file-read.js";
+import { truncateToolResult } from "../context.js";
 
 const TEST_DIR = join(process.cwd(), ".test-file-read");
 
@@ -351,5 +352,59 @@ describe("file_read: CSV/TSV metadata", () => {
     const result = await runFileRead({ path, offset: 3, limit: 2 });
     expect(result.content).toContain("[CSV: 5 data rows × 2 columns");
     expect(result.content).toContain("3,4");
+  });
+
+  it("handles embedded delimiter in quoted header fields", async () => {
+    const path = join(TEST_DIR, "embedded.csv");
+    writeFileSync(path, '"Revenue, USD",Category,Count\n1000,A,5\n2000,B,3\n');
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("[CSV: 2 data rows × 3 columns | Revenue, USD, Category, Count]");
+  });
+
+  it("handles escaped quotes in header fields", async () => {
+    const path = join(TEST_DIR, "escaped.csv");
+    writeFileSync(path, '"Company ""A""",Revenue\n1000,2000\n');
+    const result = await runFileRead({ path });
+    expect(result.content).toContain('[CSV: 1 data rows × 2 columns | Company "A", Revenue]');
+  });
+
+  it("handles single-line CSV without trailing newline", async () => {
+    const path = join(TEST_DIR, "headeronly.csv");
+    writeFileSync(path, "x,y,z");
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("[CSV: 0 data rows × 3 columns | x, y, z]");
+  });
+
+  it("handles mixed quoted and unquoted headers", async () => {
+    const path = join(TEST_DIR, "mixed.csv");
+    writeFileSync(path, 'id,"Full Name",age,"City, State"\nA,Bob,30,"NY, US"\n');
+    const result = await runFileRead({ path });
+    expect(result.content).toContain("[CSV: 1 data rows × 4 columns | id, Full Name, age, City, State]");
+  });
+});
+
+describe("file_read × context: CSV metadata survives truncation", () => {
+  it("CSV metadata preserved after truncateToolResult", async () => {
+    const path = join(TEST_DIR, "trunctest.csv");
+    const header = '"Amount, USD",Category,Region\n';
+    const rows = Array.from({ length: 50 }, (_, i) => `${i * 100},Cat${i},R${i}\n`).join("");
+    writeFileSync(path, header + rows);
+    const result = await runFileRead({ path });
+    const truncated = truncateToolResult(result.content, 200);
+    expect(truncated).toContain("[CSV:");
+    expect(truncated).toContain("Amount, USD");
+  });
+
+  it("large CSV result keeps metadata in head portion of truncation", async () => {
+    const path = join(TEST_DIR, "bigtrunc.csv");
+    const header = "name,value,description\n";
+    const rows = Array.from({ length: 200 }, (_, i) =>
+      `item${i},${i * 42},${"x".repeat(80)}\n`,
+    ).join("");
+    writeFileSync(path, header + rows);
+    const result = await runFileRead({ path });
+    const truncated = truncateToolResult(result.content, 500);
+    expect(truncated).toContain("[CSV: 200 data rows × 3 columns | name, value, description]");
+    expect(truncated).toContain("chars omitted");
   });
 });

@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 177 — Fix CSV Quoted-Field Parsing + Hardening Tests (tests: 943, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/file-read.ts` | Added `parseCsvRow()` — RFC 4180-aware field parser replacing naive `split(delimiter)` in `formatCsvMetadata` | Headers with embedded delimiters (e.g., `"Revenue, USD"`) were garbled — wrong column count, wrong names |
+
+### Bug fixed
+
+`formatCsvMetadata` used `lines[0].split(delimiter)` to parse CSV headers. This broke on RFC 4180-compliant CSV files where header fields contain the delimiter inside quotes. Example: `"Revenue, USD",Category,Count` was parsed as 4 columns (`"Revenue`, `USD"`, `Category`, `Count`) instead of 3.
+
+The new `parseCsvRow()` handles: quoted fields with embedded delimiters, escaped quotes (`""`), and mixed quoted/unquoted fields.
+
+### Workflow impact
+
+**Scenario**: "Read this revenue CSV, find top-5 categories by revenue, plot a bar chart."
+
+**Before**: If the CSV had headers like `"Revenue, USD",Category,Count`, the metadata showed `[CSV: 2 data rows × 4 columns | "Revenue, USD", Category, Count]` — garbled column names with wrong count. Agent would generate pandas code referencing non-existent columns, causing errors in the REPL session.
+
+**After**: Metadata correctly shows `[CSV: 2 data rows × 3 columns | Revenue, USD, Category, Count]`. Agent gets accurate column names and count, generates correct `df["Revenue, USD"]` references from turn 1.
+
+### Verification
+
+- 943 tests pass (937 → 943, +6 new)
+  - 4 unit tests: embedded delimiter, escaped quotes, single-line CSV, mixed quoted/unquoted
+  - 2 cross-module tests (file-read × context): CSV metadata survives `truncateToolResult` with correct content
+- Typecheck clean, build clean, CLI loads
+- 4 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- CSV files with RFC 4180-compliant quoted headers now produce correct metadata
+- Agent should generate correct column references for data analysis tasks
+- Cross-module: metadata reliably survives context truncation (first 60% of output preserved)
+
+### Future directions
+
+- `extractMissingPackage` in code-exec.ts rejects npm package names with dots (e.g., `socket.io`) — LOW, rare
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) still the top optimization candidate
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+
 ## Iteration 176 — Health Check (Edit Tracking Verified)
 
 ### Verification of iter 174 (previous improver)
