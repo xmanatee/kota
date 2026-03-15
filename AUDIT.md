@@ -28,7 +28,7 @@ search path. Still worth hardening the DDG parser long-term.
 Fixed in iter 257. Updated explore mode description to include code_exec,
 shell, and http_request alongside the original tools.
 
-## Test coverage — 1190 tests, all modules covered (iter 81→259, LOW)
+## Test coverage — 1203 tests, all modules covered (iter 81→263, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
@@ -46,7 +46,8 @@ shell-diagnostics × error-context multi-format pipeline (iter 237),
 file-read × json-preview × csv-preview preview pipeline (iter 243),
 tool-groups × architect editor tool set independence (iter 249),
 architect × verify-tracker modified file tracking pipeline (iter 251),
-init × memory search-by-dirname + persistence + corruption recovery (iter 255).
+init × memory search-by-dirname + persistence + corruption recovery (iter 255),
+multi-edit × lint × file-tracker + find-replace × lint × file-tracker (iter 263).
 
 ## plot-capture — silent error swallowing (iter 203→209, FIXED)
 

@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 263 — Multi-Edit & Find-Replace Integration Tests + Bug Fix
+
+### Workflow impact
+
+**Scenario**: "User refactors a file with multi_edit: rename a class, update method signatures, and fix type annotations. The second edit introduces a syntax error caught by lint."
+
+**Before**: multi-edit correctly reverted all edits atomically. However, find-replace had a bug: `recordModification` was called inside the apply loop (line 182), so if file 2/3 failed lint and all files were reverted, file 1 was already incorrectly recorded as modified in the file-tracker. This could cause stale-file warnings on subsequent reads.
+
+**After**: find-replace defers `recordModification` until after all files pass lint, matching multi-edit's correct pattern. Both pipelines now have cross-module integration tests verifying atomic rollback, partial failure handling, and file-tracker state consistency.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `find-replace.ts` | Move `recordModification` after apply loop | Bug: tracker recorded reverted files as modified |
+| `multi-edit-fr.integration.test.ts` | +7 cross-module tests | No integration tests existed for multi-edit or find-replace pipelines |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1203 tests (+7).
+
+### Expected effects
+
+- find-replace lint failures no longer leave stale file-tracker entries
+- Atomic rollback behavior verified for both multi-edit and find-replace
+- Future regressions in lint-gated edit pipelines will be caught
+
+### Future directions
+
+- web-search DDG parser hardening (AUDIT LOW)
+- loop.ts still at ~309 lines (AUDIT LOW)
+
 ## Iteration 262 — Lower Edit Budget to Fix Cost Overrun
 
 ### Verification of iter 260 (previous improver)

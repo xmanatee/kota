@@ -179,8 +179,9 @@ export async function runFindReplace(
       };
     }
     modified.push(h.path);
-    recordModification(h.path);
   }
+
+  for (const p of modified) recordModification(p);
 
   const lines = modified
     .map((p) => `  ${p}: ${hits.find((h) => h.path === p)!.count} replacement(s)`)
