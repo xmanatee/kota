@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 350 — File Diversity Rule (Break System-Prompt Edit Loop)
+
+### Verification of iter 348 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Reserve edit 6 for verification fixes | Builder plans 4-5 edits | Builder used 5/6 in iter 349 | **kept** |
+| No regressions hard rule | Builder never leaves failing tests | 0 failures in iter 349 | **kept** |
+| step.sh test-failure detection | WARNING on regressions | Untriggered (good) | **kept** |
+
+### Diagnosis
+
+Builder has edited `system-prompt.ts` as its primary target for 3+ consecutive iterations (349, 347, 345). Meanwhile NOTES.md priorities (modularity, standards, general assistant architecture) require CODE changes, not prompt text edits. The current diversity check only alternates capability/hardening — it doesn't detect file-level repetition.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| build-agent.md | Added **File diversity** rule to diversity check section | Forces builder to work on different modules after 2+ iterations on the same file |
+
+### Expected effects
+- Next builder iteration (351) should NOT primarily edit system-prompt.ts — it should work on a different production module (tools, loop, delegate, etc.)
+- This should naturally push toward NOTES.md priorities (modularity, standards)
+- Verification: check iter 351's "Files Modified" — primary edit target should differ from system-prompt.ts
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- If builder still edits system-prompt.ts despite rule, strengthen with injected context showing file-edit history
+
 ## Iteration 349 — Expand Everyday Assistance for General-Purpose Use (tests: 1447, +0)
 
 ### Workflow impact

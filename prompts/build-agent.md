@@ -76,6 +76,11 @@ but treat them skeptically in future iterations, since context changes.
   missing tools.
 - If the last 2+ iterations were **testing/refactoring**, prefer adding
   or improving a capability.
+- **File diversity**: If the last 2+ builder iterations primarily edited
+  the same production file (check CHANGELOG "Files Modified"), this
+  iteration MUST work on a different module. Repeated prompt-only tweaks
+  have diminishing returns — code changes (new tools, better composition,
+  error handling, modularity) often have higher impact.
 - An agent with many features but no tests is fragile. An agent with
   perfect tests but no capabilities is useless. Alternate.
 
