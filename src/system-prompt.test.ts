@@ -49,9 +49,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 8200 characters to keep token cost manageable", () => {
-    // ~8500 chars ≈ ~2125 tokens, cached at 0.1x. Budget raised for delegation guidance.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(8500);
+  it("stays under 8800 characters to keep token cost manageable", () => {
+    // ~8800 chars ≈ ~2200 tokens, cached at 0.1x. Budget raised for data analysis workflow expansion.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(8800);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -132,6 +132,34 @@ describe("SYSTEM_PROMPT", () => {
   it("execution tools include notebook for reproducible analysis", () => {
     expect(SYSTEM_PROMPT).toContain("notebook");
     expect(SYSTEM_PROMPT).toContain("reproducible analysis");
+  });
+
+  it("data analysis workflow includes data quality inspection and notebook guidance", () => {
+    const dataSection = SYSTEM_PROMPT.split("### Data Analysis")[1]?.split("###")[0] || "";
+    expect(dataSection).toContain("duplicates");
+    expect(dataSection).toContain("distributions");
+    expect(dataSection).toContain("notebook");
+    expect(dataSection).toContain(".ipynb");
+  });
+
+  it("data analysis includes data cleaning step before analysis", () => {
+    const dataSection = SYSTEM_PROMPT.split("### Data Analysis")[1]?.split("###")[0] || "";
+    expect(dataSection).toContain("Clean before analyzing");
+    expect(dataSection).toContain("missing values");
+  });
+
+  it("data analysis pipeline: prompt tools match registry (cross-module)", () => {
+    const dataSection = SYSTEM_PROMPT.split("### Data Analysis")[1]?.split("###")[0] || "";
+    expect(dataSection).toContain("code_exec");
+    expect(dataSection).toContain("notebook");
+    expect(dataSection).toContain("matplotlib");
+    // Verify referenced tools exist in registry
+    expect(allTools.find((t) => t.name === "code_exec")).toBeDefined();
+    expect(allTools.find((t) => t.name === "notebook")).toBeDefined();
+  });
+
+  it("data analysis references seaborn alongside matplotlib", () => {
+    expect(SYSTEM_PROMPT).toContain("seaborn");
   });
 
   it("memory section guides proactive save and recall with keyword discipline", () => {

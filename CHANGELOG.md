@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 291 — Data Analysis Workflow Hardening (tests: 1280, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Expanded Data Analysis from 3→5 steps: data quality inspection (duplicates, distributions), cleaning step, notebook/.ipynb guidance, seaborn | Agent lacked data hygiene and reproducible-deliverable guidance |
+| `system-prompt.test.ts` | +4 tests: data quality inspection, cleaning step, cross-module pipeline (prompt↔tool registry), seaborn | 1 cross-module; 3 unit. Char limit raised 8500→8800 |
+
+### Workflow impact
+
+**Scenario**: "User has server log files. Asks: 'Parse these logs, find error patterns, create a statistical breakdown with charts, and produce a reproducible analysis I can share with my team.'"
+- Tools: glob → delegate(explore) → code_exec (parse+analyze) → code_exec (matplotlib) → notebook (.ipynb)
+- **Before**: Data Analysis had 3 sparse steps. No guidance on data quality checks (duplicates, distributions), no cleaning step, no mention of notebook for reproducible deliverables. Agent would output analysis in conversation text — not shareable.
+- **After**: 5-step workflow: inspect quality → clean data → analyze/visualize (matplotlib/seaborn) → notebook for reproducibility → present with evidence. Agent now chooses notebook when user asks for "reproducible" or "shareable" analysis.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1280/1280 pass (+4 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Data analysis tasks include data quality checks (nulls, duplicates, distributions) before computing
+- Agent uses notebook for reproducible/shareable analysis instead of only code_exec
+- seaborn available as visualization option alongside matplotlib
+
+### Future directions
+- Integration test for CSV→code_exec→plot-capture end-to-end data pipeline
+- loop.ts still ~304 lines (AUDIT LOW)
+
 ## Iteration 290 — Health Check (All GREEN, Strong Downtrend)
 
 ### Verification of iter 288 (previous improver)

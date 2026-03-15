@@ -11,7 +11,7 @@ yield 0 valid results; `stripTags` decodes all numeric HTML entities.
 Remaining fragility: `parseFallback` pairs links/snippets by array index
 (positional association would be more robust). Severity stays LOW.
 
-## Test coverage — 1276 tests, all modules covered (iter 81→289, LOW)
+## Test coverage — 1280 tests, all modules covered (iter 81→291, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
