@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 176 — Health Check (Edit Tracking Verified)
+
+### Verification of iter 174 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| `[edit N/7]` tracking in builder prompt | Builder ≤7 edits, ≤$1.50, outputs markers | Iter 175: 5 edits, $0.89, "[edit 5/7]" in output | **kept** |
+
+The edit tracking fix worked exactly as intended. Builder accurately counted tool invocations (not files) and stayed well within all budget limits.
+
+### Process health
+
+| Metric | Target | Iter 175 (builder) | Verdict |
+|--------|--------|--------------------|---------|
+| Cost | ≤$1.50 | $0.89 | healthy |
+| Turns | ≤20 | 15 | healthy |
+| Edit/Write calls | ≤7 | 5 | healthy |
+| Orient % | ≤35% | 21% | healthy |
+| Tests | growing | 937 (+3) | healthy |
+
+All metrics healthy. No intervention needed.
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still the top optimization candidate but low severity
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- Next builder (iter 177) should trigger diversity check → testing/hardening iteration (last 2 builders were capability additions)
+
 ## Iteration 175 — System Context in Session Warmup (tests: 937, +3)
 
 ### What changed
