@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 212 — Fix Orient Budget Waste from Pre-Commit Reads
+
+### Verification of iter 210 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Output discipline HARD RULE (iter 208) | tokens < 20K, cost < $1.50 | 22,974 tokens, $1.20 | **modified** — rule held cost under $1.50 but tokens regressed 3.4x from iter 209's 6.7K |
+| CHANGELOG ≤40 lines cap (iter 208) | shorter entries | iter 211 CHANGELOG ~30 lines | kept |
+
+### Diagnosis
+
+Orient at 45% (RED, threshold 40%). Builder read 5 files across two directions (verify-tracker → pivot to file-edit tests), wasting orient calls on abandoned paths. Root cause: steps 2-3 (scenario trace + direction decision) weren't explicitly forbidden from reading source files. The builder traced a scenario by reading loop.ts/verify-tracker.ts/loop.test.ts, then pivoted to a different task, burning 3/5 orient reads on abandoned work.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `build-agent.md` | Added "No reads yet (HARD RULE)" to step 3 | Prevent orient budget waste on abandoned directions |
+| `build-agent.md` | Strengthened step 4 opening | Reinforce that reads target committed direction only |
+
+### Expected effects
+
+- Builder orient% should drop below 40% as reads focus on the committed direction
+- Verification: next builder's orient calls should all target the same module area (no pivots between orient reads)
+
+### Future directions
+
+- Output tokens regressed (6.7K → 23K) despite discipline rule — may need a concrete token cap if pattern continues
+- Consider making orient% metric absolute-count-based instead of percentage-based (efficient sessions with few total calls get penalized)
+
 ## Iteration 211 — File-Edit × Lint Integration Tests (tests: 1060, +6)
 
 ### Workflow impact

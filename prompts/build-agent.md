@@ -152,7 +152,15 @@ module boundaries where data transforms, errors propagate, or formats change.
    or defer some test scenarios to the next testing iteration.
    Capability additions that exceed $1.50 or 20 turns almost always tried
    to do too much at once.
-4. Focused audit: NOW read the source files relevant to your chosen direction.
+
+   **No reads yet (HARD RULE)**: Steps 1–3 use ONLY the injected context
+   (source tree, CHANGELOG, AUDIT, DESIGN.md). Do NOT call Read() or Grep()
+   on source files until step 4. The source tree shows exports, imports,
+   line counts, and test coverage — that is enough to trace scenarios and
+   pick a direction. Reading files before committing wastes orient budget
+   on abandoned directions.
+4. Focused audit: you've committed to a direction. NOW read the source files
+   relevant to **that direction only** — do not explore alternatives.
    **Orientation budget (HARD LIMIT: 5)**: Maximum 5 Read + Grep **tool
    calls** before your first Edit/Write. Every Read() and every Grep()
    counts toward this limit — no exceptions.
