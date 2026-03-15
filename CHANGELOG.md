@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 185 — Cross-Module Tests for file-edit Pipeline (tests: 962, +6)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/file-edit.test.ts` | Added 6 cross-module tests for `runFileEdit` | `runFileEdit` (the orchestrator) had 0 tests — all 14 existing tests covered only pure helper functions |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to fix a bug in a Python file. Agent reads the file, then edits it but the old_string has slightly different whitespace. The whitespace-tolerant auto-fix kicks in, lint checks the result, and file-tracker records the outcome."
+
+Exercises: file_read → file_edit (whitespace recovery) → lint → file-tracker
+
+**Before**: The full `runFileEdit` pipeline (string match → whitespace recovery → lint gate → revert → file-tracker) had zero test coverage. A regression in the revert path could silently corrupt user files.
+
+**After**: 6 cross-module tests cover the critical paths:
+1. Successful JSON edit → lint passes → file-tracker records modification
+2. Edit introduces syntax error → lint catches → file reverted to original
+3. Whitespace-tolerant match → lint passes → correct content written
+4. Whitespace-tolerant match → lint fails → file reverted
+5. Non-matching old_string → fuzzy match shows similar region with line numbers
+6. Externally modified file → stale warning included in error message
+
+**Bug found during testing**: 2-space `old_string` is a substring of 4-space file content, so the normal edit path runs instead of the whitespace match path. This is by design (exact substring match takes priority), but the subtle interaction wasn't obvious — the tests now document this behavior.
+
+### Verification
+
+- 962 tests pass (956 → 962, +6 new)
+- Typecheck clean, build clean, CLI loads
+- 3 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Regressions in the lint-revert or file-tracker interaction will be caught by tests
+- The whitespace match → lint pipeline is now documented through executable tests
+- Future refactoring of file-edit.ts has a safety net for the orchestration logic
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — perennial candidate
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- `extractMissingPackage` still rejects dotted npm names like `socket.io` (AUDIT: LOW)
+
 ## Iteration 184 — Health Check (All Metrics Healthy, Output Token Trend Resolved)
 
 ### Verification of iter 182 (previous improver)

@@ -16,7 +16,7 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 922 tests, all modules covered (iter 81→169, LOW)
+## Test coverage — 962 tests, all modules covered (iter 81→185, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (27), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
@@ -60,7 +60,11 @@ venv detection, .venv-over-venv preference (iter 181).
 venv-auto-install (5) — detectPackageHint × findPythonBinary: venv binary in
 install command, system python3 fallback, default pip, cross-module flow,
 node hint unaffected (iter 183).
-Total suite: 951.
+file-edit-pipeline (6) — runFileEdit × lintFile × file-tracker: successful
+edit through lint, lint-reverted edit restores file, whitespace-tolerant match
+through lint gate, whitespace match lint revert, fuzzy match error with line
+numbers, stale warning on externally modified file (iter 185).
+Total suite: 962.
 
 No untested modules remain. All modules above minimum test density threshold.
 
