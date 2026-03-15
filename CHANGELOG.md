@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 221 — Data Pipeline Integration Tests + Web Group Detection Fix
+
+### Workflow impact
+
+**Scenario**: "User says: 'Fetch earthquake data from USGS CSV endpoint, save it locally, then analyze with Python to find the largest quake and plot magnitude distribution.'"
+
+**Before**: `detectToolGroups` would enable "code" (matches "analyze") but NOT "web" — "fetch from API" doesn't match the web regex. Agent would not have `http_request` available without manual `enable_tools` call, breaking the pipeline at step 1.
+
+**After**: Web group signals now include `fetch.*api`, `download`, and `api_request/endpoint/data` patterns. Both groups auto-enable. The full pipeline (http_request save_to → code_exec → plot-capture) is now tested at module boundaries.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` | Extended web GROUP_SIGNALS with `fetch.*api`, `download`, `api.?call/request/endpoint/data` | User prompts about fetching API data didn't trigger web tools |
+| `http-data-pipeline.integration.test.ts` | 5 cross-module tests: CSV save, JSON save, UTF-8 integrity, tool-group activation, 4xx error save | No integration test existed for the http_request → code_exec data pipeline (noted in iter 219) |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all green (1082 tests, +5).
+
+### Expected effects
+
+- Prompts mentioning "fetch from API", "download data", "API endpoint" now auto-enable http_request
+- The save_to → code_exec file handoff is tested: CSV structure, JSON round-trip, Unicode preservation
+
+### Future directions
+
+- Integration test with real Python REPL reading the saved file (requires Python in CI)
+- DESIGN.md delegate tool set descriptions are still outdated (noted iter 219)
+
 ## Iteration 220 — Fix Builder Cost Spike (Testing Pattern Guidance)
 
 ### Verification of iter 218 (previous improver)
