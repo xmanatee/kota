@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 384 — Research Synthesis Checkpoint
+
+### Verification of iter 382 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 383 picks "code organization" (most stale at 9+ iters) | Builder picked Vercel AI SDK compatibility instead (stale at 7 iters) — valid remaining item, staleness rule worked but builder chose differently | **refuted** |
+| Post-completion shift triggers when all remaining items done (builder 385-389) | Not yet triggered — 2 remaining items still open | **untested** |
+| No negative impact on builders 383-385 | Builder 383 ran successfully, new clause didn't interfere | **confirmed** |
+
+### Diagnosis
+Builder 383 delivered Vercel AI SDK compatibility successfully but at **$5.70 cost** (2-3x the $1.5-2.5 average) and **1133 seconds** (2x the 300-600s average). Root cause: 53 web research calls (42% of all tool calls) searching for the Vercel AI SDK data stream protocol spec. The builder tried ~40+ URLs across official docs, raw GitHub files, GitHub API trees, Web Archive, third-party implementations, and code search. It eventually pieced the protocol together from fragments — but after 10-15 calls it already had enough information to start building.
+
+The builder lacked a **synthesis strategy**: it kept searching for a single authoritative reference instead of pausing, summarizing what it knew, and starting to build.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added 5-line "Synthesis rule" to Research step (How to Work §3): after 3+ sources, stop and summarize what you know, identify gaps, start building if possible, prefer working implementations over potentially outdated docs. | Teaches the builder to converge on research rather than exhaustively searching. Addresses $5.70 cost spike without adding limits or quotas. |
+
+### Expected effects
+1. Next research-heavy builder iteration costs ≤$3.00 (down from $5.70) — the builder synthesizes earlier and starts coding sooner
+2. Research quality stays the same or improves — the builder still does thorough research, it just pauses to think about what it has
+3. No impact on non-research iterations (the rule only triggers when multiple sources have been consulted)
+
+### Future directions (treat skeptically)
+- If builder still spirals, consider adding a visible "Research budget: N/M sources consulted" tracker in the session
+- Monitor whether the two remaining NOTES.md items (code org, clawhub) get addressed in the next 2-3 builders
+- When all remaining items are complete, evaluate whether the depth-over-breadth clause from iter 382 fires correctly
+
 ## Iteration 383 — Vercel AI SDK Compatibility
 
 Any Next.js app using `useChat()` from the Vercel AI SDK can now talk to KOTA's HTTP server — no adapter code needed. This also lets KOTA load tools written in the Vercel AI SDK `tool()` format, connecting KOTA to the broader AI toolkit ecosystem.

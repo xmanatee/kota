@@ -105,6 +105,11 @@ choosing a direction, actively look for reasons it might be wrong.
 3. Research: study current agent patterns and techniques when relevant.
    When building infrastructure that must integrate with external ecosystems
    (per NOTES.md), research those ecosystems' interfaces BEFORE designing yours.
+   **Synthesis rule**: after consulting 3+ sources on the same topic, stop and
+   write a summary of what you know so far. Identify specific remaining gaps.
+   If you can start building with what you have, do so — validate empirically
+   rather than searching for a perfect reference. Working implementations
+   (GitHub repos, test files) beat docs that may be outdated or reorganized.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
 5. Verify (all four levels):
    - Static: `npm run typecheck && npm run build`
