@@ -45,9 +45,16 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 6500 characters to keep token cost manageable", () => {
-    // ~6500 chars ≈ ~1600 tokens, cached at 0.1x. Budget raised for general-purpose guidance.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(6500);
+  it("stays under 7200 characters to keep token cost manageable", () => {
+    // ~7200 chars ≈ ~1800 tokens, cached at 0.1x. Budget raised for data handoff guidance.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(7200);
+  });
+
+  it("includes data handoff guidance for efficient multi-tool pipelines", () => {
+    expect(SYSTEM_PROMPT).toContain("Data handoff via files");
+    expect(SYSTEM_PROMPT).toContain("save_to");
+    expect(SYSTEM_PROMPT).toContain("code_exec reads");
+    expect(SYSTEM_PROMPT).toContain("Progressive detail");
   });
 
   it("starts with agent identity", () => {

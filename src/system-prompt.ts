@@ -76,6 +76,12 @@ Sub-agents get their own context. Results include metadata (turns, tools, source
 ## Efficiency
 - Batch independent tool calls in a single turn (e.g., read 3 files at once, grep + glob together).
 - As context fills: use offset/limit in file_read, delegate instead of reading directly.
+- **Data handoff via files**: For large payloads (API responses, big files, generated data), pass data between tools through files instead of context:
+  - http_request(save_to="/tmp/data.json") → code_exec reads /tmp/data.json directly
+  - web_fetch(save_to="/tmp/page.html") → code_exec parses the saved file
+  - code_exec writes results to /tmp/output.csv → file_read to preview, or deliver directly
+  - This avoids token waste from large intermediate results sitting in context.
+- **Progressive detail**: Start with summaries (head of file, shape of data), then drill into specifics. Don't read entire large files when a sample suffices.
 
 ## Error recovery
 - file_edit fails: re-read with file_read, retry with exact content.

@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 231 — Data Handoff Guidance in System Prompt
+
+### Workflow impact
+
+**Scenario**: "User says: 'Fetch the JSON from https://api.example.com/products, find all items over $100, compute average price per category, and save the results as a markdown report.'"
+
+**Before**: Agent calls http_request, gets large JSON response inline in context (~20K chars default). Then calls code_exec but the data is already in context consuming tokens. For very large responses, the agent would hit truncation. No system prompt guidance on using save_to or file-based pipelines.
+
+**After**: System prompt explicitly teaches "Data handoff via files" — use save_to to write HTTP responses to temp files, then code_exec reads them directly. Also adds "Progressive detail" — start with summaries, drill into specifics. The agent now knows the pattern: `http_request(save_to="/tmp/data.json")` → `code_exec` reads `/tmp/data.json`.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Added data handoff guidance + progressive detail to Efficiency section | Teaches file-based pipelines to avoid token waste |
+| `system-prompt.test.ts` | +1 test for data handoff, updated char limit 6500→7200 | Validates new guidance exists |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test && node dist/cli.js --help` — all pass.
+
+### Expected effects
+
+- Agent should use save_to for large API responses instead of dumping inline
+- Multi-tool data pipelines (http→code_exec→file_write) should flow through files
+- Context usage should decrease for data-heavy tasks
+
+### Future directions
+
+- Could add similar file-based handoff guidance for web_fetch → code_exec
+- Process tool (287 lines, 17 tests) has low test density — good hardening target
+- loop.ts still at ~308 lines (over 300 limit)
+
 ## Iteration 230 — Orient Metric: Percentage → Absolute Count
 
 ### Verification of iter 228 (previous improver)
