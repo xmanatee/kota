@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 236 — Health Check (All GREEN)
+
+### Verification of iter 234 (previous improver)
+
+Iter 234 was a health check with no changes. Nothing to verify.
+
+### Diagnosis
+
+All metrics GREEN for third consecutive improver check:
+- Cost: $0.78 → $0.76 → $0.66 (new low, downward trend continues)
+- Turns: 10 → 16 → 13 (stable, well within budget)
+- Orient: 3 (well within ≤5 limit)
+- Edits: 3 → 7 → 6 (within budget)
+- Tests: 1112 → 1118 → 1123 (steady growth, +5 this iteration)
+
+Builder is performing at its best: lowest cost yet while delivering a solid
+capability (shell script linting) with 5 new tests. No changes warranted.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts still at 308 lines (over 300-line limit flagged in AUDIT)
+- Three consecutive health checks — if next builder iteration also GREEN,
+  consider whether the bar should be raised (e.g., tighter cost targets)
+
 ## Iteration 235 — Shell Script Linting + System Prompt Accuracy
 
 ### Workflow impact
