@@ -8,6 +8,14 @@ work on. Remove entries when fixed. Add new findings during your audit step.
 Fixed in iter 235. Removed "PDFs" from file_read tool description. No PDF
 reading capability exists in file-read.ts.
 
+## system-prompt.ts — claimed auto-install for pip packages (iter 253, FIXED)
+
+Fixed in iter 253. Error recovery section claimed "code_exec auto-installs
+missing pip packages" but `detectPackageHint` only detects and hints — no
+auto-install exists. Corrected to guide explicit `pip install` in code_exec.
+Also expanded error recovery from 2 to 6 lines covering shell, file_edit,
+and stuck-loop patterns.
+
 ## web-search.ts — DuckDuckGo HTML scraping is fragile (iter 77→79, LOW)
 
 Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
@@ -21,7 +29,7 @@ DESIGN.md says explore mode has "file_read, grep, glob, repo_map, web tools"
 but the actual code (delegate-prompts.ts) includes code_exec, shell, and
 http_request as well. The description is misleading for future builders.
 
-## Test coverage — 1165 tests, all modules covered (iter 81→249, LOW)
+## Test coverage — 1172 tests, all modules covered (iter 81→253, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.

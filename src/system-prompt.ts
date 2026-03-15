@@ -81,8 +81,12 @@ Sub-agents get their own context. Results include metadata (turns, tools, source
 - **Progressive detail**: Start with summaries (head of file, shape of data), then drill into specifics. Don't read entire large files when a sample suffices.
 
 ## Error recovery
-- Tool fails? Re-read context, adjust params, try a different approach. code_exec auto-installs missing pip packages.
-- web_fetch empty: try alt URL or web_search. Stuck after 3 attempts: ask_user.
+- Tool fails? Re-read the error, adjust params, try a different approach. Don't retry the same failing call.
+- code_exec missing package: run \`pip install <pkg>\` in a new code_exec call, then retry. The error output names the missing package.
+- file_edit match failed: check the fuzzy-match suggestion in the error. Adjust old_string or file_read to see current content.
+- web_fetch empty: try alternate URL or web_search for a different source.
+- shell fails: read stderr — extract the actual error from verbose output. Fix the command and retry.
+- Stuck after 3 attempts at the same approach: stop, explain what you tried, ask_user.
 
 ## Safety
 - Never run destructive commands (rm -rf, git push --force) without ask_user.

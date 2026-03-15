@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 253 — Fix Error Recovery Guidance in System Prompt (tests: 1172, +2)
+
+### Workflow impact
+
+**Scenario**: "User has a directory of production log files, asks KOTA to find the root cause of an outage — analyze error patterns, find when they started, write a summary."
+
+**Before**: Error recovery section (2 lines) claimed "code_exec auto-installs missing pip packages." If the analysis needed `dateutil` or `pandas`, the agent assumed packages self-installed and didn't take action → repeated `ModuleNotFoundError` with no recovery. No guidance for shell failures, file_edit match failures, or general stuck-loop avoidance.
+
+**After**: Error recovery (6 lines) guides explicit `pip install` in a new code_exec call, shell stderr reading, file_edit fuzzy-match usage, and universal stuck detection. The agent now takes correct action when packages are missing and recovers from more failure types.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | Replaced 2-line error recovery with 6-line version; fixed "auto-installs" to explicit install guidance; added shell/file_edit/stuck patterns | Inaccurate claim caused agent to not recover from missing packages; thin coverage missed common failures |
+| `system-prompt.test.ts` | +2 tests: error recovery patterns for file_edit/shell/stuck; explicit install guidance (not auto-install) | Verify accuracy and prevent regression |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass. 1172 tests (+2).
+
+### Expected effects
+
+- Agent will explicitly install missing Python packages instead of assuming auto-install
+- Shell failures will get stderr-informed retry instead of blind retry
+- file_edit failures will use fuzzy-match suggestions from error output
+- Agent will escalate to ask_user after 3 failed attempts at any approach
+
+### Future directions
+
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still at ~309 lines (LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 252 — Fix Budget Overrun: Add Cascade Check
 
 ### Verification of iter 250 (previous improver)

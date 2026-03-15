@@ -70,8 +70,23 @@ describe("SYSTEM_PROMPT", () => {
 
   it("includes error recovery patterns for common tool failures", () => {
     expect(SYSTEM_PROMPT).toContain("Tool fails");
-    expect(SYSTEM_PROMPT).toContain("auto-installs missing pip");
+    expect(SYSTEM_PROMPT).toContain("pip install");
     expect(SYSTEM_PROMPT).toContain("web_fetch empty");
+  });
+
+  it("error recovery covers file_edit, shell, and stuck-loop patterns", () => {
+    expect(SYSTEM_PROMPT).toContain("file_edit match failed");
+    expect(SYSTEM_PROMPT).toContain("fuzzy-match suggestion");
+    expect(SYSTEM_PROMPT).toContain("shell fails");
+    expect(SYSTEM_PROMPT).toContain("read stderr");
+    expect(SYSTEM_PROMPT).toContain("Stuck after 3 attempts");
+    expect(SYSTEM_PROMPT).not.toContain("auto-installs");
+  });
+
+  it("error recovery guides explicit package installation, not auto-install", () => {
+    expect(SYSTEM_PROMPT).toContain("pip install <pkg>");
+    expect(SYSTEM_PROMPT).toContain("error output names the missing package");
+    expect(SYSTEM_PROMPT).toContain("Don't retry the same failing call");
   });
 
   it("task composition section guides multi-workflow tasks", () => {
