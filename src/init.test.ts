@@ -13,7 +13,7 @@ vi.mock("./memory.js", () => ({
 }));
 
 import { getMemoryStore } from "./memory.js";
-import { detectProject, buildSessionWarmup, getDirectoryOverview } from "./init.js";
+import { detectProject, buildSessionWarmup, getDirectoryOverview, detectEnvironment } from "./init.js";
 
 const mocked = vi.mocked(getMemoryStore);
 
@@ -213,6 +213,69 @@ describe("buildSessionWarmup", () => {
     expect(result).toContain("**Directory**:");
     expect(result).toContain("data.csv");
     expect(result).toContain("reports/");
+  });
+});
+
+describe("detectEnvironment", () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "kota-env-test-")); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it("returns null for empty directory", () => {
+    expect(detectEnvironment(dir)).toBeNull();
+  });
+
+  it("detects data files", () => {
+    writeFileSync(join(dir, "sales.csv"), "a,b\n1,2");
+    writeFileSync(join(dir, "config.json"), "{}");
+    const result = detectEnvironment(dir)!;
+    expect(result).toContain("data");
+    expect(result).toContain("Workspace");
+  });
+
+  it("detects document files", () => {
+    writeFileSync(join(dir, "report.md"), "# Report");
+    writeFileSync(join(dir, "notes.txt"), "hello");
+    writeFileSync(join(dir, "paper.pdf"), "fake pdf");
+    const result = detectEnvironment(dir)!;
+    expect(result).toContain("3 documents");
+  });
+
+  it("detects mixed environment with multiple categories", () => {
+    writeFileSync(join(dir, "data.csv"), "a,b");
+    writeFileSync(join(dir, "readme.md"), "hi");
+    writeFileSync(join(dir, "photo.png"), "img");
+    const result = detectEnvironment(dir)!;
+    expect(result).toContain("data");
+    expect(result).toContain("documents");
+    expect(result).toContain("images");
+  });
+
+  it("returns null when only unrecognized file types", () => {
+    writeFileSync(join(dir, "mystery.xyz"), "???");
+    expect(detectEnvironment(dir)).toBeNull();
+  });
+
+  it("skips hidden files", () => {
+    writeFileSync(join(dir, ".hidden.csv"), "a,b");
+    expect(detectEnvironment(dir)).toBeNull();
+  });
+
+  it("warmup shows environment when no project detected", () => {
+    writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
+    writeFileSync(join(dir, "notes.md"), "# Notes");
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("**Environment**:");
+    expect(result).toContain("Workspace");
+    expect(result).not.toContain("**Project**:");
+  });
+
+  it("warmup prefers project over environment when both available", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "app" }));
+    writeFileSync(join(dir, "data.csv"), "a,b");
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("**Project**:");
+    expect(result).not.toContain("**Environment**:");
   });
 });
 

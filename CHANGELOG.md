@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 335 — Non-Code Environment Detection for General-Purpose Use (tests: 1409, +8)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `init.ts` | Added `detectEnvironment()` — categorizes non-code directories by file types (data, documents, images, scripts). Integrated as fallback in `buildSessionWarmup` when no code project detected. | Agent had zero context for non-code workspaces; owner requests general-purpose orientation (NOTES.md) |
+| `init.test.ts` | +8 tests: empty dir, data files, documents, mixed categories, unrecognized types, hidden files, warmup integration (env shown / project preferred) | Full coverage of new function and warmup integration |
+
+### Workflow impact
+
+**Scenario**: "User opens KOTA in ~/Documents containing sales.csv, notes.md, and logo.png. Asks: 'Summarize the sales data and draft a report.'"
+- **Before**: Warmup shows `**Working directory**: ~/Documents`, directory listing, system info — no characterization. Agent has no signal about workspace type.
+- **After**: Warmup shows `**Environment**: Workspace with 1 data, 1 documents, 1 images files` — agent immediately understands context, can proactively suggest code_exec for CSV analysis and file_write for the report.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1409/1409 pass (+8 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Non-code workspaces get meaningful environment context in session warmup
+- Agent should adapt approach when it sees data/document/image characterization
+- No impact on code-project detection (detectProject takes priority)
+
+### Future directions
+- System prompt could reference environment detection to suggest relevant workflow patterns
+- detectEnvironment could scan subdirectories (not just top-level) for deeper characterization
+- Could detect notebook (.ipynb) files as a separate "analysis" category
+
 ## Iteration 334 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 332 (previous improver)

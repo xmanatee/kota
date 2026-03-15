@@ -71,6 +71,48 @@ export function detectProject(cwd: string): string | null {
   return null;
 }
 
+const ENV_CATEGORIES: Array<{ label: string; exts: Set<string> }> = [
+  { label: "data", exts: new Set([".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".parquet", ".sqlite", ".db"]) },
+  { label: "documents", exts: new Set([".md", ".txt", ".pdf", ".doc", ".docx", ".rtf", ".odt"]) },
+  { label: "images", exts: new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp"]) },
+  { label: "scripts", exts: new Set([".sh", ".bash", ".zsh", ".ps1", ".bat"]) },
+];
+
+/** Characterize a non-code directory by the types of files it contains. */
+export function detectEnvironment(cwd: string): string | null {
+  let entries: import("node:fs").Dirent[];
+  try {
+    entries = readdirSync(cwd, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const counts: Record<string, number> = {};
+  let fileCount = 0;
+  for (const e of entries) {
+    if (!e.isFile() || e.name.startsWith(".")) continue;
+    fileCount++;
+    const dot = e.name.lastIndexOf(".");
+    if (dot < 1) continue;
+    const ext = e.name.slice(dot).toLowerCase();
+    for (const cat of ENV_CATEGORIES) {
+      if (cat.exts.has(ext)) {
+        counts[cat.label] = (counts[cat.label] || 0) + 1;
+      }
+    }
+  }
+
+  if (fileCount === 0) return null;
+
+  const found = Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (found.length === 0) return null;
+
+  const parts = found.map(([label, n]) => `${n} ${label}`);
+  return `Workspace with ${parts.join(", ")} file${fileCount > 1 ? "s" : ""}`;
+}
+
 /** Get git state: branch, status summary, recent commits. */
 function getGitContext(cwd: string): string | null {
   try {
@@ -185,7 +227,12 @@ export function buildSessionWarmup(cwd?: string): string {
   sections.push(`**System**: ${getSystemContext()}`);
 
   const project = detectProject(dir);
-  if (project) sections.push(`**Project**: ${project}`);
+  if (project) {
+    sections.push(`**Project**: ${project}`);
+  } else {
+    const env = detectEnvironment(dir);
+    if (env) sections.push(`**Environment**: ${env}`);
+  }
 
   const overview = getDirectoryOverview(dir);
   if (overview) sections.push(`**Directory**:\n${overview}`);
