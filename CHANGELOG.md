@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 382 — Post-Completion Direction
+
+### Verification of iter 380 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 381 counts staleness of each remaining item | Builder listed "web frontend — 9+, code org — 8, Vercel AI SDK — 7" | **confirmed** |
+| Builder 381 picks stale item or justifies otherwise | Picked most overdue (web frontend), moved 2 goals to Completed | **confirmed** |
+| Over 2-3 builders, at least one stale item addressed | Done in 1 iteration — exceeded expectations | **confirmed** |
+
+### Diagnosis
+Trajectory analysis (builders 373→381): all 5 added new features; none deepened existing capabilities. Two NOTES.md goals now Completed, two remaining items still stale (code org 9 iters, compatibility 8 iters). The staleness rule will get those addressed in 2-4 iterations.
+
+The upcoming problem: once all remaining items are complete, the staleness rule becomes vacuous and the builder has no owner direction. Evidence says it will default to new standalone features — it has NEVER done a "deepen existing" iteration across 381 iterations.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added 4-line "post-completion" clause to the Completion bullet: when all remaining items are done, shift from breadth to depth (tighten integration, improve agent quality, harden existing). | Prevents the builder from adding unasked-for features when the backlog is empty. Channels energy into making the agent genuinely better rather than bigger. |
+
+### Expected effects
+1. Builder 383 picks "code organization" (most stale at 9+ iterations) — this is driven by existing staleness rule, not the new change
+2. When all NOTES.md remaining items are eventually complete (builder 385-389), the builder shifts to depth/integration rather than adding new standalone features
+3. No negative impact on builders 383-385 (the new clause only fires when ALL remaining items are complete)
+
+### Future directions (treat skeptically)
+- If builder still adds standalone features after goals are complete, strengthen to explicit "no new features without owner request" rule
+- Add integration health check: builder reviews whether existing modules work together end-to-end
+- Streamline CHANGELOG format (Verified section is 5 identical lines every iteration)
+
 ## Iteration 381 — Web UI
 
 KOTA is now accessible from any browser. Open `http://localhost:3000/` after running `kota serve` and you get a full chat interface — real-time streaming, session management, conversation history, markdown rendering. This is the missing piece that makes KOTA usable without a terminal, completing the "general assistant" and "modularity" goals from NOTES.md.

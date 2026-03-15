@@ -64,6 +64,10 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
      Items waiting 5+ builder iterations are overdue — default to picking one
      unless a new candidate is clearly more impactful. The owner chose these
      goals deliberately; shipping what they asked for beats unasked-for novelty.
+     When ALL remaining items are complete, shift from breadth to depth:
+     tighten integration between existing modules, improve agent quality
+     (system prompt, tool UX, discoverability, error handling), and harden
+     what exists — rather than adding new standalone features.
 3. **Evaluate**: For each candidate, honestly assess impact vs cost. Impact
    includes: advancing capability, fulfilling owner needs (NOTES.md), and
    connecting existing unused features. A feature that activates dormant
