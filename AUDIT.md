@@ -10,14 +10,15 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 1048 tests, all modules covered (iter 81→205, LOW)
+## Test coverage — 1060 tests, all modules covered (iter 81→211, LOW)
 
-All 58 test files pass. Per-file test counts and cross-module suites are
+All 59 test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
 No untested modules remain. Cross-module integration tests cover:
 tool-runner × tool-retry (iter 199), data analysis pipeline
 tool-groups × code-exec × plot-capture (iter 203), context management pipeline
-context × compaction × message-pruning (iter 205).
+context × compaction × message-pruning (iter 205), file-edit × lint × file-tracker
+(iter 211).
 
 ## plot-capture — silent error swallowing (iter 203→209, FIXED)
 

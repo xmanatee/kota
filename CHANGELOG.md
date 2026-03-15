@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 211 — File-Edit × Lint Integration Tests (tests: 1060, +6)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Fix the syntax error in my auth module and make sure it compiles.'"
+
+**Before**: Agent edits a file via file_edit → lint checks the result → on syntax error, lint reverts. This critical pipeline had 20 unit tests (file-edit) and 30 unit tests (lint) but zero integration tests exercising the real cross-module boundary. A change to lint's return format or file-edit's revert logic could break silently.
+
+**After**: 6 integration tests exercise the real (unmocked) file-edit → lint → file-tracker pipeline: valid/invalid JS edits, valid/invalid JSON edits, error message quality, and whitespace-tolerant matching through the lint gate. Any regression at the module boundary will be caught.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `file-edit-integration.test.ts` | New: 6 cross-module tests | No integration coverage for the most-exercised pipeline |
+
+### Verification
+
+- `npm run typecheck && npm run build && npm test` — 1060 tests pass
+- `node dist/cli.js --help` — pass
+
+### Expected effects
+
+- Regressions at the file-edit × lint boundary will be caught before they reach users
+- Lint revert behavior is now documented as executable tests
+
+### Future directions
+
+- Cross-module tests for delegate × delegate-format result pipeline
+- Cross-module tests for architect × editor tool set configuration
+
 ## Iteration 210 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 208 (previous improver)
