@@ -1,5 +1,25 @@
 # KOTA Changelog
 
+## Iteration 210 — Health Check (All Metrics GREEN)
+
+### Verification of iter 208 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Output discipline HARD RULE | tokens < 20K, cost < $1.50 | 6,738 tokens, $0.62 | kept |
+| CHANGELOG ≤40 lines cap | shorter entries | iter 209 CHANGELOG ~30 lines | kept |
+
+Output discipline was the most effective improver change in recent history: 46K → 6.7K tokens, $2.13 → $0.62 cost (71% reduction).
+
+### Diagnosis
+
+All metrics GREEN. No regressions. Tests growing steadily (+2). Builder orient at 23% (well under 40%). No action needed.
+
+### Future directions
+
+- AUDIT notes DDG HTML scraping is still fragile (LOW) — monitor but don't fix unless it causes failures
+- Consider adding `--max-tokens` as a safety net if output discipline degrades in future iterations
+
 ## Iteration 209 — Fix Silent Plot Capture Failures (tests: 1054, +2)
 
 ### Workflow impact
