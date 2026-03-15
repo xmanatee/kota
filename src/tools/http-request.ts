@@ -142,7 +142,7 @@ export async function runHttpRequest(
       return {
         content: formatResult(
           response.status, response.statusText, responseHeaders,
-          `[Binary response: ${contentType}${size} — use shell + curl to download]`,
+          `[Binary response: ${contentType}${size} — use save_to to download to a file]`,
         ),
       };
     }
@@ -150,10 +150,12 @@ export async function runHttpRequest(
     const raw = await response.text();
     let bodyText = raw;
 
-    // Pretty-print JSON for readability
+    // Pretty-print JSON for readability; use compact table for arrays of objects
     if (contentType.includes("json") || looksLikeJson(raw)) {
       try {
-        bodyText = JSON.stringify(JSON.parse(raw), null, 2);
+        const parsed = JSON.parse(raw);
+        const table = formatTabularJson(parsed);
+        bodyText = table ?? JSON.stringify(parsed, null, 2);
       } catch {
         // Not valid JSON despite content-type; use raw
       }
@@ -163,7 +165,7 @@ export async function runHttpRequest(
     if (bodyText.length > maxResponse) {
       bodyText =
         bodyText.slice(0, maxResponse) +
-        `\n\n[Truncated — ${bodyText.length} chars total, showing first ${maxResponse}]`;
+        `\n\n[Truncated — ${bodyText.length} chars total, showing first ${maxResponse}. Use save_to to get the full response.]`;
     }
 
     const result: ToolResult = {
@@ -220,6 +222,61 @@ function isBinaryContentType(ct: string): boolean {
 function looksLikeJson(text: string): boolean {
   const trimmed = text.trimStart();
   return trimmed.startsWith("{") || trimmed.startsWith("[");
+}
+
+const MAX_TABLE_ROWS = 50;
+const MAX_TABLE_COLS = 10;
+
+/**
+ * Format an array of objects as a compact markdown table.
+ * Returns null if the data is not suitable for tabular display.
+ */
+export function formatTabularJson(data: unknown): string | null {
+  if (!Array.isArray(data) || data.length === 0) return null;
+  // All elements must be plain objects with at least one key
+  const rows = data as Record<string, unknown>[];
+  if (!rows.every(r => r !== null && typeof r === "object" && !Array.isArray(r) && Object.keys(r).length > 0)) {
+    return null;
+  }
+
+  // Collect all unique keys in insertion order
+  const keySet = new Set<string>();
+  for (const row of rows) {
+    for (const k of Object.keys(row)) keySet.add(k);
+  }
+  let cols = Array.from(keySet);
+  const truncCols = cols.length > MAX_TABLE_COLS;
+  if (truncCols) cols = cols.slice(0, MAX_TABLE_COLS);
+
+  // Only tabulate if values are scalar (string, number, boolean, null)
+  for (const row of rows) {
+    for (const c of cols) {
+      const v = row[c];
+      if (v !== null && v !== undefined && typeof v === "object") return null;
+    }
+  }
+
+  const displayRows = rows.slice(0, MAX_TABLE_ROWS);
+  const truncRows = rows.length > MAX_TABLE_ROWS;
+
+  // Compute column widths
+  const widths = cols.map(c =>
+    Math.max(c.length, ...displayRows.map(r => String(r[c] ?? "").length)),
+  );
+
+  const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - s.length));
+  const header = "| " + cols.map((c, i) => pad(c, widths[i])).join(" | ") + " |";
+  const sep = "| " + widths.map(w => "-".repeat(w)).join(" | ") + " |";
+  const body = displayRows.map(
+    r => "| " + cols.map((c, i) => pad(String(r[c] ?? ""), widths[i])).join(" | ") + " |",
+  );
+
+  let result = [header, sep, ...body].join("\n");
+  const notes: string[] = [];
+  if (truncRows) notes.push(`showing ${MAX_TABLE_ROWS} of ${rows.length} rows`);
+  if (truncCols) notes.push(`showing ${MAX_TABLE_COLS} of ${keySet.size} columns`);
+  if (notes.length > 0) result += `\n[${notes.join("; ")}]`;
+  return result;
 }
 
 function formatBytes(bytes: number): string {

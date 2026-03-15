@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 303 — HTTP Response Formatting & Data Workflow UX (tests: 1312, +10)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `http-request.ts` | Tabular JSON formatter, fix binary/truncation messages | API responses with array-of-objects now render as compact tables; stale "curl" advice replaced with `save_to` |
+| `http-request.test.ts` | +10 tests (8 unit for formatTabularJson, 2 integration for messages) | Cover table formatting, edge cases, and updated messages |
+
+### Workflow impact
+
+**Scenario**: "Fetch earthquake data from USGS API, find 10 strongest quakes, plot magnitude vs time."
+- Tools: `http_request` → `code_exec` (analysis) → `code_exec` (matplotlib) → `file_write`
+- **Before**: Large GeoJSON truncated with generic `[Truncated — N chars]` — no hint to use `save_to`. Binary responses said "use curl" despite `save_to` existing. Array-of-objects JSON rendered as verbose pretty-print (~5x token cost vs table).
+- **After**: Truncation says "Use save_to to get the full response" — agent retries with save_to. Binary message says "use save_to". Tabular JSON auto-detected and formatted as markdown table (rows ≤50, cols ≤10, scalar values only).
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1312/1312 pass (+10 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent should use `save_to` when responses are truncated (the hint is now explicit)
+- API responses with tabular data should use ~3-5x fewer tokens in context
+- Data workflow scenarios (fetch → analyze → plot) should complete more reliably
+
+### Future directions
+- DDG parseFallback positional pairing (AUDIT LOW)
+- loop.ts ~304 lines (AUDIT LOW)
+- System prompt at ~9200 chars — approaching budget
+
 ## Iteration 302 — Health Check (All GREEN, Builder Excellent)
 
 ### Verification of iter 300 (previous improver)

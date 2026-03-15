@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { runHttpRequest } from "./http-request.js";
+import { runHttpRequest, formatTabularJson } from "./http-request.js";
 
 describe("runHttpRequest", () => {
   const originalFetch = globalThis.fetch;
@@ -202,7 +202,7 @@ describe("runHttpRequest", () => {
     const result = await runHttpRequest({ url: "https://api.example.com/image.png" });
     expect(result.content).toContain("[Binary response: image/png");
     expect(result.content).toContain("51.2KB");
-    expect(result.content).toContain("curl");
+    expect(result.content).toContain("save_to");
   });
 
   // --- Error handling ---
@@ -315,5 +315,96 @@ describe("runHttpRequest", () => {
     });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Error saving response");
+  });
+
+  // --- Binary message suggests save_to ---
+
+  it("binary response suggests save_to instead of curl", async () => {
+    mockFetch({
+      contentType: "image/png",
+      body: "binary data",
+      headers: { "content-length": "52428" },
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com/image.png" });
+    expect(result.content).toContain("save_to");
+    expect(result.content).not.toContain("curl");
+  });
+
+  // --- Truncation message suggests save_to ---
+
+  it("truncation notice suggests save_to", async () => {
+    const bigBody = "x".repeat(25000);
+    mockFetch({ body: bigBody });
+    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 20000 });
+    expect(result.content).toContain("save_to");
+    expect(result.content).toContain("[Truncated");
+  });
+
+  // --- Tabular JSON formatting ---
+
+  it("formats array-of-objects JSON as table", async () => {
+    const data = [
+      { name: "Alice", score: 95 },
+      { name: "Bob", score: 87 },
+    ];
+    mockFetch({ body: JSON.stringify(data), contentType: "application/json" });
+    const result = await runHttpRequest({ url: "https://api.example.com/scores" });
+    expect(result.content).toContain("| name");
+    expect(result.content).toContain("| Alice");
+    expect(result.content).toContain("| Bob");
+    // Should not contain raw JSON braces
+    expect(result.content).not.toContain("{");
+  });
+
+  it("falls back to pretty JSON for non-tabular arrays", async () => {
+    const data = [1, 2, 3];
+    mockFetch({ body: JSON.stringify(data), contentType: "application/json" });
+    const result = await runHttpRequest({ url: "https://api.example.com/nums" });
+    // Primitive array → standard JSON
+    expect(result.content).toContain("1");
+    expect(result.content).not.toContain("| ");
+  });
+});
+
+describe("formatTabularJson", () => {
+  it("formats simple array of objects", () => {
+    const result = formatTabularJson([
+      { id: 1, name: "Alice" },
+      { id: 2, name: "Bob" },
+    ]);
+    expect(result).toContain("| id");
+    expect(result).toContain("| name");
+    expect(result).toContain("| 1");
+    expect(result).toContain("| Alice");
+  });
+
+  it("returns null for empty array", () => {
+    expect(formatTabularJson([])).toBeNull();
+  });
+
+  it("returns null for non-array", () => {
+    expect(formatTabularJson({ key: "value" })).toBeNull();
+  });
+
+  it("returns null for arrays with nested objects", () => {
+    expect(formatTabularJson([{ a: { nested: true } }])).toBeNull();
+  });
+
+  it("handles missing keys across rows", () => {
+    const result = formatTabularJson([
+      { a: 1, b: 2 },
+      { a: 3, c: 4 },
+    ]);
+    expect(result).toContain("| a");
+    expect(result).toContain("| b");
+    expect(result).toContain("| c");
+    // Missing values show empty
+    expect(result).toBeTruthy();
+  });
+
+  it("truncates rows beyond limit", () => {
+    const rows = Array.from({ length: 60 }, (_, i) => ({ id: i }));
+    const result = formatTabularJson(rows);
+    expect(result).toContain("showing 50 of 60 rows");
   });
 });
