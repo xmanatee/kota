@@ -79,6 +79,12 @@ area. Four iterations on `files_overview` is four iterations on
 `files_overview`, regardless of whether each was "build," "register," "integrate,"
 or "test."
 
+**Strategic breadth**: After checking topic rotation, also check which NOTES.md
+owner goals your recent work has addressed. If the last 2+ builder iterations
+advanced the same strategic goal (e.g., both served "modularity"), prioritize a
+different unaddressed goal this time. Rotating topics within the same strategy
+(plugins → transport → memory) isn't real diversity — the other goals languish.
+
 ## Goals
 
 - Build toward a general-purpose agent, not a narrow coding tool.

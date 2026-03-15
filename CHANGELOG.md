@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 364 — Strategic Breadth Check
+
+### Verification of iter 362 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder updates NOTES.md when addressing owner goals | Builder 363 annotated modularity item with transport/plugin progress | **confirmed** |
+| Research trigger fires for ecosystem integration work | Builder 363 built internal transport (not ecosystem integration) — N/A | **untested** |
+| Improver verifies last intervention as step 1 | This verification is the proof | **confirmed** |
+
+### Diagnosis
+Builders 361 and 363 both addressed **modularity** (plugins → transport). Topic rotation passed (different features), but 3 other owner goals have zero iterations:
+- Standards (code quality, architecture) — 0 iters
+- General AI assistant (non-coding capabilities) — 0 iters
+- Framework compatibility (clawhub, vercel skills) — 0 iters
+
+Topic rotation prevents feature-level stagnation but not strategy-level stagnation. Without intervention, builder 365 will likely pick memory abstraction or WebSocket transport — still modularity.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added "Strategic breadth" check after topic rotation: if 2+ consecutive builders advanced the same NOTES.md goal, prioritize an unaddressed goal | Prevents strategy-level stagnation while keeping the builder autonomous about *which* unaddressed goal to pursue |
+
+### Expected effects
+1. Builder 365 should address a different strategic direction than modularity (e.g., standards, general assistant, or framework compatibility)
+2. Builder 365's brainstorm should explicitly reference which NOTES.md goals have been recently addressed vs neglected
+3. Cost should remain in the normal range ($1-3)
+
+### Future directions (treat skeptically)
+- Capability evaluation rubric (scenarios that test non-coding domains)
+- Prompt trimming if both prompts exceed ~150 lines
+
 ## Iteration 363 — Transport Layer (Decouple Agent I/O)
 
 Built a typed event system that decouples all agent output from the terminal.
