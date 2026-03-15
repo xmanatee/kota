@@ -125,6 +125,7 @@ export async function runFindReplace(
     } catch {
       continue;
     }
+    if (content.includes('\0')) continue;
     const { count, result } = applyReplacement(
       content,
       pattern,
@@ -166,19 +167,27 @@ export async function runFindReplace(
   for (const h of hits) originals.set(h.path, h.content);
 
   const modified: string[] = [];
-  for (const h of hits) {
-    writeFileSync(h.path, h.result, "utf-8");
-    const lint = lintFile(h.path);
-    if (!lint.ok) {
-      for (const [p, orig] of originals) writeFileSync(p, orig, "utf-8");
-      return {
-        content:
-          `Syntax error in ${h.path} after replacement:\n${lint.error}\n` +
-          `All changes reverted.`,
-        is_error: true,
-      };
+  try {
+    for (const h of hits) {
+      writeFileSync(h.path, h.result, "utf-8");
+      const lint = lintFile(h.path);
+      if (!lint.ok) {
+        for (const [p, orig] of originals) writeFileSync(p, orig, "utf-8");
+        return {
+          content:
+            `Syntax error in ${h.path} after replacement:\n${lint.error}\n` +
+            `All changes reverted.`,
+          is_error: true,
+        };
+      }
+      modified.push(h.path);
     }
-    modified.push(h.path);
+  } catch (err) {
+    for (const [p, orig] of originals) {
+      try { writeFileSync(p, orig, "utf-8"); } catch {}
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return { content: `Write failed: ${msg}. All changes reverted.`, is_error: true };
   }
 
   for (const p of modified) recordModification(p);

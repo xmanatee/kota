@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 287 — Find-Replace Hardening (tests: 1270, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `find-replace.ts` | Binary file detection (null-byte skip) + write error rollback | Prevent binary file corruption on broad globs; ensure consistent state on write failures |
+| `find-replace.test.ts` | +5 tests: binary skip, lint rollback cross-module, regex capture groups across files, regex lookahead, empty files | 2 cross-module (binary detection, lint rollback of already-written files); 3 edge cases |
+
+### Workflow impact
+
+**Scenario**: "User asks agent to rename function `processData` to `transformData` across all TypeScript files."
+- Tools: grep (find occurrences) → find_replace (rename across files) → shell (typecheck)
+- **Before**: If glob `**/*` matched binary files (images, .wasm), find-replace would read them as garbled UTF-8 and potentially corrupt them on pattern match. If `writeFileSync` threw mid-loop (permissions, disk full), already-modified files were left in inconsistent state with no rollback.
+- **After**: Binary files auto-skipped via null-byte detection. Write errors wrapped in try-catch with full rollback. Cross-module test verifies lint catches syntax errors in later files and rollback restores already-written files.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1270/1270 pass (+5 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- find-replace on broad globs no longer risks binary file corruption
+- Disk/permission errors produce clean error + rollback instead of crashes
+- Cross-module tests catch regressions in find-replace ↔ lint integration
+
+### Future directions
+- DDG `parseFallback` positional pairing (AUDIT LOW)
+- loop.ts ~304 lines (AUDIT LOW)
+- E2E smoke test blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 286 — Health Check (YELLOW Cost, Trending Down)
 
 ### Verification of iter 284 (previous improver)

@@ -60,6 +60,12 @@ describe("applyReplacement", () => {
     expect(r.count).toBe(1);
     expect(r.result).toBe("hello");
   });
+
+  it("handles regex lookahead", () => {
+    const r = applyReplacement("abc", "(?=b)", "|", true, false);
+    expect(r.count).toBe(1);
+    expect(r.result).toBe("a|bc");
+  });
 });
 
 // --- Integration tests for runFindReplace ---
@@ -207,5 +213,76 @@ describe("runFindReplace", () => {
     expect(result.content).toContain("2 file(s)");
     expect(readFileSync(join(dir, "root.txt"), "utf-8")).toBe("hi");
     expect(readFileSync(join(dir, "sub", "nested.txt"), "utf-8")).toBe("hi");
+  });
+
+  it("skips binary files without corrupting them", async () => {
+    writeFileSync(join(dir, "text.txt"), "hello world");
+    writeFileSync(join(dir, "binary.txt"), Buffer.from("hello\0world"));
+
+    const result = await runFindReplace({
+      pattern: "hello",
+      replacement: "hi",
+      files: join(dir, "*.txt"),
+    });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("1 file(s)");
+    expect(readFileSync(join(dir, "text.txt"), "utf-8")).toBe("hi world");
+    expect(readFileSync(join(dir, "binary.txt"))).toEqual(
+      Buffer.from("hello\0world"),
+    );
+  });
+
+  it("reverts already-written files on later lint failure (cross-module)", async () => {
+    writeFileSync(join(dir, "a.txt"), "target value");
+    writeFileSync(join(dir, "z.json"), '{"key": "target"}');
+
+    const result = await runFindReplace({
+      pattern: "target",
+      replacement: 'target"bad',
+      files: join(dir, "*"),
+    });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("reverted");
+    expect(readFileSync(join(dir, "a.txt"), "utf-8")).toBe("target value");
+    expect(readFileSync(join(dir, "z.json"), "utf-8")).toBe(
+      '{"key": "target"}',
+    );
+  });
+
+  it("regex capture groups across multiple files", async () => {
+    writeFileSync(join(dir, "a.txt"), "getName getAge");
+    writeFileSync(join(dir, "b.txt"), "getColor");
+
+    const result = await runFindReplace({
+      pattern: "get(\\w+)",
+      replacement: "fetch$1",
+      files: join(dir, "*.txt"),
+      is_regex: true,
+    });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("3 occurrence(s)");
+    expect(result.content).toContain("2 file(s)");
+    expect(readFileSync(join(dir, "a.txt"), "utf-8")).toBe(
+      "fetchName fetchAge",
+    );
+    expect(readFileSync(join(dir, "b.txt"), "utf-8")).toBe("fetchColor");
+  });
+
+  it("handles empty files without error", async () => {
+    writeFileSync(join(dir, "empty.txt"), "");
+    writeFileSync(join(dir, "has.txt"), "hello");
+
+    const result = await runFindReplace({
+      pattern: "hello",
+      replacement: "hi",
+      files: join(dir, "*.txt"),
+    });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("1 file(s)");
+    expect(readFileSync(join(dir, "empty.txt"), "utf-8")).toBe("");
   });
 });
