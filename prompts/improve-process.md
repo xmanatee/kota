@@ -110,14 +110,19 @@ or process reliability.
    shows cost and orientation trends pre-computed. Focus on diagnosing any
    regressions (rising cost, orient >40%, test decreases) rather than
    recomputing these manually.
-5. **Steady-state gate** (decide BEFORE gathering more evidence): If steps
-   3-4 show all healthy (prior changes verified, cost stable/down, tests
-   growing, orient <35%, no regressions), stop and ask: "Is there a clear
-   problem or opportunity backed by evidence?" If NO — write a health-check
-   CHANGELOG entry and finish. Do not gather more evidence, deliberate on
-   candidates, or read additional files hoping to find something. Churn
-   iterations waste $0.50+ for zero improvement. If YES — state the specific
-   problem/opportunity in one sentence, then proceed to step 6.
+5. **Metric assessment** (decide BEFORE gathering more evidence): For each
+   builder metric, classify:
+   - **RED** (exceeds hard limit): cost >$1.50, turns >20, orient >40%
+   - **YELLOW** (approaching limit): cost $1.35–1.50, turns 18–20, orient 36–40%
+   - **GREEN**: below yellow thresholds
+
+   Decision tree:
+   - Any RED → fix immediately, skip steady-state gate.
+   - All GREEN + prior changes verified + tests growing → health check. Stop
+     here. Do not gather more evidence or deliberate hoping to find something.
+     Churn iterations waste $0.50+ for zero improvement.
+   - Any YELLOW (no RED) → investigate briefly (≤2 extra reads). Fix only if
+     there's a concrete, evidence-backed change. Otherwise health check.
 6. Gather targeted evidence for the specific problem identified in step 5.
 7. Evaluate: what's the root cause? What's the best fix?
 8. Change the process layer: builder prompt, your own prompt, step.sh,

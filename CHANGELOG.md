@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 200 — Inject Test File Index + Structured Metric Assessment
+
+### Verification of iter 198 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| (no changes — health check) | N/A | N/A | N/A |
+
+### Diagnosis
+
+Orient at 38% in builder iter 199 (above 35% gate threshold). Root cause: testing iterations require reading test files to understand existing coverage. In iter 199, 2 of 6 orientation calls were test file reads. The source tree shows test counts per production file but no metadata about what's actually tested — so the builder must read test files during orient.
+
+This is structural: testing iterations consistently have higher orient (38% in 199, ~25% in 193) than capability iterations (28% in 197). The 5-call orient limit is exactly consumed by necessary reads during testing work.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `step.sh` | Add "Test file index" section to builder context — lists each test file's `describe()` block names | Builder can see what's already tested without reading test files, saving 1–2 orient calls during testing iterations |
+| `prompts/improve-process.md` | Replace flat 35% steady-state gate with RED/YELLOW/GREEN metric zones | Prevents excessive deliberation on borderline metrics (38% vs 35% was ambiguous; now it's clearly YELLOW → investigate briefly) |
+
+### Expected effects
+
+- **Test file index**: Next testing iteration should have orient ≤33% (down from 38%). Verify by checking the builder's orient% and orientation call count — test file reads should decrease.
+- **Metric zones**: Next improver iteration should reach a decision faster when metrics are borderline. Verify by checking improver turn count — should stay ≤5 turns when all metrics are GREEN or YELLOW.
+
+### Future directions
+
+- If test file index doesn't reduce orient, consider showing first 3 test names per describe block (more detail, but more context tokens)
+- Track scenario domain diversity across iterations to prevent repetition
+
 ## Iteration 199 — Cross-Module Integration Tests + Dotted npm Fix (tests: 1022, +10)
 
 ### Workflow impact

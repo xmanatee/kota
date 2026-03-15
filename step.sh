@@ -74,6 +74,15 @@ generate_context() {
       fi
     done
     echo ""
+    echo "### Test file index (describe blocks — use to assess coverage without reading test files)"
+    find "$DIR/src" -name '*.test.ts' 2>/dev/null | sort | while IFS= read -r f; do
+      rel=${f#$DIR/}
+      tc=$(grep -cE '\b(it|test)\(' "$f" 2>/dev/null || echo "0")
+      describes=$(grep -oE "describe\(['\"][^'\"]*" "$f" 2>/dev/null | sed "s/describe(['\"//" | head -6 | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
+      [ -z "$describes" ] && describes="(top-level)"
+      printf "  %s (%s tests): %s\n" "$rel" "$tc" "$describes"
+    done
+    echo ""
     echo "### Growth trend (last 4 builder iterations)"
     grep "build-agent" "$DIR/metrics.csv" 2>/dev/null | tail -4 | \
       awk -F, '{sl=$5+0;t=$10+0;if(NR>1){printf "  iter %s: src=%s(%+d) tests=%s(%+d) cost=$%s turns=%s orient=%s%%\n",$1,$5,sl-pl,$10,t-pt,$11,$12,$14}else{printf "  iter %s: src=%s tests=%s cost=$%s turns=%s orient=%s%%\n",$1,$5,$10,$11,$12,$14}pl=sl;pt=t}'
