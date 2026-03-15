@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runFileEdit } from "./tools/file-edit.js";
+import { runFileRead } from "./tools/file-read.js";
 import { recordRead } from "./file-tracker.js";
 
 /**
@@ -105,5 +106,113 @@ describe("file-edit × lint integration", () => {
     // Whitespace-tolerant match should succeed and pass lint
     expect(readFileSync(path, "utf-8")).toContain("longVariableName = 2;");
     expect(content).not.toMatch(/revert/i);
+  });
+});
+
+/**
+ * Cross-module: file-edit × path-resolver × file-tracker (error recovery paths).
+ * Tests that error messages from non-existent files, stale files, and fuzzy matches
+ * flow correctly through the module boundaries and provide actionable output.
+ */
+describe("file-edit × path-resolver error recovery", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `kota-recovery-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("file_edit on non-existent path returns is_error with path-resolver message", async () => {
+    const result = await runFileEdit({
+      path: join(dir, "nonexistent.yaml"),
+      old_string: "timeout: 30",
+      new_string: "timeout: 60",
+    });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("file not found");
+    expect(result.content).toContain("nonexistent.yaml");
+  });
+
+  it("file_read on non-existent path returns is_error with path-resolver message", async () => {
+    const result = await runFileRead({ path: join(dir, "missing.yml") });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("file not found");
+    expect(result.content).toContain("missing.yml");
+    // path-resolver suggestAlternatives runs (glob from cwd) — format is correct
+    // even if no suggestions found in tmp dir, the base error message is actionable
+  });
+
+  it("file_edit stale file warning flows through on old_string not found", async () => {
+    const path = join(dir, "stale.js");
+    writeFileSync(path, "const a = 1;\n");
+    recordRead(path);
+
+    // Externally modify the file to make the tracked mtime stale
+    await new Promise((r) => setTimeout(r, 50));
+    writeFileSync(path, "const a = 999;\n");
+
+    const result = await runFileEdit({
+      path,
+      old_string: "const a = 1;",
+      new_string: "const a = 2;",
+    });
+
+    expect(result.is_error).toBe(true);
+    // Should contain both the stale warning AND the not-found error
+    expect(result.content).toMatch(/modified since you last read/i);
+    expect(result.content).toMatch(/not found/i);
+  });
+
+  it("file_edit fuzzy match shows similar region with line numbers", async () => {
+    const path = join(dir, "fuzzy.js");
+    const code = [
+      "function greet(name) {",
+      '  const msg = "Hello, " + name;',
+      "  console.log(msg);",
+      "  return msg;",
+      "}",
+      "",
+    ].join("\n");
+    writeFileSync(path, code);
+    recordRead(path);
+
+    const result = await runFileEdit({
+      path,
+      // Close but not exact — different quote style
+      old_string: "const msg = 'Hello, ' + name;",
+      new_string: "const msg = 'Hi, ' + name;",
+    });
+
+    expect(result.is_error).toBe(true);
+    // Fuzzy match should show the similar region with >>> markers and line numbers
+    expect(result.content).toMatch(/similar/i);
+    expect(result.content).toMatch(/>>>/);
+    // Should guide the agent to re-read
+    expect(result.content).toMatch(/re-read|whitespace|exact/i);
+  });
+
+  it("whitespace-tolerant edit that breaks syntax is reverted", async () => {
+    const path = join(dir, "ws-revert.json");
+    writeFileSync(path, '  { "enabled": true }\n');
+    recordRead(path);
+
+    const result = await runFileEdit({
+      path,
+      // No leading whitespace — triggers whitespace-tolerant match
+      old_string: '{ "enabled": true }',
+      // Replacement has invalid JSON syntax
+      new_string: '{ "enabled": true, }',
+    });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toMatch(/revert|syntax/i);
+    // File should be restored to original
+    expect(readFileSync(path, "utf-8")).toBe('  { "enabled": true }\n');
   });
 });

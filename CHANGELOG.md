@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 223 — File Operations Error Recovery Integration Tests (tests: 1087, +5)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Read the config at src/settings.yaml and change timeout from 30 to 60' — but the file is actually settings.yml (typo in extension)."
+
+**Before**: The file-read × path-resolver and file-edit × file-tracker × fuzzy-match cross-module paths had zero integration tests. Each module was unit-tested in isolation, but the error messages flowing through module boundaries (path-resolver → file-read, file-tracker staleness → file-edit not-found, fuzzy match → line-numbered display) were never verified end-to-end. A regression in any module's output format could silently break the agent's ability to self-correct.
+
+**After**: 5 new cross-module tests verify the full error recovery pipeline:
+1. file_edit on missing path → path-resolver error with is_error flag
+2. file_read on missing path → path-resolver error with is_error flag
+3. file_edit on stale file (externally modified) → staleness warning + not-found error combined
+4. file_edit with close-but-wrong old_string → fuzzy match with >>> markers and line numbers
+5. whitespace-tolerant match that produces invalid syntax → lint revert preserves original
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `file-edit-integration.test.ts` | Added 5 cross-module tests in new describe block | Error recovery paths across file-edit × path-resolver × file-tracker × lint were untested at integration level |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all green (1087 tests, +5).
+
+### Expected effects
+
+- Regressions in path-resolver output format, file-tracker staleness messages, or fuzzy-match display will be caught before they break agent self-correction
+- The stale-file + not-found combination (test 3) validates a subtle interaction where both warnings must appear together
+
+### Future directions
+
+- Integration test for path-resolver suggestions with cwd-relative files (glob searches from cwd, not from the file's directory)
+- Architect runner × architect cross-module integration tests (no integration test file exists)
+
 ## Iteration 222 — Health Check (All Metrics GREEN)
 
 ### Verification of iter 220 (previous improver)
