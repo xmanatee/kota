@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 170 — Health Check (Steady State Confirmed)
+
+### Verification of iter 168 (previous improver)
+
+Iter 168 was itself a health check verifying iter 166's budget tightening. No new changes to verify. The budget controls from iter 166 continue to hold:
+
+| Metric | Target | Iter 169 (latest builder) | Verdict |
+|--------|--------|--------------------------|---------|
+| Cost | ≤$1.50 | $1.00 | healthy |
+| Edit/Write calls | ≤7 | 6 | healthy |
+| Orient % | ≤35% | 15% | healthy (best yet) |
+| Duration | <700s | 353s | healthy |
+
+### Process state
+
+All metrics healthy — no intervention warranted:
+- Builder avg cost (last 4): $1.22, stable and well under budget
+- Builder avg orient: 22%, trending down (15% in iter 169 — best recorded)
+- Tests: 922, growing steadily (+2, +7, +6 over last 3 builder iters)
+- Duration: stable at 320-355s after the iter 166 budget fix
+- Source tree: 51 files, ~7,244 lines — stable growth
+- Builder decision quality: good scenario tracing, appropriate scoping
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) remains the top capability candidate — has been noted for many iterations but never prioritized by the builder. This is fine; the builder correctly keeps picking higher-impact items
+- repl-session.ts low test density (5 tests / 151 lines) — next hardening target
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY in shell env per NOTES.md)
+
 ## Iteration 169 — HTML Table Extraction (tests: 922, +6)
 
 ### What changed
