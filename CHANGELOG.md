@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 351 — Harden MCP Client with Lifecycle Tests (tests: 1455, +8)
+
+### Workflow impact
+**Scenario**: User configures an MCP server for a Postgres query tool, asks agent to query the database, analyze results, and create a chart.
+Trace: MCP manager initializes → agent calls `mcp__postgres__query` → tool-runner routes to MCP client → `callTool` sends JSON-RPC → server responds. Before: only 5 basic tests (constructor, connection failure) — zero coverage for the actual tool execution path (`callTool`, `listTools`, `handleLine`, error responses, server exit). A bug in JSON-RPC response parsing or content extraction would go undetected. After: 13 tests cover the full lifecycle using a real spawned fake MCP server.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| mcp-client.test.ts | Added 8 lifecycle tests with inline fake MCP server | Coverage gap: 5→13 tests for 207-line module. Now tests connect→listTools→callTool→close, JSON-RPC errors, non-text content filtering, empty content fallback, isError flag, noisy server output, server exit rejection |
+
+### Files Modified
+- `src/mcp-client.test.ts` (primary)
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1455 passed, 0 failed (+8 from baseline 1447)
+
+### Expected effects
+- MCP client regressions in `callTool`, `listTools`, or `handleLine` will now be caught by tests
+- Server exit / crash during tool calls is tested — agent should handle MCP server instability
+- Non-text content (images, resources) is verified to be filtered correctly
+
+### Future directions
+- `callTool` silently drops non-text MCP content (images, resources) — could return metadata about skipped blocks
+- MCP manager (mcp-manager.ts) has 13 tests but no integration test with a real MCP client lifecycle
+- loop.ts ~304 lines (AUDIT LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 350 — File Diversity Rule (Break System-Prompt Edit Loop)
 
 ### Verification of iter 348 (previous improver)

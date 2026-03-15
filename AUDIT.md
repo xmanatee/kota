@@ -10,21 +10,17 @@ instead of array index. Remaining risk: DDG HTML structure changes could break
 both primary parser and fallback (general HTML scraping fragility). Brave
 Search is primary provider; DDG is fallback only. No action needed.
 
-## Test coverage — 1447 tests, 0 failing (iter 81→347, LOW)
+## Test coverage — 1455 tests, 0 failing (iter 81→351, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
-No untested modules remain. Shell error pipeline has 18 cross-module tests.
-HTTP data pipeline has 8 cross-module tests (save_to, table+truncation,
-pipe escaping, format consistency). Todo→context pipeline has 12 cross-module
-tests (hierarchy, duplication, budget interaction, priority icons, blocker
-indicators, blocker clearing, combined priority+blocker, system prompt e2e).
-Init→loop session startup pipeline has 9 cross-module tests (system prompt
-composition, warmup flow, environment detection integration, format
-validation, workflow pattern coverage). Memory pipeline has 9 cross-module
-tests (tag filter, since filter, combined filters, update content/tags,
-full lifecycle, format contract, list truncation). System prompt→tool-groups
-registry has 2 cross-module tests (group names, core tool names).
+No untested modules remain. MCP client has 13 tests including full lifecycle
+tests (connect→listTools→callTool→close) using a real spawned fake server.
+Shell error pipeline has 18 cross-module tests. HTTP data pipeline has 8
+cross-module tests. Todo→context pipeline has 12 cross-module tests.
+Init→loop session startup pipeline has 9 cross-module tests. Memory pipeline
+has 9 cross-module tests. System prompt→tool-groups registry has 2
+cross-module tests.
 
 ## Large files over 300-line limit (iter 127→163, LOW)
 
