@@ -2,7 +2,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { allTools, executeTool } from "./tools/index.js";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
-import { filterTools } from "./tool-groups.js";
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.
 
@@ -87,7 +86,9 @@ export async function runEditorLoop(opts: EditorOptions): Promise<string> {
   const { client, model, maxTokens, plan, costTracker, verbose } = opts;
   if (verbose) console.error("[kota] Editor pass — executing plan...");
 
-  const editorTools = filterTools(allTools).filter((t) => EDITOR_TOOL_SET.has(t.name));
+  // Editor uses its own explicit tool set — bypass tool-group gating
+  // so the architect's plan can rely on these tools being available.
+  const editorTools = allTools.filter((t) => EDITOR_TOOL_SET.has(t.name));
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
     { type: "text", text: EDITOR_SYSTEM, cache_control: { type: "ephemeral" } },
   ];

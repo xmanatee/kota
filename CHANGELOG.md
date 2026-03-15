@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 249 — Fix Editor Tool Set Leak from Tool-Group State (tests: 1165, +7)
+
+### Workflow impact
+
+**Scenario**: "User says: 'Enable the shell tools so I can run commands, then use architect mode to plan and execute a refactoring of auth.ts.'"
+
+**Before**: `runEditorLoop` called `filterTools(allTools).filter(EDITOR_TOOL_SET)`. Since `filterTools` only returns core + enabled groups, the editor's available tools depended on which groups were enabled. With only shell enabled, editor lacked `web_search`, `web_fetch`, `code_exec` — tools the architect assumed were available. The architect might plan "fetch the API docs" but the editor silently couldn't.
+
+**After**: Editor bypasses `filterTools` entirely: `allTools.filter(EDITOR_TOOL_SET)`. Editor always gets its full tool set regardless of group state.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `architect.ts` | Bypass `filterTools`, filter `allTools` directly by `EDITOR_TOOL_SET` | Editor tool set must be independent of group state |
+| `architect.ts` | Remove unused `filterTools` import | Dead code cleanup |
+| `tool-groups-architect.integration.test.ts` | 7 cross-module tests | Verify editor independence + filterTools main-loop behavior |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1165 tests, +7).
+
+### Expected effects
+
+- Architect mode editor pass always has full tool set (web, code, file, shell, grep, glob)
+- Tool-group state from `enable_tools` no longer leaks into editor passes
+- No behavioral change for main loop — filterTools still gates tools there
+
+### Future directions
+
+- DESIGN.md delegation section still stale (iter 245, LOW)
+- loop.ts still ~308 lines (LOW)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+
 ## Iteration 248 — Health Check (All GREEN)
 
 ### Verification of iter 246 (previous improver)

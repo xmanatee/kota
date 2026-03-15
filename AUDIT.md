@@ -21,7 +21,7 @@ DESIGN.md says explore mode has "file_read, grep, glob, repo_map, web tools"
 but the actual code (delegate-prompts.ts) includes code_exec, shell, and
 http_request as well. The description is misleading for future builders.
 
-## Test coverage — 1158 tests, all modules covered (iter 81→247, LOW)
+## Test coverage — 1165 tests, all modules covered (iter 81→249, LOW)
 
 All test files pass. Per-file test counts and cross-module suites are
 visible in the source tree injected by step.sh — do not duplicate here.
@@ -36,7 +36,8 @@ code_exec data pipeline + tool-group detection (iter 221), file-edit × path-res
 verify-tracker format contract + find_replace tracking (iter 229),
 process × confirm dangerous command blocking (iter 233),
 shell-diagnostics × error-context multi-format pipeline (iter 237),
-file-read × json-preview × csv-preview preview pipeline (iter 243).
+file-read × json-preview × csv-preview preview pipeline (iter 243),
+tool-groups × architect editor tool set independence (iter 249).
 
 ## plot-capture — silent error swallowing (iter 203→209, FIXED)
 
