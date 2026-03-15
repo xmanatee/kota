@@ -4,6 +4,7 @@ import { join, basename } from "node:path";
 import { getMemoryStore } from "./memory.js";
 import { getTaskStore } from "./task-store.js";
 import { getScheduler } from "./scheduler.js";
+import { getHistory } from "./history.js";
 
 /** Detect project type from config files in cwd. */
 export function detectProject(cwd: string): string | null {
@@ -194,6 +195,33 @@ function recallSchedules(): string | null {
   return scheduler.getPendingSummary();
 }
 
+/** Show hint about the most recent conversation in this directory. */
+function recallRecentConversation(cwd: string): string | null {
+  try {
+    const history = getHistory();
+    const recent = history.getMostRecent(cwd);
+    if (!recent) return null;
+
+    const updated = new Date(recent.updatedAt);
+    const now = new Date();
+    const ageMs = now.getTime() - updated.getTime();
+    const ageHours = ageMs / (1000 * 60 * 60);
+
+    // Only show if conversation is recent (< 7 days)
+    if (ageHours > 168) return null;
+
+    const ago = ageHours < 1
+      ? `${Math.round(ageMs / 60000)} minutes ago`
+      : ageHours < 24
+        ? `${Math.round(ageHours)} hours ago`
+        : `${Math.round(ageHours / 24)} days ago`;
+
+    return `"${recent.title}" (${recent.messageCount} messages, ${ago}). Resume with: kota run --continue`;
+  } catch {
+    return null;
+  }
+}
+
 /** List top-level files and directories, skipping noise. */
 export function getDirectoryOverview(cwd: string): string | null {
   const skipDirs = new Set([
@@ -262,6 +290,9 @@ export function buildSessionWarmup(cwd?: string): string {
 
   const schedules = recallSchedules();
   if (schedules) sections.push(`**Scheduled reminders**:\n${schedules}`);
+
+  const recentConvo = recallRecentConversation(dir);
+  if (recentConvo) sections.push(`**Previous conversation**:\n${recentConvo}`);
 
   if (sections.length === 0) return "";
   return "\n\n## Session Context (auto-detected)\n\n" + sections.join("\n\n");

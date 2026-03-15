@@ -229,6 +229,37 @@ Transforms KOTA from a reactive tool into a proactive agent. Scheduled items can
 
 Cross-session memory in `~/.kota/memory.json`. Save/search/list/delete with keyword ranking. Auto-prune at 100 entries.
 
+### Conversation History (`src/history.ts`)
+
+Automatic conversation persistence that lets KOTA resume previous conversations across sessions. Every `AgentSession` auto-saves to `~/.kota/history/` — the agent remembers what you were working on and can pick up where you left off.
+
+**Storage**: Each conversation is stored as `~/.kota/history/<id>.json` with full message history + metadata. An `index.json` file provides fast listing without reading every conversation file.
+
+**ConversationRecord metadata**: id, title (auto-generated from first user message), createdAt, updatedAt, model, messageCount, cwd (project directory).
+
+**Auto-save lifecycle**:
+1. `AgentSession` constructor creates a new conversation entry (unless `noHistory: true` or using legacy `--session`)
+2. After each tool-execution turn and at end of `send()`, state is saved to history
+3. On SIGINT, state is saved before exit
+
+**CLI commands** (`kota history`):
+- `list` — recent conversations, filterable by `--search`, `--limit`, `--all` (cross-directory)
+- `show <id>` — conversation details and message preview
+- `resume <id>` — resume in interactive mode
+- `delete <id>` — remove a conversation
+- `clear` — delete all conversations for current directory
+
+**Resume shortcut**: `kota run --continue` resumes the most recent conversation for the current directory. `kota run --continue <id>` resumes a specific conversation.
+
+**Session warmup**: At session start, if a recent conversation (< 7 days) exists for the current directory, a hint is shown: "Previous conversation: 'Fix auth bug' (5 messages, 2 hours ago). Resume with: kota run --continue"
+
+**API endpoints** (HTTP server):
+- `GET /api/history` — list conversations (supports `?search=` and `?limit=`)
+- `GET /api/history/:id` — full conversation data
+- `DELETE /api/history/:id` — remove a conversation
+
+**Auto-prune**: Oldest conversations beyond 50 are automatically deleted when new ones are created. Project-scoped: conversations are tagged with their working directory for filtering.
+
 ### Safety & Error Recovery
 
 - **Destructive command confirmation** (`src/confirm.ts`): Regex patterns detect rm, sudo, git push, etc.

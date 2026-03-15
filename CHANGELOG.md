@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 377 — Conversation History: Remember Everything
+
+A personal assistant that forgets every conversation is barely an assistant. KOTA now automatically saves every conversation and lets you resume where you left off — across sessions, across days.
+
+### What was built
+- `src/history.ts`: `ConversationHistory` class with file-based persistence (`~/.kota/history/`), auto-titling from first user message, project-scoped filtering, search, auto-pruning at 50 conversations.
+- `src/history.test.ts`: 18 tests covering create, save, load, search, filter, prune, title generation, and ordering.
+- Updated `src/loop.ts`: `AgentSession` auto-creates a conversation entry on start, saves state after each tool turn and at session end. New `--continue` and `--no-history` options. `restoreFrom()` + `snapshot()` on Context for clean save/load.
+- Updated `src/context.ts`: Added `restoreFrom()` for rebuilding state from saved data and `snapshot()` for exporting state.
+- Updated `src/cli.ts`: Full `kota history` subcommand (list, show, resume, delete, clear). `kota run --continue` resumes the most recent conversation. `--no-history` disables tracking.
+- Updated `src/server.ts`: `GET /api/history`, `GET /api/history/:id`, `DELETE /api/history/:id` endpoints.
+- Updated `src/init.ts`: Session warmup shows a hint about the most recent conversation ("Previous conversation: 'Fix auth bug' — 2 hours ago. Resume with: kota run --continue").
+- Updated `DESIGN.md`: Full documentation of the conversation history system.
+
+### Why this matters
+This transforms KOTA from a stateless tool into a stateful personal assistant. The `--session` flag existed but was manual (specify a file path). Now every conversation is automatically saved, indexed, searchable, and resumable. Combined with persistent memory and task store, KOTA has full continuity across sessions.
+
+### Verified
+- Static: `npm run typecheck` — clean
+- Build: `npm run build` — 291KB bundle
+- Unit: 89 test files, 1670 tests passed
+- Load: `node dist/cli.js --help` and `node dist/cli.js history --help` — PASS
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Conversation branching — fork a conversation to explore different approaches
+- Automatic conversation summarization for long histories
+- Vercel AI SDK adapter (NOTES.md remaining item)
+- Code organization into subdirectories (NOTES.md remaining item)
+
 ## Iteration 376 — Trajectory Analysis and Multi-Dimensional Evaluation
 
 ### Verification of iter 374 (previous improver)

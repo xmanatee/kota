@@ -164,6 +164,22 @@ export class Context {
     };
   }
 
+  /** Restore conversation state from saved data. */
+  restoreFrom(messages: Message[], compactionCount: number, lastInputTokens: number): void {
+    this.messages = messages;
+    this.compactionCount = compactionCount;
+    this.lastInputTokens = lastInputTokens;
+  }
+
+  /** Get a snapshot of conversation state for external persistence. */
+  snapshot(): { messages: Message[]; compactionCount: number; lastInputTokens: number } {
+    return {
+      messages: this.messages,
+      compactionCount: this.compactionCount,
+      lastInputTokens: this.lastInputTokens,
+    };
+  }
+
   save(path: string): void {
     const data: SessionData = {
       messages: this.messages,

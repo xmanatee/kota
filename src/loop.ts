@@ -20,6 +20,7 @@ import { CliTransport, type Transport } from "./transport.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
 import { initTaskStore } from "./task-store.js";
 import { initScheduler, getScheduler, resetScheduler } from "./scheduler.js";
+import { getHistory } from "./history.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -35,6 +36,10 @@ export type LoopOptions = {
   thinkingBudget?: number;
   transport?: Transport;
   config?: KotaConfig;
+  /** Resume a specific conversation by ID. */
+  resumeConversation?: string;
+  /** Disable automatic conversation history tracking. */
+  noHistory?: boolean;
 };
 
 /**
@@ -61,6 +66,7 @@ export class AgentSession {
   private closed = false;
   private initialized = false;
   private initPromise: Promise<void>;
+  private conversationId: string | null = null;
 
   constructor(options: LoopOptions = {}) {
     this.model = options.model || "claude-sonnet-4-6";
@@ -113,11 +119,33 @@ export class AgentSession {
       }
     }
 
-    if (this.sessionPath && existsSync(this.sessionPath)) {
+    // Resume from conversation history, legacy session file, or start fresh
+    if (options.resumeConversation) {
+      const history = getHistory();
+      const data = history.load(options.resumeConversation);
+      if (data) {
+        this.conversationId = options.resumeConversation;
+        this.context = new Context(systemPrompt);
+        this.context.restoreFrom(data.messages, data.compactionCount, data.lastInputTokens);
+        this.transport.emit({
+          type: "status",
+          message: `[kota] Resumed conversation: "${data.record.title}" (${data.record.messageCount} messages)`,
+        });
+      } else {
+        this.context = new Context(systemPrompt);
+        this.transport.emit({ type: "error", message: `[kota] Conversation ${options.resumeConversation} not found, starting fresh` });
+      }
+    } else if (this.sessionPath && existsSync(this.sessionPath)) {
       this.context = Context.load(this.sessionPath, systemPrompt);
       if (this.verbose) this.transport.emit({ type: "status", message: `[kota] Resumed session from ${this.sessionPath}` });
     } else {
       this.context = new Context(systemPrompt);
+    }
+
+    // Auto-create conversation history entry (unless disabled or using legacy session)
+    if (!options.noHistory && !this.sessionPath && !this.conversationId) {
+      const history = getHistory();
+      this.conversationId = history.create(this.model, process.cwd());
     }
 
     this.verifyTracker = new VerifyTracker(detectVerifyCommands());
@@ -140,6 +168,7 @@ export class AgentSession {
         this.context.save(this.sessionPath);
         this.transport.emit({ type: "status", message: "\n[kota] Session saved to " + this.sessionPath });
       }
+      this.saveToHistory();
       process.exit(0);
     };
     process.on("SIGINT", this.sigintHandler);
@@ -293,6 +322,7 @@ export class AgentSession {
       processToolResults(this.verifyTracker, toolBlocks, validResults);
 
       if (this.sessionPath) this.context.save(this.sessionPath);
+      this.saveToHistory();
 
       const action = failureTracker.record(validResults);
       if (action !== "continue") {
@@ -306,12 +336,26 @@ export class AgentSession {
     }
 
     if (this.sessionPath) this.context.save(this.sessionPath);
+    this.saveToHistory();
     return lastResult;
+  }
+
+  /** Save current state to conversation history. */
+  private saveToHistory(): void {
+    if (!this.conversationId) return;
+    const history = getHistory();
+    const snapshot = this.context.snapshot();
+    history.save(this.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
   }
 
   /** Get cumulative cost summary string. */
   getCostSummary(): string {
     return this.costTracker.getSummary();
+  }
+
+  /** Get the conversation ID for this session (null if history tracking disabled). */
+  getConversationId(): string | null {
+    return this.conversationId;
   }
 
   /** Clean up handlers and save final state. */

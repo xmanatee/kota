@@ -6,6 +6,7 @@ import { loadConfig, expandAlias, type KotaConfig } from "./config.js";
 import { startServer } from "./server.js";
 import { getScheduler } from "./scheduler.js";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
+import { getHistory } from "./history.js";
 
 const program = new Command();
 
@@ -28,6 +29,8 @@ program
   .option("-y, --yes", "Skip confirmation prompts for destructive commands")
   .option("-t, --think", "Enable extended thinking for deeper reasoning")
   .option("--think-budget <tokens>", "Thinking budget in tokens (default: 10000, min: 1024)")
+  .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
+  .option("--no-history", "Disable automatic conversation history")
   .action(async (promptWords: string[], opts) => {
     const config = loadConfig();
 
@@ -45,6 +48,22 @@ program
 
     if (skipConfirm) setSkipConfirmations(true);
 
+    // Resolve --continue flag: true means "most recent", string means specific ID
+    let resumeId: string | undefined;
+    if (opts.continue) {
+      if (typeof opts.continue === "string") {
+        resumeId = opts.continue;
+      } else {
+        const history = getHistory();
+        const recent = history.getMostRecent(process.cwd());
+        if (recent) {
+          resumeId = recent.id;
+        } else {
+          console.error("No previous conversation found for this directory.");
+        }
+      }
+    }
+
     const options: LoopOptions = {
       model,
       editorModel,
@@ -55,6 +74,8 @@ program
       thinkingEnabled: thinkEnabled,
       thinkingBudget: thinkEnabled ? Math.max(1024, thinkBudget) : undefined,
       config,
+      resumeConversation: resumeId,
+      noHistory: opts.history === false,
     };
 
     let prompt = promptWords.join(" ");
@@ -162,6 +183,115 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
     process.exit(0);
   });
 }
+
+// --- History subcommand ---
+
+const historyCmd = program.command("history").description("Manage conversation history");
+
+historyCmd
+  .command("list")
+  .description("List recent conversations")
+  .option("-n, --limit <n>", "Number of conversations to show", "10")
+  .option("-s, --search <query>", "Filter by search term")
+  .option("--all", "Show conversations from all directories")
+  .action((opts) => {
+    const history = getHistory();
+    const list = history.list({
+      limit: Number.parseInt(opts.limit, 10),
+      search: opts.search,
+      cwd: opts.all ? undefined : process.cwd(),
+    });
+
+    if (list.length === 0) {
+      console.log("No conversations found.");
+      return;
+    }
+
+    console.log(`${"ID".padEnd(16)} ${"Updated".padEnd(22)} ${"Msgs".padEnd(6)} Title`);
+    console.log("-".repeat(80));
+    for (const c of list) {
+      const updated = new Date(c.updatedAt).toLocaleString("en-US", {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+      });
+      const id = c.id.slice(0, 14);
+      console.log(`${id.padEnd(16)} ${updated.padEnd(22)} ${String(c.messageCount).padEnd(6)} ${c.title}`);
+    }
+  });
+
+historyCmd
+  .command("show <id>")
+  .description("Show conversation details")
+  .action((id) => {
+    const history = getHistory();
+    const data = history.load(id);
+    if (!data) {
+      console.error(`Conversation ${id} not found.`);
+      process.exit(1);
+    }
+
+    console.log(`Title:    ${data.record.title}`);
+    console.log(`Created:  ${new Date(data.record.createdAt).toLocaleString()}`);
+    console.log(`Updated:  ${new Date(data.record.updatedAt).toLocaleString()}`);
+    console.log(`Model:    ${data.record.model}`);
+    console.log(`Messages: ${data.record.messageCount}`);
+    console.log(`Dir:      ${data.record.cwd}`);
+    console.log();
+
+    for (const msg of data.messages) {
+      if (msg.role === "user" && typeof msg.content === "string") {
+        console.log(`[user] ${msg.content.slice(0, 200)}`);
+      } else if (msg.role === "assistant" && typeof msg.content === "string") {
+        console.log(`[assistant] ${msg.content.slice(0, 200)}`);
+      } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
+        const textBlock = msg.content.find((b) => "type" in b && b.type === "text");
+        if (textBlock && "text" in textBlock) {
+          console.log(`[assistant] ${String(textBlock.text).slice(0, 200)}`);
+        }
+      }
+    }
+  });
+
+historyCmd
+  .command("resume <id>")
+  .description("Resume a previous conversation")
+  .option("-m, --model <model>", "Model to use")
+  .option("-v, --verbose", "Show debug output")
+  .action(async (id, opts) => {
+    const config = loadConfig();
+    const model = opts.model || config.model || "claude-sonnet-4-6";
+    await interactiveMode({
+      model,
+      verbose: opts.verbose || config.verbose,
+      config,
+      resumeConversation: id,
+    }, config);
+  });
+
+historyCmd
+  .command("delete <id>")
+  .description("Delete a conversation")
+  .action((id) => {
+    const history = getHistory();
+    if (history.remove(id)) {
+      console.log(`Conversation ${id} deleted.`);
+    } else {
+      console.error(`Conversation ${id} not found.`);
+      process.exit(1);
+    }
+  });
+
+historyCmd
+  .command("clear")
+  .description("Delete all conversations for the current directory")
+  .action(() => {
+    const history = getHistory();
+    const list = history.list({ cwd: process.cwd(), limit: 1000 });
+    let count = 0;
+    for (const c of list) {
+      if (history.remove(c.id)) count++;
+    }
+    console.log(`Deleted ${count} conversation(s).`);
+  });
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

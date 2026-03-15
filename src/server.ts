@@ -13,6 +13,7 @@ import { loadConfig, type KotaConfig } from "./config.js";
 import { NullTransport, type Transport, type AgentEvent } from "./transport.js";
 import { initScheduler, getScheduler, type ScheduledItem } from "./scheduler.js";
 import { ActionExecutor, partitionDueItems, type ActionResult } from "./action-executor.js";
+import { getHistory } from "./history.js";
 
 // --- SSE Transport ---
 
@@ -460,6 +461,38 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
+    // Conversation history endpoints
+    if (req.method === "GET" && path === "/api/history") {
+      const history = getHistory();
+      const search = url.searchParams.get("search") || undefined;
+      const limit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
+      json(res, 200, { conversations: history.list({ search, limit }) });
+      return;
+    }
+
+    const historyMatch = path.match(/^\/api\/history\/([^/]+)$/);
+    if (req.method === "GET" && historyMatch) {
+      const history = getHistory();
+      const data = history.load(historyMatch[1]);
+      if (data) {
+        json(res, 200, data);
+      } else {
+        json(res, 404, { error: "Conversation not found" });
+      }
+      return;
+    }
+
+    if (req.method === "DELETE" && historyMatch) {
+      const history = getHistory();
+      if (history.remove(historyMatch[1])) {
+        res.writeHead(204);
+        res.end();
+      } else {
+        json(res, 404, { error: "Conversation not found" });
+      }
+      return;
+    }
+
     json(res, 404, { error: "Not found" });
   }
 
@@ -482,6 +515,9 @@ export function startServer(options: ServerOptions = {}): Server {
     console.log("  DELETE /api/sessions/:id — Close a session");
     console.log("  GET  /api/schedules      — List pending scheduled items");
     console.log("  GET  /api/notifications  — SSE stream for due reminders");
+    console.log("  GET  /api/history        — List conversation history");
+    console.log("  GET  /api/history/:id    — Get conversation details");
+    console.log("  DELETE /api/history/:id  — Delete a conversation");
     console.log("  GET  /api/health         — Health check");
   });
 
