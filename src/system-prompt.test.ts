@@ -198,6 +198,36 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("Skip ephemeral");
   });
 
+  it("memory section guides strategic use with tags and update patterns", () => {
+    const memorySection = SYSTEM_PROMPT.split("## Memory")[1]?.split("##")[0] || "";
+    expect(memorySection).toContain("Tags");
+    expect(memorySection).toContain("preference, project, decision, finding");
+    expect(memorySection).toContain("Update");
+    expect(memorySection).toContain("duplicate");
+  });
+
+  it("memory section guides proactive saves without explicit user request", () => {
+    const memorySection = SYSTEM_PROMPT.split("## Memory")[1]?.split("##")[0] || "";
+    expect(memorySection).toContain("Save proactively");
+    expect(memorySection).toContain("without being asked");
+    expect(memorySection).toContain("preferences");
+  });
+
+  it("memory section guides recency-aware search with since filter", () => {
+    const memorySection = SYSTEM_PROMPT.split("## Memory")[1]?.split("##")[0] || "";
+    expect(memorySection).toContain("since filter");
+    expect(memorySection).toContain("time-sensitive");
+    expect(memorySection).toContain("Recency");
+  });
+
+  it("memory section guides what to save with concrete examples", () => {
+    const memorySection = SYSTEM_PROMPT.split("## Memory")[1]?.split("##")[0] || "";
+    expect(memorySection).toContain("User preferences");
+    expect(memorySection).toContain("key decisions");
+    expect(memorySection).toContain("rationale");
+    expect(memorySection).toContain("research findings");
+  });
+
   it("quality section guides self-verification before delivering", () => {
     expect(SYSTEM_PROMPT).toContain("## Quality");
     expect(SYSTEM_PROMPT).toContain("Re-read your response");
