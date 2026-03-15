@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { allTools } from "./tools/index.js";
+import { TOOL_GROUPS, CORE_TOOL_NAMES } from "./tool-groups.js";
 
 describe("SYSTEM_PROMPT", () => {
   it("contains all required sections", () => {
@@ -311,6 +312,24 @@ describe("SYSTEM_PROMPT", () => {
     const mode = props.mode as { enum?: string[] };
     expect(mode.enum).toContain("explore");
     expect(mode.enum).toContain("execute");
+  });
+
+  it("tool group names in prompt match TOOL_GROUPS registry (cross-module)", () => {
+    const groupNames = Object.keys(TOOL_GROUPS);
+    for (const name of groupNames) {
+      expect(SYSTEM_PROMPT).toContain(name);
+    }
+  });
+
+  it("core tools are all referenced in system prompt (cross-module)", () => {
+    for (const name of CORE_TOOL_NAMES) {
+      expect(SYSTEM_PROMPT).toContain(name);
+    }
+  });
+
+  it("prompt char budget has headroom after trimming", () => {
+    // Ensure buffer below 11500 limit — catches gradual bloat before it regresses
+    expect(SYSTEM_PROMPT.length).toBeLessThan(11450);
   });
 
   it("delegate tool has task parameter for structured handoff", () => {

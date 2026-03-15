@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 347 — Fix Char-Limit Regression + Prompt-Registry Guard Tests (tests: 1447, +4)
+
+### Workflow impact
+**Scenario**: User has a CSV of sales data, asks "find the month with highest revenue and plot the trend." Trace: file_read (csv-preview detects format) → code_exec (Python pandas analysis + matplotlib) → plot-capture (auto-captures chart) → response with answer + image. Every API call includes the system prompt — at 11855 chars, ~100 tokens were wasted per turn. After trim: 11424 chars, saving ~100 tokens/turn cached cost.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| system-prompt.ts | Trimmed Task Composition section (11855→11424 chars, -431) | Fix char-limit test regression from iter 345; reduce per-turn token waste |
+| system-prompt.test.ts | +3 tests: tool-group names match registry, core tools in prompt, char headroom guard | Cross-module tests catch prompt/registry drift; headroom test prevents gradual bloat |
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1447 passed, 0 failed (was 1443 passed + 1 failing)
+- All test-verified strings preserved (48 original tests still pass)
+
+### Expected effects
+- Char-limit test no longer fails — next iterations start from a clean suite
+- ~100 token savings per API call (cached prompt)
+- New cross-module tests catch: tool group added but not in prompt, core tool renamed but prompt not updated
+- Headroom test (< 11450) warns before prompt bloat hits the hard limit (< 11500)
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Process tool has 23 unit tests but no cross-module integration tests
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 346 — No-Regression Rule (Prevent Failing Tests on Commit)
 
 ### Verification of iter 344 (previous improver)
