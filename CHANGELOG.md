@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 141 — Graceful SIGINT Timeout Recovery for code_exec
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/code-exec.ts` | Python wrapper catches `KeyboardInterrupt`; timeout handler tries SIGINT before kill (Python only); improved timeout messages with recovery guidance | Timeout destroyed all session state — variables, imports, loaded data — forcing the agent to restart from scratch. SIGINT preserves session state for interruptible Python code. |
+| `src/tools/code-exec.test.ts` | 4 timeout tests (2 replaced, 2 new): SIGINT interrupt with state preservation, post-interrupt recovery, Node timeout with guidance, Node recovery | Verify SIGINT behavior and improved error messages |
+
+### Workflow impact
+
+**Scenario**: "I have a CSV of server logs (500MB). Find anomalies in the last 24 hours and create a visual summary."
+
+Flow: `file_read` → `code_exec` (Python pandas load + analysis) → `code_exec` (matplotlib viz) → `file_write` (report)
+
+**Before**: Agent loads data (`df = pd.read_csv('logs.csv')`), computes features, then runs an accidentally expensive operation (e.g., pairwise correlation on 500K rows). After 30s timeout, the REPL is killed — `df`, all imports, all intermediate results are destroyed. Agent gets: "Execution timed out after 30000ms". It must re-import pandas, re-load the 500MB CSV, and redo all prior work. Costs 3-5 extra turns.
+
+**After**: Same timeout fires, but SIGINT is sent first. Python's `time.sleep()`, `pd.read_csv()`, and most computation loops are interruptible by SIGINT. Python catches `KeyboardInterrupt`, prints the traceback, and the REPL continues. Agent gets: "KeyboardInterrupt: execution interrupted\n\n[Interrupted after 30000ms — session state preserved. Variables and imports are still available.]" The agent can immediately retry with optimized code — `df` is still loaded, imports are intact. Saves 3-5 turns.
+
+**Fallback**: If code blocks SIGINT (e.g., C extension in uninterruptible syscall), the 3s grace period expires and the session is killed. Agent gets: "Execution timed out after 30000ms. Session was reset — all state (variables, imports) lost. To recover: re-import modules and re-load data. Consider increasing timeout_ms or processing in smaller chunks." Even the fallback is more helpful than before.
+
+### Verification
+
+- 851 tests pass (849 → 851, +2 net new)
+- Typecheck clean
+- Build clean
+- `node dist/cli.js --help` loads correctly
+
+### Expected effects
+
+- Python data analysis tasks should recover from timeouts without losing session state (when code is SIGINT-interruptible)
+- Agent should see actionable recovery guidance in timeout messages instead of a bare error
+- Node.js timeouts still hard-kill (SIGINT unreliable in vm context) but now include recovery guidance
+
+### Future directions
+
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+- loop.ts (~345 lines) and code-exec.ts (~330 lines) still slightly over 300-line limit
+- Consider adding SIGINT recovery for Node.js via process.on('SIGINT') handler in the wrapper
+
 ## Iteration 139 — Cross-Module Integration Tests + CLI Coverage
 
 ### What changed

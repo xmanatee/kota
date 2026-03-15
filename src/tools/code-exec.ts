@@ -40,6 +40,8 @@ const PYTHON_WRAPPER = [
   "                if r is not None: print(repr(r))",
   "            else:",
   "                exec(compile(code, '<exec>', 'exec'), _g)",
+  "    except KeyboardInterrupt:",
+  "        print('KeyboardInterrupt: execution interrupted')",
   "    except Exception: traceback.print_exc()",
   "    try:",
   "        import matplotlib.pyplot as _plt",
@@ -126,6 +128,8 @@ class REPLSession {
       const stderrChunks: string[] = [];
       let stdoutBuf = "";
       let settled = false;
+      let interrupted = false;
+      let killTimer: ReturnType<typeof setTimeout> | null = null;
 
       const settle = (result: { output: string; isError: boolean }) => {
         if (settled) return;
@@ -134,6 +138,14 @@ class REPLSession {
         proc.stderr!.removeListener("data", onStderr);
         proc.removeListener("exit", onExit);
         clearTimeout(timer);
+        if (killTimer) clearTimeout(killTimer);
+        if (interrupted && !result.isError) {
+          resolve({
+            output: result.output + `\n\n[Interrupted after ${timeoutMs}ms — session state preserved. Variables and imports are still available.]`,
+            isError: false,
+          });
+          return;
+        }
         resolve(result);
       };
 
@@ -167,9 +179,22 @@ class REPLSession {
         });
       };
 
+      const timeoutMsg = `Execution timed out after ${timeoutMs}ms. Session was reset — all state (variables, imports) lost.\nTo recover: re-import modules and re-load data. Consider increasing timeout_ms or processing in smaller chunks.`;
       const timer = setTimeout(() => {
-        this.kill();
-        settle({ output: `Execution timed out after ${timeoutMs}ms`, isError: true });
+        if (this.language === "python" && this.proc) {
+          // Python: try SIGINT first — raises KeyboardInterrupt, preserves session state
+          interrupted = true;
+          try { proc.kill("SIGINT"); } catch {}
+          killTimer = setTimeout(() => {
+            if (!settled) {
+              this.kill();
+              settle({ output: timeoutMsg, isError: true });
+            }
+          }, 3_000);
+        } else {
+          this.kill();
+          settle({ output: timeoutMsg, isError: true });
+        }
       }, timeoutMs);
 
       proc.stdout!.on("data", onStdout);

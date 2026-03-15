@@ -197,17 +197,24 @@ ModuleNotFoundError: No module named 'pandas'`;
   });
 
   describe("timeout handling", () => {
-    it("times out on long-running code", async () => {
+    it("python: SIGINT interrupts and preserves session state", async () => {
+      // Set up state
+      await runCodeExec({ code: "x = 42", language: "python" });
+      // time.sleep is interruptible by SIGINT
       const result = await runCodeExec({
         code: "import time; time.sleep(60)",
         language: "python",
         timeout_ms: 1000,
       });
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("timed out");
-    });
+      expect(result.is_error).toBe(false);
+      expect(result.content).toContain("interrupted");
+      expect(result.content).toContain("state preserved");
+      // State should survive the interrupt
+      const check = await runCodeExec({ code: "x", language: "python" });
+      expect(check.content).toContain("42");
+    }, 15000);
 
-    it("recovers after timeout", async () => {
+    it("python: recovers after interrupt", async () => {
       await runCodeExec({
         code: "import time; time.sleep(60)",
         language: "python",
@@ -219,6 +226,32 @@ ModuleNotFoundError: No module named 'pandas'`;
       });
       expect(result.is_error).toBeFalsy();
       expect(result.content).toContain("2");
-    });
+    }, 15000);
+
+    it("node: timeout kills session with recovery guidance", async () => {
+      const result = await runCodeExec({
+        code: "while(true){}",
+        language: "node",
+        timeout_ms: 500,
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("timed out");
+      expect(result.content).toContain("re-import");
+      expect(result.content).toContain("timeout_ms");
+    }, 10000);
+
+    it("node: recovers after timeout", async () => {
+      await runCodeExec({
+        code: "while(true){}",
+        language: "node",
+        timeout_ms: 500,
+      });
+      const result = await runCodeExec({
+        code: "1 + 1",
+        language: "node",
+      });
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("2");
+    }, 10000);
   });
 });
