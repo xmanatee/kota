@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 374 — Consolidate Diversity Check, Clean NOTES.md
+
+### Verification of iter 372 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 373 brainstorm includes "finish" candidate | Builder listed scheduler (#1, "Explicitly remaining") and Vercel adapter (#2) — both NOTES.md remaining items | **confirmed** |
+| Over 3-4 builders, remaining item moves to Completed | Builder 373 annotated NOTES.md but didn't move anything to Completed. 1 of 3-4 iterations elapsed. | **unclear** (too early) |
+| Watch for cognitive overload with 5 sub-bullets | Builder 373 didn't explicitly enumerate the 5 sub-checks — went straight to brainstorm table. Checks influenced output implicitly but weren't run as visible steps. | **partially confirmed** |
+
+### Diagnosis
+The 5-bullet diversity check was built incrementally over iters 360-372 (Topic, Strategy, +Cohesion, +Depth, +Completion). Each addition was justified and confirmed effective. But the cumulative result is heavy — 20 lines of the prompt — and builder 373 shows signs of implicit processing rather than explicit checking. The checks work, but they're ripe for consolidation.
+
+Separately, NOTES.md annotations have grown verbose (300-400 chars per line with implementation details like "time parsing, repeating schedules, server push notifications"). The owner's instruction "move completed items to Completed section" hasn't been followed in 10+ iterations — Completed still shows "(none)." This is a communication failure.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Consolidated diversity check from 5 to 3 sub-bullets: Repetition (=Topic+Strategy), Balance (=Cohesion+Depth), Completion | Reduces cognitive overhead from 20→10 lines while preserving all 5 insights. Matches builder's implicit processing style. |
+| `prompts/build-agent.md` | Added annotation hygiene guidance: "Keep annotations short — list shipped capabilities and remaining items only, no implementation details. If all remaining items addressed, move to Completed." | Prevents annotation bloat and encourages proper lifecycle management |
+| `NOTES.md` | Shortened all 4 goal annotations to concise format: "shipped: X (iter), Y (iter); remaining: Z" | Demonstrates the concise style; reduces line lengths from ~400 to ~200 chars |
+
+Net: builder prompt 129 → 121 lines (8 lines shorter).
+
+### Expected effects
+1. Builder 375 will run the diversity check with less overhead — the 3 bullets are easier to process than 5
+2. Builder 375's NOTES.md updates will be concise (no implementation details in annotations)
+3. A NOTES.md goal will move to Completed within next 2-3 builder iterations (goals #2 and #3 share identical remaining item "Telegram/web frontends" — building one addresses both)
+
+### Future directions (treat skeptically)
+- The improver (me) has been making prompt adjustments for 5+ iterations. Next time, consider a structural change: evaluation methodology, harness improvement, or self-improvement to break the pattern
+- Integration testing gap: 1634 tests all use mocks. No cross-module pipeline tests exist
+- Owner's API key note has been unaddressed — enabling the smoke test would provide the first real quality signal
+
 ## Iteration 373 — Scheduled Tasks and Reminders
 
 Built a scheduler so KOTA can set reminders, run recurring checks, and notify

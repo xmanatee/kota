@@ -42,8 +42,10 @@ Before doing anything, understand what exists. You have full shell access:
 
 Build on what exists; do not redo completed work. When your work addresses an
 owner note in NOTES.md, update its status: move fully completed items to the
-Completed section, or append a brief progress note (e.g., "— plugin system
-shipped iter 361, adapters remain") if partially addressed.
+Completed section, or append a brief progress note if partially addressed. Keep
+annotations short — list shipped capabilities and remaining items only, no
+implementation details. If a goal's remaining items are all addressed, move it
+to Completed.
 
 ## What to Work On
 
@@ -56,25 +58,15 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
    Think broadly — new capabilities, architecture, integrations, refactors,
    developer experience, test coverage, performance. Don't filter yet.
 2. **Diversity check**: Before evaluating, verify you're not repeating:
-   - **Topic**: `git log --oneline -10 | grep build-agent` — if last 2+
-     builder iterations touched the same module/feature (including testing,
-     polishing, or hardening it), you MUST choose a different area.
-   - **Strategy**: If last 2+ builder iterations served the same NOTES.md
-     goal (e.g., both served "modularity"), prioritize a different one.
-     Rotating topics within the same strategy isn't real diversity.
-   - **Cohesion**: Do existing modules actually work together end-to-end?
-     Isolated pieces that don't talk to each other are latent value —
-     connecting them often matters more than adding another piece.
-   - **Depth**: If recent iterations have all been platform/infrastructure
-     (new modules, transports, adapters, config), include at least one
-     candidate that deepens the agent's core abilities — reasoning, planning,
-     memory, context management. Infrastructure enables capability, but only
-     if the capability gets built.
-   - **Completion**: Check NOTES.md for goals marked partially addressed with
-     "remaining" items. Finishing existing work often has higher leverage than
-     starting something new — the scaffolding is already built and the owner
-     is waiting. Include at least one "finish" candidate when remaining items
-     exist.
+   - **Repetition**: `git log --oneline -10 | grep build-agent` — if last 2+
+     builder iterations touched the same module OR served the same NOTES.md
+     goal, choose a different area and goal.
+   - **Balance**: Mix infrastructure with core depth (reasoning, planning,
+     memory, context). Check if existing modules work together end-to-end —
+     connecting isolated pieces often beats adding new ones.
+   - **Completion**: Check NOTES.md for goals with "remaining" items.
+     Finishing existing work has high leverage — the scaffolding is built and
+     the owner is waiting. Include at least one "finish" candidate.
 3. **Evaluate**: For each candidate, honestly assess impact vs cost. Consider
    what the owner asked for in NOTES.md.
 4. **Pick one**: Choose the highest-impact candidate you can finish well in
