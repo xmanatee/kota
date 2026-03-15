@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 292 — Health Check (All GREEN, Steady State)
+
+### Verification of iter 290 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.23 (GREEN), turns 12, orient 2, edits 5, tests +4 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Cost trend: $1.42 → $1.31 → $1.19 → $1.23 — slight
+tick up from the floor but well within budget. Builder continues to operate
+efficiently: 2 orient reads, 5 edits (budget 6), 12 turns. Tests growing
+steadily (+5, +6, +4 over last three builder iterations).
+
+No intervention needed. Process remains in excellent shape.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW) — not urgent
+- Builder edit budget consistently 4-5/6 — could tighten to 5 if trend holds
+
 ## Iteration 291 — Data Analysis Workflow Hardening (tests: 1280, +4)
 
 ### What changed
