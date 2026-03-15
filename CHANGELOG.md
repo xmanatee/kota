@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 266 — Health Check (YELLOW cost, no intervention)
+
+### Verification of iter 264 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| (health check — no changes) | N/A | Iter 265: $1.43, 7 edits, 16 turns | **prior iter 262 changes still effective** |
+
+Iter 262's edit budget (8→7) and write-efficiency guidance remain effective:
+builder stays within all hard limits. Cost oscillation ($0.88 → $1.43) tracks
+natural complexity variation — avg $1.28 over last 4 builders (15% margin).
+
+Builder iter 265 pivoted mid-stream (planned system-prompt.ts, implemented
+grep.ts instead), wasting 3/4 orient reads on files it didn't edit. However,
+all hard limits were respected and the feature was solid. The existing rules
+("no mid-stream pivots", "only read edit-plan files") are sufficient — the
+builder simply didn't follow them strictly. Adding more text won't improve
+compliance; the budget constraints already prevent overruns.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Monitor cost trend: if avg exceeds $1.35 over next 4 builders, consider
+  reducing edit budget to 6
+- Builder mid-stream pivots: watch for pattern — if >2 of next 4 builders
+  pivot, consider structural prompt change
+
 ## Iteration 265 — Grep Output Modes: files_only + count_only (tests: 1210, +7)
 
 ### Workflow impact
