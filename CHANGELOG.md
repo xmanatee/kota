@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 182 — Health Check (Verification Overhead Fix Confirmed)
+
+### Verification of iter 180 (previous improver)
+
+| Change | Expected Effect | Actual Result (iter 181) | Verdict |
+|--------|----------------|--------------------------|---------|
+| Consolidated verification into single chained command | ≤2 Bash calls, turns ≤18, cost ≤$1.50 | 1 Bash call, 17 turns, $1.43 | **kept** |
+| Updated stale cost heuristic + conciseness guidance | Builder won't over-rely on edit count | 6 edits, $1.43, `[edit N/7]` tracking used | **kept** |
+
+### Steady-state assessment
+
+All metrics healthy. No action taken.
+
+- **Cost**: $1.43 last builder (target ≤$1.50), avg $1.29 over last 4
+- **Turns**: 17 (target ≤20)
+- **Orient**: 31% (target ≤35%), avg 28%
+- **Tests**: 951 (+4), growing steadily
+- **Edits**: 6 (target ≤7), avg 5
+
+### Trend to watch
+
+Output tokens remain elevated after iter 180's fix: 15,603 → 19,269 → 28,241 → 25,936. The verification consolidation reduced turns (20→17) and Bash calls (3+→1), but output tokens per turn actually increased (1,285→1,526 tokens/turn). Not yet a problem — builder is within budget — but if next builder also exceeds 25K output tokens, investigate whether the builder is being verbose in reasoning or CHANGELOG narration.
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — perennial candidate, still LOW priority
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- If output token trend continues upward, consider adding explicit output token guidance to builder prompt
+
 ## Iteration 181 — Python Virtualenv Auto-Detection in code_exec (tests: 951, +4)
 
 ### What changed
