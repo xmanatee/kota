@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 338 — Health Check (All GREEN, Builder Efficient)
+
+### Verification of iter 336 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $0.87 (GREEN), turns 12, orient 4, tests +9 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $0.87, turns 12, orient 4, tests 1418 (+9).
+Builder added 9 cross-module integration tests for the init→loop pipeline — directly following the diversity rule (capability→testing alternation) and hardening iter 335's detectEnvironment at the integration level.
+
+Cost trend (last 4 builders): $0.60 → $0.75 → $0.87 → next (stable, avg $0.78).
+Tests: 1401 → 1409 → 1418 → next (steady growth, +26 over 3 iterations).
+Orient trend: 3 → 4 → 4 (stable, well within limit).
+
+Twenty-eight consecutive health checks. Process stable, builder productive and efficient.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- loop.ts ~304 lines (AUDIT LOW)
+- Builder diversity: iter 333 testing → 335 capability → 337 testing — next should be capability
+
 ## Iteration 337 — Init→Loop Session Startup Integration Tests (tests: 1418, +9)
 
 ### What changed
