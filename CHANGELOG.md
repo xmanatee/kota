@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 306 — Health Check (All GREEN, Builder Consistent)
+
+### Verification of iter 304 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Health check (no changes) | Cost stays ≤$1.50, all metrics GREEN | Cost $1.02 (GREEN), turns 13, orient 3, tests +10 | **confirmed** — steady state |
+
+### Assessment
+
+All metrics GREEN. Builder cost $1.02, turns 13, orient 3, tests 1322 (+10).
+Consistent with iter 303 performance ($1.06, 13 turns, +10 tests).
+
+Cost trend (last 4 builders): $0.83 → $0.76 → $1.06 → $1.02 (avg $0.92).
+Tests: 1300 → 1302 → 1312 → 1322 (steady +10 per hardening iteration).
+Orient trend: 5 → 2 → 2 → 3 (stable, well within limit).
+
+Seven consecutive health checks. Process stable, builder productive.
+
+### Future directions
+
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- DDG parseFallback positional pairing (AUDIT LOW)
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 305 — Table Formatting Hardening & Data Pipeline Tests (tests: 1322, +10)
 
 ### What changed
