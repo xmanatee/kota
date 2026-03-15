@@ -14,6 +14,7 @@ import { runShell } from "./tools/shell.js";
 import { processTool, runProcess } from "./tools/process.js";
 import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
 import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
+import { detectProject, getDirectoryOverview } from "./init.js";
 
 // --- Sub-agent system prompts ---
 
@@ -148,6 +149,10 @@ export function buildSubAgentPrompt(
   const parts = [base];
   if (config.cwd) {
     parts.push(`\nWorking directory: ${config.cwd}`);
+    const project = detectProject(config.cwd);
+    if (project) parts.push(`Project: ${project}`);
+    const overview = getDirectoryOverview(config.cwd);
+    if (overview) parts.push(`Directory:\n${overview}`);
   }
   if (config.projectContext) {
     parts.push(`\n${config.projectContext}`);

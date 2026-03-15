@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   EXPLORE_PROMPT,
   EXECUTE_PROMPT,
@@ -99,6 +99,88 @@ describe("sub-agent prompts", () => {
 
   it("EXECUTE_PROMPT includes re-verify guidance", () => {
     expect(EXECUTE_PROMPT).toContain("re-verify");
+  });
+});
+
+describe("buildSubAgentPrompt × init.ts — delegate environment context", () => {
+  const base = "You are a sub-agent.";
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    tmpDir = mkdtempSync(join(tmpdir(), "delegate-ctx-"));
+  });
+
+  afterEach(async () => {
+    const { rmSync } = await import("node:fs");
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("includes project type when cwd has package.json", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(
+      join(tmpDir, "package.json"),
+      JSON.stringify({ name: "my-app", dependencies: { react: "^18" } }),
+    );
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).toContain("Project:");
+    expect(result).toContain("Node.js project");
+    expect(result).toContain("react");
+  });
+
+  it("includes directory overview when cwd has files", async () => {
+    const { writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(join(tmpDir, "index.ts"), "export {}");
+    writeFileSync(join(tmpDir, "README.md"), "# Hello");
+    mkdirSync(join(tmpDir, "src"));
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).toContain("Directory:");
+    expect(result).toContain("src/");
+    expect(result).toContain("index.ts");
+  });
+
+  it("omits project and directory for empty dir", async () => {
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).not.toContain("Project:");
+    expect(result).not.toContain("Directory:");
+    expect(result).toContain("Working directory:");
+  });
+
+  it("orders: cwd → project → directory → projectContext", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(
+      join(tmpDir, "package.json"),
+      JSON.stringify({ name: "test-app" }),
+    );
+    writeFileSync(join(tmpDir, "app.js"), "");
+    const result = buildSubAgentPrompt(base, {
+      cwd: tmpDir,
+      projectContext: "## Rules\nUse tabs.",
+    });
+    const cwdIdx = result.indexOf("Working directory:");
+    const projIdx = result.indexOf("Project:");
+    const dirIdx = result.indexOf("Directory:");
+    const ctxIdx = result.indexOf("Use tabs.");
+    expect(cwdIdx).toBeLessThan(projIdx);
+    expect(projIdx).toBeLessThan(dirIdx);
+    expect(dirIdx).toBeLessThan(ctxIdx);
+  });
+
+  it("filters noise directories from delegate overview", async () => {
+    const { mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    mkdirSync(join(tmpDir, "src"));
+    mkdirSync(join(tmpDir, "node_modules"));
+    mkdirSync(join(tmpDir, ".git"));
+    const result = buildSubAgentPrompt(base, { cwd: tmpDir });
+    expect(result).toContain("src/");
+    expect(result).not.toContain("node_modules");
+    expect(result).not.toContain(".git");
   });
 });
 

@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 189 — Delegate Environment Context (tests: 973, +5)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/delegate-prompts.ts` | `buildSubAgentPrompt` now calls `detectProject(cwd)` and `getDirectoryOverview(cwd)` to enrich the sub-agent system prompt | Delegates started blind — no knowledge of project type or file structure, wasting turns on discovery |
+
+### Workflow impact
+
+**Scenario**: "User says: 'I need to add input validation to all the form components. Delegate to sub-agents to handle each form independently.'" — exercises delegate(execute) × project context.
+
+**Before**: Each delegate receives only `Working directory: /path/to/project`. It has to run `glob` or `repo_map` to discover what files exist, then read `package.json` to learn the tech stack. Wastes 1-2 turns per delegation just orienting.
+
+**After**: Delegate prompt includes:
+```
+Working directory: /path/to/project
+Project: Node.js project — myapp; frameworks: react; TypeScript; tests: vitest
+Directory:
+Dirs: src/, components/, public/
+Files: package.json, tsconfig.json, README.md
+```
+Sub-agent can immediately read the right files and use the correct patterns — no orientation turns needed.
+
+### Verification
+
+- 973 tests pass (968 → 973, +5 new cross-module tests)
+- Typecheck clean, build clean, CLI loads
+- 5 Edit/Write calls used (budget: ≤7)
+
+### Expected effects
+
+- Delegates should reference project files and tech stack from turn 1 without running glob/repo_map first
+- Each delegation saves ~1-2 turns of orientation, improving both cost and quality
+- No impact on delegates without cwd (stays unchanged)
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens)
+- `extractMissingPackage` still rejects dotted npm names like `socket.io` (AUDIT: LOW)
+
 ## Iteration 188 — Health Check (All Metrics Healthy)
 
 ### Verification of iter 186 (previous improver)

@@ -67,7 +67,10 @@ numbers, stale warning on externally modified file (iter 185).
 dir-overview (6) — getDirectoryOverview: empty dir null, mixed files/dirs listing,
 hidden + noise filtering, file truncation (>15), dir truncation (>10),
 buildSessionWarmup integration with directory section (iter 187).
-Total suite: 968.
+delegate-context (5) — buildSubAgentPrompt × detectProject × getDirectoryOverview:
+project type from package.json, directory listing with files/dirs, empty dir omission,
+ordering (cwd → project → directory → projectContext), noise filtering (iter 189).
+Total suite: 973.
 
 No untested modules remain. All modules above minimum test density threshold.
 
