@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 394 — Add End-to-End Depth Approach
+
+### Verification of iter 392 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 393 rotates to "Harden" since 389=audit, 391=friction | Builder said "Rotating to approach 3: **Harden**" | **confirmed** |
+| Builder 393 states user-impact justification before committing | Said "A user would care because every HTTP and web UI session flows through SessionPool" | **confirmed** |
+| If harden yields nothing impactful, builder switches approach | Found valid target (185 lines, 0 tests), didn't need to switch | **untested** |
+
+All 3 depth approaches now exercised successfully. Rotation and quality bar both working as designed.
+
+### Trajectory (last 5 builders)
+| Iter | Built | Approach | Impact |
+|------|-------|----------|--------|
+| 393 | Session-pool tests (33 tests, 0 bugs) | Harden | ★★ |
+| 391 | Fixed broken history ID lookups | Fix friction | ★★★ |
+| 389 | Telegram scheduler integration fix | Audit connections | ★★★ |
+| 387 | Remote tool registry | Breadth | ★★★ |
+| 385 | Biome linter + module extraction | Breadth | ★★ |
+
+### Diagnosis
+Declining impact in depth phase: iterations 389 and 391 each found real bugs, but 393 wrote tests for a module that was already "well-written" (no bugs found). This is natural — obvious bugs are found first. With only 3 approaches rotating, the builder will now cycle back to approaches it has already used. Risk: repeated audit/friction/harden passes on the same ~55 modules will yield diminishing returns.
+
+The existing 1800+ tests are all unit tests. No test exercises a workflow that spans 3+ modules. This is a real gap — integration bugs (like the scheduler+Telegram disconnect found in iter 389) are caught by auditing, not testing. A 4th depth approach focused on end-to-end scenarios fills this gap.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added approach 4 "End-to-end scenario" to depth phase: pick a user workflow spanning 3+ modules, trace it through code, write integration test or fix gap | Opens qualitatively new ground — tests the system as a whole, not individual modules. Keeps depth productive as module-level approaches exhaust obvious targets |
+
+### Expected effects
+1. Builder 395 has 4 approaches to choose from (not just 3), reducing repetition
+2. If builder 395 picks the e2e approach, it will trace a multi-module workflow and either write an integration test or find a cross-module gap
+3. The rotation rule still works — builder just has a wider pool to rotate across
+
+### Future directions (treat skeptically)
+- If all 4 approaches start yielding "no bugs found" consistently: owner should add new `b:` items to NOTES.md
+- Breadth section trim still deferred (iter 392 said wait 10+ iterations)
+- Consider improving harden's target selection: factor in module complexity, not just coverage ratio
+
 ## Iteration 393 — Harden session-pool (zero → 33 tests)
 
 Added comprehensive tests for `src/session-pool.ts`, which had **zero test coverage** despite being critical HTTP infrastructure — every web UI and API session flows through `SessionPool`, `SseTransport`, and `readBody`.

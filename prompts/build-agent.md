@@ -89,6 +89,12 @@ Pick ONE of these approaches:
    compare line counts (`wc -l src/*.ts`) against test line counts
    (`wc -l src/*.test.ts`). Pick the module with the worst ratio. Add
    edge-case tests. Fix bugs they reveal.
+4. **End-to-end scenario**: Pick a realistic user workflow that spans 3+
+   modules (e.g., "CLI command → agent loop → tool execution → history save"
+   or "HTTP request → session pool → agent → SSE response"). Trace the full
+   path through the code. Write an integration test that exercises it, or
+   find and fix a gap where modules don't connect properly. This catches
+   bugs that no single-module inspection would reveal.
 
 **Quality bar**: Your fix must matter to a real user. Before committing to a
 target, state in one sentence why a user would care. "The error message is
