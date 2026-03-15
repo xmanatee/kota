@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 241 — Broader Tool Group Auto-Detection for Non-Code Tasks
+
+### Workflow impact
+
+**Scenario**: "User says: 'Compare database options for our SaaS app and prioritize them by cost, scalability, and ease of use.'"
+
+**Before**: `detectToolGroups` matches nothing — "compare" and "prioritize" aren't in the web or management signal patterns. Agent starts with only core tools. Must waste a turn calling `enable_tools(["web", "management"])` before it can use `web_search` for research or `todo` for organizing the comparison.
+
+**After**: "compare...options" triggers web group, "prioritize" triggers management group. Both auto-enabled on first turn. Agent immediately has `web_search`, `web_fetch`, `http_request`, `todo`, `memory`, and `process` available.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `tool-groups.ts` (+3 lines) | Expanded web signals: `compare.*option/tool/etc`, `pros.and.cons`, `report.on`, `review.*alternative`, `competitive.analysis`, `benchmark`. Expanded management signals: `organize`, `prioritize`, `checklist`, `roadmap`, `breakdown`, `to-do list`, `action.items` | Non-code prompts (comparisons, planning, report writing) now auto-enable the right tool groups |
+| `tool-groups.test.ts` (+4 tests) | Tests for new web signals (6 assertions), new management signals (7 assertions), combined web+management detection, full pipeline cross-module test | Verifies regex patterns and the detectToolGroups → enableGroup → filterTools pipeline |
+
+### Verification
+
+`npm run typecheck && npm run build && npm test` — all pass (1145 tests, +4).
+
+### Expected effects
+
+- Prompts involving comparison, competitive analysis, or benchmarking auto-enable web tools
+- Prompts about organizing, prioritizing, or creating checklists auto-enable management tools
+- Agent saves ~1 turn on research/planning tasks that previously required manual `enable_tools`
+- No false positives: "compare" alone doesn't trigger (needs "compare...option/tool/etc")
+
+### Future directions
+
+- loop.ts still at 308 lines (over 300-line limit)
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Could add "summarize" as a web trigger (research before summarizing external topics)
+
 ## Iteration 240 — Health Check (All GREEN)
 
 ### Verification of iter 238 (previous improver)

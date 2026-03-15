@@ -233,5 +233,49 @@ describe("tool-groups", () => {
       expect(detectToolGroups("Create a visualization")).toContain("code");
       expect(detectToolGroups("Show me statistics for Q1")).toContain("code");
     });
+
+    it("detects web group from comparison and report prompts", () => {
+      expect(detectToolGroups("Compare options for hosting")).toContain("web");
+      expect(detectToolGroups("List pros and cons of React vs Vue")).toContain("web");
+      expect(detectToolGroups("Write a report on current trends")).toContain("web");
+      expect(detectToolGroups("Review alternatives for our CI provider")).toContain("web");
+      expect(detectToolGroups("Do a competitive analysis of project management tools")).toContain("web");
+      expect(detectToolGroups("Benchmark the top cloud providers")).toContain("web");
+    });
+
+    it("detects management group from organizational keywords", () => {
+      expect(detectToolGroups("Organize the migration steps")).toContain("management");
+      expect(detectToolGroups("Prioritize these features")).toContain("management");
+      expect(detectToolGroups("Create a checklist for launch")).toContain("management");
+      expect(detectToolGroups("Build a roadmap for Q2")).toContain("management");
+      expect(detectToolGroups("Give me a breakdown of the work")).toContain("management");
+      expect(detectToolGroups("Create a to-do list for the release")).toContain("management");
+      expect(detectToolGroups("Extract action items from these notes")).toContain("management");
+    });
+
+    it("detects web + management for research-and-plan prompts", () => {
+      const groups = detectToolGroups("Research hosting options and create a checklist for migration");
+      expect(groups).toContain("web");
+      expect(groups).toContain("management");
+    });
+
+    it("full pipeline: detectToolGroups → enableGroup → filterTools", () => {
+      // Non-code scenario: "Compare database options and organize into a decision doc"
+      const prompt = "Compare database options and prioritize them by cost";
+      const detected = detectToolGroups(prompt);
+      expect(detected).toContain("web");
+      expect(detected).toContain("management");
+
+      for (const g of detected) enableGroup(g);
+
+      const active = getActiveToolNames();
+      expect(active.has("web_search")).toBe(true);
+      expect(active.has("web_fetch")).toBe(true);
+      expect(active.has("http_request")).toBe(true);
+      expect(active.has("todo")).toBe(true);
+      expect(active.has("memory")).toBe(true);
+      // code_exec should NOT be enabled (not detected)
+      expect(active.has("code_exec")).toBe(false);
+    });
   });
 });
