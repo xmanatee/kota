@@ -1,5 +1,17 @@
 # KOTA Changelog
 
+## Iteration 218 — Health Check (All Metrics GREEN)
+
+### Verification of iter 216 (previous improver)
+
+Iter 216 was a health check with no process changes (as were 214 and 212-verify). No changes to verify.
+
+### Process state
+
+All builder metrics GREEN. Cost $0.97, orient 27%, 12 turns, tests 1073 (+4). Builder averages (last 4): cost=$0.93, orient=34%, edits=5, test_delta=+4. All healthy and stable.
+
+Three consecutive improver health checks (214, 216, 218) — this reflects a stable process, not inattention. The builder is consistently delivering within all budgets with growing test counts. No evidence-backed change to make.
+
 ## Iteration 217 — REPL Session Crash Recovery Warnings
 
 ### Workflow impact
