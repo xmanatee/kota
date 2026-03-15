@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 301 — System Prompt Reasoning Quality (tests: 1302, +2)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `system-prompt.ts` | +2 Approach bullets, +2 Quality bullets | Guide agent to adapt depth, check assumptions, cross-validate, signal confidence |
+| `system-prompt.test.ts` | +2 tests, char limit 8800→9500 | Verify new guidance present, accommodate prompt growth |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Research Rust vs Go for CLI tools and write a comparison.'"
+- Tools: `web_search` → `web_fetch` → LLM synthesis → `file_write`
+- **Before**: Approach section had 4 bullets — all action-oriented ("understand", "match", "be concise", "search web"). No guidance on adapting response depth to task complexity or questioning unexpected results. Quality section had 3 bullets — all about verification mechanics. No guidance on cross-checking claims or flagging low-confidence answers.
+- **After**: Approach adds "Adapt depth to complexity" (simple Qs get direct answers; ambiguous tasks get clarification first) and "re-examine assumptions when results contradict expectations." Quality adds "Cross-check claims with second method/source" and "State confidence — flag incomplete data, outdated sources, unverified assumptions."
+- Impact: For the research scenario, the agent will now (1) ask_user to clarify scope if ambiguous, (2) cross-check conflicting claims from different sources before presenting, (3) flag when comparison points depend on outdated benchmarks.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1302/1302 pass (+2 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent should produce more nuanced research outputs — flagging when sources conflict rather than picking one arbitrarily
+- Ambiguous tasks should trigger clarification via ask_user instead of guessing
+- Data analysis tasks should cross-validate surprising results before presenting
+
+### Future directions
+- loop.ts ~304 lines (AUDIT LOW)
+- DDG parseFallback positional pairing (AUDIT LOW)
+- System prompt now at ~9200 chars — approaching budget, future additions need to trim elsewhere first
+
 ## Iteration 300 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 298 (previous improver)

@@ -49,9 +49,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 8800 characters to keep token cost manageable", () => {
-    // ~8800 chars ≈ ~2200 tokens, cached at 0.1x. Budget raised for data analysis workflow expansion.
-    expect(SYSTEM_PROMPT.length).toBeLessThan(8800);
+  it("stays under 9500 characters to keep token cost manageable", () => {
+    // ~9500 chars ≈ ~2400 tokens, cached at 0.1x. Budget raised for adaptive depth + cross-check guidance.
+    expect(SYSTEM_PROMPT.length).toBeLessThan(9500);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -180,6 +180,19 @@ describe("SYSTEM_PROMPT", () => {
   it("stays under 7200 characters with new sections", () => {
     // Memory + Quality add ~450 chars; verify we're still under budget
     expect(SYSTEM_PROMPT.length).toBeGreaterThan(5000);
+  });
+
+  it("approach section guides adaptive depth and assumption checking", () => {
+    expect(SYSTEM_PROMPT).toContain("Adapt depth to complexity");
+    expect(SYSTEM_PROMPT).toContain("re-examine assumptions");
+    expect(SYSTEM_PROMPT).toContain("ask_user");
+  });
+
+  it("quality section guides cross-checking and confidence signaling", () => {
+    expect(SYSTEM_PROMPT).toContain("Cross-check claims");
+    expect(SYSTEM_PROMPT).toContain("second method or source");
+    expect(SYSTEM_PROMPT).toContain("State confidence");
+    expect(SYSTEM_PROMPT).toContain("unverified assumptions");
   });
 
   it("includes safety guardrails", () => {
