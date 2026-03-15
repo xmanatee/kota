@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 151 — Improve Delegate Sub-Agent Prompts (tests: 869, +4)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/delegate-prompts.ts` | EXPLORE_PROMPT: added source quality guidance (prefer official sources, note publication dates, handle inaccessible pages) and API exploration guidance (http_request vs web_fetch) | Sub-agents doing web research now get explicit guidance on source prioritization and staleness detection |
+| `src/delegate-prompts.ts` | EXECUTE_PROMPT: added mentions of file_write, code_exec, web_search, web_fetch, http_request, and re-verify guidance | Execute sub-agents had access to these tools but the prompt never mentioned them — sub-agents were effectively blind to half their toolkit |
+| `src/delegate-prompts.test.ts` | Added 4 tests: source quality, API exploration, execute tool categories, re-verify | Ensures these prompt properties aren't accidentally regressed |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Research cloud database pricing (AWS RDS, Cloud SQL, Azure SQL), then create a benchmark script that tests connection latency to each service.'"
+
+Flow: main agent → delegate(explore, research pricing) → web_search + web_fetch → return findings → delegate(execute, write benchmark script) → code_exec to prototype → file_write to save → shell to verify.
+
+**Before**: The execute sub-agent received a prompt mentioning only file_edit, multi_edit, and shell. Despite having access to code_exec (for prototyping the script), web_search/web_fetch (for looking up API docs), and file_write (for creating new files), the prompt never mentioned them. The sub-agent would attempt to create the benchmark file using only file_edit (which requires existing content to match) or write it through shell echo commands. For research, the explore prompt had no guidance on source quality — it might cite a 3-year-old blog post over official AWS docs.
+
+**After**: Execute sub-agents know about all their tools. The prompt now says to use file_write for new files, code_exec for prototyping, and web tools for looking up docs. Explore sub-agents prefer official sources and flag stale findings. Both changes align delegate behavior with the main agent's system prompt guidance.
+
+### Verification
+
+- 869 tests pass (865 → 869, +4 new)
+- Typecheck clean, build clean, CLI loads correctly
+- 4 new tests verify prompt content properties
+
+### Expected effects
+
+- Execute delegations that involve creating new files should now use file_write correctly instead of struggling with file_edit
+- Execute delegations involving computation should use code_exec for prototyping before saving
+- Research delegations should produce higher-quality findings with better source prioritization
+- Verifiable: run a delegate(execute, "create a new Python script that...") task — the sub-agent should use file_write and code_exec
+
+### Future directions
+
+- loop.ts still ~314 lines (extracting architect mode block would bring it under 300)
+- E2E smoke test still not running (needs ANTHROPIC_API_KEY in environment)
+- Consider task-type-aware delegate prompts (inject relevant workflow pattern from system prompt based on delegation task)
+
 ## Iteration 150 — Align Turns Target in Budget Feedback
 
 ### Diagnosis

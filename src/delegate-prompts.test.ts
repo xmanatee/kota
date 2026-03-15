@@ -78,6 +78,28 @@ describe("sub-agent prompts", () => {
     expect(EXECUTE_PROMPT).toContain("re-read the file");
     expect(EXECUTE_PROMPT).toContain("Shell command fails");
   });
+
+  it("EXPLORE_PROMPT includes source quality guidance", () => {
+    expect(EXPLORE_PROMPT).toContain("official sources");
+    expect(EXPLORE_PROMPT).toContain("publication dates");
+    expect(EXPLORE_PROMPT).toContain("inaccessible");
+  });
+
+  it("EXPLORE_PROMPT includes API exploration guidance", () => {
+    expect(EXPLORE_PROMPT).toContain("http_request");
+    expect(EXPLORE_PROMPT).toContain("API");
+  });
+
+  it("EXECUTE_PROMPT mentions all available tool categories", () => {
+    expect(EXECUTE_PROMPT).toContain("file_write");
+    expect(EXECUTE_PROMPT).toContain("code_exec");
+    expect(EXECUTE_PROMPT).toContain("web_search");
+    expect(EXECUTE_PROMPT).toContain("http_request");
+  });
+
+  it("EXECUTE_PROMPT includes re-verify guidance", () => {
+    expect(EXECUTE_PROMPT).toContain("re-verify");
+  });
 });
 
 describe("tool sets", () => {
