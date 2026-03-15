@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { allTools } from "./tools/index.js";
+import { filterTools } from "./tool-groups.js";
 import { Context, CONTEXT_WINDOW } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { runArchitectStep } from "./architect-runner.js";
@@ -138,10 +139,8 @@ export class AgentSession {
     this.context.addUserMessage(prompt);
     let lastResult = "";
 
-    // Combine built-in tools with MCP tools
-    const combinedTools = this.mcpManager
-      ? [...allTools, ...this.mcpManager.getTools()]
-      : allTools;
+    // MCP tools always included; built-in tools filtered by active groups
+    const mcpTools = this.mcpManager ? this.mcpManager.getTools() : [];
 
     // Architect/Editor split: two-pass before the main verification loop
     if (this.architectMode) {
@@ -199,6 +198,9 @@ export class AgentSession {
         system.push({ type: "text", text: dynamicState });
       }
 
+      // Progressive disclosure: filter built-in tools by active groups, include MCP tools
+      const activeTools = [...filterTools(allTools), ...mcpTools];
+
       // Stream the response with retry for mid-stream failures
       const { response, streamedText } = await streamMessage({
         client: this.client,
@@ -206,7 +208,7 @@ export class AgentSession {
         maxTokens: this.effectiveMaxTokens,
         system,
         messages: this.context.getMessages(),
-        tools: combinedTools,
+        tools: activeTools,
         thinkingConfig: this.thinkingConfig,
         verbose: this.verbose,
       });
