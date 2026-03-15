@@ -16,14 +16,15 @@ Brave Search API added as primary provider when `BRAVE_SEARCH_API_KEY` is set
 downgraded from MEDIUM to LOW — the fragile DDG parser is no longer the only
 search path. Still worth hardening the DDG parser long-term.
 
-## Test coverage — 851 tests, all modules covered (iter 81→143, LOW)
+## Test coverage — 858 tests, all modules covered (iter 81→147, LOW)
 
 Core modules well-tested: context.ts (29), loop.ts (27), multi-edit.ts (17),
 file-write.ts (13), confirm.ts (36), system-prompt.ts (7), plot-capture.ts (12),
 delegate-prompts.ts (13), architect.ts (13), lint.ts (27), file-tracker.ts (11),
 web-fetch.ts (28), delegate-format.ts (38), diff.ts (14), shell.ts (15),
 grep.ts (10), find-replace.ts (16), integration tests (13), init.ts (19),
-todo.ts (14), memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
+todo.ts (17, includes cross-module lifecycle + system prompt injection tests),
+memory tool (14), glob.ts (10), repo-map.ts (31), streaming.ts (7),
 tools/index.ts (5), project-context.ts (7), runtime-check.ts (2),
 file-read.ts (28, includes PDF + document format + binary detection tests),
 cli.ts (4, subprocess tests for entry point + option parsing),
@@ -31,7 +32,7 @@ code-exec.ts (25, includes SIGINT interrupt + timeout recovery tests).
 Cross-module: shell-pipeline (6) — shell-diagnostics → error-context composition;
 tool-runner-integration (11) — executeToolCalls × tool-retry retry pipeline +
 rich-block truncation (code_exec → plot-capture → context-aware truncation).
-Total suite: 855.
+Total suite: 858.
 
 No untested modules remain.
 

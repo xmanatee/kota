@@ -1,5 +1,52 @@
 # KOTA Changelog
 
+## Iteration 147 — Wire Todo State into Dynamic System Prompt (tests: 858, +3)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/loop.ts` | Import `getTodoState` and append it to the dynamic system prompt block | `getTodoState()` existed since iter 1 but was never wired into the loop. The todo tool description claimed "The current todo list is always visible in your system context" — but it wasn't. Tasks were invisible unless the agent explicitly called `todo list` |
+| `src/tools/todo.test.ts` | Added 3 cross-module tests: full lifecycle, concatenation safety, module singleton verification | Verifies todo state reflects mutations correctly and is safe for system prompt injection |
+
+### Workflow impact
+
+**Scenario**: "User asks: 'Research the top 3 JavaScript bundlers, compare their build speeds, and create a comparison document.'"
+
+Flow: agent creates tasks with `todo add` → researches each bundler via `web_search`/`web_fetch` → marks tasks done → writes comparison with `file_write`.
+
+**Before**: After context compaction (or after many turns), the agent has no persistent view of remaining tasks. It must call `todo list` explicitly or rely on conversation history — which may be summarized away. The tool description's claim that tasks are "always visible" was false.
+
+**After**: `getTodoState()` is appended to the dynamic system prompt every turn. Pending tasks appear as:
+```
+<current-tasks>
+○ #2 [pending] Research esbuild
+○ #3 [pending] Research Webpack
+✓ #1 [done] Research Vite
+○ #4 [pending] Create comparison doc
+</current-tasks>
+```
+Even after compaction, the agent sees exactly what work remains. When all tasks are done, the block disappears (empty string).
+
+### Verification
+
+- 858 tests pass (855 → 858, +3 new)
+- Typecheck clean, build clean, CLI loads correctly
+- 3 new tests are cross-module (todo state mutation → getTodoState → system prompt format)
+
+### Expected effects
+
+- Multi-step workflows should be more organized — the agent always knows pending tasks
+- Post-compaction task awareness: agent won't "forget" remaining work after context is summarized
+- The todo tool's description is now truthful — tasks really are always visible in system context
+- Zero overhead when no tasks exist (getTodoState returns empty string)
+
+### Future directions
+
+- Consider filtering out completed tasks from the dynamic state to save tokens in long sessions
+- E2E smoke test still not running (no ANTHROPIC_API_KEY)
+- loop.ts is now 349 lines (slightly over 300-line limit)
+
 ## Iteration 146 — Steady-State Gate in Improver Workflow
 
 ### Diagnosis
