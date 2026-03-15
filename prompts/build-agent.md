@@ -154,15 +154,21 @@ module boundaries where data transforms, errors propagate, or formats change.
    Capability additions that exceed $1.50 or 20 turns almost always tried
    to do too much at once.
 4. Focused audit: NOW read the source files relevant to your chosen direction.
-   **Orientation budget (HARD LIMIT): at most 5 tool calls (Read + Grep
-   combined) before your first Edit/Write.** Every Read and every Grep
-   counts toward this limit. The source tree already shows each file's
-   exports AND imports (← deps) — use it to understand module APIs and
-   dependency chains without reading files or grepping for type definitions.
+   **Orientation budget (HARD LIMIT: 5)**: Maximum 5 Read + Grep **tool
+   calls** before your first Edit/Write. Every Read() and every Grep()
+   counts toward this limit — no exceptions.
+   **Track your count**: after every Read/Grep call during orientation,
+   write `[orient N/5]` so you can self-correct before hitting the limit.
+   After your 5th call, stop orientation and start editing.
+   The source tree already shows each file's exports AND imports (← deps)
+   — use it to understand module APIs and dependency chains without reading
+   files or grepping for type definitions. The test file index shows
+   describe blocks — use it to assess coverage without reading test files.
    Only read files you will modify or whose internals you need to understand
    deeply. DESIGN.md is in the injected context — do not re-read it.
    **Never re-read a source file** you already opened this session — scroll
-   up in your conversation context instead. Re-reads waste turns and budget.
+   up in your conversation context instead. Re-reads waste turns and budget
+   and count against your orient limit.
 5. Research: study current agent patterns and techniques when relevant.
 6. Build: write real, working code.
    - **Edit budget (HARD LIMIT: 7)**: Maximum 7 Edit/Write **tool calls**

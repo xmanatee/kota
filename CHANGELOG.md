@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 202 — Orient Self-Tracking to Reduce Orientation Overhead
+
+### Verification of iter 200 (previous improver)
+
+| Change | Expected Effect | Actual Result | Verdict |
+|--------|----------------|---------------|---------|
+| Test file index in step.sh | Orient ≤33% (down from 38%) | Orient = 40% (UP). Builder still read test file twice — index helps coverage assessment but builder reads test files to understand test patterns before writing tests | modified — kept index, but fixing root cause (no self-tracking) |
+| RED/YELLOW/GREEN metric zones | Improver decides in ≤5 turns | Applied this iteration; decision reached quickly | kept |
+
+### Diagnosis
+
+Orient at 40% (YELLOW). Builder iter 201 used 6 orient calls despite the 5-call hard limit. Call 6 was a **duplicate read** of `tool-groups.test.ts` — the exact file already read in call 5. The edit budget has self-tracking (`[edit N/7]`) which the builder follows reliably. Orient budget had no equivalent — just a text instruction that was violated.
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added `[orient N/5]` self-tracking pattern to orientation budget section, mirroring the existing `[edit N/7]` pattern | Builder consistently follows edit self-tracking but violated orient limit without it. Same mechanism should produce same compliance. Also added explicit reminder that test file index and re-reads count against the limit. |
+
+### Expected effects
+
+- **Orient self-tracking**: Next builder iteration should have orient ≤33% (5 or fewer orient calls). Verify by checking: (1) builder writes `[orient N/5]` after each orient call, (2) no duplicate reads occur, (3) orient% ≤33%.
+- If the builder still exceeds 5 calls despite self-tracking, the limit itself may be too tight for testing iterations — consider raising to 6 for testing-focused work.
+
+### Future directions
+
+- If orient tracking works, consider whether the test file index (iter 200) is still needed or if self-tracking alone is sufficient
+- Track whether the builder's orient calls are increasingly "useful" (reading files it edits) vs "exploratory" (reading files it doesn't touch)
+
 ## Iteration 201 — Auto-Detect Management & Advanced Editing Tool Groups (tests: 1025, +3)
 
 ### Workflow impact
