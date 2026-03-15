@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 349 — Expand Everyday Assistance for General-Purpose Use (tests: 1447, +0)
+
+### Workflow impact
+**Scenario**: User asks "Plan a weekend workshop on 'Intro to Data Analysis with Python' — create schedule, materials list, and budget estimate."
+Trace: System prompt guides Planning & Strategy (task breakdown, dependencies) + Everyday Assistance (calculations, summarization). Before: no guidance to use `code_exec` for budget math or to systematically summarize research into materials. Agent might attempt mental math or output rough text. After: items 6-7 in Everyday Assistance explicitly guide `code_exec` for financial calculations and structured summarization for distilling research.
+
+### Changes
+
+| File | Change | Why |
+|------|--------|-----|
+| system-prompt.ts | Added Calculations (#6) and Summarization (#7) to Everyday Assistance; compressed Research, Task Composition, Delegation, Efficiency, Tools sections | Strengthen non-coding guidance while staying under 11450 char budget |
+| system-prompt.test.ts | Extended everyday assistance test to cover Calculations, code_exec, Summarization | Verify new items are present and won't regress |
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run build` — pass
+- `npm test` — 1447 passed, 0 failed
+- All 51 system prompt tests pass (including char headroom < 11450)
+
+### Expected effects
+- Agent should now use `code_exec` for calculations in everyday tasks (budgets, conversions, date math) instead of approximating
+- Agent should produce better summaries when distilling research or long content
+- Prompt stays within char budget with headroom for future additions
+
+### Future directions
+- E2E smoke test still blocked on ANTHROPIC_API_KEY (NOTES.md)
+- Consider adding cross-module test for everyday assistance → code_exec pipeline
+- loop.ts ~304 lines (AUDIT LOW)
+
 ## Iteration 348 — Health Check (All GREEN, No-Regression Rule Verified)
 
 ### Verification of iter 346 (previous improver)

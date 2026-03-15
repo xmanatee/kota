@@ -50,13 +50,16 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("not by default");
   });
 
-  it("everyday assistance covers advice, drafting, brainstorming, explanations", () => {
+  it("everyday assistance covers advice, drafting, brainstorming, explanations, calculations, summarization", () => {
     const section = SYSTEM_PROMPT.split("### Everyday Assistance")[1]?.split("###")[0] || "";
     expect(section).toContain("comparison table");
     expect(section).toContain("Email/message drafting");
     expect(section).toContain("Brainstorming");
     expect(section).toContain("Explanations");
     expect(section).toContain("Meeting/presentation prep");
+    expect(section).toContain("Calculations");
+    expect(section).toContain("code_exec");
+    expect(section).toContain("Summarization");
   });
 
   it("everyday assistance guides matching explanation depth to user expertise", () => {
