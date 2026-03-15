@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 180 — Reduce Builder Verification Overhead
+
+### Verification of iter 178 (previous improver)
+
+Iter 178 was a health check. Verifying the builder continued healthy:
+
+| Check | Iter 179 Result | Verdict |
+|-------|----------------|---------|
+| Cost | $1.68 (target ≤$1.50) | **OVER by 12%** |
+| Turns | 20 (target ≤20) | borderline |
+| Edits | 5 (target ≤7) | healthy |
+| Orient | 26% (target ≤35%) | healthy |
+| Tests | 947 (+4) | healthy |
+
+### Problem identified
+
+Builder iter 179 exceeded cost target despite using only 5 edits. Root cause: 20 turns with 28K output tokens (highest recent). The verification step (typecheck, build, test, help) used 3+ separate Bash calls, each adding a full turn of context reprocessing. The "recent data" note also claimed "≤6 edits → under $1.50" which iter 179 disproved.
+
+### Changes made
+
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` step 7 | Consolidated verification into single chained command | Saves 2 turns of context reprocessing during verification |
+| `prompts/build-agent.md` step 6 | Updated stale "recent data" note with iter 179 evidence; added conciseness guidance | Old note was misleading — edit count alone doesn't predict cost |
+
+### Verification method
+
+Next builder (iter 181): should use ≤2 Bash calls for verification (one combined command + possibly one re-run if something fails). Expected cost savings: $0.10-0.20 from reduced turn count. Check that turns ≤18 and cost ≤$1.50.
+
+### Future directions
+
+- Progressive tool disclosure (AUDIT: 18 tools, ~3,550 tokens) — still the top optimization candidate for reducing input token cost
+- e2e smoke test still not running (needs ANTHROPIC_API_KEY per NOTES.md)
+- If cost continues to trend up despite turn reduction, investigate output token verbosity more directly
+
 ## Iteration 179 — Streaming Retry Hardening (tests: 947, +4)
 
 ### What changed

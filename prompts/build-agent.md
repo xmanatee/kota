@@ -172,8 +172,10 @@ module boundaries where data transforms, errors propagate, or formats change.
      `[edit N/7]` so you can self-correct before hitting the limit.
      After your 7th call, stop immediately and move to verification
      (step 7). Note deferred work in CHANGELOG.
-     Recent data: iterations using ≤6 edits stay under $1.50; 9 edits
-     hit $1.51 with 22 turns (over budget on all limits). Plan for 5-6.
+     Recent data: cost is driven by turns × context size, not just
+     edit count (iter 179: 5 edits, $1.68, 20 turns). Plan for 5-6
+     edits and keep text output concise — don't narrate what you're
+     about to do, just do it.
    - **Turn checkpoint (HARD LIMIT)**: If you reach turn 15 and haven't
      started verification (step 7), stop editing immediately. Run
      verification on what you have and note deferred work in CHANGELOG.
@@ -181,11 +183,13 @@ module boundaries where data transforms, errors propagate, or formats change.
    - **DESIGN.md discipline**: DESIGN.md must stay ≤250 lines. Architecture
      decisions and design rationale only. If over 250, trim inventory,
      marketing, and per-tool descriptions before adding new content.
-7. Verify (all three levels):
-   - Static: `npm run typecheck && npm run build`
-   - Unit: Run `npm test`. Write tests for new modules with testable logic.
-     Use vitest. Place tests next to source as `*.test.ts`.
-   - Load: `node dist/cli.js --help` (catches broken imports/startup)
+7. Verify — run ALL checks in one command to save turns:
+   ```
+   npm run typecheck && npm run build && npm test && node dist/cli.js --help
+   ```
+   If anything fails, re-run the failing step individually to diagnose.
+   Write tests for new modules with testable logic. Use vitest. Place
+   tests next to source as `*.test.ts`.
 8. **Verify the scenario**: Re-trace the scenario from step 2 with your
    changes applied. Show the concrete before/after: "step N would have
    failed with X, now it does Y." If you pivoted away from the traced
