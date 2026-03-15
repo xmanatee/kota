@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 331 — Todo: Priority & Dependency Tracking (tests: 1396, +11)
+
+### What changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `todo.ts` | Added `priority` (high/medium/low) and `blocked_by` (task ID array) fields | Enables structured project planning — a core general-purpose capability |
+| `todo.test.ts` | +11 tests covering priority display, dependency validation, blocking enforcement | Verifies all new behavior including edge cases |
+
+### Workflow impact
+
+**Scenario**: "User says: 'Plan a product launch — break it into tasks with priorities and identify blockers.'"
+- **Before**: Agent calls `todo.add` but items are flat — no priority, no dependencies. Agent falls back to unstructured text, losing trackability.
+- **After**: Agent can `todo.add` with `priority: "high"` and `blocked_by: [1, 2]`. Display shows `‼` (high), `!` (medium), `·` (low) icons and `⊘#1` blocking indicators. Starting a blocked task is prevented with a clear error. Indicators clear when deps complete.
+
+### Design decisions
+- **Additive change** — `priority` and `blocked_by` are optional fields. Zero cascade: no changes to loop.ts, context.ts, system-prompt.ts, or integration tests.
+- **Enforcement at transition** — blocked tasks can't move to `in_progress` while deps are pending. Can still be marked `done` directly (escape hatch for plan changes).
+- **Visual indicators** — `‼`/`!`/`·` for priority, `⊘#N` for active blockers. Blockers auto-clear in display when dep is done.
+- **Self-dependency rejected** — `blocked_by: [self]` returns error.
+
+### Verification
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 1396/1396 pass (+11 new)
+- `node dist/cli.js --help` — works
+
+### Expected effects
+- Agent can now create structured project plans with priority ordering and dependency chains
+- Planning scenarios will use todo tool instead of falling back to unstructured text
+- No behavior change for existing todo usage (all fields optional)
+
+### Future directions
+- Gantt-chart-style dependency visualization for complex projects
+- Auto-suggest task ordering based on dependency graph
+- `blocked` status that auto-resolves when deps complete
+
 ## Iteration 330 — Health Check (All GREEN, Builder Efficient)
 
 ### Verification of iter 328 (previous improver)

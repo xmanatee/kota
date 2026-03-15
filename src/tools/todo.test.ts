@@ -32,7 +32,8 @@ describe("runTodo", () => {
     it("updates task status", async () => {
       await runTodo({ action: "add", task: "Do thing" });
       const result = await runTodo({ action: "update", id: 1, status: "done" });
-      expect(result.content).toContain("Updated task #1 to done");
+      expect(result.content).toContain("Updated task #1");
+      expect(result.content).toContain("status: done");
       expect(result.is_error).toBeUndefined();
     });
 
@@ -42,10 +43,11 @@ describe("runTodo", () => {
       expect(result.content).toContain("id is required");
     });
 
-    it("returns error when status is missing", async () => {
+    it("returns error when no fields provided", async () => {
+      await runTodo({ action: "add", task: "Task" });
       const result = await runTodo({ action: "update", id: 1 });
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("status is required");
+      expect(result.content).toContain("status, priority, or blocked_by required");
     });
 
     it("returns error for non-existent task", async () => {
@@ -235,5 +237,110 @@ describe("subtasks", () => {
     const result = await runTodo({ action: "list" });
     expect(result.content).toContain("○ #1 [pending] Parent");
     expect(result.content).toContain("  ✓ #2 [done] Child");
+  });
+});
+
+describe("priority", () => {
+  beforeEach(async () => {
+    await runTodo({ action: "clear" });
+  });
+
+  it("adds task with priority", async () => {
+    const result = await runTodo({ action: "add", task: "Urgent fix", priority: "high" });
+    expect(result.content).toContain("priority: high");
+    expect(result.is_error).toBeUndefined();
+  });
+
+  it("displays priority icon in listing", async () => {
+    await runTodo({ action: "add", task: "High", priority: "high" });
+    await runTodo({ action: "add", task: "Med", priority: "medium" });
+    await runTodo({ action: "add", task: "Low", priority: "low" });
+    await runTodo({ action: "add", task: "None" });
+
+    const result = await runTodo({ action: "list" });
+    expect(result.content).toContain("[pending] High ‼");
+    expect(result.content).toContain("[pending] Med !");
+    expect(result.content).toContain("[pending] Low ·");
+    expect(result.content).toContain("[pending] None");
+    expect(result.content).not.toMatch(/None [‼!·]/);
+  });
+
+  it("updates priority via update action", async () => {
+    await runTodo({ action: "add", task: "Task" });
+    const result = await runTodo({ action: "update", id: 1, priority: "high" });
+    expect(result.content).toContain("priority: high");
+
+    const list = await runTodo({ action: "list" });
+    expect(list.content).toContain("[pending] Task ‼");
+  });
+});
+
+describe("blocked_by (dependencies)", () => {
+  beforeEach(async () => {
+    await runTodo({ action: "clear" });
+  });
+
+  it("adds task with dependencies", async () => {
+    await runTodo({ action: "add", task: "Design" });
+    const result = await runTodo({ action: "add", task: "Build", blocked_by: [1] });
+    expect(result.content).toContain("blocked by: #1");
+    expect(result.is_error).toBeUndefined();
+  });
+
+  it("rejects dependency on non-existent task", async () => {
+    const result = await runTodo({ action: "add", task: "Build", blocked_by: [99] });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("dependency task #99 not found");
+  });
+
+  it("prevents starting a blocked task", async () => {
+    await runTodo({ action: "add", task: "Design" });
+    await runTodo({ action: "add", task: "Build", blocked_by: [1] });
+
+    const result = await runTodo({ action: "update", id: 2, status: "in_progress" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("blocked by incomplete tasks");
+  });
+
+  it("allows starting task after dependencies complete", async () => {
+    await runTodo({ action: "add", task: "Design" });
+    await runTodo({ action: "add", task: "Build", blocked_by: [1] });
+    await runTodo({ action: "update", id: 1, status: "done" });
+
+    const result = await runTodo({ action: "update", id: 2, status: "in_progress" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("status: in_progress");
+  });
+
+  it("shows blocking indicator in display", async () => {
+    await runTodo({ action: "add", task: "Research" });
+    await runTodo({ action: "add", task: "Write report", blocked_by: [1] });
+
+    const result = await runTodo({ action: "list" });
+    expect(result.content).toContain("[pending] Write report ⊘#1");
+  });
+
+  it("blocking indicator clears when dependency done", async () => {
+    await runTodo({ action: "add", task: "Research" });
+    await runTodo({ action: "add", task: "Write report", blocked_by: [1] });
+    await runTodo({ action: "update", id: 1, status: "done" });
+
+    const result = await runTodo({ action: "list" });
+    expect(result.content).toContain("[pending] Write report");
+    expect(result.content).not.toContain("⊘");
+  });
+
+  it("rejects self-dependency in update", async () => {
+    await runTodo({ action: "add", task: "Task" });
+    const result = await runTodo({ action: "update", id: 1, blocked_by: [1] });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("cannot depend on itself");
+  });
+
+  it("update requires at least one field to change", async () => {
+    await runTodo({ action: "add", task: "Task" });
+    const result = await runTodo({ action: "update", id: 1 });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("status, priority, or blocked_by required");
   });
 });
