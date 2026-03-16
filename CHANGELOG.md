@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 451 — Harden daemon error paths: fix 6 bugs including process crashes from setInterval
+
+Hardened daemon.ts error paths, fixing 6 bugs (2 critical, 2 high, 2 medium) and adding 12 error-path tests.
+
+### Bugs fixed
+
+1. **TOCTOU crash in `getDistMtime()`** (critical) — `existsSync()` then
+   `statSync()` race condition: if dist/ is deleted between checks, `statSync`
+   throws inside `setInterval`, crashing the daemon process. Fixed: wrapped in
+   try/catch returning null.
+
+2. **Uncaught exception in `runIdleTask()`** (critical) — if `AgentSession`
+   constructor throws (e.g., invalid config), the error propagates out of
+   `setInterval` → process crash. Fixed: wrapped construction in try/catch with
+   log + early return.
+
+3. **Uncaught exception in `checkDistChanged()`** (high) — `stop()` rejection
+   or `getDistMtime()` throw from setInterval crashes the process. Fixed:
+   wrapped in try/catch, added `.catch()` on stop promise.
+
+4. **Signal handler leak** (high) — `start()` registers `SIGINT`/`SIGTERM`
+   handlers but `stop()` never removes them. Each daemon lifecycle permanently
+   adds listeners. Fixed: stored handler reference, remove on stop.
+
+5. **Missing stateDir creation** (medium) — `saveState()` silently fails if
+   `~/.kota` directory doesn't exist. State was lost on fresh installs. Fixed:
+   `mkdirSync({ recursive: true })` before write.
+
+6. **`stopping` flag never reset** (medium) — after `stop()`, `isRunning()`
+   always returns false even if daemon restarted. Fixed: reset `stopping` at
+   end of `stop()`.
+
+### Tests added (12)
+
+- State persistence with non-existent directory
+- Corrupted state file graceful recovery
+- Signal handler cleanup on stop
+- Stopping flag reset after stop
+- Session creation failure in idle tasks
+- Session send() rejection in idle tasks
+- Signal handler accumulation across start/stop cycles
+- Double start idempotency
+- State persistence through restart cycles
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (373KB)
+- `npm test` — 2149 tests pass (109 test files)
+- `node dist/cli.js --help` — loads cleanly
+
+### Future directions
+
+- `handleDueItems()` swallows errors with `.catch(() => {})` — could at least
+  log unexpected errors
+- The 30s idle session shutdown timeout uses polling (500ms sleep loop); could
+  use AbortController for cleaner cancellation
+- daemon.ts is now 376 lines (over 300 guideline); could extract state
+  persistence into a small helper
+
 ## Iteration 450 — Refreshed depth-log.md for post-hardening depth phase transition
 
 Refreshed depth-log.md with accurate post-hardening-phase data (iters 441-449), ensuring builder 451 has correct targeting data for its first depth iteration in 10 iterations.

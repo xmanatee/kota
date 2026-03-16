@@ -7,7 +7,7 @@
  * after code changes.
  */
 
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
@@ -71,6 +71,7 @@ export class Daemon {
   private distMtime: number | null = null;
   private running = false;
   private stopping = false;
+  private shutdownHandler: (() => void) | null = null;
   private activeIdleSession: AgentSession | null = null;
   private idleTaskIndex = 0;
   private lastIdleRunAt = new Map<string, number>();
@@ -135,10 +136,10 @@ export class Daemon {
       this.distWatchTimer.unref();
     }
 
-    // Signal handlers
-    const shutdown = () => this.stop();
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
+    // Signal handlers (stored for cleanup)
+    this.shutdownHandler = () => { this.stop(); };
+    process.on("SIGINT", this.shutdownHandler);
+    process.on("SIGTERM", this.shutdownHandler);
 
     this.log(`Daemon running (pid ${process.pid})`);
     this.log(`  Scheduler poll: ${pollMs}ms`);
@@ -197,8 +198,16 @@ export class Daemon {
       this.stopBus = null;
     }
 
+    // Remove signal handlers
+    if (this.shutdownHandler) {
+      process.removeListener("SIGINT", this.shutdownHandler);
+      process.removeListener("SIGTERM", this.shutdownHandler);
+      this.shutdownHandler = null;
+    }
+
     this.saveState();
     this.running = false;
+    this.stopping = false;
     this.log("Daemon stopped.");
   }
 
@@ -270,14 +279,20 @@ export class Daemon {
     this.log(`Starting idle task: "${task.name}"`);
     this.lastIdleRunAt.set(task.name, Date.now());
 
-    const session = new AgentSession({
-      model: this.config.model ?? this.config.config?.model,
-      verbose: this.config.verbose,
-      transport: this.transport,
-      config: this.config.config,
-      label: `idle:${task.name}`,
-      noHistory: true,
-    });
+    let session: AgentSession;
+    try {
+      session = new AgentSession({
+        model: this.config.model ?? this.config.config?.model,
+        verbose: this.config.verbose,
+        transport: this.transport,
+        config: this.config.config,
+        label: `idle:${task.name}`,
+        noHistory: true,
+      });
+    } catch (err) {
+      this.log(`Idle task "${task.name}" failed to create session: ${(err as Error).message}`);
+      return;
+    }
 
     this.activeIdleSession = session;
 
@@ -297,32 +312,40 @@ export class Daemon {
 
   private checkDistChanged(): void {
     if (this.stopping) return;
-    const current = this.getDistMtime();
-    if (current === null || this.distMtime === null) return;
+    try {
+      const current = this.getDistMtime();
+      if (current === null || this.distMtime === null) return;
 
-    if (current > this.distMtime) {
-      this.log("dist/ changed — requesting restart");
-      this.saveState();
+      if (current > this.distMtime) {
+        this.log("dist/ changed — requesting restart");
+        this.saveState();
 
-      this.stop().then(() => {
-        process.exitCode = RESTART_EXIT_CODE;
-      });
+        this.stop().then(() => {
+          process.exitCode = RESTART_EXIT_CODE;
+        }).catch((err) => {
+          this.log(`Restart shutdown failed: ${(err as Error).message}`);
+        });
+      }
+    } catch (err) {
+      this.log(`Dist watch error: ${(err as Error).message}`);
     }
   }
 
   private getDistMtime(): number | null {
-    const distDir = join(process.cwd(), "dist");
-    if (!existsSync(distDir)) return null;
+    try {
+      const distDir = join(process.cwd(), "dist");
+      if (!existsSync(distDir)) return null;
 
-    // Check the directory's own mtime (changes when files are added/removed)
-    // and the mtime of cli.js (main entry point, always rebuilt)
-    const dirStat = statSync(distDir);
-    const cliPath = join(distDir, "cli.js");
-    if (existsSync(cliPath)) {
-      const cliStat = statSync(cliPath);
-      return Math.max(dirStat.mtimeMs, cliStat.mtimeMs);
+      const dirStat = statSync(distDir);
+      const cliPath = join(distDir, "cli.js");
+      if (existsSync(cliPath)) {
+        const cliStat = statSync(cliPath);
+        return Math.max(dirStat.mtimeMs, cliStat.mtimeMs);
+      }
+      return dirStat.mtimeMs;
+    } catch {
+      return null;
     }
-    return dirStat.mtimeMs;
   }
 
   private loadState(): DaemonState | null {
@@ -338,6 +361,9 @@ export class Daemon {
   private saveState(): void {
     const path = join(this.stateDir, STATE_FILE);
     try {
+      if (!existsSync(this.stateDir)) {
+        mkdirSync(this.stateDir, { recursive: true });
+      }
       writeFileSync(path, JSON.stringify(this.state, null, 2), "utf-8");
     } catch {
       // State persistence is best-effort

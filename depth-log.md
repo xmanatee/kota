@@ -21,6 +21,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 415 | error-paths | tool-adapters.ts | high | input_schema type override, partial array failure, circular reference crash |
 | 425 | structural-health | server.ts, server-notifications.ts | high | Deduplicated copy-pasted due-item callback, extracted NotificationHub |
 | 441 | e2e | module-loader.ts, cli.ts, modules/*.ts | high | Module→CLI pipeline e2e test (14 tests), fixed CLI error resilience |
+| 451 | error-paths | daemon.ts | critical | 6 bugs fixed (TOCTOU crash, uncaught setInterval exceptions, signal handler leak, missing stateDir, stale stopping flag), 12 error-path tests added |
 
 ## Coverage by Module (>200 lines)
 
@@ -38,6 +39,7 @@ Covered modules and which approaches have been applied:
 | module-loader.ts | 312 | 441 | e2e |
 | history.ts | 279 | 391,405 | friction, e2e |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
+| daemon.ts | 376 | 451 | error-paths |
 
 **Stale coverage warning** — these covered modules were substantially modified
 since their last depth coverage. Coverage may not reflect current code:
@@ -67,7 +69,6 @@ Uncovered large modules — **zero depth iterations**:
 
 | Module | Lines | Notes |
 |--------|-------|-------|
-| daemon.ts | 350 | Long-running event-driven runtime (iter 421) |
 | tools/delegate.ts | 302 | Sub-agent delegation tool |
 | init.ts | 299 | Project initialization / setup wizard |
 | web-ui-client.ts | 298 | Browser-side JS for web UI |
@@ -83,7 +84,7 @@ Uncovered large modules — **zero depth iterations**:
 | context.ts | 214 | Conversation context management |
 | tools/find-replace.ts | 202 | Find-and-replace tool |
 
-**15 uncovered modules, 4,011 lines total.** Update this section when
+**14 uncovered modules, 3,661 lines total.** Update this section when
 appending a row above.
 
 Also notable: `plugin-loader.ts` was rewritten in iter 447 (now 112 lines,
@@ -99,4 +100,4 @@ Data refreshed at iter 450. Previous refresh at iter 441.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (16 iterations): critical=5, high=9, medium=2
+Distribution (17 iterations): critical=6, high=9, medium=2

@@ -221,4 +221,198 @@ describe("Daemon", () => {
     await daemon.stop();
     await startPromise;
   });
+
+  describe("error paths", () => {
+    it("saves state even when stateDir does not exist yet", () => {
+      const nonExistentDir = join(tmpdir(), `kota-daemon-nodir-${Date.now()}`);
+      const daemon = makeDaemon({ stateDir: nonExistentDir });
+
+      // Start triggers saveState, which should create the directory
+      const startPromise = daemon.start();
+      daemon.stop();
+
+      // Verify the state file was created
+      const statePath = join(nonExistentDir, "daemon-state.json");
+      expect(existsSync(statePath)).toBe(true);
+
+      const state = JSON.parse(readFileSync(statePath, "utf-8"));
+      expect(state.pid).toBe(process.pid);
+
+      // Cleanup
+      rmSync(nonExistentDir, { recursive: true, force: true });
+      return startPromise;
+    });
+
+    it("loads corrupted state file gracefully", () => {
+      // Write invalid JSON to state file
+      writeFileSync(join(storageDir, "daemon-state.json"), "not json{{{", "utf-8");
+
+      const daemon = makeDaemon();
+      const state = daemon.getState();
+
+      // Should use default state, not crash
+      expect(state.pid).toBe(process.pid);
+      expect(state.idleCycles).toBe(0);
+    });
+
+    it("removes signal handlers on stop", async () => {
+      const initialSigintCount = process.listenerCount("SIGINT");
+      const initialSigtermCount = process.listenerCount("SIGTERM");
+
+      const daemon = makeDaemon();
+      const startPromise = daemon.start();
+
+      // Should have added handlers
+      expect(process.listenerCount("SIGINT")).toBe(initialSigintCount + 1);
+      expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount + 1);
+
+      await daemon.stop();
+      await startPromise;
+
+      // Should have removed handlers
+      expect(process.listenerCount("SIGINT")).toBe(initialSigintCount);
+      expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount);
+    });
+
+    it("resets stopping flag after stop completes", async () => {
+      const daemon = makeDaemon();
+      const startPromise = daemon.start();
+
+      await daemon.stop();
+      await startPromise;
+
+      // After stop, isRunning is false but the object is in a clean state
+      // (not stuck in "stopping" forever)
+      expect(daemon.isRunning()).toBe(false);
+
+      // Can start again without being blocked by stale stopping flag
+      const startPromise2 = daemon.start();
+      expect(daemon.isRunning()).toBe(true);
+      await daemon.stop();
+      await startPromise2;
+    });
+
+    it("handles idle task session creation failure gracefully", async () => {
+      // Temporarily override the mock to throw on construction
+      const loopModule = await import("./loop.js");
+      const OriginalSession = loopModule.AgentSession;
+      let throwOnConstruct = false;
+
+      vi.mocked(loopModule).AgentSession = class ThrowingSession {
+        constructor(opts: Record<string, unknown>) {
+          if (throwOnConstruct) {
+            throw new Error("Session creation failed");
+          }
+          return new (OriginalSession as unknown as new (o: Record<string, unknown>) => unknown)(opts) as ThrowingSession;
+        }
+        async send(_prompt: string): Promise<string> { return ""; }
+        close(): void {}
+      } as unknown as typeof loopModule.AgentSession;
+
+      const daemon = makeDaemon({
+        idleTasks: [{ name: "failing-task", prompt: "This will fail" }],
+      });
+      const startPromise = daemon.start();
+
+      // Enable throwing, then wait for idle check
+      throwOnConstruct = true;
+      await new Promise((r) => setTimeout(r, 7_000));
+
+      // Daemon should still be running (not crashed)
+      expect(daemon.isRunning()).toBe(true);
+      // No idle session should be active (it failed to create)
+      expect(daemon.isIdleActive()).toBe(false);
+      // idleCycles should be 0 (task never completed)
+      expect(daemon.getState().idleCycles).toBe(0);
+
+      // Restore
+      vi.mocked(loopModule).AgentSession = OriginalSession;
+      await daemon.stop();
+      await startPromise;
+    }, 15_000);
+
+    it("handles idle task send() rejection without crashing", async () => {
+      const loopModule = await import("./loop.js");
+      const OriginalSession = loopModule.AgentSession;
+
+      vi.mocked(loopModule).AgentSession = class FailingSendSession {
+        constructor(_opts: Record<string, unknown>) {}
+        async send(_prompt: string): Promise<string> {
+          throw new Error("API call failed");
+        }
+        close(): void {}
+      } as unknown as typeof loopModule.AgentSession;
+
+      const daemon = makeDaemon({
+        idleTasks: [{ name: "send-fail", prompt: "This send will fail" }],
+      });
+      const startPromise = daemon.start();
+
+      await new Promise((r) => setTimeout(r, 7_000));
+
+      // Daemon should still be running
+      expect(daemon.isRunning()).toBe(true);
+      // Idle session should be cleared after the failure
+      expect(daemon.isIdleActive()).toBe(false);
+      // idleCycles should be 0 (task failed)
+      expect(daemon.getState().idleCycles).toBe(0);
+
+      vi.mocked(loopModule).AgentSession = OriginalSession;
+      await daemon.stop();
+      await startPromise;
+    }, 15_000);
+
+    it("does not accumulate signal handlers across start/stop cycles", async () => {
+      const initialSigintCount = process.listenerCount("SIGINT");
+
+      const daemon = makeDaemon();
+
+      // Cycle 1
+      const start1 = daemon.start();
+      await daemon.stop();
+      await start1;
+
+      // Cycle 2
+      const start2 = daemon.start();
+      await daemon.stop();
+      await start2;
+
+      // Cycle 3
+      const start3 = daemon.start();
+      await daemon.stop();
+      await start3;
+
+      // Should be back to original count
+      expect(process.listenerCount("SIGINT")).toBe(initialSigintCount);
+    });
+
+    it("survives double start call", async () => {
+      const daemon = makeDaemon();
+      const start1 = daemon.start();
+      // Second start should be a no-op
+      const start2 = daemon.start();
+
+      expect(daemon.isRunning()).toBe(true);
+
+      await daemon.stop();
+      await start1;
+      await start2;
+    });
+
+    it("persists state through restart cycles", async () => {
+      // First lifecycle
+      const daemon1 = makeDaemon();
+      const start1 = daemon1.start();
+      await daemon1.stop();
+      await start1;
+
+      // Second lifecycle reads state from same directory
+      const daemon2 = makeDaemon();
+      const state = daemon2.getState();
+
+      // Should have fresh startedAt and pid (overwritten in constructor)
+      expect(state.pid).toBe(process.pid);
+      expect(state.startedAt).toBeTruthy();
+    });
+  });
 });
