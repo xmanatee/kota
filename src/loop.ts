@@ -14,6 +14,7 @@ import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
+import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { initScheduler } from "./scheduler.js";
 import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
@@ -50,6 +51,8 @@ export type LoopOptions = {
   historySource?: "user" | "action";
   /** Optional label for event bus (e.g. "build-agent", "user-repl"). */
   label?: string;
+  /** Enable self-reflection before delivering final response. Default: true. */
+  reflectionEnabled?: boolean;
 };
 
 /**
@@ -84,6 +87,7 @@ export class AgentSession {
   private sessionLabel?: string;
   private sessionStartTime = 0;
   private guardrailsConfig: GuardrailsConfig;
+  private reflectionEnabled: boolean;
 
   constructor(options: LoopOptions = {}) {
     this.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -99,6 +103,7 @@ export class AgentSession {
     const isNonInteractive = options.historySource === "action";
     this.guardrailsConfig = options.config?.guardrails
       ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
+    this.reflectionEnabled = options.reflectionEnabled ?? options.config?.reflection ?? true;
 
     const thinkingBudget = options.thinkingBudget || 10_000;
     this.thinkingConfig = options.thinkingEnabled
@@ -281,6 +286,7 @@ export class AgentSession {
     }
 
     const failureTracker = new FailureTracker();
+    let reflectionDone = false;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       // Always-on observation masking: replace old tool outputs with placeholders.
@@ -359,7 +365,21 @@ export class AgentSession {
       const toolBlocks = response.content.filter(
         (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
       );
-      if (toolBlocks.length === 0) break;
+
+      if (toolBlocks.length === 0) {
+        // Self-reflection: before delivering, evaluate response quality
+        if (this.reflectionEnabled && !reflectionDone) {
+          const responseText = streamedText || getLastAssistantText(this.context.getMessages());
+          if (shouldReflect(this.context.getMessages(), responseText)) {
+            reflectionDone = true;
+            const reflectionPrompt = buildReflectionPrompt(this.context.getMessages());
+            this.context.addUserMessage(reflectionPrompt);
+            this.transport.emit({ type: "status", message: "[kota] Self-reflecting on response quality..." });
+            continue;
+          }
+        }
+        break;
+      }
 
       const resultLimit = this.context.getToolResultLimit();
       const validResults = await executeToolCalls(

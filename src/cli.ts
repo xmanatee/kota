@@ -77,6 +77,7 @@ program
   .option("--think-budget <tokens>", "Thinking budget in tokens (default: 10000, min: 1024)")
   .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
   .option("--no-history", "Disable automatic conversation history")
+  .option("--no-reflect", "Disable self-reflection before delivering responses")
   .action(async (promptWords: string[], opts) => {
     // Validate numeric options before anything else
     const parsedMaxTokens = opts.maxTokens ? parseIntOption(opts.maxTokens, "max-tokens") : undefined;
@@ -128,6 +129,7 @@ program
       config,
       resumeConversation: resumeId,
       noHistory: opts.history === false,
+      reflectionEnabled: opts.reflect !== false,
     };
 
     let prompt = promptWords.join(" ");

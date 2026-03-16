@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 527 — Self-Reflection Before Delivery
+
+Built a self-reflection system that evaluates response quality before delivering to the user, based on research showing +6-15% accuracy on complex tasks.
+
+### What was built
+
+New module `src/reflection.ts` with domain-adaptive self-evaluation:
+
+- **`shouldReflect()`** — gates reflection to substantive completions only (>200 chars response, 3+ tool calls). Avoids overhead for simple Q&A.
+- **`buildReflectionPrompt()`** — generates structured evaluation criteria based on tool usage patterns:
+  - Always: completeness + correctness
+  - File edits → verification criterion (tests/typecheck/build)
+  - Research → source quality criterion
+  - Computation → methodology criterion
+  - Always: response quality
+- **`reflectionIndicatesComplete()`** — parses the reflection output to determine if the agent self-corrected (made tool calls) or confirmed quality.
+
+### Integration
+
+The reflection step is injected into the main agent loop (`loop.ts`) at the point where the agent would normally stop (no more tool calls). Instead of breaking, it:
+1. Checks if reflection is warranted
+2. Injects the reflection prompt as a user message
+3. The model either makes tool calls to fix issues (loop continues) or confirms quality (loop breaks)
+4. Capped at 1 round per `send()` call — no infinite loops
+
+### Configuration
+
+- CLI: `--no-reflect` to disable
+- Config: `{ "reflection": false }` in `.kota/config.json`
+- Default: enabled
+
+### Why it matters
+
+Research basis:
+- PreFlect (Feb 2026): +10-15% accuracy with 15-20% token overhead
+- Reflexion (NeurIPS 2023): +11% on HumanEval
+- MAR (Dec 2025): +6.3% on HumanEval with multi-critic approach
+
+KOTA previously had no self-evaluation at all. The VerifyTracker handles code-specific nudges (run tests/build), but nothing evaluated whether the response actually answered the user's question, cited sources properly, or handled edge cases. This fills that gap across all domains.
+
+### Verified
+
+- TypeScript: clean (`tsc --noEmit`)
+- Build: 440KB bundle (up from 440KB — reflection module is small)
+- Lint: `biome check` clean on all changed files
+- Tests: 35 new tests, all passing
+- Load: `node dist/cli.js --help` — clean startup, `--no-reflect` flag visible
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- **Prospective reflection** — evaluate the plan before execution, not just the result after (PreFlect-style). Higher impact but more complex to integrate.
+- **Multi-critic evaluation** — use different prompt personas to break confirmation bias (MAR approach). Could be done via delegate tool.
+- **Reflection metrics** — track how often reflection triggers, how often it leads to corrections, and whether corrections improve outcomes.
+- **Scratchpad / progress file** — persistent working memory that survives compaction, inspired by Claude Code's `claude-progress.txt`.
+- **Structured compaction** — replace free-form LLM summary with structured format (objectives, artifacts, decisions, failed attempts).
+
 ## Iteration 526 — Added rework metric to parse-log.py trend, revealing 48% avg post-verify overhead across builder iterations
 
 Added post-implementation rework tracking to parse-log.py --trend output, revealing that the builder spends 48% of calls on average after its first verification attempt — a major efficiency signal that was previously invisible.

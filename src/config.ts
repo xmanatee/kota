@@ -30,6 +30,9 @@ export type KotaConfig = {
   /** Prompt aliases — keys that expand into prefix text when starting a message. */
   aliases?: Record<string, string>;
 
+  /** Self-reflection — evaluate response quality before delivering. Default: true. */
+  reflection?: boolean;
+
   /** Guardrails — risk classification and policy enforcement for tool calls. */
   guardrails?: GuardrailsConfig;
 };
@@ -63,6 +66,7 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
   if (typeof raw.thinkingBudget === "number" && raw.thinkingBudget >= 1024) out.thinkingBudget = raw.thinkingBudget;
   if (typeof raw.verbose === "boolean") out.verbose = raw.verbose;
   if (typeof raw.skipConfirmations === "boolean") out.skipConfirmations = raw.skipConfirmations;
+  if (typeof raw.reflection === "boolean") out.reflection = raw.reflection;
 
   if (Array.isArray(raw.autoEnable)) {
     const valid = raw.autoEnable.filter((g): g is string => typeof g === "string" && g.length > 0);

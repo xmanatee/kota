@@ -180,6 +180,39 @@ Centralized risk classification and policy enforcement for all tool calls. Every
 - Tool overrides: per-tool policies bypass risk classification entirely. Users who trust specific tools can override.
 - MCP and module tools default to moderate — unknown tools are treated cautiously but not blocked.
 
+### Self-Reflection (`src/reflection.ts`)
+
+Lightweight self-evaluation step before the agent delivers its final response. Based on research showing +6-15% accuracy improvement on complex tasks (PreFlect, Reflexion, MAR papers).
+
+**When it triggers** (`shouldReflect()`):
+- Response is substantive (>200 chars)
+- Session involved meaningful tool use (3+ tool calls)
+- Reflection hasn't already run this turn (capped at 1 round)
+
+**Domain-adaptive criteria** (`buildReflectionPrompt()`):
+The evaluation prompt adjusts based on which tools were used during the session:
+- Always: completeness (does it answer the request?) and correctness
+- File edits detected → adds verification criterion (tests/typecheck/build)
+- Research tools detected → adds source quality criterion
+- Compute tools detected → adds methodology criterion
+- Always: response quality and structure
+
+**Integration** (`loop.ts`):
+When the agent produces a response with no tool calls (about to stop), the loop checks `shouldReflect()`. If warranted, it injects the reflection prompt as a user message and continues the loop for one more iteration. The model either:
+- Makes tool calls to fix identified issues (loop continues naturally)
+- Produces text confirming quality (loop breaks, delivers response)
+
+**Configuration**:
+- CLI: `--no-reflect` to disable
+- Config: `{ "reflection": false }` in `.kota/config.json`
+- Default: enabled
+
+**Design decisions**:
+- Single round only — research shows diminishing returns after 2-3 rounds, and confirmation bias increases.
+- Complements VerifyTracker (which handles code-specific nudges) with domain-agnostic quality evaluation.
+- Structured criteria over open-ended "find problems" — forces the model to evaluate specific dimensions rather than rubber-stamp its own work.
+- Low overhead: ~15-20% additional tokens per task, only for substantive completions.
+
 ### Secrets Management (`src/secrets.ts`, `src/modules/secrets.ts`)
 
 Provider-based credential management with automatic output masking. Prevents secret leakage into LLM context.
