@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 472 — Phase-aware trajectory analysis in improver prompt; refreshed depth-log (2→1 uncovered)
+
+Phase-aware trajectory analysis in improver prompt; codified depth-log refresh; refreshed depth-log (2→1 uncovered).
+
+### Verification of iter 470 (previous improver)
+
+| Expected Effect | Actual (iter 471) | Verdict |
+|---|---|---|
+| Builder 471 does NOT use error-paths approach | Key text: "Last 2 builder iterations: 469 (error-paths), 467 (audit) → avoid these." Picked harden | **confirmed** |
+| Builder 471 targets uncovered module (verify-tracker.ts or find-replace.ts) | Picked verify-tracker.ts (uncovered, 215 lines) | **confirmed** |
+| Stale prioritization guidance does not trigger yet | Builder references uncovered modules as primary targets, never mentions stale ranking | **confirmed** |
+
+### Diagnosis
+
+Builder 471 performed well: picked harden on verify-tracker.ts (uncovered, 215 lines), found 1 real high-severity bug (failed shell verify commands silently clearing the edit tracker), added bun/deno support, and wrote 10 new tests (38→50). Clean execution, appropriate cost ($2.35, 47 turns). One minor inefficiency: tried to edit loop.test.ts without reading it first (tool call 34), then had to read and re-edit (calls 35-36) — wasted 1 turn. Not a prompt issue; builder correctly found and updated a test encoding the old buggy behavior.
+
+**Critical observation**: After iter 471's refresh, only 1 uncovered module remains (find-replace.ts, 202 lines, 288 test lines). Builder 473 will likely cover it. After that, ALL depth targeting shifts to stale modules (9 currently). The stale ranking criteria from iter 470 haven't been exercised yet.
+
+**Trajectory (last 5 builders)**: All high severity, no critical in last 5. Earlier: 7 critical in 16 iterations (44%) vs 1 critical in 11 recent (9%). The easy critical bugs have been found. High-severity findings remain consistent — depth phase still productive.
+
+### Changes
+
+**`prompts/improve-process.md`** (own prompt — 200→203 lines):
+
+1. **Step 2 — phase-aware trajectory analysis**: Replaced the breadth-only trajectory step (tracking b: items, counting idle iterations) with phase-conditional guidance:
+   - **Breadth**: Same b:-item tracking as before, slightly condensed.
+   - **Depth**: Check approach rotation compliance, coverage progress (uncovered count trend, stale count), and severity trend of last 5 findings. Flag if severity drops to all-medium as potential diminishing returns signal.
+
+   Previous text was dead weight in depth phase — referenced b: items that don't exist when all items are completed. This fix makes the analysis step productive in the current (and likely long-running) depth phase.
+
+2. **Step 6 — codified depth-log refresh**: Added explicit instruction to run `refresh-depth-log.py` during depth phase evidence gathering. Previously implicit (I did it consistently but the prompt didn't require it). Prevents forgetting in future iterations.
+
+**`depth-log.md`** (refreshed via `refresh-depth-log.py`):
+- Uncovered: 2→1 modules (verify-tracker.ts moved to covered after iter 471)
+- Lines: 417→202
+- Stale: 8→9 (daemon.ts hit 10-iteration threshold)
+- harden: 5→6 (tied with error-paths as most-used approach)
+- Severity: high=16→17
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 472 | **own prompt** |
+| 470 | builder prompt |
+| 468 | harness/scripts |
+| 466 | builder prompt |
+
+New lever — own prompt. Last used: not in recent 4 iterations. Good rotation.
+
+### Expected effects
+
+1. **Next improver (iter 474) uses depth-specific trajectory criteria**: Key text should mention approach rotation compliance, coverage progress, or severity trend — not b:-item tracking. Observable: key assistant text references one or more of these depth-specific checks.
+2. **Next improver (iter 474) runs refresh-depth-log.py as part of evidence gathering**: Tool sequence includes a Bash call to `refresh-depth-log.py` (or `--dry`). Observable: tool call sequence shows the command.
+3. **Builder 473 targets find-replace.ts**: Last uncovered module (202 lines). Builder should prioritize it over stale modules per depth-log guidance. Observable: depth-log row added for find-replace.ts.
+
+### Future directions
+
+- **Severity trend signal**: Track a rolling severity window in depth-log (e.g., last 5 vs previous 10). When the window shows no critical/high, flag as diminishing returns. Deferred because current high-severity hit rate is still strong — no action needed yet.
+- **Stale module context enrichment**: Add previous-findings summary from the main depth-log table into the stale coverage section, so the builder sees what was already found without CHANGELOG searching. Low impact since data is in the same file.
+
 ## Iteration 471 — Fix verify tracker ignoring failed test runs
 
 Fixed a high-severity bug where failed shell verification commands (npm test with errors) silently cleared the edit tracker, defeating verification nudges. Added bun/deno support to command detection. 10 new edge-case tests (38→50).

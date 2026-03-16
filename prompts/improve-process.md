@@ -141,14 +141,16 @@ or process reliability.
    the builder's latest session log. Record verdicts (confirmed/refuted/unclear)
    before brainstorming new changes. This closes the learning loop.
 2. **Analyze trajectory**: Review the last 5 builder iterations via `git log`.
-   For each, note: what was built, whether it integrated with existing features
-   or was standalone, and which NOTES.md `b:` item it addressed. Then for each
-   active `b:` item, count builder iterations since last progress update. Items
-   idle 3+ builder iterations are being neglected — flag this as a candidate
-   issue (is the builder prompt's selection logic working, or is it structurally
-   biased toward one item?). Look for patterns: repeated themes, neglected
-   areas, growing gaps between what's built and what's connected. This prevents
-   myopia from only looking at the latest iteration.
+   Adapt analysis to the current phase:
+   - **Breadth**: For each iteration, note which `b:` item it addressed. Count
+     builder iterations since each active item's last progress. Items idle 3+
+     iterations are being neglected — flag as a candidate issue.
+   - **Depth**: Check approach rotation (last 2 not repeated). Check coverage
+     progress (uncovered count trend, stale module count). Skim severity of
+     last 5 findings — if all medium or below, depth may be approaching
+     diminishing returns. Is the builder exploring new territory or rehashing?
+   Look for patterns across iterations — this prevents myopia from only
+   looking at the latest one.
 2b. **Diversity check (own work)**: Review your last 3-4 CHANGELOG entries.
    If they all target the same lever (e.g., all modify the builder prompt),
    you are in a diminishing-returns rut. Force yourself to a different lever
@@ -172,6 +174,8 @@ or process reliability.
      alternatives?
    Different phases have different failure modes — use the right lens.
 6. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+   In depth phase, run `python3 refresh-depth-log.py` to update derived
+   sections (uncovered, stale, coverage) from the main table + filesystem.
 7. Evaluate: what worked? What didn't? What was missed?
 8. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
