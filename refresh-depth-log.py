@@ -52,6 +52,19 @@ def get_source_files() -> dict[str, int]:
     return files
 
 
+def get_test_files() -> dict[str, int]:
+    """Test file line counts, keyed by corresponding source path relative to src/."""
+    tests = {}
+    for subdir in [SRC, SRC / "tools", SRC / "modules"]:
+        if not subdir.exists():
+            continue
+        for f in subdir.glob("*.test.ts"):
+            source_name = f.name.replace(".test.", ".")
+            rel = str((f.parent / source_name).relative_to(SRC))
+            tests[rel] = sum(1 for _ in f.open())
+    return tests
+
+
 def resolve_module(name: str, files: dict[str, int]) -> list[str]:
     """Resolve a main-table module name to actual file path(s) relative to src/."""
     if "*" in name:
@@ -98,6 +111,7 @@ def main():
     text = DEPTH_LOG.read_text()
     rows = parse_main_table(text)
     files = get_source_files()
+    tests = get_test_files()
 
     if not rows:
         print("ERROR: no rows in main table", file=sys.stderr)
@@ -144,13 +158,20 @@ def main():
         "examined their error handling, edge cases, integration seams, or structural\n"
         "health. Prioritize these over already-covered modules.\n"
     )
+    out.append(
+        "**Test Lines** = existing breadth-phase test coverage. Modules with 0 test\n"
+        "lines are the highest-risk blind spots.\n"
+    )
     if uncovered:
-        out.append("| Module | Lines |")
-        out.append("|--------|-------|")
+        out.append("| Module | Lines | Test Lines |")
+        out.append("|--------|-------|------------|")
         for path, lines in uncovered:
-            out.append(f"| {path} | {lines} |")
+            tl = tests.get(path, 0)
+            out.append(f"| {path} | {lines} | {tl} |")
         total_lines = sum(n for _, n in uncovered)
-        out.append(f"\n**{len(uncovered)} uncovered modules, {total_lines:,} lines total.**")
+        zero_test = sum(1 for p, _ in uncovered if tests.get(p, 0) == 0)
+        out.append(f"\n**{len(uncovered)} uncovered modules, {total_lines:,} lines total"
+                   f" ({zero_test} with zero tests).**")
     else:
         out.append("*All modules ≥200 lines have depth coverage.*")
 
@@ -166,10 +187,11 @@ def main():
     out.append("")
     out.append("## Coverage by Module\n")
     out.append("Reference data — see uncovered and stale sections above for targeting guidance.\n")
-    out.append("| Module | Lines | Depth Iters | Approaches Applied |")
-    out.append("|--------|-------|-------------|---------------------|")
+    out.append("| Module | Lines | Test Lines | Depth Iters | Approaches Applied |")
+    out.append("|--------|-------|------------|-------------|---------------------|")
     for path, lines, iters, approaches in matrix:
-        out.append(f"| {path} | {lines} | {iters} | {approaches} |")
+        tl = tests.get(path, 0)
+        out.append(f"| {path} | {lines} | {tl} | {iters} | {approaches} |")
     out.append(f"\nData refreshed at iter {max_iter + 1}. Previous refresh at iter {max_iter}.")
 
     # Severity key

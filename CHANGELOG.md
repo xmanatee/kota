@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 460 — Add test-coverage data to depth-log uncovered list, revealing 8 of 10 "blind spots" already have substantial tests
+
+Enriched `refresh-depth-log.py` to include test-file line counts in both the uncovered modules list and the coverage matrix, giving the builder immediate targeting signal without manual investigation.
+
+### Verification of iter 458 (previous improver)
+
+| Expected Effect | Actual (iter 459) | Verdict |
+|---|---|---|
+| Future improver runs `refresh-depth-log.py` instead of 5-8 manual calls | I used it (this iteration). 1 call replaced manual maintenance | **confirmed** |
+| Builder 459's shortlist drawn from corrected 11-module list, not targeting delegate.ts or task-store.ts as "uncovered" | Builder targeted http-request.ts (uncovered). No mention of delegate.ts or task-store.ts as uncovered | **confirmed** |
+| Builder orientation drops from ~10 calls to ~7 | Builder 459 used 6 orientation calls (1-6), down from ~10 in iter 457 | **confirmed** |
+
+### Diagnosis
+
+Builder 459 spent 7 calls (calls 7-13) on target evaluation: reading 3 candidate source files, listing test files, grepping for test coverage, reading 2 test files. This was necessary because the depth-log's uncovered list showed only module name and line count — no signal about existing test coverage.
+
+Analysis of the 10 uncovered modules reveals a dramatic asymmetry:
+- **2 modules** (web-ui-client.ts, web-ui-styles.ts) have **zero test lines** — genuine blind spots
+- **8 modules** have **252-451 test lines** (92-177% test-to-source ratio) — well-tested from breadth phase
+
+Without this data, the builder treats all 10 as equally high-priority and must manually investigate each candidate. With the data, the builder can immediately prioritize the 2 untested modules or make an informed decision to target a well-tested module for a specific approach (e.g., error-paths on a module that has unit tests but no error-path tests).
+
+### Changes
+
+**`refresh-depth-log.py`** (harness/scripts + evaluation signals):
+- Added `get_test_files()` function that scans for `.test.ts` files and maps them to source files
+- Uncovered modules table now includes a "Test Lines" column with explanatory note
+- Summary line now shows count of modules with zero tests (e.g., "10 uncovered modules, 2,617 lines total (2 with zero tests)")
+- Coverage matrix also includes test line counts for stale-coverage assessment
+- Script grew from 202 → 223 lines
+
+**`depth-log.md`** (refreshed via script):
+- Uncovered list now shows test coverage: `web-ui-client.ts (0 tests)` and `web-ui-styles.ts (0 tests)` clearly stand out
+- Coverage matrix includes test-to-source data for all 28 covered modules
+- Data updated for iter 459 (http-request.ts moved to covered list)
+- Severity distribution corrected: high=12 (was 11 in stale version)
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 460 | harness/scripts + evaluation signals |
+| 458 | harness/scripts |
+| 456 | evaluation signals + builder prompt |
+| 454 | evaluation signals + builder prompt |
+
+Continuing harness/scripts — same lever as 458 but this is a natural extension (enriching the script created last iteration). The builder prompt was NOT modified.
+
+### Expected effects
+
+1. Builder 461's target evaluation phase will be shorter. Instead of reading 3+ candidate files to assess test coverage, the builder can read the enriched uncovered list and immediately identify high-risk targets. Observable: target evaluation calls drop from ~7 to ~4 (read depth-log → pick target → read chosen source + test file).
+2. Builder 461 will explicitly reference "Test Lines" data when explaining its target choice. Observable: session log key text mentions test line count as a factor in selection rationale.
+3. If builder 461 targets a zero-test module (web-ui-client.ts or web-ui-styles.ts), the iteration's focus will shift toward writing tests from scratch rather than finding bugs in existing tests — a different and likely more productive pattern for untested code.
+
+### Future directions
+
+- **Own prompt improvement**: The improver prompt hasn't been touched in 4+ iterations. A severity-trajectory check (comparing last 5 iterations' average severity to overall average) would give an objective diminishing-returns signal for depth work.
+- **Builder prompt: depth-phase exit signal**: When all uncovered modules are covered and severity drops to consistently medium, the builder could flag this in CHANGELOG to prompt the owner to add new `b:` items.
+- **Stale coverage automation**: The stale section is still manually maintained. A future version of `refresh-depth-log.py` could compare coverage-matrix line counts against `git log` churn since the coverage iter to auto-flag stale modules.
+
 ## Iteration 459 — Fixed 5 bugs in HTTP request tool error handling and added 16 error-path tests
 
 Hardened the HTTP request tool (`tools/http-request.ts`) — the first depth coverage for this 289-line uncovered module with external network + filesystem interfaces.

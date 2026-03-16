@@ -33,21 +33,23 @@ These modules have **zero depth iterations**. They are blind spots — no one ha
 examined their error handling, edge cases, integration seams, or structural
 health. Prioritize these over already-covered modules.
 
-| Module | Lines |
-|--------|-------|
-| init.ts | 299 |
-| web-ui-client.ts | 298 |
-| html-extract.ts | 296 |
-| tools/http-request.ts | 289 |
-| tools/web-search.ts | 286 |
-| web-ui-styles.ts | 278 |
-| tools/file-edit.ts | 274 |
-| tools/file-read.ts | 255 |
-| verify-tracker.ts | 215 |
-| context.ts | 214 |
-| tools/find-replace.ts | 202 |
+**Test Lines** = existing breadth-phase test coverage. Modules with 0 test
+lines are the highest-risk blind spots.
 
-**11 uncovered modules, 2,906 lines total.**
+| Module | Lines | Test Lines |
+|--------|-------|------------|
+| init.ts | 299 | 336 |
+| web-ui-client.ts | 298 | 0 |
+| html-extract.ts | 296 | 377 |
+| tools/web-search.ts | 286 | 274 |
+| web-ui-styles.ts | 278 | 0 |
+| tools/file-edit.ts | 274 | 252 |
+| tools/file-read.ts | 255 | 451 |
+| verify-tracker.ts | 215 | 371 |
+| context.ts | 214 | 292 |
+| tools/find-replace.ts | 202 | 288 |
+
+**10 uncovered modules, 2,617 lines total (2 with zero tests).**
 
 ## Stale Coverage — SECONDARY Targets
 
@@ -89,37 +91,38 @@ encapsulation) — small enough to skip but has new API surface.
 
 Reference data — see uncovered and stale sections above for targeting guidance.
 
-| Module | Lines | Depth Iters | Approaches Applied |
-|--------|-------|-------------|---------------------|
-| loop.ts | 438 | 405 | e2e |
-| registry.ts | 427 | 407 | error-paths |
-| cli.ts | 424 | 391,397,403,411,441 | friction, friction, harden, friction, e2e |
-| tool-adapters.ts | 403 | 415 | error-paths |
-| telegram.ts | 400 | 389 | audit |
-| server.ts | 400 | 395,425 | e2e, structural-health |
-| scheduler.ts | 378 | 389,413,455 | audit, harden, structural-health |
-| daemon.ts | 376 | 451 | error-paths |
-| tools/process.ts | 327 | 457 | harden |
-| module-loader.ts | 312 | 441 | e2e |
-| history.ts | 305 | 391,405,453 | friction, e2e, audit |
-| tools/delegate.ts | 302 | 399 | audit |
-| task-store.ts | 259 | 455 | structural-health |
-| mcp-client.ts | 249 | 399,401 | audit, error-paths |
-| session-pool.ts | 185 | 393 | harden |
-| action-executor.ts | 141 | 453 | audit |
-| modules/registry.ts | 94 | 441 | e2e |
-| server-notifications.ts | 89 | 425 | structural-health |
-| modules/telegram.ts | 82 | 441 | e2e |
-| modules/vercel-adapter.ts | 81 | 441 | e2e |
-| modules/daemon.ts | 80 | 441 | e2e |
-| confirm.ts | 67 | 411 | friction |
-| modules/web.ts | 65 | 441 | e2e |
-| web-ui.ts | 50 | 409 | structural-health |
-| modules/index.ts | 27 | 441 | e2e |
-| modules/scheduler.ts | 24 | 441 | e2e |
-| modules/memory.ts | 24 | 441 | e2e |
+| Module | Lines | Test Lines | Depth Iters | Approaches Applied |
+|--------|-------|------------|-------------|---------------------|
+| loop.ts | 438 | 623 | 405 | e2e |
+| registry.ts | 427 | 635 | 407 | error-paths |
+| cli.ts | 424 | 316 | 391,397,403,411,441 | friction, friction, harden, friction, e2e |
+| tool-adapters.ts | 403 | 641 | 415 | error-paths |
+| telegram.ts | 400 | 404 | 389 | audit |
+| server.ts | 400 | 242 | 395,425 | e2e, structural-health |
+| scheduler.ts | 378 | 665 | 389,413,455 | audit, harden, structural-health |
+| daemon.ts | 376 | 418 | 451 | error-paths |
+| tools/process.ts | 327 | 335 | 457 | harden |
+| tools/http-request.ts | 318 | 624 | 459 | error-paths |
+| module-loader.ts | 312 | 506 | 441 | e2e |
+| history.ts | 305 | 342 | 391,405,453 | friction, e2e, audit |
+| tools/delegate.ts | 302 | 384 | 399 | audit |
+| task-store.ts | 259 | 280 | 455 | structural-health |
+| mcp-client.ts | 249 | 349 | 399,401 | audit, error-paths |
+| session-pool.ts | 185 | 427 | 393 | harden |
+| action-executor.ts | 141 | 112 | 453 | audit |
+| modules/registry.ts | 94 | 45 | 441 | e2e |
+| server-notifications.ts | 89 | 209 | 425 | structural-health |
+| modules/telegram.ts | 82 | 45 | 441 | e2e |
+| modules/vercel-adapter.ts | 81 | 36 | 441 | e2e |
+| modules/daemon.ts | 80 | 47 | 441 | e2e |
+| confirm.ts | 67 | 90 | 411 | friction |
+| modules/web.ts | 65 | 44 | 441 | e2e |
+| web-ui.ts | 50 | 88 | 409 | structural-health |
+| modules/index.ts | 27 | 0 | 441 | e2e |
+| modules/scheduler.ts | 24 | 0 | 441 | e2e |
+| modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 458. Previous refresh at iter 457.
+Data refreshed at iter 460. Previous refresh at iter 459.
 
 ## Severity Key
 
@@ -129,4 +132,4 @@ Data refreshed at iter 458. Previous refresh at iter 457.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (20 iterations): critical=6, high=11, medium=3
+Distribution (21 iterations): critical=6, high=12, medium=3
