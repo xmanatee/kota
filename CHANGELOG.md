@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 440 — Add stale-coverage annotations to depth-log.md for accurate depth phase re-entry
+
+Added stale-coverage warnings for 4 covered modules modified during plan execution, fixed server.ts line count, and updated refresh metadata — ensuring builder 441 has accurate data for its first depth iteration in 15 iterations.
+
+### Verification of iter 438 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Builder 439 moves `b:` item to Completed | Session text: "move the `b:` item to Completed since all 7 modules are extracted" | **confirmed** |
+| Builder 441 enters depth phase cleanly | Not yet run | **N/A** |
+| depth-log.md shows cli.ts at 429 lines | depth-log.md line 30: 429 ✓ | **confirmed** |
+
+### Diagnosis
+
+Builder 439 completed the modular architecture plan cleanly — all 7 modules extracted, 2116 tests pass, `b:` item moved to Completed. The builder re-enters depth phase at iter 441 for the first time since iter 425 (15 iterations ago).
+
+**Critical finding**: depth-log.md — the builder's primary depth-phase reference — had three issues:
+1. **Stale line count**: server.ts listed as 413 lines (actually 400 after iter 439 removed hardcoded Vercel handling)
+2. **Stale metadata**: "One plan step remains" note — plan is now complete
+3. **Missing stale-coverage signal**: cli.ts (4 depth iters), server.ts (2 depth iters), loop.ts (1 depth iter), and scheduler.ts (2 depth iters) were all substantially modified during plan execution (iters 417-439), but the depth-log presented their coverage as if it still reflected current code. The builder could skip these as "well-covered" when the coverage is actually stale.
+
+### Changes
+
+**`depth-log.md`** — Three updates:
+- Fixed server.ts line count: 413 → 400
+- Replaced scattered notes about individual module changes with a consolidated **"Stale coverage warning"** section listing all 4 covered modules modified during plan execution, what changed, and why their depth coverage is outdated
+- Updated refresh metadata: "One plan step remains" → "Plan completed in iter 439. Builder re-enters depth phase at iter 441."
+
+### Why not the alternatives
+
+- **Improve parse-log.py** (harness): Useful but not time-sensitive. The depth re-entry is.
+- **Add re-entry guidance to builder prompt** (builder prompt): The depth section is already well-written with 6 approaches and good discovery. Adding "after plan phase, check stale coverage" is one-time guidance better served by the depth-log itself.
+- **Restructure own expected effects** (own prompt): Low impact — self-improvement that doesn't help the builder.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 440 | eval signals |
+| 438 | builder prompt + eval signals |
+| 436 | eval signals |
+| 434 | harness/scripts |
+
+Three eval signals in a row. Justified: the plan→depth transition is a high-stakes moment and depth-log.md is the builder's primary navigation data. Next iteration should target a different lever.
+
+### Expected effects
+
+1. Builder 441, during depth orientation step 2, reads depth-log.md and encounters the stale-coverage warning — this may influence it to pick a stale-covered module (cli.ts, server.ts, loop.ts, or scheduler.ts) as a re-entry target, or it may pick from the 16 uncovered modules. Either way, the decision is informed.
+2. Builder 441 sees accurate server.ts line count (400, not 413) in the coverage table.
+3. The "Builder re-enters depth phase at iter 441" note in depth-log.md confirms the builder is in the right phase, reducing phase-transition confusion.
+
+### Future directions
+
+- **Harness improvement**: Enhance parse-log.py with file-modification tracking (which files were read/written per session) — useful for future analysis of builder efficiency.
+- **Builder prompt**: After observing builder 441's depth target choice, evaluate whether the stale-coverage annotations were sufficient or if the builder prompt's depth orientation needs explicit "check git log on covered modules" guidance.
+- **Own prompt**: Add explicit handling for "3+ iterations on same lever" — force lever rotation when justified alternatives exist.
+
 ## Iteration 439 — Extract vercel-adapter module, completing the modular architecture plan
 
 Extracted vercel-ai-stream.ts into the seventh and final KotaModule, completing plans/modular-architecture.md — all features now use the module protocol.

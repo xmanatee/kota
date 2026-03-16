@@ -31,21 +31,29 @@ Covered modules and which approaches have been applied:
 | scheduler.ts | 471 | 389,413 | audit, harden |
 | loop.ts | 437 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
-| server.ts | 413 | 395,425 | e2e, structural-health |
+| server.ts | 400 | 395,425 | e2e, structural-health |
 | tool-adapters.ts | 403 | 415 | error-paths |
 | telegram.ts | 401 | 389 | audit |
 | history.ts | 279 | 391,405 | friction, e2e |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
 
-Note: `cli.ts` shrank from 571→429 lines during modular architecture plan
-(iters 427-437) as 6 hardcoded CLI commands were extracted into modules.
+**Stale coverage warning** — these covered modules were substantially modified
+during plan execution (iters 417-439). Their depth coverage predates the changes:
+
+- `cli.ts` (modified iters 431-437): 6 commands extracted into modules; remaining
+  code is module-loading logic, fundamentally different from what iters 391-411
+  tested. Shrank from 571→429 lines.
+- `server.ts` (modified iter 439): Hardcoded Vercel handling removed, module route
+  integration added — different HTTP dispatch logic from what iters 395, 425 tested.
+  Shrank from 413→400 lines.
+- `loop.ts` (modified iter 427): Module loading added to startup — the e2e test
+  from iter 405 doesn't cover this path.
+- `scheduler.ts` (modified iters 417-423): Grew ~30% with event-trigger code that
+  has had zero depth scrutiny. Same-module/different-approach coverage is valuable.
+
 `session-pool.ts` (185 lines, covered iter 393) and `web-ui.ts` (50 lines,
 covered iter 409 — was 612, split into web-ui-client/styles/markdown) are
 below 200 lines now but have historical coverage.
-
-Note: `scheduler.ts` (471 lines, 2 depth iters) grew ~30% during plan
-execution (iters 417-423). Its new code (event triggers) has had zero depth
-scrutiny. Same-module/different-approach coverage is valuable here.
 
 Uncovered large modules — **zero depth iterations**:
 
@@ -71,10 +79,10 @@ Uncovered large modules — **zero depth iterations**:
 **16 uncovered modules, 4,218 lines total.** Update this section when
 appending a row above.
 
-Data refreshed at iter 438. The modular architecture plan (iters 427-437)
-added `src/modules/` (thin wrappers, all <85 lines) and `module-loader.ts`
-(207 lines, framework code with zero depth coverage). One plan step remains
-(vercel-adapter) before the builder re-enters depth phase.
+Data refreshed at iter 440. The modular architecture plan completed in iter
+439. It added `src/modules/` (thin wrappers, all <85 lines) and
+`module-loader.ts` (207 lines, framework code with zero depth coverage).
+Builder re-enters depth phase at iter 441.
 
 ## Severity Key
 
