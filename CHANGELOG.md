@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 506 — Fixed severity calibration in builder prompt — 33/44 depth entries were HIGH due to vague criteria
+
+Expanded the one-line severity guide in build-agent.md (step 7) from vague labels to actionable criteria with examples, fixing a broken feedback signal that prevented detecting diminishing returns in depth phase.
+
+### Verification of iter 504 (previous improver)
+
+| Expected Effect | Actual (iter 505) | Verdict |
+|---|---|---|
+| Next builder shows `Mutation: ran` in parse-log.py output | `Mutation: ran (2 calls), pass` | **confirmed** |
+| Next `--trend` includes mutation compliance line | `Mutation check: 2/5 ran` | **confirmed** |
+
+2/2 confirmed.
+
+### Diagnosis
+
+The depth-log severity distribution is **critical=8, high=33, medium=3** across 44 iterations. Only 3 MEDIUM ratings exist, all from early depth phase (iters 391, 397, 455). The last 20 depth iterations are exclusively HIGH.
+
+Examining recent "HIGH" bugs reveals miscalibration:
+- Iter 505: negative `limit` value, 50MB text file, offset beyond file — these require unusual/adversarial input
+- Iter 495: invisible redirects, missing headers, save_to ENOENT on subdirectories — edge cases
+- Iter 489: falsy-zero limit, array-content title extraction — edge cases
+
+These are legitimate bugs but they're MEDIUM (edge-case/uncommon input), not HIGH (common workflow broken). The old criteria — `high (broken normal usage)` — was too vague; the builder interpreted "any bug that could affect a user" as "broken normal usage."
+
+This matters because the improver's severity trend check says "all medium or below = diminishing returns." With everything classified HIGH, this check never fires, leaving the process unable to detect when depth work starts yielding diminishing returns.
+
+### Change
+
+**`prompts/build-agent.md`** (step 7, severity guide):
+
+Old: `Severity: critical (security/crash/data-loss), high (broken normal usage), medium (edge-case UX)`
+
+New (expanded to 6 lines with concrete criteria):
+- **critical**: security hole, crash on normal input, data loss/corruption
+- **high**: common workflow produces wrong results — bugs triggered by inputs a typical user would actually provide
+- **medium**: requires unusual/adversarial input (negative values, huge files, malformed data), cosmetic issue, or rarely-used code path
+
+The key distinction: HIGH requires "inputs a typical user would actually provide." Negative values, malformed data, and huge files are explicitly listed as MEDIUM examples.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 506 | **builder prompt** | **severity calibration** |
+| 504 | evaluation signals | mutation check tracking |
+| 502 | builder prompt | mutation check instruction |
+| 500 | evaluation signals | depth health metrics |
+
+Builder prompt lever — justified because this fixes a broken feedback signal, not an incremental feature addition.
+
+### Expected effects
+
+1. **Next builder (iter 507) classifies at least one bug as MEDIUM**: With the expanded criteria and explicit examples (negative values, huge files, malformed data = MEDIUM), the builder should correctly distinguish edge-case bugs from common-workflow bugs. Observable from `parse-log.py` on iter 507's session log (key assistant text will state the severity) and depth-log.md (the new row will show "medium" or a mix).
+2. **Next `--trend` run shows non-uniform severity**: If the builder rates any bug as MEDIUM, the trend output `Severity:` line will no longer show "N high" exclusively. Observable from `parse-log.py --trend` in iter 508.
+
+### Future directions
+
+- Add severity anomaly flag in `--trend` output (e.g., "← uniform, investigate calibration" when all N are the same)
+- Add diminishing returns heuristic to improver prompt — guidance for when depth work should trigger an owner review
+- Prune breadth phase instructions from builder prompt (~30 lines unused for 55+ iterations)
+
 ## Iteration 505 — Fixed 3 bugs in file-read.ts (282→297 lines) via harden approach; sweep-fixed negative-value guard in glob.ts and web-fetch.ts
 
 Fixed 3 bugs in `tools/file-read.ts` (most stale module — 17 builder iterations since last depth) via harden approach:
