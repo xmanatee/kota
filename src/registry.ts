@@ -7,8 +7,8 @@
  * - URL downloads go to `.kota/plugins/`
  */
 
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
 // --- Types ---
@@ -108,8 +108,14 @@ function npmToName(pkg: string): string {
 }
 
 function urlToName(url: string): string {
-  const filename = basename(new URL(url).pathname);
-  return filename.replace(/\.(js|mjs|ts)$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+  try {
+    const pathname = new URL(url).pathname;
+    const filename = basename(pathname);
+    if (!filename || filename === "/") return "tool";
+    return filename.replace(/\.(js|mjs|ts)$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") || "tool";
+  } catch {
+    return "tool";
+  }
 }
 
 function githubToName(repo: string): string {
@@ -176,9 +182,9 @@ async function installNpm(parsed: ParsedSource, cwd?: string): Promise<InstallRe
     writeFileSync(pkgJsonPath, JSON.stringify({ name: "kota-packages", private: true, dependencies: {} }, null, 2));
   }
 
-  // Install via npm
+  // Install via npm — use execFileSync to avoid shell injection
   try {
-    execSync(`npm install ${parsed.identifier}`, {
+    execFileSync("npm", ["install", parsed.identifier], {
       cwd: pkgDir,
       stdio: "pipe",
       timeout: 60_000,
@@ -201,7 +207,12 @@ async function installUrl(parsed: ParsedSource, cwd?: string): Promise<InstallRe
   mkdirSync(pluginsDir, { recursive: true });
 
   // Determine filename
-  let filename = basename(new URL(parsed.identifier).pathname);
+  let filename: string;
+  try {
+    filename = basename(new URL(parsed.identifier).pathname);
+  } catch {
+    throw new Error(`Invalid URL: ${parsed.identifier}`);
+  }
   if (!filename.endsWith(".js") && !filename.endsWith(".mjs")) {
     filename = `${parsed.name}.mjs`;
   }
@@ -212,14 +223,27 @@ async function installUrl(parsed: ParsedSource, cwd?: string): Promise<InstallRe
   }
 
   // Download
-  const response = await fetch(parsed.identifier);
+  let response: Response;
+  try {
+    response = await fetch(parsed.identifier);
+  } catch (err) {
+    throw new Error(`Download failed for "${parsed.identifier}": ${(err as Error).message}`);
+  }
   if (!response.ok) {
     throw new Error(`Download failed: ${response.status} ${response.statusText}`);
   }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    throw new Error("URL returned HTML instead of JavaScript — check the URL points to a raw .js/.mjs file");
+  }
+
   const content = await response.text();
 
-  // Basic validation: must contain export or module.exports
-  if (!content.includes("export") && !content.includes("module.exports")) {
+  // Validate: must contain JS export patterns (not just the word "export" in HTML)
+  const hasEsmExport = /\bexport\s+(default|function|const|let|var|class|\{)/.test(content);
+  const hasCjsExport = /\bmodule\.exports\b/.test(content);
+  if (!hasEsmExport && !hasCjsExport) {
     throw new Error("Downloaded file doesn't appear to be a valid tool module (no exports found)");
   }
 
@@ -246,7 +270,7 @@ async function installGithub(parsed: ParsedSource, cwd?: string): Promise<Instal
 
   const gitUrl = `github:${parsed.identifier}`;
   try {
-    execSync(`npm install ${gitUrl}`, {
+    execFileSync("npm", ["install", gitUrl], {
       cwd: pkgDir,
       stdio: "pipe",
       timeout: 60_000,
@@ -304,7 +328,7 @@ export function removeTool(name: string, cwd?: string): boolean {
   if (tool.source === "npm") {
     const pkgDir = join(dir, PACKAGES_DIR);
     try {
-      execSync(`npm uninstall ${tool.uri}`, {
+      execFileSync("npm", ["uninstall", tool.uri], {
         cwd: pkgDir,
         stdio: "pipe",
         timeout: 30_000,
@@ -338,11 +362,47 @@ export async function updateTool(name: string, cwd?: string): Promise<InstallRes
   const tool = manifest.tools[name];
   if (!tool) throw new Error(`Tool "${name}" is not installed`);
 
-  // Remove and reinstall
-  removeTool(name, cwd);
+  // Remove from manifest so installTool doesn't reject as duplicate,
+  // and move old files to backup so installUrl/installNpm don't hit conflicts.
+  const savedTool = { ...tool };
+  delete manifest.tools[name];
+  saveManifest(manifest, cwd);
+
+  const dir = kotaDir(cwd);
+  const backups: Array<{ original: string; backup: string }> = [];
+  for (const file of savedTool.files) {
+    const absPath = join(dir, file);
+    if (existsSync(absPath)) {
+      const backupPath = `${absPath}.kota-update-bak`;
+      renameSync(absPath, backupPath);
+      backups.push({ original: absPath, backup: backupPath });
+    }
+  }
 
   const sourcePrefix = tool.source === "npm" ? "npm:" : tool.source === "github" ? "github:" : "";
-  return installTool(`${sourcePrefix}${tool.uri}`, cwd);
+  try {
+    const result = await installTool(`${sourcePrefix}${tool.uri}`, cwd);
+
+    // Install succeeded — remove backups
+    for (const { backup } of backups) {
+      if (existsSync(backup)) {
+        rmSync(backup, { recursive: true, force: true });
+      }
+    }
+
+    return result;
+  } catch (err) {
+    // Reinstall failed — restore backups and manifest entry
+    for (const { original, backup } of backups) {
+      if (existsSync(backup)) {
+        renameSync(backup, original);
+      }
+    }
+    const current = loadManifest(cwd);
+    current.tools[name] = savedTool;
+    saveManifest(current, cwd);
+    throw err;
+  }
 }
 
 // --- Package loading support ---

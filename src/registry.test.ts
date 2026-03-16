@@ -1,16 +1,18 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getInstalledNpmPackages,
   getPackagesNodeModulesDir,
+  installTool,
   listTools,
   loadManifest,
   parseSource,
   removeTool,
   saveManifest,
   type ToolManifest,
+  updateTool,
 } from "./registry.js";
 
 function makeTmpDir(): string {
@@ -314,5 +316,320 @@ describe("getPackagesNodeModulesDir", () => {
     mkdirSync(dir, { recursive: true });
     const result = getPackagesNodeModulesDir(tmpDir);
     expect(result).toBe(dir);
+  });
+});
+
+describe("parseSource edge cases", () => {
+  it("treats shell metacharacters as npm package name (no injection)", () => {
+    const result = parseSource("foo; rm -rf /");
+    expect(result.type).toBe("npm");
+    expect(result.identifier).toBe("foo; rm -rf /");
+  });
+
+  it("treats backtick subshell as npm package name", () => {
+    const result = parseSource("foo`whoami`bar");
+    expect(result.type).toBe("npm");
+    expect(result.identifier).toBe("foo`whoami`bar");
+  });
+
+  it("treats pipe as npm package name", () => {
+    const result = parseSource("foo | cat /etc/passwd");
+    expect(result.type).toBe("npm");
+  });
+
+  it("handles URL with no path gracefully", () => {
+    const result = parseSource("https://example.com");
+    expect(result.type).toBe("url");
+    expect(result.name).toBeTruthy();
+  });
+
+  it("handles URL with root path only", () => {
+    const result = parseSource("https://example.com/");
+    expect(result.type).toBe("url");
+    expect(result.name).toBeTruthy();
+  });
+});
+
+describe("installTool error paths", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("rejects duplicate tool installation", async () => {
+    saveManifest({
+      tools: {
+        weather: {
+          source: "npm",
+          uri: "kota-weather",
+          version: "1.0.0",
+          files: ["packages/node_modules/kota-weather"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    await expect(installTool("kota-weather", tmpDir)).rejects.toThrow(
+      /already installed/,
+    );
+  });
+
+  it("rejects duplicate with helpful message including remove command", async () => {
+    saveManifest({
+      tools: {
+        weather: {
+          source: "npm",
+          uri: "kota-weather",
+          version: "1.0.0",
+          files: [],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    await expect(installTool("kota-weather", tmpDir)).rejects.toThrow(
+      /kota tools remove weather/,
+    );
+  });
+});
+
+describe("installTool URL error paths", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("rejects when fetch returns non-OK status", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Not Found", { status: 404, statusText: "Not Found" }),
+    );
+
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+      /Download failed: 404/,
+    );
+  });
+
+  it("rejects when fetch throws a network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new Error("getaddrinfo ENOTFOUND example.com"),
+    );
+
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+      /Download failed for/,
+    );
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+      /ENOTFOUND/,
+    );
+  });
+
+  it("rejects HTML responses", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("<html><body>Please export your credentials</body></html>", {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }),
+    );
+
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+      /HTML instead of JavaScript/,
+    );
+  });
+
+  it("rejects content without valid JS exports", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("const x = 42; // just a random script, no exports", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+      /no exports found/,
+    );
+  });
+
+  it("accepts content with ESM export default", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("export default { name: 'test' };", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+
+    const result = await installTool("https://example.com/tool.mjs", tmpDir);
+    expect(result.name).toBe("tool");
+    expect(result.source).toBe("url");
+  });
+
+  it("accepts content with CJS module.exports", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("module.exports = { name: 'test' };", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+
+    const result = await installTool("https://example.com/cjs-tool.js", tmpDir);
+    expect(result.source).toBe("url");
+  });
+
+  it("rejects when plugin file already exists", async () => {
+    // Pre-create the file
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "tool.mjs"), "existing");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("export default {};", { status: 200 }),
+    );
+
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+      /already exists in plugins/,
+    );
+  });
+
+  it("does not write file on validation failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("no valid js here", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+
+    await expect(installTool("https://example.com/bad.mjs", tmpDir)).rejects.toThrow();
+
+    // File should not have been created
+    expect(existsSync(join(tmpDir, ".kota", "plugins", "bad.mjs"))).toBe(false);
+  });
+
+  it("does not update manifest on install failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+
+    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow();
+
+    const manifest = loadManifest(tmpDir);
+    expect(Object.keys(manifest.tools)).toHaveLength(0);
+  });
+});
+
+describe("updateTool error paths", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("throws for nonexistent tool", async () => {
+    await expect(updateTool("nonexistent", tmpDir)).rejects.toThrow(
+      /not installed/,
+    );
+  });
+
+  it("preserves manifest entry when reinstall fails", async () => {
+    // Set up an existing URL-based tool
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "weather.mjs"), "export default {}");
+
+    saveManifest({
+      tools: {
+        weather: {
+          source: "url",
+          uri: "https://example.com/weather.mjs",
+          version: "latest",
+          files: ["plugins/weather.mjs"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    // Make the reinstall fail
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network timeout"));
+
+    await expect(updateTool("weather", tmpDir)).rejects.toThrow(/network timeout/);
+
+    // The manifest entry should be restored
+    const manifest = loadManifest(tmpDir);
+    expect(manifest.tools.weather).toBeDefined();
+    expect(manifest.tools.weather.uri).toBe("https://example.com/weather.mjs");
+  });
+
+  it("preserves original files on disk when reinstall fails", async () => {
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "myutil.mjs"), "export const x = 1;");
+
+    saveManifest({
+      tools: {
+        myutil: {
+          source: "url",
+          uri: "https://example.com/myutil.mjs",
+          version: "latest",
+          files: ["plugins/myutil.mjs"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("DNS failure"));
+
+    await expect(updateTool("myutil", tmpDir)).rejects.toThrow();
+
+    // File should still exist on disk
+    expect(existsSync(join(pluginsDir, "myutil.mjs"))).toBe(true);
+    expect(readFileSync(join(pluginsDir, "myutil.mjs"), "utf-8")).toBe("export const x = 1;");
+  });
+
+  it("succeeds and updates manifest on successful reinstall", async () => {
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "mytool.mjs"), "export default { v: 1 };");
+
+    saveManifest({
+      tools: {
+        mytool: {
+          source: "url",
+          uri: "https://example.com/mytool.mjs",
+          version: "latest",
+          files: ["plugins/mytool.mjs"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    // Remove existing file so installUrl doesn't complain about duplicate
+    rmSync(join(pluginsDir, "mytool.mjs"));
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("export default { v: 2 };", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+
+    const result = await updateTool("mytool", tmpDir);
+    expect(result.name).toBe("mytool");
+
+    // Manifest should be updated with new entry
+    const manifest = loadManifest(tmpDir);
+    expect(manifest.tools.mytool).toBeDefined();
+    // New file should exist
+    expect(existsSync(join(pluginsDir, "mytool.mjs"))).toBe(true);
   });
 });

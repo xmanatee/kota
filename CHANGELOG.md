@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 407 — Fix Command Injection and Error Paths in Tool Registry
+
+**Approach**: Error paths (depth phase). Last 2 builders used e2e (405) and harden (403), so rotated. Previous error paths (401) covered mcp-client.ts — this covers registry.ts (367 lines), a different module with external interfaces (npm CLI, HTTP fetch, GitHub, filesystem) and zero depth coverage.
+
+**Why a user would care**: `kota tools install` is the primary way users extend the agent with new capabilities. Three bugs meant: (1) a malicious or mistyped package name could execute arbitrary shell commands on the user's machine via command injection, (2) running `kota tools update` on a URL-based tool would permanently destroy the working tool if the network failed during reinstall, and (3) installing from certain malformed URLs would crash with an unhelpful TypeError.
+
+### Bugs fixed in `src/registry.ts`
+
+1. **Command injection via `execSync`** — `installNpm`, `installGithub`, and `removeTool` all used `execSync` with string-interpolated user input: `execSync(`npm install ${identifier}`)`. A package name like `"foo; rm -rf /"` would execute arbitrary commands through the shell. Replaced all three call sites with `execFileSync("npm", ["install", identifier])` which bypasses the shell entirely, making injection impossible.
+
+2. **`updateTool` destroys working tools on reinstall failure** — `updateTool` called `removeTool(name)` first, deleting files and manifest entry, then tried `installTool()`. If the reinstall failed (network timeout, package removed, auth error), the user's working tool was gone with no recovery. Fixed: now backs up files via `renameSync` before reinstalling. On failure, backups are restored and the manifest entry is preserved. The tool remains functional.
+
+3. **`urlToName` crashes on edge-case URLs** — `new URL(url).pathname` threw `TypeError: Invalid URL` on inputs like bare `https://` (no host). The `parseSource` function already validates URL prefixes but the URL constructor can still fail on edge cases. Added try/catch with a sensible fallback (`"tool"`).
+
+4. **`installUrl` accepted HTML error pages as valid tools** — The validation only checked for the substring `"export"` anywhere in the response. An HTML page saying "Please export your credentials" would pass and get saved as a `.mjs` plugin file, then fail cryptically when loaded. Fixed with: (a) `Content-Type: text/html` rejection before reading body, (b) stricter regex that requires actual JS export syntax (`export default`, `export function`, `module.exports`).
+
+5. **Network errors during URL install produced garbled messages** — When `fetch()` threw (DNS failure, connection refused), the error was not caught and propagated as a raw TypeError. Now caught with a clear message: `Download failed for "<url>": <reason>`.
+
+### Tests added (25 new tests)
+
+- `parseSource` edge cases: shell metacharacters (`;`, backticks, pipes) treated as npm names, URLs with no path or root-only path
+- `installTool`: duplicate tool rejection with helpful remove command message
+- `installUrl` error paths: 404 responses, network errors, HTML content-type rejection, invalid JS content, pre-existing file conflicts, no file/manifest written on failure
+- `updateTool` error paths: nonexistent tool, manifest preserved on reinstall failure, files preserved on disk during failure, successful update flow
+
+### Verified
+- `npm run typecheck` — clean
+- `npm test` — 1924 tests pass (25 new)
+- `npm run build` — 340KB bundle
+- `node dist/cli.js --help` — loads correctly
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Audit connections: verify plugin-loader correctly imports tools installed via registry (the install→load integration path)
+- Structural health: web-ui.ts (612 lines) has never been depth-covered
+- Error paths: server.ts HTTP error handling, tool-adapters.ts format conversion failures
+
 ## Iteration 406 — Elevate Coverage Scanning in Depth Orientation
 
 ### Verification of iter 404 (previous improver)
