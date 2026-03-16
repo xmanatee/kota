@@ -252,6 +252,96 @@ describe("ConversationHistory", () => {
     expect(list[2].id).toBe(id1);
   });
 
+  it("limit: 0 returns empty array, not default 20", () => {
+    for (let i = 0; i < 5; i++) {
+      history.create("claude-sonnet-4-6", "/tmp");
+    }
+
+    const results = history.list({ limit: 0 });
+    expect(results).toHaveLength(0);
+  });
+
+  it("auto-titles from array-content user message with text block", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+
+    history.save(
+      id,
+      [{
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "Analyze the data for me" }],
+      }],
+      0,
+      1000,
+    );
+
+    const list = history.list();
+    expect(list[0].title).toBe("Analyze the data for me");
+  });
+
+  it("does not title from tool_result-only user messages", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+
+    history.save(
+      id,
+      [{
+        role: "user" as const,
+        content: [{
+          type: "tool_result" as const,
+          tool_use_id: "tool_123",
+          content: "some tool output",
+        }],
+      }],
+      0,
+      1000,
+    );
+
+    const list = history.list();
+    expect(list[0].title).toBe("(new conversation)");
+  });
+
+  it("does not count tool_result-only user messages", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+
+    history.save(
+      id,
+      [
+        {
+          role: "user" as const,
+          content: [{
+            type: "tool_result" as const,
+            tool_use_id: "tool_123",
+            content: "output",
+          }],
+        },
+        { role: "assistant" as const, content: "I see the result" },
+      ],
+      0,
+      1000,
+    );
+
+    const loaded = history.load(id);
+    // Only the assistant message should be counted (tool_result is excluded)
+    expect(loaded!.record.messageCount).toBe(1);
+  });
+
+  it("counts user messages with array content blocks", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+
+    const messages = [
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "Hello" }],
+      },
+      { role: "assistant" as const, content: "Hi there" },
+      { role: "user" as const, content: "Follow up" },
+    ];
+    history.save(id, messages, 0, 1000);
+
+    const loaded = history.load(id);
+    // All 3 messages should be counted (2 user + 1 assistant)
+    expect(loaded!.record.messageCount).toBe(3);
+  });
+
   it("updates updatedAt on save", () => {
     const id = history.create("claude-sonnet-4-6", "/tmp");
 
@@ -314,6 +404,19 @@ describe("findByPrefix", () => {
     if (id2.startsWith(commonPrefix)) {
       expect(() => history.findByPrefix(commonPrefix)).toThrow("Ambiguous");
     }
+  });
+
+  it("returns null for empty prefix instead of throwing Ambiguous", () => {
+    history.create("claude-sonnet-4-6", "/tmp");
+    history.create("claude-sonnet-4-6", "/tmp");
+
+    // Empty string should return null (no valid ID), not match everything
+    expect(history.findByPrefix("")).toBeNull();
+  });
+
+  it("returns null for whitespace-only prefix", () => {
+    history.create("claude-sonnet-4-6", "/tmp");
+    expect(history.findByPrefix("  ")).toBeNull();
   });
 
   it("prefers exact match over prefix", () => {

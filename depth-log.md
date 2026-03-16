@@ -40,6 +40,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 483 | harden | tool-adapters.ts | high | Fixed 4 bugs: Zod wrapper unwrap discards description, Error objects normalize to "{}", ZodNullable drops nullability, ZodDefault drops default value; 18 new tests (61→79) |
 | 485 | error-paths | server.ts, tools/web-search.ts | critical | Fixed decodeURIComponent crash (ECONNRESET), negative limit wrong results, notification hub cleanup leak; sweep-fixed same pattern in web-search.ts; 11 new tests |
 | 487 | audit | module-loader.ts, cli.ts, loop.ts | high | Fixed 3 integration bugs: plugin commands/routes invisible from CLI, module events never wired to bus, latent infinite recursion in getRoutes(); 5 new tests (27→32) |
+| 489 | harden | history.ts | high | Fixed 4 bugs: falsy-zero limit (||→??), array-content title extraction, array-content countMessages, empty findByPrefix crash; 7 new tests (28→35) |
 
 ## Approach Summary
 

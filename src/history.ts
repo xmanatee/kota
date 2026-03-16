@@ -50,6 +50,16 @@ function generateId(): string {
   return `${ts}-${rand}`;
 }
 
+/** Extract text from a user message's content (string or content block array). */
+function extractText(content: Message["content"]): string | null {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const textBlock = content.find((b) => "type" in b && b.type === "text");
+    if (textBlock && "text" in textBlock) return textBlock.text as string;
+  }
+  return null;
+}
+
 /** Extract a short title from the first user message. */
 export function generateTitle(firstMessage: string): string {
   const cleaned = firstMessage
@@ -61,11 +71,16 @@ export function generateTitle(firstMessage: string): string {
   return `${cleaned.slice(0, TITLE_MAX_LENGTH - 3)}...`;
 }
 
-/** Count user+assistant messages (excludes tool_result turns). */
+/** Count user+assistant messages (excludes tool_result-only turns). */
 function countMessages(messages: Message[]): number {
   return messages.filter((m) => {
     if (m.role === "assistant") return true;
-    if (m.role === "user" && typeof m.content === "string") return true;
+    if (m.role === "user") {
+      if (typeof m.content === "string") return true;
+      if (Array.isArray(m.content)) {
+        return m.content.some((b) => "type" in b && b.type === "text");
+      }
+    }
     return false;
   }).length;
 }
@@ -122,11 +137,10 @@ export class ConversationHistory {
     if (!entry) return;
 
     if (entry.title === "(new conversation)" && messages.length > 0) {
-      const firstUser = messages.find(
-        (m) => m.role === "user" && typeof m.content === "string",
-      );
-      if (firstUser && typeof firstUser.content === "string") {
-        entry.title = generateTitle(firstUser.content);
+      const firstUser = messages.find((m) => m.role === "user");
+      if (firstUser) {
+        const text = extractText(firstUser.content);
+        if (text) entry.title = generateTitle(text);
       }
     }
 
@@ -176,7 +190,7 @@ export class ConversationHistory {
       );
     }
 
-    const limit = opts?.limit || 20;
+    const limit = opts?.limit ?? 20;
     return results.slice(0, limit);
   }
 
@@ -188,19 +202,22 @@ export class ConversationHistory {
 
   /** Find a conversation by exact ID or unique prefix. Returns null if not found, throws if ambiguous. */
   findByPrefix(idOrPrefix: string): ConversationRecord | null {
+    const trimmed = idOrPrefix.trim();
+    if (!trimmed) return null;
+
     const index = this.loadIndex();
 
     // Exact match first
-    const exact = index.conversations.find((c) => c.id === idOrPrefix);
+    const exact = index.conversations.find((c) => c.id === trimmed);
     if (exact) return exact;
 
     // Prefix match
-    const matches = index.conversations.filter((c) => c.id.startsWith(idOrPrefix));
+    const matches = index.conversations.filter((c) => c.id.startsWith(trimmed));
     if (matches.length === 0) return null;
     if (matches.length === 1) return matches[0];
 
     throw new Error(
-      `Ambiguous ID prefix "${idOrPrefix}" matches ${matches.length} conversations: ${matches.map((c) => c.id).join(", ")}`,
+      `Ambiguous ID prefix "${trimmed}" matches ${matches.length} conversations: ${matches.map((c) => c.id).join(", ")}`,
     );
   }
 

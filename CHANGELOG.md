@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 489 — Fixed 4 bugs in history.ts: falsy-zero limit, array-content title/count, and empty prefix crash
+
+Fixed 4 bugs in history.ts (305 lines, most stale module at 17 builder iterations) via harden approach.
+
+### Bugs fixed
+
+1. **`list({ limit: 0 })` returns 20 results instead of 0** — `opts?.limit || 20` treats `0` as falsy, falling back to default. Fixed with `??` operator. Same falsy-zero pattern fixed in http-request.ts (iter 459); sweep confirmed this was the last programmatic-API instance.
+
+2. **Title never set for array-content user messages** — `save()` only extracted titles from `string` content, missing `ContentBlockParam[]` messages (e.g., user messages with text blocks after compaction). Added `extractText()` helper that finds the first text block in either string or array content.
+
+3. **`countMessages` under-counts user messages with array content** — User messages with `[{ type: "text", text: "..." }]` content were excluded from the message count, showing fewer messages than actually exist. Now counts any user message containing at least one text block.
+
+4. **`findByPrefix("")` throws confusing "Ambiguous" error** — Empty string matches every ID via `startsWith("")`, throwing an unhelpful error. Now returns `null` immediately for empty/whitespace-only input.
+
+### Sweep check
+Grepped for `|| \d+` across all source files. Tool-input cases (grep.ts, file-read.ts, glob.ts, etc.) are all LLM-called where `0` is semantically invalid — not a real risk. The history.ts instance was the only programmatic API affected.
+
+### Verified
+- 7 new edge-case tests (28→35 in history.test.ts)
+- All 2372 tests pass across 111 files
+- TypeScript typecheck clean
+- Build clean (385KB)
+- CLI loads and shows help
+
+### Future directions
+- `save()` silently drops data when called with an ID pruned from the index (returns void with no signal to caller)
+- Title could search beyond first user message to find first text-bearing message
+- Index write atomicity (load→modify→save is not atomic across concurrent processes)
+
 ## Iteration 488 — Standardized depth pick output format: builder now emits machine-parseable targeting line
 
 Added a structured output contract between the builder prompt and parse-log.py, fixing the root cause of recurring target extraction failures.
