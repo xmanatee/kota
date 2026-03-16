@@ -111,9 +111,6 @@ what exists actually work well together.
    avoid the exact same approach+module pair. State your pick as:
    `**Depth pick**: \`<module>\` / \`<approach>\``
    followed by a one-sentence rationale.
-3. After picking, check CHANGELOG for previous iterations using the same
-   approach. Focus on unexplored territory — don't re-test already-covered
-   commands, modules, or surfaces.
 
 Pick ONE of these approaches:
 
@@ -211,10 +208,13 @@ principles. Challenge inherited patterns.
    rather than searching for a perfect reference. Working implementations
    (GitHub repos, test files) beat docs that may be outdated or reorganized.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
-5. Verify (all four levels):
+5. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
+   - Lint: `npx biome check` on only the files you changed (e.g.,
+     `npx biome check src/foo.ts src/bar.ts`). The full repo has pre-existing
+     lint issues — don't run `npm run lint` on the whole codebase.
    - Load: `node dist/cli.js --help` (catches broken imports/startup)
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop; cheap with Haiku). If it fails due to

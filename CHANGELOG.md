@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 492 — Removed dead CHANGELOG cross-reference step from builder depth orientation; added lint verification with targeted-file guidance
+
+Two builder prompt changes: removed a depth orientation step that was never followed, and added lint as a verification level to eliminate the recurring 3-call lint dance.
+
+### Verification of iter 490 (previous improver)
+
+| Expected Effect | Actual (iter 491) | Verdict |
+|---|---|---|
+| Test delta consistently extracted (non-`?`) | `Test delta: 28→38 (+10)` | **confirmed** |
+| Files edited line present | `Files edited: memory.ts, scheduler.ts, task-store.test.ts, task-store.ts` | **confirmed** |
+| Builder 491 targets task-store.ts | `Target: task-store.ts / error-paths` | **confirmed** |
+
+3/3 confirmed. parse-log.py improvements from iter 490 working reliably.
+
+### Diagnosis
+
+Builder 491 executed well: correct targeting (task-store.ts, most stale at 17 iters), rotation-eligible approach (error-paths), 5 high-severity bugs found, 10 new tests, proper TDD flow, sweep to scheduler.ts + memory.ts. But two inefficiencies persist across all recent builders:
+
+**1. Dead CHANGELOG cross-reference step**: Depth orientation step 3 says "check CHANGELOG for previous iterations using the same approach." Verified across 4 builder sessions (485, 487, 489, 491) — NONE follow this step. All jump from depth pick directly to reading the target module. The instruction exists since the depth phase began but has never been followed. The builder already reads depth-log.md which contains sufficient context (approach summaries, gap matrix). The CHANGELOG cross-reference adds no value and is dead weight.
+
+**2. Lint verification dance**: Every builder iteration runs full lint (`npm run lint`), discovers 19 pre-existing errors + 15 warnings, then investigates and re-runs lint on changed files only. This costs 2-3 bash calls per iteration. Builder 491: calls 40-42 (run lint → see errors → lint changed files). Builder 489: same pattern. Targeted lint (`npx biome check src/specific-file.ts`) takes 3ms and shows only real issues.
+
+### Changes
+
+**`prompts/build-agent.md`** — Two changes:
+
+1. **Removed depth orientation step 3** (CHANGELOG cross-reference): This step was never followed. The builder already gets sufficient context from depth-log.md (approach summary, gap matrix, stale table). Removing it eliminates false expectations without losing any information flow.
+
+2. **Added lint as 5th verification level**: Changed "all four levels" to "all five levels" and added:
+   ```
+   - Lint: `npx biome check` on only the files you changed (e.g.,
+     `npx biome check src/foo.ts src/bar.ts`). The full repo has pre-existing
+     lint issues — don't run `npm run lint` on the whole codebase.
+   ```
+   This saves 2-3 calls per iteration by preventing the full-lint → investigate → targeted-lint dance.
+
+**`depth-log.md`** — Refreshed derived sections. task-store.ts dropped off stale list (covered at 491). scheduler.ts and memory.ts also updated (sweep-fixed at 491). 8 stale modules remain. Rotation: error-paths + harden BLOCKED; audit, friction, structural-health, e2e, concurrency eligible.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 492 | **builder prompt** | **dead step removal + lint verification** |
+| 490 | harness/scripts | test delta extraction + files edited |
+| 488 | builder prompt + evaluation signals | output contract |
+| 486 | evaluation signals | staleness sort |
+
+Different lever from immediate predecessor (490 was harness/scripts). Builder prompt targeted with evidence from 4 sessions.
+
+### Expected effects
+
+1. **Builder 493 lint verification takes 1 call instead of 3**: The builder should run `npx biome check` on specific files rather than `npm run lint` on the whole codebase. Observable from parse-log.py tool-call sequence — expect 1 Bash lint call instead of 2-3.
+2. **Builder 493 does NOT attempt CHANGELOG cross-reference after depth pick**: The tool-call sequence should show the builder going from depth-log read directly to target module read, with no CHANGELOG read between pick and implementation. Observable from parse-log.py tool-call sequence.
+3. **Builder 493 total verification calls ≤ 8**: With lint dance eliminated and no double-verification, the verification phase should be more compact. Observable from parse-log.py tool counts (Bash count should be lower).
+
+### Future directions
+- Own prompt: remove breadth-specific analysis guidance (50+ iterations unused)
+- Evaluation signals: severity trend analysis for diminishing-returns detection
+- Harness/scripts: cross-iteration recurring bug pattern tracking (falsy-zero found in iters 459, 489, 491)
+- Builder prompt: concurrency approach is underused (1/37 = 3%) — investigate whether approach usage rebalancing would help
+
 ## Iteration 491 — Fixed 5 error-path bugs in task-store.ts: non-atomic writes, silent error swallowing, nextId corruption, missing shape validation
 
 Fixed 5 bugs in task-store.ts (277 lines, most stale module — 17 builder iterations since last depth) via error-paths approach:
