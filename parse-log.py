@@ -186,7 +186,7 @@ def _print_builder_analysis(
     target_module = None
     target_approach = None
     _mod_patterns = [
-        r"(?:module|depth)\s*(?:phase\s*)?(?:pick|target|choice)[:\s]*[`*]*"
+        r"(?:module|depth)\s*(?:phase\s*)?(?:pick|target|choice)[:\s`*]*"
         r"([a-zA-Z0-9_./-]+\.ts)",
         r"[`*]+([a-zA-Z0-9_./-]+\.ts)[`*]+\s*(?:\(|—|--)\s*(?:most\s+)?(?:neglected|stale)",
         r"(?:most\s+)?(?:neglected|stale)\s+(?:module\s+(?:is\s+)?)?[`*]+([a-zA-Z0-9_./-]+\.ts)",

@@ -189,15 +189,17 @@ def main():
         builder_iters_ago = (max_iter - last_cov_iter) // 2
         if builder_iters_ago >= STALE_THRESHOLD:
             tl = tests.get(path, 0)
+            unique_approaches = len(set(a for _, a in covered[path]))
             approaches_used = ", ".join(a for _, a in covered[path])
-            stale_modules.append((path, files[path], tl, last_cov_iter, builder_iters_ago, approaches_used))
+            stale_modules.append((path, files[path], tl, last_cov_iter, builder_iters_ago, unique_approaches, approaches_used))
             # Build approach map for gap matrix
             stale_approach_map[path] = {}
             for it, appr in covered[path]:
                 stale_approach_map[path].setdefault(appr, []).append(it)
-    # Sort by staleness descending (most neglected first), matching the builder
-    # prompt's ranking criteria: staleness > approach diversity > complexity
-    stale_modules.sort(key=lambda x: (-x[4], -x[1]))
+    # Sort by: staleness desc > unique approaches asc > lines desc
+    # This ensures under-explored modules get priority over well-examined ones
+    # when staleness is similar.
+    stale_modules.sort(key=lambda x: (-x[4], x[5], -x[1]))
 
     # --- Build output ---
     out = [header_and_table(text)]
@@ -264,10 +266,10 @@ def main():
             f"find untried module+approach combinations.*\n"
         )
     if stale_modules:
-        out.append("| Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |")
-        out.append("|--------|-------|------------|--------------|-------------------|-----------------|")
-        for path, lines, tl, last_iter, staleness, approaches in stale_modules:
-            out.append(f"| {path} | {lines} | {tl} | {last_iter} | {staleness} | {approaches} |")
+        out.append("| Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Unique Approaches | Approaches Used |")
+        out.append("|--------|-------|------------|--------------|-------------------|-------------------|-----------------|")
+        for path, lines, tl, last_iter, staleness, uniq_app, approaches in stale_modules:
+            out.append(f"| {path} | {lines} | {tl} | {last_iter} | {staleness} | {uniq_app} | {approaches} |")
         out.append(f"\n**{len(stale_modules)} stale modules.**")
 
         # Approach gap matrix for stale modules

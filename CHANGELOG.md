@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 486 — Stale table tiebreaking by approach diversity: under-explored modules now rank above well-examined ones at equal staleness
+
+Stale modules with fewer unique approaches now sort before well-examined modules at the same staleness level, fixing a targeting blind spot where cli.ts (5 depth iterations, 3 approaches) would be picked over module-loader.ts (1 iteration, 1 approach) despite equal staleness.
+
+### Verification of iter 484 (previous improver)
+
+| Expected Effect | Actual (iter 485) | Verdict |
+|---|---|---|
+| parse-log.py shows "Builder Execution Analysis" for iter 485 | Full analysis section present in output | **confirmed** |
+| Builder 485 targets server.ts (#1 stale) | Key text: "server.ts (400 lines, most stale at 29 builder iterations)" | **confirmed** |
+| Builder 485 picks rotation-eligible approach | error-paths — eligible (not harden/concurrency) | **confirmed** |
+
+3/3 confirmed. Execution analysis from iter 484 is saving manual work as intended.
+
+### Diagnosis
+
+**Builder 485** performed well: targeted server.ts (most stale at 29 iters), found 3 bugs + 1 sweep fix (critical severity), clean verification. parse-log.py now correctly extracts `server.ts / error-paths` after regex fix (was `? / error-paths` due to markdown formatting).
+
+**Targeting blind spot**: After iter 485 covers server.ts, cli.ts and module-loader.ts are both 22 builder iters stale. Old sort: `(-staleness, -lines)` → cli.ts (424 lines) before module-loader.ts (312 lines). But cli.ts has 5 depth iterations across 3 unique approaches, while module-loader.ts has only 1 iteration with 1 approach. The builder should prefer the under-explored module.
+
+### Changes
+
+**`refresh-depth-log.py`** — Two changes:
+1. **Sort key**: Changed from `(-staleness, -lines)` to `(-staleness, unique_approaches, -lines)`. At equal staleness, modules with fewer unique approaches sort first. At equal staleness AND approaches, larger modules sort first.
+2. **New column**: Added "Unique Approaches" to the stale table so the builder can see approach breadth at a glance.
+
+Effect on next builder's stale table (iter 487):
+- module-loader.ts (1 approach) now ranks #1 over cli.ts (3 approaches) at equal staleness
+- task-store.ts (1 approach) now ranks above scheduler.ts (3 approaches) at equal staleness
+- tools/file-edit.ts newly enters stale list (10 builder iters, 1 approach)
+
+**`parse-log.py`** — Fixed target extraction regex: changed `[:\s]*[`*]*` to `[:\s`*]*` (combined character class). The old pattern failed on `**Depth pick**: \`server.ts\`` because asterisks between keyword and colon couldn't be consumed. Validated against 5 builder sessions (477-485), all now extract both module and approach correctly.
+
+**`depth-log.md`** — Refreshed with iter 485 data: error-paths=9 (now BLOCKED), harden=7 (BLOCKED), 5 eligible approaches. 11 stale modules with new sort order.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 486 | **evaluation signals** | **depth targeting** |
+| 484 | harness/scripts | analysis tooling |
+| 482 | builder prompt | depth targeting |
+| 480 | evaluation signals | depth targeting |
+
+Topic: depth targeting again, but the specific issue (approach-diversity tiebreaking) is new. The lever alternates between evaluation signals and builder prompt/harness.
+
+### Expected effects
+
+1. **Builder 487 targets module-loader.ts (now #1 in stale table)**: After refresh, module-loader.ts (22 iters stale, 1 unique approach) sorts before cli.ts (22 iters stale, 3 approaches). Key text should mention "module-loader" in targeting rationale.
+2. **Builder 487 picks a rotation-eligible approach for module-loader.ts**: Eligible approaches are friction, structural-health, audit, e2e, concurrency. Only e2e has been tried on module-loader.ts. Observable: approach name in depth-log row is NOT e2e.
+3. **parse-log.py correctly extracts Target for iter 487**: The "Target:" field should show `module-loader.ts / <approach>` (not `? / <approach>`). Observable from parse-log.py output.
+
+### Future directions
+
+- **Topic dimension in diversity check**: The improver prompt's step 2b only tracks levers. Adding topic tracking would catch ruts like the 4-iteration depth-targeting streak from iters 476-482.
+- **Depth graduation**: Modules with 4+ unique approaches tried could be deprioritized (e.g., cli.ts with friction×3, harden, e2e). Currently they just cycle back when stale enough.
+- **Approach saturation signal**: error-paths (9/34) dominates. The gap matrix handles per-module selection, but a global saturation signal could nudge the builder toward under-used approaches (concurrency=1, structural-health/audit/e2e=4).
+
 ## Iteration 485 — Fix 3 error-path bugs in server.ts (400 lines, most stale at 29 iters) plus sweep-fix in web-search.ts
 
 Fixed 3 bugs in the HTTP server's error paths and sweep-fixed the same pattern in web-search.ts; 11 new tests (35→46 integration, 37→38 web-search).
