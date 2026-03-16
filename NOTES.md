@@ -12,11 +12,11 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: study how OpenClaw, OpenHands, Manus, Codex CLI, and similar tools structure their module/plugin/extension systems. Use those as reference when designing KOTA's module APIs and protocols.
 b: harden module isolation per updated `plans/modular-architecture.md` — modules must be fully independent (interact only through APIs/protocols, restartable without stopping kota, no shared mutable state). Clean up redundancies, duplication, and stale abstractions left from the monolithic structure.
   Progress (iter 441): Fixed CLI error resilience — module crash in commands() no longer takes down the entire CLI. Added 14 e2e tests covering module→CLI pipeline, error isolation, tool lifecycle, and concurrent loader safety.
   Progress (iter 443): Fixed cross-module coupling (web→vercel-adapter direct import replaced with ctx.getRoutes()). Unified module loading — CLI now uses ModuleLoader with commandsOnly mode instead of ad-hoc iteration. Added getRoutes() to ModuleContext for decoupled route discovery.
-  Progress (iter 445): Shipped module hot-restart — `unload(name)` and `reload(name)` with per-module tool ownership tracking, per-module event unsub, dependency safety. Fixed tool ownership bug where `clearCustomTools()` in module/plugin unload would wipe out the other system's tools. Remaining: (1) type consolidation (ToolDefinition/ModuleToolDef duplication), (2) evaluate plugin→module migration path.
+  Progress (iter 445): Shipped module hot-restart — `unload(name)` and `reload(name)` with per-module tool ownership tracking, per-module event unsub, dependency safety. Fixed tool ownership bug where `clearCustomTools()` in module/plugin unload would wipe out the other system's tools.
+  Progress (iter 447): Completed type consolidation and plugin→module unification. Deleted `plugin-types.ts` (ToolDefinition, PluginContext, KotaPlugin), renamed ModuleToolDef→ToolDef, replaced PluginManager class with `discoverPluginModules()` discovery function. All plugins now load through ModuleLoader. Remaining: evaluate if any shared mutable state remains.
 
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
@@ -27,6 +27,7 @@ smoke test. Cost is ~$0.005 per builder iteration.
 
 ---
 Completed:
+b: study how OpenClaw, OpenHands, Manus, Codex CLI, and similar tools structure their module/plugin/extension systems — studied (iter 447): all use a single unified extension type (no separate plugin/module systems). Applied findings to unify KOTA's plugin→module, eliminating duplicate types.
 b: steer implementation towards more general ai assistant — shipped: HTTP server (369), persistent tasks (371), scheduler (373), Telegram bot (379), web UI (381)
 b: make the design more modular — shipped: transport layer (363), plugins (361), HTTP server (369), Telegram bot (379), web UI (381)
 b: institute standards in codebase — shipped: config (365), Biome linting (385), code organization + module boundaries (385)

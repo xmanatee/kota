@@ -359,7 +359,7 @@ describe("zodDefToJsonSchema", () => {
 });
 
 describe("adaptExport", () => {
-  it("passes through native KotaPlugin format", () => {
+  it("passes through native KotaModule format", () => {
     const plugin = {
       name: "native",
       tools: [
@@ -435,7 +435,7 @@ describe("adaptExport", () => {
     expect(plugin.tools![1].tool.name).toBe("openai_tool");
   });
 
-  it("adapts a KotaPlugin with simple-format tools array", async () => {
+  it("adapts a KotaModule with simple-format tools array", async () => {
     const exported = {
       name: "hybrid",
       tools: [
@@ -615,7 +615,7 @@ describe("error paths", () => {
       expect(() => adaptExport(exported, "all-bad.js")).toThrow();
     });
 
-    it("KotaPlugin with mixed valid/invalid tools keeps the valid ones", () => {
+    it("KotaModule with mixed valid/invalid tools keeps the valid ones", () => {
       const exported = {
         name: "mixed-plugin",
         tools: [

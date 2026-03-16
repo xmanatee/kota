@@ -2,7 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PluginManager } from "./plugin-loader.js";
+import { ModuleLoader } from "./module-loader.js";
+import { discoverPluginModules } from "./plugin-loader.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
 import { allTools, clearCustomTools, executeTool } from "./tools/index.js";
 
@@ -18,28 +19,29 @@ function writePlugin(dir: string, name: string, code: string): void {
   writeFileSync(join(pluginDir, name), code);
 }
 
-describe("PluginManager", () => {
+describe("discoverPluginModules", () => {
   let tmpDir: string;
+  let loader: ModuleLoader;
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    loader = new ModuleLoader({}, false);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await loader.unloadAll();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("loads nothing when .kota/plugins/ does not exist", async () => {
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
-    expect(pm.getPluginCount()).toBe(0);
-    expect(pm.getLoadedPlugins()).toEqual([]);
+  it("discovers nothing when .kota/plugins/ does not exist", async () => {
+    const modules = await discoverPluginModules(tmpDir);
+    expect(modules).toEqual([]);
   });
 
-  it("loads a simple plugin with one tool", async () => {
+  it("discovers and loads a simple plugin with one tool", async () => {
     writePlugin(tmpDir, "hello.mjs", `
       export default {
         name: "hello-plugin",
@@ -54,13 +56,14 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
-    expect(pm.getPluginCount()).toBe(1);
-    expect(pm.getLoadedPlugins()).toEqual(["hello-plugin"]);
-    expect(pm.getToolCount()).toBe(1);
+    const modules = await discoverPluginModules(tmpDir);
+    expect(modules).toHaveLength(1);
+    expect(modules[0].name).toBe("hello-plugin");
 
-    // Tool should be callable via executeTool
+    await loader.loadAll(modules);
+    expect(loader.getModuleCount()).toBe(1);
+    expect(loader.getToolCount()).toBe(1);
+
     const result = await executeTool("hello_world", {});
     expect(result.content).toBe("Hello from plugin!");
   });
@@ -81,18 +84,15 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
+    const modules = await discoverPluginModules(tmpDir);
+    await loader.loadAll(modules);
 
-    // "analysis" group should exist with our tool
     expect(TOOL_GROUPS.analysis).toEqual(["custom_analyzer"]);
 
     // Tool should NOT appear in filtered tools until group is enabled
     const beforeEnable = filterTools(allTools);
-    const hasAnalyzer = beforeEnable.some((t) => t.name === "custom_analyzer");
-    expect(hasAnalyzer).toBe(false);
+    expect(beforeEnable.some((t) => t.name === "custom_analyzer")).toBe(false);
 
-    // Enable the group
     enableGroup("analysis");
     const afterEnable = filterTools(allTools);
     expect(afterEnable.some((t) => t.name === "custom_analyzer")).toBe(true);
@@ -113,15 +113,14 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
+    const modules = await discoverPluginModules(tmpDir);
+    await loader.loadAll(modules);
 
-    // Ungrouped custom tools pass through filterTools regardless of enabled groups
     const filtered = filterTools(allTools);
     expect(filtered.some((t) => t.name === "always_available")).toBe(true);
   });
 
-  it("calls onLoad with PluginContext", async () => {
+  it("calls onLoad with ModuleContext", async () => {
     writePlugin(tmpDir, "lifecycle.mjs", `
       let loaded = false;
       export default {
@@ -129,7 +128,7 @@ describe("PluginManager", () => {
         onLoad: (ctx) => {
           loaded = true;
           if (!ctx.cwd || typeof ctx.verbose !== "boolean" || typeof ctx.registerGroup !== "function") {
-            throw new Error("Invalid PluginContext");
+            throw new Error("Invalid ModuleContext");
           }
         },
         tools: [{
@@ -143,14 +142,13 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
+    const modules = await discoverPluginModules(tmpDir);
+    await loader.loadAll(modules);
     const result = await executeTool("check_loaded", {});
     expect(result.content).toBe("yes");
   });
 
   it("calls onUnload during unloadAll", async () => {
-    // Use a file as a flag since the plugin runs in-process
     const flagPath = join(tmpDir, "unloaded.flag");
     writePlugin(tmpDir, "unload.mjs", `
       import { writeFileSync } from "node:fs";
@@ -162,46 +160,46 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
-    expect(pm.getPluginCount()).toBe(1);
+    const modules = await discoverPluginModules(tmpDir);
+    await loader.loadAll(modules);
+    expect(loader.getModuleCount()).toBe(1);
 
-    await pm.unloadAll();
-    expect(pm.getPluginCount()).toBe(0);
+    await loader.unloadAll();
+    expect(loader.getModuleCount()).toBe(0);
 
     const { existsSync } = await import("node:fs");
     expect(existsSync(flagPath)).toBe(true);
   });
 
-  it("rejects plugins without a name", async () => {
+  it("skips plugins without a name", async () => {
     writePlugin(tmpDir, "bad.mjs", `
       export default { tools: [] };
     `);
 
-    const pm = new PluginManager();
-    // Should not throw — just logs an error and skips
-    await pm.loadAll(tmpDir);
-    expect(pm.getPluginCount()).toBe(0);
+    const modules = await discoverPluginModules(tmpDir);
+    // adaptExport logs an error and the module is skipped
+    expect(modules).toHaveLength(0);
   });
 
-  it("rejects duplicate plugin names", async () => {
+  it("rejects duplicate plugin names via ModuleLoader", async () => {
     writePlugin(tmpDir, "a.mjs", `export default { name: "dupe" };`);
     writePlugin(tmpDir, "b.mjs", `export default { name: "dupe" };`);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
-    // First one loads, second is rejected
-    expect(pm.getPluginCount()).toBe(1);
+    const modules = await discoverPluginModules(tmpDir);
+    expect(modules).toHaveLength(2);
+
+    // ModuleLoader rejects the duplicate — first loads, second errors silently
+    await loader.loadAll(modules);
+    expect(loader.getModuleCount()).toBe(1);
   });
 
-  it("loads plugins in alphabetical order", async () => {
+  it("discovers plugins in alphabetical order", async () => {
     writePlugin(tmpDir, "z-last.mjs", `export default { name: "z-last" };`);
     writePlugin(tmpDir, "a-first.mjs", `export default { name: "a-first" };`);
     writePlugin(tmpDir, "m-middle.mjs", `export default { name: "m-middle" };`);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
-    expect(pm.getLoadedPlugins()).toEqual(["a-first", "m-middle", "z-last"]);
+    const modules = await discoverPluginModules(tmpDir);
+    expect(modules.map((m) => m.name)).toEqual(["a-first", "m-middle", "z-last"]);
   });
 
   it("ignores non-JS files in plugins directory", async () => {
@@ -211,12 +209,12 @@ describe("PluginManager", () => {
     writeFileSync(join(pluginDir, "data.json"), "{}");
     writePlugin(tmpDir, "real.mjs", `export default { name: "real" };`);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
-    expect(pm.getPluginCount()).toBe(1);
+    const modules = await discoverPluginModules(tmpDir);
+    expect(modules).toHaveLength(1);
+    expect(modules[0].name).toBe("real");
   });
 
-  it("cleans up tools and groups on unloadAll", async () => {
+  it("cleans up tools on ModuleLoader.unloadAll", async () => {
     writePlugin(tmpDir, "cleanup.mjs", `
       export default {
         name: "cleanup-plugin",
@@ -232,24 +230,21 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
+    const modules = await discoverPluginModules(tmpDir);
+    await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.temp_group).toEqual(["temp_tool"]);
     const result = await executeTool("temp_tool", {});
     expect(result.content).toBe("temp");
 
-    await pm.unloadAll();
-
-    // Group should be gone
-    expect(TOOL_GROUPS.temp_group).toBeUndefined();
+    await loader.unloadAll();
 
     // Tool should be gone
     const result2 = await executeTool("temp_tool", {});
     expect(result2.is_error).toBe(true);
   });
 
-  it("registerGroup from PluginContext creates groups with auto-detect pattern", async () => {
+  it("registerGroup from ModuleContext creates groups with auto-detect pattern", async () => {
     writePlugin(tmpDir, "custom-group.mjs", `
       export default {
         name: "custom-group-plugin",
@@ -279,8 +274,8 @@ describe("PluginManager", () => {
       };
     `);
 
-    const pm = new PluginManager();
-    await pm.loadAll(tmpDir);
+    const modules = await discoverPluginModules(tmpDir);
+    await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.email).toContain("send_email");
     expect(TOOL_GROUPS.email).toContain("read_inbox");

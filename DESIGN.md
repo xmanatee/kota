@@ -109,11 +109,11 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. All 7 features extracted: `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. All 7 features extracted: `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
 
 **Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
-**Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` with per-owner tracking (`plugin:name` for plugins, module name for modules) — unloading one system no longer clears the other's tools. Future iterations will migrate external plugin loading into the module system.
+**Unified plugin→module system** (iter 447): External plugins from `.kota/plugins/` and `.kota/packages/` are now discovered by `discoverPluginModules()` and loaded through the same `ModuleLoader` as built-in modules. The old `PluginManager` class, `KotaPlugin` type, `ToolDefinition` type, and `PluginContext` type were eliminated — `KotaModule` and `ToolDef` are the single canonical types. User-authored plugins are simply modules discovered from disk.
 
 **Hot-restart**: Individual modules can be unloaded and reloaded without stopping the KOTA process. `unload(name)` deregisters only that module's tools (via per-module ownership tracking), disconnects only its event subscriptions, and calls its `onUnload()` hook. Dependency safety: unloading a module that others depend on throws an error — unload dependents first. `reload(name)` is `unload` + `load` from the stored definition, with automatic event reconnection.
 
@@ -433,41 +433,44 @@ Persistent REPL sessions (Python / Node.js) for iterative computation. Wrapper p
 
 **Matplotlib auto-capture** (`src/plot-capture.ts`): Python wrapper sets `MPLBACKEND=Agg` and captures open matplotlib figures after each execution (up to 5). Images are saved as temp PNGs, extracted from output via markers, read as base64, and returned as image blocks in the tool result. The agent can see its own charts and iterate on visualizations. Seaborn works automatically (uses matplotlib backend).
 
-### Plugin System (`src/plugin-types.ts`, `src/plugin-loader.ts`)
+### Plugin Discovery (`src/plugin-loader.ts`)
 
-File-based plugin architecture for extending KOTA without modifying core code. Drop `.js`/`.mjs` files in `.kota/plugins/` — they're auto-discovered and loaded on startup.
+File-based plugin architecture for extending KOTA without modifying core code. Drop `.js`/`.mjs` files in `.kota/plugins/` — they're auto-discovered, adapted to `KotaModule` format, and loaded through `ModuleLoader`.
 
-**Plugin interface** (`KotaPlugin`):
+**Discovery**: `discoverPluginModules(cwd)` scans `.kota/plugins/` and `.kota/packages/`, adapts each export to `KotaModule` via `adaptExport()`, and returns them. The caller passes them to `ModuleLoader.loadAll()` alongside built-in modules.
+
+**Module interface** (`KotaModule` from `src/module-types.ts`):
 - `name`: Unique identifier (required)
-- `tools`: Array of `ToolDefinition` — each provides an Anthropic tool schema + runner function
-- `onLoad(ctx)`: Lifecycle hook called after registration. `PluginContext` provides `cwd`, `verbose`, and `registerGroup()` for custom tool groups with auto-detect patterns
-- `onUnload()`: Cleanup hook called on session close
+- `tools`: Array of `ToolDef` — each provides an Anthropic tool schema + runner function
+- `commands`, `routes`, `events`: CLI commands, HTTP routes, and event bus subscriptions
+- `onLoad(ctx)`: Lifecycle hook called after registration. `ModuleContext` provides `cwd`, `verbose`, `config`, `registerGroup()`, and `getRoutes()`
+- `onUnload()`: Cleanup hook called on shutdown
 
 **Tool registration**:
 - Tools with a `group` property follow progressive disclosure (hidden until `enable_tools` is called)
 - Ungrouped tools are always available
-- Plugin groups appear in the `enable_tools` description dynamically
+- Module groups appear in the `enable_tools` description dynamically
 - `registerGroup()` supports auto-detect regex patterns for automatic group activation
 
-**Lifecycle**: `PluginManager.loadAll()` runs during session init (parallel with MCP). `unloadAll()` clears tools, groups, and calls `onUnload` hooks.
+**Lifecycle**: `discoverPluginModules()` runs during session init. Discovered modules are loaded through `ModuleLoader`, which handles tool registration, dependency ordering, event connections, and cleanup via `unloadAll()`.
 
 ### Tool Format Adapters (`src/tool-adapters.ts`)
 
-Plugins don't need to use KOTA's native `ToolDefinition` format. The adapter layer auto-detects and converts common formats:
+Plugins don't need to use KOTA's native `ToolDef` format. The adapter layer auto-detects and converts common formats:
 
 **Supported formats**:
-- **Native KotaPlugin**: `{ name, tools: [{ tool, runner }] }` — pass-through
+- **Native KotaModule**: `{ name, tools: [{ tool, runner }] }` — pass-through
 - **Simple**: `{ name, description, parameters, run }` — minimal, one function per tool
 - **OpenAI function-calling**: `{ type: "function", function: { name, description, parameters }, run }` — compatible with OpenAI ecosystem tools
 - **Vercel AI SDK**: `{ description, parameters, execute }` — compatible with tools created via `tool()` from the Vercel AI SDK. Parameters can be Zod schemas (auto-converted), `jsonSchema()` results, or raw JSON Schema objects. Also detects tool maps: `{ toolName: { execute, parameters }, ... }`
 - **Array**: `[simpleTool, openAITool, vercelTool, ...]` — multiple tools from one file, any mix of formats
-- **Hybrid KotaPlugin**: `{ name, tools: [simpleTool, ...], onLoad, onUnload }` — plugin with lifecycle hooks but simple-format tools
+- **Hybrid KotaModule**: `{ name, tools: [simpleTool, ...], onLoad, onUnload }` — module with lifecycle hooks but simple-format tools
 
 **Zod → JSON Schema conversion**: Vercel AI SDK tools commonly use Zod schemas for parameter validation. The adapter includes a lightweight converter that handles common Zod types (ZodString, ZodNumber, ZodBoolean, ZodEnum, ZodArray, ZodObject, ZodOptional, ZodDefault, ZodLiteral) without requiring Zod as a dependency. For `jsonSchema()` results from the AI SDK, the embedded JSON Schema is extracted directly.
 
 **Result normalization**: External tool `run`/`execute` functions can return strings, numbers, objects, or `{ content, text }` — all normalized to KOTA's `ToolResult`. Native `{ content: string }` passes through unchanged.
 
-**Programmatic API**: `fromSimple(def)`, `fromOpenAI(def)`, and `fromVercelAI(def, name)` for explicit conversion. `adaptExport(moduleExport, fileName)` for auto-detection (used by `PluginManager`).
+**Programmatic API**: `fromSimple(def)`, `fromOpenAI(def)`, and `fromVercelAI(def, name)` for explicit conversion. `adaptExport(moduleExport, fileName)` for auto-detection (used by `discoverPluginModules()`).
 
 **Example — simple format plugin** (`.kota/plugins/weather.mjs`):
 ```js
@@ -539,7 +542,7 @@ Install, remove, and manage KOTA tools from external sources — npm packages, U
 - `kota tools remove <name>` — uninstall and clean up files
 - `kota tools update <name>` — reinstall latest version
 
-**PluginManager integration**: `loadAll()` now loads from two locations:
+**Discovery integration**: `discoverPluginModules()` scans two locations:
 1. `.kota/plugins/` — file-based plugins (manual drops + URL downloads)
 2. `.kota/packages/node_modules/` — npm-installed packages (reads dependencies from `.kota/packages/package.json`)
 

@@ -13,8 +13,8 @@ import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import type { ToolResult } from "./tools/index.js";
 
-/** A tool provided by a module. */
-export type ModuleToolDef = {
+/** A tool definition — used by modules and plugins alike. */
+export type ToolDef = {
   tool: Anthropic.Tool;
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;
   /** Tool group for progressive disclosure. Ungrouped tools are always available. */
@@ -62,7 +62,7 @@ export type KotaModule = {
   dependencies?: string[];
 
   /** Tools this module provides. Registered during load. */
-  tools?: ModuleToolDef[];
+  tools?: ToolDef[];
 
   /**
    * CLI commands this module adds. Called once at load time.

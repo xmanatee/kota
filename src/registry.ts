@@ -2,7 +2,7 @@
  * Remote tool registry — install, remove, and manage KOTA tools
  * from external sources (npm packages, URLs, GitHub repos).
  *
- * Installed tools are tracked in `.kota/tools.json` and loaded by PluginManager.
+ * Installed tools are tracked in `.kota/tools.json` and discovered by discoverPluginModules().
  * - npm packages go to `.kota/packages/node_modules/`
  * - URL downloads go to `.kota/plugins/`
  */
@@ -409,7 +409,7 @@ export async function updateTool(name: string, cwd?: string): Promise<InstallRes
 
 /**
  * Returns the list of npm package names installed in .kota/packages/.
- * Used by PluginManager to load npm-installed tools.
+ * Used by discoverPluginModules() to find npm-installed tools.
  */
 export function getInstalledNpmPackages(cwd?: string): string[] {
   const manifest = loadManifest(cwd);

@@ -10,7 +10,7 @@ import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
-import { PluginManager } from "./plugin-loader.js";
+import { discoverPluginModules } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
 import { initScheduler } from "./scheduler.js";
 import { streamMessage } from "./streaming.js";
@@ -66,7 +66,6 @@ export class AgentSession {
   private verifyTracker: VerifyTracker;
   private mcpManager: McpManager | null = null;
   private moduleLoader: ModuleLoader;
-  private pluginManager: PluginManager;
   private transport: Transport;
   private sigintHandler: () => void;
   private closed = false;
@@ -172,7 +171,6 @@ export class AgentSession {
     });
 
     this.moduleLoader = new ModuleLoader(options.config || {}, this.verbose);
-    this.pluginManager = new PluginManager(this.verbose);
 
     this.initPromise = this.initExtensions();
 
@@ -212,8 +210,8 @@ export class AgentSession {
       }
     }
 
-    await this.moduleLoader.loadAll(builtinModules);
-    await this.pluginManager.loadAll();
+    const pluginModules = await discoverPluginModules(undefined, this.verbose);
+    await this.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
     this.initialized = true;
   }
 
@@ -403,7 +401,6 @@ export class AgentSession {
     cleanupSessions();
     resetGroups();
     this.moduleLoader.unloadAll().catch(() => {});
-    this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     if (this.sessionStartTime > 0) {
       tryEmit("session.end", {

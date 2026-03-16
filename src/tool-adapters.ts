@@ -1,17 +1,17 @@
 /**
  * Tool format adapters — convert common external tool formats
- * into KOTA's internal ToolDefinition/KotaPlugin.
+ * into KOTA's internal ToolDef/KotaModule.
  *
  * Supported formats:
  * - Simple: { name, description, parameters, run }
  * - OpenAI function-calling: { type: "function", function: { name, description, parameters }, run }
  * - Vercel AI SDK: { description, parameters (Zod or JSON Schema), execute }
  * - Array of simple tools
- * - Native KotaPlugin (pass-through)
+ * - Native KotaModule (pass-through)
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaPlugin, ToolDefinition } from "./plugin-types.js";
+import type { KotaModule, ToolDef } from "./module-types.js";
 import type { ToolResult } from "./tools/index.js";
 
 // --- External format types ---
@@ -90,8 +90,8 @@ function buildInputSchema(params?: Record<string, unknown>): Anthropic.Tool.Inpu
   };
 }
 
-/** Convert a simple tool definition to KOTA's ToolDefinition. */
-export function fromSimple(def: SimpleTool): ToolDefinition {
+/** Convert a simple tool definition to KOTA's ToolDef. */
+export function fromSimple(def: SimpleTool): ToolDef {
   if (!def.name || typeof def.name !== "string") {
     throw new Error("Simple tool must have a non-empty 'name' string");
   }
@@ -113,8 +113,8 @@ export function fromSimple(def: SimpleTool): ToolDefinition {
   return { tool, runner, group: def.group };
 }
 
-/** Convert an OpenAI function-calling tool to KOTA's ToolDefinition. */
-export function fromOpenAI(def: OpenAIFunctionTool): ToolDefinition {
+/** Convert an OpenAI function-calling tool to KOTA's ToolDef. */
+export function fromOpenAI(def: OpenAIFunctionTool): ToolDef {
   const fn = def.function;
   if (!fn?.name || typeof fn.name !== "string") {
     throw new Error("OpenAI tool must have function.name");
@@ -224,8 +224,8 @@ export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
   }
 }
 
-/** Convert a Vercel AI SDK tool definition to KOTA's ToolDefinition. */
-export function fromVercelAI(def: VercelAITool, name: string): ToolDefinition {
+/** Convert a Vercel AI SDK tool definition to KOTA's ToolDef. */
+export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
   if (typeof def.execute !== "function") {
     throw new Error(`Vercel AI SDK tool "${name}" must have an 'execute' function`);
   }
@@ -250,7 +250,7 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDefinition {
 
 // --- Format detection ---
 
-function isKotaPlugin(obj: Record<string, unknown>): boolean {
+function isKotaModule(obj: Record<string, unknown>): boolean {
   return typeof obj.name === "string" && (obj.tools === undefined || Array.isArray(obj.tools));
 }
 
@@ -267,17 +267,17 @@ function isVercelAIFormat(obj: Record<string, unknown>): boolean {
 }
 
 /**
- * Auto-detect the format of a module export and convert to KotaPlugin.
+ * Auto-detect the format of a module export and convert to KotaModule.
  *
  * Detection order:
- * 1. Native KotaPlugin (has name + tools array) → pass-through
+ * 1. Native KotaModule (has name + tools array) → pass-through
  * 2. OpenAI function-calling (has type:"function" + function object) → adapt
  * 3. Simple tool (has name + run function) → adapt
  * 4. Array of tools (each element is simple or OpenAI) → adapt all
  *
  * Throws if the export doesn't match any recognized format.
  */
-export function adaptExport(exported: unknown, fileName: string): KotaPlugin {
+export function adaptExport(exported: unknown, fileName: string): KotaModule {
   if (!exported || typeof exported !== "object") {
     throw new Error(`${fileName}: export is not an object or array`);
   }
@@ -289,16 +289,16 @@ export function adaptExport(exported: unknown, fileName: string): KotaPlugin {
 
   const obj = exported as Record<string, unknown>;
 
-  // Native KotaPlugin — has name + optional tools/hooks.
-  // A plugin with just a name is valid (might register groups via onLoad, or be a placeholder).
+  // Native KotaModule — has name + optional tools/hooks.
+  // A module with just a name is valid (might register groups via onLoad, or be a placeholder).
   // We distinguish from simple tools by checking that it does NOT have a 'run' function.
-  if (isKotaPlugin(obj) && typeof obj.run !== "function") {
-    // If it has tools, check if they're already in ToolDefinition format
+  if (isKotaModule(obj) && typeof obj.run !== "function") {
+    // If it has tools, check if they're already in ToolDef format
     if (Array.isArray(obj.tools) && obj.tools.length > 0) {
       const first = obj.tools[0] as Record<string, unknown>;
       if (first.tool && first.runner) {
         // Already native format
-        return exported as KotaPlugin;
+        return exported as KotaModule;
       }
       // Tools array but in simple/openai format — adapt each
       const tools = adaptToolArray(obj.tools as Record<string, unknown>[], fileName);
@@ -306,30 +306,30 @@ export function adaptExport(exported: unknown, fileName: string): KotaPlugin {
         name: obj.name as string,
         version: obj.version as string | undefined,
         tools,
-        onLoad: obj.onLoad as KotaPlugin["onLoad"],
-        onUnload: obj.onUnload as KotaPlugin["onUnload"],
+        onLoad: obj.onLoad as KotaModule["onLoad"],
+        onUnload: obj.onUnload as KotaModule["onUnload"],
       };
     }
-    return exported as KotaPlugin;
+    return exported as KotaModule;
   }
 
   // Single OpenAI format tool
   if (isOpenAIFormat(obj)) {
     const tool = fromOpenAI(obj as unknown as OpenAIFunctionTool);
-    const name = pluginNameFromFile(fileName);
+    const name = moduleNameFromFile(fileName);
     return { name, tools: [tool] };
   }
 
   // Single simple format tool
   if (isSimpleFormat(obj)) {
     const tool = fromSimple(obj as unknown as SimpleTool);
-    const name = (obj.name as string) || pluginNameFromFile(fileName);
+    const name = (obj.name as string) || moduleNameFromFile(fileName);
     return { name, tools: [tool] };
   }
 
   // Single Vercel AI SDK tool (has `execute` + `parameters`, no `name`)
   if (isVercelAIFormat(obj)) {
-    const name = pluginNameFromFile(fileName);
+    const name = moduleNameFromFile(fileName);
     const tool = fromVercelAI(obj as unknown as VercelAITool, name);
     return { name, tools: [tool] };
   }
@@ -342,17 +342,17 @@ export function adaptExport(exported: unknown, fileName: string): KotaPlugin {
     const tools = entries.map(([key, val]) =>
       fromVercelAI(val as unknown as VercelAITool, key),
     );
-    return { name: pluginNameFromFile(fileName), tools };
+    return { name: moduleNameFromFile(fileName), tools };
   }
 
   throw new Error(
-    `${fileName}: unrecognized export format. Expected KotaPlugin, OpenAI function tool, ` +
+    `${fileName}: unrecognized export format. Expected KotaModule, OpenAI function tool, ` +
       `simple tool { name, description, run }, Vercel AI SDK tool { execute, parameters }, ` +
       `or an array of tools.`,
   );
 }
 
-function adaptArray(arr: unknown[], fileName: string): KotaPlugin {
+function adaptArray(arr: unknown[], fileName: string): KotaModule {
   if (arr.length === 0) {
     throw new Error(`${fileName}: empty tool array`);
   }
@@ -367,16 +367,16 @@ function adaptArray(arr: unknown[], fileName: string): KotaPlugin {
     fileName,
   );
 
-  return { name: pluginNameFromFile(fileName), tools };
+  return { name: moduleNameFromFile(fileName), tools };
 }
 
-function adaptToolArray(items: Record<string, unknown>[], fileName: string): ToolDefinition[] {
-  const tools: ToolDefinition[] = [];
+function adaptToolArray(items: Record<string, unknown>[], fileName: string): ToolDef[] {
+  const tools: ToolDef[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     try {
       if (item.tool && item.runner) {
-        tools.push(item as unknown as ToolDefinition);
+        tools.push(item as unknown as ToolDef);
       } else if (isOpenAIFormat(item)) {
         tools.push(fromOpenAI(item as unknown as OpenAIFunctionTool));
       } else if (isSimpleFormat(item)) {
@@ -398,6 +398,6 @@ function adaptToolArray(items: Record<string, unknown>[], fileName: string): Too
   return tools;
 }
 
-function pluginNameFromFile(fileName: string): string {
+function moduleNameFromFile(fileName: string): string {
   return fileName.replace(/\.(js|mjs|ts)$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
 }

@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 447 — Unified plugin and module systems after researching external agent architectures
+
+Studied OpenHands, Codex CLI, OpenManus, ZeroClaw, CrewAI, and AutoGen extension systems, then applied findings to eliminate KOTA's duplicate plugin/module type hierarchy.
+
+### Research Findings
+
+| Framework | Extension Model | Key Pattern |
+|-----------|----------------|-------------|
+| OpenHands | Plugin class with `initialize()` | Single plugin type, sandboxed |
+| Codex CLI | No plugins — tools hardcoded | Minimalist, no extension system |
+| OpenManus | Config-driven agents | No formal plugin system |
+| ZeroClaw | Rust trait-based | Pluggable via traits, not runtime plugins |
+| CrewAI | Tools passed to agent configs | Single tool interface |
+| AutoGen | Extensions API + Core API | Layered, but single extension type |
+
+**Key insight**: Every framework uses a **single extension type**. None maintain parallel plugin and module systems. KOTA's duplication was an artifact of incremental development.
+
+### What Changed
+
+**Deleted `plugin-types.ts`** — `ToolDefinition`, `PluginContext`, and `KotaPlugin` types eliminated. `KotaModule` and `ToolDef` (renamed from `ModuleToolDef`) are now the single canonical types.
+
+**Replaced `PluginManager` class with `discoverPluginModules()` function** — the new function discovers `.kota/plugins/` and `.kota/packages/` files, adapts their exports to `KotaModule` format, and returns them. No more parallel lifecycle management.
+
+**Unified loading pipeline** — `loop.ts` now feeds both built-in modules and discovered plugins through `ModuleLoader.loadAll()`. One loader manages all module lifecycle (load, unload, reload, dependencies, events, tool registration).
+
+**Updated `tool-adapters.ts`** — `adaptExport()` now returns `KotaModule` instead of `KotaPlugin`. All adapter functions return `ToolDef` instead of `ToolDefinition`.
+
+### Files Changed
+- `src/plugin-types.ts` — **deleted** (superseded by `module-types.ts`)
+- `src/module-types.ts` — renamed `ModuleToolDef` → `ToolDef`
+- `src/tool-adapters.ts` — imports from `module-types.ts`, returns `KotaModule`/`ToolDef`
+- `src/plugin-loader.ts` — `PluginManager` class → `discoverPluginModules()` function
+- `src/loop.ts` — removed `PluginManager`, feeds discovered plugins through `ModuleLoader`
+- `src/registry.ts` — updated comments
+- `src/plugin-loader.test.ts` — rewritten for `discoverPluginModules()` + `ModuleLoader` integration
+- `src/tool-adapters.test.ts` — updated test names
+- `DESIGN.md` — updated Plugin System section, module coexistence docs
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 372KB bundle
+- `npm test` — 2143 tests pass (all 109 test files)
+- `node dist/cli.js --help` — loads correctly, all commands visible
+- `echo "Say hello" | node dist/cli.js run` — SKIP (no ANTHROPIC_API_KEY)
+
+### Future Directions
+- Evaluate remaining shared mutable state between modules
+- Consider allowing external modules to declare `commands`, `routes`, `events` (not just tools)
+- Module config schema validation
+
 ## Iteration 446 — Add item-progress tracking and improved self-verification to improver prompt
 
 Added systematic item-neglect detection and better intervention-verification checks to the improver prompt, replacing ad-hoc manual counting.
