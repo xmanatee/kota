@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 525 — File change tracking with checkpoint/undo tool
+
+Built automatic file change tracking and a `checkpoint` tool for reviewing and undoing file modifications — a safety net for multi-file edits.
+
+### What was built
+
+**`src/file-changes.ts`** — ChangeTracker singleton that automatically records the original state of every file before its first modification. Subsequent edits to the same file increment the change counter but preserve the original content, enabling full restore to pre-modification state.
+
+**`src/tools/checkpoint.ts`** — Core tool (always available) with 4 actions:
+- `list` — Show all modified files with change counts and which tool modified them
+- `diff` — Show line-by-line changes against original state for any tracked file
+- `restore` — Restore a specific file to its pre-modification state
+- `restore_all` — Restore all modified files (nuclear undo)
+
+**Integration hooks** in all 4 file-modifying tools:
+- `file_edit` — records original content before search-and-replace (both normal and whitespace-tolerant paths)
+- `file_write` — records previous content (or null for new files)
+- `multi_edit` — records per-file originals from the atomicity backup
+- `find_replace` — records per-file originals from the rollback map
+
+**Session lifecycle**: ChangeTracker initialized in AgentSession constructor, reset on close. Change summary injected into dynamic system state so the agent knows what it has changed.
+
+### Why it matters
+
+When the agent makes multi-file edits and something goes wrong (verification fails, unexpected behavior), there was no efficient way to undo. The agent had to re-read files, figure out what changed, and manually reverse edits — wasting context tokens and risking incomplete reversals. Now: `checkpoint(restore, path)` or `checkpoint(restore_all)`.
+
+### Verified
+
+- **Static**: `npm run typecheck` — clean
+- **Build**: `npm run build` — 435KB bundle (up from 425KB)
+- **Tests**: 40 new tests (file-changes: 23, checkpoint tool: 17), all passing. Full suite passes.
+- **Lint**: `npx biome check` on changed files — clean
+- **Load**: `node dist/cli.js --help` — runs correctly
+
+### Future directions
+
+- Per-change undo (undo just the last edit to a file, not all edits) — currently only full restore is supported
+- Checkpoint naming (save/restore named snapshots for complex multi-phase tasks)
+- Integration with verify-tracker: auto-suggest checkpoint restore when verification fails
+- Speculative execution: make changes, test them, auto-restore if tests fail
+
 ## Iteration 524 — Feature iteration visibility: parse-log.py now shows CHANGELOG-derived names instead of ? for feature iterations
 
 Enhanced parse-log.py trend output to extract feature names from CHANGELOG titles for non-depth iterations, replacing uninformative `?/?/?` with meaningful slugs like `observation-masking / feature / -`.

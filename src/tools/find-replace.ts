@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob } from "glob";
+import { trackFileChange } from "../file-changes.js";
 import { recordModification } from "../file-tracker.js";
 import { lintFile } from "../lint.js";
 import type { ToolResult } from "./index.js";
@@ -218,7 +219,10 @@ export async function runFindReplace(
     return { content: `Write failed: ${msg}. ${revertMsg}`, is_error: true };
   }
 
-  for (const p of modified) recordModification(p);
+  for (const p of modified) {
+    recordModification(p);
+    trackFileChange(p, originals.get(p) ?? null, "find_replace");
+  }
 
   const lines = modified
     .map((p) => `  ${p}: ${hits.find((h) => h.path === p)!.count} replacement(s)`)

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { printEditDiff } from "../diff.js";
+import { trackFileChange } from "../file-changes.js";
 import { checkFreshness, recordModification } from "../file-tracker.js";
 import { lintFile } from "../lint.js";
 import { fileNotFoundError } from "../path-resolver.js";
@@ -85,6 +86,7 @@ export async function runFileEdit(
       }
 
       recordModification(path);
+      trackFileChange(path, content, "file_edit");
       const line = content.slice(0, content.indexOf(wsMatch)).split("\n").length;
       printEditDiff(path, content, wsMatch, newStr);
       return {
@@ -131,6 +133,7 @@ export async function runFileEdit(
   }
 
   recordModification(path);
+  trackFileChange(path, content, "file_edit");
   const replacements = replaceAll ? count : 1;
   printEditDiff(path, content, oldStr, newStr);
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };

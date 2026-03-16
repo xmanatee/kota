@@ -5,6 +5,7 @@ import { buildUserProfile, type KotaConfig } from "./config.js";
 import { CONTEXT_WINDOW, Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
+import { getChangeTracker, initChangeTracker, resetChangeTracker } from "./file-changes.js";
 import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
@@ -113,6 +114,7 @@ export class AgentSession {
     // Initialize persistent stores for this project
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
+    initChangeTracker();
 
     this.projectContext = loadProjectContext();
     const projectContext = this.projectContext;
@@ -308,7 +310,8 @@ export class AgentSession {
       const system: Anthropic.Messages.TextBlockParam[] = [
         { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
       ];
-      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState();
+      const changesSummary = getChangeTracker()?.getSummary() ?? "";
+      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + changesSummary;
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }
@@ -418,6 +421,7 @@ export class AgentSession {
     cleanupProcesses();
     cleanupSessions();
     resetCustomTools();
+    resetChangeTracker();
     resetGroups();
     this.moduleLoader.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});

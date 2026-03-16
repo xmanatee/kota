@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runEnableTools } from "../tool-groups.js";
 import { askUserTool, runAskUser } from "./ask-user.js";
+import { checkpointTool, runCheckpoint } from "./checkpoint.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
 import { customToolTool, initCustomToolRegistry, runCustomTool } from "./custom-tool.js";
 import { delegateTool, runDelegate } from "./delegate.js";
@@ -54,6 +55,7 @@ const runners: Record<string, ToolRunner> = {
   notebook: runNotebook,
   files_overview: runFilesOverview,
   custom_tool: runCustomTool,
+  checkpoint: runCheckpoint,
 
   enable_tools: runEnableTools,
 };
@@ -80,6 +82,7 @@ const tools: Anthropic.Tool[] = [
   notebookTool,
   filesOverviewTool,
   customToolTool,
+  checkpointTool,
 ];
 
 /** Returns the full tool list (core + module-registered). Read-only. */

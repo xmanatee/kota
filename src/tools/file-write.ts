@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSyn
 import { dirname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { printWriteSummary } from "../diff.js";
+import { trackFileChange } from "../file-changes.js";
 import { recordModification } from "../file-tracker.js";
 import { lintFile } from "../lint.js";
 import type { ToolResult } from "./index.js";
@@ -72,6 +73,7 @@ export async function runFileWrite(
   }
 
   recordModification(path);
+  trackFileChange(path, previousContent, "file_write");
   const lines = content.split("\n").length;
   if (existed && previousContent !== null) {
     printWriteSummary(path, previousContent.split("\n").length, lines);

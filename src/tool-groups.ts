@@ -18,6 +18,7 @@ export const CORE_TOOL_NAMES = new Set([
   "delegate",
   "enable_tools",
   "custom_tool",
+  "checkpoint",
 ]);
 
 const enabledGroups = new Set<string>();

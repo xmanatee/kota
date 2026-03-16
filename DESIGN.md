@@ -504,6 +504,7 @@ Automatic conversation persistence that lets KOTA resume previous conversations 
 - **Shell error diagnostics** (`src/shell-diagnostics.ts`): Extracts diagnostic-relevant lines from long output (TypeScript errors, test failures, lint errors).
 - **Error context enrichment** (`src/error-context.ts`): Pre-fetches source code around file:line references in errors.
 - **Verification nudges** (`src/verify-tracker.ts`): Tracks unverified edits, detects available test/build commands, escalates after 3 turns.
+- **File change tracking & undo** (`src/file-changes.ts`, `src/tools/checkpoint.ts`): Automatically records the original state of every file before its first modification. The `checkpoint` tool (core, always available) lets the agent list changes, diff against originals, and restore files — surgical undo for multi-file edits gone wrong. Singleton lifecycle managed in `AgentSession` (init on construction, reset on close). Change summary injected into dynamic system state for agent awareness.
 
 ### Interactive Code Execution (`src/tools/code-exec.ts`)
 

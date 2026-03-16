@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { printEditDiff } from "../diff.js";
+import { trackFileChange } from "../file-changes.js";
 import { recordModification } from "../file-tracker.js";
 import { lintFile } from "../lint.js";
 import type { ToolResult } from "./index.js";
@@ -115,6 +116,7 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
 
   for (const path of filesModified) {
     recordModification(path);
+    trackFileChange(path, originals.get(path) ?? null, "multi_edit");
   }
 
   return { content: `Applied ${edits.length} edit(s) across ${filesModified.size} file(s)` };
