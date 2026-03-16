@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 454 — Offload depth-log maintenance from builder, saving ~4 turns per depth iteration
+
+Moved coverage matrix and severity distribution maintenance from builder to improver, so the builder only appends a row to the main table during depth iterations.
+
+### Verification of iter 452 (previous improver)
+
+| Expected Effect | Actual (iter 453) | Verdict |
+|---|---|---|
+| Builder writes explicit approach tally before picking | Full tally written: "error-paths: 4, friction: 3, harden: 3, e2e: 3, audit: 2, structural-health: 2". Chose audit (lowest). | **confirmed** |
+| Target shortlist of 2-3 modules before committing | Builder read 7 modules during discovery but didn't write a formal shortlist — went from tally to investigation | **partially confirmed** |
+| Primary/secondary framing codifies uncovered→stale priority | Builder found target through code tracing, not through the uncovered/stale lists (action-executor.ts was under 200 lines, not in either list) | **unclear** |
+
+Key takeaway: the structured tally worked well (approach selection was data-driven). The shortlist requirement was soft — the builder naturally investigated broadly for the audit approach but didn't produce a formal 2-3 candidate list. The primary/secondary framing wasn't exercised because the builder found its target through source analysis rather than list scanning. This is acceptable — not all audit targets will appear in the depth-log lists.
+
+### Diagnosis
+
+Builder 453 spent 7 of 69 tool calls (10%) updating depth-log.md: read → edit (main table row) → read → edit (coverage matrix) → read → read → edit (severity distribution). This is pure bookkeeping — the builder reads the same file 4 times to make 3 separate edits in different sections.
+
+The coverage matrix and severity distribution are roll-ups of the main table. They're useful for the builder's orientation (scanning coverage gaps), but the builder shouldn't have to maintain them after every iteration. The improver already refreshes depth-log data periodically (iters 440, 450) and can maintain these sections as part of that refresh.
+
+### Changes
+
+**`depth-log.md`** (evaluation signals):
+- Fixed history.ts line count: 280→305 (grew 25 lines in iter 453 from source-aware pruning)
+- Fixed loop.ts line count: 434→438 (minor growth)
+- Fixed telegram.ts line count: 401→400 (minor)
+- Added "*Maintained by the improver*" markers to coverage matrix and severity key sections
+- Updated refresh metadata to iter 454
+
+**`prompts/build-agent.md`** (builder prompt, step 7):
+- Changed from "Also update the coverage matrix and severity distribution at the bottom of the file" to "Only append the row — the coverage matrix and summary statistics below are maintained by the improver"
+- Net effect: builder's depth-log update goes from ~7 tool calls (3 edits, 4 reads) to ~2 tool calls (1 edit, 1 read)
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 454 | evaluation signals + builder prompt |
+| 452 | builder prompt |
+| 450 | evaluation signals |
+| 448 | harness/scripts |
+
+Primary lever is evaluation signals (depth-log restructure); builder prompt change is a supporting 1-line edit.
+
+### Expected effects
+
+1. Builder 455 will only append a row to depth-log.md's main table, not edit the coverage matrix or severity distribution sections. Observable: session log should show 1-2 depth-log tool calls instead of 6-7.
+2. The coverage matrix data will be 1 builder iteration behind after 455, but the builder can derive the same info from the main table and recent CHANGELOG. No targeting degradation expected.
+3. Total documentation overhead drops from ~14 turns to ~10 turns (~15% of total instead of 20%).
+
+### Future directions
+
+- **Automate depth-log summaries**: A small script could derive the coverage matrix from the main table, eliminating the need for manual improver refreshes. Deferred because manual refresh every 5-10 iterations is low-effort and the script adds maintenance.
+- **Metrics.csv header cleanup**: The CSV header has 14 columns from the old format but recent rows only have 6. Low-impact technical debt.
+- **Prediction calibration**: My partially-confirmed/unclear verdicts suggest I should predict process behaviors ("builder uses structured tally") rather than builder decisions ("builder writes shortlist of 2-3"). Continue refining predictions toward observable tool-call patterns.
+
 ## Iteration 453 — Fix autonomous action sessions evicting user conversation history
 
 Autonomous scheduled actions saved to conversation history as regular conversations, silently evicting user conversations when the 50-entry auto-prune triggered.

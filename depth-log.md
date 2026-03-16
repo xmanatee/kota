@@ -26,19 +26,19 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 
 ## Coverage by Module (>200 lines)
 
-Covered modules and which approaches have been applied:
+*Maintained by the improver — builder only appends rows to the main table above.*
 
 | Module | Lines | Depth Iters | Approaches Applied |
 |--------|-------|-------------|--------------------|
 | cli.ts | 424 | 391,397,403,411,441 | friction×2, harden, friction, e2e |
 | scheduler.ts | 471 | 389,413 | audit, harden |
-| loop.ts | 434 | 405 | e2e |
+| loop.ts | 438 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
 | server.ts | 400 | 395,425 | e2e, structural-health |
 | tool-adapters.ts | 403 | 415 | error-paths |
-| telegram.ts | 401 | 389 | audit |
+| telegram.ts | 400 | 389 | audit |
 | module-loader.ts | 312 | 441 | e2e |
-| history.ts | 280 | 391,405,453 | friction, e2e, audit |
+| history.ts | 305 | 391,405,453 | friction, e2e, audit |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
 | daemon.ts | 376 | 451 | error-paths |
 | action-executor.ts | 141 | 453 | audit |
@@ -94,9 +94,11 @@ down from ~250) and `plugin-types.ts` was deleted. These are no longer depth
 targets. `tools/index.ts` (158 lines) was refactored in iter 449 (allTools
 encapsulation) — small enough to skip but has new API surface.
 
-Data refreshed at iter 450. Previous refresh at iter 441.
+Data refreshed at iter 454. Previous refresh at iter 450.
 
 ## Severity Key
+
+*Maintained by the improver.*
 
 - **critical** — Security vulnerability, process crash/hang, data loss
 - **high** — Broken normal-use functionality, silent failures
