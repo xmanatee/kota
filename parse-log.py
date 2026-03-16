@@ -531,14 +531,19 @@ def _quick_parse(path: str) -> dict:
                     if m and m.group(1).lower() in DEPTH_APPROACHES:
                         target_app = m.group(1).lower()
                         break
+    usage = result.get("usage", {})
+    turns = result.get("num_turns", 0) or 0
+    cache_read = usage.get("cache_read_input_tokens", 0) or 0
     return {
-        "turns": result.get("num_turns", 0) or 0,
+        "turns": turns,
         "cost": result.get("total_cost_usd", 0) or 0,
         "calls": tool_count,
         "module": target_mod,
         "approach": target_app,
         "test_delta": _extract_test_delta(full_texts + cl_edits),
         "mutation": "ran" if mutation_calls > 0 else "no",
+        "cache_read": cache_read,
+        "cache_per_turn": round(cache_read / turns) if turns else 0,
     }
 
 
@@ -660,6 +665,7 @@ def trend(n: int = 5) -> None:
     print(f"=== Builder Trend (last {len(entries)}) ===")
     total_calls = total_tests = test_count = 0
     total_cost = 0.0
+    cpt_values: list[int] = []
     for e in entries:
         mod = e["module"] or "?"
         if "/" in mod:
@@ -667,12 +673,17 @@ def trend(n: int = 5) -> None:
         app = e["approach"] or "?"
         sev = e["severity"]
         td = e["test_delta"] or "?"
+        cpt = e.get("cache_per_turn", 0)
+        cpt_str = f"{cpt // 1000}k" if cpt else "?"
         print(
             f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
+            f"  ctx: {cpt_str}/turn"
         )
         total_calls += e["calls"]
         total_cost += e["cost"]
+        if cpt:
+            cpt_values.append(cpt)
         m = re.search(r"\+(\d+)", str(td))
         if m:
             total_tests += int(m.group(1))
@@ -686,6 +697,21 @@ def trend(n: int = 5) -> None:
         f"  Avg: {avg_calls:.0f} calls, ${avg_cost:.2f}, "
         f"+{avg_tests:.1f} tests/iter"
     )
+    # Context size trend (per-turn cache read)
+    if len(cpt_values) >= 2:
+        first_half = sum(cpt_values[: len(cpt_values) // 2]) / (len(cpt_values) // 2)
+        second_half = sum(cpt_values[len(cpt_values) // 2 :]) / (
+            len(cpt_values) - len(cpt_values) // 2
+        )
+        delta_pct = (second_half - first_half) / first_half * 100 if first_half else 0
+        if abs(delta_pct) < 3:
+            direction = "stable"
+        elif delta_pct > 0:
+            direction = f"growing (+{delta_pct:.0f}%)"
+        else:
+            direction = f"shrinking ({delta_pct:.0f}%)"
+        avg_cpt = sum(cpt_values) / len(cpt_values)
+        print(f"  Context/turn: {avg_cpt // 1000}k avg, {direction}")
 
     # Severity assessment
     sev_ctr = Counter(e["severity"] for e in entries if e["severity"] != "?")

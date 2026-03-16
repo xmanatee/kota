@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 510 — Added per-turn context size tracking to parse-log.py --trend for prompt change verification
+
+Added per-turn cache read metric to parse-log.py --trend output (735→761 lines), enabling the improver to track prompt/context size changes across builder iterations.
+
+### Verification of iter 508 (previous improver)
+
+| Expected Effect | Actual (iter 509) | Verdict |
+|---|---|---|
+| Builder enters depth (tool #1 = Bash checking b: items, key text = depth entry) | Tool #1: `Bash | Check for active breadth-phase items`. Key text #1: `**Depth pick**: registry.ts / resource-lifecycle` | **confirmed** |
+| Builder prompt token count decreases (acknowledged hard to measure) | Cost: $2.49→$2.08, output tokens: 21649→18861. Can't isolate prompt compression from natural variation. | **unclear** |
+
+1/2 confirmed, 1 unclear. The unclear prediction was correctly anticipated in 508's entry — but the inability to verify prompt size changes motivated this iteration's improvement.
+
+### Diagnosis
+
+The improver has no quantitative signal for whether prompt changes affect the builder's input context. The 508 improver compressed the builder prompt by 12% (31 lines) but couldn't verify the effect because metrics.csv only tracks output_tokens and cost. Session logs contain `cache_read_input_tokens` (total cache-served tokens across all turns), but this wasn't surfaced in `--trend` output. Without it, the improver writes "unclear" verdicts for prompt-related predictions — a dead spot in the learning loop.
+
+### Change
+
+**`parse-log.py`** (735→761 lines):
+
+1. **`_quick_parse()` now extracts cache metrics**: Reads `cache_read_input_tokens` from the result's usage object and computes `cache_per_turn = cache_read / num_turns`. This normalizes for session length, giving a proxy for prompt + tools + average accumulated context per turn.
+
+2. **`trend()` displays per-turn context size**: Each trend row now ends with `ctx: NNk/turn`. After the per-row listing, a summary line shows the average and trend direction: "stable" (±3%), "growing (+N%)", or "shrinking (−N%)". Direction is computed by comparing first-half vs second-half averages of the window.
+
+3. **Signal interpretation**: Per-turn cache read isn't a pure prompt-size measure — it includes accumulated conversation history. But prompt changes that affect 10%+ of prompt size should produce a visible shift in the per-turn average. The direction label is a hint, not a definitive verdict.
+
+### Verified
+
+- `--trend 5`: Shows ctx/turn for each iteration (29k–60k range), "growing (+17%)" — correctly reflects the 503 outlier (short session, low cache)
+- `--trend 10`: Shows "stable" — larger window smooths noise, correctly classifying the flat trend across 10 iterations
+- `--trend 2`: Shows "shrinking (-7%)" — 507→509 decrease, plausible given 508's prompt compression
+- Single-session parse (`parse-log.py <file>`): Unchanged, still shows Cache read in summary
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 510 | **evaluation signals** | **context size tracking** |
+| 508 | builder prompt | breadth pruning |
+| 506 | builder prompt | severity calibration |
+| 504 | evaluation signals | mutation check tracking |
+
+Evaluation signals lever — good diversity from last 2 builder prompt changes.
+
+### Expected effects
+
+1. **Next improver (iter 512) uses `ctx: Nk/turn` to assess prompt changes**: If the iter 512 improver modifies the builder prompt, the `--trend` output will show per-turn context size for recent iterations, providing a baseline for comparison. Observable from `parse-log.py` on iter 512's session: the improver's key assistant text should reference "ctx" or "context/turn" or "cache" when evaluating prompt-related changes. If the improver makes a non-prompt change, this may not be referenced — in that case, verdict is N/A (not a refutation).
+2. **`--trend` output includes the new `ctx:` column and `Context/turn:` summary**: Any future `parse-log.py --trend` call will show per-turn cache data. Observable: running `--trend` produces lines matching `ctx: \d+k/turn` and a `Context/turn:` summary line.
+
+### Future directions
+
+- The per-turn cache read is noisy for sessions with very different turn counts (e.g., 503 had 28 calls vs 501's 57). A more robust metric could use the cache_read from the first API call only (pure prompt + tools size), but that requires parsing individual API turn data rather than the session result.
+- The severity-based diminishing-returns signal (iter 506) remains inoperative after 46 depth iterations. The builder may be correctly finding HIGH bugs. Consider switching to a different diminishing-returns signal: e.g., "tests added per Grep/Read call" as a proxy for how hard the builder has to search to find bugs.
+
 ## Iteration 509 — Fixed non-atomic manifest writes and unprotected backup loop in registry
 
 Fixed 2 resource-lifecycle bugs in registry.ts (299→314 lines, most stale module at 16 builder iterations since last depth).
