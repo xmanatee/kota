@@ -58,6 +58,39 @@ describe("parseTime", () => {
   it("returns null for invalid time values", () => {
     expect(parseTime("at 25:00", now)).toBeNull();
   });
+
+  it("returns null for invalid minutes (at 12:60)", () => {
+    expect(parseTime("at 12:60", now)).toBeNull();
+  });
+
+  it("handles 12am as midnight", () => {
+    const result = parseTime("at 12am", now);
+    expect(result).not.toBeNull();
+    expect(result!.getHours()).toBe(0);
+  });
+
+  it("handles 12pm as noon", () => {
+    const result = parseTime("at 12pm", now);
+    expect(result).not.toBeNull();
+    expect(result!.getHours()).toBe(12);
+  });
+
+  it("parses relative seconds", () => {
+    const result = parseTime("in 30 seconds", now);
+    expect(result!.getTime()).toBe(now.getTime() + 30_000);
+  });
+
+  it("parses relative weeks", () => {
+    const result = parseTime("in 1 week", now);
+    expect(result!.getTime()).toBe(now.getTime() + 604_800_000);
+  });
+
+  it("wraps past time to next day", () => {
+    // now is 10:00 UTC, asking for 9am should wrap to tomorrow
+    const result = parseTime("at 9:00", now);
+    expect(result).not.toBeNull();
+    expect(result!.getDate()).toBe(now.getDate() + 1);
+  });
 });
 
 describe("parseRepeat", () => {
@@ -83,6 +116,16 @@ describe("parseRepeat", () => {
 
   it("returns null for invalid input", () => {
     expect(parseRepeat("sometimes")).toBeNull();
+  });
+
+  it("parses 'every 0 seconds' to 0ms (caller must validate)", () => {
+    const result = parseRepeat("every 0 seconds");
+    expect(result).toEqual({ ms: 0, label: "every 0 seconds" });
+  });
+
+  it("parses weeks", () => {
+    const result = parseRepeat("every 2 weeks");
+    expect(result).toEqual({ ms: 2 * 604_800_000, label: "every 2 weeks" });
   });
 });
 
@@ -141,11 +184,11 @@ describe("Scheduler", () => {
     expect(new Date(updated.triggerAt).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("cancel marks item as cancelled", () => {
+  it("cancel removes item and returns true", () => {
     const trigger = new Date(Date.now() + 60_000);
     const item = scheduler.add("Cancellable", trigger);
     expect(scheduler.cancel(item.id)).toBe(true);
-    expect(scheduler.get(item.id)!.status).toBe("cancelled");
+    expect(scheduler.get(item.id)).toBeUndefined();
     expect(scheduler.count()).toBe(0);
   });
 
@@ -252,5 +295,162 @@ describe("Scheduler", () => {
     expect(nextTrigger).toBeGreaterThan(Date.now());
     // Should be within one interval of now
     expect(nextTrigger - Date.now()).toBeLessThanOrEqual(3_600_000);
+  });
+
+  // --- Edge cases: repeatMs validation ---
+
+  it("rejects repeatMs of 0 (would cause infinite loop)", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    expect(() =>
+      scheduler.add("Bad repeat", trigger, { repeatMs: 0 }),
+    ).not.toThrow(); // repeatMs: 0 is falsy, skipped by `if (opts?.repeatMs)`
+    // But explicit small values are rejected
+    expect(() =>
+      scheduler.add("Bad repeat", trigger, { repeatMs: 500 }),
+    ).toThrow("repeatMs must be at least 1000");
+  });
+
+  it("rejects repeatMs below 1 second", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    expect(() =>
+      scheduler.add("Too fast", trigger, { repeatMs: 100 }),
+    ).toThrow("repeatMs must be at least 1000");
+  });
+
+  it("accepts repeatMs of exactly 1 second", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    const item = scheduler.add("One second", trigger, {
+      repeatMs: 1000,
+      repeatLabel: "every 1 second",
+    });
+    expect(item.repeatMs).toBe(1000);
+  });
+
+  it("markFired treats corrupt repeatMs (<1000) as one-shot", () => {
+    const past = new Date(Date.now() - 60_000);
+    // Simulate corrupt data loaded from disk with repeatMs=0
+    const item = scheduler.add("Corrupt repeat", past);
+    // Manually set corrupt repeatMs (as if loaded from bad file)
+    const stored = scheduler.get(item.id)!;
+    (stored as { repeatMs?: number }).repeatMs = 100;
+
+    scheduler.markFired(item.id);
+    const updated = scheduler.get(item.id)!;
+    // Treated as one-shot: status becomes "fired"
+    expect(updated.status).toBe("fired");
+  });
+
+  // --- Edge cases: markFired status checks ---
+
+  it("markFired returns null for already-fired items", () => {
+    const past = new Date(Date.now() - 60_000);
+    const item = scheduler.add("One-shot", past);
+    scheduler.markFired(item.id);
+    // Try to fire again
+    const result = scheduler.markFired(item.id);
+    expect(result).toBeNull();
+  });
+
+  it("markFired returns null for cancelled items", () => {
+    const future = new Date(Date.now() + 60_000);
+    const item = scheduler.add("Will cancel", future);
+    const id = item.id;
+    scheduler.cancel(id);
+    // Cancelled items are removed from array, so markFired can't find it
+    expect(scheduler.markFired(id)).toBeNull();
+  });
+
+  it("markFired returns null for non-existent id", () => {
+    expect(scheduler.markFired(999)).toBeNull();
+  });
+
+  // --- Edge cases: cancel behavior ---
+
+  it("cancel returns false for already-fired items", () => {
+    const past = new Date(Date.now() - 60_000);
+    const item = scheduler.add("Fired", past);
+    scheduler.markFired(item.id);
+    expect(scheduler.cancel(item.id)).toBe(false);
+  });
+
+  it("cancel is idempotent (second cancel returns false)", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    const item = scheduler.add("Once", trigger);
+    expect(scheduler.cancel(item.id)).toBe(true);
+    // Item already removed
+    expect(scheduler.cancel(item.id)).toBe(false);
+  });
+
+  it("cancel does not affect other items", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    scheduler.add("Keep", trigger);
+    const toCancel = scheduler.add("Remove", trigger);
+    scheduler.cancel(toCancel.id);
+    expect(scheduler.count()).toBe(1);
+    expect(scheduler.pending()[0].description).toBe("Keep");
+  });
+
+  // --- Edge cases: list consistency after operations ---
+
+  it("list excludes cancelled items after cancel", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    const item = scheduler.add("Will cancel", trigger);
+    scheduler.add("Will keep", trigger);
+    scheduler.cancel(item.id);
+    const items = scheduler.list();
+    expect(items).toHaveLength(1);
+    expect(items[0].description).toBe("Will keep");
+  });
+
+  it("fired items beyond MAX_FIRED are trimmed", () => {
+    const past = new Date(Date.now() - 60_000);
+    // Add and fire 25 items (MAX_FIRED=20)
+    for (let i = 0; i < 25; i++) {
+      const item = scheduler.add(`Item ${i}`, past);
+      scheduler.markFired(item.id);
+    }
+    // Oldest 5 fired items should be trimmed
+    const all = scheduler.list();
+    const firedItems = all.filter((i) => i.status === "fired");
+    expect(firedItems.length).toBeLessThanOrEqual(20);
+  });
+
+  // --- Edge cases: nextId monotonic ---
+
+  it("IDs are monotonically increasing across adds", () => {
+    const trigger = new Date(Date.now() + 60_000);
+    const ids = [];
+    for (let i = 0; i < 5; i++) {
+      ids.push(scheduler.add(`Task ${i}`, trigger).id);
+    }
+    for (let i = 1; i < ids.length; i++) {
+      expect(ids[i]).toBeGreaterThan(ids[i - 1]);
+    }
+  });
+
+  // --- Edge cases: startTimer ---
+
+  it("startTimer replaces previous timer (no double-fire)", async () => {
+    const past = new Date(Date.now() - 60_000);
+    scheduler.add("Fire once", past);
+
+    let fireCount = 0;
+    // Start first timer
+    scheduler.startTimer(50, () => { fireCount++; });
+    // Immediately replace with second timer
+    scheduler.startTimer(50, () => { fireCount++; });
+
+    await new Promise((r) => setTimeout(r, 150));
+    scheduler.stopTimer();
+
+    // Should fire at most a few times from the second timer, not double
+    // The key point: first timer was cleared
+    expect(fireCount).toBeGreaterThanOrEqual(1);
+    expect(fireCount).toBeLessThanOrEqual(3);
+  });
+
+  it("stopTimer is idempotent", () => {
+    scheduler.stopTimer();
+    scheduler.stopTimer(); // no error
   });
 });

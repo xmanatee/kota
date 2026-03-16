@@ -17,3 +17,4 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 407 | error-paths | registry.ts | Command injection, update rollback |
 | 409 | structural-health | web-ui.ts | Split 612-line monolith, XSS fix |
 | 411 | friction | cli.ts, confirm.ts | History clear confirmation, resume API key |
+| 413 | harden | scheduler.ts | repeatMs=0 infinite loop, persist inconsistency, markFired status check |

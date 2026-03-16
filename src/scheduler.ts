@@ -147,7 +147,7 @@ export class Scheduler {
   }
 
   private persist(): void {
-    if (!this.filePath) return;
+    // Cleanup runs in both memory and persisted modes for consistency
     const fired = this.items.filter((i) => i.status === "fired");
     if (fired.length > MAX_FIRED) {
       const sorted = [...fired].sort((a, b) =>
@@ -159,6 +159,8 @@ export class Scheduler {
       this.items = this.items.filter((i) => !removeIds.has(i.id));
     }
     this.items = this.items.filter((i) => i.status !== "cancelled");
+
+    if (!this.filePath) return;
     const dir = this.filePath.replace(/\/[^/]+$/, "");
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(
@@ -186,6 +188,9 @@ export class Scheduler {
       created: new Date().toISOString(),
     };
     if (opts?.repeatMs) {
+      if (opts.repeatMs < 1000) {
+        throw new Error("repeatMs must be at least 1000 (1 second)");
+      }
       item.repeatMs = opts.repeatMs;
       item.repeatLabel = opts.repeatLabel;
     }
@@ -216,11 +221,11 @@ export class Scheduler {
 
   markFired(id: number, now?: Date): ScheduledItem | null {
     this.ensureLoaded();
-    const item = this.items.find((i) => i.id === id);
+    const item = this.items.find((i) => i.id === id && i.status === "pending");
     if (!item) return null;
     const ref = now || new Date();
 
-    if (item.repeatMs) {
+    if (item.repeatMs && item.repeatMs >= 1000) {
       const next = new Date(new Date(item.triggerAt).getTime() + item.repeatMs);
       while (next <= ref) next.setTime(next.getTime() + item.repeatMs);
       item.triggerAt = next.toISOString();

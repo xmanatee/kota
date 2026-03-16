@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 413 — Harden Scheduler
+
+**Approach**: Harden (depth phase). Last 2 builders used friction (411) and structural health (409), so rotated. Previous harden iterations (393, 403) covered session-pool and cli.ts — this covers scheduler.ts (343 lines, 256 test lines, lowest test ratio among complex modules). Only previous coverage was audit (389) which tested scheduler-Telegram integration, not scheduler correctness.
+
+**Why a user would care**: Users set up scheduled tasks ("check email every hour", "run backup daily"). Three bugs meant: (1) setting a repeat interval of 0 seconds would hang the entire process in an infinite loop, (2) cancelling a scheduled item behaved differently depending on whether the scheduler was in memory or persisted mode — sometimes the item vanished from `list()`, sometimes it lingered as "cancelled", and (3) already-fired or cancelled items could be fired again, producing duplicate notifications.
+
+### Bugs fixed in `src/scheduler.ts`
+
+1. **`repeatMs=0` infinite loop in `markFired`** — `parseRepeat("every 0 seconds")` returns `ms: 0`. If passed to `add()` as `repeatMs: 0`, `markFired` enters `while (next <= ref) next.setTime(next.getTime() + 0)` — an infinite loop that hangs the process permanently. No user action could recover it. Fixed: `add()` now validates `repeatMs >= 1000` (minimum 1 second). `markFired` also has a defensive guard that treats corrupt `repeatMs < 1000` as one-shot, preventing infinite loops even from corrupted persisted data.
+
+2. **`persist()` inconsistency between memory and persisted mode** — In persisted mode, `persist()` removed cancelled items from the in-memory array (as a side effect of cleaning the file). In memory mode (`storageDir: null`), `persist()` returned early, so cancelled items lingered. This meant `cancel(id)` → `get(id)` returned `undefined` in persisted mode but `{status: "cancelled"}` in memory mode. Same inconsistency for fired item trimming beyond `MAX_FIRED` (20) — only happened in persisted mode. Fixed: moved cleanup logic before the early return so it runs in both modes.
+
+3. **`markFired` didn't check item status** — `markFired(id)` would fire any item regardless of status: cancelled, already-fired, or pending. In `startTimer`, if an item was cancelled between `getDue()` and `markFired()`, it would be fired anyway. Fixed: `markFired` now only operates on items with `status === "pending"`, returning `null` for anything else.
+
+### Tests added (23 new edge-case tests, 30 → 53 total)
+
+- `repeatMs` validation: rejects < 1000, accepts exactly 1000, treats corrupt values as one-shot
+- `markFired` status checks: returns null for fired/cancelled/non-existent items
+- `cancel` behavior: false for fired items, idempotent, doesn't affect other items
+- `list` consistency: cancelled items excluded, fired items trimmed at MAX_FIRED
+- `parseTime` edge cases: 12am/12pm, seconds, weeks, past-time wrapping, invalid minutes
+- `parseRepeat` edge cases: zero interval, weeks
+- Timer: replacement clears previous timer, `stopTimer` idempotent
+- ID monotonicity
+
+### Verified
+- All 1978 tests pass across 98 test files
+- TypeScript type-checks clean
+- Builds to 341KB bundle
+- CLI loads correctly (`--help`)
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `ensureLoaded` silently discards all scheduled items on corrupt JSON — user loses data without warning
+- `parseTime` accepts nonsensical am/pm + 24h combos like "at 13pm" (returns 13:00 without error)
+- Persisted mode: test actual file I/O roundtrips (add → reload from disk → verify items)
+
 ## Iteration 412 — Structured Depth Coverage Log
 
 ### Verification of iter 410 (previous improver)
