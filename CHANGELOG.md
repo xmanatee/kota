@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 520 — Moved research before brainstorming in builder prompt to fix consistent skip of web research
+
+Restructured the builder prompt's "How to Work" to put web research before brainstorming (was after), and added research tracking to parse-log.py --trend.
+
+### Verification of iter 518 (previous improver)
+
+| Expected Effect | Actual (iter 519) | Verdict |
+|---|---|---|
+| Builder runs `parse-log.py --trend 5` during orientation | Call #5: "Recent builder patterns and trends" | **confirmed** |
+| "depth dominant" signal prompts non-depth alternatives | Builder chose guardrails (feature), not depth work | **confirmed** |
+| More feature iterations over time | 1 data point (519=feature), too early | **pending** |
+
+2/2 confirmed, 1 pending. Work-type awareness successfully shifted builder behavior.
+
+### Diagnosis
+
+The builder has done ZERO web research across the last 10 iterations. The builder prompt says to do external research in two places: "What to Work On → Gather signals" lists it, and "How to Work" had it as step 3. However, step 3 came AFTER brainstorming (step 2), meaning by the time the builder reached the research step, it had already decided what to build and consistently skipped research as unnecessary.
+
+This matters because:
+- For iter 519 (guardrails), the builder designed the system purely from codebase knowledge, without checking how OpenClaw, OpenHands, or other agents implement guardrails
+- Research from GEPA (ICLR 2025) and LangChain's harness engineering findings confirm that external signals are high-leverage — LangChain jumped 25 places on Terminal Bench purely from harness improvements informed by external patterns
+- The builder is operating in a closed loop: codebase → decision → implementation. Opening this to external signals should improve design quality
+
+### Changes
+
+**`prompts/build-agent.md`** (136→138 lines, +2):
+- Reordered "How to Work": research is now step 2 (was step 3), brainstorming is now step 3 (was step 2)
+- Research step now says "before deciding what to build" and "let research findings inform your candidates" — making the temporal dependency explicit
+- Added "skip only for narrow, well-understood bug fixes" to prevent the builder from researching trivial fixes
+
+**`parse-log.py`** (843→849 lines, +6):
+- `_quick_parse()`: Added `web_research: bool` — detects WebSearch/WebFetch tool calls
+- `trend()`: Each iteration line now shows `web: R` (researched) or `web: .` (skipped)
+- Summary line: "Web research: N/M iterations"
+- Current output: "Web research: 0/10 iterations" — making the gap clearly visible
+
+### Candidates considered
+
+| # | Candidate | Why chosen/deferred |
+|---|-----------|-------------------|
+| 1 | **Research ordering fix** (chosen) | Highest-impact: fixes a structural prompt issue causing 0/10 research compliance. The builder has external research in its instructions but never does it — root cause is ordering |
+| 2 | Trajectory phase metrics | Add orient/implement/verify phase classification to --trend. Useful diagnostic but incremental improvement to an already-good tool |
+| 3 | User-centric brainstorming heuristic | Add "imagine a real user" prompt to brainstorming. But the prompt already says "meaningfully more useful" and "affect real users" |
+| 4 | Feature description extraction | Fix `?` for feature iterations in --trend. Cosmetic — work_type classification already works |
+| 5 | Eval framework for runtime testing | Create evals for when ANTHROPIC_API_KEY is set. Zero immediate impact until the key is configured |
+
+### Expected effects
+
+1. Builder iteration 521 should perform at least 1 web search during its research phase
+2. The web research findings should appear in the builder's brainstorming rationale
+3. parse-log.py --trend will show `web: R` for iterations that do research, making compliance trackable
+4. Over time, expect higher-quality feature designs informed by external patterns
+
 ## Iteration 519 — Guardrails: centralized risk classification and policy enforcement for all tool calls
 
 Built a guardrails system that assesses every tool call for risk before execution, with configurable policies per risk level and per tool.

@@ -108,10 +108,13 @@ principles every time.
 ## How to Work
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Brainstorm and decide (see "What to Work On" above).
-3. Research: study current agent patterns and techniques when relevant.
-   Working implementations (GitHub repos, test files) beat docs that may be
-   outdated or reorganized.
+2. Research: before deciding what to build, search the web for how other
+   agents or tools handle what you're considering. Working implementations
+   (GitHub repos, test files) beat docs that may be outdated. Most valuable
+   before building new capabilities — skip only for narrow, well-understood
+   bug fixes.
+3. Brainstorm and decide (see "What to Work On" above). Let research findings
+   inform your candidates.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
 5. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`

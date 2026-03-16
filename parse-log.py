@@ -481,6 +481,7 @@ def _quick_parse(path: str) -> dict:
     result = next((m for m in messages if m.get("type") == "result"), {})
     tool_count = 0
     mutation_calls = 0
+    web_research = False
     text_snippets: list[str] = []
     full_texts: list[str] = []
     cl_edits: list[str] = []
@@ -504,6 +505,8 @@ def _quick_parse(path: str) -> dict:
                 _cmd = (inp.get("command", "") or "").lower()
                 _fp = (inp.get("file_path", "") or "").lower()
                 tc_list.append((block["name"], f"{_desc} {_cmd} {_fp}"))
+                if block["name"] in ("WebSearch", "WebFetch"):
+                    web_research = True
                 if block["name"] == "Bash":
                     desc = (inp.get("description", "") or "").lower()
                     cmd = (inp.get("command", "") or "").lower()
@@ -603,6 +606,7 @@ def _quick_parse(path: str) -> dict:
         "cache_per_turn": round(cache_read / turns) if turns else 0,
         "error_count": error_count,
         "sweep_calls": sweep_calls,
+        "web_research": web_research,
     }
 
 
@@ -736,10 +740,12 @@ def trend(n: int = 5) -> None:
         cpt_str = f"{cpt // 1000}k" if cpt else "?"
         errs = e.get("error_count", 0)
         sweep = e.get("sweep_calls", 0)
+        research = "R" if e.get("web_research") else "."
         print(
             f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
             f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
+            f"  web: {research}"
         )
         total_calls += e["calls"]
         total_cost += e["cost"]
@@ -820,6 +826,10 @@ def trend(n: int = 5) -> None:
     mut_total = len(entries)
     if mut_ran > 0 or any(e.get("mutation") for e in entries):
         print(f"  Mutation check: {mut_ran}/{mut_total} ran")
+
+    # Web research usage
+    web_count = sum(1 for e in entries if e.get("web_research"))
+    print(f"  Web research: {web_count}/{ne} iterations")
 
     # Depth phase health (from depth-log.md)
     health = _depth_health(depth_rows)
