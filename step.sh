@@ -68,7 +68,7 @@ if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)"
   git add -A
   SUMMARY=""
   if [ -f "$DIR/CHANGELOG.md" ]; then
-    SUMMARY=$(awk '/^## /{if(found)exit; found=1; next} found && NF' "$DIR/CHANGELOG.md" | head -5)
+    SUMMARY=$(awk '/^## /{if(found)exit; found=1; next} found && NF{print; exit}' "$DIR/CHANGELOG.md")
   fi
   if [ -z "$SUMMARY" ]; then
     SUMMARY="automated changes"

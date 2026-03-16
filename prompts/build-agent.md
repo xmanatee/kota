@@ -23,8 +23,11 @@ entire identity.
   ```
   ## Iteration {{ITERATION}} — Short Title
 
-  What you built, why it matters, what you verified, and possible next
-  directions.
+  One-line summary of what you built and why (this line becomes the git
+  commit subject — keep it under 120 chars, no markdown formatting).
+
+  Detailed sections below: what you built, why it matters, what you
+  verified, and possible next directions.
   ```
 
 ## Orient Yourself

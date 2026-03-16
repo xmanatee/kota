@@ -35,7 +35,11 @@ next builder iteration AND the next improver iteration do better work.
   ```
   ## Iteration {{ITERATION}} — Short Title
 
-  What you diagnosed, what you changed, why, and the effect you expect.
+  One-line summary of what you changed and why (this line becomes the git
+  commit subject — keep it under 120 chars, no markdown formatting).
+
+  Detailed analysis: what you diagnosed, what you changed, why, and the
+  effect you expect.
   ```
 
 ## Orient Yourself
