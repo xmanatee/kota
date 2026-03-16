@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 478 — New depth approach: concurrency & timing (7th approach targeting race conditions in concurrent subsystems)
+
+Added "Concurrency & timing" as the 7th depth approach, targeting race conditions, timer leaks, and interleaved async flows — a bug class not covered by the existing 6 approaches.
+
+### Verification of iter 476 (previous improver)
+
+| Expected Effect | Actual (iter 477) | Verdict |
+|---|---|---|
+| Builder 477 targets telegram.ts (position #1 in stale table) | Key text: "Most neglected module is telegram.ts (43 iterations stale)" | **confirmed** |
+| Builder 477 picks module first, then approach | Module name appears before approach name in targeting rationale | **confirmed** |
+| Builder 477 uses rotation-eligible untried approach | error-paths (not structural-health/475 or friction/473) | **confirmed** |
+
+All 3/3 confirmed. Module-first targeting and staleness sort worked perfectly.
+
+### Diagnosis
+
+**Builder 477** was excellent — 4 bugs fixed in telegram.ts (the most neglected module), 2 sweep fixes in daemon.ts and server-notifications.ts, 9 new tests. $1.79, 42 turns, clean execution. The staleness-first sort from iter 476 successfully directed the builder to the right target.
+
+**Pattern observed**: The last 8 depth iterations have all been "high" severity (last critical: iter 461). This is expected — the 7 critical bugs were all found in the first 24 depth iterations, covering the most dangerous modules. But the builder's approach set (6 approaches) may have a blind spot: **concurrency and timing bugs**. The agent has multiple concurrent subsystems (session pool, HTTP server, Telegram polling, daemon mode, scheduler, sub-agent delegation) but no approach specifically targets race conditions, timer leaks, or interleaved async flows. The TOCTOU crash in daemon.ts (iter 451) was this class of bug, found incidentally via error-paths.
+
+### Changes
+
+**`prompts/build-agent.md`** (+7 lines):
+- Added approach #7 **"Concurrency & timing"** to the depth phase approach list
+- Targets: race conditions between overlapping async flows, missing atomicity in read-modify-write sequences, timer/interval leaks on early exits, stale state from interleaved operations, lost updates from concurrent writes
+- Discovery guidance: `setInterval`, `setTimeout`, `Promise.all`, shared mutable state across async handlers
+- Distinct from error-paths (which targets failure modes) and harden (which targets edge cases) — concurrency targets interleaving in SUCCESS paths
+
+**`depth-log.md`** (refreshed via script):
+- telegram.ts removed from stale list (covered at 477)
+- tools/delegate.ts now #1 (39 builder iters stale)
+- 10 stale modules (was 11)
+- 30 depth iterations, error-paths count updated to 7
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 478 | **builder prompt** |
+| 476 | evaluation signals + builder prompt |
+| 474 | harness/scripts |
+| 472 | own prompt |
+
+Primary lever: builder prompt (new approach). Secondary: evaluation signals (depth-log refresh).
+
+### Expected effects
+
+1. **Builder 479 has "concurrency" as a rotation-eligible approach option**: Key assistant text should list concurrency/timing among approach candidates. Observable: key text mentions "concurrency" or "timing" during approach selection. (May choose it or not — the test is whether it's CONSIDERED.)
+2. **Builder 479 targets tools/delegate.ts (position #1 in refreshed stale table)**: Key text mentions delegate.ts as the primary candidate. Observable: "delegate" appears in targeting rationale.
+3. **Builder 479 picks a rotation-eligible approach (not error-paths/477 or structural-health/475)**: Observable: approach in depth-log row is one of harden, friction, audit, e2e, or concurrency.
+
+### Future directions
+
+- **Severity trend analysis**: 8 consecutive "high" severity iterations. If this continues for 5+ more, consider whether the depth phase is approaching diminishing returns and should surface this to the owner.
+- **Approach effectiveness comparison**: With 30+ depth iterations, there's now enough data to compare approaches by critical-bug yield. error-paths leads with 3/7 criticals. Deferred until sample sizes grow.
+- **Rotation status in approach summary**: Auto-compute which approaches are rotation-ineligible for the next builder and display in depth-log. Deferred — builder does rotation correctly without this.
+
 ## Iteration 477 — Telegram error paths: non-JSON responses, best-effort flush, partial output recovery
 
 Fixed 4 bugs in telegram.ts (400 lines, most neglected module — 43 iterations stale) and sweep-fixed the same silent-error-swallow bug in daemon.ts and server-notifications.ts.

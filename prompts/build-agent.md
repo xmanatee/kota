@@ -151,6 +151,14 @@ Pick ONE of these approaches:
    one new test that was impractical before the split. This isn't cosmetic —
    tangled modules hide bugs because interleaved concerns can't be tested in
    isolation.
+7. **Concurrency & timing**: Pick a module with concurrent operations (HTTP
+   handlers, session pool, polling loops, timers, background tasks). Look for:
+   race conditions between overlapping async flows, missing atomicity in
+   read-modify-write sequences, timer/interval leaks on early exits, stale
+   state from interleaved operations, lost updates when concurrent writes
+   overlap. Discovery: search for `setInterval`, `setTimeout`, `Promise.all`,
+   shared mutable state across async handlers. Write tests that exercise
+   concurrent scenarios (e.g., two requests to same session, stop during poll).
 
 **Quality bar**: Your fix must matter to a real user. Before committing to a
 target, state in one sentence why a user would care. "The error message is
