@@ -35,6 +35,8 @@ export type ModuleContext = {
   config: KotaConfig;
   /** Register a custom tool group with optional auto-detect regex. */
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
+  /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
+  getRoutes: () => RouteRegistration[];
 };
 
 /**

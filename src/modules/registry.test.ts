@@ -7,6 +7,7 @@ const stubCtx: ModuleContext = {
   verbose: false,
   config: {} as ModuleContext["config"],
   registerGroup: () => {},
+  getRoutes: () => [],
 };
 
 describe("registryModule", () => {

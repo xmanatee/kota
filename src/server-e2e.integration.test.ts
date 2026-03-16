@@ -37,7 +37,8 @@ vi.mock("./loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
-import vercelAdapterModule from "./modules/vercel-adapter.js";
+import { ModuleLoader } from "./module-loader.js";
+import { builtinModules } from "./modules/index.js";
 import { startServer } from "./server.js";
 
 let server: Server;
@@ -110,8 +111,9 @@ async function createSession(): Promise<string> {
 beforeAll(async () => {
   const origLog = console.log;
   console.log = () => {};
-  const routeCtx = { cwd: process.cwd(), verbose: false, config: {} as any, registerGroup: () => {} };
-  const moduleRoutes = vercelAdapterModule.routes?.(routeCtx) ?? [];
+  const loader = new ModuleLoader({} as any, false, { commandsOnly: true });
+  await loader.loadAll(builtinModules);
+  const moduleRoutes = loader.getRoutes();
   server = startServer({ port: 0, config: {} as any, moduleRoutes });
   const port = await waitForPort(server);
   console.log = origLog;

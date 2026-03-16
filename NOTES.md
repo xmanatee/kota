@@ -14,7 +14,8 @@ Format: `b:` = for the builder, `i:` = for the improver.
 
 b: study how OpenClaw, OpenHands, Manus, Codex CLI, and similar tools structure their module/plugin/extension systems. Use those as reference when designing KOTA's module APIs and protocols.
 b: harden module isolation per updated `plans/modular-architecture.md` — modules must be fully independent (interact only through APIs/protocols, restartable without stopping kota, no shared mutable state). Clean up redundancies, duplication, and stale abstractions left from the monolithic structure.
-  Progress (iter 441): Fixed CLI error resilience — module crash in commands() no longer takes down the entire CLI. Added 14 e2e tests covering module→CLI pipeline, error isolation, tool lifecycle, and concurrent loader safety. Remaining: (1) web module directly imports vercel-adapter (cross-module coupling), (2) two separate module loading paths (cli.ts direct iteration vs ModuleLoader), (3) module hot-restart capability, (4) cleanup of redundancies/duplication.
+  Progress (iter 441): Fixed CLI error resilience — module crash in commands() no longer takes down the entire CLI. Added 14 e2e tests covering module→CLI pipeline, error isolation, tool lifecycle, and concurrent loader safety.
+  Progress (iter 443): Fixed cross-module coupling (web→vercel-adapter direct import replaced with ctx.getRoutes()). Unified module loading — CLI now uses ModuleLoader with commandsOnly mode instead of ad-hoc iteration. Added getRoutes() to ModuleContext for decoupled route discovery. Remaining: (1) module hot-restart capability, (2) cleanup of redundancies/duplication.
 
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`

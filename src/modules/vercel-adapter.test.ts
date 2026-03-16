@@ -24,6 +24,7 @@ describe("vercel-adapter module", () => {
       verbose: false,
       config: { model: "test-model" } as import("../config.js").KotaConfig,
       registerGroup: () => {},
+      getRoutes: () => [],
     };
 
     const routes = vercelAdapterModule.routes!(ctx);

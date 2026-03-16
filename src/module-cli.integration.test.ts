@@ -87,28 +87,26 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.unloadAll();
   });
 
-  it("CLI and ModuleLoader produce the same set of commands", async () => {
-    // Load via ModuleLoader (proper path)
-    const loader = new ModuleLoader({});
-    await loader.loadAll(builtinModules);
-    const loaderCommands = loader.getCommands().map((c) => c.name()).sort();
+  it("commandsOnly loader produces same commands as full loader (no tool side-effects)", async () => {
+    // Full loader registers tools
+    const fullLoader = new ModuleLoader({});
+    await fullLoader.loadAll(builtinModules);
+    const fullCommands = fullLoader.getCommands().map((c) => c.name()).sort();
 
-    // Load via direct iteration (as cli.ts does)
-    const directCommands: string[] = [];
-    const ctx = { cwd: process.cwd(), verbose: false, config: {}, registerGroup: () => {} };
-    for (const mod of builtinModules) {
-      if (mod.commands) {
-        const cmds = mod.commands(ctx);
-        directCommands.push(...cmds.map((c) => c.name()));
-      }
-    }
-    directCommands.sort();
+    await fullLoader.unloadAll();
 
-    expect(loaderCommands).toEqual(directCommands);
-    // Verify we actually got commands (not comparing two empty arrays)
-    expect(loaderCommands.length).toBeGreaterThanOrEqual(4);
+    // commandsOnly loader should produce the same commands without registering tools
+    const cliLoader = new ModuleLoader({}, false, { commandsOnly: true });
+    await cliLoader.loadAll(builtinModules);
+    const cliCommands = cliLoader.getCommands().map((c) => c.name()).sort();
 
-    await loader.unloadAll();
+    expect(cliCommands).toEqual(fullCommands);
+    expect(cliCommands.length).toBeGreaterThanOrEqual(4);
+
+    // commandsOnly should NOT register tools (tool count stays at 0 in allTools custom set)
+    expect(cliLoader.getToolCount()).toBe(0);
+
+    await cliLoader.unloadAll();
   });
 
   it("module tools appear in allTools when groups are enabled", async () => {

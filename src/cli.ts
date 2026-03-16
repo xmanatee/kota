@@ -5,6 +5,7 @@ import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { confirmAction, setSkipConfirmations } from "./confirm.js";
 import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
+import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
 
@@ -399,26 +400,14 @@ async function main() {
   const wasPiped = await checkPipeMode();
   if (wasPiped) return;
 
-  // Register CLI commands from built-in modules
+  // Register CLI commands from built-in modules via ModuleLoader
+  // commandsOnly: true skips tool registration and onLoad hooks —
+  // those are handled per-session by AgentSession's own ModuleLoader
   const config = loadConfig();
-  const ctx = {
-    cwd: process.cwd(),
-    verbose: false,
-    config,
-    registerGroup: () => {},
-  };
-  for (const mod of builtinModules) {
-    if (mod.commands) {
-      try {
-        const cmds = mod.commands(ctx);
-        for (const cmd of cmds) {
-          program.addCommand(cmd);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" command registration failed: ${msg}`);
-      }
-    }
+  const loader = new ModuleLoader(config, false, { commandsOnly: true });
+  await loader.loadAll(builtinModules);
+  for (const cmd of loader.getCommands()) {
+    program.addCommand(cmd);
   }
 
   await program.parseAsync();

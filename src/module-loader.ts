@@ -16,15 +16,22 @@ import type { KotaModule, ModuleContext, RouteRegistration } from "./module-type
 import { registerCustomGroup } from "./tool-groups.js";
 import { clearCustomTools, registerTool } from "./tools/index.js";
 
+export type ModuleLoaderOptions = {
+  /** Skip tool registration — only load modules for command/route discovery. */
+  commandsOnly?: boolean;
+};
+
 export class ModuleLoader {
   private modules: KotaModule[] = [];
   private eventUnsubs: (() => void)[] = [];
   private verbose: boolean;
   private config: KotaConfig;
+  private commandsOnly: boolean;
 
-  constructor(config: KotaConfig, verbose = false) {
+  constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
     this.verbose = verbose;
+    this.commandsOnly = options?.commandsOnly ?? false;
   }
 
   private createContext(): ModuleContext {
@@ -35,6 +42,7 @@ export class ModuleLoader {
       registerGroup: (name, toolNames, pattern) => {
         registerCustomGroup(name, toolNames, pattern);
       },
+      getRoutes: () => this.getRoutes(),
     };
   }
 
@@ -54,7 +62,7 @@ export class ModuleLoader {
       }
     }
 
-    if (mod.tools) {
+    if (mod.tools && !this.commandsOnly) {
       for (const def of mod.tools) {
         registerTool(def.tool, def.runner);
         if (def.group) {
@@ -64,7 +72,7 @@ export class ModuleLoader {
     }
 
     const ctx = this.createContext();
-    if (mod.onLoad) await mod.onLoad(ctx);
+    if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
 
     this.modules.push(mod);
     if (this.verbose) {
@@ -180,6 +188,7 @@ export class ModuleLoader {
   }
 
   getToolCount(): number {
+    if (this.commandsOnly) return 0;
     return this.modules.reduce((n, m) => n + (m.tools?.length ?? 0), 0);
   }
 }

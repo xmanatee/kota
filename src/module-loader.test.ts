@@ -103,7 +103,7 @@ describe("ModuleLoader", () => {
     expect(loader.getLoadedModules()).toEqual(["base", "ext"]);
   });
 
-  it("calls onLoad with ModuleContext", async () => {
+  it("calls onLoad with ModuleContext including getRoutes", async () => {
     const onLoad = vi.fn();
     const loader = new ModuleLoader({ model: "test-model" }, true);
     await loader.load({ name: "ctx-test", onLoad });
@@ -113,7 +113,33 @@ describe("ModuleLoader", () => {
     expect(ctx.cwd).toBeTruthy();
     expect(typeof ctx.verbose).toBe("boolean");
     expect(typeof ctx.registerGroup).toBe("function");
+    expect(typeof ctx.getRoutes).toBe("function");
     expect(ctx.config).toEqual({ model: "test-model" });
+  });
+
+  it("getRoutes in context returns routes from all loaded modules", async () => {
+    const handler = vi.fn();
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "route-provider",
+      routes: () => [{ method: "POST", path: "/api/test", handler }],
+    });
+
+    // A module's commands() can use ctx.getRoutes() to discover routes
+    let discoveredRoutes: any[] = [];
+    const { Command } = await import("commander");
+    await loader.load({
+      name: "route-consumer",
+      commands: (ctx) => {
+        discoveredRoutes = ctx.getRoutes();
+        return [new Command("test-cmd")];
+      },
+    });
+
+    loader.getCommands(); // triggers commands() calls
+    expect(discoveredRoutes).toHaveLength(1);
+    expect(discoveredRoutes[0].path).toBe("/api/test");
   });
 
   it("calls onUnload in reverse order during unloadAll", async () => {
@@ -221,6 +247,33 @@ describe("ModuleLoader", () => {
       expect.stringContaining('Module "bad-mod" failed to load: boom'),
     );
     errSpy.mockRestore();
+  });
+
+  it("commandsOnly mode skips tool registration and onLoad", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    const { Command } = await import("commander");
+
+    await loader.load({
+      name: "cmd-only-mod",
+      tools: [makeTool("should_not_register")],
+      onLoad,
+      commands: () => [new Command("my-cmd").description("test")],
+    });
+
+    // Module is loaded (tracked)
+    expect(loader.getLoadedModules()).toEqual(["cmd-only-mod"]);
+    // But tools are NOT registered
+    expect(loader.getToolCount()).toBe(0);
+    const result = await executeTool("should_not_register", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Unknown tool");
+    // And onLoad was NOT called
+    expect(onLoad).not.toHaveBeenCalled();
+    // Commands still work
+    const cmds = loader.getCommands();
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].name()).toBe("my-cmd");
   });
 
   it("handles onUnload errors gracefully", async () => {

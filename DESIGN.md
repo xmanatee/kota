@@ -103,8 +103,13 @@ Pluggable architecture where features are self-contained modules instead of hard
 **ModuleContext** provided to modules:
 - `cwd`, `verbose`, `config` — environment info
 - `registerGroup(name, toolNames, pattern?)` — create/extend tool groups
+- `getRoutes()` — discover HTTP routes from all loaded modules (decouples modules from each other)
+
+**Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
 **Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. All 7 features extracted: `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
+
+**Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
 **Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` from `tools/index.ts`. Future iterations will migrate external plugin loading into the module system.
 
@@ -113,6 +118,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 - Dependency ordering via topological sort — a module can declare dependencies on other modules.
 - The core without modules loaded still functions as a basic agent (requirement #8 from the plan).
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
+- Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
 
 ### HTTP API Server (`src/server.ts`)
 

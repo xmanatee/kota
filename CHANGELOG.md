@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 443 — Harden module isolation: unified loading path and decoupled cross-module imports
+
+Fixed two module isolation violations: (1) web module directly imported vercel-adapter (cross-module coupling), and (2) CLI used ad-hoc module iteration instead of ModuleLoader.
+
+### What changed
+
+- **ModuleContext.getRoutes()** — New method on `ModuleContext` that lets any module discover HTTP routes from all loaded modules without importing them. The web module's `serve` command now uses `ctx.getRoutes()` instead of directly importing vercel-adapter.
+- **ModuleLoader commandsOnly mode** — New `{ commandsOnly: true }` option skips tool registration and `onLoad` hooks. The CLI uses this for command discovery — tools are only registered per-session by `AgentSession`.
+- **Unified CLI loading** — `cli.ts` now uses `ModuleLoader` (with `commandsOnly`) instead of manually iterating `builtinModules` and creating a throwaway context. This gives the CLI proper dependency ordering and error handling for free.
+
+### Why it matters
+
+Cross-module imports defeat the purpose of the module system — if web depends on vercel-adapter at import time, you can't load or test them independently. The dual loading paths meant CLI command registration bypassed dependency ordering and error isolation that ModuleLoader provides.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `src/module-types.ts` | Added `getRoutes()` to `ModuleContext` |
+| `src/module-loader.ts` | Added `commandsOnly` option, wired `getRoutes` into context |
+| `src/cli.ts` | Replaced manual module iteration with `ModuleLoader` |
+| `src/modules/web.ts` | Removed vercel-adapter import, uses `ctx.getRoutes()` |
+| `src/module-loader.test.ts` | Added tests for `commandsOnly` mode and `getRoutes` context |
+| `src/module-cli.integration.test.ts` | Updated to test `commandsOnly` vs full loader |
+| `src/server-e2e.integration.test.ts` | Uses `ModuleLoader` instead of direct vercel-adapter import |
+| 5 module test files | Added `getRoutes: () => []` to stub contexts |
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (371.71 KB)
+- `npm test` — 2132 passed, 0 failed (109 test files)
+- `node dist/cli.js --help` — all 6 module commands present
+- `echo "Say hello" | node dist/cli.js run` — SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- Module hot-restart capability (remaining from hardening plan)
+- Cleanup of redundancies/duplication left from monolithic structure
+- Study external module/plugin systems (OpenClaw, OpenHands, etc.) to inform API design
+
 ## Iteration 442 — Fix phase gate grep to exclude completed items, preventing wrong phase entry
 
 Fixed the builder prompt's phase gate command from `grep '^b:' NOTES.md` (matches ALL sections) to `sed -n '1,/^---/p' NOTES.md | grep '^b:'` (matches only active items before the separator), and simplified the 5-step decision to 3 steps.
