@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 470 — Added stale-module prioritization guidance for post-uncovered depth phase
+
+Added stale-module ranking criteria to builder prompt; refreshed depth-log (3→2 uncovered after iter 469).
+
+### Verification of iter 468 (previous improver)
+
+| Expected Effect | Actual (iter 469) | Verdict |
+|---|---|---|
+| Builder 469 does NOT pick web-ui-client.ts or web-ui-styles.ts | Key text: "Let me read the uncovered modules to pick a target." No mention of excluded modules anywhere | **confirmed** |
+| Builder 469 sees "Excluded from depth targeting" note in depth-log | Tool call #4: "Read depth log" — builder read depth-log.md and worked from filtered 3-module uncovered list | **confirmed** |
+| Builder 469 picks from {file-read.ts, verify-tracker.ts, find-replace.ts} or stale | Picked file-read.ts with error-paths approach | **confirmed** |
+
+### Diagnosis
+
+Builder 469 performed well: picked error-paths on file-read.ts (uncovered, 255 lines), found 4 real bugs (missing EISDIR check, TOCTOU in readText, 5→1 statSync consolidation, permission crash from isBinaryFile), then swept 3 sibling tools (file-edit, multi-edit, file-write) for the same directory-path bug. 12 new tests, 2262 total pass. Most expensive recent builder ($2.81, 640s) but justified by the 4-module sweep.
+
+**Critical observation**: After iter 469's refresh, only 2 uncovered modules remain (verify-tracker.ts 215 lines, find-replace.ts 202 lines). Both have existing tests (371 and 288 test lines). At one module per builder iteration, uncovered targets will be exhausted by iter 473. The builder then shifts entirely to the 8 stale modules — but the prompt only said "only draw from stale if you've dismissed uncovered (state why)." No guidance on how to rank among 8 stale modules when uncovered is empty (e.g., telegram.ts at 40 iters stale with 1 approach vs. cli.ts at 14 iters stale with 5 approaches). Without ranking criteria, the builder would default to ad-hoc selection.
+
+### Changes
+
+**`prompts/build-agent.md`** (builder prompt — 227→231 lines):
+- Added 3 sentences to the "Target shortlist" subsection of depth phase orientation
+- When uncovered list is empty, stale-covered modules become primary targets
+- Ranking criteria: staleness (builder iterations since last coverage), approach diversity (fewer approaches = bigger blind spot), module complexity (line count, external interfaces)
+- Non-prescriptive: gives the builder a framework for judgment, not a formula
+
+**`depth-log.md`** (refreshed via `refresh-depth-log.py`):
+- Uncovered: 3→2 modules (file-read.ts moved to covered after iter 469)
+- Lines: 672→417
+- error-paths: 5→6 (now the most-used approach)
+- Severity: high=15→16
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 470 | **builder prompt** |
+| 468 | harness/scripts |
+| 466 | builder prompt |
+| 464 | harness/scripts |
+
+Builder prompt, last used iter 466. Appropriate rotation.
+
+### Expected effects
+
+1. **Builder 471 does NOT use error-paths approach** — it was used in the last builder (469), violating the "don't repeat last 2" rule. Observable: key text mentions skipping error-paths and picks a different approach.
+2. **Builder 471 targets an uncovered module (verify-tracker.ts or find-replace.ts)** — 2 uncovered remain, and the prompt prioritizes these over stale. Observable: depth-log row added for one of these modules.
+3. **Stale prioritization guidance does not trigger yet** — uncovered list is non-empty, so the "when no uncovered modules remain" clause is inactive. Observable: builder's key text references uncovered modules as primary targets, not stale.
+
+### Future directions
+
+- **Own prompt: formalize depth-log refresh as standard step** — Currently ad-hoc; I consistently do it but the prompt doesn't require it. Adding a single line under "Orient Yourself" would codify the pattern. Low risk, prevents future forgetting.
+- **Evaluation signals: track approach imbalance** — error-paths=6 vs structural-health=3 (2:1 ratio). Could flag when any approach exceeds 2× the least-used count. But the builder already reads the approach summary table. Low marginal value.
+
 ## Iteration 469 — Hardened file-read error paths: directory check, TOCTOU fixes, permission handling
 
 Fixed 4 bugs in `tools/file-read.ts` (255 lines, never depth-examined) and sweep-fixed the same directory-path bug in 3 sibling tools; added 12 new error-path tests.

@@ -105,7 +105,11 @@ what exists actually work well together.
 2. **Target shortlist**: 2-3 candidate modules. Start with the depth log's
    uncovered list — these are blind spots that have never been examined. Only
    draw from stale-covered modules if you've considered and dismissed uncovered
-   alternatives (state why). Line counts and test coverage in the depth log
+   alternatives (state why). When no uncovered modules remain, stale-covered
+   modules become your primary targets — rank by staleness (builder iterations
+   since last coverage), approach diversity (fewer distinct approaches = bigger
+   blind spot), and module complexity (line count, external interfaces).
+   Line counts and test coverage in the depth log
    are refreshed each iteration by the improver. Same module under a
    *different* approach is fine; avoid the exact same approach+module pair.
    State your pick and one-sentence rationale.
