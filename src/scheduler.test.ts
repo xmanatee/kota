@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventBus } from "./event-bus.js";
 import { parseRepeat, parseTime, resetScheduler, Scheduler } from "./scheduler.js";
 
 describe("parseTime", () => {
@@ -452,5 +453,341 @@ describe("Scheduler", () => {
   it("stopTimer is idempotent", () => {
     scheduler.stopTimer();
     scheduler.stopTimer(); // no error
+  });
+});
+
+describe("Event-Based Triggers", () => {
+  let scheduler: Scheduler;
+  let bus: EventBus;
+
+  beforeEach(() => {
+    scheduler = new Scheduler("/test", null);
+    bus = new EventBus();
+  });
+
+  afterEach(() => {
+    scheduler.disconnectBus();
+    scheduler.stopTimer();
+    resetScheduler();
+  });
+
+  // --- addEventTrigger ---
+
+  it("creates an event-triggered item", () => {
+    const item = scheduler.addEventTrigger("Run improve", "session.end");
+    expect(item.triggerEvent).toBe("session.end");
+    expect(item.status).toBe("pending");
+    expect(item.repeat).toBeUndefined();
+    expect(item.triggerFilter).toBeUndefined();
+    expect(scheduler.count()).toBe(1);
+  });
+
+  it("creates a repeating event trigger", () => {
+    const item = scheduler.addEventTrigger("Run improve", "session.end", {
+      repeat: true,
+    });
+    expect(item.repeat).toBe(true);
+  });
+
+  it("creates an event trigger with filter", () => {
+    const item = scheduler.addEventTrigger("Run improve", "session.end", {
+      filter: { label: "build-agent" },
+    });
+    expect(item.triggerFilter).toEqual({ label: "build-agent" });
+  });
+
+  it("creates an event trigger with action", () => {
+    const item = scheduler.addEventTrigger("Run improve", "session.end", {
+      action: "Analyze recent changes",
+    });
+    expect(item.action).toBe("Analyze recent changes");
+  });
+
+  it("rejects empty eventName", () => {
+    expect(() =>
+      scheduler.addEventTrigger("Bad", ""),
+    ).toThrow("eventName is required");
+  });
+
+  it("skips empty filter object", () => {
+    const item = scheduler.addEventTrigger("Test", "session.end", {
+      filter: {},
+    });
+    expect(item.triggerFilter).toBeUndefined();
+  });
+
+  // --- getDue excludes event-triggered items ---
+
+  it("getDue does not return event-triggered items", () => {
+    const past = new Date(Date.now() - 60_000);
+    scheduler.add("Time-based", past);
+    scheduler.addEventTrigger("Event-based", "session.end");
+
+    const due = scheduler.getDue();
+    expect(due).toHaveLength(1);
+    expect(due[0].description).toBe("Time-based");
+  });
+
+  // --- markFired with event triggers ---
+
+  it("markFired makes one-shot event trigger 'fired'", () => {
+    const item = scheduler.addEventTrigger("Once only", "session.end");
+    scheduler.markFired(item.id);
+
+    const updated = scheduler.get(item.id)!;
+    expect(updated.status).toBe("fired");
+    expect(updated.firedAt).toBeDefined();
+  });
+
+  it("markFired keeps repeating event trigger 'pending'", () => {
+    const item = scheduler.addEventTrigger("Repeating", "session.end", {
+      repeat: true,
+    });
+    scheduler.markFired(item.id);
+
+    const updated = scheduler.get(item.id)!;
+    expect(updated.status).toBe("pending");
+    expect(updated.firedAt).toBeDefined();
+  });
+
+  it("markFired can fire a repeating event trigger multiple times", () => {
+    const item = scheduler.addEventTrigger("Multi-fire", "session.end", {
+      repeat: true,
+    });
+    scheduler.markFired(item.id);
+    scheduler.markFired(item.id);
+    scheduler.markFired(item.id);
+
+    const updated = scheduler.get(item.id)!;
+    expect(updated.status).toBe("pending");
+    expect(updated.firedAt).toBeDefined();
+  });
+
+  // --- connectBus ---
+
+  it("connectBus fires item when matching event emitted", () => {
+    const item = scheduler.addEventTrigger("On end", "session.end");
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    expect(fired).toEqual(["On end"]);
+    expect(scheduler.get(item.id)!.status).toBe("fired");
+  });
+
+  it("connectBus does not fire on non-matching events", () => {
+    scheduler.addEventTrigger("On end", "session.end");
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("session.start", { sessionId: "s1" });
+    expect(fired).toHaveLength(0);
+  });
+
+  it("connectBus respects filter", () => {
+    scheduler.addEventTrigger("Build only", "session.end", {
+      filter: { label: "build-agent" },
+    });
+    scheduler.addEventTrigger("Any session", "session.end");
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    // Non-matching filter — only "Any session" fires (one-shot, no filter)
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    expect(fired).toEqual(["Any session"]);
+
+    // Matching filter — "Build only" fires now (still pending, filter matches)
+    fired.length = 0;
+    bus.emit("session.end", {
+      sessionId: "s2",
+      label: "build-agent",
+      durationMs: 200,
+    });
+    expect(fired).toEqual(["Build only"]);
+  });
+
+  it("connectBus re-arms repeating triggers", () => {
+    scheduler.addEventTrigger("Repeating", "session.end", { repeat: true });
+    const fireCount: number[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fireCount.push(items.length);
+    });
+
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    bus.emit("session.end", { sessionId: "s2", durationMs: 200 });
+    bus.emit("session.end", { sessionId: "s3", durationMs: 300 });
+
+    expect(fireCount).toEqual([1, 1, 1]);
+    expect(scheduler.pending()).toHaveLength(1);
+  });
+
+  it("connectBus one-shot does not re-fire", () => {
+    scheduler.addEventTrigger("Once", "session.end");
+    const fireCount: number[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fireCount.push(items.length);
+    });
+
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    bus.emit("session.end", { sessionId: "s2", durationMs: 200 });
+
+    expect(fireCount).toEqual([1]);
+    expect(scheduler.pending()).toHaveLength(0);
+  });
+
+  it("connectBus ignores schedule.fire events (prevents loops)", () => {
+    scheduler.addEventTrigger("Self-loop", "schedule.fire");
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("schedule.fire", { itemId: 1, description: "test" });
+    expect(fired).toHaveLength(0);
+  });
+
+  it("connectBus handles custom string events", () => {
+    scheduler.addEventTrigger("On deploy", "deploy.success");
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("deploy.success", { sha: "abc123" });
+    expect(fired).toEqual(["On deploy"]);
+  });
+
+  it("disconnectBus stops receiving events", () => {
+    scheduler.addEventTrigger("Will disconnect", "session.end", {
+      repeat: true,
+    });
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    expect(fired).toHaveLength(1);
+
+    scheduler.disconnectBus();
+    bus.emit("session.end", { sessionId: "s2", durationMs: 200 });
+    expect(fired).toHaveLength(1); // no new fires
+  });
+
+  it("disconnectBus is idempotent", () => {
+    scheduler.disconnectBus();
+    scheduler.disconnectBus(); // no error
+  });
+
+  it("connectBus replaces previous connection", () => {
+    scheduler.addEventTrigger("Test", "session.end", { repeat: true });
+    const fired1: string[] = [];
+    const fired2: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired1.push(...items.map((i) => i.description));
+    });
+    scheduler.connectBus(bus, (items) => {
+      fired2.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    expect(fired1).toHaveLength(0); // old connection disconnected
+    expect(fired2).toHaveLength(1); // new connection active
+  });
+
+  // --- getPendingSummary with event triggers ---
+
+  it("getPendingSummary includes event-triggered items", () => {
+    const future = new Date(Date.now() + 3_600_000);
+    scheduler.add("Time task", future);
+    scheduler.addEventTrigger("Event task", "session.end", { repeat: true });
+
+    const summary = scheduler.getPendingSummary();
+    expect(summary).toContain("upcoming");
+    expect(summary).toContain("Time task");
+    expect(summary).toContain("event-triggered");
+    expect(summary).toContain("Event task");
+    expect(summary).toContain("on session.end");
+    expect(summary).toContain("repeat");
+  });
+
+  it("getPendingSummary shows non-repeat event triggers", () => {
+    scheduler.addEventTrigger("One-shot event", "action.complete");
+    const summary = scheduler.getPendingSummary();
+    expect(summary).toContain("event-triggered");
+    expect(summary).toContain("on action.complete");
+    expect(summary).not.toContain("repeat");
+  });
+
+  // --- Mixed time + event items ---
+
+  it("time-based and event-triggered items coexist", () => {
+    const future = new Date(Date.now() + 60_000);
+    const past = new Date(Date.now() - 60_000);
+    scheduler.add("Time future", future);
+    scheduler.add("Time past", past);
+    scheduler.addEventTrigger("Event", "session.end");
+
+    expect(scheduler.count()).toBe(3);
+    expect(scheduler.pending()).toHaveLength(3);
+    expect(scheduler.getDue()).toHaveLength(1); // only time past
+    expect(scheduler.getDue()[0].description).toBe("Time past");
+  });
+
+  // --- Filter edge cases ---
+
+  it("filter matches when all keys present in payload", () => {
+    scheduler.addEventTrigger("Multi-filter", "session.end", {
+      filter: { label: "test", sessionId: "s1" },
+    });
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    // Missing one key
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    expect(fired).toHaveLength(0);
+
+    // Both keys match
+    scheduler.addEventTrigger("Multi-filter 2", "session.end", {
+      filter: { label: "test", sessionId: "s2" },
+    });
+    bus.emit("session.end", {
+      sessionId: "s2",
+      label: "test",
+      durationMs: 200,
+    });
+    expect(fired).toEqual(["Multi-filter 2"]);
+  });
+
+  it("filter coerces non-string payload values to string", () => {
+    scheduler.addEventTrigger("Number match", "action.complete", {
+      filter: { itemId: "42" },
+    });
+    const fired: string[] = [];
+
+    scheduler.connectBus(bus, (items) => {
+      fired.push(...items.map((i) => i.description));
+    });
+
+    bus.emit("action.complete", { itemId: 42, durationMs: 100 });
+    expect(fired).toEqual(["Number match"]);
   });
 });

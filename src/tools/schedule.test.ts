@@ -159,4 +159,105 @@ describe("schedule tool", () => {
     expect(result.content).toContain("hourly");
     expect(result.content).toContain("[autonomous]");
   });
+
+  // --- on_event action ---
+
+  it("creates an event trigger via on_event", async () => {
+    const result = await runSchedule({
+      action: "on_event",
+      description: "Run improve",
+      event: "session.end",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Event trigger #1");
+    expect(result.content).toContain("on session.end");
+    expect(result.content).toContain("(once)");
+  });
+
+  it("creates a repeating event trigger", async () => {
+    const result = await runSchedule({
+      action: "on_event",
+      description: "Continuous improve",
+      event: "session.end",
+      repeat: "true",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("(repeat)");
+  });
+
+  it("creates event trigger with filter", async () => {
+    const result = await runSchedule({
+      action: "on_event",
+      description: "Build-only",
+      event: "session.end",
+      filter: { label: "build-agent" },
+      repeat: "true",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("label=build-agent");
+  });
+
+  it("creates event trigger with action", async () => {
+    const result = await runSchedule({
+      action: "on_event",
+      description: "Auto improve",
+      event: "session.end",
+      agent_action: "Run self-improvement analysis",
+    });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("[autonomous]");
+  });
+
+  it("on_event rejects missing description", async () => {
+    const result = await runSchedule({
+      action: "on_event",
+      event: "session.end",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("description");
+  });
+
+  it("on_event rejects missing event", async () => {
+    const result = await runSchedule({
+      action: "on_event",
+      description: "Test",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("event is required");
+  });
+
+  it("list shows event-triggered items with event info", async () => {
+    await runSchedule({
+      action: "on_event",
+      description: "Event task",
+      event: "session.end",
+      filter: { label: "build" },
+      repeat: "true",
+      agent_action: "Do stuff",
+    });
+    await runSchedule({
+      action: "add",
+      description: "Time task",
+      time: "in 1 hour",
+    });
+
+    const result = await runSchedule({ action: "list" });
+    expect(result.content).toContain("2 scheduled");
+    expect(result.content).toContain("on session.end");
+    expect(result.content).toContain("label=build");
+    expect(result.content).toContain("(repeat)");
+    expect(result.content).toContain("[autonomous]");
+    expect(result.content).toContain("Time task");
+  });
+
+  it("cancels an event trigger", async () => {
+    await runSchedule({
+      action: "on_event",
+      description: "To cancel",
+      event: "session.end",
+    });
+    const result = await runSchedule({ action: "cancel", id: 1 });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Cancelled");
+  });
 });

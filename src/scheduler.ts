@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { EventBus } from "./event-bus.js";
 import { tryEmit } from "./event-bus.js";
 
 export type ScheduledItem = {
@@ -21,6 +22,12 @@ export type ScheduledItem = {
   status: "pending" | "fired" | "cancelled";
   created: string;
   firedAt?: string;
+  /** Event name that triggers this item (e.g., "session.end"). */
+  triggerEvent?: string;
+  /** Optional payload filter — all keys must match for the event to trigger. */
+  triggerFilter?: Record<string, string>;
+  /** For event triggers: re-arm after firing (stay pending). */
+  repeat?: boolean;
 };
 
 type ScheduleFileData = {
@@ -111,6 +118,18 @@ function unitToMs(unit: string): number | null {
   }
 }
 
+/** Check if an event payload matches all filter key-value pairs. */
+function matchesFilter(
+  payload: Record<string, unknown>,
+  filter?: Record<string, string>,
+): boolean {
+  if (!filter) return true;
+  for (const [key, value] of Object.entries(filter)) {
+    if (String(payload[key]) !== value) return false;
+  }
+  return true;
+}
+
 export class Scheduler {
   private items: ScheduledItem[] = [];
   private nextId = 1;
@@ -118,6 +137,7 @@ export class Scheduler {
   private project: string;
   private loaded = false;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private busUnsub: (() => void) | null = null;
 
   constructor(projectDir?: string, storageDir?: string | null) {
     this.project = projectDir || process.cwd();
@@ -203,6 +223,39 @@ export class Scheduler {
     return item;
   }
 
+  /**
+   * Add an event-triggered item. Fires when `eventName` is emitted on the
+   * connected EventBus (optionally filtered by payload properties).
+   */
+  addEventTrigger(
+    description: string,
+    eventName: string,
+    opts?: {
+      filter?: Record<string, string>;
+      repeat?: boolean;
+      action?: string;
+    },
+  ): ScheduledItem {
+    this.ensureLoaded();
+    if (!eventName) throw new Error("eventName is required");
+    const item: ScheduledItem = {
+      id: this.nextId++,
+      description,
+      triggerAt: new Date().toISOString(), // creation time (not used for matching)
+      triggerEvent: eventName,
+      status: "pending",
+      created: new Date().toISOString(),
+    };
+    if (opts?.filter && Object.keys(opts.filter).length > 0) {
+      item.triggerFilter = opts.filter;
+    }
+    if (opts?.repeat) item.repeat = true;
+    if (opts?.action) item.action = opts.action;
+    this.items.push(item);
+    this.persist();
+    return item;
+  }
+
   cancel(id: number): boolean {
     this.ensureLoaded();
     const item = this.items.find((i) => i.id === id);
@@ -216,7 +269,10 @@ export class Scheduler {
     this.ensureLoaded();
     const ref = now || new Date();
     return this.items.filter(
-      (i) => i.status === "pending" && new Date(i.triggerAt) <= ref,
+      (i) =>
+        i.status === "pending" &&
+        !i.triggerEvent && // event-triggered items don't use time-based polling
+        new Date(i.triggerAt) <= ref,
     );
   }
 
@@ -226,7 +282,10 @@ export class Scheduler {
     if (!item) return null;
     const ref = now || new Date();
 
-    if (item.repeatMs && item.repeatMs >= 1000) {
+    if (item.triggerEvent && item.repeat) {
+      // Event trigger with repeat — re-arm (stay pending for next event)
+      item.firedAt = ref.toISOString();
+    } else if (item.repeatMs && item.repeatMs >= 1000) {
       const next = new Date(new Date(item.triggerAt).getTime() + item.repeatMs);
       while (next <= ref) next.setTime(next.getTime() + item.repeatMs);
       item.triggerAt = next.toISOString();
@@ -264,8 +323,12 @@ export class Scheduler {
     const items = this.items.filter((i) => i.status === "pending");
     if (items.length === 0) return null;
     const now = new Date();
-    const overdue = items.filter((i) => new Date(i.triggerAt) <= now);
-    const upcoming = items.filter((i) => new Date(i.triggerAt) > now);
+
+    const timeBased = items.filter((i) => !i.triggerEvent);
+    const eventBased = items.filter((i) => i.triggerEvent);
+
+    const overdue = timeBased.filter((i) => new Date(i.triggerAt) <= now);
+    const upcoming = timeBased.filter((i) => new Date(i.triggerAt) > now);
 
     const parts: string[] = [];
     if (overdue.length > 0) {
@@ -281,6 +344,17 @@ export class Scheduler {
       const more =
         upcoming.length > 3 ? ` (+${upcoming.length - 3} more)` : "";
       parts.push(`${upcoming.length} upcoming: ${preview.join(", ")}${more}`);
+    }
+    if (eventBased.length > 0) {
+      const preview = eventBased.slice(0, 3).map((i) => {
+        const repeatTag = i.repeat ? ", repeat" : "";
+        return `"${i.description}" (on ${i.triggerEvent}${repeatTag})`;
+      });
+      const more =
+        eventBased.length > 3 ? ` (+${eventBased.length - 3} more)` : "";
+      parts.push(
+        `${eventBased.length} event-triggered: ${preview.join(", ")}${more}`,
+      );
     }
     return parts.join("; ");
   }
@@ -299,6 +373,46 @@ export class Scheduler {
     }, intervalMs);
     this.timer.unref();
     return () => this.stopTimer();
+  }
+
+  /**
+   * Subscribe to an EventBus so event-triggered items fire automatically.
+   * Calls `onFire` with matched items (same shape as `startTimer` callback).
+   * Returns an unsubscribe function.
+   */
+  connectBus(
+    bus: EventBus,
+    onFire: (items: ScheduledItem[]) => void,
+  ): () => void {
+    this.disconnectBus();
+    this.busUnsub = bus.on("*", (envelope) => {
+      // Skip schedule.fire to prevent self-triggering loops
+      if (envelope.type === "schedule.fire") return;
+
+      this.ensureLoaded();
+      const matches = this.items.filter(
+        (i) =>
+          i.status === "pending" &&
+          i.triggerEvent === envelope.type &&
+          matchesFilter(
+            envelope.payload as Record<string, unknown>,
+            i.triggerFilter,
+          ),
+      );
+      if (matches.length === 0) return;
+
+      for (const item of matches) this.markFired(item.id);
+      onFire(matches);
+    });
+    return () => this.disconnectBus();
+  }
+
+  /** Disconnect from the EventBus. */
+  disconnectBus(): void {
+    if (this.busUnsub) {
+      this.busUnsub();
+      this.busUnsub = null;
+    }
   }
 
   stopTimer(): void {
@@ -349,6 +463,9 @@ export function getScheduler(): Scheduler {
 }
 
 export function resetScheduler(): void {
-  if (instance) instance.stopTimer();
+  if (instance) {
+    instance.disconnectBus();
+    instance.stopTimer();
+  }
   instance = undefined;
 }

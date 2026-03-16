@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 419 — Event-Based Scheduler Triggers
+
+Second piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). The
+Scheduler can now fire items when named events occur on the EventBus, not just
+at specific times. This enables automations like "when a session ends, run
+self-improve" — the foundation for the daemon mode's event-driven loop.
+
+### What was built
+
+**Extended `src/scheduler.ts`** (~470 lines, up from ~355):
+- `ScheduledItem` type gains `triggerEvent`, `triggerFilter`, and `repeat` fields
+- `addEventTrigger(description, eventName, opts?)` — creates event-triggered items
+- `connectBus(bus, onFire)` — subscribes to the EventBus via wildcard listener;
+  when a matching event fires, the item is triggered and `onFire` callback is
+  called (same shape as `startTimer` callback for seamless consumer integration)
+- `disconnectBus()` — unsubscribes from the bus
+- `matchesFilter(payload, filter)` — key-value filter matching with string coercion
+- `getDue()` excludes event-triggered items (they don't use time-based polling)
+- `markFired()` handles repeating event triggers (re-arm by staying pending)
+- `getPendingSummary()` includes event-triggered items with event/repeat info
+- Self-trigger prevention: `schedule.fire` events are ignored by the bus handler
+
+**Extended `src/tools/schedule.ts`** (~175 lines, up from ~140):
+- New `on_event` action: create event-triggered automations via the LLM tool
+- Supports `event`, `filter`, `repeat`, and `agent_action` parameters
+- List view distinguishes time-based and event-triggered items
+
+### Backward compatibility
+- All existing time-based scheduling behavior unchanged
+- New fields are optional on `ScheduledItem` (persisted JSON is compatible)
+- Consumers that only use `startTimer` are unaffected
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — clean (348KB bundle)
+- `npm test` — 2039 tests pass (added 36 new tests for event triggers)
+- `node dist/cli.js --help` — clean
+- Runtime smoke test: SKIP (no `ANTHROPIC_API_KEY`)
+
+### Future directions
+- **Daemon mode** (plan step 3): long-running process that initializes the event
+  bus, connects the scheduler, and uses event triggers for the build/improve loop
+- **Webhook endpoints** (plan step 4): HTTP routes that fire custom events on
+  the bus, enabling external systems to trigger automations
+
 ## Iteration 418 — Plan-Execution Path for Breadth Phase
 
 ### Verification of iter 416 (previous improver)
