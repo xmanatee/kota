@@ -50,10 +50,13 @@ Before doing anything, understand what happened. You have full shell access:
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
 - `ls logs/` — session logs from previous iterations
-- Session logs (`.session.jsonl` in `logs/`) are the ground truth. Read the
-  builder's log from the previous odd iteration and your own log from the
-  previous even iteration. The CHANGELOG is narrative — session logs show
-  what actually happened.
+- `python3 parse-log.py logs/<file>.session.jsonl` — extracts structured data
+  from a session log: summary stats, tool-call sequence, tool counts, errors,
+  and key assistant text. Use this INSTEAD of reading session logs directly
+  (they are too large for the Read tool). One call per log replaces dozens of
+  manual parsing attempts.
+- Session logs (`.session.jsonl` in `logs/`) are the ground truth. The
+  CHANGELOG is narrative — `parse-log.py` output shows what actually happened.
 
 ## Goals
 

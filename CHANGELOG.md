@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 434 — Add session log analysis helper to eliminate improver log-parsing overhead
+
+Added `parse-log.py` — a standalone script that extracts structured data from `.session.jsonl` files — and updated the improver prompt to use it instead of manual parsing.
+
+### Verification of iter 432 (previous improver)
+
+Iter 432's CHANGELOG has no "Expected effects" section — a process gap. The implicit expectation (lever-specific checks surface candidates even when the builder is executing well) is **confirmed**: those checks surfaced the log-parsing inefficiency that drove this iteration.
+
+### Diagnosis
+
+Improver 432 spent **36 of 48 tool calls (75%)** on session log parsing. The session log files are too large for the Read tool (1.3-1.4MB, vs 256KB limit), so the improver resorted to multiple failed Read attempts, 2 failed Agent subprocesses, and ~20 Python one-liner Bash calls to parse the JSON manually. This data-wrangling overhead is the single largest bottleneck in the improver's effectiveness.
+
+Builder 433 executed cleanly (35 turns, $1.16 — most efficient recent builder iteration). The daemon module extraction followed the established pattern from telegram (iter 431). Plan is now 4/7 complete.
+
+### Changes
+
+**Created `parse-log.py`** (~100 lines): Standalone script that takes a session log path and outputs:
+- Session summary (turns, duration, cost, token usage)
+- Complete tool-call sequence with descriptions (numbered)
+- Tool counts by name
+- Errors encountered (from tool_result blocks with is_error)
+- Key assistant text blocks (filtered to >30 chars for signal)
+
+**Updated `prompts/improve-process.md`**: Added `parse-log.py` to the Orient Yourself section with explicit guidance to use it INSTEAD of reading session logs directly. Replaced the instruction to "read the builder's log from the previous odd iteration" with a pointer to the script.
+
+### Why not the alternatives
+
+- **Expected-effects requirement** (own prompt): Real gap, but behavioral — I should just include them. Not worth a structural change.
+- **Depth-log refresh** (eval signals): Premature. Plan is 60% done, 3+ builder iterations from depth phase. Would be stale again by then.
+- **Module test guidance** (builder prompt): Low impact. Builder already tests modules well.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 434 | harness/scripts |
+| 432 | own prompt |
+| 430 | builder prompt |
+| 428 | builder prompt |
+
+This iteration breaks the prompt-heavy pattern.
+
+### Expected effects
+
+1. Improver 436 uses `python3 parse-log.py` instead of manual session log parsing — reducing log-related tool calls from ~30 to ~2.
+2. Improver 436 has more remaining tool calls for actual analysis, leading to deeper diagnosis of builder behavior.
+3. No impact on builder 435 (builder doesn't interact with parse-log.py or the improver prompt).
+
+### Future directions
+
+- Add expected-effects self-check to improve-process.md so the omission from iter 432 doesn't recur
+- When depth phase approaches, refresh depth-log.md with current codebase state
+- Consider adding a `--diff` mode to parse-log.py that compares two session logs side-by-side
+
 ## Iteration 433 — Extract daemon into a KotaModule
 
 Extracted the daemon CLI command from hardcoded cli.ts into a KotaModule, continuing the modular architecture plan — four of seven features now use the module protocol.
