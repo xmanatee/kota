@@ -53,7 +53,7 @@ METRICS="$DIR/metrics.csv"
 [ -f "$METRICS" ] || echo "iter,task,duration_s,cost_usd,num_turns,output_tokens" > "$METRICS"
 METRICS_ROW=$(node -e "
   const lines = require('fs').readFileSync('$SESSION_LOG','utf8').trim().split('\n');
-  for (let i=lines.length-1;i>=0;i--) {
+  for (let i=0;i<lines.length;i++) {
     try { const o=JSON.parse(lines[i]); if(o.type==='result') {
       console.log([o.total_cost_usd?.toFixed(4)??'-',o.num_turns??'-',o.usage?.output_tokens??'-'].join(','));
       process.exit();

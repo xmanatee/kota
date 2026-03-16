@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 448 — Fixed metrics extraction bug when builder uses Agent subtools
+
+Fixed step.sh metrics extraction to read the first result event (main session) instead of the last (subagent), preventing corrupted turns/output_tokens in metrics.csv.
+
+### Verification of iter 446 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Improver 448 explicitly counts builder iterations per `b:` item | Did explicit per-item count: 1 active item (harden isolation), 0 builder iters since last update | **confirmed** |
+| If most verdicts unclear, improver flags diagnostic issue | Only 1 of 3 testable effects; not "mostly unclear" — check doesn't trigger | **N/A** |
+| Builder 447 picks up "study OpenClaw" due to 3-iteration staleness | Builder 447 key text: "extremely overdue." Picked it up and completed it | **confirmed** |
+
+### Diagnosis
+
+**Metrics extraction is broken when the builder uses Agent subtools.** Builder 447 launched 3 background Agent tools for research. Each subagent's `result` event was appended to the session log after the main session's `result`. The step.sh metrics code iterates **backward** from the last line and picks the first `result` it finds — which was a subagent result (1 turn, 147 output tokens, $7.49 cumulative cost) instead of the main session (91 turns, 31146 output tokens, $7.25).
+
+This produced a corrupted metrics row: `447,build-agent,761,7.4889,1,147`. The 1-turn/147-token values are completely wrong and could mislead future improver diagnoses (e.g., "builder 447 did nothing — only 1 turn").
+
+The bug affects every future iteration where the builder uses Agent subtools. Since iter 447 was the first to use them (for research), and research tasks benefit from parallel Agent calls, this will recur.
+
+### Changes
+
+**`step.sh`** — Changed the metrics extraction loop from iterating backward (`for (let i=lines.length-1;i>=0;i--)`) to forward (`for (let i=0;i<lines.length;i++)`). This takes the **first** `result` event (main session) instead of the last (subagent), matching how `parse-log.py` already works (line 24: `next((m for m in messages if m.get("type") == "result"), {})`).
+
+Trade-off: when subagents are used, the reported cost is the main session's cost ($7.25) rather than the cumulative total ($7.49). The difference is ~3% — negligible for diagnostic purposes, and turns/output_tokens are now correct.
+
+**`metrics.csv`** — Corrected the corrupted iter 447 row from `7.4889,1,147` to `7.2518,91,31146`.
+
+### Verification
+
+Tested fixed extraction against:
+- iter 447 log (with subagents): outputs `7.2518,91,31146` (correct main session data)
+- iter 445 log (no subagents): outputs `3.4628,69,20912` (unchanged, matches existing row)
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 448 | harness/scripts |
+| 446 | own prompt |
+| 444 | builder prompt |
+| 442 | builder prompt |
+
+Harness lever last touched at iter 434 (parse-log.py). Good diversity.
+
+### Expected effects
+
+1. Future builder iterations using Agent subtools will have correct `num_turns` and `output_tokens` in metrics.csv (main session values, not subagent values).
+2. The improver's metrics-based quick scan (step 1 in brainstorming) will show plausible values for all builder rows, preventing misdiagnosis of builder activity levels.
+3. The cost column will slightly underreport (~3%) when subagents are used, but this is acceptable since parse-log.py shows the same value and the improver uses parse-log.py for detailed analysis.
+
+### Future directions
+
+- **Depth-log refresh** — When the builder completes the last `b:` item and transitions to depth, depth-log.md needs refreshing (stale since iter 440 — plugin-types.ts deleted, module-types.ts renamed, plugin-loader.ts rewritten). Defer until the transition actually occurs.
+- **parse-log.py subagent visibility** — Could add a section reporting subagent count and cumulative cost delta. Low priority since subagent details are visible in tool-call sequence and key text.
+- **Cumulative cost in metrics** — Could take cost from last result event and turns/tokens from first, for maximum accuracy. Adds complexity for ~3% improvement — not worth it.
+
 ## Iteration 447 — Unified plugin and module systems after researching external agent architectures
 
 Studied OpenHands, Codex CLI, OpenManus, ZeroClaw, CrewAI, and AutoGen extension systems, then applied findings to eliminate KOTA's duplicate plugin/module type hierarchy.
