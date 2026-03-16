@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ModuleLoader } from "./module-loader.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
-import { allTools, clearCustomTools, executeTool } from "./tools/index.js";
+import { getAllTools, clearCustomTools, executeTool } from "./tools/index.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -90,11 +90,11 @@ describe("discoverPluginModules", () => {
     expect(TOOL_GROUPS.analysis).toEqual(["custom_analyzer"]);
 
     // Tool should NOT appear in filtered tools until group is enabled
-    const beforeEnable = filterTools(allTools);
+    const beforeEnable = filterTools(getAllTools());
     expect(beforeEnable.some((t) => t.name === "custom_analyzer")).toBe(false);
 
     enableGroup("analysis");
-    const afterEnable = filterTools(allTools);
+    const afterEnable = filterTools(getAllTools());
     expect(afterEnable.some((t) => t.name === "custom_analyzer")).toBe(true);
   });
 
@@ -116,7 +116,7 @@ describe("discoverPluginModules", () => {
     const modules = await discoverPluginModules(tmpDir);
     await loader.loadAll(modules);
 
-    const filtered = filterTools(allTools);
+    const filtered = filterTools(getAllTools());
     expect(filtered.some((t) => t.name === "always_available")).toBe(true);
   });
 

@@ -20,7 +20,7 @@ import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { setDelegateConfig } from "./tools/delegate.js";
-import { allTools } from "./tools/index.js";
+import { getAllTools } from "./tools/index.js";
 import { cleanupProcesses } from "./tools/process.js";
 import { CliTransport, type Transport } from "./transport.js";
 import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
@@ -289,7 +289,7 @@ export class AgentSession {
       }
 
       // Progressive disclosure: filter built-in tools by active groups, include MCP tools
-      const activeTools = [...filterTools(allTools), ...mcpTools];
+      const activeTools = [...filterTools(getAllTools()), ...mcpTools];
 
       const { response, streamedText } = await streamMessage({
         client: this.client,

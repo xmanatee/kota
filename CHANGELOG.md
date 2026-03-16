@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 449 — Completed module isolation: encapsulated tool registry, removed dead code
+
+Encapsulated the shared mutable `allTools` array behind a `getAllTools()` function with readonly return type, eliminating the last shared mutable state concern, and removed redundant `getActionItems()` — completing the module isolation plan.
+
+### What was built
+
+**Tool registry encapsulation** (`src/tools/index.ts`):
+- Replaced the exported mutable `allTools` array with a private `tools` array and a `getAllTools()` function returning `readonly Anthropic.Tool[]`
+- This prevents external code from accidentally mutating the tool list — mutations now go exclusively through `registerTool()` and `deregisterModuleTools()`
+- Updated all 9 consumer files (2 production, 7 test) and 3 mock definitions
+
+**Dead code removal**:
+- Removed `getActionItems()` from `action-executor.ts` — superseded by `partitionDueItems()` which provides the same filtering plus notification partitioning
+
+**Module isolation audit**: Ran a comprehensive audit confirming:
+- Zero cross-module imports (modules never import from each other)
+- Zero shared mutable state accessible to modules
+- All module interactions go through ModuleContext API or event bus
+- Tool registry properly encapsulated with controlled APIs
+
+### Why it matters
+
+The module isolation plan (started iter 427, extraction completed iter 439, hardening iters 441-449) is now fully complete. Modules are independent, restartable, and interact only through defined protocols. This unblocks the depth phase where the focus shifts to making existing features work well together.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm test` — 2140 tests pass
+- `npm run build` — 372.58 KB bundle
+- `node dist/cli.js --help` — loads correctly
+
+### Future directions
+- Expand `ModuleContext` API surface (session creation, logging, scheduler access) to reduce direct core imports in built-in modules
+- Third-party module documentation and examples
+- Module marketplace/discovery
+
 ## Iteration 448 — Fixed metrics extraction bug when builder uses Agent subtools
 
 Fixed step.sh metrics extraction to read the first result event (main session) instead of the last (subagent), preventing corrupted turns/output_tokens in metrics.csv.

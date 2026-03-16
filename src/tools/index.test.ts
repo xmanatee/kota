@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { allTools, clearCustomTools, deregisterModuleTools, executeTool, getRegisteredTools, registerTool } from "./index.js";
+import { getAllTools, clearCustomTools, deregisterModuleTools, executeTool, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -7,18 +7,18 @@ const makeTool = (name: string) => ({
   input_schema: { type: "object" as const, properties: {} },
 });
 
-describe("allTools", () => {
+describe("getAllTools", () => {
   it("contains 19 built-in tool definitions (memory + schedule moved to modules)", () => {
-    expect(allTools).toHaveLength(19);
+    expect(getAllTools()).toHaveLength(19);
   });
 
   it("has unique names", () => {
-    const names = allTools.map((t) => t.name);
+    const names = getAllTools().map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
   });
 
   it("each tool has name, description, and input_schema", () => {
-    for (const tool of allTools) {
+    for (const tool of getAllTools()) {
       expect(typeof tool.name).toBe("string");
       expect(tool.name.length).toBeGreaterThan(0);
       expect(typeof tool.description).toBe("string");
@@ -29,7 +29,7 @@ describe("allTools", () => {
   });
 
   it("contains the expected tool names", () => {
-    const names = new Set(allTools.map((t) => t.name));
+    const names = new Set(getAllTools().map((t) => t.name));
     const expected = new Set([
       "shell", "file_read", "file_write", "file_edit", "multi_edit",
       "grep", "glob", "todo", "repo_map", "delegate", "web_fetch",
@@ -51,13 +51,13 @@ describe("executeTool", () => {
 describe("registerTool", () => {
   afterEach(() => clearCustomTools());
 
-  it("adds custom tool to allTools and makes it executable", async () => {
-    const before = allTools.length;
+  it("adds custom tool to registry and makes it executable", async () => {
+    const before = getAllTools().length;
     registerTool(makeTool("custom_greet"), async (input) => ({
       content: `Hello, ${input.name ?? "world"}!`,
     }));
-    expect(allTools).toHaveLength(before + 1);
-    expect(allTools.find((t) => t.name === "custom_greet")).toBeDefined();
+    expect(getAllTools()).toHaveLength(before + 1);
+    expect(getAllTools().find((t) => t.name === "custom_greet")).toBeDefined();
     const result = await executeTool("custom_greet", { name: "Kim" });
     expect(result.content).toBe("Hello, Kim!");
     expect(result.is_error).toBeUndefined();
@@ -86,10 +86,10 @@ describe("registerTool", () => {
 
   it("clearCustomTools removes custom tools without affecting built-ins", () => {
     registerTool(makeTool("temp_tool"), async () => ({ content: "" }));
-    expect(allTools.find((t) => t.name === "temp_tool")).toBeDefined();
+    expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
-    expect(allTools.find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(allTools).toHaveLength(19);
+    expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
+    expect(getAllTools()).toHaveLength(19);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 
@@ -119,9 +119,9 @@ describe("deregisterModuleTools", () => {
   });
 
   it("is a no-op for unknown module name", () => {
-    const before = allTools.length;
+    const before = getAllTools().length;
     deregisterModuleTools("nonexistent");
-    expect(allTools.length).toBe(before);
+    expect(getAllTools().length).toBe(before);
   });
 
   it("allows re-registration after deregister", async () => {

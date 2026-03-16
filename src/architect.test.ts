@@ -7,7 +7,7 @@ const { mockExecuteTool } = vi.hoisted(() => ({
 }));
 
 vi.mock("./tools/index.js", () => ({
-  allTools: [
+  getAllTools: () => [
     { name: "file_read", description: "read", input_schema: { type: "object", properties: {} } },
     { name: "file_edit", description: "edit", input_schema: { type: "object", properties: {} } },
     { name: "file_write", description: "write", input_schema: { type: "object", properties: {} } },

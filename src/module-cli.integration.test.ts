@@ -14,7 +14,7 @@ import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 import { builtinModules } from "./modules/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
-import { allTools, clearCustomTools, executeTool } from "./tools/index.js";
+import { getAllTools, clearCustomTools, executeTool } from "./tools/index.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "dist/cli.js");
@@ -103,18 +103,18 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     expect(cliCommands).toEqual(fullCommands);
     expect(cliCommands.length).toBeGreaterThanOrEqual(4);
 
-    // commandsOnly should NOT register tools (tool count stays at 0 in allTools custom set)
+    // commandsOnly should NOT register tools (tool count stays at 0 in custom set)
     expect(cliLoader.getToolCount()).toBe(0);
 
     await cliLoader.unloadAll();
   });
 
-  it("module tools appear in allTools when groups are enabled", async () => {
+  it("module tools appear in tool registry when groups are enabled", async () => {
     const loader = new ModuleLoader({});
     await loader.loadAll(builtinModules);
 
     // Before enabling groups, module tools should be hidden
-    const beforeTools = filterTools(allTools);
+    const beforeTools = filterTools(getAllTools());
     const moduleToolNames = ["memory", "schedule"];
     for (const name of moduleToolNames) {
       expect(beforeTools.some((t) => t.name === name)).toBe(false);
@@ -122,7 +122,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
     // After enabling management group, module tools should be visible
     enableGroup("management");
-    const afterTools = filterTools(allTools);
+    const afterTools = filterTools(getAllTools());
     for (const name of moduleToolNames) {
       expect(afterTools.some((t) => t.name === name)).toBe(true);
     }

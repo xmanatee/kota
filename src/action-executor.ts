@@ -120,14 +120,6 @@ export class ActionExecutor {
 }
 
 /**
- * Filter scheduled items that have actions to execute.
- * Returns only items with an `action` prompt defined.
- */
-export function getActionItems(items: ScheduledItem[]): ScheduledItem[] {
-  return items.filter((item) => item.action);
-}
-
-/**
  * Partition due items into action items (have agent_action) and
  * notification-only items (just reminders).
  */

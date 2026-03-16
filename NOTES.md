@@ -12,11 +12,6 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: harden module isolation per updated `plans/modular-architecture.md` — modules must be fully independent (interact only through APIs/protocols, restartable without stopping kota, no shared mutable state). Clean up redundancies, duplication, and stale abstractions left from the monolithic structure.
-  Progress (iter 441): Fixed CLI error resilience — module crash in commands() no longer takes down the entire CLI. Added 14 e2e tests covering module→CLI pipeline, error isolation, tool lifecycle, and concurrent loader safety.
-  Progress (iter 443): Fixed cross-module coupling (web→vercel-adapter direct import replaced with ctx.getRoutes()). Unified module loading — CLI now uses ModuleLoader with commandsOnly mode instead of ad-hoc iteration. Added getRoutes() to ModuleContext for decoupled route discovery.
-  Progress (iter 445): Shipped module hot-restart — `unload(name)` and `reload(name)` with per-module tool ownership tracking, per-module event unsub, dependency safety. Fixed tool ownership bug where `clearCustomTools()` in module/plugin unload would wipe out the other system's tools.
-  Progress (iter 447): Completed type consolidation and plugin→module unification. Deleted `plugin-types.ts` (ToolDefinition, PluginContext, KotaPlugin), renamed ModuleToolDef→ToolDef, replaced PluginManager class with `discoverPluginModules()` discovery function. All plugins now load through ModuleLoader. Remaining: evaluate if any shared mutable state remains.
 
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
@@ -34,6 +29,7 @@ b: institute standards in codebase — shipped: config (365), Biome linting (385
 b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.) — shipped: tool format adapters (367), Vercel AI SDK adapter (383), remote tool registry (387)
 b: implement `plans/self-hosting-loop.md` — shipped: event bus (417), event-based scheduler triggers (419), daemon mode (421), webhook endpoints (423)
 b: implement `plans/modular-architecture.md` — shipped: module protocol + ModuleLoader (427), memory module (427), scheduler module (429), telegram module (431), daemon module (433), web module (435), registry module (437), vercel-adapter module (439). All 7 features extracted; server now integrates module routes.
+b: harden module isolation per updated `plans/modular-architecture.md` — completed (iter 449): error resilience (441), cross-module coupling fixes (443), hot-restart (445), plugin→module unification (447), shared mutable state encapsulation + dead code removal (449). Full audit confirmed zero cross-module imports, zero shared mutable state, proper API boundaries.
 
 ---
 Skipped:

@@ -3,7 +3,7 @@ import { EventBus } from "./event-bus.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
-import { allTools, clearCustomTools, executeTool } from "./tools/index.js";
+import { getAllTools, clearCustomTools, executeTool } from "./tools/index.js";
 
 function makeTool(name: string) {
   return {
@@ -56,11 +56,11 @@ describe("ModuleLoader", () => {
     expect(TOOL_GROUPS.test_group).toContain("grouped_tool");
 
     // Tool hidden until group enabled
-    const before = filterTools(allTools);
+    const before = filterTools(getAllTools());
     expect(before.some((t) => t.name === "grouped_tool")).toBe(false);
 
     enableGroup("test_group");
-    const after = filterTools(allTools);
+    const after = filterTools(getAllTools());
     expect(after.some((t) => t.name === "grouped_tool")).toBe(true);
   });
 
@@ -453,11 +453,11 @@ describe("scheduler module integration", () => {
     const loader = new ModuleLoader({});
     await loader.load(schedulerModule);
 
-    const before = filterTools(allTools);
+    const before = filterTools(getAllTools());
     expect(before.some((t) => t.name === "schedule")).toBe(false);
 
     enableGroup("management");
-    const after = filterTools(allTools);
+    const after = filterTools(getAllTools());
     expect(after.some((t) => t.name === "schedule")).toBe(true);
   });
 });
@@ -496,11 +496,11 @@ describe("memory module integration", () => {
     const loader = new ModuleLoader({});
     await loader.load(memoryModule);
 
-    const before = filterTools(allTools);
+    const before = filterTools(getAllTools());
     expect(before.some((t) => t.name === "memory")).toBe(false);
 
     enableGroup("management");
-    const after = filterTools(allTools);
+    const after = filterTools(getAllTools());
     expect(after.some((t) => t.name === "memory")).toBe(true);
   });
 });

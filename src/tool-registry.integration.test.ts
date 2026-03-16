@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { FailureTracker } from "./tool-runner.js";
 import {
-  allTools,
+  getAllTools,
   clearCustomTools,
   executeTool,
   registerTool,
@@ -25,7 +25,7 @@ describe("registerTool × filterTools (cross-module)", () => {
     registerTool(makeTool("calendar_check"), async () => ({
       content: "no events",
     }));
-    const filtered = filterTools(allTools);
+    const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("calendar_check");
     // Core tools also present
@@ -38,7 +38,7 @@ describe("registerTool × filterTools (cross-module)", () => {
       content: "sent",
     }));
     enableGroup("web");
-    const filtered = filterTools(allTools);
+    const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("email_send");
     expect(names).toContain("web_search");
@@ -50,7 +50,7 @@ describe("registerTool × filterTools (cross-module)", () => {
       content: "lights off",
     }));
     enableGroup("all");
-    const filtered = filterTools(allTools);
+    const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("smart_home");
     // All built-in groups also active
@@ -62,9 +62,9 @@ describe("registerTool × filterTools (cross-module)", () => {
     registerTool(makeTool("temp_tool"), async () => ({
       content: "tmp",
     }));
-    expect(filterTools(allTools).map((t) => t.name)).toContain("temp_tool");
+    expect(filterTools(getAllTools()).map((t) => t.name)).toContain("temp_tool");
     clearCustomTools();
-    expect(filterTools(allTools).map((t) => t.name)).not.toContain(
+    expect(filterTools(getAllTools()).map((t) => t.name)).not.toContain(
       "temp_tool",
     );
   });

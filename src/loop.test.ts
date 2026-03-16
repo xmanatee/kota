@@ -34,7 +34,7 @@ vi.mock("./tool-runner.js", async () => {
   return { ...actual, executeToolCalls: mockExecuteToolCalls };
 });
 vi.mock("./tools/index.js", () => ({
-  allTools: [],
+  getAllTools: () => [],
   executeTool: vi.fn(),
   getTodoState: vi.fn(() => ""),
 }));

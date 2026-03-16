@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { truncateToolResult } from "./context.js";
 import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { FailureTracker } from "./tool-runner.js";
-import { allTools, executeTool } from "./tools/index.js";
+import { getAllTools, executeTool } from "./tools/index.js";
 
 let testDir: string;
 
@@ -89,13 +89,13 @@ describe("files_overview × truncateToolResult (cross-module context)", () => {
 
 describe("files_overview × filterTools (cross-module availability)", () => {
   it("available with no groups enabled (core tools)", () => {
-    const names = filterTools(allTools).map((t) => t.name);
+    const names = filterTools(getAllTools()).map((t) => t.name);
     expect(names).toContain("files_overview");
   });
 
   it("available when 'all' group enabled", () => {
     enableGroup("all");
-    const names = filterTools(allTools).map((t) => t.name);
+    const names = filterTools(getAllTools()).map((t) => t.name);
     expect(names).toContain("files_overview");
   });
 });

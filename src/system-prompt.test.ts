@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { CORE_TOOL_NAMES, TOOL_GROUPS } from "./tool-groups.js";
-import { allTools } from "./tools/index.js";
+import { getAllTools } from "./tools/index.js";
 
 describe("SYSTEM_PROMPT", () => {
   it("contains all required sections", () => {
@@ -186,8 +186,8 @@ describe("SYSTEM_PROMPT", () => {
     expect(dataSection).toContain("notebook");
     expect(dataSection).toContain("matplotlib");
     // Verify referenced tools exist in registry
-    expect(allTools.find((t) => t.name === "code_exec")).toBeDefined();
-    expect(allTools.find((t) => t.name === "notebook")).toBeDefined();
+    expect(getAllTools().find((t) => t.name === "code_exec")).toBeDefined();
+    expect(getAllTools().find((t) => t.name === "notebook")).toBeDefined();
   });
 
   it("data analysis references seaborn alongside matplotlib", () => {
@@ -308,7 +308,7 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("delegate tool schema has mode parameter with explore/execute matching prompt", () => {
-    const delegate = allTools.find((t) => t.name === "delegate")!;
+    const delegate = getAllTools().find((t) => t.name === "delegate")!;
     expect(delegate).toBeDefined();
     const props = delegate.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("mode");
@@ -336,21 +336,21 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("delegate tool has task parameter for structured handoff", () => {
-    const delegate = allTools.find((t) => t.name === "delegate")!;
+    const delegate = getAllTools().find((t) => t.name === "delegate")!;
     const props = delegate.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("task");
   });
 
   // Cross-module integration tests — verify prompt guidance matches tool schemas
 
-  it("every tool in allTools registry is referenced in system prompt", () => {
-    for (const tool of allTools) {
+  it("every tool in registry is referenced in system prompt", () => {
+    for (const tool of getAllTools()) {
       expect(SYSTEM_PROMPT).toContain(tool.name);
     }
   });
 
   it("grep tool schema has modes and options referenced in prompt", () => {
-    const grep = allTools.find((t) => t.name === "grep")!;
+    const grep = getAllTools().find((t) => t.name === "grep")!;
     const props = grep.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("files_only");
     expect(props).toHaveProperty("count_only");
@@ -358,8 +358,8 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("web_fetch and http_request tools have save_to parameter", () => {
-    const webFetch = allTools.find((t) => t.name === "web_fetch")!;
-    const httpReq = allTools.find((t) => t.name === "http_request")!;
+    const webFetch = getAllTools().find((t) => t.name === "web_fetch")!;
+    const httpReq = getAllTools().find((t) => t.name === "http_request")!;
     const fetchProps = webFetch.input_schema.properties as Record<
       string,
       unknown
@@ -373,7 +373,7 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("code_exec tool supports Python and Node.js languages", () => {
-    const codeExec = allTools.find((t) => t.name === "code_exec")!;
+    const codeExec = getAllTools().find((t) => t.name === "code_exec")!;
     const props = codeExec.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("language");
     const lang = props.language as { enum?: string[] };

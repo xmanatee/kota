@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
-import { allTools, executeTool } from "./tools/index.js";
+import { getAllTools, executeTool } from "./tools/index.js";
 import type { Transport } from "./transport.js";
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.
@@ -96,7 +96,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
   const { client, model, maxTokens, plan, costTracker, verbose, transport } = opts;
   if (verbose && transport) transport.emit({ type: "status", message: "[kota] Editor pass — executing plan..." });
 
-  const editorTools = allTools.filter((t) => EDITOR_TOOL_SET.has(t.name));
+  const editorTools = getAllTools().filter((t) => EDITOR_TOOL_SET.has(t.name));
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
     { type: "text", text: EDITOR_SYSTEM, cache_control: { type: "ephemeral" } },
   ];

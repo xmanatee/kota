@@ -97,11 +97,11 @@ function rebuildKnownNames(): void {
   }
 }
 
-export function filterTools(tools: Anthropic.Tool[]): Anthropic.Tool[] {
+export function filterTools(tools: readonly Anthropic.Tool[]): Anthropic.Tool[] {
   const active = getActiveToolNames();
   // Include active built-in tools + any custom-registered tools (not in any group/core)
   const filtered = tools.filter((t) => active.has(t.name) || !KNOWN_TOOL_NAMES.has(t.name));
-  // enable_tools is not in allTools but must always be available — rebuild with current groups
+  // enable_tools is not in the tool list but must always be available — rebuild with current groups
   if (!filtered.some((t) => t.name === "enable_tools")) {
     filtered.push(buildEnableToolsTool());
   }

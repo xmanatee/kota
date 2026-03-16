@@ -7,7 +7,7 @@ import {
   resetGroups,
   TOOL_GROUPS,
 } from "./tool-groups.js";
-import { allTools } from "./tools/index.js";
+import { getAllTools } from "./tools/index.js";
 
 /**
  * Cross-module integration tests: tool-groups × architect
@@ -20,17 +20,17 @@ import { allTools } from "./tools/index.js";
 beforeEach(() => resetGroups());
 
 describe("editor tool set independence from tool-group state", () => {
-  // The editor uses allTools.filter(EDITOR_TOOL_SET) directly,
+  // The editor uses getAllTools().filter(EDITOR_TOOL_SET) directly,
   // NOT filterTools. These tests verify the contract.
 
   it("editor gets all EDITOR_TOOL_SET tools even with no groups enabled", () => {
     // No groups enabled — filterTools would restrict to core only
-    const viaFilterTools = filterTools(allTools)
+    const viaFilterTools = filterTools(getAllTools())
       .filter((t) => EDITOR_TOOL_SET.has(t.name))
       .map((t) => t.name)
       .sort();
 
-    const direct = allTools
+    const direct = getAllTools()
       .filter((t) => EDITOR_TOOL_SET.has(t.name))
       .map((t) => t.name)
       .sort();
@@ -50,7 +50,7 @@ describe("editor tool set independence from tool-group state", () => {
 
   it("editor tool set is stable regardless of which groups are enabled", () => {
     const getEditorTools = () =>
-      allTools
+      getAllTools()
         .filter((t) => EDITOR_TOOL_SET.has(t.name))
         .map((t) => t.name)
         .sort();
@@ -85,20 +85,20 @@ describe("editor tool set independence from tool-group state", () => {
 
 describe("filterTools main-loop behavior with group state", () => {
   it("core tools always present even with no groups enabled", () => {
-    const filtered = filterTools(allTools).map((t) => t.name);
+    const filtered = filterTools(getAllTools()).map((t) => t.name);
     for (const core of CORE_TOOL_NAMES) {
-      if (allTools.some((t) => t.name === core)) {
+      if (getAllTools().some((t) => t.name === core)) {
         expect(filtered).toContain(core);
       }
     }
   });
 
   it("enabling a group adds its tools to filterTools output", () => {
-    const before = new Set(filterTools(allTools).map((t) => t.name));
+    const before = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(before.has("web_search")).toBe(false);
 
     enableGroup("web");
-    const after = new Set(filterTools(allTools).map((t) => t.name));
+    const after = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(after.has("web_search")).toBe(true);
     expect(after.has("web_fetch")).toBe(true);
     expect(after.has("http_request")).toBe(true);
@@ -106,22 +106,22 @@ describe("filterTools main-loop behavior with group state", () => {
 
   it("resetGroups removes all non-core tools from filterTools", () => {
     enableGroup("all");
-    const withAll = filterTools(allTools).map((t) => t.name);
+    const withAll = filterTools(getAllTools()).map((t) => t.name);
     expect(withAll).toContain("web_search");
     expect(withAll).toContain("code_exec");
 
     resetGroups();
-    const afterReset = new Set(filterTools(allTools).map((t) => t.name));
+    const afterReset = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(afterReset.has("web_search")).toBe(false);
     expect(afterReset.has("code_exec")).toBe(false);
   });
 
   it("enable_tools is always injected by filterTools", () => {
-    const names = filterTools(allTools).map((t) => t.name);
+    const names = filterTools(getAllTools()).map((t) => t.name);
     expect(names).toContain("enable_tools");
 
     enableGroup("all");
-    const namesAll = filterTools(allTools).map((t) => t.name);
+    const namesAll = filterTools(getAllTools()).map((t) => t.name);
     expect(namesAll).toContain("enable_tools");
   });
 });

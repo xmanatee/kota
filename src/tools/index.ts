@@ -57,7 +57,8 @@ const runners: Record<string, ToolRunner> = {
   enable_tools: runEnableTools,
 };
 
-export const allTools: Anthropic.Tool[] = [
+/** Internal mutable tool list — use getAllTools() externally. */
+const tools: Anthropic.Tool[] = [
   shellTool,
   fileReadTool,
   fileWriteTool,
@@ -77,8 +78,12 @@ export const allTools: Anthropic.Tool[] = [
   findReplaceTool,
   notebookTool,
   filesOverviewTool,
-
 ];
+
+/** Returns the full tool list (core + module-registered). Read-only. */
+export function getAllTools(): readonly Anthropic.Tool[] {
+  return tools;
+}
 
 export async function executeTool(
   name: string,
@@ -110,7 +115,7 @@ export function registerTool(
   if (runners[tool.name]) {
     throw new Error(`Tool already registered: ${tool.name}`);
   }
-  allTools.push(tool);
+  tools.push(tool);
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
   if (moduleName) {
@@ -128,8 +133,8 @@ export function deregisterModuleTools(moduleName: string): void {
   const owned = moduleToolOwners.get(moduleName);
   if (!owned) return;
   for (const name of owned) {
-    const idx = allTools.findIndex((t) => t.name === name);
-    if (idx >= 0) allTools.splice(idx, 1);
+    const idx = tools.findIndex((t) => t.name === name);
+    if (idx >= 0) tools.splice(idx, 1);
     delete runners[name];
     customToolNames.delete(name);
   }
@@ -137,13 +142,13 @@ export function deregisterModuleTools(moduleName: string): void {
 }
 
 export function getRegisteredTools(): Anthropic.Tool[] {
-  return allTools.filter((t) => customToolNames.has(t.name));
+  return tools.filter((t) => customToolNames.has(t.name));
 }
 
 export function clearCustomTools(): void {
   for (const name of customToolNames) {
-    const idx = allTools.findIndex((t) => t.name === name);
-    if (idx >= 0) allTools.splice(idx, 1);
+    const idx = tools.findIndex((t) => t.name === name);
+    if (idx >= 0) tools.splice(idx, 1);
     delete runners[name];
   }
   customToolNames.clear();

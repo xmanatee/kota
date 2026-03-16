@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   ActionExecutor,
   type ActionResult,
-  getActionItems,
   partitionDueItems,
 } from "./action-executor.js";
 import type { ScheduledItem } from "./scheduler.js";
@@ -17,29 +16,6 @@ function makeItem(overrides: Partial<ScheduledItem> = {}): ScheduledItem {
     ...overrides,
   };
 }
-
-describe("getActionItems", () => {
-  it("filters items with actions", () => {
-    const items = [
-      makeItem({ id: 1, action: "check weather" }),
-      makeItem({ id: 2 }),
-      makeItem({ id: 3, action: "run tests" }),
-    ];
-    const result = getActionItems(items);
-    expect(result).toHaveLength(2);
-    expect(result[0].id).toBe(1);
-    expect(result[1].id).toBe(3);
-  });
-
-  it("returns empty array when no items have actions", () => {
-    const items = [makeItem({ id: 1 }), makeItem({ id: 2 })];
-    expect(getActionItems(items)).toHaveLength(0);
-  });
-
-  it("returns empty array for empty input", () => {
-    expect(getActionItems([])).toHaveLength(0);
-  });
-});
 
 describe("partitionDueItems", () => {
   it("separates action items from notification-only items", () => {
