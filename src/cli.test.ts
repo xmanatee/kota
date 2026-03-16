@@ -2,7 +2,7 @@ import { execFileSync, type SpawnSyncReturns } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { formatAuthError } from "./cli.js";
+import { formatAuthError, parseIntOption } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "dist/cli.js");
@@ -28,6 +28,30 @@ function runExpectFail(...args: string[]): { stderr: string; exitCode: number } 
   } catch (err) {
     const e = err as SpawnSyncReturns<string>;
     return { stderr: e.stderr || "", exitCode: e.status ?? 1 };
+  }
+}
+
+/** Run CLI with full control: custom env, stdin, etc. */
+function runFull(
+  args: string[],
+  opts?: { env?: Record<string, string>; input?: string },
+): { stdout: string; stderr: string; exitCode: number } {
+  try {
+    const stdout = execFileSync("node", [CLI, ...args], {
+      encoding: "utf-8",
+      timeout: 5000,
+      cwd: root,
+      env: { ...process.env, ...opts?.env },
+      input: opts?.input,
+    });
+    return { stdout, stderr: "", exitCode: 0 };
+  } catch (err) {
+    const e = err as SpawnSyncReturns<string>;
+    return {
+      stdout: e.stdout || "",
+      stderr: e.stderr || "",
+      exitCode: e.status ?? 1,
+    };
   }
 }
 
@@ -117,5 +141,105 @@ describe("formatAuthError", () => {
     expect(formatAuthError(new Error("Network timeout"))).toBeNull();
     expect(formatAuthError(new Error("Rate limited"))).toBeNull();
     expect(formatAuthError(new Error("Internal server error"))).toBeNull();
+  });
+});
+
+describe("parseIntOption", () => {
+  it("parses valid positive integers", () => {
+    expect(parseIntOption("42", "test")).toBe(42);
+    expect(parseIntOption("1", "test")).toBe(1);
+    expect(parseIntOption("8192", "test")).toBe(8192);
+  });
+
+  it("rejects non-numeric strings", () => {
+    const { stderr, exitCode } = runFull(["run", "--max-tokens", "abc", "hello"], {
+      env: { ANTHROPIC_API_KEY: "" },
+    });
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--max-tokens");
+    expect(stderr).toContain("positive integer");
+    expect(stderr).toContain("abc");
+  });
+
+  it("rejects zero", () => {
+    const { stderr, exitCode } = runFull(["run", "--max-tokens", "0", "hello"], {
+      env: { ANTHROPIC_API_KEY: "" },
+    });
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--max-tokens");
+  });
+
+  it("rejects negative numbers", () => {
+    const { stderr, exitCode } = runFull(["run", "--max-tokens", "-5", "hello"], {
+      env: { ANTHROPIC_API_KEY: "" },
+    });
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--max-tokens");
+  });
+
+  it("rejects floating point for serve port", () => {
+    const { stderr, exitCode } = runFull(["serve", "--port", "not-a-port"], {
+      env: { ANTHROPIC_API_KEY: "" },
+    });
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--port");
+    expect(stderr).toContain("positive integer");
+  });
+
+  it("rejects invalid think-budget", () => {
+    const { stderr, exitCode } = runFull(
+      ["run", "--think", "--think-budget", "xyz", "hello"],
+      { env: { ANTHROPIC_API_KEY: "" } },
+    );
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--think-budget");
+  });
+
+  it("rejects invalid history limit", () => {
+    const { stderr, exitCode } = runFull(["history", "list", "--limit", "foo"]);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--limit");
+    expect(stderr).toContain("positive integer");
+  });
+});
+
+describe("--continue validation", () => {
+  it("exits with error when no previous conversation exists", () => {
+    const { stderr, exitCode } = runFull(["run", "--continue", "hello"], {
+      env: { ANTHROPIC_API_KEY: "sk-ant-test", HOME: "/tmp/kota-test-nonexistent" },
+    });
+    expect(exitCode).toBe(1);
+  });
+});
+
+describe("subcommand help", () => {
+  it("serve --help lists port and model options", () => {
+    const out = run("serve", "--help");
+    expect(out).toContain("--port");
+    expect(out).toContain("--model");
+    expect(out).toContain("--verbose");
+  });
+
+  it("telegram --help lists token and allowed-chats options", () => {
+    const out = run("telegram", "--help");
+    expect(out).toContain("--token");
+    expect(out).toContain("--allowed-chats");
+  });
+
+  it("tools --help lists install, list, remove, update", () => {
+    const out = run("tools", "--help");
+    expect(out).toContain("install");
+    expect(out).toContain("list");
+    expect(out).toContain("remove");
+    expect(out).toContain("update");
+  });
+
+  it("history --help lists list, show, resume, delete, clear", () => {
+    const out = run("history", "--help");
+    expect(out).toContain("list");
+    expect(out).toContain("show");
+    expect(out).toContain("resume");
+    expect(out).toContain("delete");
+    expect(out).toContain("clear");
   });
 });

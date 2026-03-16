@@ -10,6 +10,16 @@ import { getScheduler, resetScheduler } from "./scheduler.js";
 import { startServer } from "./server.js";
 import { TelegramBot } from "./telegram.js";
 
+/** Parse a CLI numeric option, exiting with a clear message on invalid input. */
+export function parseIntOption(value: string, name: string): number {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error(`Error: --${name} must be a positive integer, got "${value}"`);
+    process.exit(1);
+  }
+  return n;
+}
+
 /**
  * Check that the Anthropic API key is available before starting any agent.
  * Exits with a clear, actionable message if missing.
@@ -68,18 +78,22 @@ program
   .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
   .option("--no-history", "Disable automatic conversation history")
   .action(async (promptWords: string[], opts) => {
+    // Validate numeric options before anything else
+    const parsedMaxTokens = opts.maxTokens ? parseIntOption(opts.maxTokens, "max-tokens") : undefined;
+    const parsedThinkBudget = opts.thinkBudget ? parseIntOption(opts.thinkBudget, "think-budget") : undefined;
+
     ensureApiKey();
     const config = loadConfig();
 
     // CLI flags override config file values
     const model = opts.model || config.model || "claude-sonnet-4-6";
     const editorModel = opts.editorModel || config.editorModel;
-    const maxTokens = opts.maxTokens ? Number.parseInt(opts.maxTokens, 10) : (config.maxTokens || 8192);
+    const maxTokens = parsedMaxTokens || config.maxTokens || 8192;
     const verbose = opts.verbose || config.verbose || false;
     const architect = opts.architect || config.architect || false;
     const thinkEnabled = opts.think || config.thinking || false;
-    const thinkBudget = opts.thinkBudget
-      ? Math.max(1024, Number.parseInt(opts.thinkBudget, 10))
+    const thinkBudget = parsedThinkBudget
+      ? Math.max(1024, parsedThinkBudget)
       : (config.thinkingBudget || 10000);
     const skipConfirm = opts.yes || config.skipConfirmations || false;
 
@@ -97,6 +111,7 @@ program
           resumeId = recent.id;
         } else {
           console.error("No previous conversation found for this directory.");
+          process.exit(1);
         }
       }
     }
@@ -132,10 +147,11 @@ program
   .option("-m, --model <model>", "Model to use")
   .option("-v, --verbose", "Show debug output")
   .action((opts) => {
+    const port = parseIntOption(opts.port, "port");
     ensureApiKey();
     const config = loadConfig();
     startServer({
-      port: Number.parseInt(opts.port, 10),
+      port,
       model: opts.model || config.model,
       verbose: opts.verbose || config.verbose,
       config,
@@ -294,7 +310,11 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
 
   rl.on("line", async (line) => {
     let input = line.trim();
-    if (!input || input === "exit" || input === "quit") {
+    if (!input) {
+      rl.prompt();
+      return;
+    }
+    if (input === "exit" || input === "quit") {
       stopScheduler();
       resetScheduler();
       session.close();
@@ -350,7 +370,7 @@ historyCmd
   .action((opts) => {
     const history = getHistory();
     const list = history.list({
-      limit: Number.parseInt(opts.limit, 10),
+      limit: parseIntOption(opts.limit, "limit"),
       search: opts.search,
       cwd: opts.all ? undefined : process.cwd(),
     });
@@ -459,9 +479,15 @@ async function checkPipeMode() {
     const piped = chunks.join("").trim();
     if (piped) {
       ensureApiKey();
+      const config = loadConfig();
       await runAgentLoop(piped, {
-        model: "claude-sonnet-4-6",
-        maxTokens: 8192,
+        model: config.model || "claude-sonnet-4-6",
+        maxTokens: config.maxTokens || 8192,
+        verbose: config.verbose,
+        architectMode: config.architect,
+        thinkingEnabled: config.thinking,
+        thinkingBudget: config.thinking ? (config.thinkingBudget || 10000) : undefined,
+        config,
       });
       return true;
     }

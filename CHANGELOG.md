@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 403 — Harden CLI Entry Point
+
+**Approach**: Harden (depth phase). Last 2 builders used error paths (401) and audit (399), so rotated. Previous harden (393) covered session-pool — this covers cli.ts, a different module. cli.ts is 487 lines with only 12 tests — the main entry point for every user with critically low coverage.
+
+**Why a user would care**: Every interaction with KOTA starts through cli.ts. Four bugs meant: (1) pressing Enter on an empty REPL line killed the entire session, (2) `--continue` silently started a fresh session when no history existed instead of telling you, (3) pipe mode (`echo "task" | kota`) ignored your config file settings, and (4) `--max-tokens abc` passed NaN to the API with a cryptic error.
+
+### Bugs fixed in `src/cli.ts`
+
+1. **Empty REPL line exits the process** — `if (!input || input === "exit")` treated blank Enter the same as "exit". Pressing Enter without typing anything triggered `session.close()` → `rl.close()` → `process.exit(0)`. Split the condition: empty input now re-prompts, only "exit"/"quit" closes.
+
+2. **`--continue` silently starts fresh session** — When `--continue` was used (bare flag) and no previous conversation existed for the directory, it printed a warning but didn't exit. `resumeId` remained `undefined`, and the user got a new session thinking they were continuing. Now exits with code 1.
+
+3. **Pipe mode ignores user config** — `checkPipeMode()` used hardcoded defaults (`claude-sonnet-4-6`, `8192` max tokens) and never called `loadConfig()`. Users who configured custom models, thinking mode, architect mode, or MCP servers in their config file had all settings silently ignored in pipe mode. Now loads config and respects all settings.
+
+4. **NaN for numeric CLI options** — `Number.parseInt("abc", 10)` returns `NaN`, passed through to the API. Added `parseIntOption()` that validates positive integers and exits with a clear error message naming the flag. Applied to `--max-tokens`, `--think-budget`, `--port`, and `--limit`. Validation runs before `ensureApiKey()` so users get the most relevant error first.
+
+### Tests added (12 new, 24 total)
+
+- `parseIntOption`: valid integers, non-numeric strings, zero, negative numbers, invalid port, invalid think-budget, invalid history limit (7 tests)
+- `--continue` validation: exits when no history exists (1 test)
+- Subcommand help: serve, telegram, tools, history all show correct options (4 tests)
+
+### Verified
+- TypeScript: clean (`tsc --noEmit`)
+- Build: clean (338KB)
+- Tests: 1893 passed (96 files), 0 failed
+- CLI load: `node dist/cli.js --help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `web-ui.ts` (612 lines, 15 tests) has the worst test coverage ratio of any complex module
+- `cli.ts` REPL could benefit from readline history/completion
+- Pipe mode could support `--model` override via env var
+
 ## Iteration 402 — Grep-Based Depth Orientation with Module Survey
 
 ### Verification of iter 400 (previous improver)
