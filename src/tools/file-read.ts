@@ -108,41 +108,70 @@ export async function runFileRead(
     return { content: fileNotFoundError(filePath), is_error: true };
   }
 
+  // Single statSync — all branches use stats.size, so one call eliminates
+  // redundant stats and TOCTOU races between stat and read.
+  let stats: ReturnType<typeof statSync>;
+  try {
+    stats = statSync(filePath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM") {
+      return { content: `Error: permission denied reading ${filePath}`, is_error: true };
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return { content: `Error reading ${filePath}: ${msg}`, is_error: true };
+  }
+
+  if (stats.isDirectory()) {
+    return {
+      content: `Error: ${filePath} is a directory, not a file. Use glob or shell \`ls\` to list directory contents.`,
+      is_error: true,
+    };
+  }
+
   const mediaType = isImageFile(filePath);
   if (mediaType) {
-    return readImage(filePath, mediaType);
+    return readImage(filePath, mediaType, stats.size);
   }
 
   if (isPdfFile(filePath)) {
-    return readPdf(filePath, input);
+    return readPdf(filePath, input, stats.size);
   }
 
   const docFormat = getDocumentFormat(filePath);
   if (docFormat) {
-    const stats = statSync(filePath);
     const hint = docFormat.hint.replaceAll("PATH", filePath);
     return {
       content: `${docFormat.type} (${formatSize(stats.size)}): ${filePath}\n\n${hint}`,
     };
   }
 
-  const stats = statSync(filePath);
-  if (stats.size > 0 && isBinaryFile(filePath)) {
-    return {
-      content: `Binary file (${formatSize(stats.size)}): ${filePath}\nUse shell or code_exec to process this file.`,
-    };
+  if (stats.size > 0) {
+    try {
+      if (isBinaryFile(filePath)) {
+        return {
+          content: `Binary file (${formatSize(stats.size)}): ${filePath}\nUse shell or code_exec to process this file.`,
+        };
+      }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "EACCES" || code === "EPERM") {
+        return { content: `Error: permission denied reading ${filePath}`, is_error: true };
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      return { content: `Error reading ${filePath}: ${msg}`, is_error: true };
+    }
   }
 
-  return readText(filePath, input);
+  return readText(filePath, input, stats.size);
 }
 
 function isPdfFile(filePath: string): boolean {
   return extname(filePath).toLowerCase() === ".pdf";
 }
 
-function readPdf(filePath: string, input: Record<string, unknown>): ToolResult {
-  const stats = statSync(filePath);
-  if (stats.size === 0) {
+function readPdf(filePath: string, input: Record<string, unknown>, fileSize: number): ToolResult {
+  if (fileSize === 0) {
     return { content: `Error: PDF file is empty: ${filePath}`, is_error: true };
   }
 
@@ -175,7 +204,7 @@ function readPdf(filePath: string, input: Record<string, unknown>): ToolResult {
         : "";
 
     recordRead(filePath);
-    return { content: `[PDF: ${filePath}, ${formatSize(stats.size)}]\n\n${numbered}${info}` };
+    return { content: `[PDF: ${filePath}, ${formatSize(fileSize)}]\n\n${numbered}${info}` };
   } catch (err: unknown) {
     const nodeErr = err as NodeJS.ErrnoException;
     if (nodeErr.code === "ENOENT") {
@@ -191,21 +220,20 @@ function readPdf(filePath: string, input: Record<string, unknown>): ToolResult {
   }
 }
 
-function readImage(filePath: string, mediaType: string): ToolResult {
-  const stats = statSync(filePath);
-  if (stats.size > MAX_IMAGE_SIZE) {
+function readImage(filePath: string, mediaType: string, fileSize: number): ToolResult {
+  if (fileSize > MAX_IMAGE_SIZE) {
     return {
-      content: `Error: Image too large (${formatSize(stats.size)}). Maximum supported size is 20MB.`,
+      content: `Error: Image too large (${formatSize(fileSize)}). Maximum supported size is 20MB.`,
       is_error: true,
     };
   }
-  if (stats.size === 0) {
+  if (fileSize === 0) {
     return { content: `Error: Image file is empty: ${filePath}`, is_error: true };
   }
 
   const data = readFileSync(filePath);
   const base64 = data.toString("base64");
-  const description = `Image: ${filePath} (${formatSize(stats.size)})`;
+  const description = `Image: ${filePath} (${formatSize(fileSize)})`;
 
   const blocks: ToolResultBlock[] = [
     { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
@@ -216,7 +244,7 @@ function readImage(filePath: string, mediaType: string): ToolResult {
   return { content: description, blocks };
 }
 
-function readText(filePath: string, input: Record<string, unknown>): ToolResult {
+function readText(filePath: string, input: Record<string, unknown>, fileSize: number): ToolResult {
   const offset = Math.max(1, (input.offset as number) || 1);
   const limit = (input.limit as number) || 2000;
 
@@ -234,8 +262,7 @@ function readText(filePath: string, input: Record<string, unknown>): ToolResult 
   const isTruncated = lines.length > offset - 1 + limit;
   let info = "";
   if (isTruncated) {
-    const stats = statSync(filePath);
-    info = `\n\n[${formatSize(stats.size)} | ${lines.length} lines | showing ${offset}-${offset + selected.length - 1}]`;
+    info = `\n\n[${formatSize(fileSize)} | ${lines.length} lines | showing ${offset}-${offset + selected.length - 1}]`;
     if (lines.length > 2 * limit) {
       info += `\nUse code_exec to process the full file programmatically.`;
     }

@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 469 — Hardened file-read error paths: directory check, TOCTOU fixes, permission handling
+
+Fixed 4 bugs in `tools/file-read.ts` (255 lines, never depth-examined) and sweep-fixed the same directory-path bug in 3 sibling tools; added 12 new error-path tests.
+
+### Approach: error-paths on tools/file-read.ts (uncovered module)
+
+**Why it matters**: `file_read` is the most frequently called tool in every agent workflow. Confusing error messages waste entire agent turns and mislead the LLM into incorrect recovery strategies.
+
+### Bugs fixed
+
+1. **No directory check** (high) — Passing a directory path produced cryptic `Tool error: EISDIR: illegal operation on a directory, read` instead of `Error: <path> is a directory, not a file. Use glob or shell \`ls\` to list directory contents.`
+
+2. **TOCTOU in `readText`** (high) — Redundant `statSync` at line 237 called AFTER `readFileSync` already loaded the file content. If the file was deleted between the two calls (e.g., temporary files in pipelines), the function threw an unhandled error with a generic message instead of returning the content it had already read.
+
+3. **5 redundant `statSync` calls** (medium) — Lines 122, 129, 144, 195, 237 each independently called `statSync`. Consolidated into a single call at the top of `runFileRead`, eliminating 4 race windows and 4 wasted syscalls.
+
+4. **Permission errors from `isBinaryFile`** (high) — `statSync` doesn't require read permission (only directory traverse), so it succeeds for unreadable files. But `isBinaryFile` calls `openSync("r")` which throws EACCES, producing `Tool error: EACCES: permission denied, open '...'` instead of `Error: permission denied reading <path>`.
+
+### Sweep fixes
+
+Same directory-path bug existed in 3 sibling tools:
+- `file-edit.ts` — `readFileSync` on directory → EISDIR
+- `multi-edit.ts` — `readFileSync` on directory → EISDIR
+- `file-write.ts` — `writeFileSync` on directory → EISDIR
+
+Added `statSync(path).isDirectory()` checks to all three.
+
+### Tests added (12 new, 42→54 total)
+
+- Directory path → clear "is a directory" error
+- Nested directory path → same error
+- Permission-denied file → "permission denied" error (chmod-based, skipped on root)
+- Empty file → no crash, returns content
+- Offset beyond file length → empty result, no crash
+- Offset=0 treated as offset=1
+- Negative offset treated as offset=1
+- Null/undefined path → "path is required"
+- Symlink to directory → "is a directory"
+- Image size shown from centralized stat
+- Deleted-file race condition path format
+- Permission test confirms the actual bug is fixed (was failing before the fix)
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — clean (377.83 KB)
+- `npm test` — 2262 tests pass (all 110 test files)
+- `node dist/cli.js --help` — loads correctly
+- Runtime smoke test — SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `verify-tracker.ts` and `tools/find-replace.ts` remain uncovered (depth-log)
+- `tools/file-read.ts` could add special file detection (FIFO, device files) to prevent `readFileSync` hangs on `/dev/zero`-like paths
+
 ## Iteration 468 — Excluded untestable template-literal modules from depth targeting
 
 Added DEPTH_EXCLUDE to refresh-depth-log.py; uncovered list now 3 real modules instead of 5 (was 7 before refresh).

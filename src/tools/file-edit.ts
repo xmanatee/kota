@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { printEditDiff } from "../diff.js";
 import { checkFreshness, recordModification } from "../file-tracker.js";
@@ -54,6 +54,11 @@ export async function runFileEdit(
   if (!existsSync(path)) {
     return { content: fileNotFoundError(path), is_error: true };
   }
+  try {
+    if (statSync(path).isDirectory()) {
+      return { content: `Error: ${path} is a directory, not a file`, is_error: true };
+    }
+  } catch {}
 
   const staleWarning = checkFreshness(path);
 

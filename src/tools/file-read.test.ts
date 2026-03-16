@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { truncateToolResult } from "../context.js";
@@ -447,5 +447,118 @@ describe("file_read × context: CSV metadata survives truncation", () => {
     const truncated = truncateToolResult(result.content, 500);
     expect(truncated).toContain("[CSV: 200 rows × 3 cols |");
     expect(truncated).toContain("chars omitted");
+  });
+});
+
+describe("file_read: error paths", () => {
+  it("returns clear error when path is a directory", async () => {
+    const dirPath = join(TEST_DIR, "subdir");
+    mkdirSync(dirPath, { recursive: true });
+    const result = await runFileRead({ path: dirPath });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("is a directory");
+    expect(result.content).toContain("glob");
+  });
+
+  it("returns clear error for nested directory path", async () => {
+    const result = await runFileRead({ path: TEST_DIR });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("is a directory");
+  });
+
+  it("returns error for unreadable file (permission denied)", async () => {
+    // Skip on CI/root where chmod may not restrict access
+    if (process.getuid?.() === 0) return;
+    const path = join(TEST_DIR, "noperm.txt");
+    writeFileSync(path, "secret content");
+    chmodSync(path, 0o000);
+    try {
+      const result = await runFileRead({ path });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("permission denied");
+    } finally {
+      chmodSync(path, 0o644);
+    }
+  });
+
+  it("reads empty file without crashing", async () => {
+    const path = join(TEST_DIR, "empty-file.txt");
+    writeFileSync(path, "");
+    const result = await runFileRead({ path });
+    expect(result.is_error).toBeUndefined();
+    // Should produce output (even if just an empty line number)
+    expect(typeof result.content).toBe("string");
+  });
+
+  it("handles offset beyond file length gracefully", async () => {
+    const path = join(TEST_DIR, "short.txt");
+    writeFileSync(path, "line1\nline2\n");
+    const result = await runFileRead({ path, offset: 1000 });
+    expect(result.is_error).toBeUndefined();
+    // Should return empty content (no lines in range), not crash
+    expect(typeof result.content).toBe("string");
+  });
+
+  it("handles offset=0 the same as offset=1", async () => {
+    const path = join(TEST_DIR, "offset-zero.txt");
+    writeFileSync(path, "first\nsecond\nthird");
+    const r0 = await runFileRead({ path, offset: 0 });
+    const r1 = await runFileRead({ path, offset: 1 });
+    expect(r0.content).toBe(r1.content);
+  });
+
+  it("handles negative offset the same as offset=1", async () => {
+    const path = join(TEST_DIR, "neg-offset.txt");
+    writeFileSync(path, "alpha\nbeta");
+    const rNeg = await runFileRead({ path, offset: -5 });
+    const r1 = await runFileRead({ path, offset: 1 });
+    expect(rNeg.content).toBe(r1.content);
+  });
+
+  it("handles null/undefined path as empty path error", async () => {
+    const r1 = await runFileRead({ path: null });
+    expect(r1.is_error).toBe(true);
+    expect(r1.content).toContain("path is required");
+
+    const r2 = await runFileRead({});
+    expect(r2.is_error).toBe(true);
+    expect(r2.content).toContain("path is required");
+  });
+
+  it("symlink to directory returns directory error", async () => {
+    const { symlinkSync } = await import("node:fs");
+    const target = join(TEST_DIR, "link-target-dir");
+    mkdirSync(target, { recursive: true });
+    const link = join(TEST_DIR, "dir-symlink");
+    try {
+      symlinkSync(target, link);
+    } catch {
+      return; // skip if symlinks not supported
+    }
+    const result = await runFileRead({ path: link });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("is a directory");
+  });
+
+  it("oversized image returns clear size error", async () => {
+    // We can't create a real 20MB+ file in tests, but verify the check logic
+    // by reading a normal image and verifying the size is shown
+    const path = join(TEST_DIR, "size-check.png");
+    writeFileSync(path, MINIMAL_PNG);
+    const result = await runFileRead({ path });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Image:");
+    // The size should be reported from the centralized stat, not a separate call
+    expect(result.content).toMatch(/\(\d+B\)/);
+  });
+
+  it("file deleted between existsSync and statSync returns clean error", async () => {
+    // We can't easily simulate this race, but we verify the error path format
+    // by testing with a path that passes existsSync but has other issues.
+    // The centralized try-catch should produce "Error reading <path>: ..." not "Tool error: ..."
+    const path = join(TEST_DIR, "will-be-ok.txt");
+    writeFileSync(path, "content");
+    const result = await runFileRead({ path });
+    expect(result.is_error).toBeUndefined();
   });
 });

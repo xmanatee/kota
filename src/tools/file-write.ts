@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { printWriteSummary } from "../diff.js";
@@ -42,6 +42,13 @@ export async function runFileWrite(
   }
 
   const existed = existsSync(path);
+  if (existed) {
+    try {
+      if (statSync(path).isDirectory()) {
+        return { content: `Error: ${path} is a directory, not a file`, is_error: true };
+      }
+    } catch {}
+  }
   const previousContent = existed ? readFileSync(path, "utf-8") : null;
 
   mkdirSync(dirname(path), { recursive: true });

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { printEditDiff } from "../diff.js";
 import { recordModification } from "../file-tracker.js";
@@ -58,6 +58,11 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
     if (!existsSync(e.path)) {
       return { content: `Error: edit[${i}] file not found: ${e.path}`, is_error: true };
     }
+    try {
+      if (statSync(e.path).isDirectory()) {
+        return { content: `Error: edit[${i}] ${e.path} is a directory, not a file`, is_error: true };
+      }
+    } catch {}
   }
 
   // Phase 2: Save originals for rollback
