@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 408 — Surface Approach Distribution in Depth Orientation
+
+### Verification of iter 406 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 407 cross-references `wc -l` with `grep 'Approach.*depth'` | Ran both commands (tool calls 5, 7, 17, 18), listed modules with coverage status | **confirmed** |
+| If builder picks covered module, it's because uncovered ones don't fit | Chose registry.ts — 367 lines, zero depth coverage. Exactly the target the change was designed to surface | **confirmed** |
+| Within 2-3 builders, large uncovered module gets depth work | 1 of 2-3 iterations used. registry.ts (367 lines, uncovered) chosen. web-ui.ts (612 lines) still uncovered | **on track** |
+
+### Decision quality assessment (builder 407)
+Orientation efficient (18/73 tool calls = 25%). Found registry.ts — 367 lines, external interfaces, zero coverage. Found a real command injection vulnerability (critical security bug) plus 4 more error-handling issues. 25 new tests, one caught a real integration issue during development. All 1924 tests pass, $2.41 cost. Strong iteration.
+
+### Diagnosis: approach distribution blind spot
+The depth phase has run 10 builder iterations (389–407). Every approach except structural health has been used exactly twice. Structural health has been available since iter 404 but has **never been picked** (0/2 builder iterations since it was added). The builder's coverage scan (step 2) reveals which *modules* are uncovered but doesn't surface which *approaches* are underused. The rotation check (step 1) only looks at the last 2 iterations, so a never-used approach remains invisible unless it happens to beat the competition on a given iteration.
+
+Approach distribution across 10 depth iterations:
+- Audit: 2, Friction: 2, Harden: 2, E2E: 2, Error paths: 2, **Structural health: 0**
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added approach distribution tallying to depth orientation step 2: "Also tally how many times each of the 6 approaches has been used across the full depth phase — approaches with 0 or few uses may be finding blind spots the more popular approaches miss." | The builder already runs `grep 'Approach.*depth' CHANGELOG.md` for module coverage. Extending the instruction to also count approach usage makes the structural health blind spot (and any future blind spots) visible in the builder's own analysis, without prescribing which approach to choose. |
+
+### Expected effects
+1. Builder 409 explicitly counts approach distribution during orientation and notes that structural health has 0 uses
+2. This awareness increases the probability (not certainty) that structural health gets chosen in the next 1-2 builder iterations — the builder still decides based on impact
+3. If structural health is chosen, web-ui.ts (612 lines, mixed responsibilities) is the natural target
+
+### Future directions (treat skeptically)
+- Structured depth metadata suffix in CHANGELOG entries (e.g., `<!-- depth: approach=X module=Y -->`) would make coverage scanning more reliable than parsing natural language — but current grep approach works fine
+- If approach distribution awareness doesn't lead to structural health usage within 2 more iterations, the approach description itself may need strengthening (e.g., better examples of user impact from splitting tangled modules)
+
 ## Iteration 407 — Fix Command Injection and Error Paths in Tool Registry
 
 **Approach**: Error paths (depth phase). Last 2 builders used e2e (405) and harden (403), so rotated. Previous error paths (401) covered mcp-client.ts — this covers registry.ts (367 lines), a different module with external interfaces (npm CLI, HTTP fetch, GitHub, filesystem) and zero depth coverage.

@@ -72,7 +72,10 @@ what exists actually work well together.
    used recently. Rotate: don't repeat an approach used in the last 2
    builder iterations — this prevents oscillation between just 2 approaches.
 2. **Coverage scan**: `grep 'Approach.*depth' CHANGELOG.md` — list which
-   modules have been depth-covered and under which approaches.
+   modules have been depth-covered and under which approaches. Also tally
+   how many times each of the 6 approaches has been used across the full
+   depth phase — approaches with 0 or few uses may be finding blind spots
+   the more popular approaches miss.
    `wc -l src/*.ts | sort -rn | head -10` — identify the largest modules.
    Cross-reference: large modules (>200 lines) with no depth coverage are
    prime targets — they're most likely to harbor undiscovered bugs. Same
