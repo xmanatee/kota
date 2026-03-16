@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 468 — Excluded untestable template-literal modules from depth targeting
+
+Added DEPTH_EXCLUDE to refresh-depth-log.py; uncovered list now 3 real modules instead of 5 (was 7 before refresh).
+
+### Verification of iter 466 (previous improver)
+
+| Expected Effect | Actual (iter 467) | Verdict |
+|---|---|---|
+| Builder performs cross-module sweep after primary fix | Builder found fragile abort detection in web-search.ts, then proactively swept web-fetch.ts for the same pattern. Key text: "The fragile abort detection exists in **both** web-search.ts AND web-fetch.ts." Commit: "sweep-fixed fragile abort detection in web-search + web-fetch" | **confirmed** |
+| Builder sees 7 uncovered modules, file-edit.ts absent | Builder read depth-log.md (tool call #4), target discussion mentions uncovered modules without file-edit.ts | **confirmed** |
+
+### Diagnosis
+
+Builder 467 performed well: picked audit approach (rotation-correct — last 2 were harden/friction), targeted web-search.ts × html-extract.ts (uncovered modules), found 3 real bugs (entity gap, 2 fragile abort detections), and naturally integrated the sweep-check to fix the same abort pattern in web-fetch.ts. 12 new tests, all verification passed.
+
+**Critical issue spotted**: After iter 467's refresh, the uncovered modules list showed web-ui-client.ts (298 lines, 0 tests) and web-ui-styles.ts (278 lines, 0 tests) as the top two targets — both ranked highest by line count AND by zero-test priority. These files are template literals: one is browser-side JavaScript embedded in a string, the other is CSS. They contain zero server-side logic and are fundamentally untestable with Node.js unit tests. If the builder picks either, it will waste an entire depth iteration looking for "bugs" in CSS selectors or DOM manipulation code.
+
+The uncovered list was actively misleading: it surfaced 2 untestable files as highest-priority blind spots, ahead of 3 genuinely testable modules (file-read.ts, verify-tracker.ts, find-replace.ts).
+
+### Changes
+
+**`refresh-depth-log.py`** (254→268 lines):
+- Added `DEPTH_EXCLUDE` set containing `web-ui-client.ts` and `web-ui-styles.ts` with explanatory comments
+- Filtered excluded modules from uncovered list and stale coverage list
+- Added "Excluded from depth targeting" note in depth-log output so the builder understands why they're missing
+- Updated summary stderr output to show exclusion count
+
+**`depth-log.md`** (refreshed via script):
+- Uncovered: 7→3 modules (html-extract.ts + web-search.ts moved to covered after iter 467; web-ui-client.ts + web-ui-styles.ts excluded)
+- Lines: 1,830→672
+- Zero-test modules: 2→0 (the two zero-test modules were the excluded ones)
+- Approaches: audit=3→4
+- Severity: high=14→15
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 468 | **harness/scripts** + evaluation signals |
+| 466 | builder prompt |
+| 464 | harness/scripts |
+| 462 | harness/scripts + builder prompt + own prompt |
+
+Harness/scripts again, but with a clear evaluation-signals impact (changing what data the builder sees). The builder prompt lever was used last iteration so avoiding it. The actual evaluation-signal change (what the builder targets) is the high-impact part.
+
+### Expected effects
+
+1. **Builder 469 does NOT pick web-ui-client.ts or web-ui-styles.ts.** Observable: builder's key text target shortlist discussion does not mention either module. The uncovered list now shows only file-read.ts, verify-tracker.ts, and find-replace.ts.
+2. **Builder 469 sees the "Excluded from depth targeting" note.** Observable: builder reads depth-log.md (should appear in tool-call sequence) and its target rationale is informed by the 3-module uncovered list. Not directly observable whether builder reads the note, but absence of excluded modules from consideration is sufficient evidence.
+3. **Builder 469 picks from {file-read.ts, verify-tracker.ts, find-replace.ts} or stale modules.** Observable: the depth-log row and CHANGELOG mention one of these targets (or a stale module with explicit rationale for skipping uncovered).
+
+### Future directions
+
+- **parse-log.py key text display limit increase** (harness/scripts): Currently truncates at 200 chars display; captured at 300 chars. Increasing display to 300 would show full captured text for better verification. Trivial change but low impact.
+- **Builder prompt: depth phase transition guidance**: With only 3 uncovered modules remaining, the builder will soon exhaust uncovered targets and shift entirely to stale modules. Current guidance handles this implicitly but could be made more explicit about how to prioritize stale modules (by staleness vs by line count vs by approach diversity).
+
 ## Iteration 467 — Audit: web-search × html-extract entity gap + abort detection sweep
 
 Fixed 3 bugs across web-search and web-fetch by auditing connections between web-search.ts and html-extract.ts, then sweeping for a known fragile pattern.

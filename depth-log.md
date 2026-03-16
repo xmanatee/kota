@@ -37,12 +37,12 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 |----------|-------|-----------|
 | harden | 5 | 465 |
 | error-paths | 5 | 459 |
+| audit | 4 | 467 |
 | friction | 4 | 463 |
 | e2e | 4 | 461 |
 | structural-health | 3 | 455 |
-| audit | 3 | 453 |
 
-24 depth iterations across 6 approaches.
+25 depth iterations across 6 approaches.
 
 ## Uncovered Modules — PRIMARY Targets
 
@@ -55,15 +55,13 @@ lines are the highest-risk blind spots.
 
 | Module | Lines | Test Lines |
 |--------|-------|------------|
-| web-ui-client.ts | 298 | 0 |
-| html-extract.ts | 296 | 377 |
-| tools/web-search.ts | 286 | 274 |
-| web-ui-styles.ts | 278 | 0 |
 | tools/file-read.ts | 255 | 451 |
 | verify-tracker.ts | 215 | 371 |
 | tools/find-replace.ts | 202 | 288 |
 
-**7 uncovered modules, 1,830 lines total (2 with zero tests).**
+**3 uncovered modules, 672 lines total (0 with zero tests).**
+
+*Excluded from depth targeting (view-only template literals): `web-ui-client.ts`, `web-ui-styles.ts`.*
 
 ## Stale Coverage — SECONDARY Targets
 
@@ -72,14 +70,14 @@ was ≥10 builder iterations ago. Consider after exhausting uncovered modules.*
 
 | Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |
 |--------|-------|------------|--------------|-------------------|-----------------|
-| registry.ts | 427 | 635 | 407 | 29 | error-paths |
-| cli.ts | 424 | 316 | 441 | 12 | friction, friction, harden, friction, e2e |
-| tool-adapters.ts | 403 | 641 | 415 | 25 | error-paths |
-| telegram.ts | 400 | 404 | 389 | 38 | audit |
-| server.ts | 400 | 242 | 425 | 20 | e2e, structural-health |
-| module-loader.ts | 312 | 506 | 441 | 12 | e2e |
-| tools/delegate.ts | 302 | 384 | 399 | 33 | audit |
-| mcp-client.ts | 249 | 349 | 401 | 32 | audit, error-paths |
+| registry.ts | 427 | 635 | 407 | 30 | error-paths |
+| cli.ts | 424 | 316 | 441 | 13 | friction, friction, harden, friction, e2e |
+| tool-adapters.ts | 403 | 641 | 415 | 26 | error-paths |
+| telegram.ts | 400 | 404 | 389 | 39 | audit |
+| server.ts | 400 | 242 | 425 | 21 | e2e, structural-health |
+| module-loader.ts | 312 | 506 | 441 | 13 | e2e |
+| tools/delegate.ts | 302 | 384 | 399 | 34 | audit |
+| mcp-client.ts | 249 | 349 | 401 | 33 | audit, error-paths |
 
 **8 stale modules.**
 
@@ -103,11 +101,14 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | module-loader.ts | 312 | 506 | 441 | e2e |
 | history.ts | 305 | 342 | 391,405,453 | friction, e2e, audit |
 | tools/delegate.ts | 302 | 384 | 399 | audit |
+| html-extract.ts | 296 | 377 | 467 | audit |
+| tools/web-search.ts | 280 | 382 | 467 | audit |
 | tools/file-edit.ts | 275 | 518 | 465 | harden |
 | task-store.ts | 259 | 280 | 455 | structural-health |
 | mcp-client.ts | 249 | 349 | 399,401 | audit, error-paths |
 | context.ts | 221 | 533 | 461 | e2e |
 | session-pool.ts | 185 | 427 | 393 | harden |
+| tools/web-fetch.ts | 185 | 436 | 467 | audit |
 | compaction.ts | 178 | 151 | 461 | e2e |
 | message-pruning.ts | 170 | 266 | 461 | e2e |
 | action-executor.ts | 141 | 112 | 453 | audit |
@@ -123,7 +124,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 466. Previous refresh at iter 465.
+Data refreshed at iter 468. Previous refresh at iter 467.
 
 ## Severity Key
 
@@ -133,4 +134,4 @@ Data refreshed at iter 466. Previous refresh at iter 465.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (24 iterations): critical=7, high=14, medium=3
+Distribution (25 iterations): critical=7, high=15, medium=3

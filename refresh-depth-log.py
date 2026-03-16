@@ -21,6 +21,13 @@ DEPTH_LOG = DIR / "depth-log.md"
 MIN_LINES = 200  # threshold for uncovered/coverage tracking
 STALE_THRESHOLD = 10  # builder iterations since last depth coverage
 
+# Modules excluded from depth targeting (uncovered + stale lists).
+# These contain no server-side logic testable with Node.js unit tests.
+DEPTH_EXCLUDE = {
+    "web-ui-client.ts",   # browser JS template literal — DOM manipulation, no server logic
+    "web-ui-styles.ts",   # CSS template literal — styling only, no testable logic
+}
+
 
 def parse_main_table(text: str) -> list[dict]:
     rows = []
@@ -114,10 +121,13 @@ def main():
             for path in resolve_module(mod_name, files):
                 covered.setdefault(path, []).append((row["iter"], row["approach"]))
 
-    # Uncovered modules (≥MIN_LINES, not covered)
+    # Uncovered modules (≥MIN_LINES, not covered, not excluded)
     uncovered = [
         (p, n) for p, n in sorted(files.items(), key=lambda x: -x[1])
-        if n >= MIN_LINES and p not in covered
+        if n >= MIN_LINES and p not in covered and p not in DEPTH_EXCLUDE
+    ]
+    excluded = [
+        (p, files[p]) for p in sorted(DEPTH_EXCLUDE) if p in files
     ]
 
     # Coverage matrix (covered modules still in filesystem)
@@ -150,7 +160,7 @@ def main():
     # Stale coverage detection (auto-generated)
     stale_modules = []
     for path in sorted(covered, key=lambda p: -(files.get(p, 0))):
-        if path not in files or files[path] < MIN_LINES:
+        if path not in files or files[path] < MIN_LINES or path in DEPTH_EXCLUDE:
             continue
         last_cov_iter = max(i for i, _ in covered[path])
         builder_iters_ago = (max_iter - last_cov_iter) // 2
@@ -194,6 +204,10 @@ def main():
                    f" ({zero_test} with zero tests).**")
     else:
         out.append("*All modules ≥200 lines have depth coverage.*")
+
+    if excluded:
+        names = ", ".join(f"`{p}`" for p, _ in excluded)
+        out.append(f"\n*Excluded from depth targeting (view-only template literals): {names}.*")
 
     # Stale coverage (auto-generated)
     out.append("")
@@ -242,7 +256,8 @@ def main():
     dest = "stdout" if dry else "depth-log.md"
     print(f"Refreshed {dest}:", file=sys.stderr)
     print(f"  {len(rows)} depth iterations in main table", file=sys.stderr)
-    print(f"  {len(uncovered)} uncovered modules ({sum(n for _, n in uncovered):,} lines)", file=sys.stderr)
+    excl_note = f" (+{len(excluded)} excluded)" if excluded else ""
+    print(f"  {len(uncovered)} uncovered modules ({sum(n for _, n in uncovered):,} lines){excl_note}", file=sys.stderr)
     print(f"  {len(stale_modules)} stale modules (≥{STALE_THRESHOLD} builder iters since last coverage)", file=sys.stderr)
     print(f"  {len(matrix)} covered modules in matrix", file=sys.stderr)
     print(f"  Severity: {sev_str}", file=sys.stderr)
