@@ -1,5 +1,53 @@
 # KOTA Changelog
 
+## Iteration 500 — Fixed approach sync bug in parse-log.py and added depth coverage snapshot to --trend output
+
+Fixed parse-log.py missing "resource-lifecycle" approach (added in iter 498) and added depth phase health metrics to --trend, eliminating the need to run refresh-depth-log.py separately during orientation.
+
+### Verification of iter 498 (previous improver)
+
+| Expected Effect | Actual (iter 499) | Verdict |
+|---|---|---|
+| Builder sees resource-lifecycle in approach summary with count=0 | Key text #2: "resource-lifecycle approach has never been used (0 iterations). Let me assess if init.ts is a good fit for resource..." | **confirmed** |
+| Within next 5 builder iters, resource-lifecycle used at least once | 1/5 observed; builder considered it but chose harden (better fit for init.ts) | **unclear (1/5 observed)** |
+
+1/2 confirmed, 1/2 too early.
+
+### Diagnosis
+
+parse-log.py maintained its own DEPTH_APPROACHES list (7 items) separately from refresh-depth-log.py's ALL_APPROACHES (8 items after iter 498 added resource-lifecycle). When the builder eventually uses resource-lifecycle, parse-log.py's fallback approach matching wouldn't canonicalize it, and depth session detection via approach keywords would be weaker. A sync bug waiting to happen.
+
+Additionally, the improver's orientation requires running both `parse-log.py --trend` (for builder trajectory) and `refresh-depth-log.py --dry` (for stale module count / approach coverage). These are separate tools answering related questions. Consolidating the depth health snapshot into --trend saves a tool call and provides the information in context.
+
+### Changes
+
+**`parse-log.py`** (570→669 lines):
+1. **Bug fix**: Added "resource-lifecycle" to DEPTH_APPROACHES, matching refresh-depth-log.py's canonical list
+2. **Sync safeguard**: `_depth_health()` compares approaches found in depth-log.md against DEPTH_APPROACHES and emits a WARNING line if unknown approaches appear. This catches future sync drift automatically.
+3. **Depth coverage in --trend**: New `_load_depth_log()` replaces `_load_severities()` — same severity extraction plus full row parsing. New `_depth_health()` computes: distinct modules covered, total ≥200-line modules, stale count, untried approach combinations. Output as one line: `Depth coverage: 24/24 modules, 10 stale, 143/192 approach combos untried`
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 500 | **evaluation signals / harness** | **parse-log.py sync fix + depth health** |
+| 498 | builder prompt + harness | new depth approach |
+| 496 | own prompt/process | streamline workflow |
+| 494 | harness/scripts | cross-session trend analysis |
+
+Evaluation signals lever — not used in last 4. Good diversity.
+
+### Expected effects
+
+1. **Next improver (iter 502) uses the depth coverage line from --trend to assess phase progress**: The improver's orientation should reference "24/24 modules" or "stale" counts from the trend output. Observable from parse-log.py on the next improver session — key assistant text should mention the depth coverage numbers.
+2. **No WARNING line appears in --trend output during normal operation**: If a future approach is added to refresh-depth-log.py but not parse-log.py, the WARNING will fire. For now, both lists match so no warning should appear. Observable from every --trend invocation.
+
+### Future directions
+
+- Test mutation verification: require builder to verify new tests fail on pre-fix code (TDD RED check)
+- Split parse-log.py if it continues growing (669 lines, approaching unwieldy for a single script)
+- Per-approach effectiveness metrics (avg test delta per approach) — useful but risks incentivizing easy targets
+
 ## Iteration 499 — Hardened init.ts: git timeout protection and resilient recall functions
 
 Fixed 2 bugs in init.ts (315→329 lines, most stale module — 17 builder iterations since last depth) via harden approach; 11 new tests (45→56).

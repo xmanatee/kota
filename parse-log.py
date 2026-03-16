@@ -139,9 +139,11 @@ def parse(path: str) -> None:
 # --- Files that are documentation, not implementation ---
 _DOC_FILES = {"changelog.md", "depth-log.md", "notes.md", "design.md"}
 
+# Keep in sync with ALL_APPROACHES in refresh-depth-log.py.
+# trend() validates at runtime and warns on mismatch.
 DEPTH_APPROACHES = [
     "audit", "friction", "harden", "e2e", "error-paths",
-    "structural-health", "concurrency",
+    "structural-health", "concurrency", "resource-lifecycle",
 ]
 
 
@@ -480,20 +482,105 @@ def _quick_parse(path: str) -> dict:
     }
 
 
-def _load_severities() -> dict[int, str]:
-    """Read severity per iteration from depth-log.md main table."""
+def _load_depth_log() -> tuple[dict[int, str], list[dict]]:
+    """Read depth-log.md main table. Returns (severity_map, rows)."""
     from pathlib import Path
     depth_log = Path(__file__).parent / "depth-log.md"
     if not depth_log.exists():
-        return {}
-    sevs = {}
+        return {}, []
+    sevs: dict[int, str] = {}
+    rows: list[dict] = []
     for line in depth_log.read_text().split("\n"):
         m = re.match(
-            r"\|\s*(\d+)\s*\|\s*\S+\s*\|.*?\|\s*(\S+)\s*\|.*?\|", line,
+            r"\|\s*(\d+)\s*\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*(\S+)\s*\|\s*(.+?)\s*\|",
+            line,
         )
         if m and m.group(1).isdigit():
-            sevs[int(m.group(1))] = m.group(2)
-    return sevs
+            it = int(m.group(1))
+            sevs[it] = m.group(4).strip()
+            rows.append({
+                "iter": it,
+                "approach": m.group(2).strip(),
+                "modules": [mod.strip() for mod in m.group(3).split(",")],
+            })
+    return sevs, rows
+
+
+def _depth_health(rows: list[dict]) -> dict:
+    """Compute depth phase health metrics from main table rows."""
+    if not rows:
+        return {}
+    from pathlib import Path
+    src = Path(__file__).parent / "src"
+    # Count source files ≥200 lines (same logic as refresh-depth-log.py)
+    source_files: dict[str, int] = {}
+    exclude = {"web-ui-client.ts", "web-ui-styles.ts"}
+    for subdir in [src, src / "tools", src / "modules"]:
+        if not subdir.exists():
+            continue
+        for f in subdir.glob("*.ts"):
+            if ".test." in f.name or ".integration." in f.name:
+                continue
+            rel = str(f.relative_to(src))
+            if rel not in exclude:
+                source_files[rel] = sum(1 for _ in f.open())
+    big_modules = {p for p, n in source_files.items() if n >= 200}
+
+    # Build coverage map from depth-log rows
+    covered: dict[str, list[tuple[int, str]]] = {}
+    for row in rows:
+        for mod_name in row["modules"]:
+            # Resolve module name to source file path
+            resolved = []
+            if "*" in mod_name:
+                prefix = mod_name.replace("*.ts", "").rstrip("/")
+                resolved = [f for f in source_files if f.startswith(prefix + "/")]
+            elif mod_name in source_files:
+                resolved = [mod_name]
+            else:
+                for pfx in ["", "tools/", "modules/"]:
+                    c = pfx + mod_name
+                    if c in source_files:
+                        resolved = [c]
+                        break
+            for path in resolved:
+                covered.setdefault(path, []).append((row["iter"], row["approach"]))
+
+    max_iter = max(r["iter"] for r in rows)
+    stale_count = 0
+    total_combos = 0
+    tried_combos = 0
+    for path in big_modules:
+        if path not in covered:
+            stale_count += 1  # uncovered = maximally stale
+            total_combos += len(DEPTH_APPROACHES)
+            continue
+        last_iter = max(i for i, _ in covered[path])
+        builder_iters_ago = (max_iter - last_iter) // 2
+        if builder_iters_ago >= 10:
+            stale_count += 1
+            total_combos += len(DEPTH_APPROACHES)
+            tried = len(set(a for _, a in covered[path]))
+            tried_combos += tried
+        else:
+            total_combos += len(DEPTH_APPROACHES)
+            tried = len(set(a for _, a in covered[path]))
+            tried_combos += tried
+
+    distinct_modules = len(set(p for p in covered if p in big_modules))
+    # Approach sync check: compare DEPTH_APPROACHES against approaches in rows
+    log_approaches = set(r["approach"] for r in rows)
+    known_set = set(DEPTH_APPROACHES)
+    unknown = log_approaches - known_set
+    return {
+        "total_iters": len(rows),
+        "distinct_modules": distinct_modules,
+        "total_big": len(big_modules),
+        "stale": stale_count,
+        "untried": total_combos - tried_combos,
+        "total_combos": total_combos,
+        "unknown_approaches": unknown,
+    }
 
 
 def trend(n: int = 5) -> None:
@@ -502,7 +589,7 @@ def trend(n: int = 5) -> None:
     if not logs:
         print("No builder session logs found.")
         return
-    sevs = _load_severities()
+    sevs, depth_rows = _load_depth_log()
     entries = []
     for iter_num, path in reversed(logs):  # chronological order
         data = _quick_parse(path)
@@ -552,6 +639,21 @@ def trend(n: int = 5) -> None:
     consec = any(apps[i] == apps[i + 1] for i in range(len(apps) - 1))
     rot = "CONSECUTIVE REPEAT" if consec else "ok (no repeats)"
     print(f"  Rotation: {rot}")
+
+    # Depth phase health (from depth-log.md)
+    health = _depth_health(depth_rows)
+    if health:
+        h = health
+        print(
+            f"  Depth coverage: {h['distinct_modules']}/{h['total_big']} modules, "
+            f"{h['stale']} stale, "
+            f"{h['untried']}/{h['total_combos']} approach combos untried"
+        )
+        if h["unknown_approaches"]:
+            print(
+                f"  WARNING: depth-log has approaches not in parse-log.py: "
+                f"{', '.join(sorted(h['unknown_approaches']))}"
+            )
     print()
 
 
