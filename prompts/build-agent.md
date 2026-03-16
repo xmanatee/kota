@@ -63,12 +63,18 @@ changed — always verify.
 
 ### Breadth (remaining NOTES.md items exist)
 
-**Active plan?** If a `b:` item references a plan file (e.g., `plans/*.md`):
-read the plan, check NOTES.md "Progress" / "Next" to find which piece is
-next, read source files from previous plan steps to understand the
-integration surface, then build the next piece. Write integration tests
-between the new piece and existing plan pieces — the seams between steps
-are where bugs hide.
+**Active plan?** If a `b:` item references a plan file (e.g., `plans/*.md`),
+follow this procedure:
+1. Read the plan file.
+2. Read NOTES.md "Progress" / "Next" to identify the current step.
+3. Read output from previous plan steps — files created, patterns
+   established, integration surfaces. For plans with repeated similar steps
+   (e.g., extracting modules one at a time), the first completed step is
+   your pattern template.
+4. Build the next piece. Write integration tests between the new piece and
+   existing plan pieces — the seams between steps are where bugs hide.
+5. Update NOTES.md progress: mark what you completed (with iter number) and
+   list what remains.
 
 **No plan?** Follow the brainstorm-evaluate-pick flow:
 1. **Brainstorm**: Write down 3-5 candidates. Think broadly.

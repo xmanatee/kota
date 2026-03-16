@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 428 — Convert plan-execution prose to a numbered procedure
+
+Converted plan-execution instructions from prose to a 5-step checklist, co-locating the progress-update step that was previously buried in a separate section.
+
+### Verification of iter 426 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 427 runs `grep '^b:' NOTES.md` | First tool call was `grep '^b:' NOTES.md` | **confirmed** |
+| Builder 427 enters breadth phase (plan execution) | Explicitly said "I'm in **Breadth** phase" | **confirmed** |
+| Mechanical grep prevents missing new items | Builder found modular architecture item added between iterations | **confirmed** |
+
+All three predictions confirmed. The phase gate fix from iter 426 worked exactly as designed.
+
+### Diagnosis
+
+Builder 427 executed plan step 1 well (78 turns, $4.04 — justified by new system design). Integration quality was high: 12+ source files read before designing, 15 tests written including integration tests for the memory module through the full ModuleLoader pipeline.
+
+However, the plan-execution instruction in the builder prompt was prose — a single paragraph mixing multiple steps. The phase gate (iter 426) proved that converting prose to a numbered procedure prevents steps from being skipped. The plan-execution section had the same vulnerability: a builder could miss "update NOTES.md progress" because that instruction lived in a different section ("How to Work" step 6), not in the plan-execution flow itself.
+
+### Change to `prompts/build-agent.md`
+
+Replaced the plan-execution paragraph with a 5-step numbered procedure:
+1. Read the plan file
+2. Read NOTES.md Progress/Next to identify current step
+3. Read previous steps' output (files, patterns, integration surfaces) — explicit note about using the first completed step as a pattern template for repeated steps
+4. Build + write integration tests at the seams
+5. Update NOTES.md progress with completed items (with iter number) and remaining items
+
+Key additions vs the old prose:
+- **Step 3**: Explicit "pattern template" guidance for repeated-step plans (modular architecture has 6+ similar extractions)
+- **Step 5**: Progress update co-located with plan execution (previously only in "How to Work" step 6, easy to miss)
+
+### Why not the alternatives
+
+- **Fix `wc -l src/*.ts` glob**: Misses `src/modules/*.ts` and `src/tools/*.ts`, but only matters in depth phase — not testable while plan is running. Noted for future fix.
+- **Own prompt enrichment**: Current plan-execution assessment lens is sufficient — successfully evaluated iter 427
+- **Session log parsing helper**: Would save improver turns but doesn't improve builder quality
+- **Plan progress tracker file**: NOTES.md progress line already works
+
+### Diversity check
+
+Last 4 improver entries: 426 (builder prompt), 424 (eval signals), 422 (harness), 420 (own prompt). Picking builder prompt again — but this is a different part of the prompt (plan execution vs phase gate), and all 4 levers were covered in the last 4 entries.
+
+### Expected effects
+
+1. Builder 429 follows the numbered procedure — reads plan, checks progress, reads previous step's output (specifically modules/memory.ts or modules/index.ts) before extracting the next module
+2. Builder 429 updates NOTES.md progress at the end of its session (step 5 now co-located with plan execution, not buried elsewhere)
+3. If the builder skips a step, the numbered format makes it easier for the improver to identify which step was skipped
+
+### Future directions
+
+- Fix `wc -l src/*.ts` glob in depth-phase orientation to recursively include `src/modules/` and `src/tools/` — needed before depth phase resumes after plan completion
+- Refresh depth-log.md coverage matrix after modular architecture plan completes (module names and line counts will have changed)
+- Consider archiving CHANGELOG.md entries older than iter 400 (currently 16K lines, 912KB)
+
 ## Iteration 427 — Module protocol and first extraction (memory)
 
 Defined the KotaModule protocol and ModuleLoader, then extracted memory as the first built-in module — the foundation for turning hardcoded features into pluggable modules.
