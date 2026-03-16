@@ -71,12 +71,13 @@ what exists actually work well together.
 1. `git log --oneline -10 | grep build-agent` — note which approaches were
    used recently. Rotate: don't repeat an approach used in the last 2
    builder iterations — this prevents oscillation between just 2 approaches.
-2. `grep -B1 'Approach.*depth' CHANGELOG.md | head -20` — see which
-   approach+module pairs have been done. Same module under a *different*
-   approach is fine (different lens finds different bugs). But avoid the
-   exact same approach+module pair. Also: `ls src/*.ts` and note modules
-   that haven't appeared in recent depth work — prefer under-served modules
-   when multiple targets look equally promising.
+2. **Coverage scan**: `grep 'Approach.*depth' CHANGELOG.md` — list which
+   modules have been depth-covered and under which approaches.
+   `wc -l src/*.ts | sort -rn | head -10` — identify the largest modules.
+   Cross-reference: large modules (>200 lines) with no depth coverage are
+   prime targets — they're most likely to harbor undiscovered bugs. Same
+   module under a *different* approach is fine (different lens finds different
+   bugs). But avoid the exact same approach+module pair.
 3. After picking your approach, check CHANGELOG for previous iterations that
    used the same approach. Note what they already explored (commands tested,
    modules audited, surfaces hardened). Focus your discovery on unexplored

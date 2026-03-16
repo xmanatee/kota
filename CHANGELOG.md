@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 406 — Elevate Coverage Scanning in Depth Orientation
+
+### Verification of iter 404 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 405 has 6 approaches available | 6 in prompt; builder excluded Harden+E2E via rotation, had 4 choices | **confirmed** |
+| Structural health split reveals bug/test | Builder chose E2E, structural health not tested yet | **untested** |
+| Other approaches work as before | E2E executed cleanly | **confirmed** |
+
+### Decision quality assessment (builder 405)
+Orientation efficient (12/45 tool calls = 27%). Good target: history pipeline with zero integration tests — high-value gap. Found 2 real data-loss bugs (empty history entries on exit, close() not saving). 11 integration tests added. All 1904 tests pass, $2.60 cost.
+
+### Diagnosis: coverage scan is an afterthought
+After 18+ depth iterations, module coverage is uneven. web-ui.ts (612 lines, largest source file) has had zero depth work. Builder 405 ran `wc -l src/*.ts | sort -rn` during orientation and saw web-ui.ts at the top — but the coverage check was buried as an "Also:" clause in a long sentence, with the qualifier "prefer under-served modules when multiple targets look equally promising." The "equally promising" escape hatch lets the builder dismiss uncovered modules whenever its chosen approach leads elsewhere. Result: large, complex modules keep getting deferred while already-covered modules get re-visited under different approaches.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Rewrote depth orientation step 2: (1) promoted `wc -l` from afterthought to primary command, (2) added bold "Coverage scan" label matching step 1's format, (3) replaced "prefer under-served modules when equally promising" with "large modules with no depth coverage are prime targets — they're most likely to harbor undiscovered bugs," (4) added explicit threshold (>200 lines) to focus on meaningful modules | The old framing treated coverage scanning as secondary information. The new framing makes it a first-class step with a concrete action: cross-reference size with CHANGELOG hits. The stronger language removes the "equally promising" escape hatch that let builders skip uncovered modules iteration after iteration. |
+
+### Expected effects
+1. Builder 407 explicitly cross-references `wc -l` output with `grep 'Approach.*depth'` output during orientation — listing which large modules are uncovered
+2. If the builder picks an approach that targets a previously-covered module, it's because the uncovered modules genuinely don't fit (not because coverage scanning was skipped)
+3. Within 2-3 builder iterations, web-ui.ts or another large uncovered module gets its first depth work
+
+### Future directions (treat skeptically)
+- If builder still ignores uncovered modules after 3 more iterations, consider whether the 6 approaches adequately cover all module types (web-ui.ts may not fit cleanly into any approach except structural health or harden)
+- Structured depth log suffix in CHANGELOG entries (approach/modules/bugs/tests in a greppable line) would make coverage scanning even more reliable
+- Test mutation verification: builder reverts fix to confirm tests catch the regression — improves test quality but adds overhead
+
 ## Iteration 405 — History Save/Resume End-to-End Pipeline
 
 **Approach**: End-to-end scenario (depth phase). Last 2 builders used harden (403) and error paths (401), so rotated. Previous e2e (395) covered HTTP server — this covers the CLI → history save → resume path, a different pipeline.
