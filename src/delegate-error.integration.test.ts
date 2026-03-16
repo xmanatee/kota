@@ -22,8 +22,16 @@ vi.mock("./delegate-prompts.js", () => ({
   executeTools: [
     { name: "shell", description: "test shell", input_schema: { type: "object", properties: { command: { type: "string" } } } },
   ],
-  exploreRunners: { shell: (input: Record<string, unknown>) => mockRunner(input) },
-  executeRunners: { shell: (input: Record<string, unknown>) => mockRunner(input) },
+  exploreRunners: {
+    shell: (input: Record<string, unknown>) => mockRunner(input),
+    web_fetch: (input: Record<string, unknown>) => mockRunner(input),
+    http_request: (input: Record<string, unknown>) => mockRunner(input),
+  },
+  executeRunners: {
+    shell: (input: Record<string, unknown>) => mockRunner(input),
+    web_fetch: (input: Record<string, unknown>) => mockRunner(input),
+    http_request: (input: Record<string, unknown>) => mockRunner(input),
+  },
 }));
 
 import { runDelegate, setDelegateConfig } from "./tools/delegate.js";
@@ -315,5 +323,87 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
     expect(callCount).toBe(3);
     expect(result.content).toContain("Completed after retry.");
     expect(result.is_error).toBeFalsy();
+  });
+
+  it("tracks http_request URLs in sources section", async () => {
+    mockRunner.mockResolvedValue({ content: '{"data": "ok"}', is_error: false });
+
+    const client = makeMockClient([
+      {
+        content: [{ type: "tool_use", id: "h1", name: "http_request", input: { url: "https://api.example.com/v1/users", method: "GET" } }],
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
+      textMsg("API returned user data."),
+    ]);
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "check the API", mode: "explore" });
+
+    expect(result.content).toContain("sources: 1 URL(s)");
+    expect(result.content).toContain("https://api.example.com/v1/users");
+  });
+
+  it("tracks both web_fetch and http_request URLs together", async () => {
+    mockRunner.mockResolvedValue({ content: "page content", is_error: false });
+
+    const client = makeMockClient([
+      {
+        content: [
+          { type: "tool_use", id: "w1", name: "web_fetch", input: { url: "https://docs.example.com" } },
+          { type: "tool_use", id: "h1", name: "http_request", input: { url: "https://api.example.com/v1/status", method: "GET" } },
+        ],
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
+      textMsg("Got docs and API status."),
+    ]);
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "research API", mode: "explore" });
+
+    expect(result.content).toContain("sources: 2 URL(s)");
+    expect(result.content).toContain("https://docs.example.com");
+    expect(result.content).toContain("https://api.example.com/v1/status");
+  });
+
+  it("does not track http_request without url param", async () => {
+    mockRunner.mockResolvedValue({ content: "ok", is_error: false });
+
+    const client = makeMockClient([
+      {
+        content: [{ type: "tool_use", id: "h1", name: "http_request", input: { method: "GET" } }],
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
+      textMsg("Done."),
+    ]);
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "api test", mode: "explore" });
+
+    expect(result.content).not.toContain("sources:");
+  });
+
+  it("preserves emoji in task preview without garbling", async () => {
+    const events: Array<{ type: string; message?: string }> = [];
+    const transport = {
+      emit: (event: { type: string; message?: string }) => { events.push(event); },
+    };
+
+    const client = makeMockClient([textMsg("Done.")]);
+    setDelegateConfig({ model: "test", client, transport: transport as any }); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    // 65 codepoints (30 emoji + 35 ASCII) — triggers truncation at 57 codepoints
+    const emojiTask = `${"🔍".repeat(30)} search for data analysis patterns`;
+    await runDelegate({ task: emojiTask, mode: "explore" });
+
+    const startEvent = events.find((e) => e.type === "status" && e.message?.includes("starting:"));
+    expect(startEvent).toBeDefined();
+    const preview = startEvent!.message!.split("starting: ")[1];
+    // Preview should end with "..."
+    expect(preview).toMatch(/\.\.\.$/);
+    // Strip "..." and verify 57 intact codepoints (no split surrogates)
+    const previewChars = [...preview.replace(/\.\.\.$/, "")];
+    expect(previewChars).toHaveLength(57);
+    // First 30 should be magnifying glass emoji (intact, not garbled)
+    expect(previewChars.slice(0, 30).every((c) => c === "🔍")).toBe(true);
   });
 });

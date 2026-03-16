@@ -1,7 +1,40 @@
 import { describe, expect, it } from "vitest";
+import { runDelegate } from "./delegate.js";
 import type { DelegateMetadata } from "./delegate-format.js";
 import { assembleDelegateResult, buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";
+
+describe("runDelegate input validation", () => {
+  it("rejects missing task", async () => {
+    const result = await runDelegate({});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("task is required");
+  });
+
+  it("rejects empty string task", async () => {
+    const result = await runDelegate({ task: "" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("task is required");
+  });
+
+  it("rejects whitespace-only task", async () => {
+    const result = await runDelegate({ task: "   " });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("task is required");
+  });
+
+  it("rejects tab/newline-only task", async () => {
+    const result = await runDelegate({ task: "\n\t\r " });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("task is required");
+  });
+
+  it("rejects invalid mode", async () => {
+    const result = await runDelegate({ task: "do something", mode: "invalid" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain('mode must be "explore" or "execute"');
+  });
+});
 
 describe("extractModifiedFiles", () => {
   it("extracts path from file_edit", () => {

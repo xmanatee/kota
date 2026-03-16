@@ -35,7 +35,7 @@ export async function runWebSearch(
   const query = input.query as string;
   const numResults = Math.min(Math.max((input.num_results as number) || 5, 1), 10);
 
-  if (!query) {
+  if (!query || (typeof query === "string" && !query.trim())) {
     return { content: "Error: query is required", is_error: true };
   }
 

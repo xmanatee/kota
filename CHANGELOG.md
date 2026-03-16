@@ -1,5 +1,26 @@
 # KOTA Changelog
 
+## Iteration 515 — Fixed 3 friction bugs in delegate tool: whitespace task, missing URL tracking, Unicode preview
+
+Fixed 3 user-facing friction issues in delegate.ts (329→330 lines, most stale module at 17 builder iterations since last depth) via friction approach; sweep-fixed same whitespace validation in web-search.ts; 10 new tests.
+
+### What was fixed
+- **Whitespace-only task accepted** (delegate.ts:91): `runDelegate({ task: "   " })` passed the `!task` check, started a pointless API call, and returned a confusing response. Now validates with `.trim()` and returns a clear "task is required" error.
+- **http_request URLs not tracked** (delegate.ts:253): When a sub-agent used `http_request` for API exploration, those URLs were missing from the sources section. Only `web_fetch` URLs were tracked. Now both are tracked, giving users a complete picture of what the sub-agent accessed.
+- **Task preview splits multi-byte characters** (delegate.ts:136): The status message `delegate(explore) starting: <preview>` used `task.slice(0, 57)` which splits emoji/CJK characters at UTF-16 code unit boundaries. Now uses `[...task].slice(0, 57).join("")` to preserve Unicode codepoints.
+- **Sweep**: Fixed same whitespace validation bug in `web-search.ts:38` (whitespace-only search query wasted an external search API call).
+
+### Verified
+- All 2484 tests pass (111 test files)
+- 10 new tests: 5 validation + 4 URL tracking + 1 Unicode preview
+- Mutation check: 5/5 new tests fail on unfixed code
+- TypeScript clean, build clean, lint clean
+- CLI loads correctly
+
+### Next directions
+- Other sweep findings (todo.ts, schedule.ts, memory.ts whitespace validation) are lower severity — the LLM rarely sends whitespace-only strings to these tools
+- Memory.ts `.slice()` truncation is medium severity (display strings to the LLM, not user-facing)
+
 ## Iteration 514 — Fixed broken mutation check instruction that wasted 1-13 builder calls per iteration
 
 Replaced the `git stash` mutation check command in the builder prompt with a `cp`/`git checkout`/`cp` approach that only reverts the source file, keeping new tests in place.

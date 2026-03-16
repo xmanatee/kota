@@ -88,7 +88,7 @@ export async function runDelegate(
   const task = input.task as string;
   const mode = (input.mode as string) || "explore";
 
-  if (!task) {
+  if (!task || (typeof task === "string" && !task.trim())) {
     return { content: "Error: task is required", is_error: true };
   }
   if (mode !== "explore" && mode !== "execute") {
@@ -133,7 +133,8 @@ export async function runDelegate(
   let naturalEnd = false;
 
   const transport = delegateConfig.transport;
-  const taskPreview = task.length > 60 ? `${task.slice(0, 57)}...` : task;
+  const taskChars = [...task];
+  const taskPreview = taskChars.length > 60 ? `${taskChars.slice(0, 57).join("")}...` : task;
   if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) starting: ${taskPreview}` });
 
   for (let turn = 0; turn < maxTurns; turn++) {
@@ -249,7 +250,7 @@ export async function runDelegate(
             modifiedFiles.add(f);
           }
         }
-        if (block.name === "web_fetch" && toolInput.url) {
+        if ((block.name === "web_fetch" || block.name === "http_request") && toolInput.url) {
           urlsFetched.add(toolInput.url as string);
         }
         if (block.name === "web_search" && toolInput.query) {
