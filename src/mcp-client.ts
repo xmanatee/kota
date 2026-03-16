@@ -49,6 +49,7 @@ export class McpClient {
   private nextId = 1;
   private pending = new Map<number, PendingRequest>();
   private connected = false;
+  private connecting = false;
   private closing = false;
   private killTimer: ReturnType<typeof setTimeout> | null = null;
   private serverName: string;
@@ -75,48 +76,64 @@ export class McpClient {
     if (this.connected) {
       throw new Error(`MCP server "${this.serverName}" is already connected`);
     }
-
-    this.proc = spawn(this.command, this.args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...this.env },
-    });
-
-    this.proc.on("error", (err) => {
-      this.rejectAll(new Error(`MCP server "${this.serverName}" failed: ${err.message}`));
-      this.connected = false;
-    });
-
-    this.proc.on("exit", (code) => {
-      this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
-      this.connected = false;
-    });
-
-    // Absorb stdin write errors (server may have exited)
-    this.proc.stdin?.on("error", () => {});
-
-    // Capture stderr for diagnostics but don't block
-    this.proc.stderr?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString().trim();
-      if (text) console.error(`[mcp:${this.serverName}] ${text}`);
-    });
-
-    this.rl = createInterface({ input: this.proc.stdout! });
-    this.rl.on("line", (line) => this.handleLine(line));
-
-    // Initialize handshake
-    const result = await this.request("initialize", {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "kota", version: "0.1.0" },
-    }) as { protocolVersion: string; capabilities: unknown; serverInfo?: { name?: string } };
-
-    // Send initialized notification
-    this.notify("notifications/initialized");
-
-    if (result.serverInfo?.name) {
-      this.serverName = result.serverInfo.name;
+    if (this.connecting) {
+      throw new Error(`MCP server "${this.serverName}" is already connecting`);
     }
-    this.connected = true;
+    if (this.closing) {
+      throw new Error(`MCP server "${this.serverName}" is closed`);
+    }
+
+    this.connecting = true;
+    try {
+      this.proc = spawn(this.command, this.args, {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, ...this.env },
+      });
+
+      this.proc.on("error", (err) => {
+        this.rejectAll(new Error(`MCP server "${this.serverName}" failed: ${err.message}`));
+        this.connected = false;
+      });
+
+      this.proc.on("exit", (code) => {
+        this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
+        this.connected = false;
+      });
+
+      // Absorb stdin write errors (server may have exited)
+      this.proc.stdin?.on("error", () => {});
+
+      // Capture stderr for diagnostics but don't block
+      this.proc.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) console.error(`[mcp:${this.serverName}] ${text}`);
+      });
+
+      this.rl = createInterface({ input: this.proc.stdout! });
+      this.rl.on("line", (line) => this.handleLine(line));
+
+      // Initialize handshake
+      const result = await this.request("initialize", {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "kota", version: "0.1.0" },
+      }) as { protocolVersion: string; capabilities: unknown; serverInfo?: { name?: string } };
+
+      // Send initialized notification
+      this.notify("notifications/initialized");
+
+      // close() may have been called during the handshake await
+      if (this.closing) {
+        throw new Error(`MCP server "${this.serverName}" was closed during connection`);
+      }
+
+      if (result.serverInfo?.name) {
+        this.serverName = result.serverInfo.name;
+      }
+      this.connected = true;
+    } finally {
+      this.connecting = false;
+    }
   }
 
   /** List available tools from the server. */
@@ -182,8 +199,6 @@ export class McpClient {
         this.killTimer = null;
       }
     });
-
-    this.closing = false;
   }
 
   private handleLine(line: string): void {

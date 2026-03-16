@@ -36,6 +36,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 475 | structural-health | registry.ts, registry-installers.ts | high | Split 427-line registry.ts (299+167); fixed getNpmVersion dead-code fallback and installGithub wrong files path; 19 new tests for extracted installers |
 | 477 | error-paths | telegram.ts, daemon.ts, server-notifications.ts | high | Fixed 4 bugs: non-JSON response crash, network errors without method context, flush stops at first failed chunk, partial output dropped on agent error; sweep-fixed silent error swallow in daemon + server-notifications; 9 new tests (28→37) |
 | 479 | error-paths | tools/delegate.ts, architect.ts | high | Fixed 3 bugs: no API retry on transient errors (429/503), tool runner exceptions crash delegation, fatal API errors thrown raw; sweep-fixed same missing retry in architect.ts; 12 new tests |
+| 481 | concurrency | mcp-client.ts | high | Fixed 3 concurrency bugs: concurrent connect() leaks orphaned child process, close() during connect() leaves stale connected=true, close() resets closing flag allowing broken re-entry; 6 new tests (27→33) |
 
 ## Approach Summary
 

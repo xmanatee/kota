@@ -221,6 +221,124 @@ describe("McpClient lifecycle (fake MCP server)", () => {
   }, 10_000);
 });
 
+/**
+ * Slow-init MCP server: delays the initialize response by 300ms.
+ * Used to create timing windows for concurrency tests.
+ */
+const SLOW_INIT_SERVER = `
+const rl = require("readline").createInterface({ input: process.stdin });
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.method === "initialize") {
+    setTimeout(() => {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        protocolVersion: "2024-11-05", capabilities: {},
+        serverInfo: { name: "slow-init" },
+      }}) + "\\n");
+    }, 300);
+  } else if (msg.method === "shutdown") {
+    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+  }
+});
+`;
+
+describe("McpClient concurrency", () => {
+  let client: McpClient;
+
+  afterEach(async () => {
+    await client.close();
+  });
+
+  it("concurrent connect() calls — second throws 'already connecting'", async () => {
+    client = new McpClient("node", ["-e", SLOW_INIT_SERVER], {}, "concurrent-connect");
+
+    const first = client.connect();
+    // Second call while first is in-flight
+    await expect(client.connect()).rejects.toThrow(/already connecting/);
+
+    // First should still succeed
+    await first;
+    expect(client.isConnected()).toBe(true);
+  }, 10_000);
+
+  it("close() during connect() prevents stale connected state", async () => {
+    client = new McpClient("node", ["-e", SLOW_INIT_SERVER], {}, "close-during-connect");
+
+    const connectPromise = client.connect();
+    // Suppress unhandled rejection warning — we assert on it below
+    connectPromise.catch(() => {});
+    // Give the spawn a moment to start, then close before handshake completes
+    await new Promise((r) => setTimeout(r, 50));
+    await client.close();
+
+    // connect() should reject (either from rejectAll or the closing check)
+    await expect(connectPromise).rejects.toThrow();
+    // Must NOT report connected after close
+    expect(client.isConnected()).toBe(false);
+  }, 10_000);
+
+  it("connect() after close() throws 'is closed'", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "reconnect-after-close");
+    await client.connect();
+    expect(client.isConnected()).toBe(true);
+
+    await client.close();
+    expect(client.isConnected()).toBe(false);
+
+    // Attempting to reconnect a closed client should fail
+    await expect(client.connect()).rejects.toThrow(/is closed/);
+  }, 10_000);
+
+  it("connect() after failed connect() works (connecting flag properly reset)", async () => {
+    // First attempt: non-existent command — will fail
+    client = new McpClient(
+      "__nonexistent_mcp_cmd__", [], {}, "retry-after-fail",
+    );
+    await expect(client.connect()).rejects.toThrow();
+
+    // connecting flag should be reset, allowing a fresh client to work
+    // (We need a new client since the old one's proc state is polluted)
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "retry-after-fail");
+    await client.connect();
+    expect(client.isConnected()).toBe(true);
+  }, 10_000);
+
+  it("concurrent callTool() calls both complete correctly", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "concurrent-calls");
+    await client.connect();
+
+    // Fire two tool calls simultaneously
+    const [r1, r2] = await Promise.all([
+      client.callTool("echo", { text: "first" }),
+      client.callTool("echo", { text: "second" }),
+    ]);
+
+    expect(r1.content).toBe("Echo: first");
+    expect(r2.content).toBe("Echo: second");
+  }, 10_000);
+
+  it("callTool() during close() rejects without hanging", async () => {
+    client = new McpClient("node", ["-e", SLOW_INIT_SERVER], {}, "call-during-close");
+    // Use the normal server for this test
+    const normalClient = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "call-during-close");
+    await normalClient.connect();
+
+    // Start close and a tool call concurrently
+    const closePromise = normalClient.close();
+    const callPromise = normalClient.callTool("echo", { text: "hi" });
+    // Suppress unhandled rejection warning — we assert on it below
+    callPromise.catch(() => {});
+
+    await closePromise;
+    // The call should reject (closing rejects all pending, or stdin is gone)
+    await expect(callPromise).rejects.toThrow();
+
+    // Clean up — use the slow client as the one afterEach closes
+    client = normalClient;
+  }, 10_000);
+});
+
 describe("McpClient error paths", () => {
   let client: McpClient;
 

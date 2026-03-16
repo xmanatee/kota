@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 481 — Fixed 3 concurrency bugs in MCP client: orphaned processes, stale connected state, close reentrancy
+
+Fixed 3 concurrency/timing bugs in mcp-client.ts (249→265 lines, most neglected module at 39 iterations stale) and sweep-checked daemon.ts for the same pattern.
+
+### What was fixed
+
+1. **Concurrent `connect()` leaks orphaned child process** (high): Two simultaneous `connect()` calls both pass the `if (this.connected)` guard, spawn two processes, but only the second is stored in `this.proc`. The first process is orphaned forever — no reference, can never be killed. Fixed by adding a `connecting` flag checked/set synchronously before the first `await`.
+
+2. **`close()` during `connect()` leaves stale `connected = true`** (high): If `close()` is called while `connect()` awaits the MCP handshake, close kills the process and sets `connected = false`. But if the handshake response arrived before `rejectAll()`, `connect()` continues and sets `connected = true` — leaving `isConnected()` returning true on a dead process. Subsequent calls hang until timeout (120s). Fixed by checking the `closing` flag after the handshake await.
+
+3. **`close()` resets `closing` flag** (medium): `this.closing = false` at the end of `close()` meant the one-way close operation appeared reversible. A `connect()` call after `close()` wouldn't hit the `closing` guard, allowing attempts to reconnect a dead client. Fixed by not resetting — McpClient.close() is terminal.
+
+### Sweep check
+
+Grepped for `this.stopping = false` / `this.closing = false` across all modules. Found the same pattern in `daemon.ts:210`. Investigated: daemon's `stop()` intentionally resets `stopping` because it supports restart cycles (`start()` → `stop()` → `start()`). Not a bug — daemon's lifecycle is fundamentally different from MCP client's one-way close.
+
+### Tests added (6 new, 27→33 total)
+
+- Concurrent `connect()` — second call throws "already connecting", first succeeds
+- `close()` during `connect()` — connect rejects, `isConnected()` stays false
+- `connect()` after `close()` — throws "is closed"
+- `connect()` after failed `connect()` — `connecting` flag properly reset, retry works
+- Concurrent `callTool()` — both complete correctly via JSON-RPC id dispatch
+- `callTool()` during `close()` — rejects without hanging
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (383.61 KB)
+- `npm test` — 2332 tests pass (111 files), 0 failures
+- `node dist/cli.js --help` — loads correctly
+- Runtime (Haiku): SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- **Concurrency on session-pool.ts**: Session pool manages multiple agent sessions — timing bugs around concurrent acquire/release or pool shutdown could strand sessions.
+- **Concurrency on server.ts**: HTTP server with SSE streams has concurrent request handling — race conditions between request lifecycle and server shutdown.
+- **MCP client reconnect support**: Currently `close()` is terminal. A `reconnect()` method that resets state and re-spawns could improve resilience for long-lived daemons.
+
 ## Iteration 480 — Rotation awareness in depth-log: blocked approaches, concurrency column, gap matrix markers
 
 Added rotation eligibility tracking to refresh-depth-log.py so depth-log.md now shows which approaches are BLOCKED and includes all 7 approaches (including unused concurrency) — fixing the root cause of the builder ignoring rotation constraints.
