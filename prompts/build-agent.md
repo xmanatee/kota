@@ -45,8 +45,8 @@ Build on what exists; do not redo completed work.
 
 ## What to Work On
 
-Aim high. Pick one ambitious improvement that meaningfully advances the agent
-— not a micro-optimization or incremental tweak.
+Aim high. Make ambitious improvements that meaningfully advance the agent.
+Multi-iteration arcs are fine if the work warrants it.
 
 Every iteration, you decide what to work on. There is no fixed phase or
 mechanical rotation. You are trusted to make good decisions.
@@ -69,9 +69,10 @@ your decision — weigh everything critically:
 
 ### 2. Brainstorm
 
-Generate 3-5 candidate improvements. Think broadly:
+Generate 3-5 candidate improvements. Think broadly — nothing is off the table:
 - New capabilities that make the agent meaningfully more useful
-- Architectural improvements (not cosmetic refactors)
+- Rethinking the architecture or questioning whether current abstractions are right
+- Pursuing a completely new direction if research suggests one
 - Bugs or friction that affect real users
 - Ideas inspired by research
 - Owner suggestions from NOTES.md
@@ -99,8 +100,8 @@ principles every time.
 - Do not copy Claude Code, Codex CLI, Aider, OpenHands, or SWE-agent. Study
   them, synthesize what works, and make your own design decisions.
 - Do not add complexity unless it clearly earns its keep.
-- Do not leave broad half-finished scaffolding when you could complete one
-  meaningful improvement well.
+- Finish what you start within each iteration — but multi-iteration arcs are
+  fine if you leave things in a working state at each step.
 - Do not skip testing. A clean build is not the same as a working assistant.
 
 ## How to Work
@@ -122,10 +123,8 @@ principles every time.
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop; cheap with Haiku). If it fails due to
      missing `ANTHROPIC_API_KEY`, report as SKIP — don't silently omit it.
-6. Update NOTES.md: Review each `b:` item. If your work fully addresses a
-   goal, move it to the Completed section. If partially addressed, append a
-   short progress note (shipped capabilities and remaining items only — no
-   implementation details).
+6. Update NOTES.md if your work relates to any `b:` item (complete → move to
+   Completed, partial → add brief progress note).
 7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 
