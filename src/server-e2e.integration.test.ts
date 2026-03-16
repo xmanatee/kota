@@ -2,7 +2,7 @@
  * End-to-end integration tests for the HTTP server.
  *
  * Exercises the full path: HTTP request → router → session pool → agent session
- * → transport (SSE / Vercel Data Stream) → HTTP response.
+ * → transport (SSE or Vercel Data Stream via module route) → HTTP response.
  *
  * Mocks AgentSession to avoid real Claude API calls while testing all real
  * server infrastructure: routing, session lifecycle, SSE formatting, error handling.
@@ -37,6 +37,7 @@ vi.mock("./loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
+import vercelAdapterModule from "./modules/vercel-adapter.js";
 import { startServer } from "./server.js";
 
 let server: Server;
@@ -109,7 +110,9 @@ async function createSession(): Promise<string> {
 beforeAll(async () => {
   const origLog = console.log;
   console.log = () => {};
-  server = startServer({ port: 0, config: {} as any });
+  const routeCtx = { cwd: process.cwd(), verbose: false, config: {} as any, registerGroup: () => {} };
+  const moduleRoutes = vercelAdapterModule.routes?.(routeCtx) ?? [];
+  server = startServer({ port: 0, config: {} as any, moduleRoutes });
   const port = await waitForPort(server);
   console.log = origLog;
   baseUrl = `http://localhost:${port}`;
@@ -258,13 +261,12 @@ describe("HTTP Server E2E", () => {
     });
   });
 
-  describe("POST /api/chat — Vercel AI SDK format", () => {
-    it("detects Vercel format and returns Data Stream", async () => {
-      const sid = await createSession();
+  describe("POST /api/chat/vercel — Vercel AI SDK format", () => {
+    it("returns Data Stream response", async () => {
       const res = await httpReq({
         method: "POST",
-        path: "/api/chat",
-        body: { session_id: sid, messages: [{ role: "user", content: "Hello Vercel" }] },
+        path: "/api/chat/vercel",
+        body: { messages: [{ role: "user", content: "Hello Vercel" }] },
       });
       expect(res.status).toBe(200);
       expect(res.headers["content-type"]).toContain("text/plain");
@@ -281,10 +283,20 @@ describe("HTTP Server E2E", () => {
     it("returns 400 when messages array has no user message", async () => {
       const res = await httpReq({
         method: "POST",
-        path: "/api/chat",
+        path: "/api/chat/vercel",
         body: { messages: [{ role: "assistant", content: "no user" }] },
       });
       expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when body is not Vercel format", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/chat/vercel",
+        body: { message: "not vercel format" },
+      });
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.body).error).toContain("Expected messages array");
     });
   });
 
@@ -321,13 +333,12 @@ describe("HTTP Server E2E", () => {
     });
 
     it("sends Data Stream error when agent throws (Vercel format)", async () => {
-      const sid = await createSession();
       mockSendFn = async () => { throw new Error("Claude API failed"); };
 
       const res = await httpReq({
         method: "POST",
-        path: "/api/chat",
-        body: { session_id: sid, messages: [{ role: "user", content: "fail" }] },
+        path: "/api/chat/vercel",
+        body: { messages: [{ role: "user", content: "fail" }] },
       });
       expect(res.status).toBe(200);
       const errorLines = res.body.split("\n").filter((l) => l.startsWith("3:"));

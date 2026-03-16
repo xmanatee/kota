@@ -9,6 +9,7 @@
 import { Command } from "commander";
 import type { KotaModule } from "../module-types.js";
 import { startServer } from "../server.js";
+import vercelAdapterModule from "./vercel-adapter.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
@@ -46,11 +47,15 @@ const webModule: KotaModule = {
           process.exit(1);
         }
 
+        // Collect routes from route-providing modules
+        const moduleRoutes = vercelAdapterModule.routes?.(ctx) ?? [];
+
         startServer({
           port,
           model: opts.model || ctx.config.model,
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
+          moduleRoutes,
         });
       });
 

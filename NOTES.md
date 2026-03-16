@@ -12,8 +12,6 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: implement `plans/modular-architecture.md` — define a module protocol so features (telegram, web, memory, scheduler, daemon, etc.) become pluggable modules instead of hardcoded. Extract built-in features into modules one at a time. Each extraction is one iteration. Progress: module protocol defined (KotaModule type), ModuleLoader built with dependency ordering, memory extracted as first built-in module (iter 427), scheduler extracted as second built-in module (iter 429), telegram extracted as third module with CLI command registration (iter 431), daemon extracted as fourth module (iter 433), web extracted as fifth module (iter 435), registry extracted as sixth module (iter 437). Next: extract vercel-adapter module (vercel-ai-stream.ts).
-
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
 is not set in the shell environment. Claude Code uses its own stored
@@ -28,6 +26,7 @@ b: make the design more modular — shipped: transport layer (363), plugins (361
 b: institute standards in codebase — shipped: config (365), Biome linting (385), code organization + module boundaries (385)
 b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.) — shipped: tool format adapters (367), Vercel AI SDK adapter (383), remote tool registry (387)
 b: implement `plans/self-hosting-loop.md` — shipped: event bus (417), event-based scheduler triggers (419), daemon mode (421), webhook endpoints (423)
+b: implement `plans/modular-architecture.md` — shipped: module protocol + ModuleLoader (427), memory module (427), scheduler module (429), telegram module (431), daemon module (433), web module (435), registry module (437), vercel-adapter module (439). All 7 features extracted; server now integrates module routes.
 
 ---
 Skipped:

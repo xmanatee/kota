@@ -104,7 +104,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 - `cwd`, `verbose`, `config` — environment info
 - `registerGroup(name, toolNames, pattern?)` — create/extend tool groups
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. Currently: `memory`, `scheduler`, `telegram`, `daemon`, `web`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. All 7 features extracted: `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
 
 **Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` from `tools/index.ts`. Future iterations will migrate external plugin loading into the module system.
 
@@ -120,6 +120,7 @@ Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable 
 
 **Endpoints**:
 - `POST /api/chat` — Send `{ message, session_id? }`, receive SSE stream of agent events
+- `POST /api/chat/vercel` — Vercel AI SDK Data Stream Protocol (module route, stateless)
 - `POST /api/sessions` — Create a new session, returns `{ session_id }`
 - `GET /api/sessions` — List active sessions with busy/idle status
 - `DELETE /api/sessions/:id` — Close and clean up a session
@@ -542,9 +543,9 @@ kota tools list                              # show all installed
 kota tools remove weather                    # uninstall
 ```
 
-### Vercel AI SDK Streaming (`src/vercel-ai-stream.ts`)
+### Vercel AI SDK Streaming (`src/vercel-ai-stream.ts`, `src/modules/vercel-adapter.ts`)
 
-KOTA's HTTP server speaks the Vercel AI SDK Data Stream Protocol v1, enabling direct integration with `useChat()` from any Next.js/React app. When `POST /api/chat` receives a body with `messages` (array), the response switches to the Data Stream Protocol format automatically.
+The vercel-adapter module provides Vercel AI SDK Data Stream Protocol v1 integration via `POST /api/chat/vercel`. It's registered as a KotaModule with HTTP routes — the first module to exercise the route registration mechanism. Each request is stateless (fresh AgentSession per request), matching the `useChat()` pattern where the client sends the full messages array.
 
 **Wire format**: `{TYPE_CODE}:{JSON}\n` (not SSE). Type codes:
 - `0`: text delta
@@ -558,15 +559,15 @@ KOTA's HTTP server speaks the Vercel AI SDK Data Stream Protocol v1, enabling di
 
 **Headers**: `Content-Type: text/plain; charset=utf-8`, `X-Vercel-AI-Data-Stream: v1`
 
-**Auto-detection**: `POST /api/chat` serves both formats:
-- `{ message: "...", session_id?: "..." }` → KOTA's native SSE format (used by the built-in web UI)
-- `{ messages: [{role, content}, ...] }` → Vercel AI SDK Data Stream Protocol v1 (used by `useChat()`)
+**Endpoints**:
+- `POST /api/chat` → KOTA's native SSE format: `{ message: "...", session_id?: "..." }` (used by the built-in web UI)
+- `POST /api/chat/vercel` → Vercel AI SDK Data Stream Protocol v1: `{ messages: [{role, content}, ...] }` (used by `useChat()`)
 
 **Usage with Next.js**:
 ```tsx
 import { useChat } from "ai/react";
 const { messages, input, handleSubmit } = useChat({
-  api: "http://localhost:3000/api/chat",
+  api: "http://localhost:3000/api/chat/vercel",
 });
 ```
 

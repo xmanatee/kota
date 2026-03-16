@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 439 — Extract vercel-adapter module, completing the modular architecture plan
+
+Extracted vercel-ai-stream.ts into the seventh and final KotaModule, completing plans/modular-architecture.md — all features now use the module protocol.
+
+### What was built
+- Created `src/modules/vercel-adapter.ts` — a KotaModule that registers `POST /api/chat/vercel` via the `routes` property, the first module to exercise the route registration mechanism
+- Each Vercel AI SDK request is stateless (fresh AgentSession per request), aligning with how `useChat()` works client-side
+- Server.ts now integrates module routes in `handleRequest` — future modules can register HTTP routes through the same protocol
+- Removed hardcoded Vercel format detection and `handleVercelChat` from server.ts
+- The `/api/chat` endpoint now exclusively handles KOTA's native SSE format
+- The web module collects routes from route-providing modules and passes them to `startServer`
+
+### Why it matters
+- Completes the modular architecture plan: all 7 features (memory, scheduler, telegram, daemon, web, registry, vercel-adapter) are now pluggable modules
+- The route registration mechanism is proven end-to-end, enabling future modules to add HTTP endpoints
+- Clean separation: Vercel AI SDK protocol handling is self-contained in the vercel-adapter module, not tangled with server routing
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 371.68 KB bundle
+- `npm test` — 2116 tests pass (108 test files), including updated server e2e tests
+- `node dist/cli.js --help` — CLI loads, all module commands present
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- All `b:` items complete — next iteration enters depth phase
+- External module loading (npm packages, GitHub repos)
+- Module configuration/disabling via kota.json
+- Module dependency injection for inter-module communication
+
 ## Iteration 438 — Add explicit plan-completion clause to prevent phase-transition ambiguity
 
 Added plan-completion handling to builder prompt step 5 and updated depth-log.md with post-iter-437 data, ensuring smooth transition when the modular architecture plan completes next iteration.

@@ -27,8 +27,8 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
+import type { RouteRegistration } from "./module-types.js";
 import { NullTransport, type Transport } from "./transport.js";
-import { DATA_STREAM_HEADERS, DataStreamTransport, extractLastUserMessage } from "./vercel-ai-stream.js";
 import { getWebUI } from "./web-ui.js";
 
 // Re-export for backwards compatibility with tests
@@ -39,6 +39,8 @@ export type ServerOptions = {
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
+  /** Routes registered by modules (e.g., vercel-adapter). */
+  moduleRoutes?: RouteRegistration[];
 };
 
 /** Read daemon state from disk. Returns null if unavailable. */
@@ -112,13 +114,9 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
-    const isVercelFormat = Array.isArray(body.messages);
-    const message = isVercelFormat
-      ? extractLastUserMessage(body.messages as Array<{ role: string; content: string }>)
-      : (body.message as string | undefined);
-
+    const message = body.message as string | undefined;
     if (!message || typeof message !== "string") {
-      jsonResponse(res, 400, { error: isVercelFormat ? "No valid user message found in messages array" : "message must be a non-empty string" });
+      jsonResponse(res, 400, { error: "message must be a non-empty string" });
       return;
     }
 
@@ -146,11 +144,7 @@ export function startServer(options: ServerOptions = {}): Server {
     }
     session.busy = true;
 
-    if (isVercelFormat) {
-      await handleVercelChat(res, session, message);
-    } else {
-      await handleKotaChat(res, session, message);
-    }
+    await handleKotaChat(res, session, message);
   }
 
   async function handleKotaChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
@@ -175,27 +169,6 @@ export function startServer(options: ServerOptions = {}): Server {
       session.busy = false;
       session.lastActive = Date.now();
       sse.end();
-    }
-  }
-
-  async function handleVercelChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
-    setCors(res);
-    const headers = { ...DATA_STREAM_HEADERS, ...CORS_HEADERS };
-    res.writeHead(200, headers);
-
-    const stream = new DataStreamTransport(res);
-    session.proxy.target = stream;
-
-    try {
-      await session.agent.send(message);
-      stream.finish();
-    } catch (err) {
-      stream.emit({ type: "error", message: (err as Error).message });
-      stream.finish();
-    } finally {
-      session.proxy.target = new NullTransport();
-      session.busy = false;
-      session.lastActive = Date.now();
     }
   }
 
@@ -377,6 +350,19 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
+    // Module-registered routes (e.g., vercel-adapter)
+    const moduleRoutes = options.moduleRoutes ?? [];
+    for (const route of moduleRoutes) {
+      if (req.method === route.method && path === route.path) {
+        Promise.resolve(route.handler(req, res)).catch((err) => {
+          if (!res.headersSent) {
+            jsonResponse(res, 500, { error: (err as Error).message });
+          }
+        });
+        return;
+      }
+    }
+
     jsonResponse(res, 404, { error: "Not found" });
   }
 
@@ -395,7 +381,8 @@ export function startServer(options: ServerOptions = {}): Server {
     console.log(`KOTA server listening on http://localhost:${port}`);
     console.log(`Web UI: http://localhost:${port}/`);
     console.log("API endpoints:");
-    console.log("  POST /api/chat           — Send message (SSE or Vercel AI SDK Data Stream)");
+    console.log("  POST /api/chat           — Send message (SSE streaming)");
+    console.log("  POST /api/chat/vercel    — Vercel AI SDK Data Stream Protocol");
     console.log("  POST /api/sessions       — Create a new session");
     console.log("  GET  /api/sessions       — List active sessions");
     console.log("  DELETE /api/sessions/:id — Close a session");
