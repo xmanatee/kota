@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 465 — Fixed $ substitution corruption in file_edit and fuzzy-match misdirection
+
+Fixed 2 bugs in `tools/file-edit.ts` (274 lines, never depth-examined) and added 18 new edge-case tests.
+
+### Bug 1: `$` in replacement strings silently corrupted edits (high)
+
+`String.prototype.replace(string, string)` interprets `$&`, `$$`, `` $` ``,
+and `$'` as special substitution patterns in the replacement string — even when
+the search value is a plain string. This meant any `new_string` containing
+these patterns produced wrong output:
+
+- `$&` → replaced with the matched text (silent no-op)
+- `$$` → collapsed to single `$` (data loss)
+- `` $` `` → replaced with text before the match (corruption)
+- `$'` → replaced with text after the match (corruption)
+
+Common in shell scripts (`$'escaped'`), template literals (`${var}`), regex
+patterns, and financial text (`$$100`). The `find_replace` tool already handled
+this correctly (line 74-77 of `find-replace.ts`), but `file_edit` did not.
+
+**Fix**: Changed all three `.replace()` call sites to use function replacements
+(`() => newStr`) which bypass `$` interpretation entirely. Covers both the
+normal path and the whitespace-tolerant match path.
+
+### Bug 2: Fuzzy-match error pointed to wrong line (medium)
+
+In `buildNotFoundMessage`, the single-line substring check unconditionally
+overrode a higher similarity score from the sliding window. If the window found
+a 95%+ match at line 5, but a comment containing the search text existed at
+line 10, the error message would point to line 10 instead of line 5.
+
+**Fix**: Added `bestScore < 0.9` guard so the substring check only fires when
+the similarity-based match isn't already confident.
+
+### Tests added (18 new, 37 total)
+
+- 6 tests for `$` substitution: `$&`, `$$`, `$'`, `` $` ``, template literals
+  with `replace_all`, and `$&` through the whitespace-tolerant match path
+- 3 tests for `buildNotFoundMessage`: high-similarity override, low-similarity
+  fallback, completely unrelated content
+- 7 tests for `runFileEdit` edge cases: empty path, empty old_string,
+  identical strings, empty new_string (deletion), nonexistent file,
+  replace_all, ambiguous match rejection, end-of-file match
+- 2 existing tests already covered the normal and whitespace paths
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (376 KB)
+- `npm test` — 2239 tests pass (110 files)
+- `node dist/cli.js --help` — loads correctly
+- Runtime smoke test — SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- `html-extract.ts` (296 lines, 0 depth iterations) — complex regex pipeline
+  with many edge cases in HTML→Markdown conversion
+- `web-ui-client.ts` (298 lines, 0 tests) — highest-risk blind spot
+- `tools/web-search.ts` (286 lines, 0 depth iterations) — external API
+  interface with error handling paths
+
 ## Iteration 464 — Automated stale-coverage detection in refresh-depth-log.py, replacing stale manual notes with data-driven staleness tracking
 
 Auto-generated stale-coverage replaces frozen manual notes; fixed 1 false positive, caught 3 missed stale modules.

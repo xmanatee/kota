@@ -64,7 +64,7 @@ export async function runFileEdit(
     // Try whitespace-tolerant match before falling to fuzzy error
     const wsMatch = tryWhitespaceMatch(content, oldStr);
     if (wsMatch) {
-      const updated = content.replace(wsMatch, newStr);
+      const updated = content.replace(wsMatch, () => newStr);
       writeFileSync(path, updated, "utf-8");
 
       const lintResult = lintFile(path);
@@ -106,8 +106,8 @@ export async function runFileEdit(
   }
 
   const updated = replaceAll
-    ? content.replaceAll(oldStr, newStr)
-    : content.replace(oldStr, newStr);
+    ? content.replaceAll(oldStr, () => newStr)
+    : content.replace(oldStr, () => newStr);
 
   writeFileSync(path, updated, "utf-8");
 
@@ -211,7 +211,7 @@ function similarity(a: string, b: string): number {
  * Build an error message when old_string is not found.
  * Finds the most similar region in the file and shows it with context.
  */
-function buildNotFoundMessage(path: string, content: string, oldStr: string): string {
+export function buildNotFoundMessage(path: string, content: string, oldStr: string): string {
   const lines = content.split("\n");
   const searchLines = oldStr.split("\n");
   const windowSize = searchLines.length;
@@ -230,7 +230,8 @@ function buildNotFoundMessage(path: string, content: string, oldStr: string): st
   }
 
   // Also check single-line matches if old_string is one line
-  if (windowSize === 1) {
+  // Only override if similarity-based match wasn't already confident
+  if (windowSize === 1 && bestScore < 0.9) {
     const trimmedSearch = oldStr.trim();
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].includes(trimmedSearch) || lines[i].trim() === trimmedSearch) {
