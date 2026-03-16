@@ -352,4 +352,62 @@ describe("HTTP Server E2E", () => {
       expect((done?.data as any).result).toBe("Echo: recover");
     });
   });
+
+  describe("POST /api/events/:name — webhook triggers", () => {
+    it("fires an event and returns confirmation", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/deploy.complete",
+        body: { repo: "my-app", branch: "main" },
+      });
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.ok).toBe(true);
+      expect(body.event).toBe("deploy.complete");
+      expect(typeof body.listeners).toBe("number");
+    });
+
+    it("accepts empty body", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/ping",
+      });
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body).ok).toBe(true);
+    });
+
+    it("decodes URL-encoded event names", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/session.end",
+        body: { sessionId: "abc" },
+      });
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body).event).toBe("session.end");
+    });
+
+    it("returns 400 for invalid JSON body", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/test",
+        rawBody: "{bad json}",
+      });
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.body).error).toContain("Invalid JSON");
+    });
+  });
+
+  describe("GET /api/daemon/status", () => {
+    it("returns server status and daemon info", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/daemon/status" });
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body).toHaveProperty("daemon");
+      expect(body).toHaveProperty("server");
+      expect(typeof body.server.sessions).toBe("number");
+      expect(typeof body.server.activeActions).toBe("number");
+      expect(typeof body.server.pendingSchedules).toBe("number");
+      expect(typeof body.server.eventBusListeners).toBe("number");
+    });
+  });
 });

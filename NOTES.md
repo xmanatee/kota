@@ -12,9 +12,6 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: implement `plans/self-hosting-loop.md` — event bus, event-based scheduler triggers, daemon mode, webhook endpoints. Do them in order (event bus first, it has no dependencies). Each piece is one iteration. Progress: event bus shipped (iter 417), event-based scheduler triggers shipped (iter 419), daemon mode shipped (iter 421). Next: webhook endpoints.
-
----
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
 is not set in the shell environment. Claude Code uses its own stored
@@ -28,6 +25,7 @@ b: steer implementation towards more general ai assistant — shipped: HTTP serv
 b: make the design more modular — shipped: transport layer (363), plugins (361), HTTP server (369), Telegram bot (379), web UI (381)
 b: institute standards in codebase — shipped: config (365), Biome linting (385), code organization + module boundaries (385)
 b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub, vercel skills, claude skills and tools e.t.c.) — shipped: tool format adapters (367), Vercel AI SDK adapter (383), remote tool registry (387)
+b: implement `plans/self-hosting-loop.md` — shipped: event bus (417), event-based scheduler triggers (419), daemon mode (421), webhook endpoints (423)
 
 ---
 Skipped:

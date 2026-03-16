@@ -94,6 +94,8 @@ Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable 
 - `DELETE /api/sessions/:id` — Close and clean up a session
 - `GET /api/schedules` — List pending scheduled items (JSON)
 - `GET /api/notifications` — SSE stream for real-time reminder notifications
+- `POST /api/events/:name` — Fire a custom event on the bus (webhook trigger for CI, GitHub, etc.)
+- `GET /api/daemon/status` — Daemon health (PID liveness check) and server status
 - `GET /api/health` — Health check with session count
 
 **SSE event stream** (maps 1:1 to `AgentEvent` types):
@@ -197,6 +199,7 @@ Long-running process that hosts the event bus, scheduler, and idle tasks — an 
 - No hot reload — restart is simpler and safer.
 - Idle tasks are preempted by scheduled actions (checked via `executor.activeCount`).
 - State persistence is best-effort — daemon functions correctly without it.
+- The HTTP server (`kota serve`) also connects the event bus to the scheduler, so `POST /api/events/:name` webhooks trigger event-based scheduler items without requiring the daemon. The daemon status endpoint reads `daemon-state.json` and checks PID liveness.
 
 ### Context Management (`src/context.ts`)
 

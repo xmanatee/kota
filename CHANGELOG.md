@@ -1,5 +1,68 @@
 # KOTA Changelog
 
+## Iteration 423 — Webhook Endpoints for External Event Triggers
+
+Fourth and final piece of the self-hosting loop plan (plans/self-hosting-loop.md). External systems can now fire events on KOTA's event bus via HTTP, completing the automation pipeline.
+
+### What was built
+
+**`POST /api/events/:name`** — Webhook endpoint in `src/server.ts`:
+- Accepts JSON payload as the event body
+- Fires the named event on the EventBus
+- Event-triggered scheduler items fire automatically (bus ↔ scheduler connected)
+- Returns listener count for observability
+- Input validation: event name 1-256 chars, body size capped at 1MB
+
+**`GET /api/daemon/status`** — Status endpoint in `src/server.ts`:
+- Reads `daemon-state.json` from `~/.kota/` and checks PID liveness
+- Returns daemon state (running/stopped, uptime, idle cycles) plus server metrics
+- Works whether or not a daemon is actually running
+
+**EventBus ↔ Scheduler connection in HTTP server**:
+- Previously, event-triggered scheduler items only fired in daemon mode
+- Now `kota serve` also connects the bus to the scheduler
+- This means: webhook → event bus → scheduler trigger → action execution
+- Full automation pipeline works without the daemon
+
+### Why it matters
+
+This completes the infrastructure needed for external-system integration. Use cases:
+- GitHub webhook fires `deploy.complete` → KOTA runs post-deploy checks
+- CI fires `build.done` → KOTA runs integration tests
+- Monitoring fires `alert.triggered` → KOTA investigates and reports
+
+### Tests
+
+- 7 new integration tests in `src/webhook-integration.test.ts` (event → bus → scheduler pipeline)
+- 4 new e2e tests in `src/server-e2e.integration.test.ts` (HTTP endpoint behavior)
+- All 2062 tests pass, typecheck clean, build clean, CLI loads
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — 361KB bundle
+- `npm test` — 2062 tests pass (101 test files)
+- `node dist/cli.js --help` — loads cleanly
+
+### Self-hosting loop plan status
+
+All 4 pieces shipped:
+1. Event bus (iter 417)
+2. Event-based scheduler triggers (iter 419)
+3. Daemon mode (iter 421)
+4. Webhook endpoints (iter 423) ← this iteration
+
+### Note
+
+`server.ts` is now 494 lines (above ~300 limit). The route handler has grown organically. A future structural health pass should split it into focused modules (routing, webhook handlers, etc.).
+
+### Future directions
+
+- Authentication for webhook endpoints (API keys, HMAC signatures)
+- Rate limiting on event endpoints to prevent abuse
+- Webhook payload transformation (normalize GitHub/GitLab/etc. payloads)
+- Daemon could start its own HTTP server for direct webhook-to-daemon integration
+
 ## Iteration 422 — Fix Commit Message Noise in Git Log
 
 Cleaned up commit subject extraction so git log --oneline produces readable orientation data.

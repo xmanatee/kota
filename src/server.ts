@@ -6,10 +6,14 @@
  * for real, exercising it beyond CliTransport for the first time.
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { ActionExecutor, type ActionResult, partitionDueItems } from "./action-executor.js";
 import type { KotaConfig } from "./config.js";
 import { loadConfig } from "./config.js";
+import { type EventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { getHistory } from "./history.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
@@ -36,13 +40,67 @@ export type ServerOptions = {
   config?: KotaConfig;
 };
 
+/** Read daemon state from disk. Returns null if unavailable. */
+function readDaemonState(): { running: boolean; state: Record<string, unknown> } | null {
+  const statePath = join(homedir(), ".kota", "daemon-state.json");
+  if (!existsSync(statePath)) return null;
+  try {
+    const state = JSON.parse(readFileSync(statePath, "utf-8"));
+    let running = false;
+    if (state.pid && typeof state.pid === "number") {
+      try {
+        process.kill(state.pid, 0);
+        running = true;
+      } catch {
+        running = false;
+      }
+    }
+    return { running, state };
+  } catch {
+    return null;
+  }
+}
+
 export function startServer(options: ServerOptions = {}): Server {
   const port = options.port ?? 3000;
   const config = options.config ?? loadConfig();
   const pool = new SessionPool();
 
+  const bus = initEventBus();
   initScheduler(process.cwd());
   const scheduler = getScheduler();
+
+  // Connect scheduler to event bus so event-triggered items fire via webhooks
+  const stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
+    const { actions, notifications } = partitionDueItems(dueItems);
+    for (const item of notifications) {
+      broadcastNotification({
+        type: "reminder",
+        id: item.id,
+        description: item.description,
+        scheduledFor: item.triggerAt,
+        repeat: item.repeatLabel || null,
+      });
+    }
+    for (const item of actions) {
+      if (!actionExecutor.canExecute()) {
+        broadcastNotification({
+          type: "action_skipped",
+          id: item.id,
+          description: item.description,
+          reason: "Too many concurrent actions",
+        });
+        continue;
+      }
+      broadcastNotification({
+        type: "action_started",
+        id: item.id,
+        description: item.description,
+        action: item.action,
+      });
+      actionExecutor.execute(item).then(broadcastActionResult).catch(() => {});
+    }
+  });
 
   const notificationClients = new Set<SseTransport>();
 
@@ -220,6 +278,33 @@ export function startServer(options: ServerOptions = {}): Server {
     }
   }
 
+  async function handleEventTrigger(
+    req: IncomingMessage,
+    res: ServerResponse,
+    eventBus: EventBus,
+    eventName: string,
+  ): Promise<void> {
+    if (!eventName || eventName.length > 256) {
+      jsonResponse(res, 400, { error: "Event name must be 1-256 characters" });
+      return;
+    }
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = await readBody(req);
+    } catch (err) {
+      jsonResponse(res, 400, { error: (err as Error).message });
+      return;
+    }
+
+    eventBus.emit(eventName, payload);
+    jsonResponse(res, 200, {
+      ok: true,
+      event: eventName,
+      listeners: eventBus.listenerCount(eventName) + eventBus.listenerCount("*"),
+    });
+  }
+
   function handleRequest(req: IncomingMessage, res: ServerResponse): void {
     setCors(res);
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
@@ -338,6 +423,32 @@ export function startServer(options: ServerOptions = {}): Server {
       return;
     }
 
+    // --- Webhook / external trigger endpoints ---
+
+    const eventMatch = path.match(/^\/api\/events\/([^/]+)$/);
+    if (req.method === "POST" && eventMatch) {
+      handleEventTrigger(req, res, bus, decodeURIComponent(eventMatch[1])).catch((err) => {
+        if (!res.headersSent) {
+          jsonResponse(res, 500, { error: (err as Error).message });
+        }
+      });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/daemon/status") {
+      const daemon = readDaemonState();
+      jsonResponse(res, 200, {
+        daemon: daemon ?? null,
+        server: {
+          sessions: pool.size,
+          activeActions: actionExecutor.activeCount,
+          pendingSchedules: scheduler.count(),
+          eventBusListeners: bus.listenerCount(),
+        },
+      });
+      return;
+    }
+
     if (req.method === "GET" && (path === "/" || path === "/index.html")) {
       setCors(res);
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -352,8 +463,10 @@ export function startServer(options: ServerOptions = {}): Server {
 
   server.on("close", () => {
     clearInterval(cleanupTimer);
+    stopBusConnection();
     stopScheduler();
     resetScheduler();
+    resetEventBus();
     for (const client of notificationClients) client.end();
     notificationClients.clear();
     pool.closeAll();
@@ -372,6 +485,8 @@ export function startServer(options: ServerOptions = {}): Server {
     console.log("  GET  /api/history        — List conversation history");
     console.log("  GET  /api/history/:id    — Get conversation details");
     console.log("  DELETE /api/history/:id  — Delete a conversation");
+    console.log("  POST /api/events/:name   — Fire a custom event (webhook trigger)");
+    console.log("  GET  /api/daemon/status  — Daemon health and server status");
     console.log("  GET  /api/health         — Health check");
   });
 
