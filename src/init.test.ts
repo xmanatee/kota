@@ -19,12 +19,30 @@ vi.mock("./history.js", () => ({
   })),
 }));
 
+// Mock task-store module to isolate and test failure paths
+vi.mock("./task-store.js", () => ({
+  getTaskStore: vi.fn(() => ({
+    getActiveSummary: () => null,
+  })),
+}));
+
+// Mock scheduler module to isolate and test failure paths
+vi.mock("./scheduler.js", () => ({
+  getScheduler: vi.fn(() => ({
+    getPendingSummary: () => null,
+  })),
+}));
+
+import { getHistory } from "./history.js";
 import { buildSessionWarmup, detectEnvironment, detectProject, getDirectoryOverview } from "./init.js";
 import { getMemoryStore } from "./memory.js";
-import { getHistory } from "./history.js";
+import { getScheduler } from "./scheduler.js";
+import { getTaskStore } from "./task-store.js";
 
 const mocked = vi.mocked(getMemoryStore);
 const mockedHistory = vi.mocked(getHistory);
+const mockedTaskStore = vi.mocked(getTaskStore);
+const mockedScheduler = vi.mocked(getScheduler);
 
 describe("detectProject", () => {
   let dir: string;
@@ -134,6 +152,12 @@ describe("buildSessionWarmup", () => {
     } as any);
     mockedHistory.mockReturnValue({
       getMostRecent: () => null,
+    } as any);
+    mockedTaskStore.mockReturnValue({
+      getActiveSummary: () => null,
+    } as any);
+    mockedScheduler.mockReturnValue({
+      getPendingSummary: () => null,
     } as any);
   });
 
@@ -315,6 +339,83 @@ describe("buildSessionWarmup", () => {
     } as any);
     const result = buildSessionWarmup(dir);
     expect(result).toContain("5 minutes ago");
+  });
+
+  it("survives getMemoryStore() throwing", () => {
+    mocked.mockImplementation(() => { throw new Error("corrupt storage"); });
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).not.toContain("Recalled from memory");
+  });
+
+  it("survives getTaskStore() throwing", () => {
+    mockedTaskStore.mockImplementation(() => { throw new Error("corrupt tasks"); });
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).not.toContain("Active tasks");
+  });
+
+  it("survives getScheduler() throwing", () => {
+    mockedScheduler.mockImplementation(() => { throw new Error("corrupt schedules"); });
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).not.toContain("Scheduled reminders");
+  });
+
+  it("survives store.list() throwing inside recallMemories", () => {
+    mocked.mockReturnValue({
+      list: () => { throw new Error("read error"); },
+      search: () => [],
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).not.toContain("Recalled from memory");
+  });
+
+  it("survives getActiveSummary() throwing inside recallTasks", () => {
+    mockedTaskStore.mockReturnValue({
+      getActiveSummary: () => { throw new Error("parse error"); },
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).not.toContain("Active tasks");
+  });
+
+  it("survives getPendingSummary() throwing inside recallSchedules", () => {
+    mockedScheduler.mockReturnValue({
+      getPendingSummary: () => { throw new Error("timer error"); },
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).not.toContain("Scheduled reminders");
+  });
+
+  it("survives all recall functions throwing simultaneously", () => {
+    mocked.mockImplementation(() => { throw new Error("memory crash"); });
+    mockedTaskStore.mockImplementation(() => { throw new Error("task crash"); });
+    mockedScheduler.mockImplementation(() => { throw new Error("schedule crash"); });
+    mockedHistory.mockImplementation(() => { throw new Error("history crash"); });
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("Working directory");
+    expect(result).toContain("System");
+  });
+
+  it("includes task summary when getActiveSummary returns data", () => {
+    mockedTaskStore.mockReturnValue({
+      getActiveSummary: () => "2 in progress: 'Research', 'Write report'",
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("**Active tasks from previous session**:");
+    expect(result).toContain("Research");
+  });
+
+  it("includes schedule summary when getPendingSummary returns data", () => {
+    mockedScheduler.mockReturnValue({
+      getPendingSummary: () => "1 overdue: 'Check email'",
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("**Scheduled reminders**:");
+    expect(result).toContain("Check email");
   });
 });
 

@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 499 — Hardened init.ts: git timeout protection and resilient recall functions
+
+Fixed 2 bugs in init.ts (315→329 lines, most stale module — 17 builder iterations since last depth) via harden approach; 11 new tests (45→56).
+
+### Bug 1: Git commands block session startup indefinitely
+The 4 `execSync` calls in `getGitContext()` had no timeout. If git hangs (credential helper popup, slow network FS, huge monorepo), KOTA appears frozen on startup with no way to recover. Added `timeout: 5000` (5 seconds) to all 4 calls — they're already wrapped in try/catch, so a timeout gracefully skips the git section rather than hanging.
+
+### Bug 2: Unprotected recall functions crash warmup
+`recallMemories()`, `recallTasks()`, and `recallSchedules()` called singleton getters and their methods without try/catch protection. If any throws (corrupt storage, permission error, unexpected state), the entire `buildSessionWarmup()` crashes and the agent fails to start. Added try/catch to all 3 functions, matching the pattern already used by `recallRecentConversation()`.
+
+### Also cleaned up
+- Removed redundant `2>/dev/null` from `git log` command (stderr is already piped via `stdio: "pipe"`)
+
+### Verified
+- TypeScript: `tsc --noEmit` clean
+- Build: `tsup` produces 387.6KB bundle
+- Tests: 2417 pass (11 new in init.test.ts: 45→56)
+- Lint: `biome check` clean on changed files
+- CLI load: `node dist/cli.js --help` works
+
+### Sweep check
+- `lint.ts` already has `timeout: 10_000` on all its `execSync` calls
+- `grep.ts` has one unprotected `execSync("which rg")` but it's a fast system command in a try/catch — not in the startup path
+- Singleton getters in other modules (`server.ts`, `cli.ts`, `loop.ts`) are called post-initialization where the singletons are already set up; `init.ts` is uniquely risky because warmup runs before initialization
+
+### Future directions
+- `init.ts` / audit: Check whether warmup context is actually consumed correctly by the session/loop
+- `init.ts` / e2e: Trace warmup → session → first turn to verify end-to-end integration
+- `tools/file-edit.ts` (16 iters stale): Next most neglected module
+
 ## Iteration 498 — Added "Resource lifecycle" as 8th depth approach, targeting resource leaks, unbounded collections, and missing cleanup
 
 Added "resource-lifecycle" as the 8th depth approach in the builder prompt and refresh-depth-log.py, targeting a bug class not covered by existing approaches.

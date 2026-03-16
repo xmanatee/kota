@@ -116,22 +116,24 @@ export function detectEnvironment(cwd: string): string | null {
   return `Workspace with ${parts.join(", ")}`;
 }
 
+const GIT_TIMEOUT = 5000;
+
 /** Get git state: branch, status summary, recent commits. */
 function getGitContext(cwd: string): string | null {
   try {
-    execSync("git rev-parse --is-inside-work-tree", { cwd, stdio: "pipe" });
+    execSync("git rev-parse --is-inside-work-tree", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT });
   } catch {
     return null;
   }
 
   const parts: string[] = [];
   try {
-    const branch = execSync("git branch --show-current", { cwd, stdio: "pipe" }).toString().trim();
+    const branch = execSync("git branch --show-current", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
     if (branch) parts.push(`Branch: ${branch}`);
   } catch { /* ignore */ }
 
   try {
-    const status = execSync("git status --porcelain", { cwd, stdio: "pipe" }).toString().trim();
+    const status = execSync("git status --porcelain", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
     if (status) {
       const lines = status.split("\n");
       const counts = { modified: 0, deleted: 0, added: 0, untracked: 0, renamed: 0, other: 0 };
@@ -160,7 +162,7 @@ function getGitContext(cwd: string): string | null {
   } catch { /* ignore */ }
 
   try {
-    const log = execSync("git log --oneline -5 2>/dev/null", { cwd, stdio: "pipe" }).toString().trim();
+    const log = execSync("git log --oneline -5", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
     if (log) parts.push(`Recent commits:\n${log}`);
   } catch { /* ignore */ }
 
@@ -179,34 +181,46 @@ function getSystemContext(): string {
 
 /** Search persistent memory for entries relevant to the current project. */
 function recallMemories(cwd: string): string | null {
-  const store = getMemoryStore();
-  const memories = store.list();
-  if (memories.length === 0) return null;
+  try {
+    const store = getMemoryStore();
+    const memories = store.list();
+    if (memories.length === 0) return null;
 
-  // Search by directory basename and parent basename
-  const dirName = basename(cwd);
-  const results = store.search(dirName);
-  const shown = results.slice(0, 5);
-  if (shown.length === 0) return null;
+    // Search by directory basename and parent basename
+    const dirName = basename(cwd);
+    const results = store.search(dirName);
+    const shown = results.slice(0, 5);
+    if (shown.length === 0) return null;
 
-  return shown
-    .map((m) => {
-      const tags = m.tags.length ? ` [${m.tags.join(", ")}]` : "";
-      return `- ${m.content}${tags}`;
-    })
-    .join("\n");
+    return shown
+      .map((m) => {
+        const tags = m.tags.length ? ` [${m.tags.join(", ")}]` : "";
+        return `- ${m.content}${tags}`;
+      })
+      .join("\n");
+  } catch {
+    return null;
+  }
 }
 
 /** Recall active tasks from persistent task store. */
 function recallTasks(): string | null {
-  const store = getTaskStore();
-  return store.getActiveSummary();
+  try {
+    const store = getTaskStore();
+    return store.getActiveSummary();
+  } catch {
+    return null;
+  }
 }
 
 /** Check for pending/overdue scheduled items. */
 function recallSchedules(): string | null {
-  const scheduler = getScheduler();
-  return scheduler.getPendingSummary();
+  try {
+    const scheduler = getScheduler();
+    return scheduler.getPendingSummary();
+  } catch {
+    return null;
+  }
 }
 
 /** Show hint about the most recent conversation in this directory. */
