@@ -10,13 +10,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { ActionExecutor, type ActionResult, partitionDueItems } from "./action-executor.js";
+import { ActionExecutor } from "./action-executor.js";
 import type { KotaConfig } from "./config.js";
 import { loadConfig } from "./config.js";
 import { type EventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { getHistory } from "./history.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
+import { NotificationHub } from "./server-notifications.js";
 import {
   CORS_HEADERS,
   jsonResponse,
@@ -70,39 +71,7 @@ export function startServer(options: ServerOptions = {}): Server {
   initScheduler(process.cwd());
   const scheduler = getScheduler();
 
-  // Connect scheduler to event bus so event-triggered items fire via webhooks
-  const stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
-    const { actions, notifications } = partitionDueItems(dueItems);
-    for (const item of notifications) {
-      broadcastNotification({
-        type: "reminder",
-        id: item.id,
-        description: item.description,
-        scheduledFor: item.triggerAt,
-        repeat: item.repeatLabel || null,
-      });
-    }
-    for (const item of actions) {
-      if (!actionExecutor.canExecute()) {
-        broadcastNotification({
-          type: "action_skipped",
-          id: item.id,
-          description: item.description,
-          reason: "Too many concurrent actions",
-        });
-        continue;
-      }
-      broadcastNotification({
-        type: "action_started",
-        id: item.id,
-        description: item.description,
-        action: item.action,
-      });
-      actionExecutor.execute(item).then(broadcastActionResult).catch(() => {});
-    }
-  });
-
-  const notificationClients = new Set<SseTransport>();
+  const hub = new NotificationHub();
 
   const actionExecutor = new ActionExecutor({
     sessionOptions: {
@@ -112,61 +81,13 @@ export function startServer(options: ServerOptions = {}): Server {
     },
   });
 
-  function broadcastNotification(data: Record<string, unknown>): void {
-    for (const client of notificationClients) {
-      if (client.isClosed) {
-        notificationClients.delete(client);
-        continue;
-      }
-      client.send("notification", data);
-    }
-  }
-
-  function broadcastActionResult(result: ActionResult): void {
-    broadcastNotification({
-      type: "action_result",
-      id: result.item.id,
-      description: result.item.description,
-      action: result.item.action,
-      result: result.result,
-      error: result.error || null,
-      durationMs: result.durationMs,
-    });
-  }
+  // Both bus-triggered and timer-triggered items use the same handler
+  const stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
+    hub.handleDueItems(dueItems, actionExecutor);
+  });
 
   const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
-    const { actions, notifications } = partitionDueItems(dueItems);
-
-    for (const item of notifications) {
-      broadcastNotification({
-        type: "reminder",
-        id: item.id,
-        description: item.description,
-        scheduledFor: item.triggerAt,
-        repeat: item.repeatLabel || null,
-      });
-    }
-
-    for (const item of actions) {
-      if (!actionExecutor.canExecute()) {
-        broadcastNotification({
-          type: "action_skipped",
-          id: item.id,
-          description: item.description,
-          reason: "Too many concurrent actions",
-        });
-        continue;
-      }
-
-      broadcastNotification({
-        type: "action_started",
-        id: item.id,
-        description: item.description,
-        action: item.action,
-      });
-
-      actionExecutor.execute(item).then(broadcastActionResult).catch(() => {});
-    }
+    hub.handleDueItems(dueItems, actionExecutor);
   });
 
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
@@ -363,7 +284,7 @@ export function startServer(options: ServerOptions = {}): Server {
         Connection: "keep-alive",
       });
       const sse = new SseTransport(res);
-      notificationClients.add(sse);
+      hub.addClient(sse);
       const overdue = scheduler.getDue();
       for (const item of overdue) {
         scheduler.markFired(item.id);
@@ -376,7 +297,7 @@ export function startServer(options: ServerOptions = {}): Server {
         });
       }
       sse.send("connected", { message: "Listening for notifications" });
-      res.on("close", () => notificationClients.delete(sse));
+      res.on("close", () => hub.removeClient(sse));
       return;
     }
 
@@ -467,8 +388,6 @@ export function startServer(options: ServerOptions = {}): Server {
     stopScheduler();
     resetScheduler();
     resetEventBus();
-    for (const client of notificationClients) client.end();
-    notificationClients.clear();
     pool.closeAll();
   });
 

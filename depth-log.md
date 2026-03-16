@@ -19,6 +19,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 411 | friction | cli.ts, confirm.ts | high | History clear confirmation, resume API key |
 | 413 | harden | scheduler.ts | critical | repeatMs=0 infinite loop, persist inconsistency, markFired status check |
 | 415 | error-paths | tool-adapters.ts | high | input_schema type override, partial array failure, circular reference crash |
+| 425 | structural-health | server.ts, server-notifications.ts | high | Deduplicated copy-pasted due-item callback, extracted NotificationHub |
 
 ## Coverage by Module (>200 lines)
 
@@ -27,10 +28,10 @@ Covered modules and which approaches have been applied:
 | Module | Lines | Depth Iters | Approaches Applied |
 |--------|-------|-------------|--------------------|
 | cli.ts | 571 | 391,397,403,411 | friction×2, harden, friction |
-| server.ts | 494 | 395 | e2e |
 | scheduler.ts | 471 | 389,413 | audit, harden |
 | loop.ts | 431 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
+| server.ts | 413 | 395,425 | e2e, structural-health |
 | tool-adapters.ts | 403 | 415 | error-paths |
 | telegram.ts | 401 | 389 | audit |
 | history.ts | 279 | 391,405 | friction, e2e |
@@ -51,10 +52,9 @@ Uncovered large modules — **zero depth iterations**:
 
 **8 uncovered modules, 2,216 lines total.** Update this section when appending a row above.
 
-Note: `server.ts` (494 lines, 1 depth iter) and `scheduler.ts` (471 lines,
-2 depth iters) both grew ~30% during plan execution (iters 417-423). Their
-new code (event-bus integration, webhook endpoints, event triggers) has had
-zero depth scrutiny. Same-module/different-approach coverage is valuable here.
+Note: `scheduler.ts` (471 lines, 2 depth iters) grew ~30% during plan
+execution (iters 417-423). Its new code (event triggers) has had zero depth
+scrutiny. Same-module/different-approach coverage is valuable here.
 
 ## Severity Key
 
@@ -62,4 +62,4 @@ zero depth scrutiny. Same-module/different-approach coverage is valuable here.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (14 iterations): critical=5, high=7, medium=2
+Distribution (15 iterations): critical=5, high=8, medium=2

@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 425 — Extract NotificationHub from server.ts, deduplicate due-item handler
+
+Extracted notification broadcasting and due-item dispatching into server-notifications.ts, eliminating a copy-pasted 30-line callback that handled scheduler timer and event-bus triggers identically.
+
+### What was done
+
+**Approach**: Structural health (depth phase). Last 2 depth builders used
+error-paths (415) and harden (413), so rotated. Structural health had 1
+prior use (409, web-ui.ts) — lowest usage. Target: `server.ts` (494 lines,
+1 depth iter, grew 30% during plan execution iters 417-423 with zero depth
+scrutiny on new code).
+
+**Why a user would care**: The duplicated due-item callback (lines 74-103
+and 137-170 were identical) meant any bug fix or behavior change to
+notification dispatching had to be applied in two places. A fix to one
+without the other would cause inconsistent behavior between timer-triggered
+and event-triggered scheduled items — e.g., a notification format change
+would only apply to one trigger path.
+
+**Split `server.ts` (494 → 413 lines) + new `server-notifications.ts` (89 lines)**:
+
+- `NotificationHub` class — manages SSE notification clients, broadcasts,
+  handles dead-client cleanup
+- `handleDueItems(items, executor)` — the single deduplicated callback that
+  both the bus connection and timer use
+- `broadcastActionResult(result)` — formats action execution results
+
+**New tests** (`server-notifications.test.ts`, 12 tests):
+- Broadcast to multiple clients
+- Dead client removal during broadcast
+- Action result formatting with/without errors
+- Due-item dispatching: reminders, action execution, action_skipped at capacity
+- Mixed notification+action batches
+- Empty batch handling
+- Client add/remove lifecycle
+
+These tests were **impractical before the split** because the broadcast logic
+and due-item handler were inline closures inside `startServer()`, requiring
+a full HTTP server to exercise.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 361KB bundle
+- `npm test` — 2074 tests pass (102 files), including 12 new + 44 existing server tests
+- `node dist/cli.js --help` — loads correctly
+
+### Future directions
+- `server.ts` is still 413 lines — the `handleRequest` router (150 lines)
+  could be extracted to a route table module in a future structural health pass
+- `daemon.ts` (350 lines, zero depth coverage) is a prime depth target
+- `init.ts` (299 lines, zero depth coverage) could use friction or error-paths
+
 ## Iteration 424 — Updated depth-log for depth-phase re-entry
 
 Refreshed depth-log.md with current codebase data so the builder correctly targets modules when re-entering depth phase after 4 iterations of plan execution.
