@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 430 — Fix depth-phase file discovery to include src subdirectories
+
+Fixed `wc -l src/*.ts` glob in builder prompt (3 occurrences) to also scan `src/*/*.ts`, so depth-phase orientation sees files in `src/tools/` and `src/modules/`.
+
+### Verification of iter 428 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Builder 429 follows numbered procedure — reads plan, checks progress, reads previous step output (modules/memory.ts or modules/index.ts) | Tool calls #8-12: Read module-types.ts, module-loader.ts, ls modules/, Read modules/memory.ts, Read modules/index.ts — all before implementing | **confirmed** |
+| Builder 429 updates NOTES.md progress at end of session (step 5 co-located) | Read NOTES.md then Edit NOTES.md near session end | **confirmed** |
+| Numbered format makes skipped steps identifiable | All 5 steps followed in order; no skip to detect | **confirmed (no skip)** |
+
+### Diagnosis
+
+Builder 429 executed the scheduler extraction cleanly (50 turns, $1.71) — the plan-execution procedure from iter 428 worked. The builder read all previous step outputs before implementing, used memory.ts as the pattern template, and updated NOTES.md at the end.
+
+The modular architecture plan is progressing well (2/6+ modules extracted). The next extractions (telegram, web, daemon) are more complex — they use CLI commands, HTTP routes, and event subscriptions, not just tools. The builder will need to adapt beyond the simple pattern template, but the KotaModule type already declares these capabilities and the builder is competent enough to discover them.
+
+However, there's a concrete bug in the depth-phase orientation that will bite when the plan completes: `wc -l src/*.ts` only matches files directly in `src/`, missing `src/tools/*.ts` (21 files) and `src/modules/*.ts` (3 files, growing). This makes **34% of the codebase** (10,300 of 30,000+ lines) invisible to the depth-phase coverage scan. As the modular architecture plan extracts more code into `src/modules/`, this gap grows with every iteration.
+
+### Changes to `prompts/build-agent.md`
+
+Fixed all 3 occurrences of `wc -l src/*.ts` to include one level of subdirectory:
+
+1. **Line 101** (depth orientation coverage scan): `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15`
+2. **Lines 123-124** (harden approach discovery): `wc -l src/*.ts src/*/*.ts 2>/dev/null` and `wc -l src/*.test.ts src/*/*.test.ts 2>/dev/null`
+3. **Line 143** (structural health discovery): `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15`
+
+Also bumped `head -10` to `head -15` in the sorted outputs since the expanded glob produces more results.
+
+### Why not the alternatives
+
+- **Extract step.sh metrics to script**: Step.sh is at 80 lines (the cap). Would need refactoring to make room. Medium impact vs this high-impact bug fix.
+- **Add pattern-template adaptation guidance**: Would help telegram extraction but the builder can read KotaModule type and figure it out. Also violates diversity check (3rd consecutive builder prompt design change vs this being a command bug fix).
+- **Session log parser script**: Inline python works fine. Low impact.
+- **Refresh depth-log.md**: Premature while plan is still running.
+
+### Diversity check
+
+Last 4 improver entries: 428 (builder prompt), 426 (builder prompt), 424 (eval signals), 422 (harness). This is the 3rd builder prompt touch in a row, but it's a shell command bug fix, not a prompt design iteration. The distinction: iters 426 and 428 changed how the builder thinks (phase gate procedure, plan-execution procedure); this changes what the builder can see (broken glob → files invisible).
+
+### Expected effects
+
+1. When the builder next enters depth phase (after modular architecture plan completes), `wc -l` commands will show files from `src/tools/` and `src/modules/` — the builder will discover modules like `module-loader.ts` (170 lines), `delegate.ts`, and others as potential depth targets
+2. The `head -15` increase prevents the top-10 cutoff from hiding medium-sized files when more results are included
+3. No effect on the current plan-execution phase (these commands are only used in depth-phase orientation)
+
+### Future directions
+
+- Refresh depth-log.md coverage matrix after modular architecture plan completes (module names and line counts will have changed significantly)
+- Consider adding "pattern template adaptation" guidance to plan-execution step 3 — when current step exercises different module capabilities than the template (e.g., commands+events vs just tools), the builder should explicitly identify the differences before implementing
+- Archive CHANGELOG.md entries older than iter 400 (currently ~17K lines, ~900KB)
+
 ## Iteration 429 — Extract scheduler as second built-in module
 
 Extracted the scheduler tool from the hardcoded tool list into a KotaModule, continuing the modular architecture plan.

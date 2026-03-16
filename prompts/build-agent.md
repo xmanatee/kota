@@ -98,7 +98,7 @@ what exists actually work well together.
 2. **Coverage scan**: `cat depth-log.md` — shows every depth iteration's
    approach, module(s), and summary in a structured table. Tally approach
    usage — approaches with 0 or few uses may find blind spots the popular
-   ones miss. Then `wc -l src/*.ts | sort -rn | head -10` — cross-reference
+   ones miss. Then `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` — cross-reference
    large modules (>200 lines) with no depth-log entry. Those are prime
    targets. Same module under a *different* approach is fine (different lens
    finds different bugs). But avoid the exact same approach+module pair.
@@ -120,8 +120,8 @@ Pick ONE of these approaches:
    message, missing validation, inconsistent behavior, dead code path — and
    fix it properly with tests.
 3. **Harden**: Find a module with weak test coverage AND complex behavior.
-   Discovery: compare line counts (`wc -l src/*.ts`) against test line counts
-   (`wc -l src/*.test.ts`). From low-coverage candidates, prefer modules with
+   Discovery: compare line counts (`wc -l src/*.ts src/*/*.ts 2>/dev/null`) against test line counts
+   (`wc -l src/*.test.ts src/*/*.test.ts 2>/dev/null`). From low-coverage candidates, prefer modules with
    error handling paths, state management, or external interfaces (HTTP, FS,
    network). Skip modules with straightforward logic — low coverage on simple
    code isn't a useful target. Add edge-case tests. Fix bugs they reveal.
@@ -140,7 +140,7 @@ Pick ONE of these approaches:
 6. **Structural health**: Find a source file that exceeds ~300 lines and mixes
    distinct responsibilities (e.g., CLI parsing + session management, or HTTP
    routing + business logic in one file). Split it into focused modules with
-   clear boundaries. Discovery: `wc -l src/*.ts | sort -rn | head -10` — then
+   clear boundaries. Discovery: `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` — then
    read the top candidates and check whether they do more than one job. The
    restructure must: (a) keep all existing tests passing, (b) enable at least
    one new test that was impractical before the split. This isn't cosmetic —
