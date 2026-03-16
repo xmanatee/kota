@@ -12,6 +12,7 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
+b: i might be wrong, but it feels like "modules" are just files now which still import stuff from core still... e.g. vercel stuf isn't self-contained isolated vercel stuff, but file with command definitions which imports stuff from core where vercel stuff is defined... that was not the original idea for modularizing... modularization should've enabled plug-n-play tools, skills, channels (e.g. telegram, whatsapp, web, e.t.c.), memory systems. So that i could swap one memory module for another and it would work. or I could enable web frontend module and then could access the assistant from web. Or could ask the assistant to develop some new functionality and assitant would implement it as module, install it without runtime and make it available... so original idea behind modules was ACTUAL self-contained and extendable functionality for the assistant. Lots of existing mechanisms could probably be expressed as modules if the protocol and API for modules was defined well enough... That would need an extensive research and system design/architechture...
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
 is not set in the shell environment. Claude Code uses its own stored
