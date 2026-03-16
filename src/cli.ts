@@ -6,10 +6,10 @@ import { confirmAction, setSkipConfirmations } from "./confirm.js";
 import { Daemon, type IdleTask } from "./daemon.js";
 import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
+import { builtinModules } from "./modules/index.js";
 import { installTool, listTools, removeTool, updateTool } from "./registry.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
 import { startServer } from "./server.js";
-import { TelegramBot } from "./telegram.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
 export function parseIntOption(value: string, name: string): number {
@@ -157,43 +157,6 @@ program
       verbose: opts.verbose || config.verbose,
       config,
     });
-  });
-
-program
-  .command("telegram")
-  .description("Run KOTA as a Telegram bot")
-  .option("-t, --token <token>", "Telegram bot token (or set TELEGRAM_BOT_TOKEN env var)")
-  .option("-m, --model <model>", "Model to use")
-  .option("-v, --verbose", "Show debug output")
-  .option("--allowed-chats <ids>", "Comma-separated list of allowed chat IDs")
-  .action(async (opts) => {
-    ensureApiKey();
-    const config = loadConfig();
-    const token = opts.token || process.env.TELEGRAM_BOT_TOKEN;
-    if (!token) {
-      console.error("Telegram bot token required. Use --token or set TELEGRAM_BOT_TOKEN env var.");
-      process.exit(1);
-    }
-
-    const allowedChatIds = opts.allowedChats
-      ? opts.allowedChats.split(",").map((id: string) => Number.parseInt(id.trim(), 10)).filter(Number.isFinite)
-      : undefined;
-
-    const bot = new TelegramBot({
-      token,
-      model: opts.model || config.model,
-      verbose: opts.verbose || config.verbose,
-      config,
-      allowedChatIds,
-    });
-
-    process.on("SIGINT", () => {
-      console.log("\n[kota-telegram] Shutting down...");
-      bot.stop();
-      process.exit(0);
-    });
-
-    await bot.start();
   });
 
 program
@@ -555,9 +518,25 @@ async function checkPipeMode() {
 
 async function main() {
   const wasPiped = await checkPipeMode();
-  if (!wasPiped) {
-    await program.parseAsync();
+  if (wasPiped) return;
+
+  // Register CLI commands from built-in modules
+  const config = loadConfig();
+  for (const mod of builtinModules) {
+    if (mod.commands) {
+      const cmds = mod.commands({
+        cwd: process.cwd(),
+        verbose: false,
+        config,
+        registerGroup: () => {},
+      });
+      for (const cmd of cmds) {
+        program.addCommand(cmd);
+      }
+    }
   }
+
+  await program.parseAsync();
 }
 
 main().catch((err) => {

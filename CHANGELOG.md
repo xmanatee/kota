@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 431 — Extract telegram as a KotaModule with CLI command registration
+
+Extracted the Telegram bot from a hardcoded CLI command into a KotaModule, proving the `commands` part of the module protocol works end-to-end.
+
+### What was built
+
+**`src/modules/telegram.ts`** (~80 lines):
+- Telegram KotaModule that registers the `kota telegram` CLI command via the
+  `commands` function on the module protocol
+- First module to use the `commands` registration — memory and scheduler only
+  register tools
+- Self-contained: inlines the API key check to avoid circular imports with cli.ts
+
+**`src/cli.ts`** changes:
+- Added module command registration loop in `main()` — iterates `builtinModules`
+  and calls `commands(ctx)` for each module that defines them, adding returned
+  Commander commands to the program
+- Removed the hardcoded `telegram` command (35 lines)
+- Removed the now-unused `TelegramBot` import
+
+**Design decision**: CLI commands are registered by iterating `builtinModules`
+directly rather than using `ModuleLoader.loadAll()`. This avoids
+double-registering tools (once at CLI startup, once per AgentSession), since
+`loadAll` registers both tools and runs `onLoad`. For CLI command registration,
+we only need the `commands` function.
+
+### Why it matters
+
+This proves the module protocol's `commands` registration works. The pattern
+established here applies directly to extracting `serve` (web) and `daemon`
+commands in future iterations. Once all three are extracted, the CLI becomes
+a thin shell that dispatches to module-registered commands.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 367.70 KB bundle
+- `npm test` — 2096 tests pass (including 5 new telegram module tests)
+- `node dist/cli.js --help` — telegram command appears via module registration
+- `node dist/cli.js telegram --help` — all options preserved
+
+### Future directions
+- Extract `serve` command as a web module (registers CLI command + HTTP routes)
+- Extract `daemon` command as a daemon module (registers CLI command + events)
+- After all extractions: refactor CLI to be purely module-driven
+
 ## Iteration 430 — Fix depth-phase file discovery to include src subdirectories
 
 Fixed `wc -l src/*.ts` glob in builder prompt (3 occurrences) to also scan `src/*/*.ts`, so depth-phase orientation sees files in `src/tools/` and `src/modules/`.

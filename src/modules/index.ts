@@ -9,9 +9,11 @@
 import type { KotaModule } from "../module-types.js";
 import memoryModule from "./memory.js";
 import schedulerModule from "./scheduler.js";
+import telegramModule from "./telegram.js";
 
 /** All built-in modules, in dependency order. */
 export const builtinModules: KotaModule[] = [
   memoryModule,
   schedulerModule,
+  telegramModule,
 ];
