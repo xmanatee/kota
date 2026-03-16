@@ -374,4 +374,70 @@ describe("decodeEntities", () => {
   it("passes through plain text", () => {
     expect(decodeEntities("no entities here")).toBe("no entities here");
   });
+
+  it("decodes codepoints above BMP (emoji) via decimal entity", () => {
+    // 😂 = U+1F602 = codepoint 128514
+    expect(decodeEntities("&#128514;")).toBe("😂");
+  });
+
+  it("decodes codepoints above BMP (emoji) via hex entity", () => {
+    expect(decodeEntities("&#x1F602;")).toBe("😂");
+  });
+
+  it("replaces null codepoint (&#0;) with U+FFFD replacement character", () => {
+    expect(decodeEntities("&#0;")).toBe("\uFFFD");
+  });
+
+  it("preserves entity text for codepoints beyond Unicode max (> 0x10FFFF)", () => {
+    expect(decodeEntities("&#1114112;")).toBe("&#1114112;");
+    expect(decodeEntities("&#x110000;")).toBe("&#x110000;");
+  });
+
+  it("preserves entity text for surrogate-range codepoints", () => {
+    // 0xD800–0xDFFF are surrogates, invalid as scalar values
+    expect(decodeEntities("&#55296;")).toBe("&#55296;");
+    expect(decodeEntities("&#xD800;")).toBe("&#xD800;");
+    expect(decodeEntities("&#xDFFF;")).toBe("&#xDFFF;");
+  });
+
+  it("preserves entity text for extremely large numeric values", () => {
+    expect(decodeEntities("&#99999999999;")).toBe("&#99999999999;");
+    expect(decodeEntities("&#xFFFFFFFF;")).toBe("&#xFFFFFFFF;");
+  });
+
+  it("decodes valid high-BMP characters", () => {
+    // U+1F4A9 = 💩 = 128169
+    expect(decodeEntities("&#128169;")).toBe("💩");
+    expect(decodeEntities("&#x1F4A9;")).toBe("💩");
+  });
+});
+
+describe("extractContent — entity error paths", () => {
+  it("handles emoji entities in paragraph text", () => {
+    const html = "<p>Reaction: &#128514; &#x1F602;</p>";
+    const result = extractContent(html);
+    expect(result).toContain("😂");
+    // Should have two emoji instances
+    expect(result.match(/😂/g)?.length).toBe(2);
+  });
+
+  it("handles emoji entities inside code blocks without corruption", () => {
+    const html = "<pre><code>emoji = '&#128514;'</code></pre>";
+    const result = extractContent(html);
+    expect(result).toContain("😂");
+    expect(result).toContain("```");
+  });
+
+  it("does not crash on invalid entities in real HTML context", () => {
+    const html = `
+      <h1>Title</h1>
+      <p>Bad entities: &#0; &#55296; &#99999999999; &#xD800;</p>
+      <p>Good text after</p>
+    `;
+    const result = extractContent(html);
+    expect(result).toContain("# Title");
+    expect(result).toContain("Good text after");
+    // Should not throw or produce empty output
+    expect(result.length).toBeGreaterThan(10);
+  });
 });

@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 503 — Fixed html-extract entity decoding: emoji corruption, null bytes, and invalid codepoint crashes
+
+Fixed 3 bugs in `html-extract.ts` (296→306 lines, most stale module — 17 builder iterations since last depth) via error-paths approach:
+
+### What was built
+- **Bug 1: Emoji entity corruption** — `String.fromCharCode` only handles 16-bit codepoints (BMP). Entities above U+FFFF like `&#128514;` (😂) or `&#x1F602;` silently produced wrong characters. Fixed by switching to `String.fromCodePoint`.
+- **Bug 2: Invalid codepoint crash** — After fixing Bug 1, codepoints outside the valid Unicode range (> 0x10FFFF) or in the surrogate range (0xD800–0xDFFF) would throw `RangeError` from `fromCodePoint`, crashing `extractContent`. Added `safeFromCodePoint` guard that returns the original entity text for invalid values.
+- **Bug 3: Null byte injection** — `&#0;` produced a literal null byte (`\0`) in output, which can corrupt downstream string handling. Now replaced with U+FFFD replacement character per HTML spec §13.2.5.69.
+
+### Why it matters
+The agent's web-fetch and web-search tools pipe HTML through `extractContent`. Modern web pages commonly use emoji in HTML entities. Before this fix, any page with emoji entities would have garbled text in the agent's context — the agent would see wrong characters instead of the intended emoji, degrading comprehension of fetched web content.
+
+### Sweep check
+Searched for `fromCharCode` across the codebase — only one occurrence in `html-extract.ts`, no sibling instances to fix.
+
+### Mutation check
+Reverted the source fix while keeping new tests: 9 of 10 new tests correctly fail on the unfixed code. The 10th test ("does not crash on invalid entities") passes on both versions since the old code silently corrupts rather than crashing — it serves as a safety net.
+
+### Verified
+- 49 tests pass (39→49, +10 new error-path tests)
+- `npm run typecheck` clean
+- `npm run build` clean
+- `npm test` — all 2432 tests pass
+- `npx biome check` clean on changed files
+- `node dist/cli.js --help` loads correctly
+
+### Future directions
+- html-extract: friction approach (link handling for single-quoted href, nested blockquotes)
+- html-extract: concurrency approach (not applicable — pure functions, no shared state)
+- file-read.ts is next most stale (16 iters), only 1 approach tried
+
 ## Iteration 502 — Added mutation check to depth workflow: verify new tests fail without the fix
 
 Added a "Mutation check" step to the builder prompt's depth section, requiring the builder to verify new tests actually catch the bug by temporarily reverting the fix via `git stash` and checking that tests fail.

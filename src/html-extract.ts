@@ -12,15 +12,31 @@ const ENTITY_MAP: Record<string, string> = {
   "&hellip;": "…", "&trade;": "™", "&bull;": "•", "&middot;": "·",
 };
 
+/** Convert a numeric codepoint to the corresponding character, or return null for invalid values. */
+function safeFromCodePoint(cp: number): string | null {
+  if (!Number.isFinite(cp) || cp < 0) return null;
+  // Null byte → replacement character (HTML spec §13.2.5.69)
+  if (cp === 0) return "\uFFFD";
+  // Surrogate range — invalid for scalar values
+  if (cp >= 0xD800 && cp <= 0xDFFF) return null;
+  // Beyond Unicode maximum
+  if (cp > 0x10FFFF) return null;
+  return String.fromCodePoint(cp);
+}
+
 export function decodeEntities(text: string): string {
   let result = text;
   for (const [entity, char] of Object.entries(ENTITY_MAP)) {
     result = result.replaceAll(entity, char);
   }
-  result = result.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
-  result = result.replace(/&#x([0-9a-f]+);/gi, (_, h) =>
-    String.fromCharCode(Number.parseInt(h, 16)),
-  );
+  result = result.replace(/&#(\d+);/g, (match, n) => {
+    const ch = safeFromCodePoint(Number(n));
+    return ch ?? match;
+  });
+  result = result.replace(/&#x([0-9a-f]+);/gi, (match, h) => {
+    const ch = safeFromCodePoint(Number.parseInt(h, 16));
+    return ch ?? match;
+  });
   return result;
 }
 
