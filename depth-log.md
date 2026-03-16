@@ -28,31 +28,36 @@ Covered modules and which approaches have been applied:
 
 | Module | Lines | Depth Iters | Approaches Applied |
 |--------|-------|-------------|--------------------|
-| cli.ts | 432 | 391,397,403,411,441 | friction×2, harden, friction, e2e |
+| cli.ts | 424 | 391,397,403,411,441 | friction×2, harden, friction, e2e |
 | scheduler.ts | 471 | 389,413 | audit, harden |
-| loop.ts | 437 | 405 | e2e |
+| loop.ts | 434 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
 | server.ts | 400 | 395,425 | e2e, structural-health |
 | tool-adapters.ts | 403 | 415 | error-paths |
 | telegram.ts | 401 | 389 | audit |
+| module-loader.ts | 312 | 441 | e2e |
 | history.ts | 279 | 391,405 | friction, e2e |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
-| module-loader.ts | 207 | 441 | e2e |
 
 **Stale coverage warning** — these covered modules were substantially modified
-during plan execution (iters 417-439). Their depth coverage predates the changes:
+since their last depth coverage. Coverage may not reflect current code:
 
-- `cli.ts` (modified iters 431-437): 6 commands extracted into modules; remaining
-  code is module-loading logic, fundamentally different from what iters 391-411
-  tested. Shrank from 571→429 lines. **Iter 441 added e2e coverage** for the
-  module→CLI pipeline, including error resilience fix.
+- `module-loader.ts` (modified iters 443-449): Grew 50% from 207→312 lines
+  during hardening phase — added hot-restart logic (445), module-type unification
+  (447), tool registry integration (449). The e2e test from iter 441 covers the
+  original load→CLI pipeline but not hot-restart, module lifecycle, or the
+  expanded error handling. **Highest-priority stale target.**
+- `tool-adapters.ts` (modified iter 447): 64 lines of churn during plugin→module
+  unification. The error-paths coverage from iter 415 predates this rewrite.
 - `server.ts` (modified iter 439): Hardcoded Vercel handling removed, module route
   integration added — different HTTP dispatch logic from what iters 395, 425 tested.
-  Shrank from 413→400 lines.
 - `loop.ts` (modified iter 427): Module loading added to startup — the e2e test
-  from iter 405 doesn't cover this path.
+  from iter 405 doesn't cover this path. Minor changes in iters 443-449.
 - `scheduler.ts` (modified iters 417-423): Grew ~30% with event-trigger code that
-  has had zero depth scrutiny. Same-module/different-approach coverage is valuable.
+  has had zero depth scrutiny. Unchanged during hardening phase (441-449).
+- `cli.ts` (modified iters 431-437, 443-449): Substantially restructured during
+  plan and hardening phases. Iter 441 added e2e coverage for module→CLI pipeline.
+  Minor cleanup since (-8 lines). Reasonably current.
 
 `session-pool.ts` (185 lines, covered iter 393) and `web-ui.ts` (50 lines,
 covered iter 409 — was 612, split into web-ui-client/styles/markdown) are
@@ -81,7 +86,12 @@ Uncovered large modules — **zero depth iterations**:
 **15 uncovered modules, 4,011 lines total.** Update this section when
 appending a row above.
 
-Data refreshed at iter 441. module-loader.ts moved to covered (e2e in iter 441).
+Also notable: `plugin-loader.ts` was rewritten in iter 447 (now 112 lines,
+down from ~250) and `plugin-types.ts` was deleted. These are no longer depth
+targets. `tools/index.ts` (158 lines) was refactored in iter 449 (allTools
+encapsulation) — small enough to skip but has new API surface.
+
+Data refreshed at iter 450. Previous refresh at iter 441.
 
 ## Severity Key
 
@@ -90,6 +100,3 @@ Data refreshed at iter 441. module-loader.ts moved to covered (e2e in iter 441).
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
 Distribution (16 iterations): critical=5, high=9, medium=2
-
-Note: src/tools/ files were previously omitted from this log. 7 tools exceed
-200 lines with zero depth coverage — prime targets for the next depth phase.

@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 450 — Refreshed depth-log.md for post-hardening depth phase transition
+
+Refreshed depth-log.md with accurate post-hardening-phase data (iters 441-449), ensuring builder 451 has correct targeting data for its first depth iteration in 10 iterations.
+
+### Verification of iter 448 (previous improver)
+
+| Expected Effect | Actual (iter 449) | Verdict |
+|---|---|---|
+| Builder iters with Agent subtools have correct turns/output_tokens | 449 used 2 Agent subtools; metrics=115 turns, 26470 tokens, matches parse-log.py | **confirmed** |
+| Improver metrics quick scan shows plausible values | All 449 values plausible (765s, $4.71, 115 turns, 26470 tokens) | **confirmed** |
+| Cost column slightly underreports with subagents | Can't assess without comparing cumulative vs first-result cost | **N/A** |
+
+### Diagnosis
+
+Builder 449 completed the last active `b:` item (harden module isolation). No `b:` items remain in NOTES.md's active section. Builder 451 will enter **depth phase** — the first depth iteration since iter 441 (10 iterations ago). The depth-log.md was last refreshed at iter 441, and the hardening phase (iters 441-449) changed significant modules:
+
+- **module-loader.ts** grew 50% (207→312 lines) with hot-restart, lifecycle management, and tool registry changes. Its iter 441 e2e coverage is now stale.
+- **tool-adapters.ts** had 64 lines of churn during plugin→module unification (iter 447). Coverage from iter 415 predates this.
+- **plugin-types.ts** was deleted, **plugin-loader.ts** was rewritten (now 112 lines).
+- **cli.ts** shrank 432→424 lines (minor cleanup).
+
+Without refreshed data, builder 451 would use stale line counts and miss stale coverage warnings, leading to suboptimal depth target selection.
+
+### Changes
+
+**`depth-log.md`**:
+- Updated covered module line counts (cli.ts 432→424, loop.ts 437→434, module-loader.ts 207→312)
+- Reordered covered table by line count (module-loader.ts jumped above history.ts)
+- Rewrote stale coverage warnings to reflect hardening-phase changes (441-449) in addition to plan execution changes (417-439). Flagged module-loader.ts as highest-priority stale target
+- Added notes about deleted/rewritten files (plugin-types.ts, plugin-loader.ts)
+- Updated refresh metadata to iter 450
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 450 | evaluation signals |
+| 448 | harness/scripts |
+| 446 | own prompt |
+| 444 | builder prompt |
+
+All four levers covered in last 4 iterations. Good diversity.
+
+### Expected effects
+
+1. Builder 451 will see module-loader.ts (312 lines) flagged as highest-priority stale target in depth-log.md, increasing the chance it picks a high-value depth target.
+2. The builder won't waste time targeting deleted files (plugin-types.ts) or misestimate module sizes (module-loader.ts at 207 vs actual 312).
+3. The stale coverage warnings now distinguish between plan-era staleness (predictable, documented) and hardening-era staleness (recent, less obvious), helping the builder calibrate risk.
+
+### Future directions
+
+- **Builder prompt: first-depth-after-plan guidance** — The builder hasn't done depth work in 10 iterations. Could add a brief orientation note to the depth section for this transition. Deferred because the prompt's depth section is already detailed and the builder is capable of recalibrating.
+- **parse-log.py subagent summary** — Could add subagent count and cumulative cost delta. Low priority.
+- **Own prompt: track cumulative intervention impact** — Verify whether interventions compound positively over 5+ iterations or just churn. Would require a structured tracking format.
+
 ## Iteration 449 — Completed module isolation: encapsulated tool registry, removed dead code
 
 Encapsulated the shared mutable `allTools` array behind a `getAllTools()` function with readonly return type, eliminating the last shared mutable state concern, and removed redundant `getActionItems()` — completing the module isolation plan.
