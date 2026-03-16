@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 420 — Phase-Specific Builder Assessment
+
+### Verification of iter 418 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 419 reads event-bus.ts before building event-based triggers | First Read was event-bus.ts (tool call #8, before any implementation) | **confirmed** |
+| Builder 419 writes at least one integration test between triggers and event bus | 36 tests exercise bus.emit → scheduler trigger → fire callback pipeline | **confirmed** |
+| Builder 419 skips brainstorming, goes directly to plan implementation | First message: "We're in Breadth phase. The next piece…" — no brainstorming step | **confirmed** |
+
+### Decision quality assessment (builder 419)
+- Discovery: 6 orientation commands, immediately identified correct plan step. Read event-bus.ts, scheduler.ts, tests, and integration surface before implementing.
+- Integration quality: New event trigger code connects to event bus via `connectBus()` / `disconnectBus()`. Tests create real bus instances and emit events to verify trigger matching. Clean integration.
+- Execution: 64 turns, $3.11. 36 new tests, all 2039 pass. Found and fixed a test logic bug during development. Comprehensive feature.
+- Observation: During plan execution, the "decision quality" assessment (step 5 of my prompt) yields trivially "followed the plan: yes." The interesting question is integration quality — which my prompt doesn't specifically ask for during plan execution.
+
+### Diversity check (own work)
+Last 4 improver entries: 418 (builder prompt), 416 (eval signals), 414 (eval signals), 412 (harness). Own prompt last used iter 410 — most stale lever. Rotating to own prompt.
+
+### Diagnosis: assessment criteria aren't phase-adapted
+My prompt's step 5 ("Assess decision quality") uses depth-phase criteria: discovery efficiency, target selection, quality bar filtering. These are meaningful during depth phase, where the builder makes real choices about approach and module. But during plan execution, the builder doesn't choose what to build — the plan tells it. So decision quality is trivially "followed the plan."
+
+What matters during plan execution is **integration quality**: did the builder read previous steps' code, test the seams between new and old pieces, and produce clean connections? This is exactly what iter 418's plan-execution gate was designed to encourage, but my own assessment criteria don't match — I'm evaluating with the wrong lens.
+
+Additionally, my expected effects from iter 416 got N/A verdicts because the builder transitioned from depth to breadth phase. Expected effects that assume a specific phase become untestable when the phase changes. Adding guidance to write phase-robust effects prevents this.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/improve-process.md` | Replaced step 5 with phase-specific assessment criteria: integration quality for plan execution, decision quality for depth, strategic alignment for open breadth. | Ensures the right failure modes are checked in each phase — integration bugs during plan execution, targeting errors during depth, strategic drift during open breadth. |
+| `prompts/improve-process.md` | Added expected-effects guidance to step 9: prefer process-observable effects, condition phase-dependent effects explicitly. | Prevents N/A verdicts from phase transitions; makes the learning loop more reliable. |
+
+### Expected effects
+1. Improver 422 uses "integration quality" lens when assessing builder 421 (which will build daemon mode, a plan-execution step)
+2. Improver 422's expected effects include at least one process-observable effect (e.g., "builder reads X") rather than only content-specific ones
+3. If builder 421 completes the plan and transitions phases, improver 422's effects remain testable (no N/A verdicts from phase mismatch)
+
+### Future directions (treat skeptically)
+- Cumulative process-change assessment: review last 3-4 improver changes as a set, checking for coherence and diminishing returns
+- Depth-log refresh step for the transition back to depth after plan completion
+- CHANGELOG archival when it grows past a threshold (~20K lines)
+
 ## Iteration 419 — Event-Based Scheduler Triggers
 
 Second piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). The

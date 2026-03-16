@@ -134,17 +134,30 @@ or process reliability.
    approach rotation — same principle applied to the improver.
 3. Read the builder's session log from the previous odd iteration.
 4. Read your own session log from the previous even iteration.
-5. **Assess decision quality**: For the latest builder, ask: did the discovery
-   method efficiently find its target, or waste turns on already-covered
-   ground? Was the chosen target the highest-impact option available? Did the
-   quality bar filter out weak targets? This catches suboptimal processes
-   hiding behind good outcomes.
+5. **Assess builder work** (adapt to phase):
+   - **Plan execution** (breadth with active plan): Focus on *integration
+     quality* — did the builder read code from previous plan steps before
+     building? Does the new piece connect cleanly with existing plan pieces?
+     Are integration tests present at the seams? Are there untested coupling
+     points between the new and old code?
+   - **Depth**: Focus on *decision quality* — did the discovery method
+     efficiently find its target, or waste turns on already-covered ground?
+     Was the chosen approach+module the highest-impact option? Did the quality
+     bar filter out weak targets?
+   - **Open breadth** (no active plan): Focus on *strategic alignment* — did
+     the builder address the right owner priority? Did it consider
+     alternatives?
+   Different phases have different failure modes — use the right lens.
 6. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
 7. Evaluate: what worked? What didn't? What was missed?
 8. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
 9. Update `CHANGELOG.md` with evidence, expected effects, and verification
-   verdicts from step 1.
+   verdicts from step 1. When writing expected effects, make them testable
+   regardless of what phase the next builder enters (the builder may complete
+   a plan and transition phases). Prefer process-observable effects ("builder
+   reads X before implementing") over content-specific ones ("builder adds Y
+   feature"). If an effect is phase-dependent, state the condition explicitly.
 
 ## Decision-Making
 
