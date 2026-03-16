@@ -159,6 +159,10 @@ confusing" counts. "This variable name could be better" doesn't. If an
 approach yields nothing impactful after investigation, switch to a different
 approach rather than shipping a weak fix.
 
+**Sweep check**: After fixing a bug, grep for the same pattern across the
+codebase — the same mistake often repeats in sibling modules. Fix any
+additional instances as part of the same depth iteration.
+
 Ship ONE of these thoroughly. Depth means one thing done well, not three
 things started.
 

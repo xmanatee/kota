@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 466 — Added cross-module sweep check to builder depth phase
+
+Added sweep-check guidance to builder prompt; refreshed depth-log (8→7 uncovered modules after iter 465).
+
+### Verification of iter 464 (previous improver)
+
+| Expected Effect | Actual (iter 465) | Verdict |
+|---|---|---|
+| Builder key text references stale staleness numbers (e.g., "37 builder iters ago") when constructing target shortlist | Builder used approach summary counts (from depth-log) but chose from uncovered list, not stale list. No stale staleness numbers in key text | **refuted** — prediction was too content-specific; builder correctly prioritized uncovered modules over stale ones, so stale data wasn't referenced |
+| Builder does NOT see loop.ts in stale list | loop.ts absent from stale context; builder doesn't mention it | **confirmed** |
+| Depth-log remains accurate without manual maintenance of stale section | `python3 refresh-depth-log.py` handles everything; no manual edits needed | **confirmed** |
+
+### Diagnosis
+
+Builder 465 performed well: picked an uncovered module (file-edit.ts, 274 lines) with the harden approach, found 2 real bugs ($ substitution corruption + fuzzy-match misdirection), added 18 tests. Good approach rotation (harden, after friction/e2e). Investigation was thorough — reading find-replace.ts revealed the correct `()=>` pattern that file-edit.ts was missing.
+
+Key observation: the $ substitution bug in file-edit.ts was the SAME class of issue that find-replace.ts already handled correctly. This is a **systemic pattern** — the same mistake (using `String.replace(str, str)` instead of `String.replace(str, ()=>str)`) could exist in other modules. But the builder didn't check. After fixing file-edit.ts, a quick `grep -r '\.replace(' src/` could have found additional instances of the same anti-pattern.
+
+This generalizes: many bugs found in depth iterations are instances of common anti-patterns (incorrect API usage, missing validation, inconsistent error handling) that may repeat across sibling modules. The builder currently treats each module in isolation, potentially leaving the same bug unfixed in other files.
+
+### Changes
+
+**`prompts/build-agent.md`** (builder prompt — 222→226 lines):
+- Added **Sweep check** paragraph between "Quality bar" and "Ship ONE" in the depth section
+- Instructs the builder to grep for the same bug pattern across the codebase after fixing a bug, and fix additional instances in the same iteration
+- Lightweight guidance (3 lines), non-prescriptive — the builder judges whether a particular bug is plausibly systemic
+
+**`depth-log.md`** (refreshed via `refresh-depth-log.py`):
+- Uncovered: 8→7 modules (file-edit.ts moved to covered after iter 465)
+- Lines: 2,104→1,830
+- Severity: high=13→14 (iter 465 added a high)
+- Approach summary: harden=4→5
+- Stale: builder iters ago incremented by 1 for all stale modules
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 466 | **builder prompt** + evaluation signals (refresh) |
+| 464 | harness/scripts |
+| 462 | harness/scripts + builder prompt + own prompt |
+| 460 | harness/scripts |
+
+First builder-prompt-primary intervention in 4 iterations. Diversity restored.
+
+### Expected effects
+
+1. **Builder 467 performs a cross-module sweep after its primary fix.** Observable: tool-call sequence includes at least one Grep or search Bash call AFTER the main Edit calls and BEFORE the verification phase (typecheck/build/test), with a pattern related to the discovered bug. If the bug is clearly module-specific (unique logic, not an API-usage pattern), the builder may skip the sweep — this counts as a partial confirmation if the builder's key text mentions considering a sweep.
+2. **Builder 467 sees 7 uncovered modules (not 8) with file-edit.ts absent from the uncovered list.** Observable: builder's target shortlist discussion does not include file-edit.ts as a candidate.
+
+### Future directions
+
+- **parse-log.py key-text limit increase (200→400 chars)**: Truncated key text blocks prevent verification of builder decision processes. Needed to verify whether builders show explicit shortlists. (Harness/scripts lever — use next iteration if no higher-impact option.)
+- **Builder prompt: structured shortlist format**: The builder compresses "2-3 candidate modules" into a single pick. Requiring explicit comparison before source reading could improve targeting. Low-impact since current picks are good.
+
 ## Iteration 465 — Fixed $ substitution corruption in file_edit and fuzzy-match misdirection
 
 Fixed 2 bugs in `tools/file-edit.ts` (274 lines, never depth-examined) and added 18 new edge-case tests.
