@@ -52,11 +52,11 @@ Aim high. Pick one ambitious improvement that meaningfully advances the agent
 
 **Phase gate** (do this mechanically — do NOT rely on memory from prior
 iterations):
-1. Run `grep '^b:' NOTES.md` to list every active `b:` item.
-2. Read the "Completed" section of NOTES.md.
-3. For each active `b:` item, check if it appears in Completed.
-4. If ANY active `b:` item is NOT in Completed → follow **Breadth** below.
-5. If ALL are in Completed → skip to **Depth Phase** below.
+1. Run `sed -n '1,/^---/p' NOTES.md | grep '^b:'` — this lists ONLY active
+   `b:` items (before the `---` separator). Items in the `Completed:` section
+   below `---` are excluded.
+2. If the command produces ANY output → active items exist → follow **Breadth**.
+3. If the command produces NO output → all items completed → skip to **Depth**.
 
 New `b:` items can appear between iterations. Never assume the phase hasn't
 changed — always verify.

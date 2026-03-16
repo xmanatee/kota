@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 442 — Fix phase gate grep to exclude completed items, preventing wrong phase entry
+
+Fixed the builder prompt's phase gate command from `grep '^b:' NOTES.md` (matches ALL sections) to `sed -n '1,/^---/p' NOTES.md | grep '^b:'` (matches only active items before the separator), and simplified the 5-step decision to 3 steps.
+
+### Verification of iter 440 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Builder 441 reads depth-log.md stale-coverage warning | Tool call #5: "Read depth-log.md for coverage" | **confirmed** |
+| Builder 441 sees accurate server.ts=400 | depth-log.md has 400 | **confirmed** |
+| "Re-enters depth" note reduces phase confusion | Builder entered Depth despite 2 active `b:` items — note reinforced wrong phase | **refuted** |
+
+### Diagnosis
+
+Builder 441's phase gate produced a false "all completed" result. The command `grep '^b:' NOTES.md` returns 8 lines — 2 active items + 6 completed items (which also start with `b:` in the Completed section). The builder had to mentally cross-reference all 8 against the Completed section, got confused by the noise, and concluded all were completed. It self-corrected at text block #20 ("Wait — there's a new `b:` item!") but wasted ~18 tool calls in depth orientation before catching the mistake.
+
+The root cause is structural: the grep matches items in both the active and Completed sections of NOTES.md, since both use the `b:` prefix. As more items accumulate in Completed, the signal-to-noise ratio drops.
+
+### Changes
+
+**`prompts/build-agent.md`** — Phase gate rewrite:
+- **Before**: `grep '^b:' NOTES.md` → returns 8 items → 5-step cross-reference logic
+- **After**: `sed -n '1,/^---/p' NOTES.md | grep '^b:'` → returns only 2 active items → 3-step logic (any output = Breadth, no output = Depth)
+
+### Why not the alternatives
+
+- **Reduce depth-log bookkeeping** (eval signals): Builder 441 spent 10 edits on depth-log.md — worth addressing but would be 4th eval signals change in a row. Lower impact.
+- **Add "study OpenClaw" awareness**: That's a strategic direction — the builder should discover it via the fixed phase gate, not via a process hint.
+- **Phase gate validation script**: Over-engineering — the fix itself prevents the failure.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 442 | builder prompt |
+| 440 | eval signals |
+| 438 | builder prompt + eval signals |
+| 436 | eval signals |
+
+Builder prompt change breaks the eval signals streak.
+
+### Expected effects
+
+1. Builder 443 runs `sed -n '1,/^---/p' NOTES.md | grep '^b:'` during phase gate and sees exactly the 2 active items — enters Breadth immediately without false depth entry.
+2. Builder 443 spends 0 turns on depth orientation (no depth-log.md read, no approach rotation) since it correctly enters Breadth.
+3. The phase gate decision takes 1 tool call instead of the previous pattern of reading the full file and mentally cross-referencing.
+
+### Future directions
+
+- **Depth-log bookkeeping overhead**: Builder 441 spent 10 edit calls updating depth-log.md. Consider simplifying the update format or making it appendable in fewer edits.
+- **Stale `b:` item detection**: The "study how OpenClaw..." item has been active since it was added but never addressed. If it remains unaddressed after the builder correctly enters Breadth, it may need owner attention.
+- **Own prompt: expected effect accuracy**: The "re-enters depth" prediction in iter 440 was refuted — the builder should have entered Breadth, not Depth. Future predictions should account for the possibility that NOTES.md has new items.
+
 ## Iteration 441 — E2E test for module→CLI pipeline, fix CLI error resilience
 
 Added end-to-end integration tests for the module loading → CLI command registration → tool availability pipeline, and fixed a high-severity bug where a single module crash would take down the entire CLI.
