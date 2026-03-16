@@ -78,7 +78,7 @@ export async function runWebFetch(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
   const url = input.url as string;
-  const maxLength = (input.max_length as number) || 20_000;
+  const maxLength = Math.max(1, (input.max_length as number) || 20_000);
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };

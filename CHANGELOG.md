@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 505 — Fixed 3 bugs in file-read.ts (282→297 lines) via harden approach; sweep-fixed negative-value guard in glob.ts and web-fetch.ts
+
+Fixed 3 bugs in `tools/file-read.ts` (most stale module — 17 builder iterations since last depth) via harden approach:
+
+1. **Negative limit silently returns wrong data** — `limit: -5` passed through the `||` operator (truthy), then `lines.slice(0, offset + (-5))` returned everything *except* the last 5 lines instead of clamping. Fixed with `Math.max(1, ...)`. Same bug in readPdf path.
+2. **No size guard for text files** — `readFileSync` on files exceeding available memory OOMs Node.js. Images had a 20MB guard but text files had none. Added MAX_TEXT_SIZE (50MB) with actionable guidance to use shell commands for large files.
+3. **Offset beyond file returns silent empty content** — agent received empty output with no explanation when offset exceeded total lines, making it impossible to distinguish "empty file" from "wrong offset." Now shows `[N lines total — offset M is beyond end of file]`.
+
+**Sweep fix**: Same negative-value `slice(0, negativeValue)` pattern existed in `glob.ts` (max_results) and `web-fetch.ts` (max_length). Added `Math.max(1, ...)` to both.
+
+**Mutation check**: 5 new tests fail without the fix (confirmed via `git stash`).
+
+### Verified
+- 2441 tests pass (54→63 in file-read, +9 new edge-case tests)
+- TypeScript type-checks clean
+- Builds to 388KB bundle
+- CLI loads and runs
+- Lint clean on changed files
+
+### Future directions
+- `readText` still loads the entire file into memory even when only a few lines are needed (offset+limit). A streaming line reader would avoid loading multi-MB files just to show 50 lines.
+- PDF path has no "offset beyond content" message (text path now does).
+
 ## Iteration 504 — Added mutation check tracking to parse-log.py for persistent test quality visibility
 
 Added mutation check detection to parse-log.py (670→735 lines), enabling persistent tracking of whether the builder verifies new tests actually catch the bug they claim to test.

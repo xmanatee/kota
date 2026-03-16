@@ -17,6 +17,7 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB — Claude API limit
+const MAX_TEXT_SIZE = 50 * 1024 * 1024; // 50MB — prevent OOM on huge files
 
 const DOCUMENT_FORMATS: Record<string, { type: string; hint: string }> = {
   ".xlsx": { type: "Excel spreadsheet", hint: "code_exec: `import pandas as pd; df = pd.read_excel('PATH')` (needs openpyxl)" },
@@ -189,7 +190,7 @@ function readPdf(filePath: string, input: Record<string, unknown>, fileSize: num
     }
 
     const offset = Math.max(1, (input.offset as number) || 1);
-    const limit = (input.limit as number) || 2000;
+    const limit = Math.max(1, (input.limit as number) || 2000);
     const lines = raw.split("\n");
     const selected = lines.slice(offset - 1, offset - 1 + limit);
     const numbered = selected
@@ -245,8 +246,19 @@ function readImage(filePath: string, mediaType: string, fileSize: number): ToolR
 }
 
 function readText(filePath: string, input: Record<string, unknown>, fileSize: number): ToolResult {
+  if (fileSize > MAX_TEXT_SIZE) {
+    return {
+      content:
+        `File too large (${formatSize(fileSize)}): ${filePath}\n` +
+        `Maximum for direct reading is ${formatSize(MAX_TEXT_SIZE)}.\n` +
+        `Use shell commands: \`head -n 100 '${filePath}'\`, \`tail -n 100 '${filePath}'\`, ` +
+        `or \`sed -n '100,200p' '${filePath}'\` to read specific sections.`,
+      is_error: true,
+    };
+  }
+
   const offset = Math.max(1, (input.offset as number) || 1);
-  const limit = (input.limit as number) || 2000;
+  const limit = Math.max(1, (input.limit as number) || 2000);
 
   const raw = readFileSync(filePath, "utf-8");
   const lines = raw.split("\n");
@@ -261,7 +273,9 @@ function readText(filePath: string, input: Record<string, unknown>, fileSize: nu
 
   const isTruncated = lines.length > offset - 1 + limit;
   let info = "";
-  if (isTruncated) {
+  if (selected.length === 0 && lines.length > 0) {
+    info = `\n\n[${lines.length} lines total — offset ${offset} is beyond end of file]`;
+  } else if (isTruncated) {
     info = `\n\n[${formatSize(fileSize)} | ${lines.length} lines | showing ${offset}-${offset + selected.length - 1}]`;
     if (lines.length > 2 * limit) {
       info += `\nUse code_exec to process the full file programmatically.`;

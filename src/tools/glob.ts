@@ -33,7 +33,7 @@ export async function runGlob(
 ): Promise<ToolResult> {
   const pattern = input.pattern as string;
   const basePath = (input.path as string) || ".";
-  const maxResults = (input.max_results as number) || 100;
+  const maxResults = Math.max(1, (input.max_results as number) || 100);
 
   if (!pattern) {
     return { content: "Error: pattern is required", is_error: true };

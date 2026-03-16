@@ -48,13 +48,14 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 499 | harden | init.ts | high | Fixed 2 bugs: git execSync hangs (no timeout, blocks startup indefinitely), unprotected recall functions crash warmup on singleton/storage errors; 11 new tests (45→56) |
 | 501 | resource-lifecycle | tools/file-edit.ts, tools/file-write.ts, tools/multi-edit.ts, tools/find-replace.ts | high | Fixed lint-revert not updating file-tracker mtime (false stale warnings); sweep-fixed same bug in all 4 file-modification tools; 6 new tests |
 | 503 | error-paths | html-extract.ts | high | Fixed 3 bugs: fromCharCode→fromCodePoint for emoji entities above BMP, invalid codepoint crash guard, null byte injection replaced with U+FFFD; 10 new tests |
+| 505 | harden | tools/file-read.ts, tools/glob.ts, tools/web-fetch.ts | high | Fixed negative limit (wrong slice), added 50MB text size guard, added offset-beyond-file message; sweep-fixed negative-value guard in glob+web-fetch; 9 new tests |
 
 ## Approach Summary
 
 | Approach | Count | Last Used | Rotation |
 |----------|-------|-----------|----------|
-| error-paths | 11 | 497 | eligible |
-| harden | 9 | 499 | BLOCKED |
+| error-paths | 12 | 503 | BLOCKED |
+| harden | 9 | 499 | eligible |
 | friction | 6 | 495 | eligible |
 | audit | 5 | 487 | eligible |
 | structural-health | 4 | 475 | eligible |
@@ -62,9 +63,9 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | concurrency | 2 | 493 | eligible |
 | resource-lifecycle | 1 | 501 | BLOCKED |
 
-42 depth iterations across 8 approaches.
-**Rotation blocked** (used in last 2 builder iters): harden, resource-lifecycle
-**Rotation eligible**: error-paths, friction, audit, structural-health, e2e, concurrency
+43 depth iterations across 8 approaches.
+**Rotation blocked** (used in last 2 builder iters): error-paths, resource-lifecycle
+**Rotation eligible**: harden, friction, audit, structural-health, e2e, concurrency
 
 ## Uncovered Modules — PRIMARY Targets
 
@@ -88,15 +89,15 @@ find untried module+approach combinations.*
 
 | Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Unique Approaches | Approaches Used |
 |--------|-------|------------|--------------|-------------------|-------------------|-----------------|
-| html-extract.ts | 296 | 377 | 467 | 17 | 1 | audit |
-| tools/file-read.ts | 282 | 564 | 469 | 16 | 1 | error-paths |
-| verify-tracker.ts | 227 | 514 | 471 | 15 | 1 | harden |
-| registry.ts | 299 | 635 | 475 | 13 | 2 | error-paths, structural-health |
-| daemon.ts | 378 | 418 | 477 | 12 | 1 | error-paths, error-paths |
-| telegram.ts | 422 | 523 | 477 | 12 | 2 | audit, error-paths |
-| architect.ts | 229 | 431 | 479 | 11 | 1 | error-paths |
-| tools/delegate.ts | 329 | 384 | 479 | 11 | 2 | audit, error-paths |
-| mcp-client.ts | 264 | 467 | 481 | 10 | 3 | audit, error-paths, concurrency |
+| tools/file-read.ts | 282 | 564 | 469 | 17 | 1 | error-paths |
+| verify-tracker.ts | 227 | 514 | 471 | 16 | 1 | harden |
+| registry.ts | 299 | 635 | 475 | 14 | 2 | error-paths, structural-health |
+| daemon.ts | 378 | 418 | 477 | 13 | 1 | error-paths, error-paths |
+| telegram.ts | 422 | 523 | 477 | 13 | 2 | audit, error-paths |
+| architect.ts | 229 | 431 | 479 | 12 | 1 | error-paths |
+| tools/delegate.ts | 329 | 384 | 479 | 12 | 2 | audit, error-paths |
+| mcp-client.ts | 264 | 467 | 481 | 11 | 3 | audit, error-paths, concurrency |
+| tool-adapters.ts | 423 | 893 | 483 | 10 | 2 | error-paths, harden |
 
 **9 stale modules.**
 
@@ -104,19 +105,19 @@ find untried module+approach combinations.*
 
 *Which approaches have been tried on each stale module. `—` = untried, `BLOCKED` = not rotation-eligible.*
 
-| Module | error-paths | ~~harden~~ | friction | audit | structural-health | e2e | concurrency | ~~resource-lifecycle~~ |
+| Module | ~~error-paths~~ | harden | friction | audit | structural-health | e2e | concurrency | ~~resource-lifecycle~~ |
 |--------|---------------|----------|------------|---------|---------------------|-------|---------------|----------------------|
-| html-extract.ts | — | BLOCKED | — | 467 | — | — | — | BLOCKED |
-| tools/file-read.ts | 469 | BLOCKED | — | — | — | — | — | BLOCKED |
-| verify-tracker.ts | — | 471 | — | — | — | — | — | BLOCKED |
-| registry.ts | 407 | BLOCKED | — | — | 475 | — | — | BLOCKED |
-| daemon.ts | 451,477 | BLOCKED | — | — | — | — | — | BLOCKED |
-| telegram.ts | 477 | BLOCKED | — | 389 | — | — | — | BLOCKED |
-| architect.ts | 479 | BLOCKED | — | — | — | — | — | BLOCKED |
-| tools/delegate.ts | 479 | BLOCKED | — | 399 | — | — | — | BLOCKED |
-| mcp-client.ts | 401 | BLOCKED | — | 399 | — | — | 481 | BLOCKED |
+| tools/file-read.ts | 469 | — | — | — | — | — | — | BLOCKED |
+| verify-tracker.ts | BLOCKED | 471 | — | — | — | — | — | BLOCKED |
+| registry.ts | 407 | — | — | — | 475 | — | — | BLOCKED |
+| daemon.ts | 451,477 | — | — | — | — | — | — | BLOCKED |
+| telegram.ts | 477 | — | — | 389 | — | — | — | BLOCKED |
+| architect.ts | 479 | — | — | — | — | — | — | BLOCKED |
+| tools/delegate.ts | 479 | — | — | 399 | — | — | — | BLOCKED |
+| mcp-client.ts | 401 | — | — | 399 | — | — | 481 | BLOCKED |
+| tool-adapters.ts | 415 | 483 | — | — | — | — | — | BLOCKED |
 
-**58/72 combinations untried.**
+**57/72 combinations untried.**
 
 ## Coverage by Module
 
@@ -137,8 +138,8 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | tools/http-request.ts | 326 | 762 | 459,495 | error-paths, friction |
 | module-loader.ts | 323 | 651 | 441,487 | e2e, audit |
 | history.ts | 322 | 445 | 391,405,453,489 | friction, e2e, audit, harden |
+| html-extract.ts | 312 | 443 | 467,503 | audit, error-paths |
 | registry.ts | 299 | 635 | 407,475 | error-paths, structural-health |
-| html-extract.ts | 296 | 377 | 467 | audit |
 | tools/web-search.ts | 284 | 394 | 467,485 | audit, error-paths |
 | tools/file-edit.ts | 282 | 565 | 465,501 | harden, resource-lifecycle |
 | tools/file-read.ts | 282 | 564 | 469 | error-paths |
@@ -169,7 +170,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 502. Previous refresh at iter 501.
+Data refreshed at iter 504. Previous refresh at iter 503.
 
 ## Severity Key
 
@@ -179,4 +180,4 @@ Data refreshed at iter 502. Previous refresh at iter 501.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (42 iterations): critical=8, high=31, medium=3
+Distribution (43 iterations): critical=8, high=32, medium=3
