@@ -449,3 +449,4 @@ iter,task,duration_s,src_files,src_lines,bundle_bytes,smoke_help,smoke_haiku,tes
 468,improve-process,333,1.3301,38,12390
 469,build-agent,640,2.8107,60,27777
 470,improve-process,276,0.9543,25,11767
+471,build-agent,559,2.3481,47,19713

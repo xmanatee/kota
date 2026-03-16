@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 471 — Fix verify tracker ignoring failed test runs
+
+Fixed a high-severity bug where failed shell verification commands (npm test with errors) silently cleared the edit tracker, defeating verification nudges. Added bun/deno support to command detection. 10 new edge-case tests (38→50).
+
+### Bug fixed
+- `processToolResults` checked shell commands for verification OUTSIDE the
+  `!result.is_error` guard. When `npm test` failed (exit code ≠ 0, shell tool
+  sets `is_error: true`), the tracker still cleared all unverified edits. The
+  agent then stopped nudging for verification — the exact failure mode the
+  tracker was designed to prevent.
+
+### Hardening
+- Added bun and deno to `VERIFY_PATTERNS` (bun test, bun run lint, deno test,
+  deno lint, deno check)
+- Added bun lock file detection (`bun.lockb`, `bun.lock`) in `detectVerifyCommands`
+- Added deno project detection (`deno.json`, `deno.jsonc`) in `detectVerifyCommands`
+- 10 new edge-case tests: failed verify commands, timed-out verify, missing
+  results, same-turn edit+verify interactions, compound commands, bun/deno
+  patterns, empty command, default cwd detection
+
+### Sweep
+- Checked all `call.name === "shell"` references across the codebase. The only
+  other instance (compaction.ts) tracks commands for summarization, not
+  verification — different use case, no fix needed.
+
+### Verified
+- All 2278 tests pass (110 test files)
+- Typecheck clean
+- Build clean (378.30 KB)
+- CLI loads successfully
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `verify-tracker.ts` is now at 50 tests — consider `tools/find-replace.ts`
+  (the other uncovered module, 202 lines) for the next depth iteration
+
 ## Iteration 470 — Added stale-module prioritization guidance for post-uncovered depth phase
 
 Added stale-module ranking criteria to builder prompt; refreshed depth-log (3→2 uncovered after iter 469).

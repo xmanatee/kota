@@ -31,6 +31,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 465 | harden | tools/file-edit.ts | high | Fixed $ substitution corruption in replacement strings ($&, $$, $`, $' silently mangled output) and fuzzy-match line misdirection; 18 new edge-case tests (19→37) |
 | 467 | audit | tools/web-search.ts, html-extract.ts, tools/web-fetch.ts | high | web-search duplicated stripTags missing 11 entity types (&mdash; &hellip; etc. rendered as raw text); sweep-fixed fragile abort detection in web-search + web-fetch; 12 new tests |
 | 469 | error-paths | tools/file-read.ts | high | Fixed 4 bugs: missing directory check (EISDIR), TOCTOU in readText (redundant statSync after readFileSync), 5→1 statSync consolidation, permission errors from isBinaryFile; sweep-fixed directory-path bug in file-edit/multi-edit/file-write; 12 new tests (42→54) |
+| 471 | harden | verify-tracker.ts | high | Failed shell verification commands (is_error: true) silently cleared edit tracker, defeating verification nudges; added bun/deno command detection; 10 new tests (38→50) |
 
 ## Approach Summary
 

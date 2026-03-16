@@ -320,7 +320,7 @@ describe("AgentSession", () => {
       expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/b.ts");
     });
 
-    it("checks shell commands regardless of success", async () => {
+    it("does not check shell commands when result is error", async () => {
       session = new AgentSession();
       mockStreamMessage
         .mockResolvedValueOnce(
@@ -333,7 +333,7 @@ describe("AgentSession", () => {
 
       await session.send("test");
 
-      expect(mockVerifyTracker.checkShellCommand).toHaveBeenCalledWith("npm test");
+      expect(mockVerifyTracker.checkShellCommand).not.toHaveBeenCalled();
     });
 
     it("records files from find_replace result", async () => {

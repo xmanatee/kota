@@ -18,11 +18,13 @@ export function detectVerifyCommands(cwd?: string): VerifyCommand[] {
       const scripts = pkg.scripts || {};
 
       // Detect package manager from lock file
-      const pm = existsSync(join(dir, "pnpm-lock.yaml"))
-        ? "pnpm"
-        : existsSync(join(dir, "yarn.lock"))
-          ? "yarn"
-          : "npm";
+      const pm = existsSync(join(dir, "bun.lockb")) || existsSync(join(dir, "bun.lock"))
+        ? "bun"
+        : existsSync(join(dir, "pnpm-lock.yaml"))
+          ? "pnpm"
+          : existsSync(join(dir, "yarn.lock"))
+            ? "yarn"
+            : "npm";
 
       const targets: Array<[string, string]> = [
         ["test", "test"],
@@ -67,6 +69,14 @@ export function detectVerifyCommands(cwd?: string): VerifyCommand[] {
     commands.push({ label: "test", command: "pytest" });
   }
 
+  if (existsSync(join(dir, "deno.json")) || existsSync(join(dir, "deno.jsonc"))) {
+    commands.push(
+      { label: "test", command: "deno test" },
+      { label: "lint", command: "deno lint" },
+      { label: "check", command: "deno check" },
+    );
+  }
+
   return commands;
 }
 
@@ -74,6 +84,8 @@ const VERIFY_PATTERNS = [
   /\bnpm (run )?(test|lint|build|typecheck|type-check|check)\b/,
   /\bpnpm (run )?(test|lint|build|typecheck|type-check|check)\b/,
   /\byarn (run )?(test|lint|build|typecheck|type-check|check)\b/,
+  /\bbun (run )?(test|lint|build|typecheck|type-check|check)\b/,
+  /\bdeno (test|lint|check|bench)\b/,
   /\bcargo (test|check|clippy|build)\b/,
   /\bpytest\b/,
   /\bpython -m pytest\b/,
@@ -207,7 +219,7 @@ export function processToolResults(
       }
     }
 
-    if (call.name === "shell") {
+    if (call.name === "shell" && result && !result.is_error) {
       tracker.checkShellCommand((input.command as string) || "");
     }
   }

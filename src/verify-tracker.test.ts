@@ -185,6 +185,36 @@ describe("isVerifyCommand", () => {
     expect(isVerifyCommand("echo hello")).toBe(false);
     expect(isVerifyCommand("node script.js")).toBe(false);
   });
+
+  it("recognizes verify commands in compound shell commands", () => {
+    expect(isVerifyCommand("cd src && npm test")).toBe(true);
+    expect(isVerifyCommand("npm test && npm run lint")).toBe(true);
+    expect(isVerifyCommand("npm test | tee log.txt")).toBe(true);
+  });
+
+  it("recognizes bun commands", () => {
+    expect(isVerifyCommand("bun test")).toBe(true);
+    expect(isVerifyCommand("bun run lint")).toBe(true);
+    expect(isVerifyCommand("bun run build")).toBe(true);
+    expect(isVerifyCommand("bun run typecheck")).toBe(true);
+  });
+
+  it("recognizes deno commands", () => {
+    expect(isVerifyCommand("deno test")).toBe(true);
+    expect(isVerifyCommand("deno lint")).toBe(true);
+    expect(isVerifyCommand("deno check src/main.ts")).toBe(true);
+  });
+
+  it("recognizes npx-prefixed tools", () => {
+    expect(isVerifyCommand("npx vitest run")).toBe(true);
+    expect(isVerifyCommand("npx tsc --noEmit")).toBe(true);
+    expect(isVerifyCommand("npx jest")).toBe(true);
+    expect(isVerifyCommand("npx biome check .")).toBe(true);
+  });
+
+  it("rejects empty command", () => {
+    expect(isVerifyCommand("")).toBe(false);
+  });
 });
 
 describe("processToolResults", () => {
@@ -271,6 +301,106 @@ describe("processToolResults", () => {
     processToolResults(tracker, [], []);
     processToolResults(tracker, [], []);
     expect(tracker.getState()).toContain("Consider verifying");
+  });
+
+  it("does NOT clear edits when shell verify command fails", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "shell", id: "1", input: { command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "FAIL src/foo.test.ts\n2 tests failed", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+    expect(tracker.getState()).toContain("src/foo.ts");
+  });
+
+  it("does NOT clear edits when shell verify command has no result", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "shell", id: "1", input: { command: "npm test" } },
+    ], []);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("does NOT clear edits when shell verify command timed out", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "shell", id: "1", input: { command: "npm run typecheck" } },
+    ], [
+      { tool_use_id: "1", content: "Command timed out after 30000ms", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("clears edits only when shell verify command succeeds", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    tracker.recordEdit("src/bar.ts");
+    processToolResults(tracker, [
+      { name: "shell", id: "1", input: { command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "All 42 tests passed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("tracks edits and clears on verify in same turn", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "file_edit", id: "1", input: { path: "src/foo.ts" } },
+      { name: "shell", id: "2", input: { command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "OK" },
+      { tool_use_id: "2", content: "All tests passed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("keeps edits when verify fails in same turn as edits", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "file_edit", id: "1", input: { path: "src/foo.ts" } },
+      { name: "shell", id: "2", input: { command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "OK" },
+      { tool_use_id: "2", content: "FAIL: 3 tests failed", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+    expect(tracker.getState()).toContain("src/foo.ts");
+  });
+
+  it("non-verify shell commands do not clear edits regardless of success", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "shell", id: "1", input: { command: "git status" } },
+    ], [
+      { tool_use_id: "1", content: "On branch main" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("does not track find_replace files when result is error", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "find_replace", id: "1", input: { pattern: "foo", replacement: "bar", files: "*.ts" } },
+    ], [
+      { tool_use_id: "1", content: "Syntax error in src/main.ts after replacement:\nAll changes reverted.", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("does not track delegate files when result is error", () => {
+    const tracker = new VerifyTracker();
+    processToolResults(tracker, [
+      { name: "delegate", id: "1", input: { mode: "execute", task: "fix bug" } },
+    ], [
+      { tool_use_id: "1", content: "Error: context overflow\n--- Modified files\n  - src/fix.ts", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
   });
 });
 
@@ -367,5 +497,18 @@ describe("detectVerifyCommands", () => {
     expect(labels).toContain("test");
     expect(labels).toContain("typecheck");
     expect(labels).toContain("build");
+  });
+
+  it("detects correct package manager for current project", () => {
+    const commands = detectVerifyCommands(process.cwd());
+    const testCmd = commands.find((c) => c.label === "test");
+    expect(testCmd).toBeDefined();
+    // Current project uses npm (no pnpm-lock.yaml, no yarn.lock, no bun.lockb)
+    expect(testCmd!.command).toMatch(/^(npm|pnpm|yarn|bun) /);
+  });
+
+  it("defaults to process.cwd when no dir given", () => {
+    const commands = detectVerifyCommands();
+    expect(commands.length).toBeGreaterThan(0);
   });
 });
