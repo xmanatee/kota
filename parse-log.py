@@ -373,14 +373,35 @@ def _print_builder_analysis(
 
     print(f"  Fix-verify:   {cycles} cycle(s)")
 
-    # 5. Sweep: Grep calls after first implementation Edit
-    #    (captures sweep searches that may precede sweep-fix Edits)
+    # 5. Sweep: total calls between mutation check and verification
     post_greps = 0
     if first_impl_edit is not None:
         for tc in tool_calls[first_impl_edit + 1:]:
             if tc.name == "Grep":
                 post_greps += 1
-    print(f"  Sweep:        {post_greps} Grep call(s) after first impl Edit")
+    # Total sweep cost: all calls between mutation end and verification start
+    mutation_last = -1
+    for i, tc in enumerate(tool_calls):
+        s = _searchable(tc)
+        if tc.name == "Bash" and (
+            "mutation" in s or "_mut_backup" in s
+            or ("stash" in s and any(kw in s for kw in ["revert", "verify", "check", "fail"]))
+        ):
+            mutation_last = i
+    sweep_total = 0
+    if mutation_last >= 0:
+        verify_first = len(tool_calls)
+        for i in range(mutation_last + 1, len(tool_calls)):
+            tc = tool_calls[i]
+            s = _searchable(tc)
+            if tc.name == "Bash" and ("typecheck" in s or "tsc" in s):
+                verify_first = i
+                break
+        sweep_total = max(0, verify_first - mutation_last - 1)
+    if sweep_total > 0:
+        print(f"  Sweep:        {sweep_total} call(s) between mutation and verification")
+    else:
+        print(f"  Sweep:        {post_greps} Grep call(s) after first impl Edit")
 
     # 6. Verification levels — check both description and command
     checks = {"typecheck": False, "build": False, "test": False, "load": False}
@@ -463,13 +484,26 @@ def _quick_parse(path: str) -> dict:
     text_snippets: list[str] = []
     full_texts: list[str] = []
     cl_edits: list[str] = []
+    error_count = 0
+    tc_list: list[tuple[str, str]] = []  # (name, searchable) for sweep
     for msg in messages:
+        if msg.get("type") == "user":
+            content = msg.get("message", {}).get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
+                        error_count += 1
+            continue
         if msg.get("type") != "assistant":
             continue
         for block in msg.get("message", {}).get("content", []):
             if block.get("type") == "tool_use":
                 tool_count += 1
                 inp = block.get("input", {})
+                _desc = (inp.get("description", "") or "").lower()
+                _cmd = (inp.get("command", "") or "").lower()
+                _fp = (inp.get("file_path", "") or "").lower()
+                tc_list.append((block["name"], f"{_desc} {_cmd} {_fp}"))
                 if block["name"] == "Bash":
                     desc = (inp.get("description", "") or "").lower()
                     cmd = (inp.get("command", "") or "").lower()
@@ -531,6 +565,25 @@ def _quick_parse(path: str) -> dict:
                     if m and m.group(1).lower() in DEPTH_APPROACHES:
                         target_app = m.group(1).lower()
                         break
+    # Sweep: total calls between last mutation-related call and first verification
+    sweep_calls = 0
+    if mutation_calls > 0:
+        mutation_last = -1
+        for i, (name, s) in enumerate(tc_list):
+            if name == "Bash" and (
+                "mutation" in s or "_mut_backup" in s
+                or ("stash" in s and any(kw in s for kw in ["revert", "verify", "check", "fail"]))
+            ):
+                mutation_last = i
+        if mutation_last >= 0:
+            verify_first = len(tc_list)
+            for i in range(mutation_last + 1, len(tc_list)):
+                name, s = tc_list[i]
+                if name == "Bash" and ("typecheck" in s or "tsc" in s):
+                    verify_first = i
+                    break
+            sweep_calls = max(0, verify_first - mutation_last - 1)
+
     usage = result.get("usage", {})
     turns = result.get("num_turns", 0) or 0
     cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -544,6 +597,8 @@ def _quick_parse(path: str) -> dict:
         "mutation": "ran" if mutation_calls > 0 else "no",
         "cache_read": cache_read,
         "cache_per_turn": round(cache_read / turns) if turns else 0,
+        "error_count": error_count,
+        "sweep_calls": sweep_calls,
     }
 
 
@@ -675,10 +730,12 @@ def trend(n: int = 5) -> None:
         td = e["test_delta"] or "?"
         cpt = e.get("cache_per_turn", 0)
         cpt_str = f"{cpt // 1000}k" if cpt else "?"
+        errs = e.get("error_count", 0)
+        sweep = e.get("sweep_calls", 0)
         print(
             f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
-            f"  ctx: {cpt_str}/turn"
+            f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
         )
         total_calls += e["calls"]
         total_cost += e["cost"]
@@ -697,6 +754,16 @@ def trend(n: int = 5) -> None:
         f"  Avg: {avg_calls:.0f} calls, ${avg_cost:.2f}, "
         f"+{avg_tests:.1f} tests/iter"
     )
+    # Error and sweep aggregates
+    total_errors = sum(e.get("error_count", 0) for e in entries)
+    total_sweep = sum(e.get("sweep_calls", 0) for e in entries)
+    avg_sweep = total_sweep / ne if ne else 0
+    if total_errors > 0 or total_sweep > 0:
+        print(
+            f"  Errors: {total_errors} total ({total_errors / ne:.1f}/iter)"
+            f"  Sweep: {total_sweep} total ({avg_sweep:.0f}/iter avg)"
+        )
+
     # Context size trend (per-turn cache read)
     if len(cpt_values) >= 2:
         first_half = sum(cpt_values[: len(cpt_values) // 2]) / (len(cpt_values) // 2)

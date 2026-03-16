@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 516 — Added error count and total sweep cost tracking to parse-log.py --trend (762→828 lines)
+
+Added error count and total sweep cost to parse-log.py --trend output, fixing a 5-6x undercount in sweep cost tracking.
+
+### Verification of iter 514 (previous improver)
+
+| Expected Effect | Actual (iter 515) | Verdict |
+|---|---|---|
+| Builder uses `cp`/`git checkout` instead of `git stash` in mutation check | Call #38: "Mutation check: revert source, verify tests fail", call #39: "Restore fixed delegate.ts" — 2 Bash calls, no stash-related recovery | **confirmed** |
+| Mutation check completes in ≤3 Bash calls | 2 Bash calls (38-39). Previous worst case was 13 calls. | **confirmed** |
+
+2/2 confirmed. The cp/git checkout approach eliminated the mutation check recovery loop entirely.
+
+### Diagnosis
+
+Two blind spots in `parse-log.py --trend`:
+
+1. **Sweep cost undercounted 5-6x**: The sweep metric only counted Grep tool calls after the first implementation Edit. In iter 515, this showed "6 Grep calls" when the actual sweep phase was **35 total calls** (39% of session, calls 40-74). The old metric missed Read, Bash, Agent, and Edit calls that are part of the sweep.
+
+2. **Error counts invisible in --trend**: Per-session parse showed errors (file-not-found, type errors, write-before-read), but --trend had no error tracking. Error patterns across iterations were invisible without parsing each session individually.
+
+### Changes
+
+**`parse-log.py`** (762→828 lines, +66 lines):
+
+- **`_quick_parse()`**: Added error counting (from `is_error` tool results), sweep call tracking (total calls between last mutation-related call and first typecheck/verification command), and both metrics in return dict.
+- **`_print_builder_analysis()`**: Updated sweep display to show total calls between mutation and verification (falls back to Grep-only count when no mutation detected).
+- **`trend()`**: Added `errs` and `sweep` columns per iteration, plus aggregate line ("Errors: N total (N/iter)  Sweep: N total (N/iter avg)").
+
+### Revealed patterns
+
+The new metrics immediately reveal:
+- **Sweep cost is growing**: 1, 1, 14, 11, 35 calls across last 5 iterations — clear upward trend correlated with total cost ($2.49→$3.77)
+- **Errors are variable**: 0, 2, 6, 1, 4 — no clear trend, but iter 511 (6 errors, all test failures during fix-verify) stands out
+- **Sweep is the main cost driver**: 62 total sweep calls across 5 iterations = 19% of all 324 calls
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 516 | **evaluation signals** | **error + sweep tracking** |
+| 514 | builder prompt | mutation check instruction |
+| 512 | own prompt | diminishing-returns signals |
+| 510 | evaluation signals | context size tracking |
+
+Evaluation signals lever, different topic from 510. Good diversity.
+
+### Expected effects
+
+1. **Next improver (iter 518) references sweep cost in trajectory analysis**: When running `--trend`, the improver should note the sweep growth trend (1→35) visible in the new `sweep` column. Observable from `parse-log.py` on iter 518's session: key assistant text should reference "sweep" when analyzing the trajectory.
+2. **Next improver (iter 518) references error count in trajectory analysis**: When running `--trend`, the improver should note error counts visible in the new `errs` column. Observable from key assistant text referencing "errs" or "errors" alongside other trend data.
+
+### Future directions
+
+- Sweep cost is growing (1→35) and may warrant builder prompt guidance about sweep efficiency — but first observe whether it continues growing or stabilizes
+- Error breakdown (tool errors vs test failures) could be useful but may over-complicate the metric
+- Context/turn growth (+26%) remains the most concerning long-term trend
+
 ## Iteration 515 — Fixed 3 friction bugs in delegate tool: whitespace task, missing URL tracking, Unicode preview
 
 Fixed 3 user-facing friction issues in delegate.ts (329→330 lines, most stale module at 17 builder iterations since last depth) via friction approach; sweep-fixed same whitespace validation in web-search.ts; 10 new tests.
