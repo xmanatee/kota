@@ -324,8 +324,8 @@ Long-running process that hosts the event bus, scheduler, and idle tasks — an 
 
 Three-phase lifecycle to maximize usable context:
 
-1. **Pruning** (50% budget): Replace large read-only tool results with compact summaries. Deterministic, no LLM call. Preserves conversation structure.
-2. **Compaction** (75% budget): Two-phase — deterministic state extraction (files modified, commands run, errors) + LLM narrative summary. Keeps recent 10 messages intact.
+1. **Observation masking** (every turn, `src/observation-masking.ts`): Replace ALL old tool outputs beyond a rolling window of 10 messages with compact placeholders. Zero LLM cost — pure string replacement. Based on JetBrains research (NeurIPS 2025, "The Complexity Trap") showing tool outputs are 80%+ of context tokens and masking cuts context ~50% with no performance loss. Idempotent — already-masked results are skipped. Preserves agent reasoning and action history (assistant text + tool_use blocks untouched).
+2. **Compaction** (75% budget): Two-phase — deterministic state extraction (files modified, commands run, errors) + LLM narrative summary. Keeps recent 10 messages intact. Now triggers less frequently thanks to masking.
 3. **Adaptive truncation**: Tool result size limits shrink as budget fills (50K → 15K → 5K chars).
 
 Split system blocks: static prompt (cached) + dynamic state (uncached, changes per turn).

@@ -281,11 +281,13 @@ export class AgentSession {
     const failureTracker = new FailureTracker();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const pruneStats = this.context.maybePrune();
-      if (pruneStats.prunedCount > 0) {
+      // Always-on observation masking: replace old tool outputs with placeholders.
+      // Zero-cost (no LLM call), runs every turn to keep context lean.
+      const maskStats = this.context.maskOldObservations();
+      if (maskStats.maskedCount > 0) {
         this.transport.emit({
           type: "status",
-          message: `[kota] Pruned ${pruneStats.prunedCount} old tool results (saved ~${Math.round(pruneStats.charsSaved / 4)} tokens)`,
+          message: `[kota] Masked ${maskStats.maskedCount} old observations (saved ~${Math.round(maskStats.charsSaved / 4)} tokens)`,
         });
       }
 
@@ -346,14 +348,6 @@ export class AgentSession {
           message: `[kota] Tokens: input=${u.input_tokens}/${CONTEXT_WINDOW}` +
             (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
             (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
-        });
-      }
-
-      const postPrune = this.context.maybePrune();
-      if (postPrune.prunedCount > 0) {
-        this.transport.emit({
-          type: "status",
-          message: `[kota] Pruned ${postPrune.prunedCount} old tool results (saved ~${Math.round(postPrune.charsSaved / 4)} tokens)`,
         });
       }
 

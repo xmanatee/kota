@@ -1,5 +1,73 @@
 # KOTA Changelog
 
+## Iteration 523 — Observation Masking: always-on context compression that cuts token usage ~50%
+
+Implemented observation masking based on JetBrains NeurIPS 2025 research — replaces old tool outputs with compact placeholders every turn, reducing context by ~50% with no performance loss.
+
+### Research
+
+Performed synchronous web research on context management techniques before deciding:
+
+- **JetBrains "The Complexity Trap" (NeurIPS 2025)**: Tool outputs are 80%+ of context tokens. Replacing outputs beyond a rolling window of 10 turns with placeholders halves cost while matching/exceeding performance of LLM summarization. Key insight: agent reasoning and actions are preserved — only raw observations are masked.
+- **Anthropic "Effective Context Engineering"**: Tool result clearing is "the safest lightest-touch form of compaction." Once tool results are deep in history, raw results can be safely removed.
+- KOTA's context/turn was growing at 24% across recent iterations (72k avg, up from 50k).
+
+### What was built
+
+- **`src/observation-masking.ts`** (~180 lines): New always-on context management module
+  - `maskObservations(messages, windowSize)` — replaces ALL tool outputs beyond a rolling window (default 10 messages) with compact placeholders
+  - Covers every tool type: file_read, file_edit, file_write, shell, code_exec, grep, glob, web_search, web_fetch, delegate, and 15 more
+  - Idempotent: already-masked results are skipped (sentinel prefix `[Observed:`)
+  - Handles image content (always masked, estimated 5000 chars saved)
+  - Minimum content threshold (200 chars) to avoid masking tiny results
+  - Preserves error status in placeholders: `[Observed: read /foo.ts (error)]`
+  - Zero LLM cost — pure string replacement
+
+### Integration
+
+- **`src/context.ts`**: Added `maskOldObservations()` method
+- **`src/loop.ts`**: Replaced reactive `maybePrune()` (only ran at >50% budget, only read-only tools) with always-on `maskOldObservations()` that runs at the start of every turn
+- **`DESIGN.md`**: Updated Context Management section to document the three-phase lifecycle
+
+### Key differences from the old `message-pruning.ts` approach
+
+| | Old (pruning) | New (observation masking) |
+|---|---|---|
+| When | Reactive, >50% budget | Every turn, always-on |
+| What tools | Read-only only (7 tools) | ALL tools (20+) |
+| Window | 20 messages | 10 messages |
+| Min threshold | 1500 chars | 200 chars |
+| Error results | Skipped | Masked with error note |
+
+### Why it matters
+
+The existing pruning was too conservative — it only ran when budget was already tight, and only for read-only tools. By the time pruning kicked in, the agent was already struggling with context pressure. Observation masking is proactive: it keeps context lean from the start, delaying or preventing the need for the more lossy full LLM compaction.
+
+### Verified
+
+- **Static**: `npm run typecheck` clean, `npm run build` → 425KB bundle
+- **Tests**: 2609 passed (24 new in observation-masking.test.ts)
+- **Lint**: `npx biome check` clean on all changed files
+- **Load**: `node dist/cli.js --help` works
+- **Runtime**: SKIP (no ANTHROPIC_API_KEY)
+
+### Brainstorm candidates considered
+
+| # | Candidate | Why chosen/deferred |
+|---|-----------|-------------------|
+| 1 | **Observation masking** (chosen) | Highest impact: research-backed ~50% context reduction, addresses 24% growth trend, NOTES.md suggestion, zero marginal cost |
+| 2 | Context-aware tool routing | Only send relevant tools per turn. Smaller savings, more complexity |
+| 3 | Improved compaction quality | Better structured extraction. Marginal improvement |
+| 4 | Enhanced data pipeline | Native CSV/JSON handling. Useful but orthogonal |
+| 5 | Output artifact system | Versioned deliverables outside conversation. Good UX but doesn't address core issues |
+
+### Future directions
+
+- **Hybrid approach**: JetBrains found that combining masking with selective LLM summarization for critical older segments further reduces costs 7-11%. Could add targeted summarization for high-value observations (e.g., long delegate results with important findings).
+- **Adaptive window size**: Currently fixed at 10. Could dynamically adjust based on task complexity or context budget pressure.
+- **Observation importance scoring**: Not all observations are equal — a file read that led to an edit is more valuable than a grep that found nothing. Could selectively preserve important observations.
+- **Remove legacy `message-pruning.ts`**: Now effectively superseded by observation masking. Could be removed to reduce codebase, but keeping for now as it's still importable and has tests.
+
 ## Iteration 522 — Fixed research mechanics: synchronous search guidance + accurate research tracking in trend
 
 Fixed two issues preventing research from informing builder decisions: the prompt let async delegation pass for research, and parse-log.py didn't track Agent-based research.

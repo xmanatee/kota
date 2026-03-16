@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { compactMessages } from "./compaction.js";
 import { type PruneStats, pruneMessages } from "./message-pruning.js";
+import { type MaskStats, maskObservations } from "./observation-masking.js";
 import type { ToolResultBlock } from "./tools/index.js";
 import { getTodoState } from "./tools/index.js";
 
@@ -130,6 +131,15 @@ export class Context {
   maybePrune(): PruneStats {
     if (this.getBudgetPercent() < 0.5) return { prunedCount: 0, charsSaved: 0 };
     return pruneMessages(this.messages);
+  }
+
+  /**
+   * Always-on observation masking: replace old tool outputs with compact
+   * placeholders. Based on JetBrains research (NeurIPS 2025) — cuts context
+   * ~50% with no performance loss. Runs every turn at zero LLM cost.
+   */
+  maskOldObservations(): MaskStats {
+    return maskObservations(this.messages);
   }
 
   /**

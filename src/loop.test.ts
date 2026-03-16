@@ -239,22 +239,22 @@ describe("AgentSession", () => {
     });
   });
 
-  describe("pruning timing (iter 81 fix)", () => {
-    it("calls maybePrune before LLM call and after setInputTokens", async () => {
+  describe("observation masking timing", () => {
+    it("calls maskOldObservations before LLM call each turn", async () => {
       session = new AgentSession();
-      const pruneSpy = vi.spyOn(Context.prototype, "maybePrune");
+      const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
       mockStreamMessage.mockResolvedValueOnce(textResponse("ok", 110_000));
 
       await session.send("test");
 
-      // maybePrune called twice: once pre-call, once post-call
-      expect(pruneSpy).toHaveBeenCalledTimes(2);
-      pruneSpy.mockRestore();
+      // maskOldObservations called once per turn (pre-LLM call)
+      expect(maskSpy).toHaveBeenCalledTimes(1);
+      maskSpy.mockRestore();
     });
 
-    it("calls maybePrune twice per tool round", async () => {
+    it("calls maskOldObservations once per turn in multi-turn loop", async () => {
       session = new AgentSession();
-      const pruneSpy = vi.spyOn(Context.prototype, "maybePrune");
+      const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }], 110_000),
@@ -264,9 +264,9 @@ describe("AgentSession", () => {
 
       await session.send("search");
 
-      // 2 turns × 2 prune calls = 4
-      expect(pruneSpy).toHaveBeenCalledTimes(4);
-      pruneSpy.mockRestore();
+      // 2 turns × 1 mask call = 2
+      expect(maskSpy).toHaveBeenCalledTimes(2);
+      maskSpy.mockRestore();
     });
   });
 

@@ -12,7 +12,6 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: consider observation masking for context management — JetBrains research (NeurIPS 2025) shows replacing old tool outputs with placeholders cuts context ~50% with no performance loss (tool outputs are 80%+ of tokens). This would complement the existing LLM compaction in context.ts. See: "Cutting Through the Noise — Smarter Context Management for LLM-Powered Agents"
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
 is not set in the shell environment. Claude Code uses its own stored
@@ -31,6 +30,7 @@ b: implement `plans/self-hosting-loop.md` — shipped: event bus (417), event-ba
 b: implement `plans/modular-architecture.md` — shipped: module protocol + ModuleLoader (427), memory module (427), scheduler module (429), telegram module (431), daemon module (433), web module (435), registry module (437), vercel-adapter module (439). All 7 features extracted; server now integrates module routes.
 b: harden module isolation per updated `plans/modular-architecture.md` — completed (iter 449): error resilience (441), cross-module coupling fixes (443), hot-restart (445), plugin→module unification (447), shared mutable state encapsulation + dead code removal (449). Full audit confirmed zero cross-module imports, zero shared mutable state, proper API boundaries.
 b: implement `plans/secrets-management.md` — shipped (iter 517): SecretStore with 3 providers (env, file, keychain), provider chain, output masking in tool-runner, `get_secret` agent tool, `kota secrets` CLI commands, 31 tests.
+b: consider observation masking for context management — shipped (iter 523): always-on masking of ALL old tool outputs beyond rolling window of 10 messages. Based on JetBrains NeurIPS 2025 research. Replaces reactive pruning (budget-gated, read-only tools only) with proactive masking (every turn, all tools). 24 tests.
 
 ---
 Skipped:
