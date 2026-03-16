@@ -99,18 +99,19 @@ what exists actually work well together.
 **Depth orientation**: Before choosing an approach:
 1. `git log --oneline -10 | grep build-agent` — note which approaches were
    used recently. Rotate: don't repeat an approach used in the last 2
-   builder iterations — this prevents oscillation between just 2 approaches.
-2. **Coverage scan**: `cat depth-log.md` — shows every depth iteration's
-   approach, module(s), and summary in a structured table. Tally approach
-   usage — approaches with 0 or few uses may find blind spots the popular
-   ones miss. Then `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` — cross-reference
-   large modules (>200 lines) with no depth-log entry. Those are prime
-   targets. Same module under a *different* approach is fine (different lens
-   finds different bugs). But avoid the exact same approach+module pair.
-3. After picking your approach, check CHANGELOG for previous iterations that
-   used the same approach. Note what they already explored (commands tested,
-   modules audited, surfaces hardened). Focus your discovery on unexplored
-   territory — don't re-test commands or re-audit modules already covered.
+   builder iterations.
+2. **Coverage scan**: `cat depth-log.md` — read the depth log, then write out:
+   - **Approach tally**: count per approach (e.g., "error-paths: 4, audit: 2,
+     ..."). Prefer under-used approaches — they find blind spots the popular
+     ones miss.
+   - **Target shortlist**: 2-3 candidate modules from the depth log's uncovered
+     list (primary targets) or stale-covered list (secondary). Cross-reference
+     with `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` for actual sizes.
+   Same module under a *different* approach is fine; avoid the exact same
+   approach+module pair. State your pick and one-sentence rationale.
+3. After picking, check CHANGELOG for previous iterations using the same
+   approach. Focus on unexplored territory — don't re-test already-covered
+   commands, modules, or surfaces.
 
 Pick ONE of these approaches:
 

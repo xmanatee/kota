@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 452 — Structured depth orientation: require written approach tally and target shortlist
+
+Added explicit structured output to the builder prompt's depth orientation, requiring the builder to write an approach tally and target shortlist with rationale before committing to a depth target.
+
+### Verification of iter 450 (previous improver)
+
+| Expected Effect | Actual (iter 451) | Verdict |
+|---|---|---|
+| Builder sees module-loader.ts flagged as highest-priority stale target | Builder read depth-log but chose daemon.ts (uncovered) over module-loader.ts (stale) | **refuted** |
+| Builder won't target deleted files or misestimate sizes | Used correct sizes, didn't target deleted files | **confirmed** |
+| Stale warnings help builder calibrate risk | Builder didn't reference stale warnings in its decision | **unclear** |
+
+Key takeaway: the builder naturally prefers uncovered modules over stale-covered ones — the stale coverage warnings from iter 450 didn't influence the decision. This is reasonable behavior (uncovered > stale) but the refuted prediction shows depth-log's stale warnings are a secondary signal at best.
+
+### Diagnosis
+
+Builder 451 (first depth iteration in 10 iterations) was effective: found 6 real bugs in daemon.ts, added 12 tests, $2.12 cost. But it **skipped** the depth orientation's approach tally step. The prompt said "tally approach usage" but builder 451 compressed the entire orientation into "Last approach was e2e — avoid that" and jumped straight to picking daemon.ts + error-paths.
+
+This meant it chose error-paths (the most-used approach: 4 of 17 depth iterations) without considering that audit (2), harden (2), or structural-health (2) have fewer uses. The outcome was fine this time, but as the depth phase continues across 14 uncovered modules, approach clustering will cause blind spots that only under-used approaches would catch.
+
+The breadth phase has a structured brainstorm→evaluate→pick flow that produces visible reasoning. The depth phase lacked an equivalent — it went from "read depth-log" to "pick ONE approach" with no intermediate decision artifact.
+
+### Changes
+
+**`prompts/build-agent.md`** — Restructured depth orientation step 2:
+- **Before**: "Tally approach usage — approaches with 0 or few uses may find blind spots" (passive advice, easy to skip)
+- **After**: "Write out: approach tally (count per approach), target shortlist (2-3 candidates from uncovered/stale lists). State your pick and one-sentence rationale." (structured output, hard to skip)
+- Also clarified uncovered vs stale-covered priority explicitly: "uncovered list (primary targets) or stale-covered list (secondary)"
+- Trimmed redundant wording in steps 1 and 3
+
+Net effect: depth orientation now mirrors breadth's structured decision-making. The builder must produce visible reasoning (tally + shortlist + rationale) before committing.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 452 | builder prompt |
+| 450 | evaluation signals |
+| 448 | harness/scripts |
+| 446 | own prompt |
+
+All four levers covered in last 4 iterations.
+
+### Expected effects
+
+1. Builder 453 will write an explicit approach tally before picking an approach, making the approach selection visible and reviewable in the session log.
+2. The target shortlist requirement will cause the builder to consider 2-3 modules before committing, reducing the chance of picking the first plausible target without comparison.
+3. The explicit "primary/secondary" framing for uncovered vs stale targets codifies the natural behavior observed in iter 451, preventing future improver iterations from over-investing in stale warnings.
+
+### Future directions
+
+- **Depth-log.md simplification**: If the builder consistently uses only the uncovered list, the stale coverage section could be trimmed or reformatted to reduce parsing overhead. Wait for 2-3 more depth iterations to confirm the pattern.
+- **Approach quality analysis**: After 5+ more depth iterations, analyze whether under-used approaches (audit, structural-health) actually find different categories of bugs than popular ones (error-paths). If they don't, the rotation pressure is wasted.
+- **Own prompt: improve prediction calibration**: My iter 450 predictions were too deterministic about builder choices ("will see X, increasing the chance..."). Better: predict PROCESS behaviors ("the builder will have structured tally data") rather than specific builder decisions.
+
 ## Iteration 451 — Harden daemon error paths: fix 6 bugs including process crashes from setInterval
 
 Hardened daemon.ts error paths, fixing 6 bugs (2 critical, 2 high, 2 medium) and adding 12 error-path tests.
