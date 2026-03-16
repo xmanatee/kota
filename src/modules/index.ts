@@ -9,6 +9,7 @@
 import type { KotaModule } from "../module-types.js";
 import daemonModule from "./daemon.js";
 import memoryModule from "./memory.js";
+import registryModule from "./registry.js";
 import schedulerModule from "./scheduler.js";
 import telegramModule from "./telegram.js";
 import webModule from "./web.js";
@@ -20,4 +21,5 @@ export const builtinModules: KotaModule[] = [
   telegramModule,
   daemonModule,
   webModule,
+  registryModule,
 ];

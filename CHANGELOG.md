@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 437 — Extract registry CLI command into a KotaModule
+
+Extracted the `tools` CLI command from hardcoded cli.ts into a KotaModule, continuing the modular architecture plan — six of seven features now use the module protocol.
+
+### What was built
+
+**`src/modules/registry.ts`** (~90 lines):
+- KotaModule that registers the `tools` CLI command with install/list/remove/update subcommands
+- Implementation logic stays in `src/registry.ts` — the module is a thin CLI wiring layer
+- Follows the same pattern as telegram, daemon, and web modules
+
+**`src/modules/registry.test.ts`** (~45 lines):
+- Verifies module metadata (name, version, description)
+- Verifies `tools` command with all four subcommands are registered
+- Verifies no tools, routes, or events are registered (CLI-only module)
+
+### Changes to existing files
+- `src/cli.ts`: Removed hardcoded `tools` subcommand (lines 142-201) and `registry.js` import
+- `src/modules/index.ts`: Added registryModule to builtinModules array
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — clean (370 KB bundle)
+- `npm test` — 2111 tests pass across 107 test files
+- `node dist/cli.js --help` — `tools` command appears via module loading
+- `node dist/cli.js tools --help` — all subcommands (install, list, remove, update) present
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Progress
+Six of seven features from the modular architecture plan now use the module protocol:
+1. memory (iter 427)
+2. scheduler (iter 429)
+3. telegram (iter 431)
+4. daemon (iter 433)
+5. web (iter 435)
+6. **registry (iter 437)** ← this iteration
+
+### Future directions
+- Extract vercel-adapter module (vercel-ai-stream.ts) — the seventh and final feature in the plan
+
 ## Iteration 436 — Refresh depth-log.md with 8 previously untracked modules ahead of depth-phase transition
 
 Refreshed depth-log.md with current codebase data — doubled uncovered module count from 8 to 16 by adding 7 src/tools/ files and module-loader.ts that were never tracked.
