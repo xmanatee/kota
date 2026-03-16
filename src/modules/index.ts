@@ -11,12 +11,14 @@ import daemonModule from "./daemon.js";
 import memoryModule from "./memory.js";
 import registryModule from "./registry.js";
 import schedulerModule from "./scheduler.js";
+import secretsModule from "./secrets.js";
 import telegramModule from "./telegram.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 import webModule from "./web.js";
 
 /** All built-in modules, in dependency order. */
 export const builtinModules: KotaModule[] = [
+  secretsModule,
   memoryModule,
   schedulerModule,
   telegramModule,

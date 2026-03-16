@@ -1,5 +1,6 @@
 import { truncateToolResult } from "./context.js";
 import type { McpManager } from "./mcp-manager.js";
+import { getSecretStore } from "./secrets.js";
 import { maybeRetry } from "./tool-retry.js";
 import type { ToolResultBlock } from "./tools/index.js";
 import { executeTool } from "./tools/index.js";
@@ -63,17 +64,20 @@ export async function executeToolCalls(
     }),
   );
 
+  const secretStore = getSecretStore();
+  const mask = secretStore ? (s: string) => secretStore.mask(s) : (s: string) => s;
+
   return results.map((r) => {
     if (r.blocks) {
       // Truncate text blocks within rich results — images pass through untouched
       const truncatedBlocks = r.blocks.map((b) =>
         b.type === "text"
-          ? { ...b, text: truncateToolResult(b.text, resultLimit) }
+          ? { ...b, text: mask(truncateToolResult(b.text, resultLimit)) }
           : b,
       );
-      return { ...r, content: truncateToolResult(r.content, resultLimit), blocks: truncatedBlocks };
+      return { ...r, content: mask(truncateToolResult(r.content, resultLimit)), blocks: truncatedBlocks };
     }
-    return { ...r, content: truncateToolResult(r.content, resultLimit) };
+    return { ...r, content: mask(truncateToolResult(r.content, resultLimit)) };
   });
 }
 

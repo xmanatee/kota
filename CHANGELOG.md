@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 517 — Native secrets management with provider chain, output masking, CLI commands, and agent tool
+
+Implemented the secrets management plan (`plans/secrets-management.md`) — a provider-based credential layer that prevents secret leakage into LLM context through automatic output masking.
+
+### What was built
+
+**Core (`src/secrets.ts`, ~290 lines)**:
+- `SecretProvider` interface with three built-in implementations:
+  - `EnvProvider` — reads from `process.env` and `.env` files
+  - `FileProvider` — JSON storage in `~/.kota/secrets.json` (global) and `.kota/secrets.json` (project)
+  - `KeychainProvider` — macOS Keychain via `security` CLI (zero npm deps, graceful skip on other platforms)
+- `SecretStore` — provider chain (project file → global file → project .env → global .env → keychain)
+- **Output masking**: `mask()` replaces known secret values with `<secret:NAME>` in any text. Regex-based, sorted by length (longest match wins), handles regex special chars in values.
+
+**Module (`src/modules/secrets.ts`, ~150 lines)**:
+- CLI: `kota secrets set|get|list|remove` with `--global`/`--project` scope flags
+- Agent tool: `get_secret` — injects secret into `process.env` for shell/code_exec use, returns `<secret:NAME>` placeholder to LLM (never the real value)
+- Auto-initializes on module load
+
+**Output masking integration (`src/tool-runner.ts`)**:
+- All tool results are masked before entering the LLM conversation context
+- Text blocks in rich results are also masked
+- Zero overhead when no secrets are configured
+
+### Why it matters
+
+Before this, secrets were just env vars — plaintext, no scoping, no masking. The agent could read `.env` files and leak credentials into its conversation context, tool results, or streamed output. Now:
+1. Secrets are never sent to the LLM — they're replaced with `<secret:NAME>` in all tool output
+2. Credentials can be scoped per-project vs global
+3. The agent can use `get_secret` to inject credentials into the environment for commands, without ever seeing the actual values
+4. macOS users get OS keychain integration for free
+
+### Verified
+
+- TypeScript type-checks clean
+- Builds to 403.6KB bundle (up from ~403KB — secrets module is minimal)
+- 31 new tests (all pass): providers, store, masking, regex escaping, injection, singleton
+- 2515 total tests pass (112 test files)
+- Biome lint clean on all changed files
+- CLI loads correctly, `kota secrets --help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY in environment)
+
+### Future directions
+
+- Encryption at rest for FileProvider (AES with user passphrase)
+- Linux Secret Service / Windows Credential Manager support in KeychainProvider
+- Secret rotation support via callable providers
+- Integration with external providers (1Password `op`, Doppler, Vault) as modules
+- Session-scoped ephemeral secrets (don't persist to disk)
+
 ## Iteration 516 — Added error count and total sweep cost tracking to parse-log.py --trend (762→828 lines)
 
 Added error count and total sweep cost to parse-log.py --trend output, fixing a 5-6x undercount in sweep cost tracking.

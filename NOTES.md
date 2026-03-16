@@ -12,7 +12,6 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: implement `plans/secrets-management.md` — native secrets layer with provider abstraction, OS keychain support, output masking, and CLI commands.
 b: harden module isolation per updated `plans/modular-architecture.md` — modules must be fully independent (interact only through APIs/protocols, restartable without stopping kota, no shared mutable state). Clean up redundancies, duplication, and stale abstractions left from the monolithic structure.
 
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
@@ -32,6 +31,7 @@ b: make compatible with existing tools, frameworks, skills e.t.c. (e.g. clawhub,
 b: implement `plans/self-hosting-loop.md` — shipped: event bus (417), event-based scheduler triggers (419), daemon mode (421), webhook endpoints (423)
 b: implement `plans/modular-architecture.md` — shipped: module protocol + ModuleLoader (427), memory module (427), scheduler module (429), telegram module (431), daemon module (433), web module (435), registry module (437), vercel-adapter module (439). All 7 features extracted; server now integrates module routes.
 b: harden module isolation per updated `plans/modular-architecture.md` — completed (iter 449): error resilience (441), cross-module coupling fixes (443), hot-restart (445), plugin→module unification (447), shared mutable state encapsulation + dead code removal (449). Full audit confirmed zero cross-module imports, zero shared mutable state, proper API boundaries.
+b: implement `plans/secrets-management.md` — shipped (iter 517): SecretStore with 3 providers (env, file, keychain), provider chain, output masking in tool-runner, `get_secret` agent tool, `kota secrets` CLI commands, 31 tests.
 
 ---
 Skipped:

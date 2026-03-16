@@ -109,7 +109,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. All 7 features extracted: `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 8 modules: `secrets`, `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
 
 **Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
@@ -124,6 +124,27 @@ Pluggable architecture where features are self-contained modules instead of hard
 - The core without modules loaded still functions as a basic agent (requirement #8 from the plan).
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
 - Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
+
+### Secrets Management (`src/secrets.ts`, `src/modules/secrets.ts`)
+
+Provider-based credential management with automatic output masking. Prevents secret leakage into LLM context.
+
+**Provider chain** (checked in order until a value is found):
+1. Project file (`.kota/secrets.json`)
+2. Global file (`~/.kota/secrets.json`)
+3. Project `.env` file
+4. Global `~/.kota/.env` file
+5. macOS Keychain (via `security` CLI — skipped on non-macOS)
+
+**`SecretProvider` interface**: `get(key)`, `set(key, value)`, `remove(key)`, `list()`. Three implementations: `EnvProvider` (read-only), `FileProvider` (JSON), `KeychainProvider` (macOS).
+
+**Output masking**: `SecretStore.mask(text)` replaces all known secret values with `<secret:NAME>`. Called in `tool-runner.ts` on every tool result before it enters the conversation context. Uses a compiled regex sorted by value length (longest match wins). Values under 4 chars are excluded to avoid false positives.
+
+**Agent tool**: `get_secret` injects the secret into `process.env` for use by shell/code_exec tools. The LLM receives `<secret:NAME>` — never the real value.
+
+**CLI**: `kota secrets set|get|list|remove` with `--global`/`--project` scope flags. `set` prompts for the value interactively (never accepts secrets as CLI arguments).
+
+**Singleton**: `initSecretStore(cwd)` / `getSecretStore()` / `resetSecretStore()` — same pattern as TaskStore and Scheduler.
 
 ### HTTP API Server (`src/server.ts`)
 
