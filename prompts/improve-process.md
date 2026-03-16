@@ -74,9 +74,9 @@ Aim high — not a micro-optimization. But decide well:
      all columns populated with plausible values?
    - **Evaluation signals**: Cross-reference depth-log.md or metrics data
      against actual codebase state. Stale data drives stale decisions.
-   - **Own prompt**: Review your last 3 expected-effect verdicts. Mostly N/A
-     means predictions aren't surviving phase transitions — make them more
-     phase-agnostic.
+   - **Own prompt**: Review your last 3 interventions' expected-effect verdicts.
+     Mostly unclear/refuted means your changes aren't landing — investigate why
+     before making more. Mostly N/A means predictions are too phase-specific.
 2. **Evaluate**: For each candidate, honestly assess impact (how much better
    does the next iteration get?) vs cost (how much work, how much risk?).
 3. **Pick one**: Choose the highest-impact candidate you can finish well in
@@ -138,10 +138,13 @@ or process reliability.
    before brainstorming new changes. This closes the learning loop.
 2. **Analyze trajectory**: Review the last 5 builder iterations via `git log`.
    For each, note: what was built, whether it integrated with existing features
-   or was standalone, and whether it addressed a NOTES.md goal. Look for
-   patterns: repeated themes, neglected areas, growing gaps between what's
-   built and what's connected. This prevents myopia from only looking at the
-   latest iteration.
+   or was standalone, and which NOTES.md `b:` item it addressed. Then for each
+   active `b:` item, count builder iterations since last progress update. Items
+   idle 3+ builder iterations are being neglected — flag this as a candidate
+   issue (is the builder prompt's selection logic working, or is it structurally
+   biased toward one item?). Look for patterns: repeated themes, neglected
+   areas, growing gaps between what's built and what's connected. This prevents
+   myopia from only looking at the latest iteration.
 2b. **Diversity check (own work)**: Review your last 3-4 CHANGELOG entries.
    If they all target the same lever (e.g., all modify the builder prompt),
    you are in a diminishing-returns rut. Force yourself to a different lever

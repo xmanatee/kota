@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 446 — Add item-progress tracking and improved self-verification to improver prompt
+
+Added systematic item-neglect detection and better intervention-verification checks to the improver prompt, replacing ad-hoc manual counting.
+
+### Verification of iter 444 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Builder 445 evaluates BOTH active `b:` items before choosing | Phase gate ran (tool #1), NOTES.md read (tool #4), but key text #1 immediately says "I'll work on the module isolation hardening item" — no visible comparison | **unclear** |
+| If builder picks hardening, does so after explicit evaluation | Builder chose hardening but text shows no deliberate comparison against the OpenClaw item | **unclear** |
+| If builder picks "study OpenClaw", follows "No plan?" flow | N/A — builder picked hardening | **N/A** |
+
+The "Select item" instruction added in iter 444 is present, but the builder didn't visibly evaluate both items before choosing. The 3-iteration staleness threshold hadn't been crossed yet at iter 445 (only 2 builder iterations idle), so the builder's choice is within the prompt's designed behavior. At iter 447, the threshold will be crossed (3 builder iterations: 441, 443, 445).
+
+### Diagnosis
+
+Two gaps in my own prompt became visible this iteration:
+
+1. **Item-neglect detection was manual**: In iter 444, I manually counted builder iterations since last progress on each `b:` item to discover the "study OpenClaw" neglect pattern. My prompt's step 2 (Analyze trajectory) said "whether it addressed a NOTES.md goal" — too vague to reliably surface per-item staleness. Without explicit counting instructions, future improver iterations might miss the same pattern.
+
+2. **Self-verification check was too narrow**: The "Own prompt" lever check in brainstorming said "Mostly N/A means predictions aren't surviving phase transitions." This is only one failure mode. The more common issue (seen this iteration) is "mostly unclear" — my interventions aren't producing observable effects. The check should surface both failure modes.
+
+### Changes
+
+**`prompts/improve-process.md`** — Two edits:
+
+1. **Step 2 (Analyze trajectory)**: Enhanced from "whether it addressed a NOTES.md goal" to explicit per-item counting: "for each active `b:` item, count builder iterations since last progress update. Items idle 3+ builder iterations are being neglected — flag this as a candidate issue."
+
+2. **Finding candidates, Own prompt check**: Replaced narrow "mostly N/A" check with broader: "Mostly unclear/refuted means your changes aren't landing — investigate why before making more. Mostly N/A means predictions are too phase-specific."
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 446 | own prompt/process |
+| 444 | builder prompt |
+| 442 | builder prompt |
+| 440 | eval signals |
+
+First own-prompt change since iter 432. Breaks the builder-prompt streak.
+
+### Why not the alternatives
+
+- **parse-log.py decision extraction** (#2): Useful but only speeds up verification — doesn't change what I detect.
+- **Depth-log refresh** (#4): Builder is in breadth phase; premature until depth resumes.
+- **Phase-transition preparation** (#5): Interesting concept but hard to define precisely when it triggers.
+
+### Expected effects
+
+1. In iter 448, the improver explicitly counts builder iterations since last progress for each active `b:` item during trajectory analysis — observable as a per-item tally rather than a vague "addressed a NOTES.md goal" statement.
+2. In iter 448, if most expected-effect verdicts from iter 446 come back unclear, the improver flags this as a diagnostic issue before proposing new changes (rather than ignoring the pattern).
+3. The "study OpenClaw" item will cross the 3-iteration staleness threshold at iter 447 — the builder should either pick it up or explicitly justify not doing so. (This is a builder-prompt effect from iter 444, not from this iteration's changes.)
+
+### Future directions
+
+- **Harness: parse-log.py `--decisions` mode** — Extract full text of first 3 assistant blocks for faster item-selection verification. Low cost, medium value.
+- **Builder prompt: Research task guidance** — When the builder picks up the "study OpenClaw" research item, the "No plan?" brainstorm flow assumes building something. Research tasks need different output guidance (summary in DESIGN.md? new plan? NOTES.md update?). Defer until the builder actually encounters this.
+- **Eval signals: Depth-log refresh** — When breadth phase ends, refresh depth-log.md with current line counts (module-loader.ts, plugin-loader.ts, tools/index.ts all modified in iters 443-445).
+
 ## Iteration 445 — Module hot-restart and per-module tool ownership
 
 Implemented module hot-restart (unload/reload individual modules without stopping KOTA) and fixed a tool ownership bug where unloading modules or plugins would wipe each other's tools.
