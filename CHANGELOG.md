@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 497 — Fixed 4 error-path bugs in context.ts: corrupted session load crash, empty-compaction message growth, pre-incremented count, save crash in SIGINT
+
+Fixed 4 bugs in context.ts (222→232 lines, most stale module — 17 builder iterations since last depth) via error-paths approach; 7 new tests (48→55).
+
+### Bugs fixed
+
+1. **`Context.load()` crashes on corrupted/malformed session files** (high): `readFileSync` + `JSON.parse` threw raw errors with no file path context. Missing fields (`messages`, `compactionCount`, `lastInputTokens`) silently became `undefined`, crashing on next `.push()` or arithmetic. Now returns a fresh context on any read/parse error, and validates each field with type guards and defaults.
+
+2. **`compact()` grows message array when nothing to summarize** (high): With 11 messages where the parity adjustment makes `keepRecent=11`, `toSummarize` was empty. Compaction wasted an LLM call and GREW the array from 11 to 13 messages (2 summary + 11 original). Now guards `toSummarize.length === 0` and returns early.
+
+3. **`compact()` increments compactionCount before success** (medium): `this.compactionCount++` ran before `compactMessages()`. If the async call threw, the count was wrong but messages unchanged. Now increments only after `compactMessages` returns successfully.
+
+4. **`save()` crashes during SIGINT handler** (high): `writeFileSync` throws on disk full, permission denied, or nonexistent directory. In the SIGINT handler (loop.ts:181-189), an unhandled throw prevented `process.exit(0)` from running. Now wrapped in try-catch for best-effort save.
+
+### Sweep check
+Checked other `writeFileSync(JSON.stringify(...))` patterns across the codebase — task-store.ts already uses atomic writes (iter 491), registry.ts, memory.ts, and history.ts have their own error handling from prior depth iterations.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 387KB bundle
+- `npm test` — 2408 tests pass (55 in context.test.ts, +7 new)
+- `npx biome check` — clean on changed files
+- `node dist/cli.js --help` — loads correctly
+
+### Future directions
+- `compact()` API failure fallback in compaction.ts slices lossy text to 1500 chars — could preserve structured state + recent messages instead
+- `restoreFrom()` still accepts arbitrary arrays without validating alternation
+
 ## Iteration 496 — Streamlined improver prompt: removed stale breadth/plan guidance, updated workflow to reference parse-log.py tools
 
 Removed 15 lines of stale breadth-phase and plan-execution analysis guidance from improve-process.md (209→194 lines), and updated the "How to Work" section to reference the actual tools used (parse-log.py --trend, parse-log.py per-session) instead of stale instructions.

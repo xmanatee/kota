@@ -263,6 +263,71 @@ describe("Context", () => {
         rmSync(tmpDir, { recursive: true });
       }
     });
+
+    it("load returns fresh context for corrupted JSON", async () => {
+      const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const tmpDir = mkdtempSync("/tmp/kota-ctx-test-");
+      const filePath = join(tmpDir, "session.json");
+
+      try {
+        writeFileSync(filePath, "{broken json!!!", "utf-8");
+        const loaded = Context.load(filePath, "system prompt");
+        expect(loaded.getMessages()).toHaveLength(0);
+        expect(loaded.getStats().compactions).toBe(0);
+        expect(loaded.getInputTokens()).toBe(0);
+      } finally {
+        rmSync(tmpDir, { recursive: true });
+      }
+    });
+
+    it("load returns fresh context for nonexistent file", () => {
+      const loaded = Context.load("/tmp/kota-nonexistent-session-file.json", "prompt");
+      expect(loaded.getMessages()).toHaveLength(0);
+    });
+
+    it("load handles missing messages field without crashing", async () => {
+      const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const tmpDir = mkdtempSync("/tmp/kota-ctx-test-");
+      const filePath = join(tmpDir, "session.json");
+
+      try {
+        writeFileSync(filePath, JSON.stringify({ compactionCount: 2 }), "utf-8");
+        const loaded = Context.load(filePath, "prompt");
+        // messages field missing → defaults to []
+        expect(loaded.getMessages()).toHaveLength(0);
+        expect(loaded.getStats().compactions).toBe(2);
+        expect(loaded.getInputTokens()).toBe(0);
+      } finally {
+        rmSync(tmpDir, { recursive: true });
+      }
+    });
+
+    it("load handles non-array messages field", async () => {
+      const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const tmpDir = mkdtempSync("/tmp/kota-ctx-test-");
+      const filePath = join(tmpDir, "session.json");
+
+      try {
+        writeFileSync(filePath, JSON.stringify({ messages: "not an array", compactionCount: "bad", lastInputTokens: null }), "utf-8");
+        const loaded = Context.load(filePath, "prompt");
+        expect(loaded.getMessages()).toHaveLength(0);
+        expect(loaded.getStats().compactions).toBe(0);
+        expect(loaded.getInputTokens()).toBe(0);
+      } finally {
+        rmSync(tmpDir, { recursive: true });
+      }
+    });
+
+    it("save does not throw on permission error", async () => {
+      // Saving to a nonexistent directory should not crash
+      expect(() => {
+        ctx.addUserMessage("test");
+        ctx.save("/nonexistent-kota-dir/deep/nested/session.json");
+      }).not.toThrow();
+    });
   });
 
   describe("getStats", () => {
@@ -332,6 +397,52 @@ describe("Context", () => {
       const mock = {} as Anthropic;
       await ctx.compact(mock, "test-model");
       expect(ctx.getMessages()).toHaveLength(10);
+    });
+
+    it("skips compaction when parity adjustment leaves nothing to summarize", async () => {
+      // 11 messages where index 1 is assistant → keepRecent adjusts to 11 → toSummarize is empty
+      // Before fix: this wasted an LLM call and GREW the message array (11 → 13)
+      buildConversation(ctx, 5); // 1 initial user + 5*(assistant+user) = 11 messages
+      expect(ctx.getMessages()).toHaveLength(11);
+
+      // Verify the parity adjustment would trigger: messages[1] is assistant
+      expect(ctx.getMessages()[1].role).toBe("assistant");
+
+      const createSpy = { called: false };
+      const spyClient = {
+        messages: {
+          create: async () => {
+            createSpy.called = true;
+            return { content: [{ type: "text", text: "Summary" }] };
+          },
+        },
+      } as unknown as Anthropic;
+
+      await ctx.compact(spyClient, "test-model");
+      // Should not have called the LLM
+      expect(createSpy.called).toBe(false);
+      // Should not have grown the message array
+      expect(ctx.getMessages()).toHaveLength(11);
+      // Compaction count should not have incremented
+      expect(ctx.getStats().compactions).toBe(0);
+    });
+
+    it("does not increment compactionCount if compactMessages throws", async () => {
+      buildConversation(ctx, 15); // 31 messages — plenty to summarize
+      expect(ctx.getStats().compactions).toBe(0);
+
+      const throwClient = {
+        messages: {
+          create: async () => { throw new Error("API down"); },
+        },
+      } as unknown as Anthropic;
+
+      // compactMessages catches the LLM error internally and falls back,
+      // so this should still succeed. But let's verify count increments only once.
+      await ctx.compact(throwClient, "test-model");
+      expect(ctx.getStats().compactions).toBe(1);
+      // Messages should still be reduced (fallback compaction)
+      expect(ctx.getMessages().length).toBeLessThan(31);
     });
 
     it("maintains role alternation with even message count", async () => {

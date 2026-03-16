@@ -152,10 +152,13 @@ export class Context {
     }
 
     const toSummarize = this.messages.slice(0, -keepRecent);
-    const recentMessages = this.messages.slice(-keepRecent);
+    if (toSummarize.length === 0) return;
 
-    this.compactionCount++;
-    const compacted = await compactMessages(client, model, toSummarize, this.compactionCount);
+    const recentMessages = this.messages.slice(-keepRecent);
+    const nextCount = this.compactionCount + 1;
+
+    const compacted = await compactMessages(client, model, toSummarize, nextCount);
+    this.compactionCount = nextCount;
     this.messages = [...compacted, ...recentMessages];
   }
 
@@ -193,16 +196,31 @@ export class Context {
       compactionCount: this.compactionCount,
       lastInputTokens: this.lastInputTokens,
     };
-    writeFileSync(path, JSON.stringify(data), "utf-8");
+    try {
+      writeFileSync(path, JSON.stringify(data), "utf-8");
+    } catch {
+      // Best-effort save — disk full, permission denied, etc.
+      // Callers (SIGINT handler, per-turn autosave) must not crash.
+    }
   }
 
   static load(path: string, systemPrompt: string): Context {
-    const raw = readFileSync(path, "utf-8");
-    const data: SessionData = JSON.parse(raw);
+    let raw: string;
+    try {
+      raw = readFileSync(path, "utf-8");
+    } catch {
+      return new Context(systemPrompt);
+    }
+    let data: SessionData;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return new Context(systemPrompt);
+    }
     const ctx = new Context(systemPrompt);
-    ctx.messages = data.messages;
-    ctx.compactionCount = data.compactionCount;
-    ctx.lastInputTokens = data.lastInputTokens;
+    ctx.messages = Array.isArray(data.messages) ? data.messages : [];
+    ctx.compactionCount = typeof data.compactionCount === "number" ? data.compactionCount : 0;
+    ctx.lastInputTokens = typeof data.lastInputTokens === "number" ? data.lastInputTokens : 0;
     return ctx;
   }
 }

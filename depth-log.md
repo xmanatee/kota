@@ -44,22 +44,23 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 491 | error-paths | task-store.ts, scheduler.ts, memory.ts | high | Fixed 5 bugs: non-atomic writes (crash data loss), blanket catch swallows EACCES, nextId falsy-check (||→deriveNextId), no Array.isArray guard, no .tmp crash recovery; sweep-fixed regex dir extraction in scheduler+memory; 10 new tests (28→38) |
 | 493 | concurrency | tools/process.ts | high | Fixed 4 bugs: purgeStale used startedAt (premature output loss), close overwrites error exitCode, sendSignal ignores kill() return, cleanupProcesses not idempotent; 8 new tests (33→41) |
 | 495 | friction | tools/http-request.ts | high | Fixed 3 bugs: invisible redirects (no [Redirected →] note), missing link/x-ratelimit-reset headers, save_to ENOENT on subdirectories (no auto-mkdir); 9 new tests (59→68) |
+| 497 | error-paths | context.ts | high | Fixed 4 bugs: corrupted session load crash (no validation), empty-compaction grows messages (11→13), pre-incremented compactionCount, save crash in SIGINT handler; 7 new tests (48→55) |
 
 ## Approach Summary
 
 | Approach | Count | Last Used | Rotation |
 |----------|-------|-----------|----------|
-| error-paths | 10 | 491 | BLOCKED |
+| error-paths | 10 | 491 | eligible |
 | harden | 8 | 489 | eligible |
+| friction | 6 | 495 | BLOCKED |
 | audit | 5 | 487 | eligible |
-| friction | 5 | 473 | eligible |
 | structural-health | 4 | 475 | eligible |
 | e2e | 4 | 461 | eligible |
 | concurrency | 2 | 493 | BLOCKED |
 
-38 depth iterations across 7 approaches.
-**Rotation blocked** (used in last 2 builder iters): error-paths, concurrency
-**Rotation eligible**: harden, audit, friction, structural-health, e2e
+39 depth iterations across 7 approaches.
+**Rotation blocked** (used in last 2 builder iters): friction, concurrency
+**Rotation eligible**: error-paths, harden, audit, structural-health, e2e
 
 ## Uncovered Modules — PRIMARY Targets
 
@@ -83,14 +84,14 @@ find untried module+approach combinations.*
 
 | Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Unique Approaches | Approaches Used |
 |--------|-------|------------|--------------|-------------------|-------------------|-----------------|
-| tools/http-request.ts | 318 | 624 | 459 | 17 | 1 | error-paths |
-| context.ts | 221 | 533 | 461 | 16 | 1 | e2e |
-| init.ts | 315 | 453 | 463 | 15 | 1 | friction |
-| tools/file-edit.ts | 280 | 518 | 465 | 14 | 1 | harden |
-| html-extract.ts | 296 | 377 | 467 | 13 | 1 | audit |
-| tools/file-read.ts | 282 | 564 | 469 | 12 | 1 | error-paths |
-| verify-tracker.ts | 227 | 514 | 471 | 11 | 1 | harden |
-| tools/find-replace.ts | 229 | 449 | 473 | 10 | 1 | friction |
+| context.ts | 221 | 533 | 461 | 17 | 1 | e2e |
+| init.ts | 315 | 453 | 463 | 16 | 1 | friction |
+| tools/file-edit.ts | 280 | 518 | 465 | 15 | 1 | harden |
+| html-extract.ts | 296 | 377 | 467 | 14 | 1 | audit |
+| tools/file-read.ts | 282 | 564 | 469 | 13 | 1 | error-paths |
+| verify-tracker.ts | 227 | 514 | 471 | 12 | 1 | harden |
+| tools/find-replace.ts | 229 | 449 | 473 | 11 | 1 | friction |
+| registry.ts | 299 | 635 | 475 | 10 | 2 | error-paths, structural-health |
 
 **8 stale modules.**
 
@@ -98,18 +99,18 @@ find untried module+approach combinations.*
 
 *Which approaches have been tried on each stale module. `—` = untried, `BLOCKED` = not rotation-eligible.*
 
-| Module | ~~error-paths~~ | harden | audit | friction | structural-health | e2e | ~~concurrency~~ |
-|--------|---------------|----------|---------|------------|---------------------|-------|---------------|
-| tools/http-request.ts | 459 | — | — | — | — | — | BLOCKED |
-| context.ts | BLOCKED | — | — | — | — | 461 | BLOCKED |
-| init.ts | BLOCKED | — | — | 463 | — | — | BLOCKED |
-| tools/file-edit.ts | BLOCKED | 465 | — | — | — | — | BLOCKED |
-| html-extract.ts | BLOCKED | — | 467 | — | — | — | BLOCKED |
-| tools/file-read.ts | 469 | — | — | — | — | — | BLOCKED |
-| verify-tracker.ts | BLOCKED | 471 | — | — | — | — | BLOCKED |
-| tools/find-replace.ts | BLOCKED | — | — | 473 | — | — | BLOCKED |
+| Module | error-paths | harden | ~~friction~~ | audit | structural-health | e2e | ~~concurrency~~ |
+|--------|---------------|----------|------------|---------|---------------------|-------|---------------|
+| context.ts | — | — | BLOCKED | — | — | 461 | BLOCKED |
+| init.ts | — | — | 463 | — | — | — | BLOCKED |
+| tools/file-edit.ts | — | 465 | BLOCKED | — | — | — | BLOCKED |
+| html-extract.ts | — | — | BLOCKED | 467 | — | — | BLOCKED |
+| tools/file-read.ts | 469 | — | BLOCKED | — | — | — | BLOCKED |
+| verify-tracker.ts | — | 471 | BLOCKED | — | — | — | BLOCKED |
+| tools/find-replace.ts | — | — | 473 | — | — | — | BLOCKED |
+| registry.ts | 407 | — | BLOCKED | — | 475 | — | BLOCKED |
 
-**48/56 combinations untried.**
+**47/56 combinations untried.**
 
 ## Coverage by Module
 
@@ -126,9 +127,9 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | daemon.ts | 378 | 418 | 451,477 | error-paths, error-paths |
 | tools/process.ts | 340 | 459 | 457,493 | harden, concurrency |
 | tools/delegate.ts | 329 | 384 | 399,479 | audit, error-paths |
+| tools/http-request.ts | 326 | 762 | 459,495 | error-paths, friction |
 | module-loader.ts | 323 | 651 | 441,487 | e2e, audit |
 | history.ts | 322 | 445 | 391,405,453,489 | friction, e2e, audit, harden |
-| tools/http-request.ts | 318 | 624 | 459 | error-paths |
 | init.ts | 315 | 453 | 463 | friction |
 | registry.ts | 299 | 635 | 407,475 | error-paths, structural-health |
 | html-extract.ts | 296 | 377 | 467 | audit |
@@ -160,7 +161,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 494. Previous refresh at iter 493.
+Data refreshed at iter 496. Previous refresh at iter 495.
 
 ## Severity Key
 
@@ -170,4 +171,4 @@ Data refreshed at iter 494. Previous refresh at iter 493.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (38 iterations): critical=8, high=27, medium=3
+Distribution (39 iterations): critical=8, high=28, medium=3
