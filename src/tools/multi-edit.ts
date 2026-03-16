@@ -81,15 +81,17 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
     const count = content.split(e.old_string).length - 1;
 
     if (count === 0) {
-      revertAll(originals);
-      return { content: `Error: edit[${i}] old_string not found in ${e.path}. All edits reverted.`, is_error: true };
+      const rf = revertAll(originals);
+      const revertMsg = rf.length > 0 ? `Failed to revert: ${rf.join(", ")}.` : "All edits reverted.";
+      return { content: `Error: edit[${i}] old_string not found in ${e.path}. ${revertMsg}`, is_error: true };
     }
 
     if (count > 1 && !e.replace_all) {
-      revertAll(originals);
+      const rf = revertAll(originals);
+      const revertMsg = rf.length > 0 ? `Failed to revert: ${rf.join(", ")}.` : "All edits reverted.";
       return {
         content: `Error: edit[${i}] old_string appears ${count} times in ${e.path}. ` +
-          `Provide more context or set replace_all. All edits reverted.`,
+          `Provide more context or set replace_all. ${revertMsg}`,
         is_error: true,
       };
     }
@@ -99,9 +101,10 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
 
     const lint = lintFile(e.path);
     if (!lint.ok) {
-      revertAll(originals);
+      const rf = revertAll(originals);
+      const revertMsg = rf.length > 0 ? `\nFailed to revert: ${rf.join(", ")}.` : "\nAll edits reverted.";
       return {
-        content: `Edit[${i}] in ${e.path} caused syntax error:\n${lint.error}\nAll edits reverted.`,
+        content: `Edit[${i}] in ${e.path} caused syntax error:\n${lint.error}${revertMsg}`,
         is_error: true,
       };
     }
@@ -117,8 +120,15 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
   return { content: `Applied ${edits.length} edit(s) across ${filesModified.size} file(s)` };
 }
 
-function revertAll(originals: Map<string, string>): void {
+/** Revert files to originals. Returns list of paths that failed to revert. */
+function revertAll(originals: Map<string, string>): string[] {
+  const failures: string[] = [];
   for (const [path, content] of originals) {
-    writeFileSync(path, content, "utf-8");
+    try {
+      writeFileSync(path, content, "utf-8");
+    } catch {
+      failures.push(path);
+    }
   }
+  return failures;
 }

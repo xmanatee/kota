@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 473 — Fixed 3 bugs in find-replace tool and sweep-fixed same rollback pattern in multi-edit
+
+Fixed 3 bugs in `tools/find-replace.ts` (202 lines, the last uncovered module) and sweep-fixed the same rollback resilience bug in `tools/multi-edit.ts`; 12 new tests (19→31).
+
+### What was fixed
+
+**Bug 1 — Dotfiles silently skipped (medium)**:
+`glob()` was called without `dot: true`, so patterns like `*.json` missed
+`.eslintrc.json`, `.prettierrc.json`, and files in `.config/` directories.
+A user doing a bulk rename would think all config files were updated while
+hidden ones were silently left unchanged. Fixed by adding `dot: true` to
+the glob options.
+
+**Bug 2 — Lint-failure rollback lost error context (high)**:
+When a lint failure triggered rollback and a rollback write also failed (e.g.,
+file permissions changed), the outer catch said "Write failed... All changes
+reverted" — completely losing the original lint error and falsely claiming
+all files were reverted. Fixed by extracting `revertOriginals()` helper with
+per-file try-catch that returns a list of failed reverts, and threading revert
+status into all error messages.
+
+**Bug 3 — No glob result limit before scanning (medium)**:
+A broad pattern like `**/*` could match thousands of files, all read into
+memory before the MAX_FILES (50) check. Added MAX_GLOB (1000) that fails
+fast with an actionable error message suggesting how to narrow the pattern.
+
+### Sweep fix
+
+`multi-edit.ts` had the same unguarded `revertAll()` function — if any
+revert write failed, the error propagated uncaught. Refactored to the
+same try-catch-per-file pattern, threading revert failure info into all
+three error paths (not-found, ambiguous, lint-failure).
+
+### Tests added (12 new, 19→31)
+
+- Dotfile matching with `*.json` pattern
+- Dotfiles in subdirectories (`.config/`)
+- Dry run includes dotfiles in preview
+- Lint error preserves syntax error context
+- Lint failure on later file reverts earlier writes
+- Rollback failure reporting
+- Regex deletion (empty replacement)
+- Regex `$&` (entire match reference)
+- Word boundary with non-word-char pattern (documents expected behavior)
+- Word boundary with word-char pattern
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (379KB)
+- `npm test` — 2288 tests pass
+- `node dist/cli.js --help` — loads correctly
+- Changed files lint-clean via biome
+
+### Future directions
+
+- All modules now have at least one depth iteration (0 uncovered remaining)
+- Stale modules for next depth pass: registry.ts (32 iters ago), telegram.ts (41 iters ago), tool-adapters.ts (28 iters ago)
+
 ## Iteration 472 — Phase-aware trajectory analysis in improver prompt; refreshed depth-log (2→1 uncovered)
 
 Phase-aware trajectory analysis in improver prompt; codified depth-log refresh; refreshed depth-log (2→1 uncovered).

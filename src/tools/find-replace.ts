@@ -6,6 +6,7 @@ import { lintFile } from "../lint.js";
 import type { ToolResult } from "./index.js";
 
 const MAX_FILES = 50;
+const MAX_GLOB = 1000;
 
 export const findReplaceTool: Anthropic.Tool = {
   name: "find_replace",
@@ -78,6 +79,19 @@ export function applyReplacement(
   return { count, result: content.replace(regex, safeReplacement) };
 }
 
+/** Revert files to originals. Returns list of paths that failed to revert. */
+function revertOriginals(originals: Map<string, string>): string[] {
+  const failures: string[] = [];
+  for (const [p, orig] of originals) {
+    try {
+      writeFileSync(p, orig, "utf-8");
+    } catch {
+      failures.push(p);
+    }
+  }
+  return failures;
+}
+
 export async function runFindReplace(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
@@ -108,11 +122,21 @@ export async function runFindReplace(
 
   const matchedFiles = await glob(filesGlob, {
     nodir: true,
+    dot: true,
     ignore: ["**/node_modules/**", "**/.git/**"],
   });
 
   if (matchedFiles.length === 0) {
     return { content: `No files match glob: ${filesGlob}`, is_error: true };
+  }
+
+  if (matchedFiles.length > MAX_GLOB) {
+    return {
+      content:
+        `Glob matched ${matchedFiles.length} files (limit: ${MAX_GLOB}). ` +
+        `Narrow the pattern. Example: 'src/**/*.ts' instead of '**/*'.`,
+      is_error: true,
+    };
   }
 
   // Scan for matches
@@ -172,22 +196,25 @@ export async function runFindReplace(
       writeFileSync(h.path, h.result, "utf-8");
       const lint = lintFile(h.path);
       if (!lint.ok) {
-        for (const [p, orig] of originals) writeFileSync(p, orig, "utf-8");
+        const revertFailures = revertOriginals(originals);
+        const revertMsg = revertFailures.length > 0
+          ? `\nFailed to revert ${revertFailures.length} file(s): ${revertFailures.join(", ")}`
+          : "\nAll changes reverted.";
         return {
           content:
-            `Syntax error in ${h.path} after replacement:\n${lint.error}\n` +
-            `All changes reverted.`,
+            `Syntax error in ${h.path} after replacement:\n${lint.error}${revertMsg}`,
           is_error: true,
         };
       }
       modified.push(h.path);
     }
   } catch (err) {
-    for (const [p, orig] of originals) {
-      try { writeFileSync(p, orig, "utf-8"); } catch {}
-    }
+    const revertFailures = revertOriginals(originals);
     const msg = err instanceof Error ? err.message : String(err);
-    return { content: `Write failed: ${msg}. All changes reverted.`, is_error: true };
+    const revertMsg = revertFailures.length > 0
+      ? `Failed to revert ${revertFailures.length} file(s): ${revertFailures.join(", ")}`
+      : "All changes reverted.";
+    return { content: `Write failed: ${msg}. ${revertMsg}`, is_error: true };
   }
 
   for (const p of modified) recordModification(p);
