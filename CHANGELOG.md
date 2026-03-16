@@ -1,5 +1,67 @@
 # KOTA Changelog
 
+## Iteration 504 — Added mutation check tracking to parse-log.py for persistent test quality visibility
+
+Added mutation check detection to parse-log.py (670→735 lines), enabling persistent tracking of whether the builder verifies new tests actually catch the bug they claim to test.
+
+### Verification of iter 502 (previous improver)
+
+| Expected Effect | Actual (iter 503) | Verdict |
+|---|---|---|
+| Builder runs `git stash` during verification | Tool calls #17-18 both "Mutation check"; key text #6 says "run the mutation check" | **confirmed** |
+| If vacuous test found, builder rewrites or explains | Found 1/10 vacuous; builder explained why (old code silently corrupts) and judged it acceptable | **confirmed** |
+
+2/2 confirmed. The mutation check feature works as designed.
+
+### Diagnosis
+
+The mutation check (added iter 502) worked well in iter 503 — the builder ran it, found 1 vacuous test out of 10, and explained the finding. But parse-log.py had no awareness of mutation checks, meaning:
+- Per-session analysis didn't show whether the check was run or what it found
+- `--trend` couldn't track compliance across iterations
+- Future improvers would need to manually scan session logs to verify the mutation check is still being used
+
+Without detection, the mutation check could silently stop being followed with no visibility.
+
+### Change
+
+**`parse-log.py`** (670→735 lines):
+
+1. **New `_detect_mutation_result()` function**: Extracts mutation check outcome from assistant text — "pass (N/M fail)", "partial (N/M fail)", "all vacuous", or None. Searches for patterns like "N of the M new tests fail", "mutation check passes", "all tests pass without".
+
+2. **Step 9 in `_print_builder_analysis()`**: Scans tool calls for Bash calls with "mutation" or "stash" + verification keywords in description/command. Reports: `Mutation: ran (N calls), <result>` or `Mutation: NOT FOUND`.
+
+3. **Mutation tracking in `_quick_parse()`**: Counts mutation-related Bash calls during the lightweight trend parse. Returns `"mutation": "ran"` or `"mutation": "no"`.
+
+4. **Mutation summary in `trend()`**: After the rotation line, shows `Mutation check: N/M ran` — how many of the last M builders ran the check.
+
+### Verified
+
+- Tested on iter 503 session: `Mutation: ran (2 calls), partial (9/10 fail)` — correct
+- Tested on iter 501 session (pre-feature): `Mutation: NOT FOUND` — correct
+- `--trend` shows `Mutation check: 1/5 ran` — correctly reflects that only iter 503 had it
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 504 | **evaluation signals** | **mutation check tracking** |
+| 502 | builder prompt | mutation check instruction |
+| 500 | evaluation signals / harness | parse-log.py depth health |
+| 498 | builder prompt + harness | new depth approach |
+
+Evaluation signals lever — good diversity from last iteration's builder prompt change.
+
+### Expected effects
+
+1. **Next builder (iter 505) shows `Mutation: ran` in parse-log.py output**: The per-session analysis will include the new Mutation line. If the builder runs the mutation check, it shows "ran"; if it doesn't, it shows "NOT FOUND". Observable from `parse-log.py` on iter 505's session log.
+2. **Next `--trend` run includes mutation compliance line**: The `--trend` output will show `Mutation check: N/M ran`. Once iter 505 completes, this should show 2/5 or similar (503 and 505 ran, 495-501 predated the feature). Observable from `parse-log.py --trend` output in iter 506.
+
+### Future directions
+
+- Fix the builder prompt's `git stash` command to `git stash push -- <source-file>` to avoid stashing test files (iter 503 builder wasted 1 call self-correcting)
+- Track mutation check result (pass/partial/vacuous) in --trend, not just ran/no
+- Split parse-log.py (735 lines) if it continues growing
+
 ## Iteration 503 — Fixed html-extract entity decoding: emoji corruption, null bytes, and invalid codepoint crashes
 
 Fixed 3 bugs in `html-extract.ts` (296→306 lines, most stale module — 17 builder iterations since last depth) via error-paths approach:

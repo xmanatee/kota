@@ -207,6 +207,37 @@ def _extract_test_delta(texts: list[str]) -> str | None:
     return None
 
 
+def _detect_mutation_result(texts: list[str]) -> str | None:
+    """Extract mutation check outcome from assistant text.
+
+    Returns a short label: "pass (N/M fail)", "all vacuous", or None.
+    """
+    for text in texts:
+        low = text.lower()
+        if "mutation" not in low:
+            continue
+        # "N of the M new tests fail" or "N/M ... fail"
+        m = re.search(r"(\d+)\s+(?:of\s+(?:the\s+)?)?(\d+)\s+new\s+tests?\s+fail", low)
+        if m:
+            failed, total = int(m.group(1)), int(m.group(2))
+            if failed == total:
+                return f"pass ({failed}/{total} fail)"
+            return f"partial ({failed}/{total} fail)"
+        # "mutation check passes" / "mutation check pass"
+        if re.search(r"mutation\s+check\s+pass", low):
+            return "pass"
+        # "all tests pass without" the fix → vacuous
+        if re.search(r"all\s+(?:new\s+)?tests?\s+pass\s+without", low):
+            return "all vacuous"
+        # "vacuous" keyword
+        if "vacuous" in low:
+            return "vacuous found"
+        # "tests? fail" near mutation context
+        if re.search(r"tests?\s+fail", low):
+            return "pass"
+    return None
+
+
 def _print_builder_analysis(
     tool_calls: list[ToolCall],
     text_blocks: list[str],
@@ -384,6 +415,25 @@ def _print_builder_analysis(
     ))
     if edited:
         print(f"  Files edited: {', '.join(edited)}")
+
+    # 9. Mutation check — did the builder verify new tests catch the bug?
+    mutation_calls = 0
+    for tc in tool_calls:
+        if tc.name != "Bash":
+            continue
+        s = _searchable(tc)
+        if "mutation" in s or ("stash" in s and any(
+            kw in s for kw in ["revert", "verify", "check", "fail"]
+        )):
+            mutation_calls += 1
+    mutation_result = _detect_mutation_result(full_text_blocks or text_blocks)
+    if mutation_calls > 0:
+        detail = f"ran ({mutation_calls} call{'s' if mutation_calls > 1 else ''})"
+        if mutation_result:
+            detail += f", {mutation_result}"
+        print(f"  Mutation:     {detail}")
+    else:
+        print("  Mutation:     NOT FOUND")
     print()
 
 
@@ -409,6 +459,7 @@ def _quick_parse(path: str) -> dict:
         messages = [json.loads(line) for line in f if line.strip()]
     result = next((m for m in messages if m.get("type") == "result"), {})
     tool_count = 0
+    mutation_calls = 0
     text_snippets: list[str] = []
     full_texts: list[str] = []
     cl_edits: list[str] = []
@@ -419,6 +470,14 @@ def _quick_parse(path: str) -> dict:
             if block.get("type") == "tool_use":
                 tool_count += 1
                 inp = block.get("input", {})
+                if block["name"] == "Bash":
+                    desc = (inp.get("description", "") or "").lower()
+                    cmd = (inp.get("command", "") or "").lower()
+                    s = f"{desc} {cmd}"
+                    if "mutation" in s or ("stash" in s and any(
+                        kw in s for kw in ["revert", "verify", "check", "fail"]
+                    )):
+                        mutation_calls += 1
                 if block["name"] == "Edit" and (
                     inp.get("file_path", "") or ""
                 ).lower().endswith("changelog.md"):
@@ -479,6 +538,7 @@ def _quick_parse(path: str) -> dict:
         "module": target_mod,
         "approach": target_app,
         "test_delta": _extract_test_delta(full_texts + cl_edits),
+        "mutation": "ran" if mutation_calls > 0 else "no",
     }
 
 
@@ -639,6 +699,12 @@ def trend(n: int = 5) -> None:
     consec = any(apps[i] == apps[i + 1] for i in range(len(apps) - 1))
     rot = "CONSECUTIVE REPEAT" if consec else "ok (no repeats)"
     print(f"  Rotation: {rot}")
+
+    # Mutation check compliance (added iter 502, tracked from iter 504)
+    mut_ran = sum(1 for e in entries if e.get("mutation") == "ran")
+    mut_total = len(entries)
+    if mut_ran > 0 or any(e.get("mutation") for e in entries):
+        print(f"  Mutation check: {mut_ran}/{mut_total} ran")
 
     # Depth phase health (from depth-log.md)
     health = _depth_health(depth_rows)
