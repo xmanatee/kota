@@ -43,6 +43,8 @@ export type LoopOptions = {
   resumeConversation?: string;
   /** Disable automatic conversation history tracking. */
   noHistory?: boolean;
+  /** Tag conversations as "action" (autonomous) vs "user" (interactive). Affects history pruning. */
+  historySource?: "user" | "action";
   /** Optional label for event bus (e.g. "build-agent", "user-repl"). */
   label?: string;
 };
@@ -74,6 +76,7 @@ export class AgentSession {
   private projectContext: string;
   private conversationId: string | null = null;
   private historyEnabled: boolean;
+  private historySource: "user" | "action";
   private sessionId: string;
   private sessionLabel?: string;
   private sessionStartTime = 0;
@@ -158,6 +161,7 @@ export class AgentSession {
     // History is enabled if not explicitly disabled. When resuming a conversation,
     // always keep saving to it even if sessionPath is also set.
     this.historyEnabled = !options.noHistory && (!this.sessionPath || !!this.conversationId);
+    this.historySource = options.historySource ?? "user";
 
     this.verifyTracker = new VerifyTracker(detectVerifyCommands());
 
@@ -375,7 +379,7 @@ export class AgentSession {
     const history = getHistory();
     if (!this.conversationId) {
       if (snapshot.messages.length === 0) return;
-      this.conversationId = history.create(this.model, process.cwd());
+      this.conversationId = history.create(this.model, process.cwd(), this.historySource);
     }
     history.save(this.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
   }

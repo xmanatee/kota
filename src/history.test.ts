@@ -155,6 +155,81 @@ describe("ConversationHistory", () => {
     expect(list.length).toBeLessThanOrEqual(50);
   });
 
+  it("stores source field on creation", () => {
+    const userId = history.create("claude-sonnet-4-6", "/tmp", "user");
+    const actionId = history.create("claude-sonnet-4-6", "/tmp", "action");
+
+    const list = history.list({ limit: 100 });
+    const userEntry = list.find((c) => c.id === userId);
+    const actionEntry = list.find((c) => c.id === actionId);
+
+    expect(userEntry?.source).toBe("user");
+    expect(actionEntry?.source).toBe("action");
+  });
+
+  it("defaults source to 'user' when not specified", () => {
+    const id = history.create("claude-sonnet-4-6", "/tmp");
+    const list = history.list();
+    expect(list[0].source).toBe("user");
+  });
+
+  it("filters by source", () => {
+    history.create("claude-sonnet-4-6", "/tmp", "user");
+    history.create("claude-sonnet-4-6", "/tmp", "action");
+    history.create("claude-sonnet-4-6", "/tmp", "user");
+    history.create("claude-sonnet-4-6", "/tmp", "action");
+
+    const userOnly = history.list({ source: "user", limit: 100 });
+    expect(userOnly).toHaveLength(2);
+    expect(userOnly.every((c) => c.source === "user")).toBe(true);
+
+    const actionOnly = history.list({ source: "action", limit: 100 });
+    expect(actionOnly).toHaveLength(2);
+    expect(actionOnly.every((c) => c.source === "action")).toBe(true);
+  });
+
+  it("prunes action conversations independently from user conversations", () => {
+    // Create 25 action conversations (limit is 20)
+    for (let i = 0; i < 25; i++) {
+      history.create("claude-sonnet-4-6", "/tmp", "action");
+    }
+    // Create 5 user conversations
+    for (let i = 0; i < 5; i++) {
+      history.create("claude-sonnet-4-6", "/tmp", "user");
+    }
+
+    const all = history.list({ limit: 100 });
+    const actions = all.filter((c) => c.source === "action");
+    const users = all.filter((c) => c.source === "user");
+
+    // Action conversations should be pruned to 20
+    expect(actions.length).toBeLessThanOrEqual(20);
+    // User conversations should NOT be affected by action pruning
+    expect(users).toHaveLength(5);
+  });
+
+  it("action overflow does not evict user conversations", () => {
+    // Create 45 user conversations (under the 50 limit)
+    const userIds: string[] = [];
+    for (let i = 0; i < 45; i++) {
+      userIds.push(history.create("claude-sonnet-4-6", "/tmp", "user"));
+    }
+
+    // Now create 30 action conversations (exceeds action limit of 20)
+    for (let i = 0; i < 30; i++) {
+      history.create("claude-sonnet-4-6", "/tmp", "action");
+    }
+
+    const all = history.list({ limit: 200 });
+    const users = all.filter((c) => (c.source ?? "user") === "user");
+    const actions = all.filter((c) => c.source === "action");
+
+    // All 45 user conversations should still be present
+    expect(users).toHaveLength(45);
+    // Actions should be capped at 20
+    expect(actions.length).toBeLessThanOrEqual(20);
+  });
+
   it("cleans up orphaned files", () => {
     const id = history.create("claude-sonnet-4-6", "/tmp");
     // Load to verify it exists

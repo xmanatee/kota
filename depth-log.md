@@ -22,6 +22,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 425 | structural-health | server.ts, server-notifications.ts | high | Deduplicated copy-pasted due-item callback, extracted NotificationHub |
 | 441 | e2e | module-loader.ts, cli.ts, modules/*.ts | high | Module→CLI pipeline e2e test (14 tests), fixed CLI error resilience |
 | 451 | error-paths | daemon.ts | critical | 6 bugs fixed (TOCTOU crash, uncaught setInterval exceptions, signal handler leak, missing stateDir, stale stopping flag), 12 error-path tests added |
+| 453 | audit | action-executor.ts, history.ts | high | Autonomous action sessions evicted user conversation history — added source-aware pruning (50 user + 20 action), source field on ConversationRecord, historySource threading through AgentSession |
 
 ## Coverage by Module (>200 lines)
 
@@ -37,9 +38,10 @@ Covered modules and which approaches have been applied:
 | tool-adapters.ts | 403 | 415 | error-paths |
 | telegram.ts | 401 | 389 | audit |
 | module-loader.ts | 312 | 441 | e2e |
-| history.ts | 279 | 391,405 | friction, e2e |
+| history.ts | 280 | 391,405,453 | friction, e2e, audit |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
 | daemon.ts | 376 | 451 | error-paths |
+| action-executor.ts | 141 | 453 | audit |
 
 **Stale coverage warning** — these covered modules were substantially modified
 since their last depth coverage. Coverage may not reflect current code:
@@ -100,4 +102,4 @@ Data refreshed at iter 450. Previous refresh at iter 441.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (17 iterations): critical=6, high=9, medium=2
+Distribution (18 iterations): critical=6, high=10, medium=2

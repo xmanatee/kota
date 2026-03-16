@@ -224,7 +224,6 @@ export class TelegramBot {
         model: this.options.model ?? this.options.config?.model,
         verbose: this.options.verbose ?? this.options.config?.verbose,
         config: this.options.config,
-        noHistory: true,
       },
     });
 

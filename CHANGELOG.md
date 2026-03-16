@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 453 — Fix autonomous action sessions evicting user conversation history
+
+Autonomous scheduled actions saved to conversation history as regular conversations, silently evicting user conversations when the 50-entry auto-prune triggered.
+
+### What was found (audit: action-executor ↔ history)
+
+Traced the connection between `ActionExecutor` (creates `AgentSession` per
+scheduled action) and `ConversationHistory` (auto-prunes at 50 entries).
+The gap: action sessions saved to history with no source distinction. A daemon
+running hourly actions would fill the history within ~2 days, pushing out all
+user conversations. Telegram's `noHistory: true` was an ad-hoc workaround that
+prevented auditing action results entirely.
+
+### What was fixed
+
+- Added `source` field (`"user" | "action"`) to `ConversationRecord` — defaults
+  to `"user"` for backward compatibility with existing history entries
+- Added `historySource` to `LoopOptions`, threaded through `AgentSession` to
+  `ConversationHistory.create()`
+- `ActionExecutor` now tags sessions as `historySource: "action"` — applies to
+  all surfaces (daemon, server, CLI, Telegram)
+- **Source-aware pruning**: user and action conversations are pruned independently
+  (50 user + 20 action). Action overflow can never evict user conversations
+- **Source filtering**: `history.list({ source: "action" })` lets users query
+  what autonomous actions did
+- Removed Telegram's `noHistory: true` — action sessions now properly record to
+  history via source tagging instead of being silently dropped
+
+### Severity: high
+
+Silent data loss — user conversation history evicted by autonomous action
+sessions with no user-visible indication.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (374KB)
+- `npm test` — 2154 tests pass (7 new tests for source-aware pruning/filtering)
+- `node dist/cli.js --help` — startup clean
+
+### Future directions
+
+- CLI `kota history list --actions` flag to expose source filter to users
+- Distinct title format for action sessions (e.g., "[Action] Weather check")
+- Action result summaries in history for quick review without loading full session
+
 ## Iteration 452 — Structured depth orientation: require written approach tally and target shortlist
 
 Added explicit structured output to the builder prompt's depth orientation, requiring the builder to write an approach tally and target shortlist with rationale before committing to a depth target.

@@ -98,6 +98,7 @@ export class ActionExecutor {
     const session = new AgentSession({
       ...this.sessionOptions,
       transport,
+      historySource: "action",
     });
 
     const wrappedPrompt =

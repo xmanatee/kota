@@ -391,7 +391,7 @@ Automatic conversation persistence that lets KOTA resume previous conversations 
 
 **Storage**: Each conversation is stored as `~/.kota/history/<id>.json` with full message history + metadata. An `index.json` file provides fast listing without reading every conversation file.
 
-**ConversationRecord metadata**: id, title (auto-generated from first user message), createdAt, updatedAt, model, messageCount, cwd (project directory).
+**ConversationRecord metadata**: id, title (auto-generated from first user message), createdAt, updatedAt, model, messageCount, cwd (project directory), source (`"user"` or `"action"`).
 
 **Auto-save lifecycle**:
 1. `AgentSession` constructor creates a new conversation entry (unless `noHistory: true` or using legacy `--session`)
@@ -414,7 +414,7 @@ Automatic conversation persistence that lets KOTA resume previous conversations 
 - `GET /api/history/:id` — full conversation data
 - `DELETE /api/history/:id` — remove a conversation
 
-**Auto-prune**: Oldest conversations beyond 50 are automatically deleted when new ones are created. Project-scoped: conversations are tagged with their working directory for filtering.
+**Auto-prune**: Source-aware pruning — user conversations (50 max) and action conversations (20 max) are pruned independently. Autonomous action sessions can never evict user conversations. `ActionExecutor` tags sessions with `historySource: "action"` via `LoopOptions`.
 
 ### Safety & Error Recovery
 

@@ -13,6 +13,8 @@ export type ConversationRecord = {
   model: string;
   messageCount: number;
   cwd: string;
+  /** Distinguishes user-initiated conversations from autonomous action sessions. */
+  source?: "user" | "action";
 };
 
 type ConversationData = {
@@ -26,7 +28,8 @@ type HistoryIndex = {
   conversations: ConversationRecord[];
 };
 
-const MAX_CONVERSATIONS = 50;
+const MAX_USER_CONVERSATIONS = 50;
+const MAX_ACTION_CONVERSATIONS = 20;
 const TITLE_MAX_LENGTH = 80;
 
 function getHistoryDir(): string {
@@ -78,7 +81,7 @@ export class ConversationHistory {
   }
 
   /** Create a new conversation and return its ID. */
-  create(model: string, cwd: string): string {
+  create(model: string, cwd: string, source?: "user" | "action"): string {
     const id = generateId();
     const now = new Date().toISOString();
     const record: ConversationRecord = {
@@ -89,6 +92,7 @@ export class ConversationHistory {
       model,
       messageCount: 0,
       cwd,
+      source: source ?? "user",
     };
 
     const data: ConversationData = {
@@ -150,10 +154,14 @@ export class ConversationHistory {
     }
   }
 
-  /** List conversations, optionally filtered by search term. */
-  list(opts?: { search?: string; limit?: number; cwd?: string }): ConversationRecord[] {
+  /** List conversations, optionally filtered by search term and source. */
+  list(opts?: { search?: string; limit?: number; cwd?: string; source?: "user" | "action" }): ConversationRecord[] {
     const index = this.loadIndex();
     let results = index.conversations;
+
+    if (opts?.source) {
+      results = results.filter((c) => (c.source ?? "user") === opts.source);
+    }
 
     if (opts?.cwd) {
       results = results.filter((c) => c.cwd === opts.cwd);
@@ -230,15 +238,33 @@ export class ConversationHistory {
     writeFileSync(path, JSON.stringify(data), "utf-8");
   }
 
-  /** Remove oldest conversations beyond the limit. */
+  /** Remove oldest conversations beyond per-source limits. */
   private pruneAndSave(index: HistoryIndex): void {
-    while (index.conversations.length > MAX_CONVERSATIONS) {
-      const removed = index.conversations.pop();
-      if (removed) {
-        const path = join(this.dir, `${removed.id}.json`);
-        try { unlinkSync(path); } catch { /* ok */ }
+    let userCount = 0;
+    let actionCount = 0;
+    const keep: ConversationRecord[] = [];
+    const removeIds: string[] = [];
+
+    for (const c of index.conversations) {
+      const src = c.source ?? "user";
+      const limit = src === "action" ? MAX_ACTION_CONVERSATIONS : MAX_USER_CONVERSATIONS;
+      const count = src === "action" ? actionCount : userCount;
+
+      if (count < limit) {
+        keep.push(c);
+        if (src === "action") actionCount++;
+        else userCount++;
+      } else {
+        removeIds.push(c.id);
       }
     }
+
+    for (const id of removeIds) {
+      const path = join(this.dir, `${id}.json`);
+      try { unlinkSync(path); } catch { /* ok */ }
+    }
+
+    index.conversations = keep;
     this.saveIndex(index);
   }
 
