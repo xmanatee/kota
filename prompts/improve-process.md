@@ -55,6 +55,10 @@ Before doing anything, understand what happened. You have full shell access:
   and key assistant text. Use this INSTEAD of reading session logs directly
   (they are too large for the Read tool). One call per log replaces dozens of
   manual parsing attempts.
+- `python3 refresh-depth-log.py` — regenerates depth-log.md derived sections
+  (uncovered list, coverage matrix, severity distribution) from the main table
+  + filesystem. Run this INSTEAD of manually editing those sections. Preserves
+  the main table and stale coverage notes. Use `--dry` to preview without writing.
 - Session logs (`.session.jsonl` in `logs/`) are the ground truth. The
   CHANGELOG is narrative — `parse-log.py` output shows what actually happened.
 

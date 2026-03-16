@@ -32,24 +32,21 @@ These modules have **zero depth iterations**. They are blind spots — no one ha
 examined their error handling, edge cases, integration seams, or structural
 health. Prioritize these over already-covered modules.
 
-| Module | Lines | Notes |
-|--------|-------|-------|
-| tools/delegate.ts | 302 | Sub-agent delegation tool |
-| init.ts | 299 | Project initialization / setup wizard |
-| web-ui-client.ts | 298 | Browser-side JS for web UI |
-| html-extract.ts | 296 | HTML content extraction |
-| tools/http-request.ts | 289 | HTTP request tool |
-| tools/process.ts | 287 | Process management tool |
-| tools/web-search.ts | 286 | Web search tool |
-| web-ui-styles.ts | 278 | CSS generation for web UI |
-| tools/file-edit.ts | 274 | File editing tool |
-| task-store.ts | 259 | Persistent task storage |
-| tools/file-read.ts | 255 | File reading tool |
-| verify-tracker.ts | 215 | Tracks file verification state |
-| context.ts | 214 | Conversation context management |
-| tools/find-replace.ts | 202 | Find-and-replace tool |
+| Module | Lines |
+|--------|-------|
+| init.ts | 299 |
+| web-ui-client.ts | 298 |
+| html-extract.ts | 296 |
+| tools/http-request.ts | 289 |
+| tools/web-search.ts | 286 |
+| web-ui-styles.ts | 278 |
+| tools/file-edit.ts | 274 |
+| tools/file-read.ts | 255 |
+| verify-tracker.ts | 215 |
+| context.ts | 214 |
+| tools/find-replace.ts | 202 |
 
-**14 uncovered modules, 3,554 lines total.**
+**11 uncovered modules, 2,906 lines total.**
 
 ## Stale Coverage — SECONDARY Targets
 
@@ -87,26 +84,41 @@ down from ~250) and `plugin-types.ts` was deleted. These are no longer depth
 targets. `tools/index.ts` (158 lines) was refactored in iter 449 (allTools
 encapsulation) — small enough to skip but has new API surface.
 
-## Coverage by Module (>200 lines)
+## Coverage by Module
 
 Reference data — see uncovered and stale sections above for targeting guidance.
 
 | Module | Lines | Depth Iters | Approaches Applied |
-|--------|-------|-------------|--------------------|
-| cli.ts | 424 | 391,397,403,411,441 | friction×2, harden, friction, e2e |
-| scheduler.ts | 378 | 389,413,455 | audit, harden, structural-health |
+|--------|-------|-------------|---------------------|
 | loop.ts | 438 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
-| server.ts | 400 | 395,425 | e2e, structural-health |
+| cli.ts | 424 | 391,397,403,411,441 | friction, friction, harden, friction, e2e |
 | tool-adapters.ts | 403 | 415 | error-paths |
 | telegram.ts | 400 | 389 | audit |
+| server.ts | 400 | 395,425 | e2e, structural-health |
+| scheduler.ts | 378 | 389,413,455 | audit, harden, structural-health |
+| daemon.ts | 376 | 451 | error-paths |
+| tools/process.ts | 327 | 457 | harden |
 | module-loader.ts | 312 | 441 | e2e |
 | history.ts | 305 | 391,405,453 | friction, e2e, audit |
+| tools/delegate.ts | 302 | 399 | audit |
+| task-store.ts | 259 | 455 | structural-health |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
-| daemon.ts | 376 | 451 | error-paths |
+| session-pool.ts | 185 | 393 | harden |
 | action-executor.ts | 141 | 453 | audit |
+| modules/registry.ts | 94 | 441 | e2e |
+| server-notifications.ts | 89 | 425 | structural-health |
+| modules/telegram.ts | 82 | 441 | e2e |
+| modules/vercel-adapter.ts | 81 | 441 | e2e |
+| modules/daemon.ts | 80 | 441 | e2e |
+| confirm.ts | 67 | 411 | friction |
+| modules/web.ts | 65 | 441 | e2e |
+| web-ui.ts | 50 | 409 | structural-health |
+| modules/index.ts | 27 | 441 | e2e |
+| modules/scheduler.ts | 24 | 441 | e2e |
+| modules/memory.ts | 24 | 441 | e2e |
 
-Data refreshed at iter 456. Previous refresh at iter 454.
+Data refreshed at iter 458. Previous refresh at iter 457.
 
 ## Severity Key
 
@@ -116,4 +128,4 @@ Data refreshed at iter 456. Previous refresh at iter 454.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (19 iterations): critical=6, high=10, medium=3
+Distribution (20 iterations): critical=6, high=11, medium=3

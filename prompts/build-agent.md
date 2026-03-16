@@ -107,8 +107,8 @@ what exists actually work well together.
    - **Target shortlist**: 2-3 candidate modules. Start with the depth log's
      uncovered list — these are blind spots that have never been examined. Only
      draw from stale-covered modules if you've considered and dismissed uncovered
-     alternatives (state why). Cross-reference with
-     `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` for actual sizes.
+     alternatives (state why). Line counts in the depth log are refreshed each
+     iteration by the improver.
    Same module under a *different* approach is fine; avoid the exact same
    approach+module pair. State your pick and one-sentence rationale.
 3. After picking, check CHANGELOG for previous iterations using the same
