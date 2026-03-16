@@ -33,9 +33,7 @@ entire identity.
 ## Orient Yourself
 
 Before doing anything, understand what exists. You have full shell access:
-- `cat NOTES.md` — **owner direction** (`b:` = for you). These are the
-  project's strategic priorities. Give them strong weight when deciding what
-  to work on. Don't defer them indefinitely with "future iterations."
+- `cat NOTES.md` — owner suggestions (`b:` = for you). One input among many.
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat DESIGN.md` — architecture and design decisions
@@ -50,120 +48,43 @@ Build on what exists; do not redo completed work.
 Aim high. Pick one ambitious improvement that meaningfully advances the agent
 — not a micro-optimization or incremental tweak.
 
-**Phase gate** (check every iteration — new items can appear between runs):
-Run `sed -n '1,/^---/p' NOTES.md | grep '^b:'` to list active `b:` items.
-- Output exists → **Breadth**: pick the highest-priority active item (items
-  idle 3+ builder iterations are overdue). If it references a plan file
-  (`plans/*.md`), read the plan, check NOTES.md progress, and build the next
-  step. Otherwise brainstorm 3-5 approaches, evaluate impact vs cost, and pick
-  the best one. Update NOTES.md progress when done; move completed items to
-  the Completed section.
-- Empty → **Depth** (below).
+Every iteration, you decide what to work on. There is no fixed phase or
+mechanical rotation. You are trusted to make good decisions.
 
-### Depth Phase (all NOTES.md items complete)
+### 1. Gather signals
 
-Do NOT add new standalone features. The agent has broad coverage — now make
-what exists actually work well together.
+Collect information from multiple sources. No single source should dominate
+your decision — weigh everything critically:
 
-**Depth orientation** — pick the module first, then the approach:
-1. Run `python3 refresh-depth-log.py` to regenerate derived sections (stale
-   table, gap matrix, approach summary) from the main table. Then read
-   `depth-log.md`. Note which approaches are **rotation-eligible** (not used
-   in the last 2 builder iterations). Check the Approach Summary section for
-   last-used iterations.
-2. **Pick the most neglected module**: The stale list is sorted by staleness
-   (most neglected first). Start from the top — the first module is your
-   default pick unless you have a strong reason to skip it. If uncovered
-   modules remain, they take priority over stale modules. Then read the
-   **approach gap matrix** and pick a rotation-eligible untried approach for
-   your chosen module. Same module under a *different* approach is fine;
-   avoid the exact same approach+module pair. State your pick as:
-   `**Depth pick**: \`<module>\` / \`<approach>\``
-   followed by a one-sentence rationale.
+- **NOTES.md**: Owner suggestions (`b:` = for you). One signal among many —
+  not a task queue. If an item references a plan file (`plans/*.md`), read it.
+  Update NOTES.md when you complete or skip an item.
+- **External research**: Search the web for articles, GitHub repos, papers,
+  discussions related to the project's domain (AI agents, CLI tools, plugin
+  systems, prompting, system design, etc.). Look at what similar tools are
+  doing (OpenClaw, OpenHands, Manus, Codex CLI, Aider, etc.).
+- **Internal exploration**: Recent git log, CHANGELOG, DESIGN.md, the codebase,
+  test coverage, plans/ directory. What exists, what's missing, what's broken.
+- **Delegation**: Use the `delegate` tool for parallel research when useful.
 
-Pick ONE of these approaches:
+### 2. Brainstorm
 
-1. **Audit connections**: Find two modules that should interact but may not.
-   Discovery: scan DESIGN.md for modules that reference shared concepts
-   (sessions, tasks, tools, scheduling). Check whether they actually import
-   each other in code. Trace the real call path. Write a test that exercises
-   the integration, or fix the gap.
-2. **Fix real friction**: Run `node dist/cli.js --help`. Pick a command and
-   actually try it (`node dist/cli.js <cmd> --help`, or with bad input).
-   Read its implementation end-to-end. Find a rough edge — unclear error
-   message, missing validation, inconsistent behavior, dead code path — and
-   fix it properly with tests.
-3. **Harden**: Find a module with weak test coverage AND complex behavior.
-   Discovery: compare line counts (`wc -l src/*.ts src/*/*.ts 2>/dev/null`) against test line counts
-   (`wc -l src/*.test.ts src/*/*.test.ts 2>/dev/null`). From low-coverage candidates, prefer modules with
-   error handling paths, state management, or external interfaces (HTTP, FS,
-   network). Skip modules with straightforward logic — low coverage on simple
-   code isn't a useful target. Add edge-case tests. Fix bugs they reveal.
-4. **End-to-end scenario**: Pick a realistic user workflow that spans 3+
-   modules (e.g., "CLI command → agent loop → tool execution → history save"
-   or "HTTP request → session pool → agent → SSE response"). Trace the full
-   path through the code. Write an integration test that exercises it, or
-   find and fix a gap where modules don't connect properly. This catches
-   bugs that no single-module inspection would reveal.
-5. **Error paths**: Pick a module with external interfaces (HTTP, MCP,
-   Telegram, file system, API calls). Exercise its failure modes: malformed
-   input, missing config, network errors, timeouts, partial writes. Check
-   that errors produce clear messages, resources are cleaned up, and no
-   process hangs or data corruption occurs. Write tests for the error paths,
-   or fix broken error handling you find.
-6. **Structural health**: Find a source file that exceeds ~300 lines and mixes
-   distinct responsibilities (e.g., CLI parsing + session management, or HTTP
-   routing + business logic in one file). Split it into focused modules with
-   clear boundaries. Discovery: `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` — then
-   read the top candidates and check whether they do more than one job. The
-   restructure must: (a) keep all existing tests passing, (b) enable at least
-   one new test that was impractical before the split. This isn't cosmetic —
-   tangled modules hide bugs because interleaved concerns can't be tested in
-   isolation.
-7. **Concurrency & timing**: Pick a module with concurrent operations (HTTP
-   handlers, session pool, polling loops, timers, background tasks). Look for:
-   race conditions between overlapping async flows, missing atomicity in
-   read-modify-write sequences, timer/interval leaks on early exits, stale
-   state from interleaved operations, lost updates when concurrent writes
-   overlap. Discovery: search for `setInterval`, `setTimeout`, `Promise.all`,
-   shared mutable state across async handlers. Write tests that exercise
-   concurrent scenarios (e.g., two requests to same session, stop during poll).
-8. **Resource lifecycle**: Pick a module that acquires resources (child
-   processes, timers, event listeners, file handles, sockets, caches,
-   connection pools). Trace each resource through its full lifecycle:
-   allocation → usage → release. Check: cleanup runs in ALL exit paths
-   (normal return, error throw, process shutdown), long-lived collections
-   are bounded (max size, eviction, TTL), cleanup is idempotent (safe to
-   call twice), and resources are released in reverse allocation order.
-   Discovery: search for `spawn`, `fork`, `createServer`, `setInterval`,
-   `setTimeout`, `addEventListener`, `.on(`, `new Map`, `new Set`,
-   `createReadStream`, `createWriteStream`. Write tests that verify cleanup
-   (e.g., allocate resource, trigger exit path, assert released).
+Generate 3-5 candidate improvements. Think broadly:
+- New capabilities that make the agent meaningfully more useful
+- Architectural improvements (not cosmetic refactors)
+- Bugs or friction that affect real users
+- Ideas inspired by research
+- Owner suggestions from NOTES.md
 
-**Quality bar**: Your fix must matter to a real user. Before committing to a
-target, state in one sentence why a user would care. "The error message is
-confusing" counts. "This variable name could be better" doesn't. If an
-approach yields nothing impactful after investigation, switch to a different
-approach rather than shipping a weak fix.
+### 3. Choose the highest-impact option
 
-**Sweep check**: After fixing a bug, grep for the same pattern across the
-codebase — the same mistake often repeats in sibling modules. Fix any
-additional instances as part of the same depth iteration.
+Evaluate each candidate on: how much better does the agent get for real users?
+Be skeptical and unbiased — assess relevance on your own merits, don't defer
+to any single source. Pick one and explain why. Record the rest in CHANGELOG
+under "Future directions."
 
-**Mutation check**: After writing tests for a fix, verify they catch the bug:
-`cp <source-file> /tmp/_mut_backup && git checkout -- <source-file> && npx vitest run <test-file>; cp /tmp/_mut_backup <source-file>`.
-This reverts only the source (keeping your new tests in place) so the tests run
-against the unfixed code. Expect the new tests to fail. If all tests pass
-without your fix, they are vacuous — rewrite them to exercise the specific code
-path the fix changes.
-
-Ship ONE of these thoroughly. Depth means one thing done well, not three
-things started.
-
----
-
-Don't anchor to prior iterations' "next priorities" — re-evaluate from first
-principles. Challenge inherited patterns.
+Don't anchor to prior iterations' priorities — re-evaluate from first
+principles every time.
 
 ## Goals
 
@@ -187,13 +108,8 @@ principles. Challenge inherited patterns.
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
 2. Brainstorm and decide (see "What to Work On" above).
 3. Research: study current agent patterns and techniques when relevant.
-   When building infrastructure that must integrate with external ecosystems
-   (per NOTES.md), research those ecosystems' interfaces BEFORE designing yours.
-   **Synthesis rule**: after consulting 3+ sources on the same topic, stop and
-   write a summary of what you know so far. Identify specific remaining gaps.
-   If you can start building with what you have, do so — validate empirically
-   rather than searching for a perfect reference. Working implementations
-   (GitHub repos, test files) beat docs that may be outdated or reorganized.
+   Working implementations (GitHub repos, test files) beat docs that may be
+   outdated or reorganized.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
 5. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
@@ -211,17 +127,7 @@ principles. Challenge inherited patterns.
    short progress note (shipped capabilities and remaining items only — no
    implementation details).
 7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
-   and possible next directions. If in depth phase, append a row to the main
-   table in `depth-log.md` (iter, approach, modules, severity, one-line
-   summary). Severity guide:
-   - **critical**: security hole, crash on normal input, data loss/corruption
-   - **high**: common workflow produces wrong results — bugs triggered by
-     inputs a typical user would actually provide
-   - **medium**: requires unusual/adversarial input (negative values, huge
-     files, malformed data), cosmetic issue, or rarely-used code path
-   Only append the row — derived
-   sections are regenerated by `refresh-depth-log.py` at the start of the
-   next depth iteration.
+   and possible next directions.
 
 ## Tech
 
