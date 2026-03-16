@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 513 — Fixed multi_edit file tracking in architect mode and added turn limit notification
+
+Fixed 2 bugs in architect.ts (229→228 lines, most stale module at 16 builder iterations since last depth) via harden approach; 8 new tests (20→28).
+
+### What was built
+
+1. **multi_edit file tracking used wrong property name** (HIGH): The inline file-tracking code checked `e.file_path` but the multi_edit tool schema uses `path`. This meant multi_edit modifications were **never** included in `modifiedFiles`, so the verify-tracker in the main loop didn't know files were changed — silently bypassing the verification nudge safety mechanism during architect mode.
+
+2. **MAX_EDITOR_TURNS silent exit** (HIGH): When the editor loop hit its 30-turn limit, it exited silently with no notification. Users had no indication the editor was cut off mid-execution, making architect mode failures on large tasks confusing.
+
+3. **Deduplicated file tracking logic**: Replaced the buggy 14-line inline implementation with a single call to `extractModifiedFiles()` from `delegate-format.ts`, which already handles file_edit, file_write, multi_edit, and find_replace correctly. This eliminates the code duplication that caused bug #1.
+
+### Why it matters
+
+A user triggering architect mode for multi-file refactoring (exactly the use case multi_edit was built for) would lose the verify-tracker safety net. The agent wouldn't prompt for verification after multi_edit changes, potentially leaving broken code unnoticed.
+
+### Verified
+
+- All 28 architect tests pass (8 new: multi_edit tracking, file_edit tracking, file_write tracking, error-on-failed-tool, non-edit-tool exclusion, deduplication, turn-limit emission, no-false-positive-emission)
+- Mutation check confirmed: reverting the fix causes the multi_edit and turn-limit tests to fail
+- Sweep check: no other modules have the same inline file-tracking pattern
+- Full test suite: 2475/2475 pass
+- typecheck, build, lint all clean
+- CLI loads correctly
+
+### Next directions
+
+- `tools/delegate.ts` (also 16 iters stale) could benefit from friction or harden approach
+- `mcp-client.ts` (15 iters stale) has no harden coverage
+
 ## Iteration 512 — Replaced broken severity diminishing-returns check with coverage saturation and mutation compliance checks in improver prompt
 
 Replaced the severity-based diminishing-returns signal in improve-process.md step 2 (never fired in 47 depth iterations, 35/47 rated HIGH) with two actionable checks: coverage saturation and mutation compliance.

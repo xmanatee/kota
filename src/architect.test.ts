@@ -428,4 +428,189 @@ describe("runEditorLoop", () => {
       }),
     ]);
   });
+
+  it("tracks file_edit modifications in modifiedFiles", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            { id: "t1", name: "file_edit", input: { path: "src/foo.ts", old_string: "a", new_string: "b" } },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "Edited src/foo.ts" });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Edit foo",
+    });
+
+    expect(result.modifiedFiles).toEqual(["src/foo.ts"]);
+  });
+
+  it("tracks file_write modifications in modifiedFiles", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            { id: "t1", name: "file_write", input: { path: "new-file.ts", content: "hello" } },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "Wrote new-file.ts" });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Create file",
+    });
+
+    expect(result.modifiedFiles).toEqual(["new-file.ts"]);
+  });
+
+  it("tracks multi_edit modifications using path property", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            {
+              id: "t1",
+              name: "multi_edit",
+              input: {
+                edits: [
+                  { path: "src/a.ts", old_string: "x", new_string: "y" },
+                  { path: "src/b.ts", old_string: "m", new_string: "n" },
+                ],
+              },
+            },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "Applied 2 edits" });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Multi-edit",
+    });
+
+    expect(result.modifiedFiles).toContain("src/a.ts");
+    expect(result.modifiedFiles).toContain("src/b.ts");
+    expect(result.modifiedFiles).toHaveLength(2);
+  });
+
+  it("does not track files from failed tool calls", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            { id: "t1", name: "file_edit", input: { path: "fail.ts", old_string: "x", new_string: "y" } },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "old_string not found", is_error: true });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Edit",
+    });
+
+    expect(result.modifiedFiles).toEqual([]);
+  });
+
+  it("does not track non-edit tools in modifiedFiles", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            { id: "t1", name: "file_read", input: { path: "src/foo.ts" } },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "file contents" });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Read",
+    });
+
+    expect(result.modifiedFiles).toEqual([]);
+  });
+
+  it("deduplicates modified files across turns", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            { id: "t1", name: "file_edit", input: { path: "src/foo.ts", old_string: "a", new_string: "b" } },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([
+            { id: "t2", name: "file_edit", input: { path: "src/foo.ts", old_string: "c", new_string: "d" } },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "Edited" });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Edit twice",
+    });
+
+    expect(result.modifiedFiles).toEqual(["src/foo.ts"]);
+  });
+
+  it("emits error when editor hits MAX_EDITOR_TURNS", async () => {
+    // Set up mock to always return tool calls (never finishes)
+    mockExecuteTool.mockResolvedValue({ content: "ok" });
+    client.messages.stream.mockImplementation(() =>
+      createMockStream({
+        content: toolUseContent([
+          { id: `t${Math.random()}`, name: "file_read", input: { path: "test.ts" } },
+        ]),
+      }),
+    );
+
+    const events: Array<{ type: string; message?: string }> = [];
+    const transport = {
+      emit(event: { type: string; message?: string }) { events.push(event); },
+    };
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+      transport: transport as import("./transport.js").Transport,
+    });
+
+    const turnLimitError = events.find(
+      (e) => e.type === "error" && e.message?.includes("turn limit"),
+    );
+    expect(turnLimitError).toBeDefined();
+    expect(turnLimitError!.message).toContain("30");
+  });
+
+  it("does not emit turn limit error when model finishes normally", async () => {
+    client.messages.stream.mockReturnValue(createMockStream({ _text: "done" }));
+
+    const events: Array<{ type: string; message?: string }> = [];
+    const transport = {
+      emit(event: { type: string; message?: string }) { events.push(event); },
+    };
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+      transport: transport as import("./transport.js").Transport,
+    });
+
+    const turnLimitError = events.find(
+      (e) => e.type === "error" && e.message?.includes("turn limit"),
+    );
+    expect(turnLimitError).toBeUndefined();
+  });
 });

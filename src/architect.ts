@@ -2,7 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { isRetryable } from "./streaming.js";
-import { getAllTools, executeTool } from "./tools/index.js";
+import { extractModifiedFiles } from "./tools/delegate-format.js";
+import { executeTool, getAllTools } from "./tools/index.js";
 import type { Transport } from "./transport.js";
 
 const STREAM_MAX_RETRIES = 2;
@@ -112,8 +113,6 @@ export type EditorResult = {
   modifiedFiles: string[];
 };
 
-const EDIT_TOOL_NAMES = new Set(["file_edit", "file_write", "multi_edit"]);
-
 export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> {
   const { client, model, maxTokens, plan, costTracker, verbose, transport } = opts;
   if (verbose && transport) transport.emit({ type: "status", message: "[kota] Editor pass — executing plan..." });
@@ -127,6 +126,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
   ];
   let lastText = "";
   const modifiedFiles = new Set<string>();
+  let completedNaturally = false;
 
   for (let turn = 0; turn < MAX_EDITOR_TURNS; turn++) {
     let response!: Anthropic.Message;
@@ -168,7 +168,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
         throw err;
       }
     }
-    if (!streamSuccess) break;
+    if (!streamSuccess) { completedNaturally = true; break; }
 
     if (costTracker) costTracker.addUsage(model, response.usage);
     if (verbose && transport) transport.emit({ type: "status", message: `[kota] Editor turn ${turn + 1}/${MAX_EDITOR_TURNS}` });
@@ -176,7 +176,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
     messages.push({ role: "assistant", content: response.content });
 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");
-    if (toolBlocks.length === 0) break;
+    if (toolBlocks.length === 0) { completedNaturally = true; break; }
 
     const results = await Promise.all(
       toolBlocks.map(async (block) => {
@@ -198,18 +198,12 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
 
     const filtered = results.filter((r): r is NonNullable<typeof r> => r !== null);
 
-    // Track modified files from successful edit tool calls
     for (const block of toolBlocks) {
       if (block.type !== "tool_use") continue;
       const res = filtered.find((r) => r.tool_use_id === block.id);
-      if (res && !res.is_error && EDIT_TOOL_NAMES.has(block.name)) {
-        const input = block.input as Record<string, unknown>;
-        if (block.name === "multi_edit") {
-          const edits = input.edits as Array<{ file_path?: string }> | undefined;
-          if (edits) for (const e of edits) { if (e.file_path) modifiedFiles.add(e.file_path); }
-        } else {
-          const p = (input.path as string) || "";
-          if (p) modifiedFiles.add(p);
+      if (res && !res.is_error) {
+        for (const f of extractModifiedFiles(block.name, block.input as Record<string, unknown>, res.content)) {
+          modifiedFiles.add(f);
         }
       }
     }
@@ -223,6 +217,10 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
         is_error: r.is_error,
       })),
     });
+  }
+
+  if (!completedNaturally && transport) {
+    transport.emit({ type: "error", message: `[kota] Editor hit turn limit (${MAX_EDITOR_TURNS}) — execution may be incomplete` });
   }
 
   return { text: lastText, modifiedFiles: [...modifiedFiles] };
