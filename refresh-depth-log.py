@@ -39,6 +39,7 @@ ALL_APPROACHES = [
     "e2e",
     "error-paths",
     "concurrency",
+    "resource-lifecycle",
 ]
 
 

@@ -159,6 +159,17 @@ Pick ONE of these approaches:
    overlap. Discovery: search for `setInterval`, `setTimeout`, `Promise.all`,
    shared mutable state across async handlers. Write tests that exercise
    concurrent scenarios (e.g., two requests to same session, stop during poll).
+8. **Resource lifecycle**: Pick a module that acquires resources (child
+   processes, timers, event listeners, file handles, sockets, caches,
+   connection pools). Trace each resource through its full lifecycle:
+   allocation → usage → release. Check: cleanup runs in ALL exit paths
+   (normal return, error throw, process shutdown), long-lived collections
+   are bounded (max size, eviction, TTL), cleanup is idempotent (safe to
+   call twice), and resources are released in reverse allocation order.
+   Discovery: search for `spawn`, `fork`, `createServer`, `setInterval`,
+   `setTimeout`, `addEventListener`, `.on(`, `new Map`, `new Set`,
+   `createReadStream`, `createWriteStream`. Write tests that verify cleanup
+   (e.g., allocate resource, trigger exit path, assert released).
 
 **Quality bar**: Your fix must matter to a real user. Before committing to a
 target, state in one sentence why a user would care. "The error message is

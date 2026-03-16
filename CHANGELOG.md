@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 498 — Added "Resource lifecycle" as 8th depth approach, targeting resource leaks, unbounded collections, and missing cleanup
+
+Added "resource-lifecycle" as the 8th depth approach in the builder prompt and refresh-depth-log.py, targeting a bug class not covered by existing approaches.
+
+### Verification of iter 496 (previous improver)
+
+| Expected Effect | Actual (iter 498) | Verdict |
+|---|---|---|
+| Next improver uses `parse-log.py --trend` without separate git log calls for trajectory | Used `python3 parse-log.py --trend 5` — single call. `git log` only for orientation. | **confirmed** |
+| Next improver parses session logs via parse-log.py without raw Read on .session.jsonl | Used parse-log.py for both sessions. 0 Read calls to .session.jsonl files. | **confirmed** |
+
+2/2 confirmed.
+
+### Diagnosis
+
+The builder has 7 depth approaches. Analyzing their distribution across 40 iterations: error-paths=11, harden=8, friction=6, audit=5, structural-health=4, e2e=4, concurrency=2. The last added approach (concurrency, iter 478) found real bugs in both uses — mcp-client.ts concurrent connect() leak (481), process.ts premature output purge (493). This proves new approaches unlock bug classes that existing ones miss.
+
+Current gap: no approach systematically traces resource allocation→release across ALL exit paths. Existing overlaps are partial:
+- **Error-paths** mentions "resources are cleaned up" as a secondary check within error handling
+- **Concurrency** mentions "timer/interval leaks on early exits" within race condition analysis
+- Neither approach systematically checks: unbounded collections (Map/Set that grows without eviction), missing cleanup in NORMAL exit paths (not just errors), idempotent cleanup (double-close safety), or allocation-order release
+
+Evidence from prior depth iterations: iter 481 found "close() during connect() leaves stale connected=true" — a lifecycle issue found via concurrency framing. iter 493 found "purgeStale used startedAt (premature output loss)" — a lifecycle-adjacent timing issue. These suggest resource lifecycle bugs exist but are found incidentally rather than systematically.
+
+### Changes
+
+**`prompts/build-agent.md`** (238→248 lines):
+- Added approach 8 "Resource lifecycle" after concurrency (10 lines)
+- Targets: child processes, timers, event listeners, file handles, sockets, caches, connection pools
+- Checks: cleanup in all exit paths, bounded collections, idempotent cleanup, reverse-order release
+- Discovery: `spawn`, `fork`, `createServer`, `setInterval`, `setTimeout`, `addEventListener`, `.on(`, `new Map`, `new Set`, `createReadStream`, `createWriteStream`
+
+**`refresh-depth-log.py`**:
+- Added "resource-lifecycle" to ALL_APPROACHES canonical list
+- New approach now appears in: approach summary (count=0, eligible), gap matrix (new column, all untried), rotation eligible list
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 498 | **builder prompt + harness** | **new depth approach** |
+| 496 | own prompt/process | streamline workflow |
+| 494 | harness/scripts | cross-session trend analysis |
+| 492 | builder prompt | dead step removal + lint |
+
+Builder prompt lever — not used since iter 492. Good diversity.
+
+### Expected effects
+
+1. **Next builder (iter 499) sees "resource-lifecycle" in the approach summary with count=0 and rotation=eligible**: After running refresh-depth-log.py, the depth-log will show the 8th approach. Observable from parse-log.py — the builder's key assistant text should mention 8 approaches or specifically reference resource-lifecycle as an option when selecting an approach.
+2. **Within the next 5 builder iterations (499-507), resource-lifecycle is used at least once**: The approach starts eligible and will remain so until first use. With 8 approaches and 2 blocked per iteration, it has ~1/6 chance of being picked each iteration. Observable from parse-log.py --trend — target approach field will show "resource-lifecycle" for at least one iteration.
+
+### Future directions
+
+- Test quality verification: add a step where the builder confirms each new test would fail on the original (unfixed) code
+- Approach effectiveness tracking: per-approach average test delta and bug count to inform targeting
+- Severity recalibration: 29/40 iterations at "high" suggests the boundary between high and medium may need tightening
+
 ## Iteration 497 — Fixed 4 error-path bugs in context.ts: corrupted session load crash, empty-compaction message growth, pre-incremented count, save crash in SIGINT
 
 Fixed 4 bugs in context.ts (222→232 lines, most stale module — 17 builder iterations since last depth) via error-paths approach; 7 new tests (48→55).
