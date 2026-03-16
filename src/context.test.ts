@@ -279,14 +279,255 @@ describe("Context", () => {
   });
 
   describe("compact", () => {
+    // Mock Anthropic client that returns a canned summary
+    function mockClient(): Anthropic {
+      return {
+        messages: {
+          create: async () => ({
+            content: [{ type: "text", text: "Summary of conversation so far." }],
+          }),
+        },
+      } as unknown as Anthropic;
+    }
+
+    /** Build a realistic alternating conversation with tool_use/tool_result pairs. */
+    function buildConversation(ctx: Context, turnCount: number): void {
+      ctx.addUserMessage("initial prompt");
+      for (let i = 0; i < turnCount; i++) {
+        // assistant with tool_use
+        ctx.getMessages().push({
+          role: "assistant",
+          content: [{
+            type: "tool_use",
+            id: `tool_${i}`,
+            name: "file_read",
+            input: { path: `file${i}.ts` },
+          }],
+        });
+        // user with tool_result
+        ctx.getMessages().push({
+          role: "user",
+          content: [{
+            type: "tool_result",
+            tool_use_id: `tool_${i}`,
+            content: `content of file${i}`,
+          }],
+        });
+      }
+    }
+
+    /** Verify all messages alternate user/assistant roles (Anthropic API requirement). */
+    function assertValidAlternation(messages: Anthropic.MessageParam[]): void {
+      expect(messages.length).toBeGreaterThan(0);
+      expect(messages[0].role).toBe("user"); // must start with user
+      for (let i = 1; i < messages.length; i++) {
+        expect(messages[i].role).not.toBe(messages[i - 1].role);
+      }
+    }
+
     it("skips compaction when message count is 10 or fewer", async () => {
       for (let i = 0; i < 10; i++) {
         ctx.addUserMessage(`msg ${i}`);
       }
-      const mockClient = {} as Anthropic;
-      await ctx.compact(mockClient, "test-model");
-      // Messages unchanged
+      const mock = {} as Anthropic;
+      await ctx.compact(mock, "test-model");
       expect(ctx.getMessages()).toHaveLength(10);
+    });
+
+    it("maintains role alternation with even message count", async () => {
+      // 20 messages (even): user, assistant, user, ..., user
+      buildConversation(ctx, 9); // 1 initial + 9*2 = 19 messages
+      ctx.getMessages().push({ role: "assistant", content: "done" }); // 20 total
+      expect(ctx.getMessages()).toHaveLength(20);
+
+      await ctx.compact(mockClient(), "test-model");
+      assertValidAlternation(ctx.getMessages());
+    });
+
+    it("maintains role alternation with odd message count (bug regression)", async () => {
+      // 21 messages (odd): user, assistant, user, ..., assistant, user, assistant
+      // Without fix: keepRecent=10 starts at index 11 (assistant) → consecutive assistants
+      buildConversation(ctx, 10); // 1 initial + 10*2 = 21 messages
+      expect(ctx.getMessages()).toHaveLength(21);
+      expect(ctx.getMessages()[11].role).toBe("assistant"); // the problematic index
+
+      await ctx.compact(mockClient(), "test-model");
+      assertValidAlternation(ctx.getMessages());
+    });
+
+    it("maintains alternation after multiple compactions", async () => {
+      // First compaction shifts parity — ensure second compaction still works
+      buildConversation(ctx, 10);
+      await ctx.compact(mockClient(), "test-model");
+      assertValidAlternation(ctx.getMessages());
+
+      // Add more messages to trigger another compaction
+      const postCompact = ctx.getMessages().length;
+      for (let i = 0; i < 15; i++) {
+        ctx.getMessages().push({
+          role: "assistant",
+          content: [{ type: "tool_use", id: `t2_${i}`, name: "shell", input: { command: `cmd${i}` } }],
+        });
+        ctx.getMessages().push({
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: `t2_${i}`, content: `result ${i}` }],
+        });
+      }
+      expect(ctx.getMessages().length).toBeGreaterThan(postCompact + 10);
+
+      await ctx.compact(mockClient(), "test-model");
+      assertValidAlternation(ctx.getMessages());
+      expect(ctx.getStats().compactions).toBe(2);
+    });
+
+    it("preserves recent messages through compaction", async () => {
+      buildConversation(ctx, 10); // 21 messages
+      const lastMsg = ctx.getMessages()[ctx.getMessages().length - 1];
+      await ctx.compact(mockClient(), "test-model");
+
+      // The last message should still be present
+      const msgs = ctx.getMessages();
+      expect(msgs[msgs.length - 1]).toEqual(lastMsg);
+    });
+
+    it("increments compaction count", async () => {
+      buildConversation(ctx, 10);
+      expect(ctx.getStats().compactions).toBe(0);
+      await ctx.compact(mockClient(), "test-model");
+      expect(ctx.getStats().compactions).toBe(1);
+    });
+
+    it("reduces message count", async () => {
+      buildConversation(ctx, 10); // 21 messages
+      const before = ctx.getMessages().length;
+      await ctx.compact(mockClient(), "test-model");
+      const after = ctx.getMessages().length;
+      // Compaction replaces N-keepRecent messages with 2 (user summary + assistant ack)
+      expect(after).toBeLessThan(before);
+      // Should be: 2 (compacted) + keepRecent (10 or 11 depending on parity)
+      expect(after).toBeLessThanOrEqual(13);
+    });
+  });
+
+  describe("e2e: prune → compact → truncate pipeline", () => {
+    function mockClient(): Anthropic {
+      return {
+        messages: {
+          create: async () => ({
+            content: [{ type: "text", text: "Compacted summary." }],
+          }),
+        },
+      } as unknown as Anthropic;
+    }
+
+    it("prune reduces content, compact reduces messages, truncate limits new results", async () => {
+      // Phase 1: Build a realistic long conversation
+      ctx.addUserMessage("help me refactor this module");
+      for (let i = 0; i < 20; i++) {
+        ctx.getMessages().push({
+          role: "assistant",
+          content: [{ type: "tool_use", id: `t${i}`, name: "file_read", input: { path: `src/mod${i}.ts` } }],
+        });
+        ctx.getMessages().push({
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: `t${i}`, content: "x\n".repeat(1000) }],
+        });
+      }
+      ctx.setInputTokens(120_000); // 60% budget → triggers pruning
+
+      // Phase 2: Prune — should replace old file_read results with summaries
+      const pruneStats = ctx.maybePrune();
+      expect(pruneStats.prunedCount).toBeGreaterThan(0);
+      expect(pruneStats.charsSaved).toBeGreaterThan(0);
+
+      // Verify pruned messages still have valid structure
+      for (const msg of ctx.getMessages()) {
+        if (msg.role === "user" && Array.isArray(msg.content)) {
+          for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+            if (block.type === "tool_result") {
+              const tr = block as Anthropic.Messages.ToolResultBlockParam;
+              // Content should be either original or a summary string
+              expect(typeof tr.content === "string" || Array.isArray(tr.content)).toBe(true);
+            }
+          }
+        }
+      }
+
+      // Phase 3: Simulate token growth → triggers compaction
+      ctx.setInputTokens(155_000); // above 75% threshold
+      expect(ctx.needsCompaction()).toBe(true);
+      await ctx.compact(mockClient(), "test-model");
+
+      // Verify compacted messages have valid alternation
+      const msgs = ctx.getMessages();
+      expect(msgs[0].role).toBe("user");
+      for (let i = 1; i < msgs.length; i++) {
+        expect(msgs[i].role).not.toBe(msgs[i - 1].role);
+      }
+      expect(msgs.length).toBeLessThan(41); // was 41 before compaction
+
+      // Phase 4: Truncation — tool result limit adapts to budget
+      expect(ctx.getToolResultLimit()).toBe(5_000); // at 77.5% budget
+
+      // Verify truncateToolResult works with the limit
+      const longResult = "z".repeat(10_000);
+      const truncated = truncateToolResult(longResult, ctx.getToolResultLimit());
+      expect(truncated.length).toBeLessThan(longResult.length);
+      expect(truncated).toContain("chars omitted");
+    });
+
+    it("prune is no-op when budget is low, compact skips with few messages", async () => {
+      ctx.addUserMessage("hello");
+      ctx.addAssistantText("hi");
+      ctx.setInputTokens(10_000); // 5% budget
+
+      // Prune should be no-op
+      const pruneStats = ctx.maybePrune();
+      expect(pruneStats.prunedCount).toBe(0);
+
+      // Compact should skip (only 2 messages)
+      expect(ctx.needsCompaction()).toBe(false);
+      await ctx.compact(mockClient(), "test-model");
+      expect(ctx.getMessages()).toHaveLength(2);
+    });
+
+    it("snapshot captures post-prune state for history saving", () => {
+      // Build messages with large tool results
+      ctx.addUserMessage("start");
+      for (let i = 0; i < 25; i++) {
+        ctx.getMessages().push({
+          role: "assistant",
+          content: [{ type: "tool_use", id: `t${i}`, name: "file_read", input: { path: `f${i}.ts` } }],
+        });
+        ctx.getMessages().push({
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: `t${i}`, content: "data\n".repeat(500) }],
+        });
+      }
+      ctx.setInputTokens(110_000); // > 50%
+
+      // Prune
+      ctx.maybePrune();
+
+      // Snapshot should reflect pruned state (since pruning mutates in-place)
+      const snap = ctx.snapshot();
+      expect(snap.messages.length).toBe(ctx.getMessages().length);
+
+      // Check that pruned results are summaries in the snapshot
+      let hasSummary = false;
+      for (const msg of snap.messages) {
+        if (Array.isArray(msg.content)) {
+          for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+            if (block.type === "tool_result") {
+              const tr = block as Anthropic.Messages.ToolResultBlockParam;
+              if (typeof tr.content === "string" && tr.content.includes("Previously read")) {
+                hasSummary = true;
+              }
+            }
+          }
+        }
+      }
+      expect(hasSummary).toBe(true);
     });
   });
 });

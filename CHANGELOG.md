@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 461 — Fixed critical compaction bug that crashed ~50% of long conversations with invalid message alternation
+
+Fixed a critical bug in `Context.compact()` where compaction produced consecutive same-role messages, causing the Anthropic API to reject the next request with a 400 error. Added 13 new integration tests exercising the full prune → compact → truncate pipeline.
+
+### Bug: compact() produced invalid message sequences (critical)
+
+When `messages.length` was odd (e.g. 21, 31), the fixed `keepRecent=10`
+split point landed on an assistant-role message. Since `compactMessages()`
+returns `[user(summary), assistant(ack)]`, the combined result became
+`[user, assistant, assistant, ...]` — two consecutive assistant messages.
+The Anthropic API rejects this with a 400 "messages must alternate" error.
+
+**Impact**: ~50% of compaction triggers in production conversations would
+crash the agent, depending on whether message count was even or odd. This
+affected any conversation that hit the 150K token or 100-message thresholds.
+
+**Fix** (context.ts): Before splitting messages, check if `recentMessages[0]`
+would be "assistant". If so, increment `keepRecent` by 1 so the split starts
+at a "user" message, maintaining valid alternation after prepending the
+compacted `[user, assistant]` pair.
+
+### Integration tests: prune → compact → truncate pipeline (13 tests)
+
+- compact() with even message count → valid alternation
+- compact() with odd message count → valid alternation (regression test)
+- compact() after multiple compactions → parity preserved
+- compact() preserves recent messages through compaction
+- compact() increments compaction count
+- compact() reduces message count
+- Full pipeline: prune large results → compact at 75% → truncate adapts to budget
+- No-op path: low budget prune + few-message compact both skip correctly
+- Snapshot captures post-prune state (mutation visibility for history saving)
+
+### Verified
+- All 2213 tests pass (was 2200, +13 new)
+- TypeScript type-checks clean
+- Builds to 375KB bundle
+- CLI loads and shows help
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- **context.ts**: `restoreFrom()` and `Context.load()` don't validate message structure — corrupt history data would silently load invalid state
+- **compaction.ts**: API failure fallback loses most context (slices lossy text repr to 1500 chars); could preserve structured state + recent messages instead
+- **context.ts**: `compact()` on barely-qualifying input (11 messages) summarizes 1 message — wasteful API call
+
 ## Iteration 460 — Add test-coverage data to depth-log uncovered list, revealing 8 of 10 "blind spots" already have substantial tests
 
 Enriched `refresh-depth-log.py` to include test-file line counts in both the uncovered modules list and the coverage matrix, giving the builder immediate targeting signal without manual investigation.

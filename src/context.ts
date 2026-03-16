@@ -143,7 +143,14 @@ export class Context {
   ): Promise<void> {
     if (this.messages.length <= 10) return;
 
-    const keepRecent = 10;
+    // compactMessages() returns [user, assistant]. To maintain valid alternation,
+    // recentMessages must start with a "user" message. Adjust keepRecent if needed.
+    let keepRecent = 10;
+    const startIdx = this.messages.length - keepRecent;
+    if (startIdx > 0 && this.messages[startIdx].role === "assistant") {
+      keepRecent++;
+    }
+
     const toSummarize = this.messages.slice(0, -keepRecent);
     const recentMessages = this.messages.slice(-keepRecent);
 
