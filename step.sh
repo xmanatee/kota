@@ -34,6 +34,7 @@ STEP_START=$(date +%s)
 CLAUDE_EXIT=0
 claude -p \
   --verbose \
+  --effort high \
   --model claude-opus-4-6 \
   --dangerously-skip-permissions \
   --output-format stream-json \
