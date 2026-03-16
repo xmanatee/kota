@@ -291,6 +291,132 @@ describe("ModuleLoader", () => {
     );
     errSpy.mockRestore();
   });
+
+  it("unloads a single module and deregisters its tools", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "mod-a",
+      tools: [makeTool("tool_a")],
+    });
+    await loader.load({ name: "mod-b", tools: [makeTool("tool_b")] });
+
+    expect(loader.getLoadedModules()).toEqual(["mod-a", "mod-b"]);
+
+    // tool_a works before unload
+    const r1 = await executeTool("tool_a", {});
+    expect(r1.content).toBe("result from tool_a");
+
+    await loader.unload("mod-a");
+    expect(loader.getLoadedModules()).toEqual(["mod-b"]);
+
+    // tool_a gone, tool_b still works
+    const r2 = await executeTool("tool_a", {});
+    expect(r2.is_error).toBe(true);
+    const r3 = await executeTool("tool_b", {});
+    expect(r3.content).toBe("result from tool_b");
+  });
+
+  it("unload returns false for unknown module", async () => {
+    const loader = new ModuleLoader({});
+    expect(await loader.unload("nonexistent")).toBe(false);
+  });
+
+  it("unload rejects when dependents exist", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "base" });
+    await loader.load({ name: "child", dependencies: ["base"] });
+
+    await expect(loader.unload("base")).rejects.toThrow(
+      'Cannot unload "base": depended on by "child"',
+    );
+  });
+
+  it("unload calls onUnload and disconnects events", async () => {
+    const bus = new EventBus();
+    const unloadCalled = vi.fn();
+    const received: string[] = [];
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "evt-mod",
+      onUnload: unloadCalled,
+      events: (b) => [
+        b.on("session.start", (p) => { received.push(p.sessionId); }),
+      ],
+    });
+
+    loader.connectEvents(bus);
+    bus.emit("session.start", { sessionId: "before" });
+    expect(received).toEqual(["before"]);
+
+    await loader.unload("evt-mod");
+    expect(unloadCalled).toHaveBeenCalledOnce();
+
+    bus.emit("session.start", { sessionId: "after" });
+    expect(received).toEqual(["before"]); // not received after unload
+  });
+
+  it("reloads a module — re-registers tools and calls onLoad again", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "reload-mod",
+      tools: [makeTool("reload_tool")],
+      onLoad,
+    });
+    expect(onLoad).toHaveBeenCalledTimes(1);
+
+    const r1 = await executeTool("reload_tool", {});
+    expect(r1.content).toBe("result from reload_tool");
+
+    const reloaded = await loader.reload("reload-mod");
+    expect(reloaded).toBe(true);
+    expect(onLoad).toHaveBeenCalledTimes(2);
+    expect(loader.getLoadedModules()).toEqual(["reload-mod"]);
+
+    // Tool still works after reload
+    const r2 = await executeTool("reload_tool", {});
+    expect(r2.content).toBe("result from reload_tool");
+  });
+
+  it("reload returns false for unknown module", async () => {
+    const loader = new ModuleLoader({});
+    expect(await loader.reload("nonexistent")).toBe(false);
+  });
+
+  it("reload reconnects events when bus is available", async () => {
+    const bus = new EventBus();
+    const received: string[] = [];
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "evt-reload",
+      events: (b) => [
+        b.on("session.start", (p) => { received.push(p.sessionId); }),
+      ],
+    });
+
+    loader.connectEvents(bus);
+    bus.emit("session.start", { sessionId: "s1" });
+    expect(received).toEqual(["s1"]);
+
+    await loader.reload("evt-reload");
+    bus.emit("session.start", { sessionId: "s2" });
+    expect(received).toEqual(["s1", "s2"]);
+  });
+
+  it("getDependents returns correct dependents", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "core" });
+    await loader.load({ name: "ext-a", dependencies: ["core"] });
+    await loader.load({ name: "ext-b", dependencies: ["core"] });
+    await loader.load({ name: "standalone" });
+
+    expect(loader.getDependents("core").sort()).toEqual(["ext-a", "ext-b"]);
+    expect(loader.getDependents("standalone")).toEqual([]);
+    expect(loader.getDependents("ext-a")).toEqual([]);
+  });
 });
 
 describe("scheduler module integration", () => {

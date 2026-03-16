@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { allTools, clearCustomTools, executeTool, getRegisteredTools, registerTool } from "./index.js";
+import { allTools, clearCustomTools, deregisterModuleTools, executeTool, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -99,5 +99,37 @@ describe("registerTool", () => {
     const result = await executeTool("ephemeral", {});
     expect(result.is_error).toBe(true);
     expect(result.content).toBe("Unknown tool: ephemeral");
+  });
+});
+
+describe("deregisterModuleTools", () => {
+  afterEach(() => clearCustomTools());
+
+  it("removes only tools belonging to the specified module", async () => {
+    registerTool(makeTool("mod_a_tool"), async () => ({ content: "a" }), "mod-a");
+    registerTool(makeTool("mod_b_tool"), async () => ({ content: "b" }), "mod-b");
+
+    deregisterModuleTools("mod-a");
+
+    const ra = await executeTool("mod_a_tool", {});
+    expect(ra.is_error).toBe(true);
+
+    const rb = await executeTool("mod_b_tool", {});
+    expect(rb.content).toBe("b");
+  });
+
+  it("is a no-op for unknown module name", () => {
+    const before = allTools.length;
+    deregisterModuleTools("nonexistent");
+    expect(allTools.length).toBe(before);
+  });
+
+  it("allows re-registration after deregister", async () => {
+    registerTool(makeTool("reuse_tool"), async () => ({ content: "v1" }), "mod-x");
+    deregisterModuleTools("mod-x");
+
+    registerTool(makeTool("reuse_tool"), async () => ({ content: "v2" }), "mod-x");
+    const r = await executeTool("reuse_tool", {});
+    expect(r.content).toBe("v2");
   });
 });

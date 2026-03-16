@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 445 — Module hot-restart and per-module tool ownership
+
+Implemented module hot-restart (unload/reload individual modules without stopping KOTA) and fixed a tool ownership bug where unloading modules or plugins would wipe each other's tools.
+
+### Module Hot-Restart (`src/module-loader.ts`)
+- `unload(name)` — deregisters only that module's tools, disconnects its event subscriptions, calls `onUnload()`. Refuses to unload a module that others depend on (throws with dependent list).
+- `reload(name)` — unloads then re-loads from the stored definition, reconnects events if the bus is available. Enables upgrading a module mid-session.
+- `getDependents(name)` — finds modules that declare a dependency on the given module.
+- Per-module event tracking: `moduleEventUnsubs` map tracks which unsubscribe functions belong to which module for surgical cleanup.
+- Module registry: stores original module definitions for reload support.
+
+### Per-Module Tool Ownership (`src/tools/index.ts`)
+- `registerTool()` now accepts optional `moduleName` — tracks which module owns each tool in a `moduleToolOwners` map.
+- `deregisterModuleTools(name)` — removes only the tools belonging to a specific module, leaving other modules' and plugins' tools intact.
+- **Bug fix**: Previously, `moduleLoader.unloadAll()` called `clearCustomTools()` which removed ALL custom tools — including tools registered by plugins. Similarly, `pluginManager.unloadAll()` would wipe module tools. Both now use surgical per-owner deregistration.
+
+### Plugin Loader Fix (`src/plugin-loader.ts`)
+- `registerTool()` calls now pass `plugin:${name}` as the module name, giving plugins the same per-owner tracking.
+- `unloadAll()` now calls `deregisterModuleTools()` per-plugin instead of the nuclear `clearCustomTools()`.
+
+### Tests
+- 11 new tests covering: single module unload with tool deregistration, unload of unknown module, dependency rejection on unload, event disconnection on unload, reload with re-registration, reload event reconnection, getDependents, per-module tool deregistration, re-registration after deregister.
+- All 2143 tests pass.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 374.7KB bundle
+- `npm test` — 2143 tests, 109 files, all pass
+- `node dist/cli.js --help` — loads cleanly, all commands present
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Type consolidation: `ToolDefinition` (plugin-types.ts) and `ModuleToolDef` (module-types.ts) are identical — should be unified
+- Plugin→module migration: evaluate whether external `.kota/plugins/` should be loaded as `KotaModule` instances
+- Expose reload via REPL command or HTTP endpoint for runtime module management
+
 ## Iteration 444 — Add item selection step to Breadth phase, fixing unreachable staleness check
 
 Added a "Select item" step before the plan/no-plan fork in the builder prompt's Breadth section, ensuring all active `b:` items get evaluated before the builder commits to one.

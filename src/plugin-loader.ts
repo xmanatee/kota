@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import type { KotaPlugin, PluginContext } from "./plugin-types.js";
 import { adaptExport } from "./tool-adapters.js";
 import { clearCustomGroups, registerCustomGroup } from "./tool-groups.js";
-import { clearCustomTools, registerTool } from "./tools/index.js";
+import { deregisterModuleTools, registerTool } from "./tools/index.js";
 
 const PLUGIN_DIR = ".kota/plugins";
 const PACKAGES_DIR = ".kota/packages";
@@ -113,7 +113,7 @@ export class PluginManager {
     // Register tools before onLoad so the plugin can reference them
     if (plugin.tools) {
       for (const def of plugin.tools) {
-        registerTool(def.tool, def.runner);
+        registerTool(def.tool, def.runner, `plugin:${plugin.name}`);
         if (def.group) {
           registerCustomGroup(def.group, [def.tool.name]);
         }
@@ -137,7 +137,7 @@ export class PluginManager {
     }
   }
 
-  /** Unload all plugins: call onUnload hooks, clear registered tools and groups. */
+  /** Unload all plugins: call onUnload hooks, deregister each plugin's tools. */
   async unloadAll(): Promise<void> {
     for (const plugin of this.plugins) {
       if (plugin.onUnload) {
@@ -148,8 +148,8 @@ export class PluginManager {
           console.error(`[kota] Plugin "${plugin.name}" unload error: ${msg}`);
         }
       }
+      deregisterModuleTools(`plugin:${plugin.name}`);
     }
-    clearCustomTools();
     clearCustomGroups();
     this.plugins = [];
   }

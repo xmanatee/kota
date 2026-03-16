@@ -99,10 +99,13 @@ export async function executeTool(
 // --- Custom tool registry for extensibility ---
 
 const customToolNames = new Set<string>();
+/** Maps module name → set of tool names it registered. */
+const moduleToolOwners = new Map<string, Set<string>>();
 
 export function registerTool(
   tool: Anthropic.Tool,
   runner: ToolRunner,
+  moduleName?: string,
 ): void {
   if (runners[tool.name]) {
     throw new Error(`Tool already registered: ${tool.name}`);
@@ -110,6 +113,27 @@ export function registerTool(
   allTools.push(tool);
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
+  if (moduleName) {
+    let owned = moduleToolOwners.get(moduleName);
+    if (!owned) {
+      owned = new Set();
+      moduleToolOwners.set(moduleName, owned);
+    }
+    owned.add(tool.name);
+  }
+}
+
+/** Remove all tools registered by a specific module. */
+export function deregisterModuleTools(moduleName: string): void {
+  const owned = moduleToolOwners.get(moduleName);
+  if (!owned) return;
+  for (const name of owned) {
+    const idx = allTools.findIndex((t) => t.name === name);
+    if (idx >= 0) allTools.splice(idx, 1);
+    delete runners[name];
+    customToolNames.delete(name);
+  }
+  moduleToolOwners.delete(moduleName);
 }
 
 export function getRegisteredTools(): Anthropic.Tool[] {
@@ -123,6 +147,7 @@ export function clearCustomTools(): void {
     delete runners[name];
   }
   customToolNames.clear();
+  moduleToolOwners.clear();
 }
 
 export { getTodoState };

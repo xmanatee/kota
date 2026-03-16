@@ -98,7 +98,9 @@ Pluggable architecture where features are self-contained modules instead of hard
 2. For each module: register tools → call `onLoad(ctx)` → add to loaded list
 3. `connectEvents(bus)` — wire up event subscriptions (called when bus is available)
 4. `getCommands()` / `getRoutes()` — collected lazily when CLI/server needs them
-5. `unloadAll()` — unsubscribe events, call `onUnload()` in reverse order, clear tools
+5. `unload(name)` — deregister module's tools, disconnect its events, call `onUnload()`
+6. `reload(name)` — unload then re-load from stored definition, reconnect events
+7. `unloadAll()` — unsubscribe events, call `onUnload()` in reverse order, deregister tools per-module
 
 **ModuleContext** provided to modules:
 - `cwd`, `verbose`, `config` — environment info
@@ -111,10 +113,13 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
-**Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` from `tools/index.ts`. Future iterations will migrate external plugin loading into the module system.
+**Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` with per-owner tracking (`plugin:name` for plugins, module name for modules) — unloading one system no longer clears the other's tools. Future iterations will migrate external plugin loading into the module system.
+
+**Hot-restart**: Individual modules can be unloaded and reloaded without stopping the KOTA process. `unload(name)` deregisters only that module's tools (via per-module ownership tracking), disconnects only its event subscriptions, and calls its `onUnload()` hook. Dependency safety: unloading a module that others depend on throws an error — unload dependents first. `reload(name)` is `unload` + `load` from the stored definition, with automatic event reconnection.
+
+**Per-module tool ownership**: `registerTool()` accepts an optional `moduleName` parameter. Tools are tracked in a `moduleToolOwners` map, enabling surgical `deregisterModuleTools(name)` — removing only one module's tools without affecting others. This replaces the previous `clearCustomTools()` nuclear approach where unloading modules or plugins would wipe out each other's tools.
 
 **Design decisions**:
-- Modules are loaded at startup, not hot-loaded — simplicity over dynamism.
 - Dependency ordering via topological sort — a module can declare dependencies on other modules.
 - The core without modules loaded still functions as a basic agent (requirement #8 from the plan).
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
