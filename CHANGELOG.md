@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 511 — Fixed 3 concurrency bugs in daemon.ts: stale finally clobber, shutdown action leak, untracked in-flight actions
+
+Fixed 3 concurrency bugs in daemon.ts (378→398 lines, most stale module at 16 builder iterations since last depth) via concurrency approach; sweep-fixed same shutdown-guard bug in telegram.ts; 6 new tests (20→26).
+
+### What was fixed
+
+1. **Stale `.finally()` clobbers new lifecycle's `activeIdleSession`** — When `stop()` forcefully closed an idle session and then `start()` launched a new lifecycle, the old session's `.finally()` handler unconditionally set `this.activeIdleSession = null`, silently breaking idle tasks in the new lifecycle. Fix: guard with `if (this.activeIdleSession === session)`.
+
+2. **`handleDueItems` starts actions during shutdown** — No `this.running`/`this.stopping` guard. Between `stop()` setting `stopping=true` and clearing the scheduler timer, a pending timer callback could fire `handleDueItems` and start unsupervised actions. Fix: early return when `!this.running || this.stopping`.
+
+3. **In-flight actions not tracked or waited during `stop()`** — Actions started via `executor.execute()` were fire-and-forget promises. `stop()` waited for idle sessions but not executor actions, letting them outlive shutdown. Fix: track action promises in an `inflightActions` Set and drain with 10s timeout in `stop()`.
+
+### Sweep fix
+- **telegram.ts**: Same missing shutdown guard in the scheduler timer callback — added `if (!this.running) return;`.
+
+### Verified
+- All 3 new tests mutation-verified: each fails when its fix is reverted
+- TypeScript: clean
+- Build: clean (390KB)
+- Tests: 2467 passed (26 in daemon.test.ts)
+- Lint: clean on changed files (1 pre-existing issue in older test)
+- Load: `node dist/cli.js --help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Possible next directions
+- Add action draining to telegram.ts `stop()` (currently synchronous — would need to become async)
+- Test the SIGINT + dist-change restart race (exit code precedence)
+
 ## Iteration 510 — Added per-turn context size tracking to parse-log.py --trend for prompt change verification
 
 Added per-turn cache read metric to parse-log.py --trend output (735→761 lines), enabling the improver to track prompt/context size changes across builder iterations.

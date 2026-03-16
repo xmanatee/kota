@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Daemon, RESTART_EXIT_CODE, type DaemonConfig } from "./daemon.js";
+import { Daemon, type DaemonConfig, RESTART_EXIT_CODE } from "./daemon.js";
 import { resetEventBus } from "./event-bus.js";
-import { resetScheduler, getScheduler, initScheduler } from "./scheduler.js";
+import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 
 // Mock the AgentSession to avoid real API calls
 vi.mock("./loop.js", () => {
@@ -336,7 +336,6 @@ describe("Daemon", () => {
       const OriginalSession = loopModule.AgentSession;
 
       vi.mocked(loopModule).AgentSession = class FailingSendSession {
-        constructor(_opts: Record<string, unknown>) {}
         async send(_prompt: string): Promise<string> {
           throw new Error("API call failed");
         }
@@ -413,6 +412,217 @@ describe("Daemon", () => {
       // Should have fresh startedAt and pid (overwritten in constructor)
       expect(state.pid).toBe(process.pid);
       expect(state.startedAt).toBeTruthy();
+    });
+  });
+
+  describe("concurrency", () => {
+    it("stale idle .finally() does not clobber new lifecycle session", async () => {
+      // Controllable session mock: send() blocks on a deferred promise
+      const sendDeferreds: { resolve: (v: string) => void }[] = [];
+      const loopModule = await import("./loop.js");
+      const OrigSession = loopModule.AgentSession;
+
+      vi.mocked(loopModule).AgentSession = class DeferredSession {
+        send(_prompt: string): Promise<string> {
+          return new Promise((resolve) => {
+            sendDeferreds.push({ resolve });
+          });
+        }
+        close(): void {}
+      } as unknown as typeof loopModule.AgentSession;
+
+      vi.useFakeTimers();
+      try {
+        const daemon = makeDaemon({
+          idleTasks: [{ name: "test", prompt: "Do something" }],
+        });
+
+        // Start daemon
+        const startP1 = daemon.start();
+        // Advance past first idle check (5s interval)
+        await vi.advanceTimersByTimeAsync(6_000);
+        expect(sendDeferreds).toHaveLength(1);
+        expect(daemon.isIdleActive()).toBe(true);
+
+        // Start stop — will wait for idle session (30s timeout)
+        const stopP = daemon.stop();
+
+        // Advance through stop()'s 30s idle-wait loop
+        await vi.advanceTimersByTimeAsync(31_000);
+        // Advance to let keepAlive in start() resolve
+        await vi.advanceTimersByTimeAsync(2_000);
+        await stopP;
+        await startP1;
+
+        expect(daemon.isIdleActive()).toBe(false);
+        expect(daemon.isRunning()).toBe(false);
+
+        // Start a new lifecycle
+        const startP2 = daemon.start();
+        // Advance past idle check to start a new idle task
+        await vi.advanceTimersByTimeAsync(6_000);
+        expect(sendDeferreds).toHaveLength(2);
+        expect(daemon.isIdleActive()).toBe(true);
+
+        // NOW resolve the OLD session's send() — triggers stale .finally()
+        sendDeferreds[0].resolve("done");
+        await vi.advanceTimersByTimeAsync(0); // flush microtasks
+
+        // Without fix: activeIdleSession would be null (stale .finally() clobbers it)
+        // With fix: guard prevents clobbering
+        expect(daemon.isIdleActive()).toBe(true);
+
+        // Clean up
+        sendDeferreds[1].resolve("done");
+        await vi.advanceTimersByTimeAsync(0);
+        await daemon.stop();
+        await vi.advanceTimersByTimeAsync(2_000);
+        await startP2;
+
+        // Both .then() handlers fire (old deferred was resolved by test),
+        // but the critical thing is that isIdleActive() was true above —
+        // proving the stale .finally() didn't clobber the new session.
+        expect(daemon.getState().idleCycles).toBe(2);
+      } finally {
+        vi.mocked(loopModule).AgentSession = OrigSession;
+        vi.useRealTimers();
+      }
+    });
+
+    it("handleDueItems rejects items while stopping", async () => {
+      const daemon = makeDaemon();
+      const startP = daemon.start();
+
+      // Manually set the stopping flag (simulating mid-shutdown)
+      (daemon as any).stopping = true;
+
+      // Call handleDueItems with an action item
+      const mockItems = [{
+        id: 1,
+        description: "Test action",
+        action: "Do something",
+        triggerAt: new Date(Date.now() - 1000).toISOString(),
+        status: "pending" as const,
+        created: new Date().toISOString(),
+      }];
+
+      (daemon as any).handleDueItems(mockItems);
+
+      // No inflight actions should have been started
+      expect((daemon as any).inflightActions.size).toBe(0);
+
+      // Clean up — restore state so stop() can proceed
+      (daemon as any).stopping = false;
+      await daemon.stop();
+      await startP;
+    });
+
+    it("handleDueItems rejects items when not running", () => {
+      const daemon = makeDaemon();
+      // Not started — running is false
+
+      const mockItems = [{
+        id: 1,
+        description: "Test action",
+        action: "Do something",
+        triggerAt: new Date(Date.now() - 1000).toISOString(),
+        status: "pending" as const,
+        created: new Date().toISOString(),
+      }];
+
+      (daemon as any).handleDueItems(mockItems);
+      expect((daemon as any).inflightActions.size).toBe(0);
+    });
+
+    it("stop waits for in-flight actions before resolving", async () => {
+      // Mock session with a delayed send to make actions take time
+      const loopModule = await import("./loop.js");
+      const OrigSession = loopModule.AgentSession;
+      let actionCompleted = false;
+
+      vi.mocked(loopModule).AgentSession = class SlowSession {
+        async send(_prompt: string): Promise<string> {
+          await new Promise((r) => setTimeout(r, 200));
+          actionCompleted = true;
+          return "done";
+        }
+        close(): void {}
+      } as unknown as typeof loopModule.AgentSession;
+
+      try {
+        const daemon = makeDaemon();
+        const startP = daemon.start();
+
+        // Manually inject an in-flight action via handleDueItems
+        const mockItems = [{
+          id: 1,
+          description: "Slow action",
+          action: "Do slow work",
+          triggerAt: new Date(Date.now() - 1000).toISOString(),
+          status: "pending" as const,
+          created: new Date().toISOString(),
+        }];
+
+        (daemon as any).handleDueItems(mockItems);
+        expect((daemon as any).inflightActions.size).toBe(1);
+
+        // Stop should wait for the action to drain
+        await daemon.stop();
+        await startP;
+
+        // By the time stop() resolves, the action should have completed
+        expect(actionCompleted).toBe(true);
+        expect((daemon as any).inflightActions.size).toBe(0);
+      } finally {
+        vi.mocked(loopModule).AgentSession = OrigSession;
+      }
+    });
+
+    it("inflight actions are cleaned up from tracking set after completion", async () => {
+      const daemon = makeDaemon();
+      const startP = daemon.start();
+
+      // Inject an action that resolves instantly (default mock)
+      const mockItems = [{
+        id: 1,
+        description: "Quick action",
+        action: "Do quick work",
+        triggerAt: new Date(Date.now() - 1000).toISOString(),
+        status: "pending" as const,
+        created: new Date().toISOString(),
+      }];
+
+      (daemon as any).handleDueItems(mockItems);
+
+      // Wait a tick for the promise chain to resolve
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Action should be cleaned up from tracking set
+      expect((daemon as any).inflightActions.size).toBe(0);
+
+      await daemon.stop();
+      await startP;
+    });
+
+    it("concurrent stop and checkDistChanged do not double-stop", async () => {
+      vi.useFakeTimers();
+      try {
+        const daemon = makeDaemon({ restartOnBuild: false });
+        const startP = daemon.start();
+
+        // Simulate checkDistChanged calling stop() concurrently with a signal
+        const stop1 = daemon.stop();
+        const stop2 = daemon.stop(); // Should be no-op (stopping guard)
+
+        await vi.advanceTimersByTimeAsync(2_000);
+        await stop1;
+        await stop2;
+        await startP;
+
+        expect(daemon.isRunning()).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

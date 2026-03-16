@@ -244,6 +244,7 @@ export class TelegramBot {
     });
 
     this.stopSchedulerTimer = scheduler.startTimer(SCHEDULER_CHECK_MS, (dueItems) => {
+      if (!this.running) return;
       const { actions, notifications } = partitionDueItems(dueItems);
 
       for (const item of notifications) {

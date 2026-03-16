@@ -12,8 +12,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import type { KotaConfig } from "./config.js";
-import { EventBus, initEventBus } from "./event-bus.js";
-import { AgentSession, type LoopOptions } from "./loop.js";
+import { type EventBus, initEventBus } from "./event-bus.js";
+import { AgentSession } from "./loop.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
 import { CliTransport, type Transport } from "./transport.js";
@@ -75,6 +75,7 @@ export class Daemon {
   private activeIdleSession: AgentSession | null = null;
   private idleTaskIndex = 0;
   private lastIdleRunAt = new Map<string, number>();
+  private inflightActions = new Set<Promise<void>>();
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -188,7 +189,7 @@ export class Daemon {
       }
     }
 
-    // Clean up scheduler connections
+    // Clean up scheduler connections (stops new items from firing)
     if (this.stopSchedulerTimer) {
       this.stopSchedulerTimer();
       this.stopSchedulerTimer = null;
@@ -196,6 +197,18 @@ export class Daemon {
     if (this.stopBus) {
       this.stopBus();
       this.stopBus = null;
+    }
+
+    // Wait for in-flight actions to drain (with 10s timeout)
+    if (this.inflightActions.size > 0) {
+      this.log(`Waiting for ${this.inflightActions.size} in-flight action(s)...`);
+      const actionDeadline = Date.now() + 10_000;
+      while (this.inflightActions.size > 0 && Date.now() < actionDeadline) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (this.inflightActions.size > 0) {
+        this.log(`${this.inflightActions.size} action(s) still running, proceeding with shutdown`);
+      }
     }
 
     // Remove signal handlers
@@ -227,6 +240,7 @@ export class Daemon {
   }
 
   private handleDueItems(items: import("./scheduler.js").ScheduledItem[]): void {
+    if (!this.running || this.stopping) return;
     const { actions, notifications } = partitionDueItems(items);
 
     for (const item of notifications) {
@@ -239,7 +253,7 @@ export class Daemon {
         continue;
       }
       this.log(`Running action: "${item.description}"...`);
-      this.executor.execute(item).then((result) => {
+      const p = this.executor.execute(item).then((result) => {
         if (result.error) {
           this.log(`Action "${item.description}" failed: ${result.error}`);
         } else {
@@ -248,6 +262,8 @@ export class Daemon {
       }).catch((err) => {
         this.log(`Action "${item.description}" error: ${(err as Error).message}`);
       });
+      this.inflightActions.add(p);
+      p.finally(() => this.inflightActions.delete(p));
     }
   }
 
@@ -308,7 +324,11 @@ export class Daemon {
       this.log(`Idle task "${task.name}" failed: ${(err as Error).message}`);
     }).finally(() => {
       session.close();
-      this.activeIdleSession = null;
+      // Only clear if this is still the active session — a stale .finally()
+      // from a forcefully-closed session must not clobber a new lifecycle's ref.
+      if (this.activeIdleSession === session) {
+        this.activeIdleSession = null;
+      }
     });
   }
 
