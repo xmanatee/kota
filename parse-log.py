@@ -45,7 +45,9 @@ def parse(path: str) -> None:
     tool_calls: list[ToolCall] = []
     tool_counts: Counter = Counter()
     errors: list[str] = []
-    text_blocks: list[str] = []
+    text_blocks: list[str] = []       # truncated for display
+    full_text_blocks: list[str] = []  # untruncated for analysis
+    changelog_edits: list[str] = []   # CHANGELOG Edit new_strings
 
     for msg in messages:
         if msg.get("type") == "assistant":
@@ -66,10 +68,16 @@ def parse(path: str) -> None:
                             detail = inp["prompt"][:80]
                     tool_calls.append(ToolCall(name, detail, command, file_path))
                     tool_counts[name] += 1
+                    # Collect CHANGELOG edit content for test delta fallback
+                    if name == "Edit" and file_path.lower().endswith("changelog.md"):
+                        ns = inp.get("new_string", "")
+                        if ns:
+                            changelog_edits.append(ns)
                 elif block.get("type") == "text" and block.get("text", "").strip():
                     text = block["text"].strip()
                     if len(text) > 30:
                         text_blocks.append(text[:300])
+                        full_text_blocks.append(text)
 
         elif msg.get("type") == "user":
             content = msg.get("message", {}).get("content", [])
@@ -119,7 +127,9 @@ def parse(path: str) -> None:
 
     # --- Builder execution analysis (only for build-agent sessions) ---
     if "build-agent" in path:
-        _print_builder_analysis(tool_calls, text_blocks)
+        _print_builder_analysis(
+            tool_calls, text_blocks, full_text_blocks, changelog_edits,
+        )
 
 
 # --- Files that are documentation, not implementation ---
@@ -142,9 +152,60 @@ def _is_doc_edit(tc: ToolCall) -> bool:
     return any(fp.endswith(d) for d in _DOC_FILES)
 
 
+def _extract_test_delta(texts: list[str]) -> str | None:
+    """Extract test count delta from text blocks and CHANGELOG edits.
+
+    Priority order:
+    1. "N new tests (X→Y ...)" — most explicit
+    2. "X→Y" near "test" keyword — contextual arrow pattern
+    3. "+N tests" or "N new tests" — count without before/after
+    4. Generic "X→Y" with plausible delta — last resort
+    """
+    # P1: "N new [qualifier] tests (X→Y ...)"
+    for text in texts:
+        m = re.search(
+            r"(\d+)\s+new\s+[\w-]*\s*tests?\s*\((\d+)\s*(?:→|->)\s*(\d+)",
+            text, re.I,
+        )
+        if m:
+            return f"{m.group(2)}→{m.group(3)} (+{m.group(1)})"
+
+    # P2: "X→Y" within 60 chars of "test"
+    for text in texts:
+        for m in re.finditer(r"(\d+)\s*(?:→|->)\s*(\d+)", text):
+            before, after = int(m.group(1)), int(m.group(2))
+            if not (0 < after - before < 200):
+                continue
+            start = max(0, m.start() - 60)
+            end = min(len(text), m.end() + 60)
+            if "test" in text[start:end].lower():
+                return f"{before}→{after} (+{after - before})"
+
+    # P3: "+N tests" or "N new tests"
+    for text in texts:
+        m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?", text, re.I)
+        if m:
+            return f"+{m.group(1)}"
+        m = re.search(r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?", text, re.I)
+        if m:
+            return f"+{m.group(1)}"
+
+    # P4: Generic X→Y with plausible positive delta
+    for text in texts:
+        m = re.search(r"(\d+)\s*(?:→|->)\s*(\d+)", text)
+        if m:
+            before, after = int(m.group(1)), int(m.group(2))
+            if 0 < after - before < 200:
+                return f"{before}→{after} (+{after - before})"
+
+    return None
+
+
 def _print_builder_analysis(
     tool_calls: list[ToolCall],
     text_blocks: list[str],
+    full_text_blocks: list[str] | None = None,
+    changelog_edits: list[str] | None = None,
 ) -> None:
     all_text = " ".join(text_blocks).lower()
 
@@ -303,24 +364,20 @@ def _print_builder_analysis(
     )
     print(f"  Verification: {status}")
 
-    # 7. Test delta from key text
-    test_delta = None
-    for text in text_blocks:
-        m = re.search(r"(\d+)\s*(?:→|->)+\s*(\d+)", text)
-        if m:
-            before, after = int(m.group(1)), int(m.group(2))
-            if 0 < after - before < 200:
-                test_delta = f"{before}→{after} (+{after - before})"
-                break
-        m = re.search(r"\+(\d+)\s*(?:new\s+)?tests?", text, re.I)
-        if m and not test_delta:
-            test_delta = f"+{m.group(1)}"
-            break
-        m = re.search(r"(\d+)\s+new\s+(?:edge.case\s+)?tests?", text, re.I)
-        if m and not test_delta:
-            test_delta = f"+{m.group(1)}"
-            break
+    # 7. Test delta — search full-length text + CHANGELOG edits
+    #    (truncated text_blocks miss deltas in long summary blocks)
+    search_texts = (full_text_blocks or text_blocks) + (changelog_edits or [])
+    test_delta = _extract_test_delta(search_texts)
     print(f"  Test delta:   {test_delta or '?'}")
+
+    # 8. Source files edited (scope of changes)
+    edited = sorted(set(
+        (tc.file_path or tc.detail).split("/")[-1]
+        for tc in tool_calls
+        if tc.name == "Edit" and not _is_doc_edit(tc)
+    ))
+    if edited:
+        print(f"  Files edited: {', '.join(edited)}")
     print()
 
 

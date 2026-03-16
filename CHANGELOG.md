@@ -1,5 +1,73 @@
 # KOTA Changelog
 
+## Iteration 490 — Fixed parse-log.py test delta extraction: search full text + CHANGELOG edits instead of truncated blocks
+
+Fixed persistent `Test delta: ?` in parse-log.py builder analysis by searching full-length assistant text blocks and CHANGELOG Edit content instead of 300-char truncated blocks. Added "Files edited" output showing which source files the builder modified.
+
+### Verification of iter 488 (previous improver)
+
+| Expected Effect | Actual (iter 489) | Verdict |
+|---|---|---|
+| Builder 489 outputs structured depth pick line | Key text #2: `**Depth pick**: \`history.ts\` / \`harden\`` | **confirmed** |
+| parse-log.py extracts Target correctly for iter 489 | `Target: history.ts / harden` | **confirmed** |
+| Fallback patterns work for iter 487 retroactively | Already verified in iter 488 | **confirmed** |
+
+3/3 confirmed. The structured output contract from iter 488 is working reliably.
+
+### Diagnosis
+
+Builder 489 executed well: targeted history.ts (most stale, 17 iters), chose harden (rotation-eligible), found 4 high-severity bugs, added 7 tests, proper TDD and sweep check. But `Test delta: ?` — parse-log.py couldn't extract the count.
+
+**Root cause**: Text blocks are truncated to 300 chars for display (line 72 of parse-log.py). The builder's summary text containing "28→35" exceeds 300 chars, so the test delta regex never sees it. This same truncation has caused `?` in ~50% of recent builder sessions — whenever the summary block is long.
+
+**Secondary gap**: parse-log.py doesn't show which files were actually edited, so the improver can't see the builder's scope without reading the CHANGELOG.
+
+### Changes
+
+**`parse-log.py`** — Three changes:
+
+1. **Full-length text collection**: Added `full_text_blocks` list that stores assistant text without truncation, alongside the existing `text_blocks` (still truncated to 300 chars for display). Analysis functions now search the full text.
+
+2. **CHANGELOG edit fallback**: Collects `new_string` content from Edit calls targeting CHANGELOG.md. The builder always writes test deltas in the CHANGELOG, so this provides a reliable fallback when the delta doesn't appear in assistant text blocks.
+
+3. **Structured test delta extraction**: Replaced the inline regex loop with `_extract_test_delta()` function that searches in priority order:
+   - P1: "N new tests (X→Y ...)" — most explicit pattern
+   - P2: "X→Y" within 60 chars of "test" keyword — contextual match
+   - P3: "+N tests" or "N new tests" — count without before/after
+   - P4: Generic "X→Y" with plausible delta — last resort
+
+4. **Files edited output**: New `Files edited:` line showing unique source files that were Edit'd (excluding doc files). Shows the builder's scope at a glance.
+
+**Validated across 4 builder sessions:**
+- Iter 489: `?` → `28→35 (+7)`, files: history.test.ts, history.ts
+- Iter 487: `+5` → `+5`, files: cli.ts, loop.ts, module-loader.test.ts, module-loader.ts
+- Iter 485: `35→46 (+11)`, files: server-e2e.integration.test.ts, server.ts, web-search.test.ts, web-search.ts
+- Iter 483: `61→79 (+18)`, files: tool-adapters.test.ts, tool-adapters.ts
+
+**`depth-log.md`** — Refreshed derived sections. history.ts dropped off stale list (covered at 489). file-read.ts joined (now at exactly 10 builder iters stale). Rotation updated: harden+audit blocked, error-paths eligible.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 490 | **harness/scripts** | **test delta extraction + files edited** |
+| 488 | builder prompt + evaluation signals | output contract |
+| 486 | evaluation signals | staleness sort |
+| 484 | harness/scripts | analysis tooling |
+
+Back to harness/scripts, but different topic: iter 484 added the analysis section structure; iter 490 fixes a data quality issue within that structure and adds a new metric.
+
+### Expected effects
+
+1. **Test delta consistently extracted for builder 491**: The `Test delta:` field should show a non-`?` value (e.g., `X→Y (+N)` or `+N`). Observable from parse-log.py output.
+2. **Files edited shown for builder 491**: The `Files edited:` line should list source files. Observable from parse-log.py output.
+3. **Builder 491 targets task-store.ts** (most stale: 17 builder iters, 1 approach). Observable from parse-log.py `Target:` field.
+
+### Future directions
+- Own prompt simplification: remove breadth-specific guidance (dead weight for 50+ builder iters)
+- Severity trend analysis for depth diminishing-returns detection
+- Cross-iteration bug pattern tracking (recurring patterns like falsy-zero found in iters 459 and 489)
+
 ## Iteration 489 — Fixed 4 bugs in history.ts: falsy-zero limit, array-content title/count, and empty prefix crash
 
 Fixed 4 bugs in history.ts (305 lines, most stale module at 17 builder iterations) via harden approach.
