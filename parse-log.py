@@ -631,6 +631,38 @@ def _quick_parse(path: str) -> dict:
     # Classify work type: "depth" if module/approach detected, else "feature"
     work_type = "depth" if (target_mod and target_app) else "feature"
 
+    # Post-implementation rework analysis: what fraction of calls come after
+    # the first verification attempt following implementation?
+    _doc_files = {"changelog.md", "depth-log.md", "notes.md", "design.md"}
+    _verify_kws = [
+        "typecheck", "tsc --noemit", "npm run build", "run build",
+        "npm test", "vitest", "run test", "biome check", "cli.js",
+    ]
+    first_impl = None
+    first_verify_after_impl = None
+    fix_cycles = 0
+    _impl_after_verify = False
+    for i, (name, s) in enumerate(tc_list):
+        is_impl = (
+            name in ("Write", "Edit")
+            and not any(d in s for d in _doc_files)
+        )
+        is_verify = name == "Bash" and any(kw in s for kw in _verify_kws)
+        if first_impl is None and is_impl:
+            first_impl = i
+        if first_impl is not None and first_verify_after_impl is None and is_verify:
+            first_verify_after_impl = i
+        if first_verify_after_impl is not None:
+            if is_impl:
+                _impl_after_verify = True
+            elif is_verify and _impl_after_verify:
+                fix_cycles += 1
+                _impl_after_verify = False
+    rework_pct = 0
+    if first_verify_after_impl is not None and tc_list:
+        remaining = len(tc_list) - first_verify_after_impl - 1
+        rework_pct = round(remaining / len(tc_list) * 100)
+
     usage = result.get("usage", {})
     turns = result.get("num_turns", 0) or 0
     cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -648,6 +680,8 @@ def _quick_parse(path: str) -> dict:
         "error_count": error_count,
         "sweep_calls": sweep_calls,
         "web_research": web_research,
+        "rework_pct": rework_pct,
+        "fix_cycles": fix_cycles,
     }
 
 
@@ -787,11 +821,14 @@ def trend(n: int = 5) -> None:
         errs = e.get("error_count", 0)
         sweep = e.get("sweep_calls", 0)
         research = "R" if e.get("web_research") else "."
+        rework = e.get("rework_pct", 0)
+        fix_c = e.get("fix_cycles", 0)
+        rework_str = f"{rework}%/{fix_c}" if rework else "0%"
         print(
             f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
             f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
-            f"  web: {research}"
+            f"  web: {research}  rework: {rework_str}"
         )
         total_calls += e["calls"]
         total_cost += e["cost"]
@@ -819,6 +856,14 @@ def trend(n: int = 5) -> None:
             f"  Errors: {total_errors} total ({total_errors / ne:.1f}/iter)"
             f"  Sweep: {total_sweep} total ({avg_sweep:.0f}/iter avg)"
         )
+    # Rework: post-verification overhead (% of calls after first verify, fix cycles)
+    rework_vals = [e.get("rework_pct", 0) for e in entries]
+    total_fix = sum(e.get("fix_cycles", 0) for e in entries)
+    avg_rework = sum(rework_vals) / len(rework_vals) if rework_vals else 0
+    print(
+        f"  Rework: {avg_rework:.0f}% avg post-verify overhead, "
+        f"{total_fix} fix cycles total"
+    )
 
     # Context size trend (per-turn cache read)
     if len(cpt_values) >= 2:

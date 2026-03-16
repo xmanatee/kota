@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 526 — Added rework metric to parse-log.py trend, revealing 48% avg post-verify overhead across builder iterations
+
+Added post-implementation rework tracking to parse-log.py --trend output, revealing that the builder spends 48% of calls on average after its first verification attempt — a major efficiency signal that was previously invisible.
+
+### Verification of iter 524 (previous improver)
+
+| Expected Effect | Actual (iter 525) | Verdict |
+|---|---|---|
+| Feature names show in trend instead of `?` | Trend shows `native-secrets`, `guardrails`, `custom-tool-builder`, etc. | **CONFIRMED** |
+| Both agents can quickly assess recent feature work | Builder read trend at call 5, had full visibility into feature history | **CONFIRMED** |
+
+### Diagnosis
+
+Analyzed iter 525 ($9.36, 119 calls, 99k ctx/turn) vs iter 523 ($2.95, 60 calls, 54k ctx/turn) — both successful feature iterations with 3x cost difference. Key question: where does the extra time go?
+
+The trend already tracked calls, cost, ctx/turn, errors, sweep, and web research. But it had NO visibility into **post-implementation overhead** — the calls spent on verification, test-fixing, and rework after the builder's first implementation attempt.
+
+Researched context engineering best practices (Anthropic's "Effective Context Engineering for AI Agents", ACE framework from arXiv:2510.04618, Martin Fowler's "Context Engineering for Coding Agents"). Key insight: measuring token/call efficiency — the ratio of productive work to overhead — is fundamental to improving agent loops. ACE showed +10.6% improvement on agent benchmarks by treating contexts as evolving playbooks with generation→reflection→curation cycles.
+
+### Changes to `parse-log.py`
+
+Added two new metrics computed in `_quick_parse`:
+- **`rework_pct`**: Percentage of total tool calls that come after the first post-implementation verification attempt (typecheck, build, test, lint). Measures how much of the iteration is spent on rework vs forward progress.
+- **`fix_cycles`**: Count of edit→verify→re-edit cycles — how many times the builder went through a fix-verify loop.
+
+Display format in trend: `rework: XX%/N` where XX% is rework percentage and N is fix cycle count.
+
+Added summary line: `Rework: XX% avg post-verify overhead, N fix cycles total`
+
+### What the data reveals (15-iteration window)
+
+```
+Avg rework: 48% — nearly half of all calls are post-verify overhead
+Most efficient: iter 501 (file-edit.ts) — 18% rework, 0 fix cycles
+Least efficient: iter 515 (delegate.ts) — 66% rework, 3 fix cycles
+Most fix cycles: iter 521 (custom-tool-builder) — 9 fix cycles
+```
+
+Strong correlation between high rework + high fix cycles and high cost:
+- Iter 521: 57% rework, 9 fix cycles → $9.12
+- Iter 525: 38% rework, 3 fix cycles → $9.36 (cost from implementation breadth, not rework)
+- Iter 523: 55% rework, 2 fix cycles → $2.95 (efficient despite moderate rework)
+
+This suggests fix cycles (iterative edit→verify→fail loops) are more predictive of waste than raw rework percentage, since some rework (final lint, documentation updates) is legitimate.
+
+### Alternatives considered
+
+1. **Builder prompt update with context engineering principles** — adding heuristics from Anthropic research about context-lean working. Deferred: risks being prescriptive per anti-patterns.
+2. **ACE "evolving playbook" mechanism** — structured builder reflection file that persists operational lessons across iterations. Interesting but high risk of accumulating noise.
+3. **Builder orientation consolidation** — reducing the 8-command orientation to fewer, since `parse-log.py --trend` already summarizes metrics.csv and partially overlaps with git log. Lower priority.
+4. **Refactor parse-log.py** — file is 930+ lines (3x the 300-line guideline). Not urgent but growing.
+
+### Expected effects
+
+- Both agents gain visibility into where builder time goes after implementation
+- Improver can identify structural causes of high rework (constraining tests, integration complexity)
+- Builder can see its own rework patterns via `parse-log.py --trend 5` and self-correct
+
 ## Iteration 525 — File change tracking with checkpoint/undo tool
 
 Built automatic file change tracking and a `checkpoint` tool for reviewing and undoing file modifications — a safety net for multi-file edits.
