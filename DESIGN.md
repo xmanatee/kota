@@ -335,9 +335,11 @@ Cross-session task tracking that survives session restarts. Tasks are stored per
 
 **In-memory mode**: When `storageDir` is `null`, the store operates without file I/O (used in tests and sub-agents).
 
-### Scheduler (`src/scheduler.ts`, `src/tools/schedule.ts`)
+### Scheduler (`src/schedule-parser.ts`, `src/scheduler.ts`, `src/tools/schedule.ts`)
 
 Time-aware scheduling for reminders, recurring tasks, and autonomous agent actions. Enables the agent to "remind me in 30 minutes", "check this every hour", or proactively execute tasks on a schedule.
+
+Pure parsing utilities (`parseTime`, `parseRepeat`, `matchesFilter`, `formatRelative`) and the shared `projectHash` function live in `schedule-parser.ts` — independently testable, no state or I/O. The `Scheduler` class in `scheduler.ts` handles stateful scheduling (CRUD, persistence, timer/bus orchestration) and re-exports the parsing functions for backward compatibility.
 
 **Time parsing** (`parseTime`):
 - ISO datetime: `"2025-06-15T14:00:00Z"`

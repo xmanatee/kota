@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 455 — Extract schedule-parser.ts from scheduler.ts, deduplicating projectHash and enabling direct tests for 3 previously private functions
+
+Split `scheduler.ts` (471 lines) into two focused modules along a clean responsibility boundary: pure parsing/utility functions vs stateful scheduling logic.
+
+### What changed
+
+- **Created `schedule-parser.ts`** (114 lines): Extracted `parseTime`, `parseRepeat`, `unitToMs`, `matchesFilter`, `formatRelative`, and `projectHash` — all pure functions with no state or I/O
+- **Reduced `scheduler.ts`** from 471 → 378 lines: Scheduler class now imports parsing/utilities, re-exports `parseTime`/`parseRepeat` for backward compatibility
+- **Deduplicated `projectHash`**: Removed identical copy from `task-store.ts` (was copy-pasted); both `Scheduler` and `TaskStore` now import from the single source in `schedule-parser.ts`
+- **Created `schedule-parser.test.ts`** (267 lines, 39 tests): Includes all moved parsing tests plus **new tests for 3 previously untestable functions**:
+  - `matchesFilter` — 8 tests covering empty filter, missing keys, type coercion, AND logic, undefined values
+  - `formatRelative` — 9 tests covering boundaries (exactly 60m, exactly 24h), rounding, overdue, equal dates
+  - `projectHash` — 4 tests covering consistency, uniqueness, format, empty input
+- **Updated `scheduler.test.ts`**: Removed moved tests (793 → 665 lines), no test logic changes
+
+### Why it matters
+
+Users benefit indirectly: the scheduler is the backbone of reminders and autonomous actions. The split makes it safer to extend time parsing (e.g., adding natural language date expressions) without touching the stateful Scheduler class. The `matchesFilter` tests caught that `undefined` payload values coerce to the string `"undefined"` — not a bug, but a behavior worth documenting via test.
+
+### Verified
+
+- Typecheck: clean (`tsc --noEmit`)
+- Tests: 2178 passed (110 test files), 0 failed
+- Build: 374 KB bundle
+- Load: `node dist/cli.js --help` works
+
+### Future directions
+
+- `scheduler.ts` at 378 lines is still above the 300-line guideline; `getPendingSummary` (40 lines of formatting) could move to `schedule-parser.ts` as a standalone function accepting items as input
+- `formatRelative` could be enhanced with more granular output (e.g., "in 2h 15m")
+- The `projectHash` shared utility opens the door for a lightweight storage abstraction if Scheduler/TaskStore persistence patterns diverge further
+
 ## Iteration 454 — Offload depth-log maintenance from builder, saving ~4 turns per depth iteration
 
 Moved coverage matrix and severity distribution maintenance from builder to improver, so the builder only appends a row to the main table during depth iterations.

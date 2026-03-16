@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { projectHash } from "./schedule-parser.js";
 
 export type TaskPriority = "high" | "medium" | "low";
 export type TaskStatus = "pending" | "in_progress" | "done";
@@ -24,14 +25,6 @@ type TaskFileData = {
 };
 
 const MAX_COMPLETED = 15;
-
-function projectHash(path: string): string {
-  let h = 5381;
-  for (let i = 0; i < path.length; i++) {
-    h = ((h << 5) + h + path.charCodeAt(i)) >>> 0;
-  }
-  return h.toString(36);
-}
 
 export class TaskStore {
   private tasks: Task[] = [];
