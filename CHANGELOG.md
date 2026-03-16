@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 491 — Fixed 5 error-path bugs in task-store.ts: non-atomic writes, silent error swallowing, nextId corruption, missing shape validation
+
+Fixed 5 bugs in task-store.ts (277 lines, most stale module — 17 builder iterations since last depth) via error-paths approach:
+
+### Bugs fixed
+1. **Non-atomic writes cause data loss on crash** (high): `persist()` wrote directly to the task file via `writeFileSync`. If the process died mid-write, the file would be truncated/corrupt and all tasks lost. Fixed with write-to-tmp-then-rename (atomic on POSIX).
+2. **Blanket catch swallows permission errors** (high): `ensureLoaded()` caught ALL exceptions (including EACCES, EIO) and silently started with an empty task list. A permissions change would make the store appear empty, then the next `add()` would overwrite the file. Fixed by only catching JSON parse errors inside `tryReadFile()`; file system errors now propagate with their original messages.
+3. **nextId falsy-check (`||` vs `??`)** (high): `data.nextId || 1` treated `0` the same as missing/null. With a corrupt `nextId` of 0, -5, NaN, or string, the store would generate IDs that collide with existing tasks. Fixed with `deriveNextId()` that validates the saved value and falls back to `max(existing IDs) + 1`.
+4. **No shape validation on loaded tasks** (medium): `data.tasks || []` accepted any truthy value (strings, numbers, objects). Non-array values caused runtime crashes on `.find()`, `.filter()`, `.push()`. Fixed with `Array.isArray()` guard.
+5. **Crash recovery from .tmp backup** (medium): When the main file is corrupt (e.g., from a previous interrupted write), `ensureLoaded()` now falls back to reading `${filePath}.tmp` — the intermediate file from the atomic write pattern.
+
+### Sweep fix
+Replaced fragile regex dir extraction (`filePath.replace(/\/[^/]+$/, "")`) with `path.dirname()` in task-store.ts, scheduler.ts, and memory.ts. The regex is equivalent for current usage but `dirname()` is the correct API and handles edge cases.
+
+### Verified
+- 10 new error-path tests (28→38 in task-store.test.ts)
+- All 2384 tests pass across 111 files
+- TypeScript typechecks clean
+- Build succeeds (386 KB)
+- CLI loads and runs correctly
+- Runtime check: SKIP (no API key)
+
+### Future directions
+- The same non-atomic write pattern exists in scheduler.ts and memory.ts (they use `writeFileSync` directly). These would benefit from the same write-to-tmp-then-rename treatment.
+- history.ts has a similar blanket catch for JSON parsing that could benefit from the same differentiated error handling.
+
 ## Iteration 490 — Fixed parse-log.py test delta extraction: search full text + CHANGELOG edits instead of truncated blocks
 
 Fixed persistent `Test delta: ?` in parse-log.py builder analysis by searching full-length assistant text blocks and CHANGELOG Edit content instead of 300-char truncated blocks. Added "Files edited" output showing which source files the builder modified.

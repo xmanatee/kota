@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { projectHash } from "./schedule-parser.js";
 
 export type TaskPriority = "high" | "medium" | "low";
@@ -50,17 +50,32 @@ export class TaskStore {
   private ensureLoaded(): void {
     if (this.loaded) return;
     this.loaded = true;
-    if (!this.filePath || !existsSync(this.filePath)) return;
-    try {
-      const raw = readFileSync(this.filePath, "utf-8");
-      const data: TaskFileData = JSON.parse(raw);
-      if (data.project === this.project) {
-        this.tasks = data.tasks || [];
-        this.nextId = data.nextId || 1;
-      }
-    } catch {
-      this.tasks = [];
+    if (!this.filePath) return;
+    const data = this.tryReadFile(this.filePath) ?? this.tryReadFile(`${this.filePath}.tmp`);
+    if (!data) return;
+    if (data.project === this.project) {
+      this.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      this.nextId = this.deriveNextId(data.nextId, this.tasks);
     }
+  }
+
+  private tryReadFile(path: string): TaskFileData | null {
+    if (!existsSync(path)) return null;
+    const raw = readFileSync(path, "utf-8");
+    try {
+      return JSON.parse(raw) as TaskFileData;
+    } catch {
+      return null;
+    }
+  }
+
+  private deriveNextId(saved: unknown, tasks: Task[]): number {
+    if (typeof saved === "number" && saved > 0 && Number.isFinite(saved)) {
+      return saved;
+    }
+    if (tasks.length === 0) return 1;
+    const maxId = Math.max(...tasks.map(t => (typeof t.id === "number" ? t.id : 0)));
+    return maxId + 1;
   }
 
   private persist(): void {
@@ -87,14 +102,16 @@ export class TaskStore {
       }
       this.tasks = this.tasks.filter(t => !removeIds.has(t.id));
     }
-    const dir = this.filePath.replace(/\/[^/]+$/, "");
+    const dir = dirname(this.filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const data: TaskFileData = {
       project: this.project,
       tasks: this.tasks,
       nextId: this.nextId,
     };
-    writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
+    const tmpPath = `${this.filePath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+    renameSync(tmpPath, this.filePath);
   }
 
   add(

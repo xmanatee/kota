@@ -1,7 +1,8 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { projectHash } from "./schedule-parser.js";
 import { getTaskStore, initTaskStore, resetTaskStore, TaskStore } from "./task-store.js";
 
 const testDir = mkdtempSync(join(tmpdir(), "kota-task-test-"));
@@ -231,6 +232,134 @@ describe("TaskStore", () => {
       expect(memStore.list()).toHaveLength(1);
       memStore.clear();
       expect(memStore.list()).toHaveLength(0);
+    });
+  });
+
+  describe("error paths", () => {
+    function filePath(dir: string, proj: string): string {
+      return join(dir, `tasks-${projectHash(proj)}.json`);
+    }
+
+    it("recovers gracefully from corrupt JSON file", () => {
+      store.add("Valid task");
+      writeFileSync(filePath(testDir, "/test/project"), "not json{{{");
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(0);
+    });
+
+    it("recovers gracefully from truncated JSON file", () => {
+      store.add("Valid task");
+      writeFileSync(filePath(testDir, "/test/project"), '{"project":');
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(0);
+    });
+
+    it("handles tasks field that is not an array", () => {
+      writeFileSync(
+        filePath(testDir, "/test/project"),
+        JSON.stringify({ project: "/test/project", tasks: "not-array", nextId: 1 }),
+      );
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(0);
+      // Should still be able to add tasks
+      const t = store2.add("New task");
+      expect(t.id).toBe(1);
+    });
+
+    it("handles tasks field that is null", () => {
+      writeFileSync(
+        filePath(testDir, "/test/project"),
+        JSON.stringify({ project: "/test/project", tasks: null, nextId: 3 }),
+      );
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(0);
+    });
+
+    it("derives nextId from max task ID when saved nextId is zero", () => {
+      writeFileSync(
+        filePath(testDir, "/test/project"),
+        JSON.stringify({
+          project: "/test/project",
+          tasks: [{ id: 5, task: "Existing", status: "pending", created: "2025-01-01" }],
+          nextId: 0,
+        }),
+      );
+      const store2 = new TaskStore("/test/project", testDir);
+      const t = store2.add("New task");
+      // Should be max(5) + 1, not 0+1=1 (which would collide)
+      expect(t.id).toBe(6);
+    });
+
+    it("derives nextId from max task ID when saved nextId is NaN", () => {
+      writeFileSync(
+        filePath(testDir, "/test/project"),
+        JSON.stringify({
+          project: "/test/project",
+          tasks: [{ id: 3, task: "Existing", status: "pending", created: "2025-01-01" }],
+          nextId: "bad",
+        }),
+      );
+      const store2 = new TaskStore("/test/project", testDir);
+      const t = store2.add("New task");
+      expect(t.id).toBe(4);
+    });
+
+    it("derives nextId from max task ID when saved nextId is negative", () => {
+      writeFileSync(
+        filePath(testDir, "/test/project"),
+        JSON.stringify({
+          project: "/test/project",
+          tasks: [{ id: 2, task: "Existing", status: "pending", created: "2025-01-01" }],
+          nextId: -5,
+        }),
+      );
+      const store2 = new TaskStore("/test/project", testDir);
+      const t = store2.add("New task");
+      expect(t.id).toBe(3);
+    });
+
+    it("persist uses atomic write (no .tmp file left behind)", () => {
+      store.add("Task 1");
+      const fp = filePath(testDir, "/test/project");
+      expect(existsSync(fp)).toBe(true);
+      expect(existsSync(`${fp}.tmp`)).toBe(false);
+    });
+
+    it("recovers from .tmp backup when main file is corrupt", () => {
+      store.add("Important task");
+      const fp = filePath(testDir, "/test/project");
+      const goodContent = readFileSync(fp, "utf-8");
+      // Simulate crash: main file corrupt, .tmp has good data
+      writeFileSync(fp, "corrupt{{{");
+      writeFileSync(`${fp}.tmp`, goodContent);
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(1);
+      expect(store2.list()[0].task).toBe("Important task");
+    });
+
+    it("throws clear error on permission denied (not silent empty)", () => {
+      store.add("Task");
+      const fp = filePath(testDir, "/test/project");
+      try {
+        chmodSync(fp, 0o000);
+        const store2 = new TaskStore("/test/project", testDir);
+        // Should throw, not silently return empty
+        expect(() => store2.list()).toThrow();
+      } finally {
+        chmodSync(fp, 0o644);
+      }
+    });
+
+    it("handles empty file gracefully", () => {
+      writeFileSync(filePath(testDir, "/test/project"), "");
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(0);
+    });
+
+    it("handles file with only whitespace", () => {
+      writeFileSync(filePath(testDir, "/test/project"), "   \n  ");
+      const store2 = new TaskStore("/test/project", testDir);
+      expect(store2.list()).toHaveLength(0);
     });
   });
 });

@@ -41,6 +41,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 485 | error-paths | server.ts, tools/web-search.ts | critical | Fixed decodeURIComponent crash (ECONNRESET), negative limit wrong results, notification hub cleanup leak; sweep-fixed same pattern in web-search.ts; 11 new tests |
 | 487 | audit | module-loader.ts, cli.ts, loop.ts | high | Fixed 3 integration bugs: plugin commands/routes invisible from CLI, module events never wired to bus, latent infinite recursion in getRoutes(); 5 new tests (27→32) |
 | 489 | harden | history.ts | high | Fixed 4 bugs: falsy-zero limit (||→??), array-content title extraction, array-content countMessages, empty findByPrefix crash; 7 new tests (28→35) |
+| 491 | error-paths | task-store.ts, scheduler.ts, memory.ts | high | Fixed 5 bugs: non-atomic writes (crash data loss), blanket catch swallows EACCES, nextId falsy-check (||→deriveNextId), no Array.isArray guard, no .tmp crash recovery; sweep-fixed regex dir extraction in scheduler+memory; 10 new tests (28→38) |
 
 ## Approach Summary
 

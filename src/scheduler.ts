@@ -11,7 +11,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { EventBus } from "./event-bus.js";
 import { tryEmit } from "./event-bus.js";
 import {
@@ -100,7 +100,7 @@ export class Scheduler {
     this.items = this.items.filter((i) => i.status !== "cancelled");
 
     if (!this.filePath) return;
-    const dir = this.filePath.replace(/\/[^/]+$/, "");
+    const dir = dirname(this.filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(
       this.filePath,

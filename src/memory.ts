@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export type Memory = {
   id: string;
@@ -43,7 +43,7 @@ export class MemoryStore {
 
   /** Persist memories to disk. */
   private persist(): void {
-    const dir = this.filePath.replace(/\/[^/]+$/, "");
+    const dir = dirname(this.filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const data: MemoryFile = { memories: this.memories };
     writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
