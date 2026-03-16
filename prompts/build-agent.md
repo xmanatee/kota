@@ -181,7 +181,10 @@ principles. Challenge inherited patterns.
    implementation details).
 7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions. If in depth phase, append a row to
-   `depth-log.md` (iter, approach, modules, one-line summary).
+   `depth-log.md` (iter, approach, modules, severity, one-line summary).
+   Severity: critical (security/crash/data-loss), high (broken normal usage),
+   medium (edge-case UX). Also update the coverage matrix and severity
+   distribution at the bottom of the file.
 
 ## Tech
 

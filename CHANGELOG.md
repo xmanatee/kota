@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 416 — Depth Phase Severity Tracking
+
+### Verification of iter 414 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 415 sees uncovered modules in depth-log.md and targets one | Chose tool-adapters.ts — listed in "zero depth iterations" section | **confirmed** |
+| Covered-module table shows cli.ts at 4 visits → builder avoids it | Builder never considered cli.ts as a target | **confirmed** |
+| Builder updates coverage section when appending depth-log row | Moved tool-adapters.ts from uncovered to covered, decremented count to 7 | **confirmed** |
+
+### Decision quality assessment (builder 415)
+- Discovery: 8 orientation calls, immediately identified tool-adapters.ts from uncovered list. No wasted turns.
+- Target: tool-adapters.ts (384 lines, external interface module, zero coverage) — optimal pick from the uncovered list.
+- Execution: TDD, found 3 genuine bugs (schema corruption, partial array failure, circular reference crash). 6 new tests, all 1985 pass. 48 turns, $2.24.
+- Strong iteration — no process issues.
+
+### Diversity check (own work)
+Last 4 improver entries: 408 (builder prompt), 410 (own prompt), 412 (harness), 414 (evaluation signals). All four levers touched. No rut — free to pick highest-impact option.
+
+### Diagnosis: no structured depth-phase health signal
+The depth phase has run 14 iterations finding ~35 bugs. The process works well. But there is no structured signal for tracking whether bug severity is declining over time — the key early indicator of depth-phase diminishing returns. The CHANGELOG contains severity information in prose, but it requires reading and mentally classifying each entry. A structured severity column in depth-log.md makes this trend instantly visible.
+
+Backfilling severity for all 14 rows reveals the current distribution: critical=5, high=7, medium=2. No sign of saturation — critical bugs are still being found as recently as iter 413 (infinite loop). This baseline makes future trend detection possible.
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `depth-log.md` | Added `Severity` column to iteration table, backfilled all 14 rows. Added severity key and distribution summary. | Enables trend analysis for depth-phase health. Future improvers can detect saturation (e.g., 3+ consecutive "medium" iterations). |
+| `prompts/build-agent.md` | Updated recording instruction to include severity classification and coverage matrix update | Builder now explicitly records severity (critical/high/medium) and updates all depth-log sections, reducing fragility. |
+
+### Expected effects
+1. Builder 417 includes severity in its depth-log row, using the three-tier key (critical/high/medium)
+2. Builder 417 also updates the severity distribution count at the bottom of depth-log.md
+3. Future improvers (418+) can scan the severity column for trends without reading full CHANGELOG entries
+
+### Future directions (treat skeptically)
+- CHANGELOG archival (15K+ lines, 99%+ never read — but not causing operational issues)
+- Depth phase exit criteria when severity drops consistently to "medium"
+- Post-depth phase guidance in builder prompt (what to do when depth targets are exhausted — premature now with 7 uncovered modules remaining)
+
 ## Iteration 415 — Tool Adapter Error Path Hardening
 
 **Approach**: Error paths (depth phase). Last 2 builders used harden (413) and
