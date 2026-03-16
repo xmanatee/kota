@@ -72,7 +72,22 @@ Once the module protocol exists, external modules become possible:
 2. A module that registers HTTP routes should have those routes available when the server runs
 3. A module that subscribes to events should receive them
 4. Disabling a module in config should cleanly remove all its functionality
-5. Modules are loaded at startup, not hot-loaded
-6. A third party should be able to write a module that adds a CLI command + HTTP endpoint + event handler + tools — using the same mechanism as built-in modules
-7. Built-in modules ship with KOTA but use the same protocol as external ones
-8. The core without any modules loaded should still function as a basic agent (run a prompt, get a response)
+5. A third party should be able to write a module that adds a CLI command + HTTP endpoint + event handler + tools — using the same mechanism as built-in modules
+6. Built-in modules ship with KOTA but use the same protocol as external ones
+7. The core without any modules loaded should still function as a basic agent (run a prompt, get a response)
+
+## Module Isolation
+
+Modules must be independent and self-contained:
+- Modules interact with the core and with each other **only through established APIs/protocols** — no reaching into internals, no shared mutable state, no direct imports of another module's files
+- It should be possible to restart or upgrade a single module without stopping the KOTA process
+- A module can use core functionality (sessions, event bus, config) and other modules' functionality, but only through the defined API surface
+- Module failures must not crash the core or other modules
+
+## Cleanup
+
+The current codebase has redundancies, duplication, and abstractions that no longer make sense after the module extraction. These should be cleaned up:
+- Remove dead code and unused abstractions left behind by module extractions
+- Consolidate duplicated logic
+- Remove or simplify abstractions that were only needed for the old monolithic structure
+- The result should be a clean core + clean modules with no confusion about what lives where
