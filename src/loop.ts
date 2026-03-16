@@ -20,6 +20,7 @@ import { initTaskStore } from "./task-store.js";
 import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { cleanupSessions } from "./tools/code-exec.js";
+import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
 import { getAllTools } from "./tools/index.js";
 import { cleanupProcesses } from "./tools/process.js";
@@ -223,6 +224,12 @@ export class AgentSession {
     const pluginModules = await discoverPluginModules(undefined, this.verbose);
     await this.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
 
+    // Load persisted custom tools from .kota/tools/
+    const customToolCount = loadSavedTools();
+    if (customToolCount > 0 && this.verbose) {
+      this.transport.emit({ type: "status", message: `[kota] Loaded ${customToolCount} custom tool(s)` });
+    }
+
     // Connect module event subscriptions to the bus if it exists
     // (server and daemon init the bus before creating sessions)
     const bus = getEventBus();
@@ -416,6 +423,7 @@ export class AgentSession {
     this.saveToHistory();
     cleanupProcesses();
     cleanupSessions();
+    resetCustomTools();
     resetGroups();
     this.moduleLoader.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});

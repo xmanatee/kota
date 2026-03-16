@@ -125,6 +125,27 @@ Pluggable architecture where features are self-contained modules instead of hard
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
 - Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
 
+### Custom Tool Builder (`src/tools/custom-tool.ts`)
+
+Lets the agent dynamically create new tools at runtime from Python/Node.js code. Transforms the agent from a fixed-tool system into a self-extending one.
+
+**Actions**: `create` (define tool with name, description, params, code), `list` (show custom tools), `remove` (deregister and clean up).
+
+**Execution model**: Custom tools run in the same REPL sessions as `code_exec` — shared state, installed packages, and environment. Parameters are serialized via base64-encoded JSON to avoid quoting issues.
+
+**Persistence**: `persist: true` saves the tool definition to `.kota/tools/<name>.json`. Saved tools are auto-loaded at session startup via `loadSavedTools()` in `initExtensions()`.
+
+**Registration**: Custom tools are registered via `registerTool()` with the standard tool registry. They pass the `!KNOWN_TOOL_NAMES.has()` filter in `filterTools()`, so they're always visible once created.
+
+**Circular dependency resolution**: `custom-tool.ts` needs `registerTool`/`deregisterTool` from `index.ts`, and `index.ts` imports `customToolTool` from `custom-tool.ts`. Resolved via `initCustomToolRegistry()` — dependency injection at module load time.
+
+**Design decisions**:
+- Core tool (always available) — the agent should always be able to extend itself without enabling a group.
+- Classified as `moderate` risk in guardrails — same sandbox as `code_exec`.
+- Max 20 custom tools to prevent tool list explosion.
+- Replacing an existing custom tool deregisters the old one first (no duplicates).
+- `deregisterTool(name)` added to `tools/index.ts` for surgical single-tool removal.
+
 ### Guardrails (`src/guardrails.ts`)
 
 Centralized risk classification and policy enforcement for all tool calls. Every tool call is assessed before execution — the policy determines whether to allow, require confirmation, or deny.

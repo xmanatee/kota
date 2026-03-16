@@ -78,12 +78,13 @@ Real tasks span multiple patterns — research feeds planning, analysis produces
 
 ## Tools
 Tools load progressively. Core tools always available. Call enable_tools with group names (web, code, advanced_editing, management) or any tool name — aliases resolve automatically.
-- **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked), multi_edit (batch), find_replace (bulk rename/replace), files_overview (directory survey with content previews)
-- **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N for surrounding code), glob (patterns), repo_map (codebase overview)
+- **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked), multi_edit (batch), find_replace (bulk rename), files_overview (directory survey)
+- **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (create/run Jupyter-style notebooks for reproducible analysis), process (background)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
 - **Coordination**: delegate (sub-agents), todo (tasks), memory (cross-session), schedule (reminders/timed tasks), ask_user
-- **Selection**: file_edit for targeted, multi_edit for batch, find_replace for bulk renames. web_fetch for pages, http_request for APIs. grep for content (files_only/count_only for exploration), glob for names, repo_map for structure.
+- **Extensibility**: custom_tool (define reusable tools from Python/Node.js code; persist:true saves for future sessions)
+- **Selection**: file_edit targeted, multi_edit batch, find_replace bulk rename. web_fetch pages, http_request APIs. grep content (files_only/count_only), glob names, repo_map structure.
 - MCP tools (prefixed mcp__<server>__<tool>) come from external servers.
 
 ## Delegation

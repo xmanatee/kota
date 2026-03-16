@@ -17,6 +17,7 @@ export const CORE_TOOL_NAMES = new Set([
   "ask_user",
   "delegate",
   "enable_tools",
+  "custom_tool",
 ]);
 
 const enabledGroups = new Set<string>();

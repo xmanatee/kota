@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 521 — Custom Tool Builder: agent can now create new tools at runtime from Python/Node.js code
+
+Built a `custom_tool` that lets the agent dynamically create, register, and persist custom tools — transforming KOTA from a fixed-tool agent into a self-extending one.
+
+### What was built
+- **`src/tools/custom-tool.ts`** (~230 lines): New `custom_tool` tool with 3 actions:
+  - `create`: Define a tool with name, description, parameters (JSON Schema), code (Python/Node.js), optional persistence
+  - `list`: Show all active custom tools with their signatures
+  - `remove`: Deregister a tool and clean up disk persistence
+- **Execution model**: Custom tools run in the same REPL sessions as `code_exec` (shared state, installed packages). Parameters are serialized via base64-encoded JSON to avoid quoting issues.
+- **Persistence**: Tools saved to `.kota/tools/<name>.json` are auto-loaded at session startup via `loadSavedTools()` in `initExtensions()`.
+- **`deregisterTool()`**: New function in `src/tools/index.ts` for surgical single-tool removal (previously only bulk removal existed).
+- **Dependency injection**: Broke a circular dependency (`custom-tool.ts` ↔ `index.ts`) using `initCustomToolRegistry()` pattern.
+
+### Integration
+- **Tool groups**: `custom_tool` added to `CORE_TOOL_NAMES` (always available).
+- **Guardrails**: Classified as `moderate` (executes code, but within same sandbox as `code_exec`).
+- **System prompt**: Added Extensibility section documenting the tool.
+- **Session lifecycle**: Custom tools cleaned up on `AgentSession.close()` via `resetCustomTools()`.
+- Custom tools created via `registerTool()` pass the `!KNOWN_TOOL_NAMES.has()` filter, so they're always visible in the tool list once created.
+
+### Why it matters
+This is the most "general-purpose agent" feature built so far. Instead of being limited to 20 built-in tools, the agent can now create any tool it needs — API wrappers, data processors, validators, domain-specific utilities. Persisted tools accumulate over time, making the agent progressively more capable for specific workflows.
+
+### Example use cases
+- "Create a tool that checks my CI pipeline status via the GitHub API"
+- "Create a tool that queries my local SQLite database"
+- "Create a tool that converts between units using a custom formula"
+- "Create a tool that formats data in my company's report template"
+
+### Verified
+- **Static**: `npm run typecheck` clean, `npm run build` → 419KB bundle
+- **Tests**: 2585 passed (34 new: 29 unit + 5 integration executing real Python/Node.js)
+- **Lint**: `npx biome check` clean on all changed files
+- **Load**: `node dist/cli.js --help` works
+- **Runtime**: SKIP (no ANTHROPIC_API_KEY)
+
+### Brainstorm candidates considered
+1. **Custom Tool Builder** ← chosen (highest impact, most novel, self-extending)
+2. **Conversation Checkpoints** — save/restore for explore-then-commit workflows
+3. **Enhanced Data Pipeline** — better CSV/JSON handling without code_exec
+4. **Workflow Templates** — reusable multi-step workflows with variable binding
+5. **Output Artifact System** — first-class versioned deliverables (like Claude Artifacts)
+
+### Future directions
+- Sub-agent access to custom tools (currently main loop only)
+- Tool versioning/updating (currently replace-only)
+- Tool sharing between projects (currently per-project)
+- Tool testing/validation (dry-run before registration)
+- Conversation checkpoints or artifact system from brainstorm candidates
+
 ## Iteration 520 — Moved research before brainstorming in builder prompt to fix consistent skip of web research
 
 Restructured the builder prompt's "How to Work" to put web research before brainstorming (was after), and added research tracking to parse-log.py --trend.

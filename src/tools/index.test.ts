@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getAllTools, clearCustomTools, deregisterModuleTools, executeTool, getRegisteredTools, registerTool } from "./index.js";
+import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -8,8 +8,8 @@ const makeTool = (name: string) => ({
 });
 
 describe("getAllTools", () => {
-  it("contains 19 built-in tool definitions (memory + schedule moved to modules)", () => {
-    expect(getAllTools()).toHaveLength(19);
+  it("contains 20 built-in tool definitions (memory + schedule moved to modules)", () => {
+    expect(getAllTools()).toHaveLength(20);
   });
 
   it("has unique names", () => {
@@ -35,6 +35,7 @@ describe("getAllTools", () => {
       "grep", "glob", "todo", "repo_map", "delegate", "web_fetch",
       "web_search", "ask_user", "http_request", "process",
       "code_exec", "find_replace", "notebook", "files_overview",
+      "custom_tool",
     ]);
     expect(names).toEqual(expected);
   });
@@ -89,7 +90,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(19);
+    expect(getAllTools()).toHaveLength(20);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 

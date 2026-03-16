@@ -64,6 +64,7 @@ const MODERATE_TOOLS = new Set([
   "web_fetch",
   "delegate",
   "schedule",
+  "custom_tool",
 ]);
 
 /** Patterns in shell/process commands that indicate destructive operations. */

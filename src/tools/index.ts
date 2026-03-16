@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { runEnableTools } from "../tool-groups.js";
 import { askUserTool, runAskUser } from "./ask-user.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
+import { customToolTool, initCustomToolRegistry, runCustomTool } from "./custom-tool.js";
 import { delegateTool, runDelegate } from "./delegate.js";
 import { fileEditTool, runFileEdit } from "./file-edit.js";
 import { fileReadTool, runFileRead } from "./file-read.js";
@@ -15,7 +16,6 @@ import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 import { processTool, runProcess } from "./process.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
-
 import { runShell, shellTool } from "./shell.js";
 import { getTodoState, runTodo, todoTool } from "./todo.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
@@ -53,6 +53,7 @@ const runners: Record<string, ToolRunner> = {
   find_replace: runFindReplace,
   notebook: runNotebook,
   files_overview: runFilesOverview,
+  custom_tool: runCustomTool,
 
   enable_tools: runEnableTools,
 };
@@ -78,6 +79,7 @@ const tools: Anthropic.Tool[] = [
   findReplaceTool,
   notebookTool,
   filesOverviewTool,
+  customToolTool,
 ];
 
 /** Returns the full tool list (core + module-registered). Read-only. */
@@ -128,6 +130,22 @@ export function registerTool(
   }
 }
 
+/** Remove a single tool by name. Returns true if found and removed. */
+export function deregisterTool(name: string): boolean {
+  const idx = tools.findIndex((t) => t.name === name);
+  if (idx < 0) return false;
+  tools.splice(idx, 1);
+  delete runners[name];
+  customToolNames.delete(name);
+  // Remove from module ownership tracking
+  for (const [mod, owned] of moduleToolOwners) {
+    if (owned.delete(name) && owned.size === 0) {
+      moduleToolOwners.delete(mod);
+    }
+  }
+  return true;
+}
+
 /** Remove all tools registered by a specific module. */
 export function deregisterModuleTools(moduleName: string): void {
   const owned = moduleToolOwners.get(moduleName);
@@ -154,5 +172,8 @@ export function clearCustomTools(): void {
   customToolNames.clear();
   moduleToolOwners.clear();
 }
+
+// Inject registry functions into custom-tool module (breaks circular dependency)
+initCustomToolRegistry(registerTool, deregisterTool);
 
 export { getTodoState };

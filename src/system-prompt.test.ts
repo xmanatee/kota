@@ -103,8 +103,8 @@ describe("SYSTEM_PROMPT", () => {
 
   it("includes tool selection heuristics and enable_tools alias guidance", () => {
     expect(SYSTEM_PROMPT).toContain("Selection");
-    expect(SYSTEM_PROMPT).toContain("multi_edit for batch");
-    expect(SYSTEM_PROMPT).toContain("web_fetch for pages");
+    expect(SYSTEM_PROMPT).toContain("multi_edit batch");
+    expect(SYSTEM_PROMPT).toContain("web_fetch pages");
     expect(SYSTEM_PROMPT).toContain("aliases resolve automatically");
   });
 
