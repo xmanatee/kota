@@ -82,9 +82,9 @@ describe("init → loop: environment detection for non-code workspaces (cross-mo
 
       // detectEnvironment should find data + documents + images
       const env = detectEnvironment(tmpDir);
-      expect(env).toContain("data");
-      expect(env).toContain("documents");
-      expect(env).toContain("images");
+      expect(env).toContain("data file");
+      expect(env).toContain("document");
+      expect(env).toContain("image");
 
       // buildSessionWarmup should include **Environment** (not **Project**)
       const warmup = buildSessionWarmup(tmpDir);

@@ -12,10 +12,19 @@ vi.mock("./memory.js", () => ({
   })),
 }));
 
+// Mock history module to control conversation data
+vi.mock("./history.js", () => ({
+  getHistory: vi.fn(() => ({
+    getMostRecent: () => null,
+  })),
+}));
+
 import { buildSessionWarmup, detectEnvironment, detectProject, getDirectoryOverview } from "./init.js";
 import { getMemoryStore } from "./memory.js";
+import { getHistory } from "./history.js";
 
 const mocked = vi.mocked(getMemoryStore);
+const mockedHistory = vi.mocked(getHistory);
 
 describe("detectProject", () => {
   let dir: string;
@@ -123,6 +132,9 @@ describe("buildSessionWarmup", () => {
       list: () => [],
       search: () => [],
     } as any);
+    mockedHistory.mockReturnValue({
+      getMostRecent: () => null,
+    } as any);
   });
 
   afterEach(() => {
@@ -164,6 +176,28 @@ describe("buildSessionWarmup", () => {
     writeFileSync(join(dir, "new-file.txt"), "hello");
     const result = buildSessionWarmup(dir);
     expect(result).toContain("untracked");
+  });
+
+  it("shows deleted files in git context", () => {
+    const gitEnv = { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" };
+    execSync("git init", { cwd: dir, stdio: "pipe" });
+    writeFileSync(join(dir, "to-delete.txt"), "hello");
+    execSync("git add to-delete.txt", { cwd: dir, stdio: "pipe" });
+    execSync("git commit -m 'add file'", { cwd: dir, stdio: "pipe", env: gitEnv });
+    rmSync(join(dir, "to-delete.txt"));
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("1 deleted");
+  });
+
+  it("shows renamed files in git context", () => {
+    const gitEnv = { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" };
+    execSync("git init", { cwd: dir, stdio: "pipe" });
+    writeFileSync(join(dir, "old-name.txt"), "content");
+    execSync("git add old-name.txt", { cwd: dir, stdio: "pipe" });
+    execSync("git commit -m 'add file'", { cwd: dir, stdio: "pipe", env: gitEnv });
+    execSync("git mv old-name.txt new-name.txt", { cwd: dir, stdio: "pipe" });
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("1 renamed");
   });
 
   it("includes recalled memories when found", () => {
@@ -214,6 +248,74 @@ describe("buildSessionWarmup", () => {
     expect(result).toContain("data.csv");
     expect(result).toContain("reports/");
   });
+
+  it("shows 'just now' for very recent conversations", () => {
+    const now = new Date();
+    mockedHistory.mockReturnValue({
+      getMostRecent: () => ({
+        id: "test-1", title: "Test chat", messageCount: 5,
+        updatedAt: new Date(now.getTime() - 30000).toISOString(),
+        createdAt: now.toISOString(), cwd: dir, messages: [],
+      }),
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("just now");
+  });
+
+  it("uses singular 'minute' for exactly 1 minute ago", () => {
+    const now = new Date();
+    mockedHistory.mockReturnValue({
+      getMostRecent: () => ({
+        id: "test-2", title: "Test chat", messageCount: 3,
+        updatedAt: new Date(now.getTime() - 75000).toISOString(),
+        createdAt: now.toISOString(), cwd: dir, messages: [],
+      }),
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("1 minute ago");
+    expect(result).not.toContain("1 minutes ago");
+  });
+
+  it("uses singular 'hour' for exactly 1 hour ago", () => {
+    const now = new Date();
+    mockedHistory.mockReturnValue({
+      getMostRecent: () => ({
+        id: "test-3", title: "Test chat", messageCount: 3,
+        updatedAt: new Date(now.getTime() - 3600000).toISOString(),
+        createdAt: now.toISOString(), cwd: dir, messages: [],
+      }),
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("1 hour ago");
+    expect(result).not.toContain("1 hours ago");
+  });
+
+  it("uses singular 'day' for exactly 1 day ago", () => {
+    const now = new Date();
+    mockedHistory.mockReturnValue({
+      getMostRecent: () => ({
+        id: "test-4", title: "Test chat", messageCount: 3,
+        updatedAt: new Date(now.getTime() - 86400000).toISOString(),
+        createdAt: now.toISOString(), cwd: dir, messages: [],
+      }),
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("1 day ago");
+    expect(result).not.toContain("1 days ago");
+  });
+
+  it("uses plural 'minutes' for multiple minutes ago", () => {
+    const now = new Date();
+    mockedHistory.mockReturnValue({
+      getMostRecent: () => ({
+        id: "test-5", title: "Test chat", messageCount: 3,
+        updatedAt: new Date(now.getTime() - 5 * 60000).toISOString(),
+        createdAt: now.toISOString(), cwd: dir, messages: [],
+      }),
+    } as any);
+    const result = buildSessionWarmup(dir);
+    expect(result).toContain("5 minutes ago");
+  });
 });
 
 describe("detectEnvironment", () => {
@@ -229,7 +331,7 @@ describe("detectEnvironment", () => {
     writeFileSync(join(dir, "sales.csv"), "a,b\n1,2");
     writeFileSync(join(dir, "config.json"), "{}");
     const result = detectEnvironment(dir)!;
-    expect(result).toContain("data");
+    expect(result).toContain("2 data files");
     expect(result).toContain("Workspace");
   });
 
@@ -246,9 +348,24 @@ describe("detectEnvironment", () => {
     writeFileSync(join(dir, "readme.md"), "hi");
     writeFileSync(join(dir, "photo.png"), "img");
     const result = detectEnvironment(dir)!;
-    expect(result).toContain("data");
-    expect(result).toContain("documents");
-    expect(result).toContain("images");
+    expect(result).toContain("data file");
+    expect(result).toContain("document");
+    expect(result).toContain("image");
+  });
+
+  it("uses singular form for single file per category", () => {
+    writeFileSync(join(dir, "data.csv"), "a,b");
+    const result = detectEnvironment(dir)!;
+    expect(result).toContain("1 data file");
+    expect(result).not.toContain("1 data files");
+  });
+
+  it("uses plural form for multiple files per category", () => {
+    writeFileSync(join(dir, "a.png"), "img");
+    writeFileSync(join(dir, "b.png"), "img");
+    writeFileSync(join(dir, "c.png"), "img");
+    const result = detectEnvironment(dir)!;
+    expect(result).toContain("3 images");
   });
 
   it("returns null when only unrecognized file types", () => {

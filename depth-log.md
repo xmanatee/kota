@@ -27,6 +27,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 457 | harden | tools/process.ts | high | Fixed chunk-boundary line splitting (garbled output), blank line loss, dangling setTimeout blocking shutdown, whitespace command validation; 10 new edge-case tests (23→33) |
 | 459 | error-paths | tools/http-request.ts | high | Fixed 5 bugs: timeout_ms/max_response_length falsy-check (||→safePositiveInt), timeout not covering body reads, fragile abort detection (string match→isAbortError), timer leaks on early-return paths; 16 new error-path tests (43→59) |
 | 461 | e2e | context.ts, loop.ts, compaction.ts, message-pruning.ts | critical | Fixed compact() producing consecutive same-role messages (~50% of compactions crashed with API 400); 13 new e2e tests for prune→compact→truncate pipeline |
+| 463 | friction | init.ts | high | Fixed 3 warmup bugs: git status dropped deletions/renames (silent omission), "ago" plural errors ("1 minutes ago"), ungrammatical environment labels ("2 documents files"); 10 new tests |
 
 ## Approach Summary
 

@@ -75,10 +75,10 @@ export function detectProject(cwd: string): string | null {
 }
 
 const ENV_CATEGORIES: Array<{ label: string; exts: Set<string> }> = [
-  { label: "data", exts: new Set([".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".parquet", ".sqlite", ".db"]) },
-  { label: "documents", exts: new Set([".md", ".txt", ".pdf", ".doc", ".docx", ".rtf", ".odt"]) },
-  { label: "images", exts: new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp"]) },
-  { label: "scripts", exts: new Set([".sh", ".bash", ".zsh", ".ps1", ".bat"]) },
+  { label: "data file", exts: new Set([".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".parquet", ".sqlite", ".db"]) },
+  { label: "document", exts: new Set([".md", ".txt", ".pdf", ".doc", ".docx", ".rtf", ".odt"]) },
+  { label: "image", exts: new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp"]) },
+  { label: "script", exts: new Set([".sh", ".bash", ".zsh", ".ps1", ".bat"]) },
 ];
 
 /** Characterize a non-code directory by the types of files it contains. */
@@ -112,8 +112,8 @@ export function detectEnvironment(cwd: string): string | null {
     .sort((a, b) => b[1] - a[1]);
   if (found.length === 0) return null;
 
-  const parts = found.map(([label, n]) => `${n} ${label}`);
-  return `Workspace with ${parts.join(", ")} file${fileCount > 1 ? "s" : ""}`;
+  const parts = found.map(([label, n]) => `${n} ${label}${n === 1 ? "" : "s"}`);
+  return `Workspace with ${parts.join(", ")}`;
 }
 
 /** Get git state: branch, status summary, recent commits. */
@@ -134,11 +134,25 @@ function getGitContext(cwd: string): string | null {
     const status = execSync("git status --porcelain", { cwd, stdio: "pipe" }).toString().trim();
     if (status) {
       const lines = status.split("\n");
-      const modified = lines.filter((l) => l.startsWith(" M") || l.startsWith("M ")).length;
-      const added = lines.filter((l) => l.startsWith("A ") || l.startsWith("??")).length;
+      const counts = { modified: 0, deleted: 0, added: 0, untracked: 0, renamed: 0, other: 0 };
+      for (const l of lines) {
+        if (l.startsWith("??")) { counts.untracked++; continue; }
+        if (l.startsWith("!!")) continue;
+        const x = l[0];
+        const y = l[1];
+        if (x === "M" || y === "M") counts.modified++;
+        else if (x === "D" || y === "D") counts.deleted++;
+        else if (x === "A") counts.added++;
+        else if (x === "R") counts.renamed++;
+        else counts.other++;
+      }
       const parts2: string[] = [];
-      if (modified) parts2.push(`${modified} modified`);
-      if (added) parts2.push(`${added} untracked/added`);
+      if (counts.modified) parts2.push(`${counts.modified} modified`);
+      if (counts.deleted) parts2.push(`${counts.deleted} deleted`);
+      if (counts.added) parts2.push(`${counts.added} added`);
+      if (counts.untracked) parts2.push(`${counts.untracked} untracked`);
+      if (counts.renamed) parts2.push(`${counts.renamed} renamed`);
+      if (parts2.length === 0 && counts.other) parts2.push(`${counts.other} changed`);
       if (parts2.length) parts.push(`Working tree: ${parts2.join(", ")}`);
     } else {
       parts.push("Working tree: clean");
@@ -210,11 +224,13 @@ function recallRecentConversation(cwd: string): string | null {
     // Only show if conversation is recent (< 7 days)
     if (ageHours > 168) return null;
 
-    const ago = ageHours < 1
-      ? `${Math.round(ageMs / 60000)} minutes ago`
-      : ageHours < 24
-        ? `${Math.round(ageHours)} hours ago`
-        : `${Math.round(ageHours / 24)} days ago`;
+    const ago = ageMs < 60000
+      ? "just now"
+      : ageHours < 1
+        ? `${Math.round(ageMs / 60000)} ${Math.round(ageMs / 60000) === 1 ? "minute" : "minutes"} ago`
+        : ageHours < 24
+          ? `${Math.round(ageHours)} ${Math.round(ageHours) === 1 ? "hour" : "hours"} ago`
+          : `${Math.round(ageHours / 24)} ${Math.round(ageHours / 24) === 1 ? "day" : "days"} ago`;
 
     return `"${recent.title}" (${recent.messageCount} messages, ${ago}). Resume with: kota run --continue`;
   } catch {

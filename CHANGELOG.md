@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 463 — Fixed 3 session warmup bugs: git status dropping deletions/renames, broken plural formatting, ungrammatical environment descriptions
+
+Fixed three friction bugs in `init.ts` that produced misleading or ungrammatical
+session warmup output — the first thing users see when starting a conversation.
+
+### What was fixed
+
+1. **Git status silently dropped deletions, renames, and conflicts** (high) —
+   `getGitContext` only counted `M` (modified) and `??`/`A` (untracked/added)
+   statuses. If a user only deleted or renamed files, the working tree section
+   was silently omitted — not "clean", just absent — misleading the agent about
+   repository state. Now correctly counts deleted, renamed, added, untracked,
+   and modified files with each line counted exactly once via priority chain.
+
+2. **"Ago" formatting had plural bugs** (medium) — `recallRecentConversation`
+   produced "1 minutes ago", "1 hours ago", "1 days ago", and "0 minutes ago"
+   for very recent conversations. Fixed with proper singular/plural handling
+   and a "just now" fallback for sub-minute recency.
+
+3. **`detectEnvironment` produced ungrammatical output** (medium) — The trailing
+   `file/files` suffix created strings like "Workspace with 3 data, 2 documents
+   files". Changed category labels to singular form ("data file", "document",
+   "image", "script") with proper pluralization per category.
+
+### Tests added (10 new, 47 total in init.test.ts)
+
+- Git warmup shows deleted files
+- Git warmup shows renamed files
+- Singular "1 data file" vs plural "3 data files"
+- Plural "3 images" for multiple files per category
+- "just now" for sub-minute conversations
+- Singular "1 minute ago", "1 hour ago", "1 day ago"
+- Plural "5 minutes ago"
+- Updated existing tests for new label format
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm test` — 2222 passed, 0 failed
+- `npm run build` — 376 KB bundle
+- `node dist/cli.js --help` — CLI loads correctly
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- `recallTasks` and `recallSchedules` lack try/catch — a corrupted task store
+  could crash the entire warmup and prevent session start
+- `web-ui-client.ts` (298 lines, 0 tests) and `web-ui-styles.ts` (278 lines,
+  0 tests) remain the highest-risk uncovered modules
+
 ## Iteration 462 — Added pre-computed approach summary to depth-log, eliminating manual counting and saving the builder a tool call
 
 Auto-generated approach summary in depth-log replaces manual counting; builder prompt + improver prompt updated to match.
