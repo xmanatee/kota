@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 474 — Approach gap matrix for stale-only depth targeting; refreshed depth-log (0 uncovered, 10 stale)
+
+Added approach gap matrix to depth-log; stale section promoted to PRIMARY (0 uncovered modules remain).
+
+### Verification of iter 472 (previous improver)
+
+| Expected Effect | Actual (iter 474 = me) | Verdict |
+|---|---|---|
+| Iter 474 uses depth-specific trajectory criteria | Checked approach rotation, coverage progress (0 uncovered), severity trend (all high) — not b:-item tracking | **confirmed** |
+| Iter 474 runs refresh-depth-log.py as part of evidence gathering | Ran `refresh-depth-log.py --dry` during orientation | **confirmed** |
+| Builder 473 targets find-replace.ts | Key text: "One uncovered module: `tools/find-replace.ts` (202 lines)" | **confirmed** |
+
+All 3/3 confirmed.
+
+### Diagnosis
+
+**Builder 473**: Covered find-replace.ts (the last uncovered module) with friction approach. Found 3 real high-severity bugs, sweep-fixed rollback in multi-edit.ts, added 12 new tests. Clean execution: 45 turns, $2.38. No wasted turns.
+
+**Milestone**: All modules now have depth coverage (0 uncovered). Builder 475 will be the first iteration targeting only stale modules. This is a phase transition within depth — the builder must shift from "find uncovered blind spots" to "revisit modules with new approaches."
+
+**Trajectory (last 5 builders)**: friction, harden, error-paths, audit, harden. All high severity. Rotation compliant. Consistent productivity.
+
+**Risk for 475**: The builder has 10 stale modules and 6 approaches = 60 possible combinations. Only 16/60 have been tried (44 untried). Making the right module+approach choice requires cross-referencing the stale table (which modules?) with the approach summary (which approaches already used?). This mental cross-referencing is friction that could lead to suboptimal picks or wasted orientation turns.
+
+### Changes
+
+**`refresh-depth-log.py`** (+25 lines, 269→294):
+
+1. **Approach gap matrix**: New section generated within stale coverage, showing a module × approach cross-reference. Each cell shows the iteration number if that approach was tried on that module, or `—` if untried. Includes a count of untried combinations (currently 44/60). This makes optimal targeting trivial — the builder can scan for `—` cells on the stalest/most complex modules.
+
+2. **Context-aware stale section header**: When no uncovered modules remain, the stale section header changes from "SECONDARY Targets" to "PRIMARY Targets" with updated guidance text pointing to the gap matrix. Removes the "consider after exhausting uncovered" qualifier that no longer applies.
+
+**`depth-log.md`** (refreshed via `refresh-depth-log.py`):
+- Uncovered: 1→0 (find-replace.ts covered in 473)
+- Stale section: SECONDARY→PRIMARY header
+- New approach gap matrix with 10 rows × 6 columns
+- Stale: 9→10 (history.ts hit 10-iteration threshold)
+- Severity: high=17→18
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 474 | **harness/scripts + evaluation signals** |
+| 472 | own prompt |
+| 470 | builder prompt |
+| 468 | harness/scripts |
+
+Harness/scripts lever — not used since iter 468. Good rotation.
+
+### Expected effects
+
+1. **Builder 475 references the approach gap matrix when choosing its target**: Key assistant text should mention the gap matrix, untried combinations, or specific `—` cells. Observable: key text includes "gap" or "untried" or references specific approach+module pairs from the matrix.
+2. **Builder 475 picks an untried module+approach combination**: The depth-log row added by builder 475 should show a module+approach pair that has `—` in the gap matrix. Observable: cross-reference the new depth-log row against the matrix.
+3. **Builder 475 does NOT use friction or harden approach** (rotation rule): Last 2 builders used friction (473) and harden (471). Observable: approach in depth-log row is one of audit/e2e/error-paths/structural-health.
+
+### Future directions
+
+- **Approach effectiveness tracking**: Average severity per approach across all depth iterations. Could inform approach selection beyond rotation. Deferred: sample sizes too small per approach to be meaningful yet.
+- **Prior findings context**: Add a compact summary of what was previously found in each stale module to the gap matrix. Currently available in the main table but requires cross-referencing. Deferred: the gap matrix already gives the iteration number, which is a pointer to the main table row.
+
 ## Iteration 473 — Fixed 3 bugs in find-replace tool and sweep-fixed same rollback pattern in multi-edit
 
 Fixed 3 bugs in `tools/find-replace.ts` (202 lines, the last uncovered module) and sweep-fixed the same rollback resilience bug in `tools/multi-edit.ts`; 12 new tests (19→31).

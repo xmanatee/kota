@@ -159,6 +159,7 @@ def main():
 
     # Stale coverage detection (auto-generated)
     stale_modules = []
+    stale_approach_map: dict[str, dict[str, list[int]]] = {}
     for path in sorted(covered, key=lambda p: -(files.get(p, 0))):
         if path not in files or files[path] < MIN_LINES or path in DEPTH_EXCLUDE:
             continue
@@ -168,6 +169,10 @@ def main():
             tl = tests.get(path, 0)
             approaches_used = ", ".join(a for _, a in covered[path])
             stale_modules.append((path, files[path], tl, last_cov_iter, builder_iters_ago, approaches_used))
+            # Build approach map for gap matrix
+            stale_approach_map[path] = {}
+            for it, appr in covered[path]:
+                stale_approach_map[path].setdefault(appr, []).append(it)
 
     # --- Build output ---
     out = [header_and_table(text)]
@@ -211,17 +216,54 @@ def main():
 
     # Stale coverage (auto-generated)
     out.append("")
-    out.append("## Stale Coverage — SECONDARY Targets\n")
-    out.append(
-        f"*Auto-generated. Covered modules (≥{MIN_LINES} lines) whose last depth coverage\n"
-        f"was ≥{STALE_THRESHOLD} builder iterations ago. Consider after exhausting uncovered modules.*\n"
-    )
+    if uncovered:
+        out.append("## Stale Coverage — SECONDARY Targets\n")
+        out.append(
+            f"*Auto-generated. Covered modules (≥{MIN_LINES} lines) whose last depth coverage\n"
+            f"was ≥{STALE_THRESHOLD} builder iterations ago. Consider after exhausting uncovered modules.*\n"
+        )
+    else:
+        out.append("## Stale Coverage — PRIMARY Targets\n")
+        out.append(
+            f"*Auto-generated. All modules have initial depth coverage — stale modules are now\n"
+            f"your primary targets. Covered modules (≥{MIN_LINES} lines) whose last depth coverage\n"
+            f"was ≥{STALE_THRESHOLD} builder iterations ago. Use the approach gap matrix below to\n"
+            f"find untried module+approach combinations.*\n"
+        )
     if stale_modules:
         out.append("| Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |")
         out.append("|--------|-------|------------|--------------|-------------------|-----------------|")
         for path, lines, tl, last_iter, staleness, approaches in stale_modules:
             out.append(f"| {path} | {lines} | {tl} | {last_iter} | {staleness} | {approaches} |")
         out.append(f"\n**{len(stale_modules)} stale modules.**")
+
+        # Approach gap matrix for stale modules
+        if len(stale_modules) > 0 and len(approach_sorted) > 0:
+            out.append("")
+            out.append("### Approach Gap Matrix\n")
+            out.append(
+                "*Which approaches have been tried on each stale module. "
+                "`—` = untried (opportunity for new coverage).*\n"
+            )
+            # Header
+            cols = approach_sorted
+            header = "| Module | " + " | ".join(cols) + " |"
+            sep = "|--------|" + "|".join("-" * (max(len(c), 3) + 2) for c in cols) + "|"
+            out.append(header)
+            out.append(sep)
+            for path, *_ in stale_modules:
+                cells = []
+                for appr in cols:
+                    iters = stale_approach_map.get(path, {}).get(appr, [])
+                    cells.append(",".join(str(i) for i in iters) if iters else "—")
+                out.append(f"| {path} | " + " | ".join(cells) + " |")
+            total_cells = len(stale_modules) * len(cols)
+            filled = sum(
+                1 for path, *_ in stale_modules
+                for appr in cols
+                if stale_approach_map.get(path, {}).get(appr)
+            )
+            out.append(f"\n**{total_cells - filled}/{total_cells} combinations untried.**")
     else:
         out.append("*No stale modules — all covered modules have recent depth coverage.*")
 
