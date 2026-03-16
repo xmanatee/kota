@@ -54,6 +54,10 @@ export function normalizeResult(value: unknown): ToolResult {
     return { content: value };
   }
   if (typeof value === "object") {
+    // Error objects — JSON.stringify produces "{}" (non-enumerable props)
+    if (value instanceof Error) {
+      return { content: value.message || String(value) };
+    }
     const obj = value as Record<string, unknown>;
     // Already a ToolResult
     if (typeof obj.content === "string") {
@@ -195,11 +199,27 @@ export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
       const items = zodDefToJsonSchema(def.type);
       return { ...base, type: "array", items };
     }
-    case "ZodOptional":
-    case "ZodNullable":
-      return zodDefToJsonSchema(def.innerType);
-    case "ZodDefault":
-      return zodDefToJsonSchema(def.innerType);
+    case "ZodOptional": {
+      const inner = zodDefToJsonSchema(def.innerType);
+      if (desc && !inner.description) inner.description = desc;
+      return inner;
+    }
+    case "ZodNullable": {
+      const inner = zodDefToJsonSchema(def.innerType);
+      if (desc && !inner.description) inner.description = desc;
+      if (typeof inner.type === "string") {
+        return { ...inner, type: [inner.type, "null"] };
+      }
+      return inner;
+    }
+    case "ZodDefault": {
+      const inner = zodDefToJsonSchema(def.innerType);
+      if (desc && !inner.description) inner.description = desc;
+      if (typeof def.defaultValue === "function") {
+        try { inner.default = (def.defaultValue as () => unknown)(); } catch { /* skip */ }
+      }
+      return inner;
+    }
     case "ZodObject": {
       const shape = typeof def.shape === "function"
         ? (def.shape as () => Record<string, unknown>)()

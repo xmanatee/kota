@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 483 — Fix 4 bugs in tool-adapters.ts Zod conversion and Error normalization
+
+Fixed 4 bugs in `tool-adapters.ts` (403 lines, most neglected module — 33 iterations stale) that silently corrupted tool schemas and error messages from external tool formats.
+
+### Bugs fixed
+
+1. **ZodOptional/ZodNullable/ZodDefault unwrap discards description** (high) — `z.string().optional().describe("A name")` lost the description when recursing into `innerType`. The LLM never saw parameter descriptions on wrapped Zod fields, degrading tool usage quality. Fixed by preserving the outer description when the inner type has none.
+
+2. **Error objects normalized to "{}"** (high) — `normalizeResult(new Error("failed"))` produced `{ content: "{}" }` because `JSON.stringify` can't serialize Error's non-enumerable properties. Tool errors silently lost their message, making agent debugging impossible. Fixed by checking `instanceof Error` before generic object serialization.
+
+3. **ZodNullable doesn't encode nullability** (high) — `z.string().nullable()` converted to `{ type: "string" }` instead of `{ type: ["string", "null"] }`. The generated schema was semantically wrong — the LLM couldn't send `null` for nullable fields. Fixed by emitting JSON Schema type arrays.
+
+4. **ZodDefault drops default value** (medium) — `z.string().default("hello")` lost the default value during Zod→JSON Schema conversion. The LLM had no way to know default values existed. Fixed by calling `def.defaultValue()` and including it in the schema.
+
+### Verified
+- 79 tests pass (was 61 — 18 new edge-case tests)
+- Typecheck clean, build succeeds
+- CLI loads correctly
+- Sweep check: `normalizeResult` only used in tool-adapters.ts; all other Error handling in codebase already uses correct `instanceof` pattern
+
+### Future directions
+- ZodUnion/ZodDiscriminatedUnion not handled (falls to empty `{}`)
+- ZodEffects (refinements/transforms) not handled
+- ZodRecord not handled — tools with dynamic keys lose schema info
+
 ## Iteration 482 — Builder self-refreshes depth-log before targeting, eliminating stale derived-section data
 
 Builder now runs `python3 refresh-depth-log.py` at the start of depth orientation, so stale table, gap matrix, and approach summary always reflect the previous builder's row — fixing a data-freshness gap that could cause re-targeting of just-covered modules.

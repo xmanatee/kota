@@ -638,4 +638,256 @@ describe("error paths", () => {
       expect(typeof result.content).toBe("string");
     });
   });
+
+  describe("normalizeResult Error objects", () => {
+    it("preserves Error message instead of producing '{}'", () => {
+      const err = new Error("something went wrong");
+      const result = normalizeResult(err);
+      expect(result.content).toBe("something went wrong");
+    });
+
+    it("handles Error with empty message — falls back to String(err)", () => {
+      const err = new Error();
+      const result = normalizeResult(err);
+      expect(result.content).toBe("Error");
+    });
+
+    it("handles TypeError", () => {
+      const err = new TypeError("cannot read property 'x' of undefined");
+      const result = normalizeResult(err);
+      expect(result.content).toBe("cannot read property 'x' of undefined");
+    });
+
+    it("handles custom Error subclass", () => {
+      class ApiError extends Error {
+        constructor(
+          message: string,
+          public statusCode: number,
+        ) {
+          super(message);
+        }
+      }
+      const err = new ApiError("Not Found", 404);
+      const result = normalizeResult(err);
+      expect(result.content).toBe("Not Found");
+    });
+  });
+});
+
+describe("zodDefToJsonSchema — wrapper description preservation", () => {
+  it("ZodOptional preserves outer description when inner has none", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodOptional",
+        innerType: { _def: { typeName: "ZodString" } },
+      },
+      description: "An optional name",
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result).toEqual({ type: "string", description: "An optional name" });
+  });
+
+  it("ZodOptional does NOT overwrite inner description", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodOptional",
+        innerType: { _def: { typeName: "ZodString" }, description: "inner desc" },
+      },
+      description: "outer desc",
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result.description).toBe("inner desc");
+  });
+
+  it("ZodNullable preserves description and encodes nullability", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodNullable",
+        innerType: { _def: { typeName: "ZodNumber" } },
+      },
+      description: "A nullable count",
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result).toEqual({ type: ["number", "null"], description: "A nullable count" });
+  });
+
+  it("ZodNullable encodes type array even without description", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodNullable",
+        innerType: { _def: { typeName: "ZodString" } },
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result.type).toEqual(["string", "null"]);
+  });
+
+  it("ZodNullable skips type array when inner has no type (unknown Zod type)", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodNullable",
+        innerType: { _def: { typeName: "ZodSomethingUnknown" } },
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result.type).toBeUndefined();
+  });
+
+  it("ZodDefault preserves description and encodes default value", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodDefault",
+        innerType: { _def: { typeName: "ZodString" } },
+        defaultValue: () => "hello",
+      },
+      description: "A greeting",
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result).toEqual({ type: "string", description: "A greeting", default: "hello" });
+  });
+
+  it("ZodDefault encodes default value without description", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodDefault",
+        innerType: { _def: { typeName: "ZodNumber" } },
+        defaultValue: () => 42,
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result).toEqual({ type: "number", default: 42 });
+  });
+
+  it("ZodDefault handles throwing defaultValue gracefully", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodDefault",
+        innerType: { _def: { typeName: "ZodString" } },
+        defaultValue: () => { throw new Error("broken factory"); },
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result).toEqual({ type: "string" });
+  });
+
+  it("ZodDefault without defaultValue function still works", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodDefault",
+        innerType: { _def: { typeName: "ZodBoolean" } },
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result).toEqual({ type: "boolean" });
+  });
+
+  it("deeply nested wrapper chain preserves outermost description", () => {
+    // z.string().nullable().optional().describe("deep")
+    const schema = {
+      _def: {
+        typeName: "ZodOptional",
+        innerType: {
+          _def: {
+            typeName: "ZodNullable",
+            innerType: { _def: { typeName: "ZodString" } },
+          },
+        },
+      },
+      description: "deep",
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result.description).toBe("deep");
+    expect(result.type).toEqual(["string", "null"]);
+  });
+});
+
+describe("zodDefToJsonSchema — ZodObject with nullable/default fields", () => {
+  it("correctly marks ZodDefault fields as not required", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodObject",
+        shape: () => ({
+          name: { _def: { typeName: "ZodString" } },
+          count: {
+            _def: {
+              typeName: "ZodDefault",
+              innerType: { _def: { typeName: "ZodNumber" } },
+              defaultValue: () => 0,
+            },
+          },
+        }),
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    expect(result.required).toEqual(["name"]);
+    expect((result.properties as Record<string, Record<string, unknown>>).count.default).toBe(0);
+  });
+
+  it("nullable field inside object encodes type array", () => {
+    const schema = {
+      _def: {
+        typeName: "ZodObject",
+        shape: () => ({
+          value: {
+            _def: {
+              typeName: "ZodNullable",
+              innerType: { _def: { typeName: "ZodString" } },
+            },
+          },
+        }),
+      },
+    };
+    const result = zodDefToJsonSchema(schema);
+    const valueSchema = (result.properties as Record<string, Record<string, unknown>>).value;
+    expect(valueSchema.type).toEqual(["string", "null"]);
+  });
+});
+
+describe("fromVercelAI — schema edge cases", () => {
+  it("Zod nullable parameters produce correct input_schema", async () => {
+    const zodSchema = {
+      _def: {
+        typeName: "ZodObject",
+        shape: () => ({
+          query: { _def: { typeName: "ZodString" } },
+          limit: {
+            _def: {
+              typeName: "ZodNullable",
+              innerType: { _def: { typeName: "ZodNumber" } },
+            },
+          },
+        }),
+      },
+    };
+    const def = fromVercelAI(
+      { description: "Search", parameters: zodSchema, execute: async () => "ok" },
+      "search",
+    );
+    const limitSchema = (def.tool.input_schema.properties as Record<string, unknown>).limit as Record<string, unknown>;
+    expect(limitSchema.type).toEqual(["number", "null"]);
+  });
+
+  it("Zod default parameters encode default in input_schema", async () => {
+    const zodSchema = {
+      _def: {
+        typeName: "ZodObject",
+        shape: () => ({
+          query: { _def: { typeName: "ZodString" } },
+          limit: {
+            _def: {
+              typeName: "ZodDefault",
+              innerType: { _def: { typeName: "ZodNumber" } },
+              defaultValue: () => 10,
+            },
+          },
+        }),
+      },
+    };
+    const def = fromVercelAI(
+      { description: "Search", parameters: zodSchema, execute: async () => "ok" },
+      "search",
+    );
+    const limitSchema = (def.tool.input_schema.properties as Record<string, unknown>).limit as Record<string, unknown>;
+    expect(limitSchema.default).toBe(10);
+  });
 });
