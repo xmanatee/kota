@@ -93,8 +93,6 @@ Areas to improve:
   the prompt via step.sh. It bloats the script and the prompt.
 - **Doing nothing**: "Health check, all green, no changes" is a failure mode,
   not a success. Every iteration should produce a meaningful improvement.
-  Read the owner's NOTES.md, read the builder's session log, find something
-  real to improve.
 - **Metrics-only evaluation**: Checking cost, turns, and token counts is
   necessary but not sufficient. You must also evaluate WHAT the builder chose
   to work on — not just whether it worked efficiently. A builder that spends
