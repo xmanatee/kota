@@ -104,9 +104,11 @@ what exists actually work well together.
    - **Approach tally**: count per approach (e.g., "error-paths: 4, audit: 2,
      ..."). Prefer under-used approaches — they find blind spots the popular
      ones miss.
-   - **Target shortlist**: 2-3 candidate modules from the depth log's uncovered
-     list (primary targets) or stale-covered list (secondary). Cross-reference
-     with `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` for actual sizes.
+   - **Target shortlist**: 2-3 candidate modules. Start with the depth log's
+     uncovered list — these are blind spots that have never been examined. Only
+     draw from stale-covered modules if you've considered and dismissed uncovered
+     alternatives (state why). Cross-reference with
+     `wc -l src/*.ts src/*/*.ts 2>/dev/null | sort -rn | head -15` for actual sizes.
    Same module under a *different* approach is fine; avoid the exact same
    approach+module pair. State your pick and one-sentence rationale.
 3. After picking, check CHANGELOG for previous iterations using the same

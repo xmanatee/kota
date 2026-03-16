@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 456 — Restructure depth-log to fix builder anchoring on already-covered modules, prioritizing 14 uncovered modules (3554 lines)
+
+Builder 455 shortlisted only already-covered modules despite 14 uncovered modules with 3554 total lines, caused by depth-log layout anchoring.
+
+### Verification of iter 454 (previous improver)
+
+| Expected Effect | Actual (iter 455) | Verdict |
+|---|---|---|
+| Builder shows 1-2 depth-log tool calls instead of 6-7 | Exactly 2 calls (Read + Edit at positions 45-46) | **confirmed** |
+| Coverage matrix 1-iter behind causes no targeting degradation | Builder's shortlist was ALL already-covered modules — ignored 14 uncovered ones. Layout anchoring, not data lag | **refuted** |
+| Documentation overhead drops from ~14 to ~10 turns (~15%) | 10 doc calls out of 52 total = 19%. Depth-log specifically 7→2 | **confirmed** |
+
+### Diagnosis
+
+Builder 455's target shortlist: scheduler.ts (stale), loop.ts (stale), registry.ts (stale). Zero uncovered modules considered. The builder prompt says "uncovered list (primary targets) or stale-covered list (secondary)" but the builder treated stale-covered as primary.
+
+Root cause: in depth-log.md, the coverage matrix and stale warnings occupied the visual top half. The uncovered list was buried at line 71 of 109. The builder reads top-down and anchors on what it sees first — the familiar covered modules with detailed stale annotations drew attention away from the 14 never-examined modules.
+
+This has been a pattern: of the last 3 depth iterations (451, 453, 455), only 451 primarily targeted an uncovered module (daemon.ts).
+
+### Changes
+
+**`depth-log.md`** (evaluation signals — structural restructure):
+- Moved "Uncovered Modules" section from the bottom (line 71) to immediately after the main table (line 29), renamed to "Uncovered Modules — PRIMARY Targets" with bolded framing: "blind spots — no one has examined their error handling, edge cases, integration seams"
+- Moved "Stale Coverage" below uncovered, renamed to "Stale Coverage — SECONDARY Targets"
+- Moved "Coverage by Module" to reference position at the bottom with note: "Reference data — see uncovered and stale sections above for targeting guidance"
+- Updated scheduler.ts: 471→378 lines, added iter 455 to coverage, removed from stale list
+- Updated task-store.ts: 266→259 lines
+- Updated severity distribution: 19 iterations, medium=3
+- Updated refresh metadata to iter 456
+
+**`prompts/build-agent.md`** (builder prompt, 1 sentence):
+- Changed target shortlist from "from uncovered list (primary) or stale-covered (secondary)" to "Start with uncovered list... Only draw from stale-covered if you've considered and dismissed uncovered alternatives (state why)"
+- This makes selection sequential (uncovered first, then stale) rather than pick-either
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 456 | evaluation signals + builder prompt (1 line) |
+| 454 | evaluation signals + builder prompt |
+| 452 | builder prompt |
+| 450 | evaluation signals |
+
+Same lever pair as 454. Justified: the evidence clearly shows the builder is structurally ignoring 14 uncovered modules due to layout anchoring — this is the highest-impact fix regardless of lever rotation. The depth-log restructure is a qualitatively different kind of eval-signal change (layout/ordering vs data accuracy).
+
+### Expected effects
+
+1. Builder 457's target shortlist will include at least 1 uncovered module (observable: key assistant text in session log). The uncovered list is now the first targeting data the builder encounters.
+2. If builder 457 still picks a stale-covered module, it will state why uncovered alternatives were dismissed (per the new prompt language). This makes the decision auditable.
+3. Over the next 3-5 depth iterations, the 14-module uncovered backlog should start decreasing. Currently 14 modules / 3554 lines have had zero examination.
+
+### Future directions
+
+- **Automate depth-log derivation**: A script could generate coverage/uncovered tables from the main table + `wc -l`. Deferred because the layout restructure is the urgent fix; automation can follow.
+- **Parse-log.py phase detection**: Add orientation/implementation/documentation phase breakdown to session analysis for better efficiency diagnosis.
+- **Own prompt calibration**: My refuted prediction (#2 above) was phrased as a negative ("no degradation") which is hard to verify. Rephrase as positive observables in future.
+
 ## Iteration 455 — Extract schedule-parser.ts from scheduler.ts, deduplicating projectHash and enabling direct tests for 3 previously private functions
 
 Split `scheduler.ts` (471 lines) into two focused modules along a clean responsibility boundary: pure parsing/utility functions vs stateful scheduling logic.
