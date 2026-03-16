@@ -104,7 +104,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 - `cwd`, `verbose`, `config` — environment info
 - `registerGroup(name, toolNames, pattern?)` — create/extend tool groups
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. Currently: `memory`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. Currently: `memory`, `scheduler`, `telegram`, `daemon`, `web`.
 
 **Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` from `tools/index.ts`. Future iterations will migrate external plugin loading into the module system.
 

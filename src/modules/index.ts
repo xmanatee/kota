@@ -11,6 +11,7 @@ import daemonModule from "./daemon.js";
 import memoryModule from "./memory.js";
 import schedulerModule from "./scheduler.js";
 import telegramModule from "./telegram.js";
+import webModule from "./web.js";
 
 /** All built-in modules, in dependency order. */
 export const builtinModules: KotaModule[] = [
@@ -18,4 +19,5 @@ export const builtinModules: KotaModule[] = [
   schedulerModule,
   telegramModule,
   daemonModule,
+  webModule,
 ];

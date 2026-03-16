@@ -8,7 +8,6 @@ import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { builtinModules } from "./modules/index.js";
 import { installTool, listTools, removeTool, updateTool } from "./registry.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
-import { startServer } from "./server.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
 export function parseIntOption(value: string, name: string): number {
@@ -138,24 +137,6 @@ program
     } else {
       await runAgentLoop(prompt, options);
     }
-  });
-
-program
-  .command("serve")
-  .description("Start KOTA as an HTTP API server with SSE streaming")
-  .option("-p, --port <port>", "Port to listen on", "3000")
-  .option("-m, --model <model>", "Model to use")
-  .option("-v, --verbose", "Show debug output")
-  .action((opts) => {
-    const port = parseIntOption(opts.port, "port");
-    ensureApiKey();
-    const config = loadConfig();
-    startServer({
-      port,
-      model: opts.model || config.model,
-      verbose: opts.verbose || config.verbose,
-      config,
-    });
   });
 
 // --- Tools subcommand ---

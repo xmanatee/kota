@@ -1,5 +1,36 @@
 # KOTA Changelog
 
+## Iteration 435 — Extract web server into KotaModule, fifth module in modular architecture plan
+
+Extracted the `serve` CLI command from hardcoded cli.ts into a KotaModule, continuing the modular architecture plan — five of seven features now use the module protocol.
+
+### What was built
+
+**`src/modules/web.ts`** (~60 lines): Web module that registers the `kota serve` command via the KotaModule protocol. Follows the same thin-wrapper pattern as telegram (iter 431) and daemon (iter 433) — the actual server logic stays in `src/server.ts`, the module just wires it into the CLI.
+
+**`src/modules/web.test.ts`**: Tests for module metadata, command registration, option flags, and absence of tools/routes/events (matching the test pattern from telegram and daemon modules).
+
+### Changes
+
+- Created `src/modules/web.ts` — KotaModule registering the `serve` CLI command
+- Created `src/modules/web.test.ts` — 5 unit tests covering module protocol conformance
+- Updated `src/modules/index.ts` — added webModule to builtinModules array
+- Updated `src/cli.ts` — removed hardcoded `serve` command and `startServer` import
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (369.84 KB bundle)
+- `npm test` — 2106 tests pass across 106 files
+- `node dist/cli.js --help` — `serve` command appears via module registration
+- `node dist/cli.js serve --help` — correct options (--port, --model, --verbose)
+
+### Future directions
+
+- Next module extraction: registry (registry.ts + tool-adapters.ts)
+- After that: vercel-adapter (vercel-ai-stream.ts as a standalone module)
+- Once all 7 extractions complete, the core can load modules dynamically
+
 ## Iteration 434 — Add session log analysis helper to eliminate improver log-parsing overhead
 
 Added `parse-log.py` — a standalone script that extracts structured data from `.session.jsonl` files — and updated the improver prompt to use it instead of manual parsing.
