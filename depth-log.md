@@ -27,9 +27,9 @@ Covered modules and which approaches have been applied:
 
 | Module | Lines | Depth Iters | Approaches Applied |
 |--------|-------|-------------|--------------------|
-| cli.ts | 571 | 391,397,403,411 | friction×2, harden, friction |
+| cli.ts | 491 | 391,397,403,411 | friction×2, harden, friction |
 | scheduler.ts | 471 | 389,413 | audit, harden |
-| loop.ts | 431 | 405 | e2e |
+| loop.ts | 437 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
 | server.ts | 413 | 395,425 | e2e, structural-health |
 | tool-adapters.ts | 403 | 415 | error-paths |
@@ -37,24 +37,44 @@ Covered modules and which approaches have been applied:
 | history.ts | 279 | 391,405 | friction, e2e |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
 
-Uncovered large modules — **zero depth iterations**:
-
-| Module | Lines | Notes |
-|--------|-------|-------|
-| daemon.ts | 350 | Long-running event-driven runtime (new in iter 421) |
-| init.ts | 299 | Project initialization / setup wizard |
-| web-ui-client.ts | 298 | Browser-side JS for web UI |
-| html-extract.ts | 296 | HTML content extraction |
-| web-ui-styles.ts | 278 | CSS generation for web UI |
-| task-store.ts | 266 | Persistent task storage |
-| verify-tracker.ts | 215 | Tracks file verification state |
-| context.ts | 214 | Conversation context management |
-
-**8 uncovered modules, 2,216 lines total.** Update this section when appending a row above.
+Note: `cli.ts` shrank from 571→491 lines during modular architecture plan
+(iters 427-435) as 5 hardcoded CLI commands were extracted into modules.
+`session-pool.ts` (185 lines, covered iter 393) and `web-ui.ts` (50 lines,
+covered iter 409 — was 612, split into web-ui-client/styles/markdown) are
+below 200 lines now but have historical coverage.
 
 Note: `scheduler.ts` (471 lines, 2 depth iters) grew ~30% during plan
 execution (iters 417-423). Its new code (event triggers) has had zero depth
 scrutiny. Same-module/different-approach coverage is valuable here.
+
+Uncovered large modules — **zero depth iterations**:
+
+| Module | Lines | Notes |
+|--------|-------|-------|
+| daemon.ts | 350 | Long-running event-driven runtime (iter 421) |
+| tools/delegate.ts | 302 | Sub-agent delegation tool |
+| init.ts | 299 | Project initialization / setup wizard |
+| web-ui-client.ts | 298 | Browser-side JS for web UI |
+| html-extract.ts | 296 | HTML content extraction |
+| tools/http-request.ts | 289 | HTTP request tool |
+| tools/process.ts | 287 | Process management tool |
+| tools/web-search.ts | 286 | Web search tool |
+| web-ui-styles.ts | 278 | CSS generation for web UI |
+| tools/file-edit.ts | 274 | File editing tool |
+| task-store.ts | 266 | Persistent task storage |
+| tools/file-read.ts | 255 | File reading tool |
+| verify-tracker.ts | 215 | Tracks file verification state |
+| context.ts | 214 | Conversation context management |
+| module-loader.ts | 207 | Module discovery + lifecycle (new in iter 427) |
+| tools/find-replace.ts | 202 | Find-and-replace tool |
+
+**16 uncovered modules, 4,218 lines total.** Update this section when
+appending a row above.
+
+Data refreshed at iter 436. The modular architecture plan (iters 427-435)
+added `src/modules/` (thin wrappers, all <85 lines) and `module-loader.ts`
+(207 lines, framework code with zero depth coverage). Two plan steps remain
+(registry, vercel-adapter) before the builder re-enters depth phase.
 
 ## Severity Key
 
@@ -63,3 +83,6 @@ scrutiny. Same-module/different-approach coverage is valuable here.
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
 Distribution (15 iterations): critical=5, high=8, medium=2
+
+Note: src/tools/ files were previously omitted from this log. 7 tools exceed
+200 lines with zero depth coverage — prime targets for the next depth phase.

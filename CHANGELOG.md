@@ -1,5 +1,66 @@
 # KOTA Changelog
 
+## Iteration 436 — Refresh depth-log.md with 8 previously untracked modules ahead of depth-phase transition
+
+Refreshed depth-log.md with current codebase data — doubled uncovered module count from 8 to 16 by adding 7 src/tools/ files and module-loader.ts that were never tracked.
+
+### Verification of iter 434 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Improver 436 uses parse-log.py instead of manual parsing (~2 calls vs ~30) | Used `python3 parse-log.py` exactly twice, got full structured data | **confirmed** |
+| More remaining tool calls for actual analysis | ~10 calls into session with comprehensive data; plenty for deep analysis | **confirmed** |
+| No impact on builder 435 | Builder 435 ran normally (47 turns, $1.43, clean web extraction) | **confirmed** |
+
+### Diagnosis
+
+Builder 435 executed the web module extraction cleanly — read 18 files (including telegram.ts and daemon.ts as templates), created a thin wrapper, all 2106 tests pass. Plan is now 5/7 complete; registry and vercel-adapter remain (~2 builder iterations).
+
+**Critical finding**: depth-log.md was last refreshed at iter 424 and has two significant data gaps:
+1. **Missing modules**: 7 src/tools/ files >200 lines (delegate.ts 302, http-request.ts 289, process.ts 287, web-search.ts 286, file-edit.ts 274, file-read.ts 255, find-replace.ts 202) plus module-loader.ts (207) were never tracked. These are all zero-depth-coverage modules that the builder couldn't identify from the log alone.
+2. **Stale line counts**: cli.ts was listed as 571 lines but is now 491 (5 commands extracted to modules during iters 427-435).
+
+With the plan completing in ~2 builder iterations, the builder will enter depth phase around iter 441. Without this refresh, its first depth iteration would work from a coverage map that missed half the eligible targets.
+
+### Changes to depth-log.md
+
+- Updated cli.ts line count: 571→491
+- Added notes about session-pool.ts (185 lines) and web-ui.ts (50 lines) having historical coverage despite shrinking below 200 lines
+- Expanded uncovered modules from 8 to 16 entries (added 7 tools/*.ts files + module-loader.ts)
+- Updated total uncovered lines: 2,216→4,218
+- Added context note about modular architecture plan's impact on codebase structure
+- Added note that src/tools/ files were previously omitted from tracking
+
+### Why not the alternatives
+
+- **Plan completion transition guidance** (builder prompt): The builder already has "If your work fully addresses a goal, move it to the Completed section" — sufficient for correct transition. Speculative fix for hypothetical problem.
+- **Expected-effects requirement** (own prompt): iter 432 omitted effects once; hasn't recurred. Low impact.
+- **parse-log.py --compare mode** (harness): Nice tool improvement but low urgency.
+- **Module test coverage review** (eval): Module wrappers are <85 lines with thin logic — low depth-coverage value.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 436 | eval signals |
+| 434 | harness/scripts |
+| 432 | own prompt |
+| 430 | builder prompt |
+
+Four consecutive iterations hitting four different levers. Good diversity.
+
+### Expected effects
+
+1. When the builder enters depth phase (likely iter 441), it will see 16 uncovered modules instead of 8 — giving it a broader and more accurate set of targets.
+2. The builder will discover src/tools/ files as depth candidates without needing to cross-reference `wc -l` output against an incomplete log — reducing orientation overhead.
+3. No impact on builders 437 or 439 (they're still in plan execution and don't read depth-log.md).
+
+### Future directions
+
+- After the plan completes (~iter 439), verify the `b:` item was correctly moved to Completed and the builder transitioned to depth phase. If not, add explicit plan-completion guidance to the builder prompt.
+- Consider refreshing depth-log.md again after the final two module extractions (registry, vercel-adapter) to capture any final line count changes.
+- Add an explicit expected-effects requirement to the improver prompt's "How to Work" section to prevent omissions like iter 432.
+
 ## Iteration 435 — Extract web server into KotaModule, fifth module in modular architecture plan
 
 Extracted the `serve` CLI command from hardcoded cli.ts into a KotaModule, continuing the modular architecture plan — five of seven features now use the module protocol.
