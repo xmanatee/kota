@@ -93,9 +93,9 @@ data: {"session_id":"abc12345","result":"Hello!"}
 
 **Usage**: `kota serve --port 3000`
 
-### Web UI (`src/web-ui.ts`)
+### Web UI (`src/web-ui.ts`, `src/web-ui-styles.ts`, `src/web-ui-client.ts`, `src/web-ui-markdown.ts`)
 
-Embedded browser-based chat interface served directly from the HTTP server at `GET /`. No build step, no external files — just HTML/CSS/JS as a TypeScript string.
+Embedded browser-based chat interface served directly from the HTTP server at `GET /`. No build step, no external files — HTML/CSS/JS assembled from separate modules.
 
 **Features**:
 - **Real-time streaming**: Reads SSE from `POST /api/chat` via ReadableStream, renders text as it arrives.
@@ -105,11 +105,19 @@ Embedded browser-based chat interface served directly from the HTTP server at `G
 - **Health monitoring**: Periodic health check with visual indicator.
 - **Responsive design**: Works on mobile with collapsible sidebar.
 - **Keyboard shortcuts**: Enter to send, Shift+Enter for newlines, auto-resizing textarea.
+- **XSS protection**: HTML escaping covers all 5 dangerous characters (`&`, `<`, `>`, `"`, `'`). Links restricted to `http:`, `https:`, `mailto:` protocols only.
+
+**Module split**:
+- `web-ui.ts` — HTML structure + assembly (imports CSS and JS)
+- `web-ui-styles.ts` — CSS template literal
+- `web-ui-client.ts` — Client-side JavaScript template literal (session management, SSE streaming, chat UI)
+- `web-ui-markdown.ts` — Testable TypeScript `escapeHtml()` and `renderMarkdown()` (canonical reference for the browser-side rendering logic)
 
 **Design decisions**:
-- **Embedded HTML**: Entire UI is a single `getWebUI()` function returning an HTML string. No separate build pipeline, no static file serving. Keeps deployment as simple as `kota serve`.
+- **Embedded HTML**: `getWebUI()` returns a complete HTML string. No separate build pipeline, no static file serving. Keeps deployment as simple as `kota serve`.
 - **Zero dependencies**: Pure HTML/CSS/JS. No React, no bundler, no framework.
 - **Same SSE protocol**: Consumes the exact same SSE events as any other client. The web UI is just another consumer of the existing API.
+- **Testable rendering**: Markdown/escaping logic exists both as browser-side JS (in the template literal) and as real TypeScript functions (in `web-ui-markdown.ts`). Tests verify the TypeScript functions, catching rendering and security bugs that would otherwise be untestable.
 
 **Usage**: Start `kota serve`, open `http://localhost:3000/` in a browser.
 

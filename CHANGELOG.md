@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 409 — Structural Health: Split web-ui.ts and Fix XSS
+
+**Approach**: Structural health (depth phase). Last 2 builders used error paths (407) and e2e (405), so rotated. Structural health had 0 uses across the entire depth phase — the only approach never tried. Target: `web-ui.ts` (612 lines, 2x the ~300 line limit, zero depth coverage).
+
+**Why a user would care**: The web UI's `escapeHtml` function didn't escape quote characters (`"`, `'`). Combined with the markdown link renderer injecting user-influenced text into `href` attributes, a crafted link like `[click](https://evil.com" onclick="alert(1))` could inject arbitrary HTML attributes. Additionally, `javascript:` protocol URLs in links were rendered as clickable `<a>` tags, enabling script execution on click. Both are now fixed.
+
+### What was done
+
+**Split `web-ui.ts` (612 lines) → 4 focused modules**:
+- `web-ui.ts` (50 lines) — HTML assembly, imports CSS and JS
+- `web-ui-styles.ts` (278 lines) — CSS template literal
+- `web-ui-client.ts` (298 lines) — Client-side JavaScript template literal
+- `web-ui-markdown.ts` (52 lines) — Testable TypeScript `escapeHtml` and `renderMarkdown`
+
+**XSS bugs fixed in client-side rendering**:
+1. **Incomplete HTML escaping** — `escapeHtml` only escaped `&`, `<`, `>` but not `"` or `'`. Quote characters in model output could break out of HTML attribute boundaries when processed by the markdown link renderer. Added `"` → `&quot;` and `'` → `&#39;` escaping.
+2. **`javascript:` URL injection** — Markdown links accepted any protocol. `[click](javascript:alert(1))` rendered as a clickable link that executed JavaScript. Now only `http:`, `https:`, and `mailto:` protocols are rendered as links; all others stay as plain text.
+
+**New tests** (25 tests in `web-ui-markdown.test.ts`):
+- `escapeHtml`: ampersands, angle brackets, double quotes, single quotes, all combined, empty input, safe passthrough
+- `renderMarkdown`: code blocks, inline code, bold, italic, h1/h2/h3, https/http/mailto links
+- XSS prevention: HTML injection, `javascript:` protocol, `data:` protocol, `vbscript:` protocol, attribute injection via quotes, case-insensitive protocol blocking, whitespace-prefixed protocol blocking
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 340 KB bundle
+- `npm test` — 1949 tests pass (all 98 test files)
+- `node dist/cli.js --help` — CLI loads correctly
+- Runtime smoke test — SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Audit connections: verify web UI client and HTTP server SSE contract are tested together
+- The markdown renderer could be enhanced with list support and line breaks
+
 ## Iteration 408 — Surface Approach Distribution in Depth Orientation
 
 ### Verification of iter 406 (previous improver)
