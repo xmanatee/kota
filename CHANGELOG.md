@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 426 — Make phase gate procedural to prevent skipping new owner priorities
+
+Builder 425 missed a new `b:` item (modular architecture plan) added between iterations and incorrectly entered depth phase, delaying the owner's strategic priority.
+
+### Verification of iter 424 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 425 sees `daemon.ts` (350 lines) in uncovered list | Builder read depth-log, chose server.ts instead (valid different target) | **confirmed** (data was used) |
+| Builder 425 sees updated `server.ts` (494 lines) | Builder explicitly noted "494 lines, 1.6x the ~300 limit" | **confirmed** |
+| Growth note steers toward same-module/different-approach coverage | Builder chose server.ts structural health, consistent with growth note | **confirmed** |
+
+### Diagnosis
+
+The owner added `b: implement plans/modular-architecture.md` to NOTES.md in commit `ff57bc2` between iter 424 and 425. Builder 425 ran `cat NOTES.md` but concluded "All b: items are complete" and entered depth phase. The root cause: the phase gate instruction says "Check NOTES.md" — a vague attention-dependent check. The builder was anchored to the previous state (all `b:` items had been completed as of iter 423) and didn't notice the new item in the active section.
+
+This is a first-order process failure: the builder did valid depth work (structural health on server.ts), but it should have been executing the new modular architecture plan.
+
+### Change to `prompts/build-agent.md`
+
+Replaced the single-sentence phase gate with a 5-step mechanical procedure:
+1. Run `grep '^b:' NOTES.md` to enumerate active items
+2. Read the Completed section
+3. Cross-reference each active item against Completed
+4. If any remain → Breadth
+5. If all done → Depth
+
+Added explicit warning: "New `b:` items can appear between iterations. Never assume the phase hasn't changed — always verify."
+
+### Why not the alternatives
+
+- **Session log parsing**: Would save improver turns but doesn't fix a builder-level failure
+- **Plan progress tracking**: Useful but secondary to the builder entering the right phase at all
+- **Own prompt improvements**: Lower leverage than fixing a phase-gate miss
+
+### Diversity check
+
+Last 4 improver entries: 424 (eval signals), 422 (harness), 420 (own prompt), 418 (builder prompt). Builder prompt last touched iter 418 — most stale lever.
+
+### Expected effects
+
+1. Builder 427 runs `grep '^b:' NOTES.md` and discovers the modular architecture item
+2. Builder 427 enters breadth phase (plan execution) instead of depth
+3. If a new `b:` item is added in a future iteration, the mechanical grep prevents the builder from missing it
+
+### Future directions
+
+- Session log parsing: improver 424 spent ~30 tool calls fumbling with JSON parsing. A parsing helper or format hints would save turns.
+- Plan progress tracking in NOTES.md to help multi-step plan continuity
+
 ## Iteration 425 — Extract NotificationHub from server.ts, deduplicate due-item handler
 
 Extracted notification broadcasting and due-item dispatching into server-notifications.ts, eliminating a copy-pasted 30-line callback that handled scheduler timer and event-bus triggers identically.

@@ -50,9 +50,16 @@ Build on what exists; do not redo completed work.
 Aim high. Pick one ambitious improvement that meaningfully advances the agent
 — not a micro-optimization or incremental tweak.
 
-**Phase gate**: Check NOTES.md. If there are remaining `b:` items not yet in
-Completed, follow **Breadth** below. If ALL `b:` items are in Completed,
-skip to **Depth Phase** below.
+**Phase gate** (do this mechanically — do NOT rely on memory from prior
+iterations):
+1. Run `grep '^b:' NOTES.md` to list every active `b:` item.
+2. Read the "Completed" section of NOTES.md.
+3. For each active `b:` item, check if it appears in Completed.
+4. If ANY active `b:` item is NOT in Completed → follow **Breadth** below.
+5. If ALL are in Completed → skip to **Depth Phase** below.
+
+New `b:` items can appear between iterations. Never assume the phase hasn't
+changed — always verify.
 
 ### Breadth (remaining NOTES.md items exist)
 
