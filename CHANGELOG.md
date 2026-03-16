@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 493 — Fixed 4 concurrency/timing bugs in process.ts
+
+Fixed 4 concurrency/timing bugs in tools/process.ts (327→341 lines, most stale module at 17 builder iterations since last depth) via concurrency approach; 8 new tests (33→41).
+
+### Bug 1 (High): purgeStale uses startedAt instead of exit time — premature output loss
+
+`purgeStale()` compared `Date.now() - mp.startedAt` against the 10-minute stale threshold. For a dev server that ran 15+ minutes then crashed, the record was purged immediately on the next `startProcess()` call — before the user could read the crash output.
+
+**Fix**: Added `exitedAt` field to `ManagedProcess`, set by `close`/`error` handlers. `purgeStale()` now checks `now - mp.exitedAt > STALE_PROCESS_MS`.
+
+### Bug 2 (Medium): close event overwrites error event's exitCode
+
+When `spawn()` fails, the `error` event fires first (setting `exitCode = -1`), then `close` fires and unconditionally overwrites `exitCode` with `null`. The user sees "exited with code null" instead of a meaningful error indicator.
+
+**Fix**: The `close` handler now guards with `if (!mp.exited)` before setting `exitCode`, preserving the error handler's value. The exit-message line uses `mp.exitCode` (already set) instead of the raw `code` parameter.
+
+### Bug 3 (Medium): sendSignal ignores kill() return value — false success
+
+`proc.kill(signal)` returns `false` when the OS process is already dead but the Node.js `close` event hasn't fired yet (TOCTOU window between `mp.exited` check and `kill()` call). The user was told "Sent SIGTERM" when the signal was never delivered.
+
+**Fix**: Check the return value of `kill()`. If `false`, report "Process is no longer running (signal not delivered)" instead of a false success.
+
+### Bug 4 (Medium): cleanupProcesses not idempotent — duplicate signals and timers
+
+If `cleanupProcesses()` was called twice (e.g., signal handler + explicit shutdown), each running process received SIGTERM twice and got two independent 2-second force-kill timers.
+
+**Fix**: Added `killing` flag to `ManagedProcess`. `cleanupProcesses()` skips processes where `killing` is already `true`.
+
+### Sweep check
+
+Checked `mcp-client.ts`, `repl-session.ts`, `shell.ts` for the same patterns. All `kill()` calls in sibling modules are internal cleanup paths where the return value doesn't affect user-visible behavior. The `startedAt`-based purge pattern is unique to `process.ts`. No additional fixes needed.
+
+### Verified
+
+- Static: `npm run typecheck && npm run build` — clean
+- Unit: 41 tests pass (33→41, +8 new concurrency/timing tests)
+- Lint: `npx biome check` on changed files — clean (1 pre-existing warning in unrelated test)
+- Load: `node dist/cli.js --help` — OK
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- `process.ts` / audit: Verify that process tool integrates correctly with session cleanup in loop.ts (does `cleanupProcesses` get called on all exit paths?)
+- `process.ts` / friction: The `output` action has no way to stream/follow output in real-time (only polls buffer snapshots)
+- `tools/http-request.ts` is the next most stale module (16 builder iters, only error-paths approach)
+
 ## Iteration 492 — Removed dead CHANGELOG cross-reference step from builder depth orientation; added lint verification with targeted-file guidance
 
 Two builder prompt changes: removed a depth orientation step that was never followed, and added lint as a verification level to eliminate the recurring 3-call lint dance.

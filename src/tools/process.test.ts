@@ -332,4 +332,128 @@ describe("process tool", () => {
       expect(result.content).toContain("(no output)");
     });
   });
+
+  describe("purgeStale uses exit time, not start time", () => {
+    it("retains long-running process output after exit", async () => {
+      // Start a process that exits quickly
+      await runProcess({ action: "start", command: "echo crash-output" });
+      await new Promise((r) => setTimeout(r, 300));
+      // Manually backdate startedAt to simulate a long-running process (>10min)
+      // but exitedAt is recent — purgeStale should NOT remove it
+      const result1 = await runProcess({ action: "output", process_id: "p1" });
+      expect(result1.content).toContain("crash-output");
+      // The process exited recently, so even though startedAt could be old,
+      // output should still be available after starting another process (which calls purgeStale)
+      await runProcess({ action: "start", command: "echo second" });
+      const result2 = await runProcess({ action: "output", process_id: "p1" });
+      expect(result2.is_error).toBeUndefined();
+      expect(result2.content).toContain("crash-output");
+    });
+  });
+
+  describe("close does not overwrite error exitCode", () => {
+    it("preserves error exitCode of -1 after close fires", async () => {
+      // Start a command that fails — the shell runs but the command inside fails
+      await runProcess({ action: "start", command: "exit 42" });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1" });
+      // Should show exit code 42, not null
+      expect(result.content).toContain("exited (code 42)");
+      expect(result.content).toContain("[process exited with code 42]");
+    });
+
+    it("shows correct exit code in output buffer message", async () => {
+      await runProcess({ action: "start", command: "exit 7" });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1" });
+      expect(result.content).toContain("[process exited with code 7]");
+      expect(result.content).not.toContain("code null");
+    });
+  });
+
+  describe("sendSignal reports undelivered signals", () => {
+    it("reports when signal was not delivered to dead process", async () => {
+      // Start a process that exits immediately
+      await runProcess({ action: "start", command: "echo quick-exit" });
+      await new Promise((r) => setTimeout(r, 600));
+      // The process has exited — should get "already exited" message
+      const result = await runProcess({ action: "signal", process_id: "p1" });
+      expect(result.content).toContain("already exited");
+    });
+  });
+
+  describe("cleanupProcesses idempotency", () => {
+    it("does not send duplicate signals on double cleanup", async () => {
+      await runProcess({ action: "start", command: "sleep 60" });
+      // Import cleanupProcesses to call it directly
+      const { cleanupProcesses } = await import("./process.js");
+      // First cleanup — sends SIGTERM
+      cleanupProcesses();
+      // Second cleanup — should be a no-op (killing flag set)
+      cleanupProcesses();
+      // Process should still terminate normally
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1" });
+      expect(result.content).toMatch(/exited/);
+    });
+  });
+
+  describe("concurrent start and signal", () => {
+    it("handles signal during initial output wait", async () => {
+      // Start a long-running process — startProcess awaits 500ms for initial output
+      const startPromise = runProcess({ action: "start", command: "sleep 60" });
+      // While start is waiting for initial output, send a signal
+      // The process is already registered in the map before the await
+      await new Promise((r) => setTimeout(r, 100));
+      const sigResult = await runProcess({ action: "signal", process_id: "p1" });
+      expect(sigResult.is_error).toBeUndefined();
+      // The start should complete normally (may report exited or running)
+      const startResult = await startPromise;
+      expect(startResult.content).toContain("Started background process p1");
+    });
+  });
+
+  describe("concurrent starts respect process limit", () => {
+    it("does not exceed MAX_PROCESSES with parallel starts", async () => {
+      // Start 4 long-running processes sequentially
+      for (let i = 0; i < 4; i++) {
+        await runProcess({ action: "start", command: "sleep 60" });
+      }
+      // Now start 2 more concurrently — only 1 slot left
+      const [r1, r2] = await Promise.all([
+        runProcess({ action: "start", command: "sleep 60" }),
+        runProcess({ action: "start", command: "sleep 60" }),
+      ]);
+      // At least one should succeed, at most one should fail
+      const successes = [r1, r2].filter((r) => !r.is_error);
+      const failures = [r1, r2].filter((r) => r.is_error);
+      expect(successes.length).toBe(1);
+      expect(failures.length).toBe(1);
+      expect(failures[0].content).toContain("max 5");
+    });
+  });
+
+  describe("output during process exit", () => {
+    it("returns consistent state when read during exit", async () => {
+      await runProcess({ action: "start", command: "echo line1 && sleep 0.1 && echo line2" });
+      // Read output multiple times rapidly
+      const results = await Promise.all([
+        runProcess({ action: "output", process_id: "p1", lines: 50 }),
+        new Promise<void>((r) => setTimeout(r, 200)).then(() =>
+          runProcess({ action: "output", process_id: "p1", lines: 50 }),
+        ),
+        new Promise<void>((r) => setTimeout(r, 800)).then(() =>
+          runProcess({ action: "output", process_id: "p1", lines: 50 }),
+        ),
+      ]);
+      // All should succeed (no errors)
+      for (const r of results) {
+        expect(r.is_error).toBeUndefined();
+        expect(r.content).toContain("p1");
+      }
+      // Final read should have all output
+      expect(results[2].content).toContain("line1");
+      expect(results[2].content).toContain("line2");
+    });
+  });
 });

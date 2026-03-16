@@ -49,8 +49,10 @@ type ManagedProcess = {
   proc: ChildProcess;
   outputBuffer: string[];
   startedAt: number;
+  exitedAt: number | null;
   exitCode: number | null;
   exited: boolean;
+  killing: boolean;
   stdoutPartial: string;
   stderrPartial: string;
 };
@@ -144,8 +146,10 @@ async function startProcess(command: string): Promise<ToolResult> {
     proc,
     outputBuffer: [],
     startedAt: Date.now(),
+    exitedAt: null,
     exitCode: null,
     exited: false,
+    killing: false,
     stdoutPartial: "",
     stderrPartial: "",
   };
@@ -164,13 +168,18 @@ async function startProcess(command: string): Promise<ToolResult> {
     if (mp.stderrPartial) appendLine(mp, `[stderr] ${mp.stderrPartial}`);
     mp.stdoutPartial = "";
     mp.stderrPartial = "";
+    // Don't overwrite exitCode if error handler already set it (error fires before close)
+    if (!mp.exited) {
+      mp.exitCode = code;
+    }
     mp.exited = true;
-    mp.exitCode = code;
-    appendLine(mp, `[process exited with code ${code}]`);
+    mp.exitedAt = Date.now();
+    appendLine(mp, `[process exited with code ${mp.exitCode}]`);
   });
 
   proc.on("error", (err) => {
     mp.exited = true;
+    mp.exitedAt = Date.now();
     mp.exitCode = -1;
     appendLine(mp, `[process error: ${err.message}]`);
   });
@@ -236,7 +245,10 @@ function sendSignal(processId: string, sig: string): ToolResult {
 
   const signal = (sig || "SIGTERM") as NodeJS.Signals;
   try {
-    mp.proc.kill(signal);
+    const delivered = mp.proc.kill(signal);
+    if (!delivered) {
+      return { content: `Process ${processId} is no longer running (signal not delivered).` };
+    }
     return { content: `Sent ${signal} to process ${processId} (PID ${mp.proc.pid}).` };
   } catch (err) {
     return { content: `Error sending ${signal}: ${(err as Error).message}`, is_error: true };
@@ -288,11 +300,11 @@ export async function runProcess(input: Record<string, unknown>): Promise<ToolRe
 
 const STALE_PROCESS_MS = 10 * 60 * 1000; // 10 minutes
 
-/** Remove exited process records older than STALE_PROCESS_MS. */
+/** Remove exited process records older than STALE_PROCESS_MS since exit. */
 function purgeStale(): void {
   const now = Date.now();
   for (const [id, mp] of processes) {
-    if (mp.exited && now - mp.startedAt > STALE_PROCESS_MS) {
+    if (mp.exited && mp.exitedAt && now - mp.exitedAt > STALE_PROCESS_MS) {
       processes.delete(id);
     }
   }
@@ -301,7 +313,8 @@ function purgeStale(): void {
 /** Terminate all managed processes. Called on session close. */
 export function cleanupProcesses(): void {
   for (const mp of processes.values()) {
-    if (!mp.exited) {
+    if (!mp.exited && !mp.killing) {
+      mp.killing = true;
       try { mp.proc.kill("SIGTERM"); } catch { /* already dead */ }
       // Force kill after 2s if still alive — unref so it doesn't block shutdown
       const timer = setTimeout(() => {
