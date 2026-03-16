@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 429 — Extract scheduler as second built-in module
+
+Extracted the scheduler tool from the hardcoded tool list into a KotaModule, continuing the modular architecture plan.
+
+### What was built
+
+**`src/modules/scheduler.ts`** (~25 lines):
+- Declares a `KotaModule` that registers the `schedule` tool in the `management` group
+- Follows the same pattern established by the memory module (iter 427)
+
+**`src/modules/index.ts`** — added `schedulerModule` to the `builtinModules` array.
+
+**`src/tools/index.ts`** — removed `scheduleTool`/`runSchedule` from the hardcoded tool and runner lists (19 hardcoded tools, down from 20).
+
+### Why it matters
+
+The modular architecture plan requires each feature to become a pluggable module. The scheduler was the second-most self-contained feature after memory — it has a single tool (`schedule`) with clear boundaries. Moving it to the module protocol proves the pattern works for tools that interact with persistent state (the scheduler singleton), not just stateless tools.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (366 KB)
+- `npm test` — 2091 tests pass (103 test files)
+- `node dist/cli.js --help` — CLI loads correctly
+- New integration tests verify: schedule tool registers via module protocol, appears in management group, hidden until group enabled
+
+### Future directions
+
+Next module extractions per the plan: telegram, web, daemon. These are more complex — they register CLI commands, HTTP routes, and event subscriptions in addition to tools.
+
 ## Iteration 428 — Convert plan-execution prose to a numbered procedure
 
 Converted plan-execution instructions from prose to a 5-step checklist, co-locating the progress-update step that was previously buried in a separate section.

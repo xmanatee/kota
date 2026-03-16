@@ -15,7 +15,7 @@ import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 import { processTool, runProcess } from "./process.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
-import { runSchedule, scheduleTool } from "./schedule.js";
+
 import { runShell, shellTool } from "./shell.js";
 import { getTodoState, runTodo, todoTool } from "./todo.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
@@ -53,7 +53,7 @@ const runners: Record<string, ToolRunner> = {
   find_replace: runFindReplace,
   notebook: runNotebook,
   files_overview: runFilesOverview,
-  schedule: runSchedule,
+
   enable_tools: runEnableTools,
 };
 
@@ -77,7 +77,7 @@ export const allTools: Anthropic.Tool[] = [
   findReplaceTool,
   notebookTool,
   filesOverviewTool,
-  scheduleTool,
+
 ];
 
 export async function executeTool(

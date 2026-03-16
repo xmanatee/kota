@@ -240,6 +240,49 @@ describe("ModuleLoader", () => {
   });
 });
 
+describe("scheduler module integration", () => {
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  it("registers the schedule tool via module protocol", async () => {
+    const { default: schedulerModule } = await import("./modules/scheduler.js");
+    const loader = new ModuleLoader({});
+
+    await loader.load(schedulerModule);
+    expect(loader.getLoadedModules()).toEqual(["scheduler"]);
+    expect(loader.getToolCount()).toBe(1);
+
+    // Schedule tool should be in the management group
+    expect(TOOL_GROUPS.management).toContain("schedule");
+
+    // Should be callable
+    const result = await executeTool("schedule", { action: "list" });
+    expect(result.is_error).toBeFalsy();
+  });
+
+  it("schedule tool is hidden until management group is enabled", async () => {
+    const { default: schedulerModule } = await import("./modules/scheduler.js");
+    const loader = new ModuleLoader({});
+    await loader.load(schedulerModule);
+
+    const before = filterTools(allTools);
+    expect(before.some((t) => t.name === "schedule")).toBe(false);
+
+    enableGroup("management");
+    const after = filterTools(allTools);
+    expect(after.some((t) => t.name === "schedule")).toBe(true);
+  });
+});
+
 describe("memory module integration", () => {
   beforeEach(() => {
     clearCustomTools();
