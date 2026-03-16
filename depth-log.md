@@ -34,13 +34,13 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | Approach | Count | Last Used |
 |----------|-------|-----------|
 | error-paths | 5 | 459 |
+| friction | 4 | 463 |
 | e2e | 4 | 461 |
 | harden | 4 | 457 |
 | structural-health | 3 | 455 |
 | audit | 3 | 453 |
-| friction | 3 | 411 |
 
-22 depth iterations across 6 approaches.
+23 depth iterations across 6 approaches.
 
 ## Uncovered Modules — PRIMARY Targets
 
@@ -53,7 +53,6 @@ lines are the highest-risk blind spots.
 
 | Module | Lines | Test Lines |
 |--------|-------|------------|
-| init.ts | 299 | 336 |
 | web-ui-client.ts | 298 | 0 |
 | html-extract.ts | 296 | 377 |
 | tools/web-search.ts | 286 | 274 |
@@ -63,43 +62,25 @@ lines are the highest-risk blind spots.
 | verify-tracker.ts | 215 | 371 |
 | tools/find-replace.ts | 202 | 288 |
 
-**9 uncovered modules, 2,403 lines total (2 with zero tests).**
+**8 uncovered modules, 2,104 lines total (2 with zero tests).**
 
 ## Stale Coverage — SECONDARY Targets
 
-*Maintained by the improver — builder only appends rows to the main table above.*
+*Auto-generated. Covered modules (≥200 lines) whose last depth coverage
+was ≥10 builder iterations ago. Consider after exhausting uncovered modules.*
 
-These covered modules were substantially modified since their last depth
-coverage. Coverage may not reflect current code:
+| Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |
+|--------|-------|------------|--------------|-------------------|-----------------|
+| registry.ts | 427 | 635 | 407 | 28 | error-paths |
+| cli.ts | 424 | 316 | 441 | 11 | friction, friction, harden, friction, e2e |
+| tool-adapters.ts | 403 | 641 | 415 | 24 | error-paths |
+| telegram.ts | 400 | 404 | 389 | 37 | audit |
+| server.ts | 400 | 242 | 425 | 19 | e2e, structural-health |
+| module-loader.ts | 312 | 506 | 441 | 11 | e2e |
+| tools/delegate.ts | 302 | 384 | 399 | 32 | audit |
+| mcp-client.ts | 249 | 349 | 401 | 31 | audit, error-paths |
 
-- `module-loader.ts` (312 lines, covered iter 441): Grew 50% from 207→312 lines
-  during hardening phase — added hot-restart logic (445), module-type unification
-  (447), tool registry integration (449). The e2e test from iter 441 covers the
-  original load→CLI pipeline but not hot-restart, module lifecycle, or the
-  expanded error handling. **Highest-priority stale target.**
-- `tool-adapters.ts` (403 lines, covered iter 415): 64 lines of churn during
-  plugin→module unification (iter 447). Error-paths coverage predates rewrite.
-- `server.ts` (400 lines, covered iters 395, 425): Hardcoded Vercel handling
-  removed, module route integration added (iter 439) — different HTTP dispatch
-  logic from what was tested.
-- `loop.ts` (438 lines, covered iter 405): Module loading added to startup
-  (iter 427). Minor changes in iters 443-449.
-- `cli.ts` (424 lines, covered iters 391,397,403,411,441): Substantially
-  restructured during plan and hardening phases. Iter 441 added e2e coverage
-  for module→CLI pipeline. Reasonably current.
-
-`scheduler.ts` (378 lines) received fresh structural-health coverage in iter 455
-(split into schedule-parser.ts). Event-trigger code from iters 417-423 was
-reviewed during the split. No longer stale.
-
-`session-pool.ts` (185 lines, covered iter 393) and `web-ui.ts` (50 lines,
-covered iter 409 — was 612, split into web-ui-client/styles/markdown) are
-below 200 lines now but have historical coverage.
-
-Also notable: `plugin-loader.ts` was rewritten in iter 447 (now 112 lines,
-down from ~250) and `plugin-types.ts` was deleted. These are no longer depth
-targets. `tools/index.ts` (158 lines) was refactored in iter 449 (allTools
-encapsulation) — small enough to skip but has new API surface.
+**8 stale modules.**
 
 ## Coverage by Module
 
@@ -117,6 +98,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | daemon.ts | 376 | 418 | 451 | error-paths |
 | tools/process.ts | 327 | 335 | 457 | harden |
 | tools/http-request.ts | 318 | 624 | 459 | error-paths |
+| init.ts | 315 | 453 | 463 | friction |
 | module-loader.ts | 312 | 506 | 441 | e2e |
 | history.ts | 305 | 342 | 391,405,453 | friction, e2e, audit |
 | tools/delegate.ts | 302 | 384 | 399 | audit |
@@ -139,7 +121,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 462. Previous refresh at iter 461.
+Data refreshed at iter 464. Previous refresh at iter 463.
 
 ## Severity Key
 
@@ -149,4 +131,4 @@ Data refreshed at iter 462. Previous refresh at iter 461.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (22 iterations): critical=7, high=12, medium=3
+Distribution (23 iterations): critical=7, high=13, medium=3

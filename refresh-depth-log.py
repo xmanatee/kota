@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Regenerate depth-log.md derived sections from the main table + filesystem.
 
-Preserves: header, main table, stale coverage notes (manually maintained).
-Regenerates: approach summary, uncovered modules list, coverage matrix,
-severity distribution.
+Preserves: header, main table.
+Regenerates: approach summary, uncovered modules list, stale coverage list,
+coverage matrix, severity distribution.
 
 Usage:
     python3 refresh-depth-log.py          # update depth-log.md in place
@@ -19,6 +19,7 @@ DIR = Path(__file__).parent
 SRC = DIR / "src"
 DEPTH_LOG = DIR / "depth-log.md"
 MIN_LINES = 200  # threshold for uncovered/coverage tracking
+STALE_THRESHOLD = 10  # builder iterations since last depth coverage
 
 
 def parse_main_table(text: str) -> list[dict]:
@@ -78,18 +79,6 @@ def resolve_module(name: str, files: dict[str, int]) -> list[str]:
         if candidate in files:
             return [candidate]
     return []
-
-
-def extract_section(text: str, heading_prefix: str) -> str:
-    """Extract a markdown section (heading through next ## or EOF)."""
-    lines = text.split("\n")
-    start = None
-    for i, line in enumerate(lines):
-        if line.strip().startswith(heading_prefix):
-            start = i
-        elif start is not None and line.startswith("## "):
-            return "\n".join(lines[start:i]).rstrip()
-    return "\n".join(lines[start:]).rstrip() if start is not None else ""
 
 
 def header_and_table(text: str) -> str:
@@ -158,8 +147,17 @@ def main():
         key=lambda a: (-approach_count[a], -approach_last[a]),
     )
 
-    # Preserve stale section
-    stale = extract_section(text, "## Stale Coverage")
+    # Stale coverage detection (auto-generated)
+    stale_modules = []
+    for path in sorted(covered, key=lambda p: -(files.get(p, 0))):
+        if path not in files or files[path] < MIN_LINES:
+            continue
+        last_cov_iter = max(i for i, _ in covered[path])
+        builder_iters_ago = (max_iter - last_cov_iter) // 2
+        if builder_iters_ago >= STALE_THRESHOLD:
+            tl = tests.get(path, 0)
+            approaches_used = ", ".join(a for _, a in covered[path])
+            stale_modules.append((path, files[path], tl, last_cov_iter, builder_iters_ago, approaches_used))
 
     # --- Build output ---
     out = [header_and_table(text)]
@@ -197,13 +195,21 @@ def main():
     else:
         out.append("*All modules ≥200 lines have depth coverage.*")
 
-    # Stale (preserved)
+    # Stale coverage (auto-generated)
     out.append("")
-    out.append(stale if stale else (
-        "## Stale Coverage — SECONDARY Targets\n\n"
-        "*Maintained by the improver — builder only appends rows to the main table above.*\n\n"
-        "(No stale coverage notes yet.)"
-    ))
+    out.append("## Stale Coverage — SECONDARY Targets\n")
+    out.append(
+        f"*Auto-generated. Covered modules (≥{MIN_LINES} lines) whose last depth coverage\n"
+        f"was ≥{STALE_THRESHOLD} builder iterations ago. Consider after exhausting uncovered modules.*\n"
+    )
+    if stale_modules:
+        out.append("| Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |")
+        out.append("|--------|-------|------------|--------------|-------------------|-----------------|")
+        for path, lines, tl, last_iter, staleness, approaches in stale_modules:
+            out.append(f"| {path} | {lines} | {tl} | {last_iter} | {staleness} | {approaches} |")
+        out.append(f"\n**{len(stale_modules)} stale modules.**")
+    else:
+        out.append("*No stale modules — all covered modules have recent depth coverage.*")
 
     # Coverage matrix
     out.append("")
@@ -237,6 +243,7 @@ def main():
     print(f"Refreshed {dest}:", file=sys.stderr)
     print(f"  {len(rows)} depth iterations in main table", file=sys.stderr)
     print(f"  {len(uncovered)} uncovered modules ({sum(n for _, n in uncovered):,} lines)", file=sys.stderr)
+    print(f"  {len(stale_modules)} stale modules (≥{STALE_THRESHOLD} builder iters since last coverage)", file=sys.stderr)
     print(f"  {len(matrix)} covered modules in matrix", file=sys.stderr)
     print(f"  Severity: {sev_str}", file=sys.stderr)
     print(f"  Approaches: {', '.join(f'{a}={approach_count[a]}' for a in approach_sorted)}", file=sys.stderr)
