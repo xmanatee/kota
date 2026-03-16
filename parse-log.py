@@ -584,6 +584,9 @@ def _quick_parse(path: str) -> dict:
                     break
             sweep_calls = max(0, verify_first - mutation_last - 1)
 
+    # Classify work type: "depth" if module/approach detected, else "feature"
+    work_type = "depth" if (target_mod and target_app) else "feature"
+
     usage = result.get("usage", {})
     turns = result.get("num_turns", 0) or 0
     cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -593,6 +596,7 @@ def _quick_parse(path: str) -> dict:
         "calls": tool_count,
         "module": target_mod,
         "approach": target_app,
+        "work_type": work_type,
         "test_delta": _extract_test_delta(full_texts + cl_edits),
         "mutation": "ran" if mutation_calls > 0 else "no",
         "cache_read": cache_read,
@@ -779,6 +783,24 @@ def trend(n: int = 5) -> None:
             direction = f"shrinking ({delta_pct:.0f}%)"
         avg_cpt = sum(cpt_values) / len(cpt_values)
         print(f"  Context/turn: {avg_cpt // 1000}k avg, {direction}")
+
+    # Work-type distribution and dominance signal
+    type_ctr = Counter(e.get("work_type", "?") for e in entries)
+    type_str = ", ".join(f"{v} {k}" for k, v in type_ctr.most_common())
+    # Compute longest consecutive run of the dominant type
+    dominant = type_ctr.most_common(1)[0][0] if type_ctr else "?"
+    max_run = cur_run = 0
+    for e in entries:
+        if e.get("work_type", "?") == dominant:
+            cur_run += 1
+            max_run = max(max_run, cur_run)
+        else:
+            cur_run = 0
+    dom_note = ""
+    dom_count = type_ctr.get(dominant, 0)
+    if ne >= 5 and dom_count / ne >= 0.8:
+        dom_note = f" — {dominant} dominant ({dom_count}/{ne})"
+    print(f"  Work pattern: {type_str}{dom_note}")
 
     # Severity assessment
     sev_ctr = Counter(e["severity"] for e in entries if e["severity"] != "?")

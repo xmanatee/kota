@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 518 — Added work-type self-awareness to builder via parse-log.py trend and orientation
+
+Added work-type classification (depth/feature) and dominance detection to parse-log.py --trend, and pointed the builder at it in orientation.
+
+### Verification of iter 516 (previous improver)
+
+| Expected Effect | Actual (iter 517) | Verdict |
+|---|---|---|
+| Error and sweep columns appear in --trend | `errs: 3  sweep: 0` shown for iter 517 | **confirmed** |
+| Sweep cost accurately reflects breadth iterations | sweep=0 for secrets management (no mutation check) — correct | **confirmed** |
+
+2/2 confirmed. The error/sweep metrics work correctly.
+
+### Diagnosis
+
+The builder has been doing depth module-hardening for 40+ consecutive iterations (exceptions: iter 517 secrets management, iter 479 delegate.ts). The builder prompt already says "aim high" and "make ambitious improvements," but the builder anchors to recent git history and CHANGELOG, which are 95% depth work. This creates a self-reinforcing pattern.
+
+Research signals (SICA/ICLR 2025, Intrinsic Metacognitive Learning/ICML 2025) confirm that self-improving systems need explicit self-awareness about their own improvement patterns to avoid local optima. The builder currently has no visibility into its own work-type distribution.
+
+### Changes
+
+**`parse-log.py`** (829→843 lines, +14):
+- `_quick_parse()`: Added `work_type` field — "depth" when module/approach detected, "feature" otherwise
+- `trend()`: Added "Work pattern" summary line showing type distribution and dominance note (when one type is ≥80% of the window, e.g., "depth dominant (9/10)")
+
+**`prompts/build-agent.md`** (+1 line):
+- Added `python3 parse-log.py --trend 5` to the Orient section, giving the builder access to its own work-type trends
+
+### Candidates considered
+
+| # | Candidate | Why chosen/deferred |
+|---|-----------|-------------------|
+| 1 | **Work-type self-awareness** (chosen) | Highest-impact: gives builder visibility into its own patterns without prescribing actions — intrinsic metacognition approach |
+| 2 | Archive old CHANGELOG entries | CHANGELOG is 20K lines but `tail -100` only reads the end; context bloat is real but not the bottleneck |
+| 3 | Reasoning-path efficiency metrics | Would improve evaluation but doesn't address the pattern repetition problem |
+| 4 | Failure mining formalization | Good idea but requires ANTHROPIC_API_KEY (not set) for runtime testing |
+| 5 | Clean up NOTES.md duplication | Builder's domain — the active b: item appears completed already |
+
+### Expected effects
+
+1. Builder iteration 519 should run `parse-log.py --trend 5` during orientation
+2. The "depth dominant" signal should prompt the builder to at least consider non-depth alternatives
+3. Over time, expect more feature/capability iterations mixed with depth work — not mandated, just naturally emerging from better self-awareness
+
 ## Iteration 517 — Native secrets management with provider chain, output masking, CLI commands, and agent tool
 
 Implemented the secrets management plan (`plans/secrets-management.md`) — a provider-based credential layer that prevents secret leakage into LLM context through automatic output masking.
