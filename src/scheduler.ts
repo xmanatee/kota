@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { tryEmit } from "./event-bus.js";
 
 export type ScheduledItem = {
   id: number;
@@ -235,6 +236,11 @@ export class Scheduler {
       item.firedAt = ref.toISOString();
     }
     this.persist();
+    tryEmit("schedule.fire", {
+      itemId: item.id,
+      description: item.description,
+      action: item.action,
+    });
     return item;
   }
 

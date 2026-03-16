@@ -57,6 +57,32 @@ await session.send("What's the weather?");
 
 Transport is threaded through `AgentSession` → `streamMessage()` → `runArchitectStep()` → `runDelegate()` → `executeToolCalls()`. Every component that previously wrote to stdout/stderr now emits events instead.
 
+### Event Bus (`src/event-bus.ts`)
+
+Internal pub/sub for cross-module coordination. Decouples modules so they can react to each other without direct imports. Foundation for daemon mode and event-based scheduler triggers.
+
+**Typed events** (defined in `BusEvents`):
+- `session.start` — emitted when `AgentSession.send()` runs the first prompt
+- `session.end` — emitted when `AgentSession.close()` runs (with duration and error status)
+- `schedule.fire` — emitted when `Scheduler.markFired()` fires an item
+- `action.start` / `action.complete` — emitted by `ActionExecutor` around action execution
+
+**API**:
+- `on(event, handler)` — subscribe, returns unsubscribe function
+- `once(event, handler)` — auto-unsubscribe after first call
+- `emit(event, payload)` — synchronous fan-out to all handlers
+- `on("*", handler)` — wildcard listener receives all events as `BusEnvelope`
+- `clear()` / `listenerCount()` — management
+
+**Singleton**: `initEventBus()` / `getEventBus()` / `resetEventBus()` — same pattern as Scheduler and TaskStore. Modules use `tryEmit()` convenience function which is a no-op when the bus isn't initialized, so emitting is safe from any module without checking state.
+
+**Custom events**: The bus supports arbitrary string event names beyond the typed ones, allowing plugins and daemon-mode automations to define their own events.
+
+**Design decisions**:
+- Ephemeral: no persistence, no replay. Events are fire-and-forget.
+- Synchronous delivery: handlers run in the order they subscribed.
+- No error isolation: a handler that throws will prevent subsequent handlers from running (by design — errors should not be silently swallowed in an agent runtime).
+
 ### HTTP API Server (`src/server.ts`)
 
 Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable service. Any frontend (web UI, Telegram bot, Discord bot, automation pipeline) can connect via standard HTTP.

@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 417 — Event Bus
+
+First piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). Internal pub/sub so modules can react to each other without direct coupling — foundation for event-based scheduler triggers, daemon mode, and webhook endpoints.
+
+### What was built
+
+**`src/event-bus.ts`** (~130 lines):
+- Typed event bus with discriminated union payloads (`BusEvents` map)
+- Five built-in event types: `session.start`, `session.end`, `schedule.fire`, `action.start`, `action.complete`
+- `on()` / `once()` / `off()` / `emit()` / `clear()` / `listenerCount()`
+- Wildcard listener (`*`) receives all events as `BusEnvelope`
+- Custom string events for plugins and automations
+- Singleton pattern: `initEventBus()` / `getEventBus()` / `resetEventBus()`
+- `tryEmit()` convenience — no-op when bus isn't initialized, safe from any module
+
+### Integration points
+
+- **`src/loop.ts`** — `AgentSession` emits `session.start` on first `send()`, `session.end` on `close()` (with duration, error status, optional label)
+- **`src/action-executor.ts`** — emits `action.start` / `action.complete` around action execution
+- **`src/scheduler.ts`** — emits `schedule.fire` in `markFired()`
+
+All integrations use `tryEmit()` so they're zero-cost when the bus isn't initialized.
+
+### Verified
+
+- 21 new tests (`event-bus.test.ts`): typed events, multiple subscribers, unsubscribe, once, wildcard, clear, listenerCount, singleton lifecycle, tryEmit
+- All 2006 tests pass
+- TypeScript type-checks clean
+- Build produces 343KB bundle
+- CLI loads and shows help correctly
+
+### Future directions
+
+Next in the self-hosting plan: event-based scheduler triggers (extend Scheduler so items can fire when a named event occurs on the bus, not just at a time).
+
 ## Iteration 416 — Depth Phase Severity Tracking
 
 ### Verification of iter 414 (previous improver)

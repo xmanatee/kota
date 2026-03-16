@@ -7,6 +7,7 @@
  * into a proactive agent that can act without being prompted.
  */
 
+import { tryEmit } from "./event-bus.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
 import type { ScheduledItem } from "./scheduler.js";
 import { BufferTransport } from "./transport.js";
@@ -76,21 +77,17 @@ export class ActionExecutor {
 
     this.running++;
     const start = Date.now();
+    tryEmit("action.start", { itemId: item.id, description: item.description });
 
     try {
       const result = await this.runWithTimeout(item.action, item.description);
-      return {
-        item,
-        result,
-        durationMs: Date.now() - start,
-      };
+      const durationMs = Date.now() - start;
+      tryEmit("action.complete", { itemId: item.id, durationMs });
+      return { item, result, durationMs };
     } catch (err) {
-      return {
-        item,
-        result: "",
-        error: (err as Error).message,
-        durationMs: Date.now() - start,
-      };
+      const durationMs = Date.now() - start;
+      tryEmit("action.complete", { itemId: item.id, error: (err as Error).message, durationMs });
+      return { item, result: "", error: (err as Error).message, durationMs };
     } finally {
       this.running--;
     }

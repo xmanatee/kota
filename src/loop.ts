@@ -4,6 +4,7 @@ import { runArchitectStep } from "./architect-runner.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
 import { CONTEXT_WINDOW, Context } from "./context.js";
 import { CostTracker } from "./cost.js";
+import { tryEmit } from "./event-bus.js";
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
@@ -40,6 +41,8 @@ export type LoopOptions = {
   resumeConversation?: string;
   /** Disable automatic conversation history tracking. */
   noHistory?: boolean;
+  /** Optional label for event bus (e.g. "build-agent", "user-repl"). */
+  label?: string;
 };
 
 /**
@@ -69,8 +72,13 @@ export class AgentSession {
   private projectContext: string;
   private conversationId: string | null = null;
   private historyEnabled: boolean;
+  private sessionId: string;
+  private sessionLabel?: string;
+  private sessionStartTime = 0;
 
   constructor(options: LoopOptions = {}) {
+    this.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this.sessionLabel = options.label;
     this.model = options.model || "claude-sonnet-4-6";
     this.editorModel = options.editorModel || this.model;
     this.maxTokens = options.maxTokens || 8192;
@@ -207,6 +215,10 @@ export class AgentSession {
   /** Send a prompt and run the agent loop until the agent stops. */
   async send(prompt: string): Promise<string> {
     if (!this.initialized) await this.initPromise;
+    if (this.sessionStartTime === 0) {
+      this.sessionStartTime = Date.now();
+      tryEmit("session.start", { sessionId: this.sessionId, label: this.sessionLabel });
+    }
 
     this.context.addUserMessage(prompt);
     for (const g of detectToolGroups(prompt)) enableGroup(g);
@@ -387,6 +399,14 @@ export class AgentSession {
     resetGroups();
     this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
+    if (this.sessionStartTime > 0) {
+      tryEmit("session.end", {
+        sessionId: this.sessionId,
+        label: this.sessionLabel,
+        error: errored ? "session errored" : undefined,
+        durationMs: Date.now() - this.sessionStartTime,
+      });
+    }
     if (!errored) {
       this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });
     }
