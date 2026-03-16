@@ -12,6 +12,8 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
+b: implement `plans/self-hosting-loop.md` — event bus, event-based scheduler triggers, daemon mode, webhook endpoints. Do them in order (event bus first, it has no dependencies). Each piece is one iteration.
+
 ---
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
