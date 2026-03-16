@@ -1,5 +1,74 @@
 # KOTA Changelog
 
+## Iteration 514 — Fixed broken mutation check instruction that wasted 1-13 builder calls per iteration
+
+Replaced the `git stash` mutation check command in the builder prompt with a `cp`/`git checkout`/`cp` approach that only reverts the source file, keeping new tests in place.
+
+### Verification of iter 512 (previous improver)
+
+| Expected Effect | Actual (iter 514) | Verdict |
+|---|---|---|
+| Next improver checks coverage saturation (references "untried combos") | Ran `--trend`, noted `134/192 approach combos untried` (70%), assessed as healthy | **confirmed** |
+| Next improver checks mutation compliance (references "mutation") | Ran `--trend`, noted `Mutation check: 5/5 ran` (100%), assessed as healthy | **confirmed** |
+
+2/2 confirmed. Both new checks from iter 512 are working as intended.
+
+### Diagnosis
+
+The builder prompt's mutation check instruction tells the builder to run:
+`git stash && npx vitest run <test-file>; git stash pop`
+
+This is fundamentally broken: `git stash` stashes ALL uncommitted changes — both the source fix AND the new tests. The tests aren't available to run against the unfixed code.
+
+Evidence from 4 recent builder sessions:
+- **Iter 513**: 13 calls (32-44) wasted on recovery — stashed everything, had to manually re-apply the fix across 10 edits
+- **Iter 511**: 9 calls (31-39) on manual per-bug reverts after stash failed
+- **Iter 509**: 2 calls — builder quickly discovered the issue and found a workaround
+- **Iter 505**: 2 calls — same discovery pattern
+
+The builder re-discovers this broken instruction every iteration. Even in the best case (2 extra calls), it wastes time. In the worst case (13 extra calls), it's 20% of the session.
+
+### Changes
+
+**`prompts/build-agent.md`** (229 lines, +1 line):
+
+Replaced the mutation check command from:
+```
+git stash && npx vitest run <test-file>; git stash pop
+```
+To:
+```
+cp <source-file> /tmp/_mut_backup && git checkout -- <source-file> && npx vitest run <test-file>; cp /tmp/_mut_backup <source-file>
+```
+
+Key differences:
+- `cp` + `git checkout` reverts only the source file, keeping new tests in place
+- No git state manipulation (stash can conflict with dirty worktrees)
+- Restore via `cp` is unconditional (runs even if vitest fails)
+- Removed "Skip if git stash has issues" escape hatch — the new approach has no stash issues
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 514 | **builder prompt** | **mutation check instruction** |
+| 512 | own prompt | diminishing-returns signals |
+| 510 | evaluation signals | context size tracking |
+| 508 | builder prompt | breadth pruning |
+
+Builder prompt lever, different section from 508. Good diversity.
+
+### Expected effects
+
+1. **Next builder (iter 515) mutation check uses `cp`/`git checkout` instead of `git stash`**: In the tool-call sequence, the mutation check Bash call should contain `cp` and `git checkout` instead of `git stash`. Observable from `parse-log.py` key assistant text or tool call descriptions.
+2. **Next builder (iter 515) mutation check completes in ≤3 Bash calls**: The cp-revert-restore approach eliminates the recovery loop. The mutation check should be: (1) cp+checkout+vitest+restore, possibly (2) a second run for multi-bug cases. No more 9-13 call recovery sequences. Observable from tool-call sequence: count Bash calls between "mutation" description and next non-mutation activity.
+
+### Future directions
+
+- Context/turn growth (+11% to 57k avg) — investigate what's driving it (prompt growth? longer tool outputs? more conversation history?)
+- Parse-log.py: add mutation-check-cost metric (calls between mutation start and return to productive work) for tracking this fix's impact
+- Test file splitting: 14 test files >300 lines (biggest: 893 lines tool-adapters.test.ts) — could add builder guidance
+
 ## Iteration 513 — Fixed multi_edit file tracking in architect mode and added turn limit notification
 
 Fixed 2 bugs in architect.ts (229→228 lines, most stale module at 16 builder iterations since last depth) via harden approach; 8 new tests (20→28).

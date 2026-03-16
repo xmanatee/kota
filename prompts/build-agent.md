@@ -151,10 +151,11 @@ codebase — the same mistake often repeats in sibling modules. Fix any
 additional instances as part of the same depth iteration.
 
 **Mutation check**: After writing tests for a fix, verify they catch the bug:
-`git stash && npx vitest run <test-file>; git stash pop`. Expect the new tests
-to fail (they detect the unfixed bug). If all tests pass without your fix, the
-tests are vacuous — rewrite them to exercise the specific code path the fix
-changes. Skip if git stash has issues.
+`cp <source-file> /tmp/_mut_backup && git checkout -- <source-file> && npx vitest run <test-file>; cp /tmp/_mut_backup <source-file>`.
+This reverts only the source (keeping your new tests in place) so the tests run
+against the unfixed code. Expect the new tests to fail. If all tests pass
+without your fix, they are vacuous — rewrite them to exercise the specific code
+path the fix changes.
 
 Ship ONE of these thoroughly. Depth means one thing done well, not three
 things started.
