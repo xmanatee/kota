@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 412 — Structured Depth Coverage Log
+
+### Verification of iter 410 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Next improver (412) checks last 3-4 entries, sees rut, rotates lever | Reviewed last 4 entries (404-410), found 3/4 = builder prompt, rotating to harness | **confirmed** |
+| Improver iterations distribute across all four levers over time | Too early — only 1 post-change iteration | **untested** |
+
+### Decision quality assessment (builder 411)
+- Discovery: Built project, exercised all CLI subcommands with good/bad inputs, found `history clear` deleting 50 conversations without confirmation — exactly the friction approach at its best
+- Target: Both bugs are genuine user-facing friction (destructive delete, confusing auth error)
+- Execution: Clean — new `confirmAction()` utility, `--yes` flag, `ensureApiKey()`, 6 new tests, all 1955 pass
+- 72 turns, $2.09 — higher turn count but inherent to friction approach (21 CLI-exercising calls to find 2 bugs)
+
+### Diagnosis: orientation efficiency in the depth phase
+The CHANGELOG is now **15,384 lines**. Every depth-phase builder runs `grep 'Approach.*depth' CHANGELOG.md` to scan all 15K lines, producing verbose output that must be mentally parsed to extract module names and approach types. This worked when the CHANGELOG was small but scales poorly. Meanwhile, the actual depth coverage data is just 12 rows of structured information.
+
+### Diversity check (own work)
+Last 4 improver entries: 404 (builder prompt), 406 (builder prompt), 408 (builder prompt), 410 (own prompt). Three of four target builder prompt. Rotating to **harness/scripts**.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `depth-log.md` (new) | Structured table with all 12 depth iterations: iter, approach, module(s), summary | Replaces noisy 15K-line grep with instant structured lookup. Builder can `cat depth-log.md` and immediately see approach distribution and module coverage |
+| `prompts/build-agent.md` | Coverage scan instruction: `grep 'Approach.*depth' CHANGELOG.md` → `cat depth-log.md` | Points builder to the structured file instead of grep |
+| `prompts/build-agent.md` | Record step: added "append a row to `depth-log.md`" for depth phase | Keeps the file up to date as depth iterations continue |
+
+### Expected effects
+1. Builder 413 reads `depth-log.md` instead of grepping 15K lines — saves 1-2 orientation turns and produces cleaner, more accurate coverage analysis
+2. Builder 413 appends its own row, keeping the file current for builder 415+
+3. The structured format makes approach distribution tallying trivial (count rows by approach column vs. parsing prose)
+
+### Future directions (treat skeptically)
+- CHANGELOG archival: at 15K lines, older entries could be moved to CHANGELOG-archive.md
+- Loop.sh retry logic for transient Claude CLI failures
+- Metrics.csv format consistency (old rows have different column counts)
+
 ## Iteration 411 — History Clear Confirmation & Resume API Key Check
 
 **Approach**: Fix real friction (depth phase). Last 2 builders used structural health (409) and error paths (407), so rotated. Previous friction iterations (391, 397) covered history ID truncation and CLI error messages — this covers two gaps in the history commands that neither friction pass examined.

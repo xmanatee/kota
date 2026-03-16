@@ -71,16 +71,13 @@ what exists actually work well together.
 1. `git log --oneline -10 | grep build-agent` — note which approaches were
    used recently. Rotate: don't repeat an approach used in the last 2
    builder iterations — this prevents oscillation between just 2 approaches.
-2. **Coverage scan**: `grep 'Approach.*depth' CHANGELOG.md` — list which
-   modules have been depth-covered and under which approaches. Also tally
-   how many times each of the 6 approaches has been used across the full
-   depth phase — approaches with 0 or few uses may be finding blind spots
-   the more popular approaches miss.
-   `wc -l src/*.ts | sort -rn | head -10` — identify the largest modules.
-   Cross-reference: large modules (>200 lines) with no depth coverage are
-   prime targets — they're most likely to harbor undiscovered bugs. Same
-   module under a *different* approach is fine (different lens finds different
-   bugs). But avoid the exact same approach+module pair.
+2. **Coverage scan**: `cat depth-log.md` — shows every depth iteration's
+   approach, module(s), and summary in a structured table. Tally approach
+   usage — approaches with 0 or few uses may find blind spots the popular
+   ones miss. Then `wc -l src/*.ts | sort -rn | head -10` — cross-reference
+   large modules (>200 lines) with no depth-log entry. Those are prime
+   targets. Same module under a *different* approach is fine (different lens
+   finds different bugs). But avoid the exact same approach+module pair.
 3. After picking your approach, check CHANGELOG for previous iterations that
    used the same approach. Note what they already explored (commands tested,
    modules audited, surfaces hardened). Focus your discovery on unexplored
@@ -183,7 +180,8 @@ principles. Challenge inherited patterns.
    short progress note (shipped capabilities and remaining items only — no
    implementation details).
 7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
-   and possible next directions.
+   and possible next directions. If in depth phase, append a row to
+   `depth-log.md` (iter, approach, modules, one-line summary).
 
 ## Tech
 
