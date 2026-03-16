@@ -1,8 +1,16 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
+import { isRetryable } from "./streaming.js";
 import { getAllTools, executeTool } from "./tools/index.js";
 import type { Transport } from "./transport.js";
+
+const STREAM_MAX_RETRIES = 2;
+
+function streamBackoff(attempt: number): Promise<void> {
+  const delay = Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 500;
+  return new Promise((r) => setTimeout(r, delay));
+}
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.
 
@@ -50,29 +58,43 @@ export async function runArchitectPass(opts: ArchitectOptions): Promise<string> 
   if (verbose && transport) transport.emit({ type: "status", message: "[kota] Architect pass — reasoning..." });
 
   const systemText = `${ARCHITECT_SYSTEM}\n\nProject context:\n${systemContext}`;
-  const stream = client.messages.stream({
-    model,
-    max_tokens: maxTokens,
-    system: [{ type: "text", text: systemText, cache_control: { type: "ephemeral" } }],
-    messages,
-    ...(thinking && { thinking }),
-  });
 
-  let plan = "";
-  if (thinking) {
-    stream.on("thinking", (delta) => {
-      if (transport) transport.emit({ type: "thinking", content: delta });
-    });
+  for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
+    try {
+      const stream = client.messages.stream({
+        model,
+        max_tokens: maxTokens,
+        system: [{ type: "text", text: systemText, cache_control: { type: "ephemeral" } }],
+        messages,
+        ...(thinking && { thinking }),
+      });
+
+      let plan = "";
+      if (thinking) {
+        stream.on("thinking", (delta) => {
+          if (transport) transport.emit({ type: "thinking", content: delta });
+        });
+      }
+      stream.on("text", (text) => {
+        if (transport) transport.emit({ type: "progress", content: text, source: "architect" });
+        plan += text;
+      });
+
+      const response = await stream.finalMessage();
+      if (plan && transport) transport.emit({ type: "progress", content: "\n", source: "architect" });
+      if (costTracker) costTracker.addUsage(model, response.usage);
+      return plan;
+    } catch (err) {
+      if (attempt < STREAM_MAX_RETRIES && isRetryable(err)) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (transport) transport.emit({ type: "error", message: `[kota] Architect stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg.slice(0, 200)}` });
+        await streamBackoff(attempt);
+        continue;
+      }
+      throw err;
+    }
   }
-  stream.on("text", (text) => {
-    if (transport) transport.emit({ type: "progress", content: text, source: "architect" });
-    plan += text;
-  });
-
-  const response = await stream.finalMessage();
-  if (plan && transport) transport.emit({ type: "progress", content: "\n", source: "architect" });
-  if (costTracker) costTracker.addUsage(model, response.usage);
-  return plan;
+  throw new Error("unreachable");
 }
 
 export type EditorOptions = {
@@ -107,35 +129,46 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
   const modifiedFiles = new Set<string>();
 
   for (let turn = 0; turn < MAX_EDITOR_TURNS; turn++) {
-    let response: Anthropic.Message;
-    try {
-      const stream = client.messages.stream({
-        model,
-        max_tokens: maxTokens,
-        system: systemBlocks,
-        tools: editorTools,
-        messages,
-      });
+    let response!: Anthropic.Message;
+    let streamSuccess = false;
+    for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
+      try {
+        const stream = client.messages.stream({
+          model,
+          max_tokens: maxTokens,
+          system: systemBlocks,
+          tools: editorTools,
+          messages,
+        });
 
-      let text = "";
-      stream.on("text", (t) => {
-        if (transport) transport.emit({ type: "text", content: t });
-        text += t;
-      });
+        let text = "";
+        stream.on("text", (t) => {
+          if (transport) transport.emit({ type: "text", content: t });
+          text += t;
+        });
 
-      response = await stream.finalMessage();
-      if (text) {
-        if (transport) transport.emit({ type: "text", content: "\n" });
-        lastText = text;
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
-        if (transport) transport.emit({ type: "error", message: `[kota] Editor context overflow at turn ${turn + 1}` });
+        response = await stream.finalMessage();
+        if (text) {
+          if (transport) transport.emit({ type: "text", content: "\n" });
+          lastText = text;
+        }
+        streamSuccess = true;
         break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
+          if (transport) transport.emit({ type: "error", message: `[kota] Editor context overflow at turn ${turn + 1}` });
+          break;
+        }
+        if (attempt < STREAM_MAX_RETRIES && isRetryable(err)) {
+          if (transport) transport.emit({ type: "error", message: `[kota] Editor stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg.slice(0, 200)}` });
+          await streamBackoff(attempt);
+          continue;
+        }
+        throw err;
       }
-      throw err;
     }
+    if (!streamSuccess) break;
 
     if (costTracker) costTracker.addUsage(model, response.usage);
     if (verbose && transport) transport.emit({ type: "status", message: `[kota] Editor turn ${turn + 1}/${MAX_EDITOR_TURNS}` });

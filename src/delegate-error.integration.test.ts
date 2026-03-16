@@ -178,4 +178,142 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
     expect(result.content).not.toContain("circuit_break");
     expect(result.content).toContain("Got the response");
   });
+
+  it("retries transient API errors (429/503) with backoff", async () => {
+    const err429 = Object.assign(new Error("Rate limit exceeded"), { status: 429 });
+    let callCount = 0;
+    const client = {
+      messages: {
+        stream: vi.fn(() => {
+          callCount++;
+          if (callCount <= 2) throw err429;
+          return mockStream(textMsg("Done after retry."));
+        }),
+      },
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "rate limited task", mode: "explore" });
+
+    expect(callCount).toBe(3); // 2 failures + 1 success
+    expect(result.content).toContain("Done after retry.");
+    expect(result.is_error).toBeFalsy();
+  });
+
+  it("returns structured error for fatal API errors (401)", async () => {
+    const err401 = Object.assign(new Error("Invalid API key"), { status: 401 });
+    const client = {
+      messages: {
+        stream: vi.fn(() => { throw err401; }),
+      },
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "auth test", mode: "explore" });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Sub-agent API error");
+    expect(result.content).toContain("Invalid API key");
+  });
+
+  it("returns structured error when all API retries exhausted", async () => {
+    const err503 = Object.assign(new Error("Service unavailable"), { status: 503 });
+    const client = {
+      messages: {
+        stream: vi.fn(() => { throw err503; }),
+      },
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "unavailable", mode: "explore" });
+
+    // Should have attempted 3 times (initial + 2 retries) then returned error
+    expect(client.messages.stream).toHaveBeenCalledTimes(3);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Sub-agent API error");
+    expect(result.content).toContain("Service unavailable");
+  });
+
+  it("catches tool runner exceptions without crashing delegation", async () => {
+    mockRunner.mockRejectedValueOnce(new Error("Segfault in runner"));
+
+    const client = makeMockClient([
+      toolUseMsg("t1", "shell", { command: "crash" }),
+      textMsg("Recovered after tool crash."),
+    ]);
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "crash test", mode: "explore" });
+
+    expect(result.content).toContain("Recovered after tool crash.");
+    expect(result.is_error).toBeFalsy();
+  });
+
+  it("formats caught runner exception as is_error tool result", async () => {
+    // Runner throws, then model gives up
+    mockRunner.mockRejectedValue(new Error("Runtime crash"));
+
+    const client = makeMockClient([
+      toolUseMsg("t1", "shell", { command: "boom" }),
+      toolUseMsg("t2", "shell", { command: "boom" }),
+      toolUseMsg("t3", "shell", { command: "boom" }),
+    ]);
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "crashing tool", mode: "explore" });
+
+    // Circuit breaker should trigger on repeated identical tool errors
+    expect(result.content).toContain("stopped: repeated errors");
+    expect(result.content).toContain("Tool error (shell): Runtime crash");
+  });
+
+  it("preserves partial progress on API error after turns", async () => {
+    mockRunner.mockResolvedValue({ content: "step done", is_error: false });
+    const err500 = Object.assign(new Error("Internal server error"), { status: 500 });
+    let callCount = 0;
+    const client = {
+      messages: {
+        stream: vi.fn(() => {
+          callCount++;
+          if (callCount === 1) return mockStream(toolUseMsg("t1", "shell", { command: "step1" }));
+          // Fail all retries on second turn
+          throw err500;
+        }),
+      },
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "partial work", mode: "explore" });
+
+    // First turn succeeded (1 call), second turn failed after 3 attempts
+    expect(callCount).toBe(4); // 1 success + 3 failed
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Sub-agent API error after 1 turn(s)");
+  });
+
+  it("retries API error mid-delegation and resumes turns", async () => {
+    mockRunner.mockResolvedValue({ content: "ok", is_error: false });
+    let callCount = 0;
+    const client = {
+      messages: {
+        stream: vi.fn(() => {
+          callCount++;
+          // Turn 1: success
+          if (callCount === 1) return mockStream(toolUseMsg("t1", "shell", { command: "step1" }));
+          // Turn 2, attempt 1: transient failure
+          if (callCount === 2) throw Object.assign(new Error("socket hang up"), { status: 502 });
+          // Turn 2, attempt 2: success
+          if (callCount === 3) return mockStream(textMsg("Completed after retry."));
+          return mockStream(textMsg("unexpected"));
+        }),
+      },
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    setDelegateConfig({ model: "test", client });
+    const result = await runDelegate({ task: "retry mid", mode: "explore" });
+
+    expect(callCount).toBe(3);
+    expect(result.content).toContain("Completed after retry.");
+    expect(result.is_error).toBeFalsy();
+  });
 });

@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 479 — Fix 3 error-path bugs in delegate.ts; sweep-fix same API retry gap in architect.ts
+
+Fixed 3 bugs in delegate.ts (302 lines, most stale module — 39 iterations since last depth) and sweep-fixed the same missing API retry pattern in architect.ts.
+
+### Bugs Fixed
+
+**Bug 1: No retry for transient API errors in delegate streaming (high)**
+The delegate rolled its own `client.messages.stream()` call without any retry logic. When the API returned 429 (rate limit), 500, 502, 503, or 529, the delegate either crashed with an unhandled exception or returned a raw error. The main loop's `streamMessage()` retries these up to 3 times with exponential backoff — but the delegate didn't use it. Now the delegate retries transient errors up to 2 times with jittered backoff, and returns a structured `is_error` result for fatal errors instead of throwing.
+
+**Bug 2: Tool runner exceptions crash the entire delegation (high)**
+Inside the delegate's tool execution loop, `runner!(toolInput)` was called directly without try-catch. The main loop's `executeTool()` wraps runners in try-catch, but the delegate bypassed this. If any tool runner threw an unhandled exception (rather than returning `{is_error: true}`), `Promise.all` would reject and the entire delegation would crash — losing all progress from prior turns. Now each runner call is wrapped in try-catch, converting thrown exceptions to `is_error` results.
+
+**Bug 3: Non-context API errors thrown raw instead of returning structured result (high)**
+The delegate's catch block only handled context-overflow errors; all other API errors hit `throw err`, propagating a raw exception with no delegation context (which turn, how many turns completed, etc.). Now fatal API errors return `{is_error: true, content: "Sub-agent API error after N turn(s): <message>"}`.
+
+### Sweep Fix
+
+**architect.ts: Same missing API retry pattern**
+Both `runArchitectPass` and `runEditorLoop` had raw `client.messages.stream()` calls without retry — the exact same gap as the delegate. Applied the same retry-with-backoff pattern, reusing the exported `isRetryable()` from `streaming.ts`.
+
+### Changes
+- `src/streaming.ts`: Exported `isRetryable()` for reuse
+- `src/tools/delegate.ts`: Added retry loop, try-catch on runners, structured error returns
+- `src/architect.ts`: Added retry loop to both `runArchitectPass` and `runEditorLoop`
+- `src/delegate-error.integration.test.ts`: 8 new error-path tests
+- `src/architect.test.ts`: 4 new retry tests
+
+### Verified
+- TypeScript: clean (`tsc --noEmit`)
+- Tests: 2326 passed across 111 files (0 failures)
+- Build: clean (383 KB bundle)
+- Load: `node dist/cli.js --help` runs correctly
+
+### Future Directions
+- Concurrency & timing approach on delegate.ts (overlapping delegations, shared mutable `delegateConfig`)
+- Error paths on tool-adapters.ts (31 iters stale, only error-paths applied)
+- Friction on server.ts (26 iters stale)
+
 ## Iteration 478 — New depth approach: concurrency & timing (7th approach targeting race conditions in concurrent subsystems)
 
 Added "Concurrency & timing" as the 7th depth approach, targeting race conditions, timer leaks, and interleaved async flows — a bug class not covered by the existing 6 approaches.

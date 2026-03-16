@@ -11,6 +11,7 @@ import {
   exploreTools,
 } from "../delegate-prompts.js";
 import type { McpManager } from "../mcp-manager.js";
+import { isRetryable } from "../streaming.js";
 import { maybeRetry } from "../tool-retry.js";
 import type { Transport } from "../transport.js";
 import {
@@ -54,6 +55,12 @@ const EXECUTE_MAX_TURNS = 15;
 const SUB_AGENT_RESULT_LIMIT = 30_000;
 const IDENTICAL_FAILURE_LIMIT = 3;
 const MAX_DELEGATE_IMAGES = 10;
+const STREAM_MAX_RETRIES = 2;
+
+function streamBackoff(attempt: number): Promise<void> {
+  const delay = Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 500;
+  return new Promise((r) => setTimeout(r, delay));
+}
 
 // --- Delegate configuration (set by main session) ---
 
@@ -130,40 +137,54 @@ export async function runDelegate(
   if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) starting: ${taskPreview}` });
 
   for (let turn = 0; turn < maxTurns; turn++) {
-    let response: Anthropic.Message;
-    try {
-      const stream = client.messages.stream({
-        model: delegateConfig.model,
-        max_tokens: 8192,
-        system: systemBlocks,
-        tools,
-        messages,
-      });
+    let response!: Anthropic.Message;
+    let streamSuccess = false;
+    for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
+      try {
+        const stream = client.messages.stream({
+          model: delegateConfig.model,
+          max_tokens: 8192,
+          system: systemBlocks,
+          tools,
+          messages,
+        });
 
-      let lastCharNewline = true;
-      stream.on("text", (delta) => {
-        if (transport) transport.emit({ type: "progress", content: delta, source: `delegate(${mode})` });
-        lastCharNewline = delta.endsWith("\n");
-      });
+        let lastCharNewline = true;
+        stream.on("text", (delta) => {
+          if (transport) transport.emit({ type: "progress", content: delta, source: `delegate(${mode})` });
+          lastCharNewline = delta.endsWith("\n");
+        });
 
-      response = await stream.finalMessage();
-      if (!lastCharNewline && transport) {
-        transport.emit({ type: "progress", content: "\n", source: `delegate(${mode})` });
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
-        if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) context overflow at turn ${turn + 1}` });
-        completionReason = "context_overflow";
-        if (lastText) break;
+        response = await stream.finalMessage();
+        if (!lastCharNewline && transport) {
+          transport.emit({ type: "progress", content: "\n", source: `delegate(${mode})` });
+        }
+        streamSuccess = true;
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
+          if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) context overflow at turn ${turn + 1}` });
+          completionReason = "context_overflow";
+          if (lastText) break;
+          return {
+            content: `Sub-agent ran out of context after ${totalTurns} turns. ` +
+              "The task may be too complex for a single delegation — try breaking it into smaller sub-tasks.",
+            is_error: true,
+          };
+        }
+        if (attempt < STREAM_MAX_RETRIES && isRetryable(err)) {
+          if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) stream error (attempt ${attempt + 1}/${STREAM_MAX_RETRIES + 1}): ${msg.slice(0, 200)}` });
+          await streamBackoff(attempt);
+          continue;
+        }
         return {
-          content: `Sub-agent ran out of context after ${totalTurns} turns. ` +
-            "The task may be too complex for a single delegation — try breaking it into smaller sub-tasks.",
+          content: `Sub-agent API error after ${totalTurns} turn(s): ${msg.slice(0, 300)}`,
           is_error: true,
         };
       }
-      throw err;
     }
+    if (!streamSuccess) break;
 
     totalTurns++;
     if (costTracker) costTracker.addUsage(delegateConfig.model, response.usage);
@@ -204,9 +225,15 @@ export async function runDelegate(
             is_error: true as const,
           };
         }
-        let result = isMcp
-          ? await mcpMgr!.executeTool(block.name, toolInput)
-          : await runner!(toolInput);
+        let result: ToolResult;
+        try {
+          result = isMcp
+            ? await mcpMgr!.executeTool(block.name, toolInput)
+            : await runner!(toolInput);
+        } catch (runnerErr) {
+          const errMsg = runnerErr instanceof Error ? runnerErr.message : String(runnerErr);
+          result = { content: `Tool error (${block.name}): ${errMsg}`, is_error: true };
+        }
 
         // Auto-retry transient failures (timeouts, network, 503s)
         if (result.is_error) {

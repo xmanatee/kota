@@ -165,6 +165,37 @@ describe("runArchitectPass", () => {
     const callArgs = client.messages.stream.mock.calls[0][0];
     expect(callArgs.thinking).toEqual(thinking);
   });
+
+  it("retries transient API errors in architect pass", async () => {
+    let callCount = 0;
+    client.messages.stream.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) throw Object.assign(new Error("overloaded"), { status: 529 });
+      return createMockStream({ _text: "Planned after retry." });
+    });
+
+    const plan = await runArchitectPass({
+      client, model: "test", maxTokens: 1000,
+      systemContext: "", messages: [{ role: "user", content: "test" }],
+    });
+
+    expect(callCount).toBe(2);
+    expect(plan).toBe("Planned after retry.");
+  });
+
+  it("throws immediately for non-retryable architect errors", async () => {
+    client.messages.stream.mockImplementation(() => {
+      throw Object.assign(new Error("bad request"), { status: 400 });
+    });
+
+    await expect(
+      runArchitectPass({
+        client, model: "test", maxTokens: 1000,
+        systemContext: "", messages: [{ role: "user", content: "test" }],
+      }),
+    ).rejects.toThrow("bad request");
+    expect(client.messages.stream).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("runEditorLoop", () => {
@@ -354,14 +385,32 @@ describe("runEditorLoop", () => {
     expect(result).toEqual({ text: "", modifiedFiles: [] });
   });
 
-  it("re-throws non-context errors", async () => {
+  it("re-throws non-retryable errors after exhausting retries", async () => {
     client.messages.stream.mockImplementation(() => {
-      throw new Error("authentication failed");
+      throw Object.assign(new Error("authentication failed"), { status: 401 });
     });
 
     await expect(
       runEditorLoop({ client, model: "test", maxTokens: 1000, plan: "test" }),
     ).rejects.toThrow("authentication failed");
+    // Non-retryable (401) — should only try once
+    expect(client.messages.stream).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries transient errors in editor loop", async () => {
+    let callCount = 0;
+    client.messages.stream.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) throw Object.assign(new Error("Service unavailable"), { status: 503 });
+      return createMockStream({ _text: "Done after retry." });
+    });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    expect(callCount).toBe(2);
+    expect(result.text).toBe("Done after retry.");
   });
 
   it("uses cache_control on editor system prompt", async () => {

@@ -10,7 +10,7 @@ function backoff(attempt: number): Promise<void> {
 }
 
 /** Check if an error is worth retrying (transient) vs permanent. */
-function isRetryable(err: unknown): boolean {
+export function isRetryable(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes("authentication") || msg.includes("apiKey") || msg.includes("authToken")) {
     return false;
