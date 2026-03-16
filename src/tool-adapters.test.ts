@@ -554,3 +554,88 @@ describe("adaptExport", () => {
     expect(plugin.tools![0].tool.name).toBe("tool_0");
   });
 });
+
+describe("error paths", () => {
+  describe("input_schema.type override", () => {
+    it("fromSimple preserves type:object even when parameters has wrong type", () => {
+      const def: SimpleTool = {
+        name: "bad_type",
+        description: "Has non-object type in parameters",
+        parameters: { type: "string" } as Record<string, unknown>,
+        run: async () => "ok",
+      };
+      const result = fromSimple(def);
+      expect(result.tool.input_schema.type).toBe("object");
+    });
+
+    it("fromOpenAI preserves type:object even when parameters has wrong type", () => {
+      const def: OpenAIFunctionTool = {
+        type: "function",
+        function: {
+          name: "bad_type",
+          description: "Has array type",
+          parameters: { type: "array", items: { type: "string" } },
+        },
+        run: async () => "ok",
+      };
+      const result = fromOpenAI(def);
+      expect(result.tool.input_schema.type).toBe("object");
+    });
+
+    it("fromSimple ensures properties field exists even with malformed parameters", () => {
+      const def: SimpleTool = {
+        name: "no_props",
+        description: "No properties field",
+        parameters: { type: "string" } as Record<string, unknown>,
+        run: async () => "ok",
+      };
+      const result = fromSimple(def);
+      expect(result.tool.input_schema.properties).toBeDefined();
+    });
+  });
+
+  describe("partial tool array failure", () => {
+    it("adaptExport skips bad tools in array and keeps valid ones", () => {
+      const exported = [
+        { name: "good", description: "Works", run: async () => "ok" },
+        { broken: true }, // unrecognized format
+        { name: "also_good", description: "Also works", run: async () => "ok2" },
+      ];
+      const plugin = adaptExport(exported, "mixed.js");
+      expect(plugin.tools).toHaveLength(2);
+      expect(plugin.tools![0].tool.name).toBe("good");
+      expect(plugin.tools![1].tool.name).toBe("also_good");
+    });
+
+    it("adaptExport throws only when ALL tools in array are bad", () => {
+      const exported = [
+        { broken: true },
+        { also_broken: true },
+      ];
+      expect(() => adaptExport(exported, "all-bad.js")).toThrow();
+    });
+
+    it("KotaPlugin with mixed valid/invalid tools keeps the valid ones", () => {
+      const exported = {
+        name: "mixed-plugin",
+        tools: [
+          { name: "good_tool", description: "Good", run: async () => "ok" },
+          { unrecognized: true }, // bad tool
+        ],
+      };
+      const plugin = adaptExport(exported, "mixed-plugin.js");
+      expect(plugin.tools).toHaveLength(1);
+      expect(plugin.tools![0].tool.name).toBe("good_tool");
+    });
+  });
+
+  describe("normalizeResult circular references", () => {
+    it("handles objects with circular references without crashing", () => {
+      const obj: Record<string, unknown> = { a: 1 };
+      obj.self = obj; // circular reference
+      const result = normalizeResult(obj);
+      expect(result.content).toBeDefined();
+      expect(typeof result.content).toBe("string");
+    });
+  });
+});

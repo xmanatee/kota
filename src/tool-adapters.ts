@@ -64,13 +64,31 @@ export function normalizeResult(value: unknown): ToolResult {
       return { content: obj.text };
     }
     // Serialize anything else
-    return { content: JSON.stringify(value, null, 2) };
+    try {
+      return { content: JSON.stringify(value, null, 2) };
+    } catch {
+      return { content: "[object — could not serialize (circular reference or non-serializable)]" };
+    }
   }
   // Numbers, booleans, etc.
   return { content: String(value) };
 }
 
 // --- Adapters ---
+
+/**
+ * Build a valid Anthropic input_schema from external parameters.
+ * Anthropic requires type:"object" — external schemas may have wrong type or
+ * be missing `properties`. This ensures the result is always valid.
+ */
+function buildInputSchema(params?: Record<string, unknown>): Anthropic.Tool.InputSchema {
+  const base = params ?? {};
+  return {
+    ...base,
+    type: "object" as const,
+    properties: (base.properties as Record<string, unknown>) ?? {},
+  };
+}
 
 /** Convert a simple tool definition to KOTA's ToolDefinition. */
 export function fromSimple(def: SimpleTool): ToolDefinition {
@@ -84,10 +102,7 @@ export function fromSimple(def: SimpleTool): ToolDefinition {
   const tool: Anthropic.Tool = {
     name: def.name,
     description: def.description || "",
-    input_schema: {
-      type: "object" as const,
-      ...(def.parameters ?? { properties: {} }),
-    },
+    input_schema: buildInputSchema(def.parameters),
   };
 
   const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
@@ -111,10 +126,7 @@ export function fromOpenAI(def: OpenAIFunctionTool): ToolDefinition {
   const tool: Anthropic.Tool = {
     name: fn.name,
     description: fn.description || "",
-    input_schema: {
-      type: "object" as const,
-      ...(fn.parameters ?? { properties: {} }),
-    },
+    input_schema: buildInputSchema(fn.parameters),
   };
 
   const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
@@ -223,10 +235,9 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDefinition {
   const tool: Anthropic.Tool = {
     name,
     description: def.description || "",
-    input_schema: {
-      type: "object" as const,
-      ...(inputSchema.type === "object" ? inputSchema : { properties: {} }),
-    },
+    input_schema: buildInputSchema(
+      inputSchema.type === "object" ? inputSchema : undefined,
+    ),
   };
 
   const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
@@ -360,23 +371,31 @@ function adaptArray(arr: unknown[], fileName: string): KotaPlugin {
 }
 
 function adaptToolArray(items: Record<string, unknown>[], fileName: string): ToolDefinition[] {
-  return items.map((item, i) => {
-    // Already a ToolDefinition
-    if (item.tool && item.runner) {
-      return item as unknown as ToolDefinition;
+  const tools: ToolDefinition[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    try {
+      if (item.tool && item.runner) {
+        tools.push(item as unknown as ToolDefinition);
+      } else if (isOpenAIFormat(item)) {
+        tools.push(fromOpenAI(item as unknown as OpenAIFunctionTool));
+      } else if (isSimpleFormat(item)) {
+        tools.push(fromSimple(item as unknown as SimpleTool));
+      } else if (isVercelAIFormat(item)) {
+        const name = (item.name as string) || `tool_${i}`;
+        tools.push(fromVercelAI(item as unknown as VercelAITool, name));
+      } else {
+        console.error(`[kota] ${fileName}: skipping tool at index ${i} (unrecognized format)`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[kota] ${fileName}: skipping tool at index ${i}: ${msg}`);
     }
-    if (isOpenAIFormat(item)) {
-      return fromOpenAI(item as unknown as OpenAIFunctionTool);
-    }
-    if (isSimpleFormat(item)) {
-      return fromSimple(item as unknown as SimpleTool);
-    }
-    if (isVercelAIFormat(item)) {
-      const name = (item.name as string) || `tool_${i}`;
-      return fromVercelAI(item as unknown as VercelAITool, name);
-    }
-    throw new Error(`${fileName}: tool at index ${i} is not in a recognized format`);
-  });
+  }
+  if (tools.length === 0) {
+    throw new Error(`${fileName}: no valid tools found (${items.length} items were unrecognized or invalid)`);
+  }
+  return tools;
 }
 
 function pluginNameFromFile(fileName: string): string {

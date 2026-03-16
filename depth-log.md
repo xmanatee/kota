@@ -18,6 +18,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 409 | structural-health | web-ui.ts | Split 612-line monolith, XSS fix |
 | 411 | friction | cli.ts, confirm.ts | History clear confirmation, resume API key |
 | 413 | harden | scheduler.ts | repeatMs=0 infinite loop, persist inconsistency, markFired status check |
+| 415 | error-paths | tool-adapters.ts | input_schema type override, partial array failure, circular reference crash |
 
 ## Coverage by Module (>200 lines)
 
@@ -29,6 +30,7 @@ Covered modules and which approaches have been applied:
 | registry.ts | 427 | 407 | error-paths |
 | loop.ts | 411 | 405 | e2e |
 | telegram.ts | 401 | 389 | audit |
+| tool-adapters.ts | 398 | 415 | error-paths |
 | server.ts | 379 | 395 | e2e |
 | scheduler.ts | 348 | 389,413 | audit, harden |
 | history.ts | 279 | 391,405 | friction, e2e |
@@ -38,7 +40,6 @@ Uncovered large modules — **zero depth iterations**:
 
 | Module | Lines | Notes |
 |--------|-------|-------|
-| tool-adapters.ts | 384 | Adapts tool formats (Vercel AI, OpenAI, MCP) |
 | init.ts | 299 | Project initialization / setup wizard |
 | web-ui-client.ts | 298 | Browser-side JS for web UI |
 | html-extract.ts | 296 | HTML content extraction |
@@ -47,4 +48,4 @@ Uncovered large modules — **zero depth iterations**:
 | verify-tracker.ts | 215 | Tracks file verification state |
 | context.ts | 214 | Conversation context management |
 
-**8 uncovered modules, 2,150 lines total.** Update this section when appending a row above.
+**7 uncovered modules, 1,866 lines total.** Update this section when appending a row above.

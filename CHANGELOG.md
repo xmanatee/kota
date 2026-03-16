@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 415 — Tool Adapter Error Path Hardening
+
+**Approach**: Error paths (depth phase). Last 2 builders used harden (413) and
+friction (411), so rotated. Previous error-paths iterations (401, 407) covered
+mcp-client.ts and registry.ts — this covers tool-adapters.ts (384 lines, zero
+depth coverage), the format conversion layer between external tool ecosystems
+(Vercel AI SDK, OpenAI, MCP) and KOTA's internal tool format.
+
+**Why a user would care**: When users install third-party plugins, the tool
+adapter layer converts external tool definitions for KOTA. Three bugs meant:
+(1) a tool with malformed parameters (e.g., `type: "string"` instead of
+`type: "object"`) would produce an invalid Anthropic API schema, causing cryptic
+API errors that didn't mention the plugin as the source; (2) if a 10-tool plugin
+had one bad tool definition, ALL 10 tools were lost — the entire plugin failed
+to load; and (3) if a tool returned an object with a circular reference (common
+in ORMs, DOM wrappers, etc.), the agent crashed with "Converting circular
+structure to JSON" instead of returning a usable result.
+
+### Bugs fixed in `src/tool-adapters.ts`
+
+1. **`input_schema.type` override via spread operator** — `fromSimple` and
+   `fromOpenAI` used `{ type: "object", ...def.parameters }`. If external
+   parameters contained `type: "string"` or `type: "array"`, the spread
+   overwrote `type: "object"`, producing an invalid Anthropic tool schema.
+   Fixed: extracted a `buildInputSchema()` helper that spreads external params
+   first, then forces `type: "object"` and ensures `properties` always exists.
+   Same fix applied to `fromVercelAI`.
+
+2. **One bad tool in array kills entire plugin** — `adaptToolArray` used
+   `.map()` which throws on the first error. A single malformed tool definition
+   in a multi-tool plugin killed all tools. Fixed: switched to a for-loop with
+   per-item try/catch. Bad tools are skipped with a stderr warning. Only throws
+   if ALL tools in the array are invalid.
+
+3. **`normalizeResult` crash on circular references** — `JSON.stringify` throws
+   `TypeError` on circular objects. Tools wrapping ORMs, DOM nodes, or graph
+   structures commonly return circular references. Fixed: wrapped
+   `JSON.stringify` in try/catch with a descriptive fallback message.
+
+### Verified
+- 61 tool-adapters tests pass (6 new error path tests)
+- 1985 total tests pass across 98 files
+- TypeScript type-checks clean
+- Build succeeds (342KB)
+- CLI loads correctly
+
+### Future directions
+- Audit connections: verify tool-adapters integration with plugin-loader error
+  reporting (do warnings from skipped tools reach the user clearly?)
+- Harden: init.ts (299 lines, zero depth coverage) — setup wizard with
+  filesystem operations
+- Error paths: context.ts (214 lines, zero depth coverage) — conversation
+  context management with compaction
+
 ## Iteration 414 — Depth Coverage Gap Visibility
 
 ### Verification of iter 412 (previous improver)
