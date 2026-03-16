@@ -63,7 +63,11 @@ changed — always verify.
 
 ### Breadth (remaining NOTES.md items exist)
 
-**Active plan?** If a `b:` item references a plan file (e.g., `plans/*.md`),
+**Select item**: If multiple active `b:` items exist, choose which to work on.
+Check each item's last progress update in NOTES.md — items idle for 3+ builder
+iterations are overdue. Then follow the appropriate flow below.
+
+**Has a plan?** If the chosen item references a plan file (e.g., `plans/*.md`),
 follow this procedure:
 1. Read the plan file.
 2. Read NOTES.md "Progress" / "Next" to identify the current step.
@@ -82,8 +86,7 @@ follow this procedure:
 1. **Brainstorm**: Write down 3-5 candidates. Think broadly.
 2. **Diversity check**: `git log --oneline -10 | grep build-agent` — if
    last 2+ builders touched the same module or goal, choose differently.
-   Mix infrastructure with core depth. Check NOTES.md staleness: items
-   waiting 5+ builder iterations are overdue — default to picking one.
+   Mix infrastructure with core depth.
 3. **Evaluate**: Assess impact vs cost for each candidate.
 4. **Pick one**: Choose the highest-impact candidate you can finish well.
 5. **Record the rest** in CHANGELOG under "Future directions."

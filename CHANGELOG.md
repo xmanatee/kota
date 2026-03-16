@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 444 — Add item selection step to Breadth phase, fixing unreachable staleness check
+
+Added a "Select item" step before the plan/no-plan fork in the builder prompt's Breadth section, ensuring all active `b:` items get evaluated before the builder commits to one.
+
+### Verification of iter 442 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Builder 443 runs the fixed `sed` phase gate command and enters Breadth immediately | Tool call #5: phase gate; text #1: "Active `b:` items exist → **Breadth** phase" | **confirmed** |
+| 0 turns on depth orientation | No depth-log.md in tool sequence | **confirmed** |
+| Phase gate takes 1 tool call | Single Bash call → immediate decision | **confirmed** |
+
+### Diagnosis
+
+The builder prompt's Breadth section had a structural gap: "Active plan?" was checked first, and if any `b:` item referenced a plan file, the builder followed plan execution without ever considering other active items. The staleness check ("items waiting 5+ builder iterations are overdue") existed on line 85-86 inside the "No plan?" section — but this path is **unreachable** when any item has a plan reference.
+
+Result: the "study OpenClaw" item (added between iters 440/441, no plan reference) has been active for 2 builder iterations while the builder always picks the hardening item (which references `plans/modular-architecture.md`). The hardening work is good and productive, but the prompt structure prevented the builder from even evaluating whether the other item should take priority.
+
+### Changes
+
+**`prompts/build-agent.md`** — Two edits:
+1. Added "Select item" step (3 lines) before the plan/no-plan fork: when multiple active items exist, evaluate which to work on based on staleness (items idle 3+ builder iterations are overdue)
+2. Removed redundant staleness check from "No plan?" step 2 (now handled by "Select item")
+3. Renamed "Active plan?" → "Has a plan?" to reflect the chosen-item context
+
+### Why not the alternatives
+
+- **Own prompt: NOTES.md coverage check** (#2): Would help me detect deferral but not fix it — one change vs two iterations to address the same issue.
+- **Eval signals: refresh depth-log.md** (#3): Builder is in breadth phase; low impact now.
+- **Own prompt: strategic alignment check** (#5): Same indirect-detection issue as #2.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 444 | builder prompt |
+| 442 | builder prompt |
+| 440 | eval signals |
+| 438 | builder prompt + eval signals |
+
+Third builder prompt change in 4 iterations, but each targets a different aspect: 438 added plan-completion handling, 442 fixed a mechanical grep bug, 444 fixes structural workflow (selection logic). The staleness check was dead code — that's a qualitatively different issue from command syntax or phase handling.
+
+### Expected effects
+
+1. Builder 445 evaluates BOTH active `b:` items before choosing which to work on — observable as the builder reading/comparing both items' progress before starting implementation.
+2. If the builder picks the hardening item (likely, since it has only 2 iterations of no progress on "OpenClaw" vs the 3-iteration threshold), it does so after explicit evaluation, not because the prompt structure prevented seeing the other item.
+3. If the builder picks the "study OpenClaw" item (possible, especially if it recognizes the item has had 0 progress), it follows the "No plan?" brainstorm flow for that research task.
+
+### Future directions
+
+- **Own prompt: NOTES.md item coverage check** — Add a check to the improver's brainstorming: "For each active `b:` item, count builder iterations since last progress. Flag items idle 3+ iterations." This systematizes the detection I did manually this iteration.
+- **Builder prompt: research-task guidance** — The "study OpenClaw" item is pure research with no build deliverable. The builder prompt doesn't have guidance on how to handle research-only items. When the builder picks it up, it may need clearer instructions on what to produce (summary in DESIGN.md? new plan? NOTES.md update?).
+- **Depth-log staleness** — When breadth phase ends and depth resumes, the depth-log module data will be stale (builder 443 changed module-loader.ts, cli.ts, web.ts significantly). Refresh before the transition.
+
 ## Iteration 443 — Harden module isolation: unified loading path and decoupled cross-module imports
 
 Fixed two module isolation violations: (1) web module directly imported vercel-adapter (cross-module coupling), and (2) CLI used ad-hoc module iteration instead of ModuleLoader.
