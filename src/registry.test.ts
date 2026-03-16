@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -631,5 +631,186 @@ describe("updateTool error paths", () => {
     expect(manifest.tools.mytool).toBeDefined();
     // New file should exist
     expect(existsSync(join(pluginsDir, "mytool.mjs"))).toBe(true);
+  });
+});
+
+describe("saveManifest atomic writes", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("does not leave .tmp files after successful save", () => {
+    saveManifest({ tools: {} }, tmpDir);
+    const kotaDir = join(tmpDir, ".kota");
+    const files = readdirSync(kotaDir);
+    expect(files).toContain("tools.json");
+    expect(files).not.toContain("tools.json.tmp");
+  });
+
+  it("recovers manifest from .tmp file when primary is missing", () => {
+    // Simulate crash: tmp was written but rename never happened
+    const kotaDir = join(tmpDir, ".kota");
+    mkdirSync(kotaDir, { recursive: true });
+    const manifest = { tools: { t: { source: "npm" as const, uri: "pkg", version: "1.0.0", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
+    writeFileSync(join(kotaDir, "tools.json.tmp"), JSON.stringify(manifest, null, 2));
+    // No tools.json exists — only the .tmp
+
+    const loaded = loadManifest(tmpDir);
+    expect(loaded.tools.t).toBeDefined();
+    expect(loaded.tools.t.uri).toBe("pkg");
+  });
+
+  it("prefers primary over .tmp when both exist", () => {
+    const kotaDir = join(tmpDir, ".kota");
+    mkdirSync(kotaDir, { recursive: true });
+    const primary = { tools: { a: { source: "npm" as const, uri: "a", version: "1.0.0", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
+    const stale = { tools: { b: { source: "npm" as const, uri: "b", version: "1.0.0", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
+    writeFileSync(join(kotaDir, "tools.json"), JSON.stringify(primary, null, 2));
+    writeFileSync(join(kotaDir, "tools.json.tmp"), JSON.stringify(stale, null, 2));
+
+    const loaded = loadManifest(tmpDir);
+    expect(loaded.tools.a).toBeDefined();
+    expect(loaded.tools.b).toBeUndefined();
+  });
+
+  it("falls back to .tmp when primary is corrupted", () => {
+    const kotaDir = join(tmpDir, ".kota");
+    mkdirSync(kotaDir, { recursive: true });
+    writeFileSync(join(kotaDir, "tools.json"), "corrupted{{{");
+    const fallback = { tools: { x: { source: "url" as const, uri: "http://x", version: "latest", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
+    writeFileSync(join(kotaDir, "tools.json.tmp"), JSON.stringify(fallback, null, 2));
+
+    const loaded = loadManifest(tmpDir);
+    expect(loaded.tools.x).toBeDefined();
+    expect(loaded.tools.x.uri).toBe("http://x");
+  });
+
+  it("returns empty manifest when both primary and .tmp are corrupted", () => {
+    const kotaDir = join(tmpDir, ".kota");
+    mkdirSync(kotaDir, { recursive: true });
+    writeFileSync(join(kotaDir, "tools.json"), "bad");
+    writeFileSync(join(kotaDir, "tools.json.tmp"), "also bad");
+
+    const loaded = loadManifest(tmpDir);
+    expect(loaded).toEqual({ tools: {} });
+  });
+});
+
+describe("updateTool backup lifecycle", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("removes .kota-update-bak files after successful update", async () => {
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "tool.mjs"), "export default { v: 1 };");
+
+    saveManifest({
+      tools: {
+        tool: {
+          source: "url",
+          uri: "https://example.com/tool.mjs",
+          version: "latest",
+          files: ["plugins/tool.mjs"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("export default { v: 2 };", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+
+    await updateTool("tool", tmpDir);
+
+    // Backup file must not persist
+    expect(existsSync(join(pluginsDir, "tool.mjs.kota-update-bak"))).toBe(false);
+    // New file should exist
+    expect(existsSync(join(pluginsDir, "tool.mjs"))).toBe(true);
+  });
+
+  it("restores files and manifest when backup rename fails mid-loop", async () => {
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "a.mjs"), "export const a = 1;");
+    writeFileSync(join(pluginsDir, "b.mjs"), "export const b = 2;");
+
+    saveManifest({
+      tools: {
+        multi: {
+          source: "url",
+          uri: "https://example.com/multi.mjs",
+          version: "latest",
+          files: ["plugins/a.mjs", "plugins/b.mjs"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    // Make renameSync fail on the second call (b.mjs backup) by
+    // intercepting the fs.renameSync import. We can't easily mock
+    // node:fs imports, so instead we make the second file unreadable
+    // by removing it — renameSync on a missing path throws ENOENT,
+    // but existsSync would skip it. Instead, let's make the backup
+    // target path invalid by creating a directory there.
+    const backupPath = join(pluginsDir, "b.mjs.kota-update-bak");
+    mkdirSync(backupPath, { recursive: true });
+    // Put a file inside so renameSync(file, dir-with-contents) fails
+    writeFileSync(join(backupPath, "blocker"), "x");
+
+    await expect(updateTool("multi", tmpDir)).rejects.toThrow();
+
+    // The first file (a.mjs) should be restored from its backup
+    expect(existsSync(join(pluginsDir, "a.mjs"))).toBe(true);
+    expect(readFileSync(join(pluginsDir, "a.mjs"), "utf-8")).toBe("export const a = 1;");
+
+    // Manifest should be restored with the tool entry
+    const manifest = loadManifest(tmpDir);
+    expect(manifest.tools.multi).toBeDefined();
+    expect(manifest.tools.multi.uri).toBe("https://example.com/multi.mjs");
+  });
+
+  it("does not leave backup files when install fails", async () => {
+    const pluginsDir = join(tmpDir, ".kota", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "fail.mjs"), "export default {}");
+
+    saveManifest({
+      tools: {
+        fail: {
+          source: "url",
+          uri: "https://example.com/fail.mjs",
+          version: "latest",
+          files: ["plugins/fail.mjs"],
+          installedAt: "2026-03-15T00:00:00.000Z",
+        },
+      },
+    }, tmpDir);
+
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("connection reset"));
+
+    await expect(updateTool("fail", tmpDir)).rejects.toThrow(/connection reset/);
+
+    // Backup file should be cleaned up (restored to original path)
+    expect(existsSync(join(pluginsDir, "fail.mjs.kota-update-bak"))).toBe(false);
+    // Original file restored
+    expect(existsSync(join(pluginsDir, "fail.mjs"))).toBe(true);
   });
 });

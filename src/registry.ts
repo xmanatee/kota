@@ -52,23 +52,33 @@ function kotaDir(cwd?: string): string {
 // --- Manifest ---
 
 export function loadManifest(cwd?: string): ToolManifest {
-  const path = join(kotaDir(cwd), MANIFEST_FILE);
-  if (!existsSync(path)) return { tools: {} };
-  try {
-    const raw = JSON.parse(readFileSync(path, "utf-8"));
-    if (typeof raw === "object" && raw !== null && typeof raw.tools === "object") {
-      return raw as ToolManifest;
+  const dir = kotaDir(cwd);
+  const primary = join(dir, MANIFEST_FILE);
+  const tmp = `${primary}.tmp`;
+  // Try primary file, fall back to tmp (crash recovery: if the process
+  // died after writing the tmp but before renaming it, the tmp has the
+  // latest data while the primary may be absent or stale).
+  for (const p of [primary, tmp]) {
+    if (!existsSync(p)) continue;
+    try {
+      const raw = JSON.parse(readFileSync(p, "utf-8"));
+      if (typeof raw === "object" && raw !== null && typeof raw.tools === "object") {
+        return raw as ToolManifest;
+      }
+    } catch {
+      // corrupted — try next candidate
     }
-    return { tools: {} };
-  } catch {
-    return { tools: {} };
   }
+  return { tools: {} };
 }
 
 export function saveManifest(manifest: ToolManifest, cwd?: string): void {
   const dir = kotaDir(cwd);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
+  const manifestPath = join(dir, MANIFEST_FILE);
+  const tmpPath = `${manifestPath}.tmp`;
+  writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  renameSync(tmpPath, manifestPath);
 }
 
 // --- Source parsing ---
@@ -242,17 +252,21 @@ export async function updateTool(name: string, cwd?: string): Promise<InstallRes
 
   const dir = kotaDir(cwd);
   const backups: Array<{ original: string; backup: string }> = [];
-  for (const file of savedTool.files) {
-    const absPath = join(dir, file);
-    if (existsSync(absPath)) {
-      const backupPath = `${absPath}.kota-update-bak`;
-      renameSync(absPath, backupPath);
-      backups.push({ original: absPath, backup: backupPath });
-    }
-  }
 
   const sourcePrefix = tool.source === "npm" ? "npm:" : tool.source === "github" ? "github:" : "";
   try {
+    // Move old files to backup — inside try so a partial rename failure
+    // (e.g. EPERM on the second file) triggers the restore logic below
+    // instead of leaving the tool in a half-backed-up state.
+    for (const file of savedTool.files) {
+      const absPath = join(dir, file);
+      if (existsSync(absPath)) {
+        const backupPath = `${absPath}.kota-update-bak`;
+        renameSync(absPath, backupPath);
+        backups.push({ original: absPath, backup: backupPath });
+      }
+    }
+
     const result = await installTool(`${sourcePrefix}${tool.uri}`, cwd);
 
     // Install succeeded — remove backups
@@ -264,7 +278,7 @@ export async function updateTool(name: string, cwd?: string): Promise<InstallRes
 
     return result;
   } catch (err) {
-    // Reinstall failed — restore backups and manifest entry
+    // Restore backups and manifest entry
     for (const { original, backup } of backups) {
       if (existsSync(backup)) {
         renameSync(backup, original);

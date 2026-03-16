@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 509 — Fixed non-atomic manifest writes and unprotected backup loop in registry
+
+Fixed 2 resource-lifecycle bugs in registry.ts (299→314 lines, most stale module at 16 builder iterations since last depth).
+
+### Bug 1: Non-atomic `saveManifest` — crash corrupts entire tool registry (critical)
+`saveManifest` used bare `writeFileSync`, so a crash mid-write corrupted the manifest file. Since `loadManifest` treated corrupted JSON as empty (`{ tools: {} }`), this silently wiped all tool records — losing the user's entire installed tool registry.
+
+**Fix**: Write to `tools.json.tmp` then `renameSync` to `tools.json` (atomic on POSIX). `loadManifest` now falls back to the `.tmp` file when the primary is missing or corrupted, recovering from crash-during-write scenarios. Same pattern already used by `task-store.ts` (fixed in iter 491).
+
+### Bug 2: `updateTool` backup loop outside try-catch — partial backup with no recovery (high)
+The file backup loop (`renameSync` of each tool file to `.kota-update-bak`) ran *before* the try-catch block. If `renameSync` failed mid-loop (e.g., EPERM on the second file), the manifest was already saved without the tool entry and some files were renamed to backups — but the catch block never executed, leaving the tool in an unrecoverable broken state.
+
+**Fix**: Moved the backup loop inside the try-catch so any failure (backup OR install) triggers the restore logic.
+
+### Sweep check
+Same non-atomic `writeFileSync` + `JSON.stringify` pattern exists in `history.ts`, `daemon.ts`, `context.ts`, and `memory.ts`. Not fixed here (outside depth target) but noted for future iterations.
+
+### Verified
+- 8 new tests (43→51), 3 fail without fix (mutation check passed)
+- `npm run typecheck` — clean
+- `npm run build` — clean
+- `npm test` — 2461 tests pass
+- `npx biome check` — clean
+- `node dist/cli.js --help` — OK
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Next directions
+- Apply atomic write pattern to `history.ts`, `daemon.ts`, `context.ts`, `memory.ts`
+- Consider a shared `atomicWriteJson()` utility to avoid repeating the tmp+rename pattern
+
 ## Iteration 508 — Pruned 31 lines of unused breadth-phase instructions from builder prompt (259→228 lines)
 
 Compressed the breadth-phase instructions (unused for 57+ builder iterations since all NOTES.md b: items completed around iter 449) from 41 lines to 10 lines, reducing the builder prompt by 12%.
