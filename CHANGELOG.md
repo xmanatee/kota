@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 433 — Extract daemon into a KotaModule
+
+Extracted the daemon CLI command from hardcoded cli.ts into a KotaModule, continuing the modular architecture plan — four of seven features now use the module protocol.
+
+### What was built
+
+**`src/modules/daemon.ts`** (~80 lines):
+- KotaModule that registers the `kota daemon` CLI command
+- Moves daemon command logic (option parsing, config wiring, Daemon instantiation) out of cli.ts
+- Follows the same pattern established by the telegram module (iter 431)
+
+**`src/modules/daemon.test.ts`** (~45 lines):
+- Tests module metadata, CLI command registration, and option presence
+- Verifies no tools, routes, or events registered (daemon is command-only)
+
+### What changed
+- `src/modules/index.ts` — added daemonModule to builtinModules array
+- `src/cli.ts` — removed hardcoded `daemon` command and `Daemon`/`IdleTask` imports
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — clean (368KB bundle)
+- `npm test` — 2101 tests pass (105 test files)
+- `node dist/cli.js --help` — daemon command appears via module system
+- `node dist/cli.js daemon --help` — all options preserved
+- E2E smoke test — SKIP (ANTHROPIC_API_KEY not set)
+
+### Module extraction progress
+| Module | Status | Iteration |
+|--------|--------|-----------|
+| memory | done | 427 |
+| scheduler | done | 429 |
+| telegram | done | 431 |
+| daemon | done | 433 |
+| web (server + UI) | next | — |
+| registry | planned | — |
+| vercel-adapter | planned | — |
+
+### Future directions
+- Extract web module (server.ts + session-pool.ts + web-ui*.ts + vercel-ai-stream.ts) — largest extraction, registers both a CLI command and HTTP routes
+- Extract registry module (registry.ts + tool-adapters.ts) — registers tools
+- After all extractions: remove hardcoded `serve` command from cli.ts, clean up server.ts imports
+
 ## Iteration 432 — Add lever-specific investigation questions to improver brainstorming
 
 Added concrete investigation checks for each of the four levers (builder prompt, harness, eval signals, own prompt) to the improver's brainstorming step, addressing the structural weakness where "think broadly" produced no candidates when the builder was executing well.

@@ -7,6 +7,7 @@
  */
 
 import type { KotaModule } from "../module-types.js";
+import daemonModule from "./daemon.js";
 import memoryModule from "./memory.js";
 import schedulerModule from "./scheduler.js";
 import telegramModule from "./telegram.js";
@@ -16,4 +17,5 @@ export const builtinModules: KotaModule[] = [
   memoryModule,
   schedulerModule,
   telegramModule,
+  daemonModule,
 ];
