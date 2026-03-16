@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { confirmAction, setSkipConfirmations } from "./confirm.js";
+import { Daemon, type IdleTask } from "./daemon.js";
 import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { installTool, listTools, removeTool, updateTool } from "./registry.js";
@@ -193,6 +194,45 @@ program
     });
 
     await bot.start();
+  });
+
+program
+  .command("daemon")
+  .description("Run KOTA as a long-running daemon with scheduler, event bus, and idle tasks")
+  .option("-m, --model <model>", "Model to use")
+  .option("-v, --verbose", "Show debug output")
+  .option("--idle-prompt <prompt>", "Prompt for a default idle task")
+  .option("--idle-cooldown <seconds>", "Cooldown between idle task runs in seconds")
+  .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
+  .option("--no-restart", "Disable auto-restart on dist/ changes")
+  .action(async (opts) => {
+    ensureApiKey();
+    const config = loadConfig();
+
+    const idleTasks: IdleTask[] = [];
+    if (opts.idlePrompt) {
+      const cooldownMs = opts.idleCooldown
+        ? parseIntOption(opts.idleCooldown, "idle-cooldown") * 1000
+        : undefined;
+      idleTasks.push({
+        name: "default",
+        prompt: opts.idlePrompt,
+        cooldownMs,
+      });
+    }
+
+    const pollIntervalMs = parseIntOption(opts.pollInterval, "poll-interval") * 1000;
+
+    const daemon = new Daemon({
+      model: opts.model || config.model,
+      verbose: opts.verbose || config.verbose,
+      config,
+      idleTasks: idleTasks.length > 0 ? idleTasks : undefined,
+      pollIntervalMs,
+      restartOnBuild: opts.restart !== false,
+    });
+
+    await daemon.start();
   });
 
 // --- Tools subcommand ---

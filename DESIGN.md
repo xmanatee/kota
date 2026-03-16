@@ -173,6 +173,31 @@ First real messaging frontend — makes KOTA accessible as a personal assistant 
 
 **Scheduler lifecycle**: The bot owns the scheduler lifecycle — `initScheduler()` on `start()`, `resetScheduler()` on `stop()`. Individual `AgentSession.close()` calls (from `/clear`) do not reset the shared scheduler, preventing one session's cleanup from killing reminders for all chats.
 
+### Daemon Mode (`src/daemon.ts`)
+
+Long-running process that hosts the event bus, scheduler, and idle tasks — an event-driven runtime for autonomous agent operation. Third piece of the self-hosting loop plan.
+
+**Core responsibilities**:
+- **Event bus + scheduler hosting**: Initializes both singletons, connects the scheduler to the bus so event-triggered items fire automatically.
+- **Time-based polling**: Runs the scheduler timer to detect and fire due items.
+- **Idle tasks**: When no actions are running and no idle task is active, picks the next idle task (round-robin) and runs it as an `AgentSession`. Respects configurable cooldowns.
+- **Self-restart**: Watches `dist/cli.js` mtime. When it changes (after a build), saves state and exits with code 75. A wrapper script can detect this and restart the daemon.
+- **State persistence**: Saves `daemon-state.json` to `~/.kota/` with cycle count, last idle task, and PID. On startup, recovers previous state.
+- **Graceful shutdown**: SIGINT/SIGTERM → stops accepting new work, waits up to 30s for the active idle session to finish, cleans up scheduler connections, saves state.
+
+**CLI**: `kota daemon [--idle-prompt "..."] [--idle-cooldown 300] [--poll-interval 30] [--no-restart]`
+
+**Self-hosting loop pattern**: With event-triggered scheduler items, the daemon can run the build/improve loop:
+1. Daemon starts idle → picks up "self-build" idle task
+2. Session runs, builds code, emits `session.end`
+3. Event trigger fires: "on session.end → run self-improve"
+4. If `dist/` changed → daemon exits 75, wrapper restarts it
+
+**Design decisions**:
+- No hot reload — restart is simpler and safer.
+- Idle tasks are preempted by scheduled actions (checked via `executor.activeCount`).
+- State persistence is best-effort — daemon functions correctly without it.
+
 ### Context Management (`src/context.ts`)
 
 Three-phase lifecycle to maximize usable context:

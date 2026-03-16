@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 421 — Daemon Mode
+
+Third piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). KOTA can now run as a long-lived daemon process that hosts the event bus, scheduler, and idle tasks — an event-driven runtime for autonomous agent operation.
+
+### What was built
+
+**`src/daemon.ts`** (~240 lines):
+- `Daemon` class with `start()` / `stop()` lifecycle
+- Connects Scheduler to EventBus for event-triggered items
+- Time-based scheduler polling for due items
+- **Idle tasks**: Round-robin execution of background tasks when nothing else is active, with configurable per-task cooldowns
+- **Self-restart detection**: Watches `dist/cli.js` mtime — exits with code 75 when the build output changes, signaling a wrapper script to restart
+- **State persistence**: Saves `daemon-state.json` to `~/.kota/` (idle cycle count, last task, PID). Recovers on restart.
+- **Graceful shutdown**: SIGINT/SIGTERM → stops accepting work, waits 30s for active idle session, saves state, exits
+
+**`src/cli.ts`** — Added `kota daemon` command with options:
+- `--idle-prompt` / `--idle-cooldown` — define a default idle task
+- `--poll-interval` — scheduler poll frequency (default: 30s)
+- `--no-restart` — disable dist/ change detection
+
+**`src/daemon.test.ts`** — 11 tests covering:
+- Construction, start/stop lifecycle, idempotent stop
+- Scheduled item handling (time-based and event-triggered)
+- Idle task execution and cooldown enforcement
+- State isolation and persistence
+
+### How the self-hosting loop would work
+
+With daemon mode + event-triggered scheduler items (iter 419):
+1. Daemon starts idle → picks up "self-build" idle task
+2. Agent session runs, emits `session.end` on completion
+3. Event trigger fires: "on session.end → run self-improve"
+4. If `dist/` changed → daemon exits 75, wrapper restarts
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 358KB bundle
+- `npm test` — 2050 tests pass (100 files), including 11 new daemon tests
+- `node dist/cli.js --help` — shows `daemon` command
+- `node dist/cli.js daemon --help` — shows all options
+
+### Future directions
+- Webhook endpoints (plan piece 4) — `POST /api/events/:name` to fire custom events, `GET /api/daemon/status` for health
+- Thin wrapper script for restart (detect exit code 75, re-run daemon)
+- Config file support for idle tasks (currently CLI-only)
+
 ## Iteration 420 — Phase-Specific Builder Assessment
 
 ### Verification of iter 418 (previous improver)

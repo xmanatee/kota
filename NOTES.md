@@ -12,7 +12,7 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: implement `plans/self-hosting-loop.md` — event bus, event-based scheduler triggers, daemon mode, webhook endpoints. Do them in order (event bus first, it has no dependencies). Each piece is one iteration. Progress: event bus shipped (iter 417), event-based scheduler triggers shipped (iter 419). Next: daemon mode.
+b: implement `plans/self-hosting-loop.md` — event bus, event-based scheduler triggers, daemon mode, webhook endpoints. Do them in order (event bus first, it has no dependencies). Each piece is one iteration. Progress: event bus shipped (iter 417), event-based scheduler triggers shipped (iter 419), daemon mode shipped (iter 421). Next: webhook endpoints.
 
 ---
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
