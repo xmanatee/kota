@@ -68,6 +68,7 @@ export class AgentSession {
   private initPromise: Promise<void>;
   private projectContext: string;
   private conversationId: string | null = null;
+  private historyEnabled: boolean;
 
   constructor(options: LoopOptions = {}) {
     this.model = options.model || "claude-sonnet-4-6";
@@ -144,11 +145,9 @@ export class AgentSession {
       this.context = new Context(systemPrompt);
     }
 
-    // Auto-create conversation history entry (unless disabled or using legacy session)
-    if (!options.noHistory && !this.sessionPath && !this.conversationId) {
-      const history = getHistory();
-      this.conversationId = history.create(this.model, process.cwd());
-    }
+    // History is enabled if not explicitly disabled. When resuming a conversation,
+    // always keep saving to it even if sessionPath is also set.
+    this.historyEnabled = !options.noHistory && (!this.sessionPath || !!this.conversationId);
 
     this.verifyTracker = new VerifyTracker(detectVerifyCommands());
 
@@ -354,11 +353,15 @@ export class AgentSession {
     return lastResult;
   }
 
-  /** Save current state to conversation history. */
+  /** Save current state to conversation history. Creates the entry lazily on first call with messages. */
   private saveToHistory(): void {
-    if (!this.conversationId) return;
-    const history = getHistory();
+    if (!this.historyEnabled) return;
     const snapshot = this.context.snapshot();
+    const history = getHistory();
+    if (!this.conversationId) {
+      if (snapshot.messages.length === 0) return;
+      this.conversationId = history.create(this.model, process.cwd());
+    }
     history.save(this.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
   }
 
@@ -378,6 +381,7 @@ export class AgentSession {
     this.closed = true;
     process.removeListener("SIGINT", this.sigintHandler);
     if (this.sessionPath) this.context.save(this.sessionPath);
+    this.saveToHistory();
     cleanupProcesses();
     cleanupSessions();
     resetGroups();

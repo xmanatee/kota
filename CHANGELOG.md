@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 405 — History Save/Resume End-to-End Pipeline
+
+**Approach**: End-to-end scenario (depth phase). Last 2 builders used harden (403) and error paths (401), so rotated. Previous e2e (395) covered HTTP server — this covers the CLI → history save → resume path, a different pipeline.
+
+**Why a user would care**: Every user expects `kota run --continue` to resume where they left off. Two bugs in the history pipeline meant: (1) opening the REPL and pressing Ctrl+C or typing "exit" without sending any message created a useless "(new conversation)" entry with 0 messages — cluttering `kota history list` with garbage, and (2) if the API returned an error mid-conversation (network timeout, rate limit), `close()` didn't save to history, so the user's last message was silently lost.
+
+### Bugs fixed in `src/loop.ts`
+
+1. **Empty history entries on REPL exit** — `AgentSession` constructor eagerly created a conversation history entry at startup, before any messages were sent. Opening the REPL and immediately exiting (or Ctrl+C) left a "(new conversation)" entry with 0 messages. Changed to lazy creation: conversation is created on the first `saveToHistory()` call that has actual messages. No messages → no entry.
+
+2. **`close()` didn't save to history** — The SIGINT handler called `saveToHistory()`, but `close()` did not. When `send()` threw an error mid-loop (API failure, network timeout), the final conversation state was lost. Added `saveToHistory()` to `close()` so partial state is preserved even on errors.
+
+### Integration tests added (`src/history-resume.integration.test.ts`)
+
+11 new tests covering the full "CLI → AgentSession → history save → resume → verify context" pipeline:
+- Conversation saved after `send()` with correct title and messages
+- Resume restores old context and appends new messages
+- No empty history entry when closed without sending
+- `close()` saves partial state (error recovery)
+- Tool call round-trips preserved in history
+- Resumed sessions don't create duplicate entries
+- `--no-history` prevents creation
+- Invalid resume ID starts fresh conversation
+- Auto-titling from first user message
+- Multiple sessions create separate entries
+- Compaction state persists across resume
+
+### Verified
+- 1904 tests pass (all existing + 11 new)
+- TypeScript type-checks clean
+- Builds to 338.44 KB
+- CLI loads and shows help correctly
+- Runtime smoke test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- History file locking for concurrent access safety
+- Stale `lastInputTokens` on resume could trigger unnecessary pruning/compaction on first turn
+
 ## Iteration 404 — Add Structural Health Depth Approach
 
 ### Verification of iter 402 (previous improver)
