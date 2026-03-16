@@ -3,12 +3,16 @@
 
 Usage:
     python3 parse-log.py <session-log-path>
-    python3 parse-log.py logs/000433-build-agent-*.session.jsonl
+    python3 parse-log.py --trend [N]         # last N builder sessions trend
 
 Outputs a concise summary: stats, tool-call sequence, tool counts, errors,
 key assistant text blocks, and (for depth builder iterations) an automated
 execution analysis — everything the improver needs to assess a builder
 iteration without manually parsing JSON.
+
+Trend mode (--trend): parses the last N builder session logs (default 5)
+and outputs a cross-session comparison — targeting, severity, efficiency,
+and approach rotation — in one call instead of N manual invocations.
 """
 
 import json
@@ -381,8 +385,183 @@ def _print_builder_analysis(
     print()
 
 
+# --- Trend analysis: cross-session comparison of recent builders ---
+
+
+def _find_builder_logs(n: int) -> list[tuple[int, str]]:
+    """Find the last N builder session logs, return [(iter_num, path)]."""
+    from pathlib import Path
+    log_dir = Path(__file__).parent / "logs"
+    logs = []
+    for f in log_dir.glob("*-build-agent-*.session.jsonl"):
+        m = re.match(r"(\d+)-", f.name)
+        if m:
+            logs.append((int(m.group(1)), str(f)))
+    logs.sort(reverse=True)
+    return logs[:n]
+
+
+def _quick_parse(path: str) -> dict:
+    """Lightweight session log parse — extracts only trend-relevant metrics."""
+    with open(path) as f:
+        messages = [json.loads(line) for line in f if line.strip()]
+    result = next((m for m in messages if m.get("type") == "result"), {})
+    tool_count = 0
+    text_snippets: list[str] = []
+    full_texts: list[str] = []
+    cl_edits: list[str] = []
+    for msg in messages:
+        if msg.get("type") != "assistant":
+            continue
+        for block in msg.get("message", {}).get("content", []):
+            if block.get("type") == "tool_use":
+                tool_count += 1
+                inp = block.get("input", {})
+                if block["name"] == "Edit" and (
+                    inp.get("file_path", "") or ""
+                ).lower().endswith("changelog.md"):
+                    ns = inp.get("new_string", "")
+                    if ns:
+                        cl_edits.append(ns)
+            elif block.get("type") == "text":
+                text = (block.get("text") or "").strip()
+                if len(text) > 30:
+                    text_snippets.append(text[:300])
+                    full_texts.append(text)
+    # Target extraction — structured format first, then fallback
+    target_mod = target_app = None
+    pat = r"\*\*Depth pick\*\*:\s*`([^`]+)`\s*/\s*`([^`]+)`"
+    for t in text_snippets:
+        m = re.search(pat, t)
+        if m:
+            target_mod = m.group(1)
+            raw = m.group(2).lower()
+            for a in DEPTH_APPROACHES:
+                if raw.startswith(a):
+                    target_app = a
+                    break
+            if not target_app:
+                target_app = raw
+            break
+    # Fallback patterns for older logs without structured format
+    if not target_mod or not target_app:
+        _mod_pats = [
+            r"(?:module|depth)\s*(?:phase\s*)?(?:pick|target|choice)[:\s`*]*"
+            r"([a-zA-Z0-9_./-]+\.ts)",
+            r"[`*]+([a-zA-Z0-9_./-]+\.ts)[`*]+\s*(?:\(|—|--)\s*(?:most\s+)?"
+            r"(?:neglected|stale)",
+            r"(?:most\s+)?(?:neglected|stale)[:\s]+(?:module\s+(?:is\s+)?)?"
+            r"[`*]+([a-zA-Z0-9_./-]+\.ts)",
+        ]
+        _app_pats = [
+            r"approach[*:\s]+(\w[\w-]+)",
+            r"\*\*(\w[\w-]+)\*\*\s+approach",
+        ]
+        for t in text_snippets:
+            if not target_mod:
+                for p in _mod_pats:
+                    m = re.search(p, t, re.I)
+                    if m:
+                        target_mod = m.group(1)
+                        break
+            if not target_app:
+                for p in _app_pats:
+                    m = re.search(p, t, re.I)
+                    if m and m.group(1).lower() in DEPTH_APPROACHES:
+                        target_app = m.group(1).lower()
+                        break
+    return {
+        "turns": result.get("num_turns", 0) or 0,
+        "cost": result.get("total_cost_usd", 0) or 0,
+        "calls": tool_count,
+        "module": target_mod,
+        "approach": target_app,
+        "test_delta": _extract_test_delta(full_texts + cl_edits),
+    }
+
+
+def _load_severities() -> dict[int, str]:
+    """Read severity per iteration from depth-log.md main table."""
+    from pathlib import Path
+    depth_log = Path(__file__).parent / "depth-log.md"
+    if not depth_log.exists():
+        return {}
+    sevs = {}
+    for line in depth_log.read_text().split("\n"):
+        m = re.match(
+            r"\|\s*(\d+)\s*\|\s*\S+\s*\|.*?\|\s*(\S+)\s*\|.*?\|", line,
+        )
+        if m and m.group(1).isdigit():
+            sevs[int(m.group(1))] = m.group(2)
+    return sevs
+
+
+def trend(n: int = 5) -> None:
+    """Cross-session trend of the last N builder iterations."""
+    logs = _find_builder_logs(n)
+    if not logs:
+        print("No builder session logs found.")
+        return
+    sevs = _load_severities()
+    entries = []
+    for iter_num, path in reversed(logs):  # chronological order
+        data = _quick_parse(path)
+        data["iter"] = iter_num
+        data["severity"] = sevs.get(iter_num, "?")
+        entries.append(data)
+
+    print(f"=== Builder Trend (last {len(entries)}) ===")
+    total_calls = total_tests = test_count = 0
+    total_cost = 0.0
+    for e in entries:
+        mod = e["module"] or "?"
+        if "/" in mod:
+            mod = mod.split("/")[-1]
+        app = e["approach"] or "?"
+        sev = e["severity"]
+        td = e["test_delta"] or "?"
+        print(
+            f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
+            f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
+        )
+        total_calls += e["calls"]
+        total_cost += e["cost"]
+        m = re.search(r"\+(\d+)", str(td))
+        if m:
+            total_tests += int(m.group(1))
+            test_count += 1
+
+    ne = len(entries)
+    avg_calls = total_calls / ne if ne else 0
+    avg_cost = total_cost / ne if ne else 0
+    avg_tests = total_tests / test_count if test_count else 0
+    print(
+        f"  Avg: {avg_calls:.0f} calls, ${avg_cost:.2f}, "
+        f"+{avg_tests:.1f} tests/iter"
+    )
+
+    # Severity assessment
+    sev_ctr = Counter(e["severity"] for e in entries if e["severity"] != "?")
+    sev_str = ", ".join(f"{v} {k}" for k, v in sev_ctr.most_common())
+    all_med = all(s in ("medium", "low") for s in sev_ctr)
+    note = " (diminishing?)" if all_med and sev_ctr else ""
+    print(f"  Severity: {sev_str}{note}")
+
+    # Approach rotation
+    apps = [e["approach"] for e in entries if e["approach"]]
+    consec = any(apps[i] == apps[i + 1] for i in range(len(apps) - 1))
+    rot = "CONSECUTIVE REPEAT" if consec else "ok (no repeats)"
+    print(f"  Rotation: {rot}")
+    print()
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    if len(sys.argv) >= 2 and sys.argv[1] == "--trend":
+        n = int(sys.argv[2]) if len(sys.argv) >= 3 else 5
+        trend(n)
+    elif len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <session-log.jsonl>", file=sys.stderr)
+        print(f"       {sys.argv[0]} --trend [N]", file=sys.stderr)
         sys.exit(1)
-    parse(sys.argv[1])
+    else:
+        parse(sys.argv[1])

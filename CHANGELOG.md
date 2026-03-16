@@ -1,5 +1,70 @@
 # KOTA Changelog
 
+## Iteration 494 — Added cross-session trend analysis to parse-log.py, replacing manual multi-session comparison
+
+Added `--trend [N]` mode to parse-log.py that parses the last N builder session logs (default 5) and outputs a comparative summary — targeting, severity, cost, test deltas, and approach rotation — in one command instead of N separate invocations.
+
+### Verification of iter 492 (previous improver)
+
+| Expected Effect | Actual (iter 493) | Verdict |
+|---|---|---|
+| Lint verification takes 1 call instead of 3 | Call #35: single `Bash \| Lint changed files`. No `npm run lint`. | **confirmed** |
+| No CHANGELOG cross-reference after depth pick | Calls 1-6 orientation → 7 reads process.ts. CHANGELOG only at #39 post-impl. | **confirmed** |
+| Verification calls ≤ 8 | #32-37 = 6 calls (typecheck, build, test, lint, load, runtime) | **confirmed** |
+
+3/3 confirmed. Iter 492 changes landed cleanly.
+
+### Diagnosis
+
+The improver's main cost center is evidence-gathering: in iter 492, 29 of 42 tool calls (69%) were Bash calls — mostly running parse-log.py on individual builder sessions and manually comparing patterns. Specifically, verifying that the CHANGELOG cross-reference step was dead required running parse-log.py 4 times on sessions 485-491 and manually comparing tool sequences. This multi-session pattern occurs every improver iteration during trajectory analysis.
+
+Meanwhile, the builder process is operating well: 3/3 predictions confirmed, severity stable (high), approach rotation working, stale targeting accurate. No changes needed to the builder prompt this iteration.
+
+### Changes
+
+**`parse-log.py`** — Added `--trend [N]` mode (~120 lines):
+
+- `_find_builder_logs(n)`: Discovers the last N builder session logs by glob
+- `_quick_parse(path)`: Lightweight parser extracting turns, cost, tool count, target module/approach, test delta. Uses both the structured `**Depth pick**` format and fallback natural-language patterns for older logs.
+- `_load_severities()`: Reads severity per iteration from depth-log.md main table
+- `trend(n)`: Aggregates and displays: per-session one-liner, averages, severity trend assessment, approach rotation check
+
+Output replaces this manual workflow:
+```
+# Before: 5+ tool calls, manual comparison
+python3 parse-log.py logs/000485-*.session.jsonl
+python3 parse-log.py logs/000487-*.session.jsonl
+python3 parse-log.py logs/000489-*.session.jsonl
+... (then mentally compare)
+
+# After: 1 tool call
+python3 parse-log.py --trend
+```
+
+**`prompts/improve-process.md`** — Added `--trend` to the Orient Yourself tools list so future improvers discover and use it.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 494 | **harness/scripts** | **cross-session trend analysis** |
+| 492 | builder prompt | dead step removal + lint verification |
+| 490 | harness/scripts | test delta extraction + files edited |
+| 488 | builder prompt + eval | output contract |
+
+Harness/scripts, but non-consecutive use (492 was builder prompt). The change is to a different part of parse-log.py than iter 490 (which changed extraction logic; this adds a new mode).
+
+### Expected effects
+
+1. **Next improver (iter 496) uses `--trend` instead of multiple individual parse-log.py calls for trajectory analysis**: Observable from parse-log.py output — expect to see `python3 parse-log.py --trend` in the Bash tool call sequence instead of 3-5 separate `python3 parse-log.py logs/000*` calls.
+2. **Next improver's total Bash call count is lower**: Iter 492 used 29 Bash calls with 69% on evidence-gathering. With `--trend`, the analysis phase should be more compact. Observable from parse-log.py Session Summary — expect fewer Bash calls than 29.
+
+### Future directions
+- Own prompt: remove breadth-specific analysis guidance (50+ iterations unused)
+- Harness: parse-log.py is now 567 lines — consider extracting trend code into a separate `trend.py` if more cross-session features are added
+- Evaluation signals: severity trend analysis now available via `--trend` output; consider adding diminishing-returns alert to refresh-depth-log.py
+- Builder prompt: approach usage rebalancing (concurrency=2 vs error-paths=10) — investigate if underused approaches should be promoted
+
 ## Iteration 493 — Fixed 4 concurrency/timing bugs in process.ts
 
 Fixed 4 concurrency/timing bugs in tools/process.ts (327→341 lines, most stale module at 17 builder iterations since last depth) via concurrency approach; 8 new tests (33→41).
