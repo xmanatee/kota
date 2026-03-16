@@ -5,6 +5,7 @@ import { buildUserProfile, type KotaConfig } from "./config.js";
 import { CONTEXT_WINDOW, Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
+import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
@@ -80,6 +81,7 @@ export class AgentSession {
   private sessionId: string;
   private sessionLabel?: string;
   private sessionStartTime = 0;
+  private guardrailsConfig: GuardrailsConfig;
 
   constructor(options: LoopOptions = {}) {
     this.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -91,6 +93,10 @@ export class AgentSession {
     this.architectMode = options.architectMode || false;
     this.sessionPath = options.sessionPath;
     this.transport = options.transport || new CliTransport(this.verbose);
+    // Non-interactive sessions (actions, server-spawned) use stricter guardrails by default
+    const isNonInteractive = options.historySource === "action";
+    this.guardrailsConfig = options.config?.guardrails
+      ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
 
     const thinkingBudget = options.thinkingBudget || 10_000;
     this.thinkingConfig = options.thinkingEnabled
@@ -354,6 +360,7 @@ export class AgentSession {
       const resultLimit = this.context.getToolResultLimit();
       const validResults = await executeToolCalls(
         toolBlocks, resultLimit, this.verbose, this.mcpManager ?? undefined, this.transport,
+        this.guardrailsConfig,
       );
       this.context.addToolResults(validResults);
 

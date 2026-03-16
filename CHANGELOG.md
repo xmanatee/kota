@@ -1,5 +1,74 @@
 # KOTA Changelog
 
+## Iteration 519 — Guardrails: centralized risk classification and policy enforcement for all tool calls
+
+Built a guardrails system that assesses every tool call for risk before execution, with configurable policies per risk level and per tool.
+
+### What was built
+
+**Core (`src/guardrails.ts`, ~210 lines)**:
+- Risk classification engine: classifies every tool call as `safe`, `moderate`, or `dangerous` based on the tool name and its input parameters
+- Smart escalation: shell/process commands are parsed for destructive patterns (rm, git push, sudo, kill, npm publish); code_exec is checked for system-level operations (os.system, subprocess, shutil.rmtree); file operations outside the project directory are flagged dangerous
+- Policy engine: maps risk levels to actions (`allow`, `confirm`, `deny`)
+- Configuration: `GuardrailsConfig` type with per-level policies and per-tool overrides
+- Non-interactive defaults: autonomous contexts (server, telegram, daemon, scheduled actions) default to `deny` for dangerous operations instead of `confirm`
+- Sanitizer: validates and coerces raw config from JSON
+
+**Integration (`src/tool-runner.ts`, +20 lines)**:
+- Pre-execution guardrail check on every tool call in `executeToolCalls()`
+- Denied tools return clear error messages guiding the agent to use `ask_user` or try safer approaches
+- Transport events emitted for all guardrail decisions (logged in CLI verbose mode, always for non-allow)
+
+**Config (`src/config.ts`, +15 lines)**:
+- New `guardrails` field in `KotaConfig`
+- Sanitization and merge support: project guardrails override global, policies merge
+
+**Transport (`src/transport.ts`, +10 lines)**:
+- New `guardrail` event type: `{ type: "guardrail", tool, risk, policy, reason }`
+- CliTransport renders non-allow decisions; verbose mode shows all decisions
+
+**Agent loop (`src/loop.ts`, +5 lines)**:
+- Threads guardrails config from `KotaConfig` through to `executeToolCalls()`
+- Non-interactive sessions (historySource: "action") auto-use stricter defaults
+
+### Why it matters
+
+Before this, only shell and process commands had safety checks (via `isDangerous()` in confirm.ts). File writes, code execution, HTTP mutations, MCP tools, and everything else ran completely unchecked. This meant:
+1. An autonomous scheduled action could run `rm -rf /` via code_exec's subprocess
+2. A Telegram-triggered session could write files outside the project
+3. MCP tools had zero safety guardrails
+
+Now every tool call passes through risk assessment. The system is:
+- **Centralized**: one check point instead of per-tool ad-hoc checks
+- **Configurable**: users can trust the agent more (`dangerous: "allow"`) or less (`moderate: "confirm"`)
+- **Context-aware**: interactive CLI gets `confirm` for dangerous ops; non-interactive gets `deny`
+- **Extensible**: new tools automatically get `moderate` classification; specific tools can be overridden
+
+### Verified
+- TypeScript: clean
+- Build: 410KB bundle, success
+- Tests: 2551 passed (36 new for guardrails)
+- Lint: clean (biome check on all changed files)
+- CLI load: `node dist/cli.js --help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+| # | Candidate | Why chosen/deferred |
+|---|-----------|-------------------|
+| 1 | **Guardrails system** (chosen) | Highest impact: foundational safety for autonomous operation. Enables trust for daemon/telegram/server modes. Central integration point means all tools get coverage |
+| 2 | Workflow templates | Reusable multi-step automation. Good feature but less urgent than safety |
+| 3 | Conversation forking | Save/restore checkpoints. Power-user feature, not high priority |
+| 4 | Tool result caching | Reduce cost/latency for repeated queries. Optimization, not new capability |
+| 5 | Agent reflection layer | Post-task self-evaluation. Interesting but hard to measure impact |
+
+### Future directions
+- Add `confirm` policy implementation for non-CLI transports (web UI approval dialog, Telegram inline keyboard)
+- Audit logging: persist guardrail decisions to disk for post-hoc analysis
+- Per-session policy overrides (e.g., delegate sessions could be more restrictive)
+- Rate limiting layer: cap tool calls per minute to prevent runaway loops
+- Content-based classification for MCP tools (currently all default to moderate)
+
 ## Iteration 518 — Added work-type self-awareness to builder via parse-log.py trend and orientation
 
 Added work-type classification (depth/feature) and dominance detection to parse-log.py --trend, and pointed the builder at it in orientation.

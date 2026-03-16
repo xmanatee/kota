@@ -125,6 +125,40 @@ Pluggable architecture where features are self-contained modules instead of hard
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
 - Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
 
+### Guardrails (`src/guardrails.ts`)
+
+Centralized risk classification and policy enforcement for all tool calls. Every tool call is assessed before execution — the policy determines whether to allow, require confirmation, or deny.
+
+**Risk levels**:
+- `safe` — Read-only tools (file_read, grep, glob, repo_map, todo, ask_user, web_search, memory, get_secret, enable_tools, files_overview). Also HTTP GET requests.
+- `moderate` — File modifications (file_edit, file_write, multi_edit, find_replace), code_exec, web_fetch, delegate, schedule, notebook, HTTP mutations, shell/process with non-destructive commands, unknown/MCP tools.
+- `dangerous` — Shell/process with destructive command patterns (rm, git push, sudo, kill, npm publish, etc.), code_exec with system-level operations (os.system, subprocess, shutil.rmtree), file operations targeting paths outside the project directory.
+
+**Policies** (configurable per risk level):
+- `allow` — Execute immediately. Default for safe and moderate.
+- `confirm` — In interactive mode, prompt the user. In non-interactive mode, deny. Default for dangerous.
+- `deny` — Block execution. Return error guiding the agent to use ask_user or try a safer approach.
+
+**Configuration** (`.kota/config.json`):
+```json
+{
+  "guardrails": {
+    "policies": { "safe": "allow", "moderate": "allow", "dangerous": "confirm" },
+    "toolOverrides": { "shell": "confirm" }
+  }
+}
+```
+
+**Non-interactive contexts** (server, telegram, daemon, scheduled actions): Default policy for dangerous operations is `deny` instead of `confirm`, since there's no user to prompt. This prevents autonomous sessions from running destructive commands. Configurable via config.
+
+**Integration**: Guardrails check runs in `executeToolCalls()` in `tool-runner.ts`, before any tool execution. Transport emits `guardrail` events for visibility (logged in CLI verbose mode, always logged for non-allow decisions).
+
+**Design decisions**:
+- Centralized: one check point for all tools, rather than each tool implementing its own safety checks. Shell/process retain their existing `isDangerous()` + `confirmExecution()` as a fallback layer.
+- Conservative defaults: moderate tools are allowed (the agent needs to be useful), dangerous operations require confirmation (the user needs to be safe).
+- Tool overrides: per-tool policies bypass risk classification entirely. Users who trust specific tools can override.
+- MCP and module tools default to moderate — unknown tools are treated cautiously but not blocked.
+
 ### Secrets Management (`src/secrets.ts`, `src/modules/secrets.ts`)
 
 Provider-based credential management with automatic output masking. Prevents secret leakage into LLM context.

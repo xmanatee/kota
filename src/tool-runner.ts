@@ -1,4 +1,5 @@
 import { truncateToolResult } from "./context.js";
+import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { McpManager } from "./mcp-manager.js";
 import { getSecretStore } from "./secrets.js";
 import { maybeRetry } from "./tool-retry.js";
@@ -23,6 +24,7 @@ export type ToolResultEntry = {
 /**
  * Execute tool calls in parallel, with verbose logging and result truncation.
  * Routes MCP-namespaced tools through the McpManager when provided.
+ * When guardrailsConfig is set, each tool call is assessed before execution.
  */
 export async function executeToolCalls(
   toolBlocks: ToolUseBlock[],
@@ -30,6 +32,7 @@ export async function executeToolCalls(
   verbose: boolean,
   mcpManager?: McpManager,
   transport?: Transport,
+  guardrailsConfig?: GuardrailsConfig,
 ): Promise<ToolResultEntry[]> {
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
@@ -40,6 +43,28 @@ export async function executeToolCalls(
         });
       }
       const input = block.input as Record<string, unknown>;
+
+      // Guardrails: assess risk and enforce policy before execution
+      if (guardrailsConfig) {
+        const assessment = assess(block.name, input, guardrailsConfig);
+        if (transport) {
+          transport.emit({
+            type: "guardrail",
+            tool: assessment.tool,
+            risk: assessment.risk,
+            policy: assessment.policy,
+            reason: assessment.reason,
+          });
+        }
+        if (assessment.policy === "deny") {
+          return {
+            tool_use_id: block.id,
+            content: `Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+              "This operation requires approval. Use ask_user to request permission, or try a safer approach.",
+            is_error: true,
+          };
+        }
+      }
 
       // Route MCP tools through the manager
       let result = mcpManager?.isMcpTool(block.name)

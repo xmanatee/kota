@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
 
 /**
  * KOTA configuration schema.
@@ -28,6 +29,9 @@ export type KotaConfig = {
 
   /** Prompt aliases — keys that expand into prefix text when starting a message. */
   aliases?: Record<string, string>;
+
+  /** Guardrails — risk classification and policy enforcement for tool calls. */
+  guardrails?: GuardrailsConfig;
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -80,6 +84,11 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(aliases).length > 0) out.aliases = aliases;
   }
 
+  if (typeof raw.guardrails === "object" && raw.guardrails !== null && !Array.isArray(raw.guardrails)) {
+    const parsed = sanitizeGuardrailsConfig(raw.guardrails as Record<string, unknown>);
+    if (parsed) out.guardrails = parsed;
+  }
+
   return out;
 }
 
@@ -95,6 +104,14 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.user = { ...a.user, ...val };
     } else if (key === "aliases" && typeof val === "object") {
       merged.aliases = { ...a.aliases, ...(val as Record<string, string>) };
+    } else if (key === "guardrails" && typeof val === "object") {
+      // Project guardrails override global — merge policies, project toolOverrides replace global
+      const base = a.guardrails;
+      const over = val as GuardrailsConfig;
+      merged.guardrails = {
+        policies: { ...(base?.policies), ...over.policies },
+        toolOverrides: over.toolOverrides ?? base?.toolOverrides,
+      };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];
