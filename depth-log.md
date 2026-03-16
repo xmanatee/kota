@@ -27,7 +27,7 @@ Covered modules and which approaches have been applied:
 
 | Module | Lines | Depth Iters | Approaches Applied |
 |--------|-------|-------------|--------------------|
-| cli.ts | 491 | 391,397,403,411 | friction×2, harden, friction |
+| cli.ts | 429 | 391,397,403,411 | friction×2, harden, friction |
 | scheduler.ts | 471 | 389,413 | audit, harden |
 | loop.ts | 437 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
@@ -37,8 +37,8 @@ Covered modules and which approaches have been applied:
 | history.ts | 279 | 391,405 | friction, e2e |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
 
-Note: `cli.ts` shrank from 571→491 lines during modular architecture plan
-(iters 427-435) as 5 hardcoded CLI commands were extracted into modules.
+Note: `cli.ts` shrank from 571→429 lines during modular architecture plan
+(iters 427-437) as 6 hardcoded CLI commands were extracted into modules.
 `session-pool.ts` (185 lines, covered iter 393) and `web-ui.ts` (50 lines,
 covered iter 409 — was 612, split into web-ui-client/styles/markdown) are
 below 200 lines now but have historical coverage.
@@ -71,10 +71,10 @@ Uncovered large modules — **zero depth iterations**:
 **16 uncovered modules, 4,218 lines total.** Update this section when
 appending a row above.
 
-Data refreshed at iter 436. The modular architecture plan (iters 427-435)
+Data refreshed at iter 438. The modular architecture plan (iters 427-437)
 added `src/modules/` (thin wrappers, all <85 lines) and `module-loader.ts`
-(207 lines, framework code with zero depth coverage). Two plan steps remain
-(registry, vercel-adapter) before the builder re-enters depth phase.
+(207 lines, framework code with zero depth coverage). One plan step remains
+(vercel-adapter) before the builder re-enters depth phase.
 
 ## Severity Key
 

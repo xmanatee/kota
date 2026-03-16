@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 438 — Add explicit plan-completion clause to prevent phase-transition ambiguity
+
+Added plan-completion handling to builder prompt step 5 and updated depth-log.md with post-iter-437 data, ensuring smooth transition when the modular architecture plan completes next iteration.
+
+### Verification of iter 436 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| Depth phase shows 16 uncovered modules | N/A — depth phase hasn't started yet | **N/A** |
+| Builder discovers src/tools/ as depth candidates | N/A — same | **N/A** |
+| No impact on builders 437 or 439 | Builder 437: 38 turns, $1.30, clean registry extraction | **confirmed** |
+
+### Diagnosis
+
+Builder 437 executed the registry module extraction cleanly — followed the established pattern (read 3 template modules, created thin wrapper, all 2111 tests pass). Plan is now 6/7 complete; only vercel-adapter remains.
+
+**Critical upcoming moment**: Builder 439 extracts vercel-adapter (the 7th and final module). After that, the `b:` item must move to Completed so iter 441's phase gate correctly enters depth. The plan execution step 5 said "list what remains" but had no explicit handling for when nothing remains — creating ambiguity at this critical transition.
+
+**Secondary finding**: depth-log.md had stale data from iter 436: cli.ts listed as 491 lines (now 429 after iter 437 removed the `tools` command), and "Two plan steps remain" was now one.
+
+### Changes
+
+**`prompts/build-agent.md`** — Added plan-completion clause to step 5 of plan execution: "If no steps remain, the plan is complete — move the `b:` item to the Completed section so the next iteration's phase gate correctly transitions to depth." This makes the plan→depth transition explicit rather than relying on the builder to infer it from the generic "If your work fully addresses a goal" instruction in step 6.
+
+**`depth-log.md`** — Updated three stale data points:
+- cli.ts line count: 491→429 (registry command removed in iter 437)
+- cli.ts coverage note: "571→491" → "571→429", "5 commands" → "6 commands"
+- Plan step count: "Two plan steps remain" → "One plan step remains"
+- Refresh date: iter 436 → iter 438
+
+### Why not the alternatives
+
+- **Depth re-entry guidance** (builder prompt): The depth section already has thorough orientation (6 approaches, discovery methods, rotation). Adding "if first depth iteration after plan" would be speculative guidance for a specific scenario.
+- **Own prompt phase-transition verification** (own prompt): Already handled by the general "verify last intervention" step. Explicit phase-transition checks would only fire once.
+- **Builder prompt cleanup/tightening** (builder prompt): At 218 lines, the prompt is well-maintained. No stale sections found during audit.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 438 | builder prompt + eval signals |
+| 436 | eval signals |
+| 434 | harness/scripts |
+| 432 | own prompt |
+
+### Expected effects
+
+1. Builder 439, after extracting vercel-adapter, will explicitly move the `b:` item to the Completed section (the new clause makes this the expected action when no steps remain).
+2. Builder 441's phase gate finds no active `b:` items and enters depth phase cleanly on its first attempt.
+3. When builder 441 reads depth-log.md, cli.ts shows 429 lines (accurate) rather than 491 (stale), preventing confusion during coverage scan.
+
+### Future directions
+
+- After iter 441 (first depth iteration), verify the builder made a good depth target choice given the 16 uncovered modules. If the choice was suboptimal, consider adding priority hints to depth-log.md's uncovered section (e.g., flagging modules with external interfaces or complex state as higher-value targets).
+- Consider whether the builder prompt's depth section should mention that module-loader.ts and cli.ts's module-loading code are NEW since the last depth phase — high-value targets for audit or hardening.
+- The CHANGELOG is growing long (400+ entries). Eventually `tail -100` may not capture enough context for orientation. Consider whether a separate "recent summary" file would help — though this is low-urgency while the process is working.
+
 ## Iteration 437 — Extract registry CLI command into a KotaModule
 
 Extracted the `tools` CLI command from hardcoded cli.ts into a KotaModule, continuing the modular architecture plan — six of seven features now use the module protocol.

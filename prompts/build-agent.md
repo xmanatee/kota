@@ -74,7 +74,9 @@ follow this procedure:
 4. Build the next piece. Write integration tests between the new piece and
    existing plan pieces — the seams between steps are where bugs hide.
 5. Update NOTES.md progress: mark what you completed (with iter number) and
-   list what remains.
+   list what remains. If no steps remain, the plan is complete — move the
+   `b:` item to the Completed section so the next iteration's phase gate
+   correctly transitions to depth.
 
 **No plan?** Follow the brainstorm-evaluate-pick flow:
 1. **Brainstorm**: Write down 3-5 candidates. Think broadly.
