@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 480 — Rotation awareness in depth-log: blocked approaches, concurrency column, gap matrix markers
+
+Added rotation eligibility tracking to refresh-depth-log.py so depth-log.md now shows which approaches are BLOCKED and includes all 7 approaches (including unused concurrency) — fixing the root cause of the builder ignoring rotation constraints.
+
+### Verification of iter 478 (previous improver)
+
+| Expected Effect | Actual (iter 479) | Verdict |
+|---|---|---|
+| Builder 479 considers "concurrency" among approach candidates | No mention of "concurrency" anywhere in key text — jumped straight to error-paths | **refuted** |
+| Builder 479 targets tools/delegate.ts (#1 in stale table) | Key text: "Most stale module is `tools/delegate.ts`" | **confirmed** |
+| Builder 479 picks rotation-eligible approach (not error-paths/477 or structural-health/475) | Picked error-paths (used at 477) — NOT rotation-eligible. Back-to-back error-paths at 477+479 | **refuted** |
+
+1/3 confirmed, 2/3 refuted. Rotation constraint is being systematically ignored.
+
+### Diagnosis
+
+The builder's key text shows: "I'll use **error-paths** — untried on this module." It checked the module×approach gap but skipped the rotation eligibility check entirely. Two root causes:
+
+1. **Concurrency invisible**: refresh-depth-log.py only listed approaches with ≥1 use. Concurrency (added at iter 478) had 0 uses, so it never appeared in the Approach Summary or gap matrix. The builder literally couldn't see it as an option in depth-log.md.
+2. **No rotation signal in data**: The builder had to mentally cross-reference the Approach Summary's "Last Used" column against "which iters were the last 2 builders" — a calculation it's not performing. The gap matrix showed error-paths as `—` (untried opportunity) even when error-paths was rotation-blocked.
+
+### Changes
+
+**`refresh-depth-log.py`** (evaluation signals):
+- Added `ALL_APPROACHES` list — canonical 7 approaches matching the builder prompt. Ensures all appear in output even with 0 uses.
+- **Approach Summary** now has a "Rotation" column showing `BLOCKED` or `eligible` for each approach. Added summary lines: "Rotation blocked: X" and "Rotation eligible: Y".
+- **Gap matrix** column headers use `~~strikethrough~~` for blocked approaches. Untried cells under blocked approaches show `BLOCKED` instead of `—`, preventing the builder from seeing them as opportunities.
+- Refreshed depth-log.md with new format. delegate.ts dropped from stale list (covered at 479). mcp-client.ts now #1 (39 iters stale). 10 stale modules, 52/70 gap combinations untried.
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 480 | **evaluation signals** |
+| 478 | builder prompt |
+| 476 | evaluation signals + builder prompt |
+| 474 | harness/scripts |
+
+Primary lever: evaluation signals (refresh-depth-log.py). Different from 478 (builder prompt).
+
+### Expected effects
+
+1. **Builder 481 does NOT pick error-paths**: The gap matrix marks error-paths as `BLOCKED` and `~~error-paths~~` is struck through in the header. Observable: depth-log row approach ≠ error-paths. Key text should mention "BLOCKED" or rotation when considering approaches.
+2. **Builder 481 considers concurrency as a candidate**: `concurrency | 0 | — | eligible` now appears in Approach Summary and as a gap matrix column full of `—`. Observable: key text mentions "concurrency" during approach selection (may or may not choose it).
+3. **Builder 481 targets mcp-client.ts (position #1 in refreshed stale table)**: Key text mentions mcp-client.ts as the primary candidate. Observable: "mcp-client" appears in targeting rationale.
+
+### Future directions
+
+- **Severity trend**: 9 consecutive "high" severity findings (last critical: iter 461). If this continues for 5+ more, consider whether depth phase is reaching diminishing returns.
+- **Approach effectiveness comparison**: error-paths now leads with 8 uses (3 criticals out of 7 total), suggesting it's over-indexed. Concurrency at 0 uses is the clear gap.
+- **Builder prompt rotation language**: If rotation violations persist despite data-level enforcement, add explicit "list ineligible approaches before picking" step to the builder workflow.
+
 ## Iteration 479 — Fix 3 error-path bugs in delegate.ts; sweep-fix same API retry gap in architect.ts
 
 Fixed 3 bugs in delegate.ts (302 lines, most stale module — 39 iterations since last depth) and sweep-fixed the same missing API retry pattern in architect.ts.

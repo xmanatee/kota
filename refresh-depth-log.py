@@ -28,6 +28,19 @@ DEPTH_EXCLUDE = {
     "web-ui-styles.ts",   # CSS template literal — styling only, no testable logic
 }
 
+# Canonical list of all depth approaches — must match the builder prompt.
+# Approaches with 0 uses still appear in the summary and gap matrix so the
+# builder can see them as options.
+ALL_APPROACHES = [
+    "audit",
+    "friction",
+    "harden",
+    "structural-health",
+    "e2e",
+    "error-paths",
+    "concurrency",
+]
+
 
 def parse_main_table(text: str) -> list[dict]:
     rows = []
@@ -152,10 +165,19 @@ def main():
         a = row["approach"]
         approach_count[a] += 1
         approach_last[a] = max(approach_last.get(a, 0), row["iter"])
+    # Include ALL canonical approaches (even unused ones with count=0)
+    all_known = set(ALL_APPROACHES) | set(approach_count.keys())
     approach_sorted = sorted(
-        approach_count.keys(),
-        key=lambda a: (-approach_count[a], -approach_last[a]),
+        all_known,
+        key=lambda a: (-approach_count.get(a, 0), -approach_last.get(a, 0)),
     )
+    # Rotation: last 2 builder iterations' approaches are blocked
+    builder_rows = sorted(rows, key=lambda r: r["iter"])
+    last_2_builder_approaches = set()
+    for r in builder_rows[-2:]:
+        last_2_builder_approaches.add(r["approach"])
+    rotation_eligible = [a for a in approach_sorted if a not in last_2_builder_approaches]
+    rotation_blocked = [a for a in approach_sorted if a in last_2_builder_approaches]
 
     # Stale coverage detection (auto-generated)
     stale_modules = []
@@ -182,11 +204,19 @@ def main():
 
     # Approach summary
     out.append("## Approach Summary\n")
-    out.append("| Approach | Count | Last Used |")
-    out.append("|----------|-------|-----------|")
+    out.append("| Approach | Count | Last Used | Rotation |")
+    out.append("|----------|-------|-----------|----------|")
     for a in approach_sorted:
-        out.append(f"| {a} | {approach_count[a]} | {approach_last[a]} |")
+        count = approach_count.get(a, 0)
+        last = approach_last.get(a, 0)
+        last_str = str(last) if last else "—"
+        status = "BLOCKED" if a in last_2_builder_approaches else "eligible"
+        out.append(f"| {a} | {count} | {last_str} | {status} |")
     out.append(f"\n{total} depth iterations across {len(approach_sorted)} approaches.")
+    blocked_str = ", ".join(rotation_blocked)
+    eligible_str = ", ".join(rotation_eligible)
+    out.append(f"**Rotation blocked** (used in last 2 builder iters): {blocked_str}")
+    out.append(f"**Rotation eligible**: {eligible_str}")
     out.append("")
 
     # Uncovered
@@ -246,19 +276,27 @@ def main():
             out.append("### Approach Gap Matrix\n")
             out.append(
                 "*Which approaches have been tried on each stale module. "
-                "`—` = untried (opportunity for new coverage).*\n"
+                "`—` = untried, `BLOCKED` = not rotation-eligible.*\n"
             )
-            # Header
+            # Header — use all canonical approaches
             cols = approach_sorted
-            header = "| Module | " + " | ".join(cols) + " |"
-            sep = "|--------|" + "|".join("-" * (max(len(c), 3) + 2) for c in cols) + "|"
+            col_labels = []
+            for c in cols:
+                col_labels.append(f"~~{c}~~" if c in last_2_builder_approaches else c)
+            header = "| Module | " + " | ".join(col_labels) + " |"
+            sep = "|--------|" + "|".join("-" * (max(len(c), 3) + 4) for c in cols) + "|"
             out.append(header)
             out.append(sep)
             for path, *_ in stale_modules:
                 cells = []
                 for appr in cols:
                     iters = stale_approach_map.get(path, {}).get(appr, [])
-                    cells.append(",".join(str(i) for i in iters) if iters else "—")
+                    if iters:
+                        cells.append(",".join(str(i) for i in iters))
+                    elif appr in last_2_builder_approaches:
+                        cells.append("BLOCKED")
+                    else:
+                        cells.append("—")
                 out.append(f"| {path} | " + " | ".join(cells) + " |")
             total_cells = len(stale_modules) * len(cols)
             filled = sum(
@@ -306,7 +344,9 @@ def main():
     print(f"  {len(stale_modules)} stale modules (≥{STALE_THRESHOLD} builder iters since last coverage)", file=sys.stderr)
     print(f"  {len(matrix)} covered modules in matrix", file=sys.stderr)
     print(f"  Severity: {sev_str}", file=sys.stderr)
-    print(f"  Approaches: {', '.join(f'{a}={approach_count[a]}' for a in approach_sorted)}", file=sys.stderr)
+    print(f"  Approaches: {', '.join(f'{a}={approach_count.get(a, 0)}' for a in approach_sorted)}", file=sys.stderr)
+    print(f"  Rotation blocked: {', '.join(rotation_blocked)}", file=sys.stderr)
+    print(f"  Rotation eligible: {', '.join(rotation_eligible)}", file=sys.stderr)
 
 
 if __name__ == "__main__":

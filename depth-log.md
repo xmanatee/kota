@@ -39,16 +39,19 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 
 ## Approach Summary
 
-| Approach | Count | Last Used |
-|----------|-------|-----------|
-| error-paths | 7 | 477 |
-| harden | 6 | 471 |
-| friction | 5 | 473 |
-| structural-health | 4 | 475 |
-| audit | 4 | 467 |
-| e2e | 4 | 461 |
+| Approach | Count | Last Used | Rotation |
+|----------|-------|-----------|----------|
+| error-paths | 8 | 479 | BLOCKED |
+| harden | 6 | 471 | eligible |
+| friction | 5 | 473 | eligible |
+| structural-health | 4 | 475 | eligible |
+| audit | 4 | 467 | eligible |
+| e2e | 4 | 461 | eligible |
+| concurrency | 0 | — | eligible |
 
-30 depth iterations across 6 approaches.
+31 depth iterations across 7 approaches.
+**Rotation blocked** (used in last 2 builder iters): error-paths
+**Rotation eligible**: harden, friction, structural-health, audit, e2e, concurrency
 
 ## Uncovered Modules — PRIMARY Targets
 
@@ -72,37 +75,37 @@ find untried module+approach combinations.*
 
 | Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |
 |--------|-------|------------|--------------|-------------------|-----------------|
-| tools/delegate.ts | 302 | 384 | 399 | 39 | audit |
-| mcp-client.ts | 249 | 349 | 401 | 38 | audit, error-paths |
-| tool-adapters.ts | 403 | 641 | 415 | 31 | error-paths |
-| server.ts | 400 | 242 | 425 | 26 | e2e, structural-health |
-| cli.ts | 424 | 316 | 441 | 18 | friction, friction, harden, friction, e2e |
-| module-loader.ts | 312 | 506 | 441 | 18 | e2e |
-| history.ts | 305 | 342 | 453 | 12 | friction, e2e, audit |
-| scheduler.ts | 378 | 665 | 455 | 11 | audit, harden, structural-health |
-| task-store.ts | 259 | 280 | 455 | 11 | structural-health |
-| tools/process.ts | 327 | 335 | 457 | 10 | harden |
+| mcp-client.ts | 249 | 349 | 401 | 39 | audit, error-paths |
+| tool-adapters.ts | 403 | 641 | 415 | 32 | error-paths |
+| server.ts | 400 | 242 | 425 | 27 | e2e, structural-health |
+| cli.ts | 424 | 316 | 441 | 19 | friction, friction, harden, friction, e2e |
+| module-loader.ts | 312 | 506 | 441 | 19 | e2e |
+| history.ts | 305 | 342 | 453 | 13 | friction, e2e, audit |
+| scheduler.ts | 378 | 665 | 455 | 12 | audit, harden, structural-health |
+| task-store.ts | 259 | 280 | 455 | 12 | structural-health |
+| tools/process.ts | 327 | 335 | 457 | 11 | harden |
+| tools/http-request.ts | 318 | 624 | 459 | 10 | error-paths |
 
 **10 stale modules.**
 
 ### Approach Gap Matrix
 
-*Which approaches have been tried on each stale module. `—` = untried (opportunity for new coverage).*
+*Which approaches have been tried on each stale module. `—` = untried, `BLOCKED` = not rotation-eligible.*
 
-| Module | error-paths | harden | friction | structural-health | audit | e2e |
-|--------|-------------|--------|----------|-------------------|-------|-----|
-| tools/delegate.ts | — | — | — | — | 399 | — |
-| mcp-client.ts | 401 | — | — | — | 399 | — |
-| tool-adapters.ts | 415 | — | — | — | — | — |
-| server.ts | — | — | — | 425 | — | 395 |
-| cli.ts | — | 403 | 391,397,411 | — | — | 441 |
-| module-loader.ts | — | — | — | — | — | 441 |
-| history.ts | — | — | 391 | — | 453 | 405 |
-| scheduler.ts | — | 413 | — | 455 | 389 | — |
-| task-store.ts | — | — | — | 455 | — | — |
-| tools/process.ts | — | 457 | — | — | — | — |
+| Module | ~~error-paths~~ | harden | friction | structural-health | audit | e2e | concurrency |
+|--------|---------------|----------|------------|---------------------|---------|-------|---------------|
+| mcp-client.ts | 401 | — | — | — | 399 | — | — |
+| tool-adapters.ts | 415 | — | — | — | — | — | — |
+| server.ts | BLOCKED | — | — | 425 | — | 395 | — |
+| cli.ts | BLOCKED | 403 | 391,397,411 | — | — | 441 | — |
+| module-loader.ts | BLOCKED | — | — | — | — | 441 | — |
+| history.ts | BLOCKED | — | 391 | — | 453 | 405 | — |
+| scheduler.ts | BLOCKED | 413 | — | 455 | 389 | — | — |
+| task-store.ts | BLOCKED | — | — | 455 | — | — | — |
+| tools/process.ts | BLOCKED | 457 | — | — | — | — | — |
+| tools/http-request.ts | 459 | — | — | — | — | — | — |
 
-**42/60 combinations untried.**
+**52/70 combinations untried.**
 
 ## Coverage by Module
 
@@ -117,12 +120,12 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | server.ts | 400 | 242 | 395,425 | e2e, structural-health |
 | scheduler.ts | 378 | 665 | 389,413,455 | audit, harden, structural-health |
 | daemon.ts | 378 | 418 | 451,477 | error-paths, error-paths |
+| tools/delegate.ts | 329 | 384 | 399,479 | audit, error-paths |
 | tools/process.ts | 327 | 335 | 457 | harden |
 | tools/http-request.ts | 318 | 624 | 459 | error-paths |
 | init.ts | 315 | 453 | 463 | friction |
 | module-loader.ts | 312 | 506 | 441 | e2e |
 | history.ts | 305 | 342 | 391,405,453 | friction, e2e, audit |
-| tools/delegate.ts | 302 | 384 | 399 | audit |
 | registry.ts | 299 | 635 | 407,475 | error-paths, structural-health |
 | html-extract.ts | 296 | 377 | 467 | audit |
 | tools/file-read.ts | 282 | 564 | 469 | error-paths |
@@ -131,6 +134,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | task-store.ts | 259 | 280 | 455 | structural-health |
 | mcp-client.ts | 249 | 349 | 399,401 | audit, error-paths |
 | tools/find-replace.ts | 229 | 449 | 473 | friction |
+| architect.ts | 229 | 431 | 479 | error-paths |
 | verify-tracker.ts | 227 | 514 | 471 | harden |
 | context.ts | 221 | 533 | 461 | e2e |
 | session-pool.ts | 185 | 427 | 393 | harden |
@@ -151,7 +155,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 478. Previous refresh at iter 477.
+Data refreshed at iter 480. Previous refresh at iter 479.
 
 ## Severity Key
 
@@ -161,4 +165,4 @@ Data refreshed at iter 478. Previous refresh at iter 477.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (30 iterations): critical=7, high=20, medium=3
+Distribution (31 iterations): critical=7, high=21, medium=3
