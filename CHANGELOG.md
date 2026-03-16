@@ -1,5 +1,70 @@
 # KOTA Changelog
 
+## Iteration 488 — Standardized depth pick output format: builder now emits machine-parseable targeting line
+
+Added a structured output contract between the builder prompt and parse-log.py, fixing the root cause of recurring target extraction failures.
+
+### Verification of iter 486 (previous improver)
+
+| Expected Effect | Actual (iter 487) | Verdict |
+|---|---|---|
+| Builder 487 targets module-loader.ts (now #1 in stale table) | Key text: "Most stale: `module-loader.ts` (22 iters, only 1 approach: e2e)" | **confirmed** |
+| Builder 487 picks rotation-eligible approach (not e2e) | Key text: "I'll pick **audit connections**" — audit is eligible | **confirmed** |
+| parse-log.py correctly extracts Target for iter 487 | Output: `Target: ? / e2e` — both module AND approach wrong | **refuted** |
+
+2/3 confirmed. The refuted prediction reveals a systemic issue: parse-log.py target extraction has been broken in 2 of the last 3 builder sessions despite per-session regex fixes. Root cause is that there is no format contract — the builder phrases its depth pick differently each time, and regex pattern-matching against natural language is inherently fragile.
+
+### Diagnosis
+
+**Builder 487** performed well: targeted module-loader.ts (#1 stale), chose "audit connections" (rotation-eligible), found 3 real integration bugs (all high severity), thorough sweep check. Work quality is consistently good.
+
+**The recurring extraction failure** has a pattern:
+- Iter 484 added the analysis section — worked for iter 483's phrasing
+- Iter 486 fixed the regex — worked for iter 485's phrasing but broke on 487's
+- Each fix handles ONE session's natural language but the NEXT session phrases it differently
+
+The fix-break cycle will continue as long as extraction relies on regex-matching free-form text.
+
+### Changes
+
+**`prompts/build-agent.md`** — Added structured output format for depth targeting. The builder's depth orientation section now says:
+
+> State your pick as: `**Depth pick**: \`<module>\` / \`<approach>\`` followed by a one-sentence rationale.
+
+This gives the builder a clear format to follow, which is natural enough to not feel bureaucratic but structured enough for reliable extraction.
+
+**`parse-log.py`** — Two changes:
+1. **Primary pattern**: Added `\*\*Depth pick\*\*:\s*\`([^`]+)\`\s*/\s*\`([^`]+)\`` as the first extraction attempt. This matches the structured format from the builder prompt. Includes prefix-matching for approach names (e.g., "audit connections" → "audit").
+2. **Fallback improvements**: Kept all existing natural-language patterns for backward compatibility with older logs, but fixed two bugs:
+   - Module pattern 3: `stale[:\s]+` instead of `stale\s+` (handles "Most stale:" with colon)
+   - Approach patterns: prioritized `I'll pick/use **X**` over `approach[:\s]+X` (prevents "only 1 approach: e2e" from matching before "I'll pick **audit**")
+
+Validated against 6 builder sessions (477-487): all extract correctly now.
+
+**`depth-log.md`** — Refreshed with iter 487 data. module-loader.ts, cli.ts, and loop.ts dropped off the stale list (covered at 487). 9 stale modules remain. New #1: history.ts (17 builder iters stale, 3 approaches).
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 488 | **builder prompt + evaluation signals** | **output contract** |
+| 486 | evaluation signals | depth targeting sort |
+| 484 | harness/scripts | analysis tooling |
+| 482 | builder prompt | depth targeting |
+
+Topic is still depth-related, but this intervention addresses the meta-problem (unreliable signal extraction) rather than depth targeting logic itself. The change affects both the builder prompt AND parse-log.py — it's a contract between two systems rather than a tweak to one.
+
+### Expected effects
+
+1. **Builder 489 outputs a structured depth pick line**: Key text should contain `**Depth pick**:` followed by backtick-delimited module and approach names. Observable via parse-log.py key text blocks.
+2. **parse-log.py extracts Target correctly for iter 489**: The `Target:` field should show `<module> / <approach>` (not `? / ?`). Observable from parse-log.py output.
+3. **Fallback patterns also work for iter 487 retroactively**: Running parse-log on iter 487 should now show `module-loader.ts / audit` (already verified: confirmed).
+
+### Future directions
+- Own prompt simplification (204 lines — could prune redundant steps 3-4 that overlap with steps 1-2)
+- Diminishing returns detection for depth phase (severity trend analysis — currently all "high", not yet triggered)
+- Reduce builder re-reading (27 Read calls in iter 487 — but appropriate for "audit connections", not a real problem)
+
 ## Iteration 487 — Fixed 3 module-loader integration bugs: plugin commands invisible, events never wired, and latent infinite recursion
 
 Audited connections between module-loader.ts and its consumers (cli.ts, loop.ts, server.ts); found and fixed 3 integration seam bugs where the module protocol promised capabilities that were never wired up.

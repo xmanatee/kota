@@ -182,33 +182,55 @@ def _print_builder_analysis(
     else:
         print("  Refresh:      NOT FOUND")
 
-    # 2. Target extraction — try multiple phrasing patterns
+    # 2. Target extraction — structured format first, then fallback patterns
     target_module = None
     target_approach = None
-    _mod_patterns = [
-        r"(?:module|depth)\s*(?:phase\s*)?(?:pick|target|choice)[:\s`*]*"
-        r"([a-zA-Z0-9_./-]+\.ts)",
-        r"[`*]+([a-zA-Z0-9_./-]+\.ts)[`*]+\s*(?:\(|—|--)\s*(?:most\s+)?(?:neglected|stale)",
-        r"(?:most\s+)?(?:neglected|stale)\s+(?:module\s+(?:is\s+)?)?[`*]+([a-zA-Z0-9_./-]+\.ts)",
-    ]
-    _app_patterns = [
-        r"approach[*:\s]+(\w[\w-]+)",
-        r"\*\*(\w[\w-]+)\*\*\s+approach",
-        r"(?:I'll|I will)\s+use\s+(?:the\s+)?\*\*(\w[\w-]+)\*\*",
-    ]
+
+    # Primary: structured "**Depth pick**: `module` / `approach`"
+    _structured_pat = (
+        r"\*\*Depth pick\*\*:\s*`([^`]+)`\s*/\s*`([^`]+)`"
+    )
     for text in text_blocks:
-        if not target_module:
-            for pat in _mod_patterns:
-                m = re.search(pat, text, re.I)
-                if m:
-                    target_module = m.group(1)
+        m = re.search(_structured_pat, text)
+        if m:
+            target_module = m.group(1)
+            raw_approach = m.group(2).lower()
+            # Match against canonical approach names (prefix match for
+            # variants like "audit connections" → "audit")
+            for a in DEPTH_APPROACHES:
+                if raw_approach.startswith(a):
+                    target_approach = a
                     break
-        if not target_approach:
-            for pat in _app_patterns:
-                m = re.search(pat, text, re.I)
-                if m and m.group(1).lower() in DEPTH_APPROACHES:
-                    target_approach = m.group(1).lower()
-                    break
+            if not target_approach:
+                target_approach = raw_approach
+            break
+
+    # Fallback: natural-language patterns (for older logs)
+    if not target_module or not target_approach:
+        _mod_patterns = [
+            r"(?:module|depth)\s*(?:phase\s*)?(?:pick|target|choice)[:\s`*]*"
+            r"([a-zA-Z0-9_./-]+\.ts)",
+            r"[`*]+([a-zA-Z0-9_./-]+\.ts)[`*]+\s*(?:\(|—|--)\s*(?:most\s+)?(?:neglected|stale)",
+            r"(?:most\s+)?(?:neglected|stale)[:\s]+(?:module\s+(?:is\s+)?)?[`*]+([a-zA-Z0-9_./-]+\.ts)",
+        ]
+        _app_patterns = [
+            r"(?:I'll|I will)\s+(?:pick|use)\s+(?:the\s+)?\*\*(\w[\w-]+)",
+            r"approach[*:\s]+(\w[\w-]+)",
+            r"\*\*(\w[\w-]+)\*\*\s+approach",
+        ]
+        for text in text_blocks:
+            if not target_module:
+                for pat in _mod_patterns:
+                    m = re.search(pat, text, re.I)
+                    if m:
+                        target_module = m.group(1)
+                        break
+            if not target_approach:
+                for pat in _app_patterns:
+                    m = re.search(pat, text, re.I)
+                    if m and m.group(1).lower() in DEPTH_APPROACHES:
+                        target_approach = m.group(1).lower()
+                        break
     print(f"  Target:       {target_module or '?'} / {target_approach or '?'}")
 
     # 3. Pre-edit investigation: reads before first implementation edit

@@ -108,8 +108,9 @@ what exists actually work well together.
    modules remain, they take priority over stale modules. Then read the
    **approach gap matrix** and pick a rotation-eligible untried approach for
    your chosen module. Same module under a *different* approach is fine;
-   avoid the exact same approach+module pair. State your pick and one-sentence
-   rationale.
+   avoid the exact same approach+module pair. State your pick as:
+   `**Depth pick**: \`<module>\` / \`<approach>\``
+   followed by a one-sentence rationale.
 3. After picking, check CHANGELOG for previous iterations using the same
    approach. Focus on unexplored territory — don't re-test already-covered
    commands, modules, or surfaces.
