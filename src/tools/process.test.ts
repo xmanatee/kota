@@ -220,4 +220,116 @@ describe("process tool", () => {
       expect(lastMatch![1].length).toBeLessThanOrEqual(80);
     });
   });
+
+  describe("chunk boundary handling", () => {
+    it("preserves blank lines in output", async () => {
+      // printf with explicit newlines to produce blank lines
+      const cmd = "printf 'line1\\n\\nline3\\n'";
+      await runProcess({ action: "start", command: cmd });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      // The blank line between line1 and line3 should be preserved
+      const lines = result.content!.split("\n");
+      const outputStart = lines.findIndex((l: string) => l.includes("line1"));
+      expect(outputStart).toBeGreaterThanOrEqual(0);
+      // line1, then blank line, then line3 should all be present
+      expect(result.content).toContain("line1");
+      expect(result.content).toContain("line3");
+      // Check there's an empty-string entry in the buffer between them
+      const bufferLines = lines.slice(outputStart);
+      const line1Idx = bufferLines.findIndex((l: string) => l === "line1");
+      const line3Idx = bufferLines.findIndex((l: string) => l === "line3");
+      expect(line3Idx).toBeGreaterThan(line1Idx + 1);
+    });
+
+    it("reassembles lines split across chunks via partial buffering", async () => {
+      // Use printf without trailing newline, then echo with newline
+      // This forces the shell to produce output that may arrive in separate chunks
+      const cmd = "printf 'partial'; printf '_complete\\n'";
+      await runProcess({ action: "start", command: cmd });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      // The two printf calls should be joined into one line
+      expect(result.content).toContain("partial_complete");
+    });
+
+    it("flushes partial stdout line on process exit", async () => {
+      // printf without trailing newline — data stays in partial buffer until close
+      const cmd = "printf 'no-newline-at-end'";
+      await runProcess({ action: "start", command: cmd });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      expect(result.content).toContain("no-newline-at-end");
+    });
+
+    it("flushes partial stderr line on process exit", async () => {
+      const cmd = "printf 'stderr-no-nl' >&2";
+      await runProcess({ action: "start", command: cmd });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      expect(result.content).toContain("[stderr] stderr-no-nl");
+    });
+  });
+
+  describe("whitespace command validation", () => {
+    it("rejects whitespace-only command", async () => {
+      const result = await runProcess({ action: "start", command: "   " });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("command is required");
+    });
+
+    it("rejects empty string command", async () => {
+      const result = await runProcess({ action: "start", command: "" });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("command is required");
+    });
+  });
+
+  describe("multiple signals to same process", () => {
+    it("sends multiple signals without error", async () => {
+      await runProcess({ action: "start", command: "sleep 60" });
+      const r1 = await runProcess({ action: "signal", process_id: "p1", signal: "SIGTERM" });
+      expect(r1.is_error).toBeUndefined();
+      expect(r1.content).toContain("SIGTERM");
+      // Wait for exit
+      await new Promise((r) => setTimeout(r, 400));
+      // Second signal to already-exited process should report exited
+      const r2 = await runProcess({ action: "signal", process_id: "p1", signal: "SIGKILL" });
+      expect(r2.content).toContain("already exited");
+    });
+  });
+
+  describe("process error event", () => {
+    it("handles spawn error for nonexistent shell command", async () => {
+      // Spawning a nonexistent binary directly (not via sh -c) would trigger error
+      // But since we use sh -c, the shell itself runs — the exit code captures failure
+      const result = await runProcess({ action: "start", command: "nonexistent_cmd_xyz_999" });
+      // The process will start (shell runs) but the command inside will fail
+      await new Promise((r) => setTimeout(r, 600));
+      const output = await runProcess({ action: "output", process_id: "p1" });
+      // Should show either an error message or a non-zero exit code
+      expect(output.content).toMatch(/exited|error/i);
+    });
+  });
+
+  describe("interleaved stdout and stderr", () => {
+    it("captures both streams in order received", async () => {
+      const cmd = "echo out1; echo err1 >&2; echo out2; echo err2 >&2";
+      await runProcess({ action: "start", command: cmd });
+      await new Promise((r) => setTimeout(r, 600));
+      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      expect(result.content).toContain("out1");
+      expect(result.content).toContain("out2");
+      expect(result.content).toContain("[stderr] err1");
+      expect(result.content).toContain("[stderr] err2");
+    });
+  });
+
+  describe("output with no lines produced", () => {
+    it("shows (no output) for process with empty output", async () => {
+      await runProcess({ action: "start", command: "sleep 60" });
+      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      expect(result.content).toContain("(no output)");
+    });
+  });
 });

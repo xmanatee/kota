@@ -51,6 +51,8 @@ type ManagedProcess = {
   startedAt: number;
   exitCode: number | null;
   exited: boolean;
+  stdoutPartial: string;
+  stderrPartial: string;
 };
 
 const processes = new Map<string, ManagedProcess>();
@@ -76,6 +78,26 @@ function appendLine(mp: ManagedProcess, line: string): void {
   }
 }
 
+/**
+ * Process a data chunk from stdout/stderr, handling partial lines across
+ * chunk boundaries. Returns the updated partial-line buffer.
+ */
+function processChunk(
+  mp: ManagedProcess,
+  chunk: string,
+  partial: string,
+  prefix: string,
+): string {
+  const data = partial + chunk;
+  const lines = data.split("\n");
+  // Last element is either "" (chunk ended with \n) or an incomplete line
+  const newPartial = lines.pop()!;
+  for (const line of lines) {
+    appendLine(mp, prefix ? `${prefix}${line}` : line);
+  }
+  return newPartial;
+}
+
 function truncateOutput(text: string): string {
   if (text.length <= MAX_OUTPUT_CHARS) return text;
   return (
@@ -86,9 +108,11 @@ function truncateOutput(text: string): string {
 }
 
 async function startProcess(command: string): Promise<ToolResult> {
-  if (!command) {
+  if (!command || !command.trim()) {
     return { content: "Error: command is required for 'start' action", is_error: true };
   }
+
+  purgeStale();
 
   if (isDangerous(command)) {
     const confirmed = await confirmExecution(command);
@@ -122,21 +146,24 @@ async function startProcess(command: string): Promise<ToolResult> {
     startedAt: Date.now(),
     exitCode: null,
     exited: false,
+    stdoutPartial: "",
+    stderrPartial: "",
   };
 
   proc.stdout?.on("data", (chunk: Buffer) => {
-    for (const line of chunk.toString().split("\n")) {
-      if (line) appendLine(mp, line);
-    }
+    mp.stdoutPartial = processChunk(mp, chunk.toString(), mp.stdoutPartial, "");
   });
 
   proc.stderr?.on("data", (chunk: Buffer) => {
-    for (const line of chunk.toString().split("\n")) {
-      if (line) appendLine(mp, `[stderr] ${line}`);
-    }
+    mp.stderrPartial = processChunk(mp, chunk.toString(), mp.stderrPartial, "[stderr] ");
   });
 
   proc.on("close", (code) => {
+    // Flush any remaining partial lines
+    if (mp.stdoutPartial) appendLine(mp, mp.stdoutPartial);
+    if (mp.stderrPartial) appendLine(mp, `[stderr] ${mp.stderrPartial}`);
+    mp.stdoutPartial = "";
+    mp.stderrPartial = "";
     mp.exited = true;
     mp.exitCode = code;
     appendLine(mp, `[process exited with code ${code}]`);
@@ -259,17 +286,30 @@ export async function runProcess(input: Record<string, unknown>): Promise<ToolRe
   }
 }
 
+const STALE_PROCESS_MS = 10 * 60 * 1000; // 10 minutes
+
+/** Remove exited process records older than STALE_PROCESS_MS. */
+function purgeStale(): void {
+  const now = Date.now();
+  for (const [id, mp] of processes) {
+    if (mp.exited && now - mp.startedAt > STALE_PROCESS_MS) {
+      processes.delete(id);
+    }
+  }
+}
+
 /** Terminate all managed processes. Called on session close. */
 export function cleanupProcesses(): void {
   for (const mp of processes.values()) {
     if (!mp.exited) {
       try { mp.proc.kill("SIGTERM"); } catch { /* already dead */ }
-      // Force kill after 2s if still alive
-      setTimeout(() => {
+      // Force kill after 2s if still alive — unref so it doesn't block shutdown
+      const timer = setTimeout(() => {
         if (!mp.exited) {
           try { mp.proc.kill("SIGKILL"); } catch { /* already dead */ }
         }
       }, 2000);
+      timer.unref();
     }
   }
 }

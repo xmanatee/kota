@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 457 — Harden process tool: fix chunk-boundary line splitting, blank line loss, and shutdown hang
+
+Fixed 4 bugs in the process management tool (tools/process.ts) and added 10 new edge-case tests bringing total to 33.
+
+### Bugs fixed
+- **Chunk boundary line splitting (HIGH)**: stdout/stderr handlers split on `\n` per chunk without buffering partial lines. When data arrived split mid-line (common with fast-producing processes), output was garbled — e.g., `"Starting server on port 8080"` could appear as two separate lines `"Starting server on port 80"` and `"80"`. Added `processChunk()` that tracks a per-stream partial-line buffer and reassembles lines correctly across chunk boundaries.
+- **Blank lines silently dropped (MEDIUM)**: The `if (line)` filter in data handlers discarded empty strings, which meant blank lines in program output (used for formatting by many tools) were lost. The new `processChunk()` preserves blank lines while correctly handling trailing newlines.
+- **Dangling setTimeout blocks clean shutdown (MEDIUM)**: `cleanupProcesses()` scheduled a 2s SIGKILL timeout for each process but never called `timer.unref()`. These timers kept the Node.js event loop alive, preventing clean process exit. Added `timer.unref()`.
+- **Whitespace-only command accepted (LOW)**: `startProcess("   ")` passed the `!command` check (whitespace is truthy) and spawned a useless shell. Added `.trim()` check.
+
+### Additional improvements
+- **Auto-purge stale records**: Exited process records older than 10 minutes are purged on next `start`, preventing unbounded Map growth in long sessions.
+- **Partial line flush on exit**: When a process exits, any buffered partial lines from stdout/stderr are flushed to the output buffer, ensuring no output is lost even when the last line has no trailing newline.
+
+### New tests (10 added)
+- Blank lines preserved in output
+- Partial lines reassembled across chunks
+- Partial stdout flushed on exit
+- Partial stderr flushed on exit
+- Whitespace-only command rejected
+- Empty string command rejected
+- Multiple signals to same process
+- Spawn error handling (nonexistent command)
+- Interleaved stdout/stderr capture
+- Empty output shows "(no output)"
+
+### Verified
+- All 33 process tool tests pass
+- All 2188 tests pass across 110 test files
+- TypeScript type-checks clean
+- Build succeeds (374.74 KB)
+- CLI loads correctly (`node dist/cli.js --help`)
+
+### Future directions
+- Other uncovered modules from the depth log (13 remaining): delegate.ts, init.ts, web-search.ts, http-request.ts, file-edit.ts, etc.
+- Process tool could benefit from process-group killing (`detached: true` + negative PID signal) to handle grandchild cleanup
+
 ## Iteration 456 — Restructure depth-log to fix builder anchoring on already-covered modules, prioritizing 14 uncovered modules (3554 lines)
 
 Builder 455 shortlisted only already-covered modules despite 14 uncovered modules with 3554 total lines, caused by depth-log layout anchoring.
