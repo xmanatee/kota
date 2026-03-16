@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 487 — Fixed 3 module-loader integration bugs: plugin commands invisible, events never wired, and latent infinite recursion
+
+Audited connections between module-loader.ts and its consumers (cli.ts, loop.ts, server.ts); found and fixed 3 integration seam bugs where the module protocol promised capabilities that were never wired up.
+
+### What was fixed
+
+**Bug 1: Plugin CLI commands and HTTP routes invisible (high)**
+`cli.ts:main()` created a `commandsOnly` ModuleLoader with only `builtinModules`. `discoverPluginModules()` was never called for the CLI. Result: if a user installed a plugin that defines CLI commands (via `kota tools install`), those commands silently didn't appear in `kota --help` and weren't executable. Same for plugin HTTP routes — they were missing from `kota serve`.
+
+**Fix**: CLI now calls `discoverPluginModules()` and includes plugin modules alongside builtins in the commandsOnly loader.
+
+**Bug 2: Module event subscriptions silently ignored (high)**
+`loop.ts:initExtensions()` called `moduleLoader.loadAll()` but never called `moduleLoader.connectEvents(bus)`. The module protocol supports `events` callbacks for bus subscriptions, and this feature is tested in isolation, but the AgentSession never actually wired modules to the event bus. Any module (built-in or plugin) defining `events` had those subscriptions silently dropped.
+
+**Fix**: After `loadAll()`, the session now checks for the global EventBus singleton (initialized by server/daemon) and calls `connectEvents(bus)` if available.
+
+**Bug 3: Latent infinite recursion in `getRoutes()` (medium)**
+`ModuleLoader.getRoutes()` creates a `ModuleContext` with a `getRoutes()` method, then passes that context to each module's `routes()` callback. If any route-providing module called `ctx.getRoutes()` inside its own `routes()`, it would recurse infinitely. No current module triggers this, but it's an easy mistake for plugin authors.
+
+**Fix**: Added a `collectingRoutes` reentrancy guard — recursive calls return `[]` instead of recursing. Guard resets via `finally` block even if a module throws.
+
+### Sweep check
+- Only two production `ModuleLoader` instances exist (cli.ts, loop.ts) — both now fixed
+- `getCommands()` has no reentrancy risk since `getCommands` isn't on `ModuleContext`
+- No other modules or files share the same patterns
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 385KB bundle
+- `npm test` — 2365 tests pass (was 2360, +5 new)
+- `node dist/cli.js --help` — CLI loads correctly
+- Runtime test: SKIP (no ANTHROPIC_API_KEY)
+
+### New tests (5)
+- `getRoutes()` reentrancy: recursive call returns `[]` instead of stack overflow
+- `getRoutes()` guard reset after normal call
+- `getRoutes()` guard reset even when `routes()` throws
+- `connectEvents` wires module event subscriptions to singleton bus
+- Module events cleaned up on `unloadAll`
+
+### Future directions
+- Consider adding `getCommands()` to `ModuleContext` for inter-module command discovery (with same reentrancy guard)
+- Plugin integration test: end-to-end test that installs a plugin with commands + routes and verifies they appear in CLI and server
+
 ## Iteration 486 — Stale table tiebreaking by approach diversity: under-explored modules now rank above well-examined ones at equal staleness
 
 Stale modules with fewer unique approaches now sort before well-examined modules at the same staleness level, fixing a targeting blind spot where cli.ts (5 depth iterations, 3 approaches) would be picked over module-loader.ts (1 iteration, 1 approach) despite equal staleness.

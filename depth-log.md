@@ -39,6 +39,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 481 | concurrency | mcp-client.ts | high | Fixed 3 concurrency bugs: concurrent connect() leaks orphaned child process, close() during connect() leaves stale connected=true, close() resets closing flag allowing broken re-entry; 6 new tests (27→33) |
 | 483 | harden | tool-adapters.ts | high | Fixed 4 bugs: Zod wrapper unwrap discards description, Error objects normalize to "{}", ZodNullable drops nullability, ZodDefault drops default value; 18 new tests (61→79) |
 | 485 | error-paths | server.ts, tools/web-search.ts | critical | Fixed decodeURIComponent crash (ECONNRESET), negative limit wrong results, notification hub cleanup leak; sweep-fixed same pattern in web-search.ts; 11 new tests |
+| 487 | audit | module-loader.ts, cli.ts, loop.ts | high | Fixed 3 integration bugs: plugin commands/routes invisible from CLI, module events never wired to bus, latent infinite recursion in getRoutes(); 5 new tests (27→32) |
 
 ## Approach Summary
 

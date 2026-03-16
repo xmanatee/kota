@@ -4,7 +4,7 @@ import { runArchitectStep } from "./architect-runner.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
 import { CONTEXT_WINDOW, Context } from "./context.js";
 import { CostTracker } from "./cost.js";
-import { tryEmit } from "./event-bus.js";
+import { getEventBus, tryEmit } from "./event-bus.js";
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
@@ -216,6 +216,12 @@ export class AgentSession {
 
     const pluginModules = await discoverPluginModules(undefined, this.verbose);
     await this.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
+
+    // Connect module event subscriptions to the bus if it exists
+    // (server and daemon init the bus before creating sessions)
+    const bus = getEventBus();
+    if (bus) this.moduleLoader.connectEvents(bus);
+
     this.initialized = true;
   }
 

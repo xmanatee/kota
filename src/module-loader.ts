@@ -33,6 +33,9 @@ export class ModuleLoader {
   private verbose: boolean;
   private config: KotaConfig;
   private commandsOnly: boolean;
+  /** Reentrancy guard for getRoutes() — prevents infinite recursion when
+   *  a module's routes() callback calls ctx.getRoutes(). */
+  private collectingRoutes = false;
 
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
@@ -132,21 +135,29 @@ export class ModuleLoader {
 
   /** Collect HTTP routes from all loaded modules. */
   getRoutes(): RouteRegistration[] {
-    const ctx = this.createContext();
-    const routes: RouteRegistration[] = [];
-    for (const mod of this.modules) {
-      if (mod.routes) {
-        try {
-          routes.push(...mod.routes(ctx));
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(
-            `[kota] Module "${mod.name}" route registration failed: ${msg}`,
-          );
+    // Reentrancy guard: if a module's routes() calls ctx.getRoutes(),
+    // return what we've collected so far instead of recursing infinitely.
+    if (this.collectingRoutes) return [];
+    this.collectingRoutes = true;
+    try {
+      const ctx = this.createContext();
+      const routes: RouteRegistration[] = [];
+      for (const mod of this.modules) {
+        if (mod.routes) {
+          try {
+            routes.push(...mod.routes(ctx));
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(
+              `[kota] Module "${mod.name}" route registration failed: ${msg}`,
+            );
+          }
         }
       }
+      return routes;
+    } finally {
+      this.collectingRoutes = false;
     }
-    return routes;
   }
 
   /** Subscribe all loaded modules to the event bus. */

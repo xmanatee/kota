@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "./event-bus.js";
+import { EventBus, getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
@@ -502,5 +502,150 @@ describe("memory module integration", () => {
     enableGroup("management");
     const after = filterTools(getAllTools());
     expect(after.some((t) => t.name === "memory")).toBe(true);
+  });
+});
+
+describe("getRoutes reentrancy guard", () => {
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  it("returns empty array instead of infinite recursion when routes() calls ctx.getRoutes()", async () => {
+    const loader = new ModuleLoader({});
+    const handler = vi.fn();
+
+    // Module A provides a route normally
+    await loader.load({
+      name: "route-a",
+      routes: () => [{ method: "GET", path: "/a", handler }],
+    });
+
+    // Module B tries to call ctx.getRoutes() from within its own routes()
+    // Without the guard, this would infinite-recurse
+    let innerRoutes: any[] = [];
+    await loader.load({
+      name: "route-b",
+      routes: (ctx) => {
+        innerRoutes = ctx.getRoutes();
+        return [{ method: "GET", path: "/b", handler }];
+      },
+    });
+
+    const routes = loader.getRoutes();
+    // Both routes should be collected
+    expect(routes).toHaveLength(2);
+    expect(routes.map((r) => r.path).sort()).toEqual(["/a", "/b"]);
+    // Inner call returned empty (guard prevented recursion)
+    expect(innerRoutes).toEqual([]);
+  });
+
+  it("allows getRoutes() after a previous call completes", async () => {
+    const loader = new ModuleLoader({});
+    const handler = vi.fn();
+
+    await loader.load({
+      name: "route-mod",
+      routes: () => [{ method: "GET", path: "/test", handler }],
+    });
+
+    // First call
+    const routes1 = loader.getRoutes();
+    expect(routes1).toHaveLength(1);
+
+    // Second call should work (guard reset)
+    const routes2 = loader.getRoutes();
+    expect(routes2).toHaveLength(1);
+  });
+
+  it("resets guard even if routes() throws", async () => {
+    const loader = new ModuleLoader({});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const handler = vi.fn();
+
+    await loader.load({
+      name: "throws-mod",
+      routes: () => { throw new Error("bad routes"); },
+    });
+    await loader.load({
+      name: "good-mod",
+      routes: () => [{ method: "GET", path: "/ok", handler }],
+    });
+
+    // First call — throws-mod errors but guard should still reset
+    const routes1 = loader.getRoutes();
+    expect(routes1).toHaveLength(1);
+
+    // Second call should still work
+    const routes2 = loader.getRoutes();
+    expect(routes2).toHaveLength(1);
+
+    errSpy.mockRestore();
+  });
+});
+
+describe("module event bus integration", () => {
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+    resetEventBus();
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+    resetEventBus();
+  });
+
+  it("connectEvents wires module event subscriptions to the singleton bus", async () => {
+    const bus = initEventBus();
+    const received: string[] = [];
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "bus-mod",
+      events: (b) => [
+        b.on("session.start", (p) => { received.push(p.sessionId); }),
+      ],
+    });
+
+    // Before connectEvents — bus exists but module isn't wired
+    bus.emit("session.start", { sessionId: "before-connect" });
+    expect(received).toEqual([]);
+
+    // After connectEvents — module receives events
+    loader.connectEvents(bus);
+    bus.emit("session.start", { sessionId: "after-connect" });
+    expect(received).toEqual(["after-connect"]);
+  });
+
+  it("module events are cleaned up on unloadAll", async () => {
+    const bus = initEventBus();
+    const received: string[] = [];
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "cleanup-evt",
+      events: (b) => [
+        b.on("session.end", (p) => { received.push(p.sessionId); }),
+      ],
+    });
+
+    loader.connectEvents(bus);
+    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
+    expect(received).toEqual(["s1"]);
+
+    await loader.unloadAll();
+    bus.emit("session.end", { sessionId: "s2", durationMs: 200 });
+    expect(received).toEqual(["s1"]); // not received after cleanup
   });
 });

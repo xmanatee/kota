@@ -7,6 +7,7 @@ import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
+import { discoverPluginModules } from "./plugin-loader.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
@@ -400,12 +401,15 @@ async function main() {
   const wasPiped = await checkPipeMode();
   if (wasPiped) return;
 
-  // Register CLI commands from built-in modules via ModuleLoader
+  // Register CLI commands from built-in AND plugin modules via ModuleLoader.
   // commandsOnly: true skips tool registration and onLoad hooks —
-  // those are handled per-session by AgentSession's own ModuleLoader
+  // those are handled per-session by AgentSession's own ModuleLoader.
+  // Plugin modules must be included here so their CLI commands and HTTP
+  // routes (used by `kota serve`) are discoverable.
   const config = loadConfig();
   const loader = new ModuleLoader(config, false, { commandsOnly: true });
-  await loader.loadAll(builtinModules);
+  const pluginModules = await discoverPluginModules(undefined, false);
+  await loader.loadAll([...builtinModules, ...pluginModules]);
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }
