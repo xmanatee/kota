@@ -52,6 +52,15 @@ const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RESPONSE = 20_000;
 
+/** Safely parse a numeric input, returning the default for null/undefined/NaN/negative. */
+function safePositiveInt(value: unknown, fallback: number, max?: number): number {
+  if (value == null) return fallback;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  const result = Math.round(n);
+  return max != null ? Math.min(result, max) : result;
+}
+
 export async function runHttpRequest(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
@@ -59,8 +68,8 @@ export async function runHttpRequest(
   const method = ((input.method as string) || "GET").toUpperCase();
   const headers = (input.headers as Record<string, string>) || {};
   const body = input.body as string | undefined;
-  const timeoutMs = Math.min((input.timeout_ms as number) || DEFAULT_TIMEOUT, 120_000);
-  const maxResponse = (input.max_response_length as number) || DEFAULT_MAX_RESPONSE;
+  const timeoutMs = safePositiveInt(input.timeout_ms, DEFAULT_TIMEOUT, 120_000);
+  const maxResponse = safePositiveInt(input.max_response_length, DEFAULT_MAX_RESPONSE);
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };
@@ -96,13 +105,20 @@ export async function runHttpRequest(
       fetchOptions.body = body;
     }
 
-    const response = await fetch(url, fetchOptions);
-    clearTimeout(timeout);
+    let response: Response;
+    try {
+      response = await fetch(url, fetchOptions);
+    } catch (err) {
+      clearTimeout(timeout);
+      throw err;
+    }
+    // Keep timeout active — it covers body reads too, not just connection
 
     // Build response header summary (selected useful headers)
     const responseHeaders = formatResponseHeaders(response.headers);
 
     if (method === "HEAD") {
+      clearTimeout(timeout);
       return {
         content: formatResult(response.status, response.statusText, responseHeaders, "(HEAD — no body)"),
       };
@@ -116,10 +132,12 @@ export async function runHttpRequest(
         let size: number;
         if (isBinaryContentType(contentType)) {
           const buffer = Buffer.from(await response.arrayBuffer());
+          clearTimeout(timeout);
           writeFileSync(saveTo, buffer);
           size = buffer.length;
         } else {
           const raw = await response.text();
+          clearTimeout(timeout);
           writeFileSync(saveTo, raw, "utf-8");
           size = Buffer.byteLength(raw, "utf-8");
         }
@@ -130,13 +148,16 @@ export async function runHttpRequest(
         if (response.status >= 400) result.is_error = true;
         return result;
       } catch (err) {
+        clearTimeout(timeout);
+        if (isAbortError(err)) throw err; // Let timeout bubble up
         const msg = err instanceof Error ? err.message : String(err);
         return { content: `Error saving response to ${saveTo}: ${msg}`, is_error: true };
       }
     }
 
-    // Reject binary responses
+    // Reject binary responses (no body read needed — clear timeout early)
     if (isBinaryContentType(contentType)) {
+      clearTimeout(timeout);
       const contentLength = response.headers.get("content-length");
       const size = contentLength ? ` (${formatBytes(Number(contentLength))})` : "";
       return {
@@ -148,6 +169,7 @@ export async function runHttpRequest(
     }
 
     const raw = await response.text();
+    clearTimeout(timeout);
     let bodyText = raw;
 
     // Pretty-print JSON for readability; use compact table for arrays of objects
@@ -176,10 +198,10 @@ export async function runHttpRequest(
     }
     return result;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("abort")) {
+    if (isAbortError(err)) {
       return { content: `Error: request timed out (${Math.round(timeoutMs / 1000)}s)`, is_error: true };
     }
+    const msg = err instanceof Error ? err.message : String(err);
     return { content: `Request error: ${msg}`, is_error: true };
   }
 }
@@ -217,6 +239,13 @@ function isBinaryContentType(ct: string): boolean {
     ct.includes("gzip") ||
     ct.includes("tar")
   );
+}
+
+/** Detect abort/timeout errors reliably across Node versions. */
+function isAbortError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === "AbortError") return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  return false;
 }
 
 function looksLikeJson(text: string): boolean {

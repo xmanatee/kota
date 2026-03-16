@@ -364,6 +364,158 @@ describe("runHttpRequest", () => {
     expect(result.content).toContain("1");
     expect(result.content).not.toContain("| ");
   });
+
+  // --- Error paths: numeric parameter edge cases ---
+
+  it("timeout_ms=0 uses default (not immediate abort)", async () => {
+    mockFetch({ body: "ok" });
+    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: 0 });
+    // Should succeed — 0 falls back to default 30s, not instant abort
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("HTTP 200 OK");
+  });
+
+  it("negative timeout_ms uses default", async () => {
+    mockFetch({ body: "ok" });
+    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: -5000 });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("HTTP 200 OK");
+  });
+
+  it("NaN timeout_ms uses default", async () => {
+    mockFetch({ body: "ok" });
+    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: "not-a-number" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("HTTP 200 OK");
+  });
+
+  it("Infinity timeout_ms is clamped to 120s max", async () => {
+    mockFetch({ body: "ok" });
+    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: Infinity });
+    // Infinity is not finite → falls back to default 30s
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("HTTP 200 OK");
+  });
+
+  it("max_response_length=0 uses default (not empty truncation)", async () => {
+    mockFetch({ body: "some response body" });
+    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 0 });
+    expect(result.content).toContain("some response body");
+    expect(result.content).not.toContain("[Truncated");
+  });
+
+  it("negative max_response_length uses default", async () => {
+    mockFetch({ body: "some response body" });
+    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: -100 });
+    expect(result.content).toContain("some response body");
+  });
+
+  it("explicit small max_response_length truncates correctly", async () => {
+    const body = "x".repeat(500);
+    mockFetch({ body });
+    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 100 });
+    expect(result.content).toContain("[Truncated");
+    expect(result.content).toContain("500 chars total");
+    expect(result.content).toContain("showing first 100");
+  });
+
+  // --- Error paths: abort/timeout detection ---
+
+  it("detects DOMException AbortError as timeout", async () => {
+    const abortErr = new DOMException("The operation was aborted", "AbortError");
+    globalThis.fetch = vi.fn().mockRejectedValue(abortErr);
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("request timed out");
+    expect(result.content).toContain("30s");
+  });
+
+  it("detects Error with name=AbortError as timeout", async () => {
+    const err = new Error("This operation was aborted");
+    err.name = "AbortError";
+    globalThis.fetch = vi.fn().mockRejectedValue(err);
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("request timed out");
+  });
+
+  it("does NOT misclassify non-abort errors containing 'abort' text", async () => {
+    const err = new Error("Transaction aborted by user");
+    globalThis.fetch = vi.fn().mockRejectedValue(err);
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    // Should show as a request error, NOT a timeout
+    expect(result.content).toContain("Request error:");
+    expect(result.content).toContain("Transaction aborted by user");
+    expect(result.content).not.toContain("timed out");
+  });
+
+  it("timeout message includes custom timeout_ms value", async () => {
+    const abortErr = new DOMException("aborted", "AbortError");
+    globalThis.fetch = vi.fn().mockRejectedValue(abortErr);
+    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: 5000 });
+    expect(result.content).toContain("timed out (5s)");
+  });
+
+  // --- Error paths: body read failures ---
+
+  it("handles body read failure with clear error", async () => {
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text: () => Promise.reject(new Error("network connection lost")),
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("network connection lost");
+  });
+
+  it("handles body read abort (timeout during body download)", async () => {
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    const abortErr = new DOMException("body download aborted", "AbortError");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text: () => Promise.reject(abortErr),
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("timed out");
+  });
+
+  it("handles save_to with body read abort as timeout", async () => {
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    const abortErr = new DOMException("aborted", "AbortError");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text: () => Promise.reject(abortErr),
+    });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      save_to: "/tmp/kota-test-save.txt",
+    });
+    expect(result.is_error).toBe(true);
+    // Body read abort during save_to should bubble up as timeout
+    expect(result.content).toContain("timed out");
+  });
+
+  // --- Error paths: non-Error thrown ---
+
+  it("handles non-Error thrown values", async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue("raw string error");
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Request error: raw string error");
+  });
+
+  it("handles null thrown", async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(null);
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Request error:");
+  });
 });
 
 describe("formatTabularJson", () => {

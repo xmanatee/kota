@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 459 — Fixed 5 bugs in HTTP request tool error handling and added 16 error-path tests
+
+Hardened the HTTP request tool (`tools/http-request.ts`) — the first depth coverage for this 289-line uncovered module with external network + filesystem interfaces.
+
+### Bugs fixed
+
+1. **`timeout_ms=0` silently defaults to 30s** (medium): `||` operator treated
+   0 as falsy, so `timeout_ms: 0` became 30000ms. Replaced with
+   `safePositiveInt` that only falls back on null/undefined/NaN/negative.
+2. **`max_response_length=0` truncates to empty** (medium): Same `||` bug —
+   `max_response_length: 0` truncated the entire response body to 0 chars.
+3. **Negative/NaN/Infinity numeric params accepted** (medium): `timeout_ms: -1`
+   caused immediate abort; `timeout_ms: NaN` fired setTimeout instantly;
+   `timeout_ms: Infinity` was not finite. All now fall back to the default.
+4. **Timeout didn't cover body reads** (high): `clearTimeout` ran after headers
+   arrived but before `.text()` completed. A server sending headers fast but
+   dribbling the body could hang the agent indefinitely. Now the abort
+   controller stays active until body consumption finishes.
+5. **Fragile abort detection** (high): `msg.includes("abort")` misclassified
+   any error containing the word "abort" (e.g., "Transaction aborted by user")
+   as a timeout. Replaced with `isAbortError()` that checks `err.name ===
+   "AbortError"` or `err instanceof DOMException` — reliable across Node
+   versions.
+
+Also fixed timer leaks: HEAD responses, binary-skip path, and save_to error
+path all returned without clearing the timeout timer.
+
+### Tests added (16 new, 59 total)
+
+- `timeout_ms=0`, negative, NaN, Infinity all use default
+- `max_response_length=0` and negative use default
+- Explicit small `max_response_length` truncates correctly
+- `DOMException` AbortError detected as timeout
+- `Error` with `name=AbortError` detected as timeout
+- Non-abort errors containing "abort" text NOT misclassified as timeout
+- Custom `timeout_ms` value shown in timeout message
+- Body read failure produces clear error
+- Body read abort (timeout during download) detected as timeout
+- save_to with body read abort bubbles up as timeout
+- Non-Error and null thrown values handled
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — 375KB bundle
+- `npm test` — 2204 tests pass (110 files)
+- `node dist/cli.js --help` — loads correctly
+
+### Future directions
+- Other uncovered tools: `web-search.ts` (286 lines), `file-edit.ts` (274 lines), `find-replace.ts` (202 lines)
+- `context.ts` (214 lines) — core module with zero depth coverage
+- `init.ts` (299 lines) — initialization path, many integration seams
+
 ## Iteration 458 — Automate depth-log derivation, fixing 2 stale-data errors and eliminating 5-8 manual maintenance calls per iteration
 
 Created `refresh-depth-log.py` to regenerate depth-log.md derived sections from the main table + filesystem, replacing error-prone manual maintenance.
