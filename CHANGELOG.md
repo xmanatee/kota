@@ -1,5 +1,76 @@
 # KOTA Changelog
 
+## Iteration 462 — Added pre-computed approach summary to depth-log, eliminating manual counting and saving the builder a tool call
+
+Auto-generated approach summary in depth-log replaces manual counting; builder prompt + improver prompt updated to match.
+
+### Verification of iter 460 (previous improver)
+
+| Expected Effect | Actual (iter 461) | Verdict |
+|---|---|---|
+| Target evaluation drops from ~7 to ~4 calls | Builder used ~2 calls for target selection (calls 7-8: read source + test file), then went deep on a bug it found | **confirmed** (better than predicted) |
+| Builder references "Test Lines" data in target choice | Key text block 2 (approach tally + target shortlist) is truncated in parse-log output; cannot confirm | **unclear** (prediction not verifiable from parse-log — see improvement below) |
+| If targeting zero-test module, different work pattern | Builder targeted context.ts (292 test lines) | **N/A** |
+
+The "unclear" verdict on prediction #2 motivated the testable-predictions improvement to the improver prompt (see below).
+
+### Diagnosis
+
+Builder 461 performed well: efficient orientation (6 calls), picked e2e (under-used approach), found a critical compaction bug in context.ts, fixed it cleanly, added 13 integration tests. All 2213 tests pass.
+
+However, the builder's depth orientation still required:
+- **Manual approach counting** — the builder wrote out an approach tally by hand from the depth-log table. While the count was accurate this time, this is fragile (can miscount with 22+ rows) and wastes a few assistant tokens.
+- **A separate `git log` call** — the builder ran `git log` to check recent approaches for the rotation rule. The depth-log already has this data implicitly but not in a quick-reference format.
+
+Both are eliminated if the depth-log includes a pre-computed Approach Summary.
+
+### Changes
+
+**`refresh-depth-log.py`** (harness/scripts — 223→246 lines):
+- Added approach summary computation: counts each approach from the main table, tracks last-used iteration
+- New "Approach Summary" section generated between the main table and uncovered modules list
+- Summary output now includes approach distribution
+- Fixed trailing space in table separator row
+
+**`prompts/build-agent.md`** (builder prompt — 224→222 lines):
+- Simplified depth orientation step 1: removed `git log --oneline -10 | grep build-agent` instruction
+- Now references the "Approach Summary" section in depth-log directly
+- Merged approach tally into step 1 (was previously a sub-bullet of step 2), reducing 3 steps to a cleaner 3 steps
+
+**`prompts/improve-process.md`** (own prompt — 196→199 lines):
+- Added testable-predictions guideline to step 9: predictions must be verifiable from `parse-log.py` output (tool-call sequence, tool counts, key assistant text)
+- Explicitly discourages predictions that require full session log reads
+- Frames "unclear" verdicts as waste of the learning loop
+
+**`depth-log.md`** (refreshed for iter 461):
+- context.ts moved from uncovered to covered (iter 461, e2e approach)
+- Uncovered modules: 10→9 (2,403 lines, 2 with zero tests)
+- Approach Summary section added with accurate counts
+- Severity distribution updated: critical=7 (was 6)
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 462 | harness/scripts + builder prompt + own prompt |
+| 460 | harness/scripts + evaluation signals |
+| 458 | harness/scripts |
+| 456 | evaluation signals + builder prompt |
+
+First own-prompt change in 4+ iterations. Three levers in one iteration — most diverse intervention in recent history.
+
+### Expected effects
+
+1. Builder 463 will NOT run `git log --oneline -10 | grep build-agent` during depth orientation. Observable: no Bash call with `grep build-agent` in the tool-call sequence.
+2. Builder 463's key assistant text will reference the Approach Summary section (e.g., mention counts like "error-paths: 5" or "last used 459") without doing its own manual count. Observable: key text mentions approach counts that match the depth-log summary.
+3. Builder 463's total tool calls for depth orientation (calls before the first Edit or Write) will be ≤6. Observable: first Edit/Write call appears at position ≤7 in the tool-call sequence.
+
+### Future directions
+
+- **Stale coverage automation**: `refresh-depth-log.py` could cross-reference coverage-matrix iters against `git log` churn to auto-flag stale modules, replacing manual maintenance.
+- **Parse-log.py: richer key-text extraction**: Show full text for decision-point blocks (approach selection, target selection) to reduce "unclear" verdicts in verification.
+- **Depth-phase exit signal**: When all uncovered modules are covered and severity trends consistently medium, the builder could flag this in CHANGELOG to prompt the owner to add new `b:` items.
+
 ## Iteration 461 — Fixed critical compaction bug that crashed ~50% of long conversations with invalid message alternation
 
 Fixed a critical bug in `Context.compact()` where compaction produced consecutive same-role messages, causing the Anthropic API to reject the next request with a 400 error. Added 13 new integration tests exercising the full prune → compact → truncate pipeline.

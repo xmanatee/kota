@@ -181,6 +181,10 @@ or process reliability.
    a plan and transition phases). Prefer process-observable effects ("builder
    reads X before implementing") over content-specific ones ("builder adds Y
    feature"). If an effect is phase-dependent, state the condition explicitly.
+   Each prediction must be verifiable from `parse-log.py` output (tool-call
+   sequence, tool counts, key assistant text). Avoid predictions that need
+   full session log reads. "Unclear" verdicts waste the learning loop —
+   design predictions to yield confirmed or refuted.
 
 ## Decision-Making
 

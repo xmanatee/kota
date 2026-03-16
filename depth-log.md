@@ -28,6 +28,19 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 459 | error-paths | tools/http-request.ts | high | Fixed 5 bugs: timeout_ms/max_response_length falsy-check (||→safePositiveInt), timeout not covering body reads, fragile abort detection (string match→isAbortError), timer leaks on early-return paths; 16 new error-path tests (43→59) |
 | 461 | e2e | context.ts, loop.ts, compaction.ts, message-pruning.ts | critical | Fixed compact() producing consecutive same-role messages (~50% of compactions crashed with API 400); 13 new e2e tests for prune→compact→truncate pipeline |
 
+## Approach Summary
+
+| Approach | Count | Last Used |
+|----------|-------|-----------|
+| error-paths | 5 | 459 |
+| e2e | 4 | 461 |
+| harden | 4 | 457 |
+| structural-health | 3 | 455 |
+| audit | 3 | 453 |
+| friction | 3 | 411 |
+
+22 depth iterations across 6 approaches.
+
 ## Uncovered Modules — PRIMARY Targets
 
 These modules have **zero depth iterations**. They are blind spots — no one has
@@ -47,10 +60,9 @@ lines are the highest-risk blind spots.
 | tools/file-edit.ts | 274 | 252 |
 | tools/file-read.ts | 255 | 451 |
 | verify-tracker.ts | 215 | 371 |
-| context.ts | 214 | 292 |
 | tools/find-replace.ts | 202 | 288 |
 
-**10 uncovered modules, 2,617 lines total (2 with zero tests).**
+**9 uncovered modules, 2,403 lines total (2 with zero tests).**
 
 ## Stale Coverage — SECONDARY Targets
 
@@ -94,7 +106,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 
 | Module | Lines | Test Lines | Depth Iters | Approaches Applied |
 |--------|-------|------------|-------------|---------------------|
-| loop.ts | 438 | 623 | 405 | e2e |
+| loop.ts | 438 | 623 | 405,461 | e2e, e2e |
 | registry.ts | 427 | 635 | 407 | error-paths |
 | cli.ts | 424 | 316 | 391,397,403,411,441 | friction, friction, harden, friction, e2e |
 | tool-adapters.ts | 403 | 641 | 415 | error-paths |
@@ -109,7 +121,10 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | tools/delegate.ts | 302 | 384 | 399 | audit |
 | task-store.ts | 259 | 280 | 455 | structural-health |
 | mcp-client.ts | 249 | 349 | 399,401 | audit, error-paths |
+| context.ts | 221 | 533 | 461 | e2e |
 | session-pool.ts | 185 | 427 | 393 | harden |
+| compaction.ts | 178 | 151 | 461 | e2e |
+| message-pruning.ts | 170 | 266 | 461 | e2e |
 | action-executor.ts | 141 | 112 | 453 | audit |
 | modules/registry.ts | 94 | 45 | 441 | e2e |
 | server-notifications.ts | 89 | 209 | 425 | structural-health |
@@ -123,7 +138,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 460. Previous refresh at iter 459.
+Data refreshed at iter 462. Previous refresh at iter 461.
 
 ## Severity Key
 
@@ -133,4 +148,4 @@ Data refreshed at iter 460. Previous refresh at iter 459.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (21 iterations): critical=6, high=12, medium=3
+Distribution (22 iterations): critical=7, high=12, medium=3

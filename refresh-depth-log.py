@@ -2,7 +2,8 @@
 """Regenerate depth-log.md derived sections from the main table + filesystem.
 
 Preserves: header, main table, stale coverage notes (manually maintained).
-Regenerates: uncovered modules list, coverage matrix, severity distribution.
+Regenerates: approach summary, uncovered modules list, coverage matrix,
+severity distribution.
 
 Usage:
     python3 refresh-depth-log.py          # update depth-log.md in place
@@ -145,11 +146,32 @@ def main():
     max_iter = max(r["iter"] for r in rows)
     sev_str = ", ".join(f"{k}={v}" for k, v in sorted(sev.items()))
 
+    # Approach summary (count + last-used iter per approach)
+    approach_count: dict[str, int] = Counter()
+    approach_last: dict[str, int] = {}
+    for row in rows:
+        a = row["approach"]
+        approach_count[a] += 1
+        approach_last[a] = max(approach_last.get(a, 0), row["iter"])
+    approach_sorted = sorted(
+        approach_count.keys(),
+        key=lambda a: (-approach_count[a], -approach_last[a]),
+    )
+
     # Preserve stale section
     stale = extract_section(text, "## Stale Coverage")
 
     # --- Build output ---
     out = [header_and_table(text)]
+
+    # Approach summary
+    out.append("## Approach Summary\n")
+    out.append("| Approach | Count | Last Used |")
+    out.append("|----------|-------|-----------|")
+    for a in approach_sorted:
+        out.append(f"| {a} | {approach_count[a]} | {approach_last[a]} |")
+    out.append(f"\n{total} depth iterations across {len(approach_sorted)} approaches.")
+    out.append("")
 
     # Uncovered
     out.append("## Uncovered Modules — PRIMARY Targets\n")
@@ -217,6 +239,7 @@ def main():
     print(f"  {len(uncovered)} uncovered modules ({sum(n for _, n in uncovered):,} lines)", file=sys.stderr)
     print(f"  {len(matrix)} covered modules in matrix", file=sys.stderr)
     print(f"  Severity: {sev_str}", file=sys.stderr)
+    print(f"  Approaches: {', '.join(f'{a}={approach_count[a]}' for a in approach_sorted)}", file=sys.stderr)
 
 
 if __name__ == "__main__":
