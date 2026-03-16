@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { checkFreshness, recordRead } from "../file-tracker.js";
 import { runMultiEdit } from "./multi-edit.js";
 
 const TEST_DIR = join(process.cwd(), ".test-multi-edit");
@@ -196,6 +197,22 @@ describe("multi_edit: lint-gated rollback", () => {
     // Both files should be restored
     expect(readTemp("lint-ok.txt")).toBe("text content");
     expect(readTemp("lint-fail.json")).toBe('{"key": "value"}');
+  });
+
+  it("no false stale warning after lint-reverted multi-edit", async () => {
+    const pathJson = writeTemp("stale-multi.json", '{"key": "value"}');
+    recordRead(pathJson);
+
+    const result = await runMultiEdit({
+      edits: [
+        { path: pathJson, old_string: '"value"', new_string: '"value",,,' },
+      ],
+    });
+    expect(result.is_error).toBe(true);
+    expect(readTemp("stale-multi.json")).toBe('{"key": "value"}');
+
+    // File tracker should be up-to-date after revert
+    expect(checkFreshness(pathJson)).toBeNull();
   });
 });
 

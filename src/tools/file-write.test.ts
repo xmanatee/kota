@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { checkFreshness, recordRead } from "../file-tracker.js";
 import { runFileWrite } from "./file-write.js";
 
 const TEST_DIR = join(process.cwd(), ".test-file-write");
@@ -110,5 +111,19 @@ describe("file_write: lint-gated writes", () => {
     const result = await runFileWrite({ path, content });
     expect(result.is_error).toBeUndefined();
     expect(readFileSync(path, "utf-8")).toBe(content);
+  });
+
+  it("no false stale warning after lint-reverted overwrite", async () => {
+    const path = join(TEST_DIR, "stale-write.json");
+    writeFileSync(path, '{"valid": true}', "utf-8");
+    recordRead(path);
+
+    // Overwrite with broken JSON — should revert
+    const result = await runFileWrite({ path, content: "{broken,,}" });
+    expect(result.is_error).toBe(true);
+    expect(readFileSync(path, "utf-8")).toBe('{"valid": true}');
+
+    // File tracker should be up-to-date after revert
+    expect(checkFreshness(path)).toBeNull();
   });
 });

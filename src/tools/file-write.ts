@@ -59,6 +59,7 @@ export async function runFileWrite(
   if (!lintResult.ok) {
     if (previousContent !== null) {
       writeFileSync(path, previousContent, "utf-8"); // restore original
+      recordModification(path);
     } else {
       unlinkSync(path); // remove newly created file
     }

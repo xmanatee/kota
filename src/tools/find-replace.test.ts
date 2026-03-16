@@ -8,6 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { checkFreshness, recordRead } from "../file-tracker.js";
 import { applyReplacement, runFindReplace } from "./find-replace.js";
 
 // --- Unit tests for applyReplacement ---
@@ -368,6 +369,24 @@ describe("runFindReplace", () => {
     // test below is more specific.
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Syntax error");
+  });
+
+  it("no false stale warning after lint-reverted find-replace", async () => {
+    const p = join(dir, "stale-fr.json");
+    writeFileSync(p, '{"key": "val"}');
+    recordRead(p);
+
+    const result = await runFindReplace({
+      pattern: '"val"',
+      replacement: '"val"bad',
+      files: join(dir, "stale-fr.json"),
+    });
+
+    expect(result.is_error).toBe(true);
+    expect(readFileSync(p, "utf-8")).toBe('{"key": "val"}');
+
+    // File tracker should be up-to-date after revert
+    expect(checkFreshness(p)).toBeNull();
   });
 
   it("dry run includes dotfiles in preview", async () => {

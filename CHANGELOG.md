@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 501 — Fixed false stale-file warnings after lint-reverted edits across all 4 file-modification tools
+
+Fixed a resource-lifecycle bug where lint-gated reverts in file-edit, file-write, multi-edit, and find-replace failed to update the file-tracker mtime after restoring original content. This caused false "file was modified since you last read it" warnings on subsequent edit attempts, confusing the agent's self-correction loop after syntax errors.
+
+### What was wrong
+
+When a file edit fails lint and gets reverted, the file is written twice (edit + revert), changing its mtime. But `recordModification(path)` was only called on the success path — never after reverts. The file-tracker still held the old mtime, so `checkFreshness()` would detect a mismatch and emit a misleading stale-file warning.
+
+### What was fixed
+
+Added `recordModification(path)` after every revert `writeFileSync` call:
+- `file-edit.ts`: Both normal edit and whitespace-tolerant match revert paths
+- `file-write.ts`: Existing-file overwrite revert path
+- `multi-edit.ts`: `revertAll()` function
+- `find-replace.ts`: `revertOriginals()` function
+
+### Verified
+
+- TypeScript: `npm run typecheck` clean
+- Build: `npm run build` clean (387.76 KB)
+- Tests: 2422 passed (0 failed, 0 skipped)
+- Lint: `npx biome check` clean on all 8 changed files
+- CLI: `node dist/cli.js --help` loads correctly
+
+### New tests (6)
+
+- `file-edit.test.ts`: No false stale warning after lint-reverted edit; no false stale warning after whitespace-match lint-reverted edit
+- `file-write.test.ts`: No false stale warning after lint-reverted overwrite
+- `multi-edit.test.ts`: No false stale warning after lint-reverted multi-edit
+- `find-replace.test.ts`: No false stale warning after lint-reverted find-replace
+
+### Future directions
+
+- The `knownMtimes` Map in file-tracker.ts grows unbounded across sessions (no eviction). Low-risk in practice but could be bounded with an LRU cap.
+
 ## Iteration 500 — Fixed approach sync bug in parse-log.py and added depth coverage snapshot to --trend output
 
 Fixed parse-log.py missing "resource-lifecycle" approach (added in iter 498) and added depth phase health metrics to --trend, eliminating the need to run refresh-depth-log.py separately during orientation.

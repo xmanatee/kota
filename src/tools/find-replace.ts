@@ -85,6 +85,7 @@ function revertOriginals(originals: Map<string, string>): string[] {
   for (const [p, orig] of originals) {
     try {
       writeFileSync(p, orig, "utf-8");
+      recordModification(p);
     } catch {
       failures.push(p);
     }

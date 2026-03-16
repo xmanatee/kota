@@ -75,6 +75,7 @@ export async function runFileEdit(
       const lintResult = lintFile(path);
       if (!lintResult.ok) {
         writeFileSync(path, content, "utf-8");
+        recordModification(path);
         return {
           content:
             `Edit reverted — syntax error detected:\n${lintResult.error}\n\n` +
@@ -120,6 +121,7 @@ export async function runFileEdit(
   const lintResult = lintFile(path);
   if (!lintResult.ok) {
     writeFileSync(path, content, "utf-8"); // revert
+    recordModification(path);
     return {
       content:
         `Edit reverted — syntax error detected:\n${lintResult.error}\n\n` +

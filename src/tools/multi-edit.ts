@@ -126,6 +126,7 @@ function revertAll(originals: Map<string, string>): string[] {
   for (const [path, content] of originals) {
     try {
       writeFileSync(path, content, "utf-8");
+      recordModification(path);
     } catch {
       failures.push(path);
     }
