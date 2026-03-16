@@ -148,6 +148,81 @@ describe("TelegramTransport", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
+
+  it("flush attempts all chunks even when middle chunk fails", async () => {
+    const transport = new TelegramTransport(123, "tok");
+    // Buffer text that will split into 3 chunks (each >4096 chars)
+    const chunk1 = "a".repeat(4000);
+    const chunk2 = "b".repeat(4000);
+    const chunk3 = "c".repeat(4000);
+    transport.emit({ type: "text", content: `${chunk1}\n${chunk2}\n${chunk3}` });
+
+    let callCount = 0;
+    fetchMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 2) {
+        // Second chunk fails
+        return Promise.resolve({
+          json: () => Promise.resolve({ ok: false, description: "Too Many Requests" }),
+        });
+      }
+      return Promise.resolve({
+        json: () => Promise.resolve({ ok: true, result: true }),
+      });
+    });
+
+    await expect(transport.flush()).rejects.toThrow("Too Many Requests");
+    // All 3 chunks should have been attempted
+    expect(callCount).toBe(3);
+  });
+
+  it("flush clears buffer even when send fails (prevents duplicate sends)", async () => {
+    const transport = new TelegramTransport(123, "tok");
+    transport.emit({ type: "text", content: "Hello!" });
+
+    fetchMock.mockResolvedValue({
+      json: () => Promise.resolve({ ok: false, description: "Forbidden" }),
+    });
+
+    await expect(transport.flush()).rejects.toThrow("Forbidden");
+    // Buffer should be cleared so a second flush doesn't re-send
+    expect(transport.getBuffer()).toBe("");
+    fetchMock.mockClear();
+    await transport.flush(); // Should be a no-op
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("flush succeeds when all chunks succeed", async () => {
+    const transport = new TelegramTransport(123, "tok");
+    transport.emit({ type: "text", content: "chunk1\nchunk2" });
+
+    fetchMock.mockResolvedValue({
+      json: () => Promise.resolve({ ok: true, result: true }),
+    });
+
+    await expect(transport.flush()).resolves.toBeUndefined();
+  });
+
+  it("flush handles network error on one chunk and still sends others", async () => {
+    const transport = new TelegramTransport(123, "tok");
+    // Two chunks that exceed the 4096 limit
+    const text = "a".repeat(4000) + "\n" + "b".repeat(4000);
+    transport.emit({ type: "text", content: text });
+
+    let callCount = 0;
+    fetchMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.reject(new Error("ECONNRESET"));
+      }
+      return Promise.resolve({
+        json: () => Promise.resolve({ ok: true, result: true }),
+      });
+    });
+
+    await expect(transport.flush()).rejects.toThrow("network error: ECONNRESET");
+    expect(callCount).toBe(2); // Both chunks attempted
+  });
 });
 
 // --- callTelegramApi ---
@@ -192,6 +267,50 @@ describe("callTelegramApi", () => {
       json: () => Promise.resolve({ ok: false, description: "Unauthorized" }),
     });
     await expect(callTelegramApi("bad", "getMe")).rejects.toThrow("Telegram API getMe: Unauthorized");
+  });
+
+  it("wraps network errors with method context", async () => {
+    fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    await expect(callTelegramApi("tok", "sendMessage")).rejects.toThrow(
+      "Telegram API sendMessage: network error: ECONNREFUSED",
+    );
+  });
+
+  it("wraps DNS resolution failures with method context", async () => {
+    fetchMock.mockRejectedValue(new Error("getaddrinfo ENOTFOUND api.telegram.org"));
+    await expect(callTelegramApi("tok", "getUpdates")).rejects.toThrow(
+      "Telegram API getUpdates: network error: getaddrinfo ENOTFOUND api.telegram.org",
+    );
+  });
+
+  it("handles non-JSON response (e.g., 502 HTML page)", async () => {
+    fetchMock.mockResolvedValue({
+      status: 502,
+      json: () => Promise.reject(new SyntaxError("Unexpected token <")),
+    });
+    await expect(callTelegramApi("tok", "getUpdates")).rejects.toThrow(
+      "Telegram API getUpdates: non-JSON response (HTTP 502)",
+    );
+  });
+
+  it("handles non-JSON response with 503 status", async () => {
+    fetchMock.mockResolvedValue({
+      status: 503,
+      json: () => Promise.reject(new SyntaxError("Unexpected token")),
+    });
+    await expect(callTelegramApi("tok", "sendMessage")).rejects.toThrow(
+      "Telegram API sendMessage: non-JSON response (HTTP 503)",
+    );
+  });
+
+  it("handles empty response body", async () => {
+    fetchMock.mockResolvedValue({
+      status: 200,
+      json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
+    });
+    await expect(callTelegramApi("tok", "getMe")).rejects.toThrow(
+      "Telegram API getMe: non-JSON response (HTTP 200)",
+    );
   });
 });
 

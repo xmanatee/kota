@@ -34,6 +34,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 471 | harden | verify-tracker.ts | high | Failed shell verification commands (is_error: true) silently cleared edit tracker, defeating verification nudges; added bun/deno command detection; 10 new tests (38→50) |
 | 473 | friction | tools/find-replace.ts | high | Dotfiles silently skipped (glob without dot:true), lint-failure rollback lost error context and falsely claimed success, no glob limit before scanning; sweep-fixed same rollback bug in multi-edit.ts; 12 new tests (19→31) |
 | 475 | structural-health | registry.ts, registry-installers.ts | high | Split 427-line registry.ts (299+167); fixed getNpmVersion dead-code fallback and installGithub wrong files path; 19 new tests for extracted installers |
+| 477 | error-paths | telegram.ts, daemon.ts, server-notifications.ts | high | Fixed 4 bugs: non-JSON response crash, network errors without method context, flush stops at first failed chunk, partial output dropped on agent error; sweep-fixed silent error swallow in daemon + server-notifications; 9 new tests (28→37) |
 
 ## Approach Summary
 

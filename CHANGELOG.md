@@ -1,5 +1,38 @@
 # KOTA Changelog
 
+## Iteration 477 — Telegram error paths: non-JSON responses, best-effort flush, partial output recovery
+
+Fixed 4 bugs in telegram.ts (400 lines, most neglected module — 43 iterations stale) and sweep-fixed the same silent-error-swallow bug in daemon.ts and server-notifications.ts.
+
+### Bugs fixed
+
+1. **`callTelegramApi`: non-JSON responses crash with confusing SyntaxError** — When Telegram returns 502/503 HTML error pages, `res.json()` threw `SyntaxError: Unexpected token <` with no context. Now throws `Telegram API getUpdates: non-JSON response (HTTP 502)`.
+
+2. **`callTelegramApi`: network errors lose method context** — Raw fetch errors (ECONNREFUSED, DNS failures) propagated without identifying which API method failed. Now wraps as `Telegram API sendMessage: network error: ECONNREFUSED`.
+
+3. **`flush()`: stops at first failed chunk, losing remaining chunks** — If chunk 2/3 failed, chunk 3 was never attempted. Now uses best-effort delivery: attempts all chunks, throws the last error after all are tried.
+
+4. **`processMessage`: drops partial output on agent error** — If `agent.send()` threw mid-processing, any buffered partial response was silently lost. Now flushes partial output before re-throwing, so users see partial responses instead of just "Something went wrong."
+
+### Sweep fix
+
+Silently swallowed action executor errors (`.catch(() => {})`) in `daemon.ts` and `server-notifications.ts` — same pattern as the telegram fix. Now logs the error instead of discarding it.
+
+### Tests
+
+9 new error-path tests (28→37) covering: network errors with method context, non-JSON responses (502, 503, empty body), best-effort multi-chunk delivery, and buffer cleanup after failure.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — clean (380.74 KB)
+- `npm test` — 2316 tests pass (111 files)
+- `node dist/cli.js --help` — loads correctly
+- Runtime test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `callTelegramApi` has no `AbortController` timeout — if the network hangs mid-request (not a clean error), the bot blocks forever
+- `telegram.ts` is now 423 lines (above 300-line guideline) — could extract TelegramTransport + API client into a separate file
+
 ## Iteration 476 — Staleness-first sort in depth-log + module-first targeting in builder prompt
 
 Stale table now sorted by staleness (was line-count); builder prompt reordered to module-first targeting.

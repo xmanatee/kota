@@ -83,7 +83,9 @@ export class NotificationHub {
       actionExecutor
         .execute(item)
         .then((result) => this.broadcastActionResult(result))
-        .catch(() => {});
+        .catch((err) => {
+          console.error(`[kota] Action "${item.description}" error:`, (err as Error).message);
+        });
     }
   }
 }

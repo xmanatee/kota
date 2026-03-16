@@ -53,12 +53,22 @@ export async function callTelegramApi<T>(
   body?: Record<string, unknown>,
 ): Promise<T> {
   const url = `${TELEGRAM_API}/bot${token}/${method}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = (await res.json()) as TelegramApiResponse<T>;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    throw new Error(`Telegram API ${method}: network error: ${(err as Error).message}`);
+  }
+  let data: TelegramApiResponse<T>;
+  try {
+    data = (await res.json()) as TelegramApiResponse<T>;
+  } catch {
+    throw new Error(`Telegram API ${method}: non-JSON response (HTTP ${res.status})`);
+  }
   if (!data.ok) throw new Error(`Telegram API ${method}: ${data.description}`);
   return data.result;
 }
@@ -124,12 +134,18 @@ export class TelegramTransport implements Transport {
     this.buffer = "";
     if (!text) return;
     const chunks = splitMessage(text);
+    let lastError: Error | null = null;
     for (const chunk of chunks) {
-      await callTelegramApi(this.token, "sendMessage", {
-        chat_id: this.chatId,
-        text: chunk,
-      });
+      try {
+        await callTelegramApi(this.token, "sendMessage", {
+          chat_id: this.chatId,
+          text: chunk,
+        });
+      } catch (err) {
+        lastError = err as Error;
+      }
     }
+    if (lastError) throw lastError;
   }
 
   getBuffer(): string {
@@ -244,7 +260,9 @@ export class TelegramBot {
 
         this.actionExecutor.execute(item).then((result) => {
           this.broadcastActionResult(result);
-        }).catch(() => {});
+        }).catch((err) => {
+          console.error(`[kota-telegram] Action "${item.description}" error:`, (err as Error).message);
+        });
       }
     });
 
@@ -357,6 +375,10 @@ export class TelegramBot {
       transport.startTyping();
       await session.agent.send(text);
       await transport.flush();
+    } catch (err) {
+      // Flush any partial output the agent produced before the error
+      try { await transport.flush(); } catch {}
+      throw err;
     } finally {
       const session = this.sessions.get(chatId);
       if (session) session.proxy.target = new NullTransport();

@@ -245,7 +245,9 @@ export class Daemon {
         } else {
           this.log(`Action "${item.description}" completed (${Math.round(result.durationMs / 1000)}s)`);
         }
-      }).catch(() => {});
+      }).catch((err) => {
+        this.log(`Action "${item.description}" error: ${(err as Error).message}`);
+      });
     }
   }
 
