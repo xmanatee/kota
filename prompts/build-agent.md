@@ -60,10 +60,10 @@ your decision — weigh everything critically:
 - **NOTES.md**: Owner suggestions (`b:` = for you). One signal among many —
   not a task queue. If an item references a plan file (`plans/*.md`), read it.
   Update NOTES.md when you complete or skip an item.
-- **External research**: Search the web for articles, GitHub repos, papers,
-  discussions related to the project's domain (AI agents, CLI tools, plugin
-  systems, prompting, system design, etc.). Look at what similar tools are
-  doing (OpenClaw, OpenHands, Manus, Codex CLI, Aider, etc.).
+- **External research**: For your top candidates, search the web to answer
+  specific implementation questions — what API to use, how others solved the
+  same problem, known pitfalls. Target your searches: know what question each
+  search is answering before you run it.
 - **Internal exploration**: Recent git log, CHANGELOG, DESIGN.md, the codebase,
   test coverage, plans/ directory. What exists, what's missing, what's broken.
 - **Delegation**: Use the `delegate` tool for parallel research when useful.
@@ -108,15 +108,16 @@ principles every time.
 ## How to Work
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Research: before deciding what to build, run 1-2 quick web searches for
-   how other agents or tools handle what you're considering. Do this
-   synchronously — background research that returns after you've decided
-   doesn't inform the decision. Working implementations (GitHub repos, test
-   files) beat docs that may be outdated. Skip only for narrow bug fixes.
-3. Brainstorm and decide (see "What to Work On" above). Let research findings
-   inform your candidates.
-4. Build: write real, working code. Keep `DESIGN.md` accurate.
-5. Verify (all five levels):
+2. Brainstorm candidates (see "What to Work On" above).
+3. Research targeted unknowns: for your top 2-3 candidates, identify what you
+   need to know to choose between them and implement the winner. Search for
+   those specific things — each search should answer a concrete question.
+   Working implementations (GitHub repos, test files) beat docs that may be
+   outdated. Stop when you can confidently choose and start building.
+   Skip for narrow bug fixes.
+4. Decide: pick the highest-impact option based on what you've learned.
+5. Build: write real, working code. Keep `DESIGN.md` accurate.
+6. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.
      Use vitest. Place tests next to source as `*.test.ts`.
@@ -127,9 +128,9 @@ principles every time.
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop; cheap with Haiku). If it fails due to
      missing `ANTHROPIC_API_KEY`, report as SKIP — don't silently omit it.
-6. Update NOTES.md if your work relates to any `b:` item (complete → move to
+7. Update NOTES.md if your work relates to any `b:` item (complete → move to
    Completed, partial → add brief progress note).
-7. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+8. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 
 ## Tech

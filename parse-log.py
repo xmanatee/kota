@@ -519,6 +519,7 @@ def _quick_parse(path: str) -> dict:
     tool_count = 0
     mutation_calls = 0
     web_research = False
+    research_calls = 0
     text_snippets: list[str] = []
     full_texts: list[str] = []
     cl_edits: list[str] = []
@@ -544,10 +545,12 @@ def _quick_parse(path: str) -> dict:
                 tc_list.append((block["name"], f"{_desc} {_cmd} {_fp}"))
                 if block["name"] in ("WebSearch", "WebFetch"):
                     web_research = True
-                if block["name"] == "Agent" and not web_research:
+                    research_calls += 1
+                if block["name"] == "Agent":
                     _prompt = (inp.get("prompt", "") or inp.get("description", "") or "").lower()
                     if any(kw in _prompt for kw in ["research", "search the web", "web search", "survey", "look up", "investigate"]):
                         web_research = True
+                        research_calls += 1
                 if block["name"] == "Bash":
                     desc = (inp.get("description", "") or "").lower()
                     cmd = (inp.get("command", "") or "").lower()
@@ -680,6 +683,7 @@ def _quick_parse(path: str) -> dict:
         "error_count": error_count,
         "sweep_calls": sweep_calls,
         "web_research": web_research,
+        "research_calls": research_calls,
         "rework_pct": rework_pct,
         "fix_cycles": fix_cycles,
     }
@@ -820,7 +824,8 @@ def trend(n: int = 5) -> None:
         cpt_str = f"{cpt // 1000}k" if cpt else "?"
         errs = e.get("error_count", 0)
         sweep = e.get("sweep_calls", 0)
-        research = "R" if e.get("web_research") else "."
+        rc = e.get("research_calls", 0)
+        research = str(rc) if rc > 0 else "."
         rework = e.get("rework_pct", 0)
         fix_c = e.get("fix_cycles", 0)
         rework_str = f"{rework}%/{fix_c}" if rework else "0%"
@@ -828,7 +833,7 @@ def trend(n: int = 5) -> None:
             f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
             f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
-            f"  web: {research}  rework: {rework_str}"
+            f"  rsrch: {research:<3s} rework: {rework_str}"
         )
         total_calls += e["calls"]
         total_cost += e["cost"]
@@ -918,9 +923,14 @@ def trend(n: int = 5) -> None:
     if mut_ran > 0 or any(e.get("mutation") for e in entries):
         print(f"  Mutation check: {mut_ran}/{mut_total} ran")
 
-    # Web research usage
-    web_count = sum(1 for e in entries if e.get("web_research"))
-    print(f"  Web research: {web_count}/{ne} iterations")
+    # Web research usage — show volume, not just presence
+    total_research = sum(e.get("research_calls", 0) for e in entries)
+    web_iters = sum(1 for e in entries if e.get("web_research"))
+    avg_rc = total_research / web_iters if web_iters else 0
+    print(
+        f"  Web research: {web_iters}/{ne} iterations, "
+        f"{total_research} calls ({avg_rc:.0f}/iter avg)"
+    )
 
     # Depth phase health (from depth-log.md)
     health = _depth_health(depth_rows)

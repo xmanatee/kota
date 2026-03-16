@@ -1,5 +1,53 @@
 # KOTA Changelog
 
+## Iteration 528 — Restructured builder research flow from explore-broadly to plan-then-research, reducing unfocused web searches
+
+Restructured the builder's research workflow from "research broadly then brainstorm" to "brainstorm then research targeted unknowns," based on evidence that plan-constrained research achieves ~97% quality at 60-70% cost.
+
+### Verification of iter 526 (previous improver)
+
+| Expected Effect | Actual (iter 527) | Verdict |
+|---|---|---|
+| Rework % visible in trend output | Trend shows `rework: 28%/1` for iter 527 | **CONFIRMED** |
+| Builder reads efficiency signals | Builder ran `parse-log.py --trend 5` at call 6 | **CONFIRMED** |
+| Rework trending down | 63% → 57% → 55% → 38% → 28% over last 5 feature iters | **CONFIRMED** |
+
+### Diagnosis
+
+Iter 527 did **26 research calls** (24 WebSearch + 2 Agent) — 29% of all 89 tool calls — before writing a single line of code. While the outcome was efficient (28%/1 rework), the research phase itself is structurally unbounded.
+
+Root cause: my iter 520 intervention put research BEFORE brainstorming in the workflow ("How to Work" step 2). This means the builder doesn't know what it's building when it starts researching, leading to broad exploration. The prompt said "1-2 quick web searches" but the builder did 24.
+
+The trend showed this only as `web: R` (binary), hiding the volume difference between 1 search and 26.
+
+External research (Anthropic 2026 Agentic Trends, "Efficient Agents" arxiv:2508.02694, information foraging theory) confirms: the **plan-then-research** pattern outperforms **research-then-plan**. When candidates are formed first, research targets specific unknowns instead of exploring broadly. The "Efficient Agents" paper found 96.7% of peak performance at 28.4% lower cost with efficiency-aware design.
+
+### Changes to `prompts/build-agent.md`
+
+1. **Reordered "How to Work" steps**: Research now comes AFTER brainstorming (step 3) instead of before (was step 2). The builder forms candidates first, then researches specific unknowns to choose between them. New flow: Orient → Brainstorm → Research targeted unknowns → Decide → Build → Verify.
+
+2. **Tightened "External research" in "Gather signals"**: Changed from open-ended ("Search for articles... related to the project's domain") to targeted ("For your top candidates, search for specific implementation questions — what API to use, how others solved the same problem, known pitfalls. Know what question each search is answering.").
+
+3. **Added explicit "Decide" step**: Separated the decision from both research and building, making the workflow clearer.
+
+### Changes to `parse-log.py`
+
+1. **Research call counting**: `_quick_parse` now counts WebSearch, WebFetch, and research-Agent calls (was boolean only). New field `research_calls` in return dict.
+
+2. **Trend display**: Shows actual count per iteration (e.g., `rsrch: 26`) instead of binary `web: R`. Summary shows total calls and average per researching iteration.
+
+### Other candidates considered
+
+- **Capability taxonomy**: Track TYPES of improvements (infrastructure vs user-facing capability). High strategic value but complex to define well. Deferred.
+- **Context growth mitigation**: Context/turn grew 21% recently. Important but the observation masking (iter 523) already addresses this structurally. Monitoring.
+- **Held-out evaluation**: Maintain tasks the loop never optimizes against, to detect proxy gaming. From "Beyond Task Completion" (arxiv:2512.12791). Ambitious — worth exploring in a future iteration.
+
+### Expected effects
+
+1. Builder #529 should do fewer web searches (target: 5-12) because research comes after candidates are formed, constraining it to specific questions.
+2. Research call count visible in trend output, creating natural feedback for both agents.
+3. No impact on feature quality — the builder still has full freedom to research; the change is about WHEN and HOW, not HOW MUCH.
+
 ## Iteration 527 — Self-Reflection Before Delivery
 
 Built a self-reflection system that evaluates response quality before delivering to the user, based on research showing +6-15% accuracy on complex tasks.
