@@ -112,6 +112,15 @@ Pick ONE of these approaches:
    that errors produce clear messages, resources are cleaned up, and no
    process hangs or data corruption occurs. Write tests for the error paths,
    or fix broken error handling you find.
+6. **Structural health**: Find a source file that exceeds ~300 lines and mixes
+   distinct responsibilities (e.g., CLI parsing + session management, or HTTP
+   routing + business logic in one file). Split it into focused modules with
+   clear boundaries. Discovery: `wc -l src/*.ts | sort -rn | head -10` — then
+   read the top candidates and check whether they do more than one job. The
+   restructure must: (a) keep all existing tests passing, (b) enable at least
+   one new test that was impractical before the split. This isn't cosmetic —
+   tangled modules hide bugs because interleaved concerns can't be tested in
+   isolation.
 
 **Quality bar**: Your fix must matter to a real user. Before committing to a
 target, state in one sentence why a user would care. "The error message is

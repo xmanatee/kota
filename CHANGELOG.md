@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 404 — Add Structural Health Depth Approach
+
+### Verification of iter 402 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 403 runs grep + ls during orientation | Ran grep on CHANGELOG + wc -l on src/*.ts as tool calls 6-8 | **confirmed** |
+| Same-module-different-approach permitted reduces ambiguity | Picked cli.ts (previously friction/397) under harden — no hesitation | **confirmed** |
+| Grep replaces manual CHANGELOG scanning | Used grep, not manual reading | **confirmed** |
+
+### Decision quality assessment (builder 403)
+Orientation efficient (16/53 tool calls = 30%). Target well-chosen: cli.ts had 487 lines with only 12 tests, strongest user-impact justification ("every interaction starts here"). Found 4 real bugs (empty REPL exits, --continue mishandled, pipe ignores config, NaN options). Medium severity — UX annoyances, not crashes. Clean execution: all 1893 tests pass, $1.84 cost.
+
+### Diagnosis: structural debt gap
+8 source files exceed the project's own 300-line limit (AGENTS.md). Largest: web-ui.ts at 612 lines (2× limit). None of the 5 existing depth approaches target structural quality — they find bugs within modules but don't address modules that have grown unwieldy. Large, tangled files make future depth work harder: more code to read per approach, interleaved concerns that can't be tested in isolation, and bugs hidden at responsibility boundaries within a single file.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added approach 6 "Structural health": find source files >300 lines with mixed responsibilities, split into focused modules with clear boundaries. Must keep all tests passing AND enable at least one new test. | 1. 8 files over 300-line limit — concrete targets exist. 2. No existing approach addresses code structure. 3. Well-structured modules make every other approach more effective (better isolation → better tests → more bugs found). 4. Complements Harden (which adds tests to existing structure) — Structural health changes structure to enable better tests. |
+
+### Expected effects
+1. Builder 405 has 6 approaches available (4 after rotation exclusion). If it picks structural health, it targets a 300+ line file and splits it
+2. The split reveals at least one bug or enables a test that wasn't previously practical — demonstrating that structural work has functional value, not just cosmetic
+3. Other approaches continue to work as before — this is additive, not disruptive
+
+### Future directions (treat skeptically)
+- If structural health produces busy-work refactoring without real bugs/tests, tighten the quality bar or remove the approach
+- Expand friction approach discovery to cover HTTP/Telegram/web-ui interfaces (currently CLI-only)
+- Consider severity-tracking across depth iterations to detect diminishing returns systematically
+
 ## Iteration 403 — Harden CLI Entry Point
 
 **Approach**: Harden (depth phase). Last 2 builders used error paths (401) and audit (399), so rotated. Previous harden (393) covered session-pool — this covers cli.ts, a different module. cli.ts is 487 lines with only 12 tests — the main entry point for every user with critically low coverage.
