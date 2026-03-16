@@ -43,17 +43,17 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 
 | Approach | Count | Last Used | Rotation |
 |----------|-------|-----------|----------|
-| error-paths | 8 | 479 | BLOCKED |
-| harden | 6 | 471 | eligible |
+| error-paths | 8 | 479 | eligible |
+| harden | 7 | 483 | BLOCKED |
 | friction | 5 | 473 | eligible |
 | structural-health | 4 | 475 | eligible |
 | audit | 4 | 467 | eligible |
 | e2e | 4 | 461 | eligible |
 | concurrency | 1 | 481 | BLOCKED |
 
-32 depth iterations across 7 approaches.
-**Rotation blocked** (used in last 2 builder iters): error-paths, concurrency
-**Rotation eligible**: harden, friction, structural-health, audit, e2e
+33 depth iterations across 7 approaches.
+**Rotation blocked** (used in last 2 builder iters): harden, concurrency
+**Rotation eligible**: error-paths, friction, structural-health, audit, e2e
 
 ## Uncovered Modules — PRIMARY Targets
 
@@ -77,17 +77,17 @@ find untried module+approach combinations.*
 
 | Module | Lines | Test Lines | Last Covered | Builder Iters Ago | Approaches Used |
 |--------|-------|------------|--------------|-------------------|-----------------|
-| tool-adapters.ts | 403 | 641 | 415 | 33 | error-paths |
-| server.ts | 400 | 242 | 425 | 28 | e2e, structural-health |
-| cli.ts | 424 | 316 | 441 | 20 | friction, friction, harden, friction, e2e |
-| module-loader.ts | 312 | 506 | 441 | 20 | e2e |
-| history.ts | 305 | 342 | 453 | 14 | friction, e2e, audit |
-| scheduler.ts | 378 | 665 | 455 | 13 | audit, harden, structural-health |
-| task-store.ts | 259 | 280 | 455 | 13 | structural-health |
-| tools/process.ts | 327 | 335 | 457 | 12 | harden |
-| tools/http-request.ts | 318 | 624 | 459 | 11 | error-paths |
-| loop.ts | 438 | 623 | 461 | 10 | e2e, e2e |
-| context.ts | 221 | 533 | 461 | 10 | e2e |
+| server.ts | 400 | 242 | 425 | 29 | e2e, structural-health |
+| cli.ts | 424 | 316 | 441 | 21 | friction, friction, harden, friction, e2e |
+| module-loader.ts | 312 | 506 | 441 | 21 | e2e |
+| history.ts | 305 | 342 | 453 | 15 | friction, e2e, audit |
+| scheduler.ts | 378 | 665 | 455 | 14 | audit, harden, structural-health |
+| task-store.ts | 259 | 280 | 455 | 14 | structural-health |
+| tools/process.ts | 327 | 335 | 457 | 13 | harden |
+| tools/http-request.ts | 318 | 624 | 459 | 12 | error-paths |
+| loop.ts | 438 | 623 | 461 | 11 | e2e, e2e |
+| context.ts | 221 | 533 | 461 | 11 | e2e |
+| init.ts | 315 | 453 | 463 | 10 | friction |
 
 **11 stale modules.**
 
@@ -95,19 +95,19 @@ find untried module+approach combinations.*
 
 *Which approaches have been tried on each stale module. `—` = untried, `BLOCKED` = not rotation-eligible.*
 
-| Module | ~~error-paths~~ | harden | friction | structural-health | audit | e2e | ~~concurrency~~ |
+| Module | error-paths | ~~harden~~ | friction | structural-health | audit | e2e | ~~concurrency~~ |
 |--------|---------------|----------|------------|---------------------|---------|-------|---------------|
-| tool-adapters.ts | 415 | — | — | — | — | — | BLOCKED |
-| server.ts | BLOCKED | — | — | 425 | — | 395 | BLOCKED |
-| cli.ts | BLOCKED | 403 | 391,397,411 | — | — | 441 | BLOCKED |
-| module-loader.ts | BLOCKED | — | — | — | — | 441 | BLOCKED |
-| history.ts | BLOCKED | — | 391 | — | 453 | 405 | BLOCKED |
-| scheduler.ts | BLOCKED | 413 | — | 455 | 389 | — | BLOCKED |
-| task-store.ts | BLOCKED | — | — | 455 | — | — | BLOCKED |
-| tools/process.ts | BLOCKED | 457 | — | — | — | — | BLOCKED |
-| tools/http-request.ts | 459 | — | — | — | — | — | BLOCKED |
-| loop.ts | BLOCKED | — | — | — | — | 405,461 | BLOCKED |
-| context.ts | BLOCKED | — | — | — | — | 461 | BLOCKED |
+| server.ts | — | BLOCKED | — | 425 | — | 395 | BLOCKED |
+| cli.ts | — | 403 | 391,397,411 | — | — | 441 | BLOCKED |
+| module-loader.ts | — | BLOCKED | — | — | — | 441 | BLOCKED |
+| history.ts | — | BLOCKED | 391 | — | 453 | 405 | BLOCKED |
+| scheduler.ts | — | 413 | — | 455 | 389 | — | BLOCKED |
+| task-store.ts | — | BLOCKED | — | 455 | — | — | BLOCKED |
+| tools/process.ts | — | 457 | — | — | — | — | BLOCKED |
+| tools/http-request.ts | 459 | BLOCKED | — | — | — | — | BLOCKED |
+| loop.ts | — | BLOCKED | — | — | — | 405,461 | BLOCKED |
+| context.ts | — | BLOCKED | — | — | — | 461 | BLOCKED |
+| init.ts | — | BLOCKED | 463 | — | — | — | BLOCKED |
 
 **59/77 combinations untried.**
 
@@ -119,8 +119,8 @@ Reference data — see uncovered and stale sections above for targeting guidance
 |--------|-------|------------|-------------|---------------------|
 | loop.ts | 438 | 623 | 405,461 | e2e, e2e |
 | cli.ts | 424 | 316 | 391,397,403,411,441 | friction, friction, harden, friction, e2e |
+| tool-adapters.ts | 423 | 893 | 415,483 | error-paths, harden |
 | telegram.ts | 422 | 523 | 389,477 | audit, error-paths |
-| tool-adapters.ts | 403 | 641 | 415 | error-paths |
 | server.ts | 400 | 242 | 395,425 | e2e, structural-health |
 | scheduler.ts | 378 | 665 | 389,413,455 | audit, harden, structural-health |
 | daemon.ts | 378 | 418 | 451,477 | error-paths, error-paths |
@@ -159,7 +159,7 @@ Reference data — see uncovered and stale sections above for targeting guidance
 | modules/scheduler.ts | 24 | 0 | 441 | e2e |
 | modules/memory.ts | 24 | 0 | 441 | e2e |
 
-Data refreshed at iter 482. Previous refresh at iter 481.
+Data refreshed at iter 484. Previous refresh at iter 483.
 
 ## Severity Key
 
@@ -169,4 +169,4 @@ Data refreshed at iter 482. Previous refresh at iter 481.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (32 iterations): critical=7, high=22, medium=3
+Distribution (33 iterations): critical=7, high=23, medium=3

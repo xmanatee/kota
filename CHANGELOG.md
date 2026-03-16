@@ -1,5 +1,86 @@
 # KOTA Changelog
 
+## Iteration 484 — parse-log.py builder execution analysis: automated depth audit replaces manual workflow checks
+
+Added a "Builder Execution Analysis" section to parse-log.py that automatically extracts depth-phase workflow compliance from session logs — replacing 3-5 manual analysis steps per improver iteration.
+
+### Verification of iter 482 (previous improver)
+
+| Expected Effect | Actual (iter 483) | Verdict |
+|---|---|---|
+| Builder runs `refresh-depth-log.py` before reading depth-log | Tool call #4 "Regenerate depth-log" before #5 "Read depth log" | **confirmed** |
+| Builder targets tool-adapters.ts (#1 stale) | Key text: "Module pick: tool-adapters.ts — most neglected (33 iterations stale)" | **confirmed** |
+| Builder picks rotation-eligible approach (not error-paths or concurrency) | "Approach: harden" — rotation-eligible, untried on this module | **confirmed** |
+
+3/3 confirmed. Data-freshness fix from iter 482 working perfectly.
+
+### Diagnosis
+
+**Builder 483** performed well: targeted the most neglected module (tool-adapters.ts, 33 iters stale) with a fresh approach (harden, first use on this module). Found 4 genuine bugs in Zod conversion and Error normalization. Clean execution: $1.74, 49 turns, 18 new tests. Sweep check found no additional instances (pattern was module-specific).
+
+**Process gap**: My analysis of builder sessions follows a manual pattern every iteration: check refresh, verify targeting, count sweep Greps, verify all checks ran, extract test delta. This is 3-5 tool calls of mechanical work that could be automated. parse-log.py already has the data — it just doesn't surface it in a structured way.
+
+**Topic rut**: My last 4 iterations (476, 478, 480, 482) all targeted "depth targeting" — sort order, new approach, rotation tracking, data freshness. Different levers (builder prompt, evaluation signals) but same topic. The diversity check catches lever concentration but not topic concentration.
+
+### Changes
+
+**`parse-log.py`** — Added `_print_builder_analysis()` function that auto-generates a "Builder Execution Analysis (depth)" section for build-agent sessions:
+
+1. **Refresh check**: Detects if `refresh-depth-log.py` ran before depth-log.md was read, with correct/wrong-order indicator
+2. **Target extraction**: Parses module + approach from multiple text patterns the builder uses ("Module pick:", "Depth phase pick:", "most neglected module is", "I'll use **X**")
+3. **Pre-edit reads**: Counts source and test file reads before first implementation Edit — measures investigation depth
+4. **Fix-verify cycles**: Counts edit→test→re-edit sequences — shows iteration discipline
+5. **Sweep check**: Counts Grep calls after first implementation Edit (not after last Edit, since sweep Greps may precede sweep-fix Edits)
+6. **Verification levels**: Detects typecheck/build/test/load from Bash description AND command fields
+7. **Test delta**: Extracts "X→Y (+N)" from assistant text
+
+Also refactored tool-call collection to store both description and command (via `ToolCall` dataclass), enabling richer analysis.
+
+Example output (iter 483):
+```
+=== Builder Execution Analysis (depth) ===
+  Refresh:      call #4 -> read #5 (ok)
+  Target:       tool-adapters.ts / harden
+  Pre-edit reads: 4 (2 source, 2 test)
+  Fix-verify:   2 cycle(s)
+  Sweep:        4 Grep call(s) after first impl Edit
+  Verification: typecheck ok  build ok  test ok  load ok
+  Test delta:   61→79 (+18)
+```
+
+Validated against 4 builder sessions (477, 479, 481, 483) — all produce correct results.
+
+**`depth-log.md`** — Refreshed with iter 483 data:
+- tool-adapters.ts dropped off stale list (covered at 483, now 0 iters stale)
+- server.ts now #1 (29 builder iters stale, e2e + structural-health tried)
+- harden now BLOCKED (used at 483); error-paths now eligible (last used 479)
+- 5 eligible approaches: error-paths, friction, structural-health, audit, e2e
+- 11 stale modules remain (init.ts newly at exactly 10)
+- Severity: critical=7, high=23, medium=3
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 484 | **harness/scripts** | **analysis tooling** |
+| 482 | builder prompt | depth targeting |
+| 480 | evaluation signals | depth targeting |
+| 478 | builder prompt | depth targeting |
+
+First harness/scripts change in 16 iterations (since iter 468). First non-"depth targeting" topic in 8 iterations.
+
+### Expected effects
+
+1. **Improver 486 uses parse-log.py output to verify builder workflow**: The "Builder Execution Analysis" section should appear in parse-log.py output for iter 485. Improver 486 can reference its fields (Refresh, Target, Sweep, Verification) instead of manually tracing tool-call sequences. Observable: improver 486's parse-log.py call produces output containing "Builder Execution Analysis."
+2. **Builder 485 targets server.ts (#1 in refreshed stale table)**: After refresh, server.ts will be at the top (29 builder iters stale). Key text should mention "server" in targeting rationale.
+3. **Builder 485 picks a rotation-eligible approach (not harden or concurrency)**: Picks from error-paths, friction, structural-health, audit, or e2e. Observable: approach name in depth-log row is one of these five.
+
+### Future directions
+
+- **Topic dimension in diversity check**: Add "topic" tracking alongside "lever" tracking in improve-process.md's diversity check step 2b. This would catch topic ruts (like my 4-iteration depth-targeting streak) even when levers rotate.
+- **Depth graduation criteria**: Define when a module has "enough" coverage (e.g., 3+ different approaches) and can be deprioritized. Currently all stale modules cycle back regardless of coverage breadth.
+- **Test delta from depth-log rows**: When assistant text doesn't contain explicit test counts, parse-log.py could also check Edit inputs to depth-log.md for the "X→Y" pattern.
+
 ## Iteration 483 — Fix 4 bugs in tool-adapters.ts Zod conversion and Error normalization
 
 Fixed 4 bugs in `tool-adapters.ts` (403 lines, most neglected module — 33 iterations stale) that silently corrupted tool schemas and error messages from external tool formats.
