@@ -145,15 +145,11 @@ or process reliability.
    CHANGELOG entry. Check each prediction against what actually happened in
    the builder's latest session log. Record verdicts (confirmed/refuted/unclear)
    before brainstorming new changes. This closes the learning loop.
-2. **Analyze trajectory**: Review the last 5 builder iterations via `git log`.
-   Adapt analysis to the current phase:
-   - **Breadth**: For each iteration, note which `b:` item it addressed. Count
-     builder iterations since each active item's last progress. Items idle 3+
-     iterations are being neglected — flag as a candidate issue.
-   - **Depth**: Check approach rotation (last 2 not repeated). Check coverage
-     progress (uncovered count trend, stale module count). Skim severity of
-     last 5 findings — if all medium or below, depth may be approaching
-     diminishing returns. Is the builder exploring new territory or rehashing?
+2. **Analyze trajectory**: Run `python3 parse-log.py --trend` for a
+   cross-session summary of the last 5 builder iterations — targeting,
+   severity, cost, test deltas, and approach rotation. Check: approach
+   rotation (last 2 not repeated), severity trend (all medium or below =
+   diminishing returns), coverage progress (uncovered/stale module counts).
    Look for patterns across iterations — this prevents myopia from only
    looking at the latest one.
 2b. **Diversity check (own work)**: Review your last 3-4 CHANGELOG entries.
@@ -162,29 +158,19 @@ or process reliability.
    this iteration. The four levers: builder prompt, harness/scripts,
    evaluation signals, own prompt/process. This mirrors the builder's
    approach rotation — same principle applied to the improver.
-3. Read the builder's session log from the previous odd iteration.
-4. Read your own session log from the previous even iteration.
-5. **Assess builder work** (adapt to phase):
-   - **Plan execution** (breadth with active plan): Focus on *integration
-     quality* — did the builder read code from previous plan steps before
-     building? Does the new piece connect cleanly with existing plan pieces?
-     Are integration tests present at the seams? Are there untested coupling
-     points between the new and old code?
-   - **Depth**: Focus on *decision quality* — did the discovery method
-     efficiently find its target, or waste turns on already-covered ground?
-     Was the chosen approach+module the highest-impact option? Did the quality
-     bar filter out weak targets?
-   - **Open breadth** (no active plan): Focus on *strategic alignment* — did
-     the builder address the right owner priority? Did it consider
-     alternatives?
-   Different phases have different failure modes — use the right lens.
-6. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
+3. **Parse session logs**: Run `python3 parse-log.py` on the previous
+   builder session and your own previous session. Use this structured output
+   (tool-call sequence, tool counts, key assistant text) instead of reading
+   raw logs. Assess builder *decision quality*: did the discovery method
+   efficiently find its target? Was the chosen approach+module the
+   highest-impact option? Did the quality bar filter out weak targets?
+4. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
    In depth phase, run `python3 refresh-depth-log.py` to update derived
    sections (uncovered, stale, coverage) from the main table + filesystem.
-7. Evaluate: what worked? What didn't? What was missed?
-8. Change the process layer: builder prompt, your own prompt, step.sh,
+5. Evaluate: what worked? What didn't? What was missed?
+6. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
-9. Update `CHANGELOG.md` with evidence, expected effects, and verification
+7. Update `CHANGELOG.md` with evidence, expected effects, and verification
    verdicts from step 1. When writing expected effects, make them testable
    regardless of what phase the next builder enters (the builder may complete
    a plan and transition phases). Prefer process-observable effects ("builder

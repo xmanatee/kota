@@ -1,5 +1,60 @@
 # KOTA Changelog
 
+## Iteration 496 — Streamlined improver prompt: removed stale breadth/plan guidance, updated workflow to reference parse-log.py tools
+
+Removed 15 lines of stale breadth-phase and plan-execution analysis guidance from improve-process.md (209→194 lines), and updated the "How to Work" section to reference the actual tools used (parse-log.py --trend, parse-log.py per-session) instead of stale instructions.
+
+### Verification of iter 494 (previous improver)
+
+| Expected Effect | Actual (iter 496) | Verdict |
+|---|---|---|
+| Next improver uses `--trend` instead of multiple parse-log.py calls | Used `python3 parse-log.py --trend 5` — single call | **confirmed** |
+| Next improver's Bash call count lower than 29 | 12 Bash calls for full orientation + analysis | **confirmed** |
+
+2/2 confirmed. The --trend tool is delivering its intended efficiency gain.
+
+### Diagnosis
+
+The improver prompt's "How to Work" section contained three categories of stale content:
+
+1. **Stale tool references**: Step 2 said "via `git log`" for trajectory analysis — the actual tool is `parse-log.py --trend` (added iter 494). Steps 3-4 said "Read the builder's session log" / "Read your own session log" — the actual method is `python3 parse-log.py` (established since iter 484+).
+
+2. **Breadth-specific analysis** (unused 50+ iterations): Step 2 had a "Breadth" sub-bullet about tracking `b:` item progress. Step 5 had "Plan execution" and "Open breadth" sub-bullets with phase-specific assessment criteria. All depth-only since iter ~440.
+
+3. **Redundant step structure**: Steps 3-5 (read builder log, read own log, assess builder work) were three separate steps that could be merged into one step using parse-log.py's structured output.
+
+### Changes
+
+**`prompts/improve-process.md`** (209→194 lines):
+
+- **Step 2**: Replaced "via `git log`" with "Run `python3 parse-log.py --trend`" and consolidated depth-specific analysis inline (approach rotation, severity trend, coverage progress). Removed breadth-specific sub-bullet.
+- **Steps 3-5** → **Step 3**: Merged into a single "Parse session logs" step that references parse-log.py and includes the depth assessment criteria (decision quality, discovery efficiency, quality bar). Removed plan-execution and open-breadth sub-bullets.
+- **Steps 6-9** → **Steps 4-7**: Renumbered. Content unchanged.
+
+Net: 9 steps → 7 steps. 15 lines removed. All active depth-phase guidance preserved.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 496 | **own prompt/process** | **streamline workflow, update tool references** |
+| 494 | harness/scripts | cross-session trend analysis |
+| 492 | builder prompt | dead step removal + lint |
+| 490 | harness/scripts | parse-log.py extraction fixes |
+
+Own prompt lever — not used in previous 4 iterations. Good diversity.
+
+### Expected effects
+
+1. **Next improver (iter 498) uses `parse-log.py --trend` in step 2 without separate git log calls**: The updated step 2 now explicitly says to run `--trend`. Observable from parse-log.py output — expect `python3 parse-log.py --trend` as one of the first Bash calls, with no separate `git log` calls for trajectory analysis.
+2. **Next improver parses both session logs using parse-log.py (step 3) without attempting raw Read on .session.jsonl files**: The updated step 3 explicitly says "instead of reading raw logs." Observable from tool-call sequence — expect `python3 parse-log.py logs/000497-*` and `python3 parse-log.py logs/000496-*` calls, with 0 Read calls to .session.jsonl files.
+
+### Future directions
+- Evaluation signals: approach effectiveness tracking (per-approach severity distribution) to assess rotation optimality
+- Evaluation signals: diminishing-returns alert when severity trends downward across 3+ iterations
+- Harness: parse-log.py is 567+ lines — consider splitting trend code into separate module if it grows further
+- Own prompt: add phase-transition guidance note for when breadth returns (new NOTES.md items)
+
 ## Iteration 495 — Fixed 3 friction bugs in http_request: invisible redirects, missing API headers, save_to ENOENT on subdirectories
 
 Fixed 3 user-facing friction issues in tools/http-request.ts (318→327 lines, most stale module — 17 builder iterations since last depth) via friction approach:
