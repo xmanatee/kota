@@ -110,7 +110,7 @@ describe("VerifyTracker", () => {
     expect(tracker.getState()).not.toContain("Consider verifying");
   });
 
-  it("limits displayed files to 10", () => {
+  it("limits displayed files to 10 and shows total count", () => {
     const tracker = new VerifyTracker();
     for (let i = 0; i < 15; i++) {
       tracker.recordEdit(`src/file-${i}.ts`);
@@ -120,6 +120,16 @@ describe("VerifyTracker", () => {
     const matches = state.match(/src\/file-/g);
     expect(matches).toBeTruthy();
     expect(matches!.length).toBeLessThanOrEqual(10);
+    expect(state).toContain("(15 total)");
+  });
+
+  it("does not show total count when 10 or fewer files", () => {
+    const tracker = new VerifyTracker();
+    for (let i = 0; i < 10; i++) {
+      tracker.recordEdit(`src/file-${i}.ts`);
+    }
+    const state = tracker.getState();
+    expect(state).not.toContain("total");
   });
 });
 
@@ -401,6 +411,106 @@ describe("processToolResults", () => {
       { tool_use_id: "1", content: "Error: context overflow\n--- Modified files\n  - src/fix.ts", is_error: true },
     ]);
     expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("clears edits when process start runs verify command that exits cleanly", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "start", command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "Started background process p1\nCommand: npm test\nPID: 12345\nStatus: exited (code 0)\n\nInitial output:\nall tests passed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("does NOT clear edits when process start verify command is still running", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "start", command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "Started background process p1\nCommand: npm test\nPID: 12345\nStatus: running\n\n(no output yet)" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("does NOT clear edits when process start verify command exits with error", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "start", command: "npm test" } },
+    ], [
+      { tool_use_id: "1", content: "Started background process p1\nCommand: npm test\nPID: 12345\nStatus: exited (code 1)\n\nInitial output:\n2 tests failed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("does NOT clear edits when process start runs non-verify command", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "start", command: "node server.js" } },
+    ], [
+      { tool_use_id: "1", content: "Started background process p1\nCommand: node server.js\nPID: 12345\nStatus: exited (code 0)\n\nInitial output:\nlistening on 3000" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("clears edits when process output shows verify command exited cleanly", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    tracker.recordEdit("src/bar.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "output", process_id: "p1", lines: 50 } },
+    ], [
+      { tool_use_id: "1", content: "Process p1 [exited (code 0)]\nCommand: npm test\nBuffer: 42/500 lines\n\nall 15 tests passed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(0);
+  });
+
+  it("does NOT clear edits when process output shows verify command still running", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "output", process_id: "p1", lines: 50 } },
+    ], [
+      { tool_use_id: "1", content: "Process p1 [running (2m15s)]\nCommand: npm test\nBuffer: 100/500 lines\n\nrunning tests..." },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("does NOT clear edits when process output shows non-verify command", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "output", process_id: "p1", lines: 50 } },
+    ], [
+      { tool_use_id: "1", content: "Process p1 [exited (code 0)]\nCommand: node server.js\nBuffer: 10/500 lines\n\nlistening on 3000" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("does NOT clear edits when process result is an error", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "output", process_id: "p1" } },
+    ], [
+      { tool_use_id: "1", content: "Error: unknown process \"p1\". Available: (none)", is_error: true },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
+  });
+
+  it("process list action does not affect verification state", () => {
+    const tracker = new VerifyTracker();
+    tracker.recordEdit("src/foo.ts");
+    processToolResults(tracker, [
+      { name: "process", id: "1", input: { action: "list" } },
+    ], [
+      { tool_use_id: "1", content: "p1 [exited (code 0)] npm test\n  last: all tests passed" },
+    ]);
+    expect(tracker.getUnverifiedCount()).toBe(1);
   });
 });
 

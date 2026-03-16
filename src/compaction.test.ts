@@ -77,6 +77,23 @@ describe("extractWorkingState", () => {
     expect(state.commandsRun).toEqual(["npm test", "npm run build"]);
   });
 
+  it("extracts process start commands with [bg] prefix", () => {
+    const state = extractWorkingState([
+      toolUse("process", { action: "start", command: "npm test" }, "t1"),
+      toolUse("shell", { command: "npm run build" }, "t2"),
+    ]);
+    expect(state.commandsRun).toEqual(["[bg] npm test", "npm run build"]);
+  });
+
+  it("ignores process output/signal/list actions", () => {
+    const state = extractWorkingState([
+      toolUse("process", { action: "output", process_id: "p1" }, "t1"),
+      toolUse("process", { action: "signal", process_id: "p1", signal: "SIGTERM" }, "t2"),
+      toolUse("process", { action: "list" }, "t3"),
+    ]);
+    expect(state.commandsRun).toEqual([]);
+  });
+
   it("deduplicates shell commands", () => {
     const state = extractWorkingState([
       toolUse("shell", { command: "npm test" }, "t1"),

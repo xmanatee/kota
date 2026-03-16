@@ -46,6 +46,9 @@ export function extractWorkingState(messages: Message[]): WorkingState {
         } else if (name === "shell") {
           const cmd = input.command as string | undefined;
           if (cmd) commandsRun.push(cmd.length > 120 ? `${cmd.slice(0, 120)}...` : cmd);
+        } else if (name === "process" && input.action === "start") {
+          const cmd = input.command as string | undefined;
+          if (cmd) commandsRun.push(`[bg] ${cmd.length > 115 ? `${cmd.slice(0, 115)}...` : cmd}`);
         }
       }
 

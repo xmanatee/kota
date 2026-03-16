@@ -141,9 +141,11 @@ export class VerifyTracker {
   getState(): string {
     if (this.editedFiles.size === 0) return "";
 
-    const files = [...this.editedFiles].slice(-10);
+    const allFiles = [...this.editedFiles];
+    const files = allFiles.slice(-10);
     const parts: string[] = [];
-    parts.push(`[Unverified edits: ${files.join(", ")}]`);
+    const extra = allFiles.length > 10 ? ` (${allFiles.length} total)` : "";
+    parts.push(`[Unverified edits${extra}: ${files.join(", ")}]`);
 
     if (this.commands.length > 0) {
       const cmds = this.commands
@@ -221,6 +223,23 @@ export function processToolResults(
 
     if (call.name === "shell" && result && !result.is_error) {
       tracker.checkShellCommand((input.command as string) || "");
+    }
+
+    // Detect verification through background process tool
+    if (call.name === "process" && result && !result.is_error) {
+      const action = input.action as string;
+      let cmd: string | undefined;
+
+      if (action === "start") {
+        cmd = input.command as string;
+      } else if (action === "output") {
+        const cmdMatch = result.content.match(/^Command:\s*(.+)/m);
+        if (cmdMatch) cmd = cmdMatch[1];
+      }
+
+      if (cmd && isVerifyCommand(cmd) && /exited \(code 0\)/.test(result.content)) {
+        tracker.checkShellCommand(cmd);
+      }
     }
   }
   tracker.tick();

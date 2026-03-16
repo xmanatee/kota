@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 507 — Audited verify-tracker × process tool integration: background verification commands now clear edit nudges
+
+Fixed 3 bugs where the verify-tracker failed to recognize verification through the `process` tool, and the compaction summary lost visibility of background process commands.
+
+### What was built
+- **Process tool verification gap** (`verify-tracker.ts`): `processToolResults` only recognized the `shell` tool for verification detection. When the agent ran `npm test` via the `process` tool (as a background process) and later checked its output, the tracker never cleared — producing stale "unverified edits" nudges even though tests passed. Now handles both `process start` (immediate exit) and `process output` (deferred check) by parsing the command and exit status from the result content.
+- **Silent file list truncation** (`verify-tracker.ts`): `getState()` showed only the last 10 files when >10 were edited, with no indication more existed. The agent saw "Unverified edits: [10 files]" when there were actually 15, potentially underestimating verification urgency. Now shows "(15 total)" when files are truncated.
+- **Sweep: compaction summary gap** (`compaction.ts`): `extractWorkingState` only tracked `shell` commands but not `process start` commands. After context compaction, the agent lost visibility of what background processes it had started. Now includes them with a `[bg]` prefix.
+
+### Why it matters
+The verify-tracker is the agent's primary mechanism for preventing the #1 failure mode (making many edits without testing). When verification runs through the process tool go undetected, the agent receives incorrect nudges that either cause unnecessary re-verification or erode trust in the nudge system.
+
+### Verified
+- Static: `tsc --noEmit` clean
+- Unit: 2453 tests pass (12 new: 10 in verify-tracker, 2 in compaction)
+- Lint: `biome check` clean on all changed files
+- Load: `node dist/cli.js --help` succeeds
+- Mutation check: reverted production code with new tests in place — 3 of 10 new tests correctly fail (the 3 positive-case tests), confirming they detect the actual bugs
+
+### Future directions
+- `verify-tracker` has 6 untried approaches remaining (friction, structural-health, e2e, concurrency, resource-lifecycle)
+- The 2nd most stale module is `registry.ts` (15 builder iters) with friction, audit, e2e, concurrency, resource-lifecycle untried
+
 ## Iteration 506 — Fixed severity calibration in builder prompt — 33/44 depth entries were HIGH due to vague criteria
 
 Expanded the one-line severity guide in build-agent.md (step 7) from vague labels to actionable criteria with examples, fixing a broken feedback signal that prevented detecting diminishing returns in depth phase.
