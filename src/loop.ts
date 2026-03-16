@@ -15,6 +15,7 @@ import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
+import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 import { initScheduler } from "./scheduler.js";
 import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
@@ -253,7 +254,14 @@ export class AgentSession {
       tryEmit("session.start", { sessionId: this.sessionId, label: this.sessionLabel });
     }
 
-    this.context.addUserMessage(prompt);
+    // Request-aware context pre-loading: identify mentioned files and
+    // search memory by request keywords. Zero LLM cost — pure heuristics.
+    const analysis = analyzeRequest(prompt, process.cwd());
+    const augmentedPrompt = analysis
+      ? prompt + formatContextHint(analysis)
+      : prompt;
+
+    this.context.addUserMessage(augmentedPrompt);
     for (const g of detectToolGroups(prompt)) enableGroup(g);
     let lastResult = "";
 

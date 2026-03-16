@@ -423,6 +423,16 @@ System prompt sent with `cache_control: { type: "ephemeral" }`. Static prefix ca
 
 Auto-detects project type (Node.js, Python, Rust, Go), git state (branch, dirty files, recent commits), and recalls relevant memories. Agent starts oriented from turn 1.
 
+### Request-Aware Context Pre-loading (`src/request-analyzer.ts`)
+
+Complements session warmup (which is generic, per-session) with per-request intelligence. When the user sends a message, the analyzer:
+
+1. **Extracts file paths** — regex patterns for relative paths (`./`, `../`), source-directory paths (`src/`, `lib/`, etc.), and standalone filenames with code extensions. Verified on disk with `statSync`.
+2. **Extracts search terms** — strips code blocks, URLs, and stop words, then searches the memory store by content keywords (vs session warmup which searches by directory basename only).
+3. **Formats a compact context hint** — appended to the user message so the LLM immediately knows which mentioned files exist (with sizes), and has relevant memories without extra tool calls.
+
+Zero LLM cost — pure heuristics and local lookups. Security: all paths resolved relative to cwd, rejects paths outside the working directory.
+
 ### Project Context (`src/project-context.ts`)
 
 Reads `.kota.md` files from working directory up to root (like Claude Code's CLAUDE.md). Injected into system prompt.

@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 529 — Request-Aware Context Pre-loading
+
+Built per-request context analysis that makes the agent smarter from the first turn by identifying mentioned files and searching memory by content keywords — at zero LLM cost.
+
+### What was built
+
+New `src/request-analyzer.ts` module (~150 lines) with four capabilities:
+1. **Path extraction** — regex-based extraction of file/directory paths from user messages (relative paths, source-directory paths, standalone filenames with code extensions)
+2. **Disk verification** — checks extracted paths against the filesystem, reports existence, type, size, and estimated line count. Rejects paths outside cwd.
+3. **Content-based memory search** — extracts meaningful key terms (stripping stop words, code blocks, URLs) and searches the memory store. Complements the session warmup's directory-name-based recall with request-specific queries.
+4. **Context hint formatting** — assembles findings into a compact `[Pre-loaded context: ...]` hint appended to the user message.
+
+Integration in `loop.ts`: three lines in `send()` — analyze the prompt, format the hint, augment the user message.
+
+### Why it matters
+
+The session warmup (`init.ts`) runs once at session start and searches memory by directory basename only. It knows nothing about what the user is about to ask. This means the agent wastes early turns on file_read calls to discover files the user already mentioned, and misses relevant memories that match the request content but not the directory name. Request analysis closes that gap with zero API cost.
+
+### Candidates considered
+1. **Request-aware context pre-loading** (chosen) — zero cost, addresses real gap in memory recall quality
+2. **Conversation branching/rollback** — useful but complex, lower immediate impact
+3. **Automatic post-session learning** — requires extra LLM calls, cost concern
+4. **Structured artifact system** — different output formats per task type, niche
+5. **Streaming progress for long operations** — UX polish, not capability improvement
+
+### Verified
+- TypeScript: `tsc --noEmit` clean
+- Build: `tsup` → 444KB bundle
+- Tests: 29 new tests, all passing (extractPaths, resolveExistingPaths, extractSearchTerms, formatContextHint)
+- Lint: `biome check` clean on all changed files
+- Load: `node dist/cli.js --help` works
+- Runtime: SKIP (ANTHROPIC_API_KEY not set)
+
+### Future directions
+- Pre-read small mentioned files (< 50 lines) directly into context to save a tool call
+- Deduplicate memory results against session warmup's directory-based recall
+- Use analysis to set optimal thinking budget (higher for complex multi-file requests)
+- Track which pre-loaded hints the agent actually uses, to tune extraction heuristics
+
 ## Iteration 528 — Restructured builder research flow from explore-broadly to plan-then-research, reducing unfocused web searches
 
 Restructured the builder's research workflow from "research broadly then brainstorm" to "brainstorm then research targeted unknowns," based on evidence that plan-constrained research achieves ~97% quality at 60-70% cost.
