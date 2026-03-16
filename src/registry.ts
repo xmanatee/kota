@@ -5,11 +5,20 @@
  * Installed tools are tracked in `.kota/tools.json` and discovered by discoverPluginModules().
  * - npm packages go to `.kota/packages/node_modules/`
  * - URL downloads go to `.kota/plugins/`
+ *
+ * Per-source-type install mechanics live in registry-installers.ts.
  */
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import {
+  getNpmVersion,
+  installGithub,
+  installNpm,
+  installUrl,
+  PACKAGES_DIR,
+} from "./registry-installers.js";
 
 // --- Types ---
 
@@ -35,8 +44,6 @@ export type ToolManifest = {
 
 const KOTA_DIR = ".kota";
 const MANIFEST_FILE = "tools.json";
-const PLUGINS_DIR = "plugins";
-const PACKAGES_DIR = "packages";
 
 function kotaDir(cwd?: string): string {
   return resolve(cwd || process.cwd(), KOTA_DIR);
@@ -72,6 +79,12 @@ export type ParsedSource = {
   identifier: string;
   /** Display name for the tool (derived from source) */
   name: string;
+};
+
+export type InstallResult = {
+  name: string;
+  source: SourceType;
+  files: string[];
 };
 
 export function parseSource(source: string): ParsedSource {
@@ -125,12 +138,6 @@ function githubToName(repo: string): string {
 
 // --- Install ---
 
-export type InstallResult = {
-  name: string;
-  source: SourceType;
-  files: string[];
-};
-
 export async function installTool(
   source: string,
   cwd?: string,
@@ -145,166 +152,31 @@ export async function installTool(
     );
   }
 
+  const dir = kotaDir(cwd);
   let result: InstallResult;
 
   switch (parsed.type) {
     case "npm":
-      result = await installNpm(parsed, cwd);
+      result = await installNpm(parsed, dir);
       break;
     case "url":
-      result = await installUrl(parsed, cwd);
+      result = await installUrl(parsed, dir);
       break;
     case "github":
-      result = await installGithub(parsed, cwd);
+      result = await installGithub(parsed, dir);
       break;
   }
 
   manifest.tools[result.name] = {
     source: parsed.type,
     uri: parsed.identifier,
-    version: parsed.type === "npm" ? getNpmVersion(parsed.identifier, cwd) : "latest",
+    version: parsed.type === "npm" ? getNpmVersion(parsed.identifier, dir) : "latest",
     files: result.files,
     installedAt: new Date().toISOString(),
   };
   saveManifest(manifest, cwd);
 
   return result;
-}
-
-async function installNpm(parsed: ParsedSource, cwd?: string): Promise<InstallResult> {
-  const dir = kotaDir(cwd);
-  const pkgDir = join(dir, PACKAGES_DIR);
-  mkdirSync(pkgDir, { recursive: true });
-
-  // Initialize package.json if needed
-  const pkgJsonPath = join(pkgDir, "package.json");
-  if (!existsSync(pkgJsonPath)) {
-    writeFileSync(pkgJsonPath, JSON.stringify({ name: "kota-packages", private: true, dependencies: {} }, null, 2));
-  }
-
-  // Install via npm — use execFileSync to avoid shell injection
-  try {
-    execFileSync("npm", ["install", parsed.identifier], {
-      cwd: pkgDir,
-      stdio: "pipe",
-      timeout: 60_000,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? (err as { stderr?: Buffer }).stderr?.toString() || err.message : String(err);
-    throw new Error(`npm install failed for "${parsed.identifier}": ${msg.slice(0, 500)}`);
-  }
-
-  return {
-    name: parsed.name,
-    source: "npm",
-    files: [`${PACKAGES_DIR}/node_modules/${parsed.identifier}`],
-  };
-}
-
-async function installUrl(parsed: ParsedSource, cwd?: string): Promise<InstallResult> {
-  const dir = kotaDir(cwd);
-  const pluginsDir = join(dir, PLUGINS_DIR);
-  mkdirSync(pluginsDir, { recursive: true });
-
-  // Determine filename
-  let filename: string;
-  try {
-    filename = basename(new URL(parsed.identifier).pathname);
-  } catch {
-    throw new Error(`Invalid URL: ${parsed.identifier}`);
-  }
-  if (!filename.endsWith(".js") && !filename.endsWith(".mjs")) {
-    filename = `${parsed.name}.mjs`;
-  }
-
-  const destPath = join(pluginsDir, filename);
-  if (existsSync(destPath)) {
-    throw new Error(`File "${filename}" already exists in plugins directory`);
-  }
-
-  // Download
-  let response: Response;
-  try {
-    response = await fetch(parsed.identifier);
-  } catch (err) {
-    throw new Error(`Download failed for "${parsed.identifier}": ${(err as Error).message}`);
-  }
-  if (!response.ok) {
-    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("text/html")) {
-    throw new Error("URL returned HTML instead of JavaScript — check the URL points to a raw .js/.mjs file");
-  }
-
-  const content = await response.text();
-
-  // Validate: must contain JS export patterns (not just the word "export" in HTML)
-  const hasEsmExport = /\bexport\s+(default|function|const|let|var|class|\{)/.test(content);
-  const hasCjsExport = /\bmodule\.exports\b/.test(content);
-  if (!hasEsmExport && !hasCjsExport) {
-    throw new Error("Downloaded file doesn't appear to be a valid tool module (no exports found)");
-  }
-
-  writeFileSync(destPath, content);
-
-  return {
-    name: parsed.name,
-    source: "url",
-    files: [`${PLUGINS_DIR}/${filename}`],
-  };
-}
-
-async function installGithub(parsed: ParsedSource, cwd?: string): Promise<InstallResult> {
-  // Try to install as npm package first (many GitHub repos publish to npm)
-  // If the repo has a package.json with a "main" field, we can npm install from GitHub
-  const dir = kotaDir(cwd);
-  const pkgDir = join(dir, PACKAGES_DIR);
-  mkdirSync(pkgDir, { recursive: true });
-
-  const pkgJsonPath = join(pkgDir, "package.json");
-  if (!existsSync(pkgJsonPath)) {
-    writeFileSync(pkgJsonPath, JSON.stringify({ name: "kota-packages", private: true, dependencies: {} }, null, 2));
-  }
-
-  const gitUrl = `github:${parsed.identifier}`;
-  try {
-    execFileSync("npm", ["install", gitUrl], {
-      cwd: pkgDir,
-      stdio: "pipe",
-      timeout: 60_000,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? (err as { stderr?: Buffer }).stderr?.toString() || err.message : String(err);
-    throw new Error(`GitHub install failed for "${parsed.identifier}": ${msg.slice(0, 500)}`);
-  }
-
-  return {
-    name: parsed.name,
-    source: "github",
-    files: [`${PACKAGES_DIR}/node_modules/${parsed.identifier.split("/").pop()}`],
-  };
-}
-
-function getNpmVersion(pkg: string, cwd?: string): string {
-  const pkgDir = join(kotaDir(cwd), PACKAGES_DIR);
-  try {
-    const pkgJson = JSON.parse(
-      readFileSync(join(pkgDir, "node_modules", pkg, "package.json"), "utf-8"),
-    );
-    return pkgJson.version || "unknown";
-  } catch {
-    // For scoped packages, try nested path
-    try {
-      const pkgJson = JSON.parse(
-        readFileSync(join(pkgDir, "node_modules", ...pkg.split("/"), "package.json"), "utf-8"),
-      );
-      return pkgJson.version || "unknown";
-    } catch {
-      return "unknown";
-    }
-  }
 }
 
 // --- Remove ---

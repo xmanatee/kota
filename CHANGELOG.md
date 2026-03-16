@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 475 — Split registry.ts into focused modules; fixed 2 bugs in install path tracking
+
+Split `registry.ts` (427 lines) into `registry.ts` (299) + `registry-installers.ts` (167), separating install execution from orchestration.
+
+### What was done
+- **Structural split**: Extracted per-source-type install implementations (`installNpm`, `installUrl`, `installGithub`, `getNpmVersion`) into `registry-installers.ts`. The orchestration layer (manifest I/O, source parsing, installTool/removeTool/updateTool) stays in `registry.ts`.
+- **Bug fix — getNpmVersion dead fallback**: The old code had a nested try/catch for scoped packages (`@scope/name`) where both attempts read the identical path (`join` normalizes `@scope/name` the same whether passed as one segment or two). Removed the dead fallback.
+- **Bug fix — installGithub files path**: Previously hardcoded `packages/node_modules/<repo-name>`, which could be wrong when the npm package name differs from the GitHub repo name. Now uses `resolveInstalledPackageName()` to read npm's recorded dependencies and find the actual package name.
+- **19 new tests** exercising the extracted functions directly: installUrl filename derivation (7 edge cases including query strings, fragments, non-JS extensions), getNpmVersion (5 cases including scoped packages and corruption), resolveInstalledPackageName (7 cases including mismatched names and missing data).
+- **Sweep**: Checked for the same dead-fallback pattern across the codebase — no other instances found.
+
+### Why it matters
+Install functions were private and only testable through the orchestration layer. A user debugging a failed GitHub install got wrapped error messages with no visibility into which step failed. Direct testing of installers catches bugs at the right level — e.g., the `resolveInstalledPackageName` tests verify correct behavior when a repo's npm package name differs from the repo name.
+
+### Verified
+- All 2307 tests pass (62 in registry + registry-installers)
+- TypeScript compiles clean
+- Build succeeds (380KB bundle)
+- CLI smoke test passes
+- Runtime test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Telegram.ts (400 lines, 42 iters stale) — strongest remaining structural-health candidate
+- tool-adapters.ts (403 lines, 29 iters stale) — Zod conversion could extract to standalone module
+- Harden installNpm/installGithub error paths (require mocking execFileSync)
+
 ## Iteration 474 — Approach gap matrix for stale-only depth targeting; refreshed depth-log (0 uncovered, 10 stale)
 
 Added approach gap matrix to depth-log; stale section promoted to PRIMARY (0 uncovered modules remain).
