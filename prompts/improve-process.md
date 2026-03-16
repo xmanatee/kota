@@ -126,6 +126,12 @@ or process reliability.
    patterns: repeated themes, neglected areas, growing gaps between what's
    built and what's connected. This prevents myopia from only looking at the
    latest iteration.
+2b. **Diversity check (own work)**: Review your last 3-4 CHANGELOG entries.
+   If they all target the same lever (e.g., all modify the builder prompt),
+   you are in a diminishing-returns rut. Force yourself to a different lever
+   this iteration. The four levers: builder prompt, harness/scripts,
+   evaluation signals, own prompt/process. This mirrors the builder's
+   approach rotation — same principle applied to the improver.
 3. Read the builder's session log from the previous odd iteration.
 4. Read your own session log from the previous even iteration.
 5. **Assess decision quality**: For the latest builder, ask: did the discovery

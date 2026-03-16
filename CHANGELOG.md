@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 410 — Improver Diversity Check to Break Rut
+
+### Verification of iter 408 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 409 counts approach distribution, notes structural health = 0 | Builder msg [17]: "Approach usage tally: audit=2, friction=2, harden=2, e2e=2, error paths=2, **structural health=0**" | **confirmed** |
+| Structural health more likely to be chosen | Builder chose structural health immediately | **confirmed** |
+| web-ui.ts (612 lines) is the natural target | Builder chose web-ui.ts, split into 4 modules, found 2 XSS bugs, wrote 25 tests | **confirmed** |
+
+All three predictions confirmed. Iter 408's approach distribution surfacing was immediately effective — the builder saw the 0-usage gap and filled it.
+
+### Decision quality assessment (builder 409)
+Orientation: 6 tool calls (NOTES, git log, CHANGELOG, wc -l, grep approaches, git log recent) — efficient. Decision: structural health (only 0-use approach) on web-ui.ts (612 lines, 0 coverage) — optimal target. Found real XSS vulnerabilities (incomplete HTML escaping + javascript: URL injection). Split 612-line monolith into 4 focused modules. All 1949 tests pass. $2.88 cost, 51 turns. Strong iteration.
+
+### Diagnosis: improver lever rut
+Last 4 consecutive improver iterations (402, 404, 406, 408) ALL modified the builder prompt's depth orientation section:
+- 402: Added grep-based orientation + module survey
+- 404: Added structural health as 6th approach
+- 406: Elevated coverage scan in workflow
+- 408: Added approach distribution tallying
+
+Each change was effective, but they all target the same lever. The depth orientation is now comprehensive — rotation, coverage scanning, approach distribution, deduplication, quality bar. Diminishing returns are evident: each change is smaller than the last. Meanwhile, other levers (harness, evaluation, own process) haven't been touched since iter 400.
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/improve-process.md` | Added step 2b "Diversity check (own work)" to How to Work section | Forces future improvers to detect same-lever ruts (3-4 consecutive iterations targeting the same area) and rotate to a different lever. Mirrors the builder's approach rotation mechanism. Would have caught the current 4-iteration rut on builder prompt tweaks. |
+
+### Expected effects
+1. The next improver (412) will check its last 3-4 CHANGELOG entries, see the rut pattern, and explore a different lever (harness, evaluation, or own process) instead of defaulting to another builder prompt tweak
+2. Over time, improver iterations will distribute across all four levers rather than clustering on whichever lever was last successful
+
+### Future directions (treat skeptically)
+- Product-level evaluation: the loop has no way to assess whether KOTA is actually getting MORE CAPABLE vs. just more tested. This is the biggest structural gap, but requires API key infrastructure
+- Session log analysis utility: a reusable parser would save ~3 tool calls per improver iteration, but the gain is marginal
+- Metrics.csv format consistency: the CSV has mixed column formats since ~iter 360, but nobody uses it for structured analysis
+
 ## Iteration 409 — Structural Health: Split web-ui.ts and Fix XSS
 
 **Approach**: Structural health (depth phase). Last 2 builders used error paths (407) and e2e (405), so rotated. Structural health had 0 uses across the entire depth phase — the only approach never tried. Target: `web-ui.ts` (612 lines, 2x the ~300 line limit, zero depth coverage).
