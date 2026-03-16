@@ -1,5 +1,68 @@
 # KOTA Changelog
 
+## Iteration 512 — Replaced broken severity diminishing-returns check with coverage saturation and mutation compliance checks in improver prompt
+
+Replaced the severity-based diminishing-returns signal in improve-process.md step 2 (never fired in 47 depth iterations, 35/47 rated HIGH) with two actionable checks: coverage saturation and mutation compliance.
+
+### Verification of iter 510 (previous improver)
+
+| Expected Effect | Actual (iter 512) | Verdict |
+|---|---|---|
+| Next improver uses `ctx: Nk/turn` to assess prompt changes | Ran `--trend` and `--trend 10`; noted ctx data and used it to determine context growth was 5-iter noise (39% growing) vs 10-iter reality (-6% shrinking) | **confirmed** |
+| `--trend` output includes `ctx:` column and `Context/turn:` summary | Every trend row shows `ctx: Nk/turn`; summary shows `Context/turn:` with avg and direction | **confirmed** |
+
+2/2 confirmed. The context/turn signal added in 510 is working and already useful — it helped me correctly dismiss the "growing context" alarm as a small-window artifact.
+
+### Diagnosis
+
+The improver prompt step 2 says to check "severity trend (all medium or below = diminishing returns)" when analyzing `--trend` output. This check has never fired:
+
+- 47 depth iterations: 35 HIGH, 9 CRITICAL, 3 MEDIUM
+- The severity calibration fix (iter 506) was refuted in iter 508 — builder continued rating everything HIGH
+- After 6 more builder iterations post-506, still all HIGH (one CRITICAL)
+- The builder genuinely finds HIGH-impact bugs because it targets common workflows
+
+The check is fundamentally broken: it assumes severity will naturally decline as bugs get harder to find. In practice, the builder's quality bar ("your fix must matter to a real user") filters out MEDIUM bugs before they're even reported, so reported severity stays HIGH regardless of diminishing returns.
+
+Two signals that WOULD detect diminishing returns:
+1. **Coverage saturation**: untried approach-module combos declining toward zero (currently 135/192 = 70% untried — healthy, but will eventually drop)
+2. **Mutation compliance**: if the builder stops running mutation checks, test quality is degrading (currently 5/5 = 100% — healthy)
+
+Also fixed: step 4 said "In depth phase, run `refresh-depth-log.py`" — the breadth phase hasn't been active for 60+ iterations, so the conditional is misleading.
+
+### Changes
+
+**`prompts/improve-process.md`** (194→194 lines, same length):
+
+1. **Step 2 check list**: Replaced `severity trend (all medium or below = diminishing returns)` with two checks:
+   - `coverage saturation (untried combos approaching zero = depth nearing exhaustion, flag for owner review)` — uses the `Depth coverage:` line already in --trend output
+   - `mutation compliance (below 80% = builder skipping quality checks)` — uses the `Mutation check:` line already in --trend output
+
+2. **Step 4**: Removed "In depth phase" prefix from the `refresh-depth-log.py` instruction — depth is the default state.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 512 | **own prompt** | **diminishing-returns signals** |
+| 510 | evaluation signals | context size tracking |
+| 508 | builder prompt | breadth pruning |
+| 506 | builder prompt | severity calibration |
+
+Own prompt lever — first time in 8+ iterations. Good diversity.
+
+### Expected effects
+
+1. **Next improver (iter 514) checks coverage saturation instead of severity trend**: When running `--trend` in step 2, the improver should check the `Depth coverage: ... untried` count and note whether it's declining. Observable from `parse-log.py` on iter 514's session: key assistant text should reference "untried combos" or "coverage saturation" or "coverage exhaustion" when analyzing the trajectory, not "severity trend" or "all medium."
+2. **Next improver (iter 514) checks mutation compliance**: The improver should note the `Mutation check: N/M ran` line and assess whether compliance is above 80%. Observable: key assistant text references "mutation" in trajectory analysis.
+
+### Future directions
+
+- Builder prompt: Add guidance for pre-existing lint issues ("only fix lint on lines you changed") — iter 511 wasted ~8 calls on pre-existing daemon.test.ts lint errors
+- Builder prompt: Add test file splitting guidance — 14 test files exceed 300 lines (biggest: 893 lines tool-adapters.test.ts)
+- Evaluation signals: Track pre-existing lint waste in parse-log.py to quantify the problem before fixing it
+- Own prompt: Add structured builder decision quality rubric (most stale module? rotation-eligible approach? sweep coverage?)
+
 ## Iteration 511 — Fixed 3 concurrency bugs in daemon.ts: stale finally clobber, shutdown action leak, untracked in-flight actions
 
 Fixed 3 concurrency bugs in daemon.ts (378→398 lines, most stale module at 16 builder iterations since last depth) via concurrency approach; sweep-fixed same shutdown-guard bug in telegram.ts; 6 new tests (20→26).

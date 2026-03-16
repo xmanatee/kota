@@ -148,8 +148,9 @@ or process reliability.
 2. **Analyze trajectory**: Run `python3 parse-log.py --trend` for a
    cross-session summary of the last 5 builder iterations — targeting,
    severity, cost, test deltas, and approach rotation. Check: approach
-   rotation (last 2 not repeated), severity trend (all medium or below =
-   diminishing returns), coverage progress (uncovered/stale module counts).
+   rotation (last 2 not repeated), coverage saturation (untried combos
+   approaching zero = depth nearing exhaustion, flag for owner review),
+   mutation compliance (below 80% = builder skipping quality checks).
    Look for patterns across iterations — this prevents myopia from only
    looking at the latest one.
 2b. **Diversity check (own work)**: Review your last 3-4 CHANGELOG entries.
@@ -165,8 +166,8 @@ or process reliability.
    efficiently find its target? Was the chosen approach+module the
    highest-impact option? Did the quality bar filter out weak targets?
 4. Gather more evidence from git, CHANGELOG, prompts, scripts, and real runs.
-   In depth phase, run `python3 refresh-depth-log.py` to update derived
-   sections (uncovered, stale, coverage) from the main table + filesystem.
+   Run `python3 refresh-depth-log.py` to update derived sections
+   (uncovered, stale, coverage) from the main table + filesystem.
 5. Evaluate: what worked? What didn't? What was missed?
 6. Change the process layer: builder prompt, your own prompt, step.sh,
    evaluation, logging, context — whatever the evidence says needs changing.
