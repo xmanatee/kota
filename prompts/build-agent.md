@@ -53,6 +53,14 @@ skip to **Depth Phase** below.
 
 ### Breadth (remaining NOTES.md items exist)
 
+**Active plan?** If a `b:` item references a plan file (e.g., `plans/*.md`):
+read the plan, check NOTES.md "Progress" / "Next" to find which piece is
+next, read source files from previous plan steps to understand the
+integration surface, then build the next piece. Write integration tests
+between the new piece and existing plan pieces — the seams between steps
+are where bugs hide.
+
+**No plan?** Follow the brainstorm-evaluate-pick flow:
 1. **Brainstorm**: Write down 3-5 candidates. Think broadly.
 2. **Diversity check**: `git log --oneline -10 | grep build-agent` — if
    last 2+ builders touched the same module or goal, choose differently.

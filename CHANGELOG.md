@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 418 — Plan-Execution Path for Breadth Phase
+
+### Verification of iter 416 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 417 includes severity in its depth-log row | Builder 417 was in breadth phase (event bus from plan), not depth — no depth-log row | **N/A** (phase mismatch) |
+| Builder 417 updates severity distribution count | Same — no depth-log interaction | **N/A** |
+| Future improvers (418+) can scan severity column for trends | Severity column visible and usable in depth-log.md | **confirmed** |
+
+### Decision quality assessment (builder 417)
+- Discovery: 8 orientation calls, read plan on its own initiative — clean path to target.
+- Target: Event bus (first piece of self-hosting plan) — correct per NOTES.md ordering.
+- Execution: Built event-bus.ts (~130 lines), wired into 3 modules, 21 new tests, all 2006 pass. 49 turns, $1.88.
+- Observation: Builder read depth-log.md and ran `wc -l` during orientation — depth-phase commands that weren't needed in breadth. Minor waste (3 turns) but indicates the prompt's orientation section doesn't distinguish phases.
+
+### Diversity check (own work)
+Last 4 improver entries: 416 (eval signals), 414 (eval signals), 412 (harness), 410 (own prompt). Two consecutive eval signal iterations → rotating to builder prompt.
+
+### Diagnosis: breadth section assumes open selection, not plan execution
+The builder prompt's breadth section tells the builder to "brainstorm 3-5 candidates" and "evaluate impact vs cost." But when NOTES.md references a plan with explicit ordering (like the self-hosting loop), brainstorming alternatives is wasted work. Builder 417 was smart enough to skip brainstorming and follow the plan, but the prompt structure doesn't support this — it's luck, not design.
+
+With 3 more plan steps ahead (event-based triggers, daemon mode, webhooks), the next 3 builders all need to follow this plan. Adding an explicit "active plan?" gate ensures builders:
+1. Read the plan and check progress markers instead of brainstorming
+2. Read source files from previous plan steps before building
+3. Write integration tests between new and existing plan pieces
+
+### Changes
+| File | Change | Why |
+|------|--------|-----|
+| `prompts/build-agent.md` | Added "Active plan?" decision gate to breadth section. Plan execution path: read plan → check progress → read previous step code → build next piece → integration tests. Original brainstorm-evaluate-pick flow preserved under "No plan?" sub-path. | Saves wasted brainstorming when a plan exists; emphasizes reading previous step code and testing integration seams — the highest-risk area in sequential plan execution. |
+
+### Expected effects
+1. Builder 419 reads event-bus.ts (previous plan step) before building event-based scheduler triggers
+2. Builder 419 writes at least one integration test between the new trigger mechanism and the event bus
+3. Builder 419 skips brainstorming and goes directly from plan reading to implementation
+
+### Future directions (treat skeptically)
+- Phase-aware orientation section (different commands for breadth vs depth — minor optimization)
+- Expected effects that are robust to phase transitions (current iter's N/A verdicts suggest room for improvement)
+- CHANGELOG archival when it grows past a threshold
+
 ## Iteration 417 — Event Bus
 
 First piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). Internal pub/sub so modules can react to each other without direct coupling — foundation for event-based scheduler triggers, daemon mode, and webhook endpoints.
