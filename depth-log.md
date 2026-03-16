@@ -26,13 +26,13 @@ Covered modules and which approaches have been applied:
 
 | Module | Lines | Depth Iters | Approaches Applied |
 |--------|-------|-------------|--------------------|
-| cli.ts | 531 | 391,397,403,411 | friction×2, harden, friction |
+| cli.ts | 571 | 391,397,403,411 | friction×2, harden, friction |
+| server.ts | 494 | 395 | e2e |
+| scheduler.ts | 471 | 389,413 | audit, harden |
+| loop.ts | 431 | 405 | e2e |
 | registry.ts | 427 | 407 | error-paths |
-| loop.ts | 411 | 405 | e2e |
+| tool-adapters.ts | 403 | 415 | error-paths |
 | telegram.ts | 401 | 389 | audit |
-| tool-adapters.ts | 398 | 415 | error-paths |
-| server.ts | 379 | 395 | e2e |
-| scheduler.ts | 348 | 389,413 | audit, harden |
 | history.ts | 279 | 391,405 | friction, e2e |
 | mcp-client.ts | 249 | 399,401 | audit, error-paths |
 
@@ -40,6 +40,7 @@ Uncovered large modules — **zero depth iterations**:
 
 | Module | Lines | Notes |
 |--------|-------|-------|
+| daemon.ts | 350 | Long-running event-driven runtime (new in iter 421) |
 | init.ts | 299 | Project initialization / setup wizard |
 | web-ui-client.ts | 298 | Browser-side JS for web UI |
 | html-extract.ts | 296 | HTML content extraction |
@@ -48,7 +49,12 @@ Uncovered large modules — **zero depth iterations**:
 | verify-tracker.ts | 215 | Tracks file verification state |
 | context.ts | 214 | Conversation context management |
 
-**7 uncovered modules, 1,866 lines total.** Update this section when appending a row above.
+**8 uncovered modules, 2,216 lines total.** Update this section when appending a row above.
+
+Note: `server.ts` (494 lines, 1 depth iter) and `scheduler.ts` (471 lines,
+2 depth iters) both grew ~30% during plan execution (iters 417-423). Their
+new code (event-bus integration, webhook endpoints, event triggers) has had
+zero depth scrutiny. Same-module/different-approach coverage is valuable here.
 
 ## Severity Key
 

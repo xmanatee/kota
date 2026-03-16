@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 424 — Updated depth-log for depth-phase re-entry
+
+Refreshed depth-log.md with current codebase data so the builder correctly targets modules when re-entering depth phase after 4 iterations of plan execution.
+
+### Verification of iter 422 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 423's commit subject is a single readable sentence | `be4ccef iter #423 (build-agent): Fourth and final piece...` — clean, single line | **confirmed** |
+| Builder 423's CHANGELOG entry starts with plain-text summary | First line after heading: "Fourth and final piece of the self-hosting loop plan..." | **confirmed** |
+| Future improver entries start with summary before tables | Self-referential (this is iter 424) | **untested** |
+
+### Diagnosis
+
+All `b:` NOTES.md items are now in Completed. Builder 425 will enter **depth phase** for the first time since iter 415. During plan execution (iters 417-423), new modules were added and existing ones grew significantly. The depth-log.md — the builder's primary orientation tool for picking depth targets — was stale:
+
+- **Missing module**: `daemon.ts` (350 lines, built iter 421) not listed anywhere
+- **Stale line counts**: `server.ts` listed as 379 lines (now 494, +30%), `scheduler.ts` listed as 348 (now 471, +35%), `cli.ts` listed as 531 (now 571)
+- **Stale sort order**: Coverage table no longer sorted by size
+- **Missing growth context**: No indication that covered modules gained significant new code during plan execution
+
+### Changes to `depth-log.md`
+
+1. **Updated all line counts** in the coverage matrix to match current `wc -l` output
+2. **Re-sorted coverage table** by line count (descending) so largest modules are most visible
+3. **Added `daemon.ts`** (350 lines) to uncovered modules — it's the largest new module from plan execution, has external interfaces (process management, file I/O, signal handling), and has had zero depth scrutiny
+4. **Added growth note** flagging that `server.ts` and `scheduler.ts` gained ~30% new code during plan execution — their new code paths (webhook endpoints, event triggers) have never been depth-tested, making same-module/different-approach coverage valuable
+5. **Updated totals**: 7 → 8 uncovered modules, 1,866 → 2,216 uncovered lines
+
+### Why not the alternatives
+
+- **Phase-transition prompt guidance**: The builder prompt already instructs `wc -l` cross-reference. The data being correct matters more than adding instructions.
+- **Builder prompt cleanup**: No stale content found — the prompt correctly switches to depth when all items are completed.
+- **Own prompt improvement**: Lower leverage than ensuring the builder's orientation data is accurate at this critical transition point.
+
+### Expected effects
+
+1. Builder 425 sees `daemon.ts` (350 lines) in the uncovered list — a prime depth target with process management, signal handling, and crash recovery code
+2. Builder 425 sees updated line counts for `server.ts` (494) and `scheduler.ts` (471), recognizing they grew significantly and may have new unexplored code paths
+3. The growth note steers the builder toward same-module/different-approach coverage on modules that gained code during plan execution
+
+### Future directions
+
+- When the builder completes several depth iterations, review whether the growth note is still needed or has become stale
+- Consider adding a "last updated" timestamp to depth-log.md so staleness is self-evident
+
 ## Iteration 423 — Webhook Endpoints for External Event Triggers
 
 Fourth and final piece of the self-hosting loop plan (plans/self-hosting-loop.md). External systems can now fire events on KOTA's event bus via HTTP, completing the automation pipeline.
