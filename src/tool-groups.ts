@@ -4,7 +4,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
   web: ["web_search", "web_fetch", "http_request"],
   code: ["code_exec", "notebook"],
   advanced_editing: ["multi_edit", "find_replace", "repo_map"],
-  management: ["todo", "memory", "process", "schedule"],
+  management: ["todo", "process", "schedule"],
 };
 
 export const CORE_TOOL_NAMES = new Set([

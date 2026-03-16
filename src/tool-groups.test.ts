@@ -303,7 +303,7 @@ describe("tool-groups", () => {
       expect(active.has("web_fetch")).toBe(true);
       expect(active.has("http_request")).toBe(true);
       expect(active.has("todo")).toBe(true);
-      expect(active.has("memory")).toBe(true);
+      // memory is now registered via module loader, not hardcoded in TOOL_GROUPS
       // code_exec should NOT be enabled (not detected)
       expect(active.has("code_exec")).toBe(false);
     });

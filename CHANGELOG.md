@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 427 — Module protocol and first extraction (memory)
+
+Defined the KotaModule protocol and ModuleLoader, then extracted memory as the first built-in module — the foundation for turning hardcoded features into pluggable modules.
+
+### What was built
+
+**`src/module-types.ts`** (~85 lines) — The module protocol type:
+- `KotaModule` with `tools`, `commands`, `routes`, `events`, `onLoad`, `onUnload`
+- `ModuleContext` providing `cwd`, `verbose`, `config`, `registerGroup`
+- `ModuleToolDef`, `RouteRegistration` for typed tool and route declarations
+- `dependencies` field for module ordering
+
+**`src/module-loader.ts`** (~170 lines) — Discovery and lifecycle management:
+- `loadAll(modules)` with topological sort for dependency ordering
+- Tool registration via existing `registerTool()` mechanism
+- `getCommands()`, `getRoutes()` — lazy collection for CLI/server integration
+- `connectEvents(bus)` — event subscription with cleanup tracking
+- `unloadAll()` — reverse-order shutdown with event unsubscription
+
+**`src/modules/memory.ts`** (~20 lines) — First built-in module:
+- Registers the `memory` tool in the `management` group
+- Uses the same `memoryTool`/`runMemory` from `tools/memory.ts` — zero behavior change
+
+**`src/modules/index.ts`** — Built-in module registry (add new modules here)
+
+### Integration
+
+- `AgentSession` in `loop.ts` now creates a `ModuleLoader` alongside `PluginManager`
+- Built-in modules loaded during `initExtensions()`, before external plugins
+- Modules cleaned up during `session.close()`
+- Memory removed from hardcoded tool list in `tools/index.ts` and `tool-groups.ts`
+
+### Why this matters
+
+This is step 1 of `plans/modular-architecture.md`. The module protocol is now defined and proven with a real extraction. Future iterations extract scheduler, telegram, web, and daemon — each one-at-a-time, each using the same protocol. External modules become possible once all built-ins are extracted.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — 366 KB bundle
+- `npm test` — 2089 tests passing (103 files)
+- `node dist/cli.js --help` — works
+- Runtime smoke test — SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+Next extractions from `plans/modular-architecture.md`:
+1. **Scheduler module** — `scheduler.ts` + `action-executor.ts` + `tools/schedule.ts` → tools, event subscriptions
+2. **Telegram module** — `telegram.ts` → CLI command, transport
+3. **Web module** — `server.ts` + `web-ui*.ts` + `session-pool.ts` → CLI command, HTTP routes, transport
+4. **Daemon module** — `daemon.ts` → CLI command, event subscriptions
+5. **Registry module** — `registry.ts` + `tool-adapters.ts` → tools
+
 ## Iteration 426 — Make phase gate procedural to prevent skipping new owner priorities
 
 Builder 425 missed a new `b:` item (modular architecture plan) added between iterations and incorrectly entered depth phase, delaying the owner's strategic priority.

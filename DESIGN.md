@@ -83,6 +83,37 @@ Internal pub/sub for cross-module coordination. Decouples modules so they can re
 - Synchronous delivery: handlers run in the order they subscribed.
 - No error isolation: a handler that throws will prevent subsequent handlers from running (by design — errors should not be silently swallowed in an agent runtime).
 
+### Module System (`src/module-types.ts`, `src/module-loader.ts`, `src/modules/`)
+
+Pluggable architecture where features are self-contained modules instead of hardcoded. Built-in and external modules use the same `KotaModule` protocol.
+
+**What a module can register**:
+- **Tools** — agent tools with optional group assignment (progressive disclosure)
+- **CLI commands** — subcommands that appear in `kota --help`
+- **HTTP routes** — endpoints available when the server runs
+- **Event subscriptions** — react to events on the bus
+
+**Module lifecycle**:
+1. `ModuleLoader.loadAll(modules)` — topologically sorts by dependencies, then loads each module
+2. For each module: register tools → call `onLoad(ctx)` → add to loaded list
+3. `connectEvents(bus)` — wire up event subscriptions (called when bus is available)
+4. `getCommands()` / `getRoutes()` — collected lazily when CLI/server needs them
+5. `unloadAll()` — unsubscribe events, call `onUnload()` in reverse order, clear tools
+
+**ModuleContext** provided to modules:
+- `cwd`, `verbose`, `config` — environment info
+- `registerGroup(name, toolNames, pattern?)` — create/extend tool groups
+
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup alongside external plugins. Currently: `memory`.
+
+**Coexistence with plugins**: The existing `PluginManager` continues to handle external `.kota/plugins/` and npm packages. Modules handle built-in features. Both systems use `registerTool()` from `tools/index.ts`. Future iterations will migrate external plugin loading into the module system.
+
+**Design decisions**:
+- Modules are loaded at startup, not hot-loaded — simplicity over dynamism.
+- Dependency ordering via topological sort — a module can declare dependencies on other modules.
+- The core without modules loaded still functions as a basic agent (requirement #8 from the plan).
+- Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
+
 ### HTTP API Server (`src/server.ts`)
 
 Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable service. Any frontend (web UI, Telegram bot, Discord bot, automation pipeline) can connect via standard HTTP.

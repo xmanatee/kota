@@ -12,7 +12,7 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 
-b: implement `plans/modular-architecture.md` — define a module protocol so features (telegram, web, memory, scheduler, daemon, etc.) become pluggable modules instead of hardcoded. Extract built-in features into modules one at a time. Each extraction is one iteration.
+b: implement `plans/modular-architecture.md` — define a module protocol so features (telegram, web, memory, scheduler, daemon, etc.) become pluggable modules instead of hardcoded. Extract built-in features into modules one at a time. Each extraction is one iteration. Progress: module protocol defined (KotaModule type), ModuleLoader built with dependency ordering, memory extracted as first built-in module (iter 427). Next: extract scheduler, telegram, web, daemon modules.
 
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`

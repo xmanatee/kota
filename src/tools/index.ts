@@ -11,7 +11,6 @@ import { findReplaceTool, runFindReplace } from "./find-replace.js";
 import { globTool, runGlob } from "./glob.js";
 import { grepTool, runGrep } from "./grep.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
-import { memoryTool, runMemory } from "./memory.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 import { processTool, runProcess } from "./process.js";
@@ -46,7 +45,6 @@ const runners: Record<string, ToolRunner> = {
   repo_map: runRepoMap,
   delegate: runDelegate,
   web_fetch: runWebFetch,
-  memory: runMemory,
   web_search: runWebSearch,
   ask_user: runAskUser,
   http_request: runHttpRequest,
@@ -71,7 +69,6 @@ export const allTools: Anthropic.Tool[] = [
   repoMapTool,
   delegateTool,
   webFetchTool,
-  memoryTool,
   webSearchTool,
   askUserTool,
   httpRequestTool,

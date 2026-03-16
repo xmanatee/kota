@@ -8,6 +8,8 @@ import { tryEmit } from "./event-bus.js";
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
+import { ModuleLoader } from "./module-loader.js";
+import { builtinModules } from "./modules/index.js";
 import { PluginManager } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
 import { initScheduler } from "./scheduler.js";
@@ -63,6 +65,7 @@ export class AgentSession {
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker: VerifyTracker;
   private mcpManager: McpManager | null = null;
+  private moduleLoader: ModuleLoader;
   private pluginManager: PluginManager;
   private transport: Transport;
   private sigintHandler: () => void;
@@ -168,6 +171,7 @@ export class AgentSession {
       transport: this.transport,
     });
 
+    this.moduleLoader = new ModuleLoader(options.config || {}, this.verbose);
     this.pluginManager = new PluginManager(this.verbose);
 
     this.initPromise = this.initExtensions();
@@ -208,6 +212,7 @@ export class AgentSession {
       }
     }
 
+    await this.moduleLoader.loadAll(builtinModules);
     await this.pluginManager.loadAll();
     this.initialized = true;
   }
@@ -397,6 +402,7 @@ export class AgentSession {
     cleanupProcesses();
     cleanupSessions();
     resetGroups();
+    this.moduleLoader.unloadAll().catch(() => {});
     this.pluginManager.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     if (this.sessionStartTime > 0) {
