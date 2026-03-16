@@ -336,6 +336,18 @@ describe("parseSearchResults — entity decoding (cross-module: html-extract)", 
     expect(results[0].title).toBe("Title — test");
     expect(results[0].snippet).toBe("Snippet…");
   });
+  it("handles malformed percent-encoding in uddg without crashing", () => {
+    const html =
+      '<div class="result">' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=%ZZbad%encoding">Title</a>' +
+      '<a class="result__snippet">Snippet</a>' +
+      "</div>";
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    // Falls back to raw encoded string instead of crashing
+    expect(results[0].url).toBe("%ZZbad%encoding");
+    expect(results[0].title).toBe("Title");
+  });
 });
 
 describe("runWebSearch — abort detection", () => {

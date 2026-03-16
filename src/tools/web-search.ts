@@ -265,7 +265,11 @@ function resolveRedirectUrl(raw: string): string {
   if (raw.includes("uddg=")) {
     const uddgMatch = raw.match(/uddg=([^&]+)/);
     if (uddgMatch) {
-      return decodeURIComponent(uddgMatch[1]);
+      try {
+        return decodeURIComponent(uddgMatch[1]);
+      } catch {
+        return uddgMatch[1];
+      }
     }
   }
   if (raw.startsWith("//")) return `https:${raw}`;

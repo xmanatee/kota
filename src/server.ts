@@ -258,19 +258,23 @@ export function startServer(options: ServerOptions = {}): Server {
       });
       const sse = new SseTransport(res);
       hub.addClient(sse);
-      const overdue = scheduler.getDue();
-      for (const item of overdue) {
-        scheduler.markFired(item.id);
-        sse.send("notification", {
-          type: "reminder",
-          id: item.id,
-          description: item.description,
-          scheduledFor: item.triggerAt,
-          repeat: item.repeatLabel || null,
-        });
+      res.on("close", () => hub.removeClient(sse));
+      try {
+        const overdue = scheduler.getDue();
+        for (const item of overdue) {
+          scheduler.markFired(item.id);
+          sse.send("notification", {
+            type: "reminder",
+            id: item.id,
+            description: item.description,
+            scheduledFor: item.triggerAt,
+            repeat: item.repeatLabel || null,
+          });
+        }
+      } catch (err) {
+        sse.send("error", { message: (err as Error).message });
       }
       sse.send("connected", { message: "Listening for notifications" });
-      res.on("close", () => hub.removeClient(sse));
       return;
     }
 
@@ -289,7 +293,8 @@ export function startServer(options: ServerOptions = {}): Server {
     if (req.method === "GET" && path === "/api/history") {
       const history = getHistory();
       const search = url.searchParams.get("search") || undefined;
-      const limit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
+      const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
+      const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 1000);
       jsonResponse(res, 200, { conversations: history.list({ search, limit }) });
       return;
     }
@@ -321,7 +326,14 @@ export function startServer(options: ServerOptions = {}): Server {
 
     const eventMatch = path.match(/^\/api\/events\/([^/]+)$/);
     if (req.method === "POST" && eventMatch) {
-      handleEventTrigger(req, res, bus, decodeURIComponent(eventMatch[1])).catch((err) => {
+      let eventName: string;
+      try {
+        eventName = decodeURIComponent(eventMatch[1]);
+      } catch {
+        jsonResponse(res, 400, { error: "Invalid event name encoding" });
+        return;
+      }
+      handleEventTrigger(req, res, bus, eventName).catch((err) => {
         if (!res.headersSent) {
           jsonResponse(res, 500, { error: (err as Error).message });
         }

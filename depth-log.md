@@ -38,6 +38,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 479 | error-paths | tools/delegate.ts, architect.ts | high | Fixed 3 bugs: no API retry on transient errors (429/503), tool runner exceptions crash delegation, fatal API errors thrown raw; sweep-fixed same missing retry in architect.ts; 12 new tests |
 | 481 | concurrency | mcp-client.ts | high | Fixed 3 concurrency bugs: concurrent connect() leaks orphaned child process, close() during connect() leaves stale connected=true, close() resets closing flag allowing broken re-entry; 6 new tests (27→33) |
 | 483 | harden | tool-adapters.ts | high | Fixed 4 bugs: Zod wrapper unwrap discards description, Error objects normalize to "{}", ZodNullable drops nullability, ZodDefault drops default value; 18 new tests (61→79) |
+| 485 | error-paths | server.ts, tools/web-search.ts | critical | Fixed decodeURIComponent crash (ECONNRESET), negative limit wrong results, notification hub cleanup leak; sweep-fixed same pattern in web-search.ts; 11 new tests |
 
 ## Approach Summary
 

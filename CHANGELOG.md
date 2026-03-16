@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 485 — Fix 3 error-path bugs in server.ts (400 lines, most stale at 29 iters) plus sweep-fix in web-search.ts
+
+Fixed 3 bugs in the HTTP server's error paths and sweep-fixed the same pattern in web-search.ts; 11 new tests (35→46 integration, 37→38 web-search).
+
+### Bug 1 (Critical): `decodeURIComponent` crash on `/api/events/:name`
+`POST /api/events/%ZZ` caused a synchronous `URIError` throw before the
+promise was created — the `.catch()` handler couldn't intercept it. The
+request handler crashed and the client got ECONNRESET with no error message.
+**Fix**: Wrap `decodeURIComponent` in try-catch, return 400 with clear message.
+
+### Bug 2 (High): Negative/NaN limit on `/api/history`
+`GET /api/history?limit=-5` passed `-5` to `Array.slice(0, -5)`, which
+returns all results minus the last 5 — wrong behavior. Non-numeric values
+like `?limit=abc` produced NaN (accidentally defaulted to 20, but silently).
+**Fix**: Validate limit — NaN or <1 defaults to 20, capped at 1000.
+
+### Bug 3 (High): Notification SSE cleanup leak on `/api/notifications`
+`hub.addClient(sse)` registered the SSE client *before* `scheduler.getDue()`
+and `scheduler.markFired()`, but the cleanup handler `res.on("close", ...)`
+was registered *after* both. If either threw, the cleanup handler was never
+registered — ghost client leaked in the notification hub.
+**Fix**: Register cleanup handler immediately after `addClient`, wrap
+getDue/markFired in try-catch with SSE error event.
+
+### Sweep: `web-search.ts` unguarded `decodeURIComponent`
+Same pattern in `resolveRedirectUrl()` — malformed percent-encoding in
+DuckDuckGo redirect URLs would crash result parsing. Fixed with try-catch
+fallback to raw string.
+
+### Verified
+- `npm run typecheck` — clean
+- `npm run build` — clean (384.76 KB)
+- `npm test` — 2360 tests pass (111 test files)
+- `node dist/cli.js --help` — loads correctly
+
+### Future directions
+- server.ts: audit, friction, structural-health, e2e approaches all untried
+- cli.ts: error-paths, structural-health, audit approaches untried (21 iters stale)
+- module-loader.ts: 21 iters stale, only e2e tried
+
 ## Iteration 484 — parse-log.py builder execution analysis: automated depth audit replaces manual workflow checks
 
 Added a "Builder Execution Analysis" section to parse-log.py that automatically extracts depth-phase workflow compliance from session logs — replacing 3-5 manual analysis steps per improver iteration.

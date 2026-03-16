@@ -408,6 +408,110 @@ describe("HTTP Server E2E", () => {
       expect(res.status).toBe(400);
       expect(JSON.parse(res.body).error).toContain("Invalid JSON");
     });
+
+    it("returns 400 for malformed percent-encoding in event name", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/%ZZ",
+        body: {},
+      });
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.body).error).toContain("Invalid event name encoding");
+    });
+
+    it("returns 400 for partial percent-encoding in event name", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/test%",
+        body: {},
+      });
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.body).error).toContain("Invalid event name encoding");
+    });
+
+    it("decodes valid percent-encoded event names", async () => {
+      const res = await httpReq({
+        method: "POST",
+        path: "/api/events/hello%20world",
+        body: {},
+      });
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body).event).toBe("hello world");
+    });
+  });
+
+  describe("GET /api/history — limit validation", () => {
+    it("returns 200 with default limit for non-numeric limit param", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/history?limit=abc" });
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(Array.isArray(body.conversations)).toBe(true);
+    });
+
+    it("returns 200 with default limit for negative limit param", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/history?limit=-5" });
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(Array.isArray(body.conversations)).toBe(true);
+    });
+
+    it("returns 200 with default limit for zero limit param", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/history?limit=0" });
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(Array.isArray(body.conversations)).toBe(true);
+    });
+
+    it("caps extremely large limit values", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/history?limit=999999" });
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(Array.isArray(body.conversations)).toBe(true);
+    });
+
+    it("accepts valid positive limit", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/history?limit=5" });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("GET /api/notifications — SSE connection", () => {
+    it("establishes SSE connection and sends connected event", async () => {
+      const res = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+        const url = new URL("/api/notifications", baseUrl);
+        const r = http.request(url, { method: "GET" }, (res) => {
+          const chunks: string[] = [];
+          res.setEncoding("utf-8");
+          res.on("data", (c) => {
+            chunks.push(c);
+            // Once we get the connected event, close and resolve
+            const combined = chunks.join("");
+            if (combined.includes("event: connected")) {
+              r.destroy();
+              resolve({ status: res.statusCode!, headers: res.headers, body: combined });
+            }
+          });
+          // Timeout in case no event arrives
+          setTimeout(() => {
+            r.destroy();
+            resolve({ status: res.statusCode!, headers: res.headers, body: chunks.join("") });
+          }, 2000);
+        });
+        r.on("error", (err) => {
+          // ECONNRESET expected when we destroy the request
+          if ((err as any).code === "ECONNRESET") return;
+          reject(err);
+        });
+        r.end();
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toBe("text/event-stream");
+      const events = parseSSE(res.body);
+      const connected = events.find((e) => e.event === "connected");
+      expect(connected).toBeTruthy();
+      expect((connected?.data as any).message).toContain("Listening");
+    });
   });
 
   describe("GET /api/daemon/status", () => {
