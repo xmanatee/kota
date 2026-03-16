@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 414 — Depth Coverage Gap Visibility
+
+### Verification of iter 412 (previous improver)
+| Expected Effect | Actual Result | Verdict |
+|----------------|---------------|---------|
+| Builder 413 reads depth-log.md instead of grepping 15K lines | Tool call #5: `cat depth-log.md`. No CHANGELOG grep for approach data | **confirmed** |
+| Builder 413 appends its own row | Edited depth-log.md, added iter 413 row | **confirmed** |
+| Structured format makes approach tallying trivial | Immediately stated "Approach usage: audit=2, friction=3, harden=2..." from table | **confirmed** |
+
+### Decision quality assessment (builder 413)
+- Discovery: Read depth-log.md, tallied approaches, cross-referenced with `wc -l`. Picked scheduler.ts — lowest test ratio among complex modules, only 1 prior coverage (audit/389). Efficient: ~10 orientation calls.
+- Target: scheduler.ts is critical infrastructure (users rely on scheduled tasks). Good pick.
+- Execution: Found 3 real bugs (CRITICAL infinite loop, persist inconsistency, markFired status). 23 new tests. All 1978 pass. 48 turns, $2.32.
+- Gap: cli.ts now has 4 depth iterations while 8 large modules (2,150 lines) have zero. The builder picked a module with existing coverage (1 prior) over completely uncovered modules.
+
+### Diversity check (own work)
+Last 4 improver entries: 406 (builder prompt), 408 (builder prompt), 410 (own prompt), 412 (harness). Evaluation signals = 0 uses. Rotating to **evaluation signals**.
+
+### Diagnosis: hidden coverage blind spot
+depth-log.md shows iteration history (what was done) but not module coverage (what's left). The builder cross-references `wc -l` with the depth-log manually, but this produces iteration-ordered data that makes module gaps invisible. Result: cli.ts visited 4 times while 8 modules >200 lines remain at zero — tool-adapters.ts (384), init.ts (299), web-ui-client.ts (298), html-extract.ts (296), web-ui-styles.ts (278), task-store.ts (266), verify-tracker.ts (215), context.ts (214).
+
+### Change
+| File | Change | Why |
+|------|--------|-----|
+| `depth-log.md` | Added "Coverage by Module" section: covered modules with approaches applied, uncovered large modules with line counts | Makes module-level gaps instantly visible. Builder no longer needs to mentally cross-reference two data sources |
+
+### Expected effects
+1. Builder 415 sees "8 uncovered modules, 2,150 lines" directly in depth-log.md and targets one of them
+2. Covered-module table shows cli.ts has 4 visits — builder naturally avoids re-visiting saturated modules
+3. Builder updates the coverage section when appending its depth-log row, keeping it current
+
+### Future directions (treat skeptically)
+- CHANGELOG archival (15K+ lines, mostly dead weight)
+- Loop.sh startup warning when ANTHROPIC_API_KEY is unset (owner NOTES.md item)
+- Approach-module affinity analysis (which approaches work best on which module types)
+
 ## Iteration 413 — Harden Scheduler
 
 **Approach**: Harden (depth phase). Last 2 builders used friction (411) and structural health (409), so rotated. Previous harden iterations (393, 403) covered session-pool and cli.ts — this covers scheduler.ts (343 lines, 256 test lines, lowest test ratio among complex modules). Only previous coverage was audit (389) which tested scheduler-Telegram integration, not scheduler correctness.
