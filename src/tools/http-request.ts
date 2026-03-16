@@ -1,4 +1,5 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./index.js";
 
@@ -115,7 +116,12 @@ export async function runHttpRequest(
     // Keep timeout active — it covers body reads too, not just connection
 
     // Build response header summary (selected useful headers)
-    const responseHeaders = formatResponseHeaders(response.headers);
+    let responseHeaders = formatResponseHeaders(response.headers);
+
+    // Show redirect info so users can debug endpoint issues
+    if (response.redirected && response.url && response.url !== url) {
+      responseHeaders = `[Redirected → ${response.url}]\n${responseHeaders}`;
+    }
 
     if (method === "HEAD") {
       clearTimeout(timeout);
@@ -129,6 +135,7 @@ export async function runHttpRequest(
 
     if (saveTo) {
       try {
+        mkdirSync(dirname(saveTo), { recursive: true });
         let size: number;
         if (isBinaryContentType(contentType)) {
           const buffer = Buffer.from(await response.arrayBuffer());
@@ -215,7 +222,8 @@ function formatResponseHeaders(headers: Headers): string {
   const interesting = [
     "content-type", "content-length", "location", "set-cookie",
     "x-request-id", "x-ratelimit-remaining", "x-ratelimit-limit",
-    "retry-after", "www-authenticate", "allow",
+    "x-ratelimit-reset", "retry-after", "www-authenticate", "allow",
+    "link",
   ];
   const lines: string[] = [];
   for (const name of interesting) {

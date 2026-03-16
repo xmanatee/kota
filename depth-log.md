@@ -43,6 +43,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 489 | harden | history.ts | high | Fixed 4 bugs: falsy-zero limit (||→??), array-content title extraction, array-content countMessages, empty findByPrefix crash; 7 new tests (28→35) |
 | 491 | error-paths | task-store.ts, scheduler.ts, memory.ts | high | Fixed 5 bugs: non-atomic writes (crash data loss), blanket catch swallows EACCES, nextId falsy-check (||→deriveNextId), no Array.isArray guard, no .tmp crash recovery; sweep-fixed regex dir extraction in scheduler+memory; 10 new tests (28→38) |
 | 493 | concurrency | tools/process.ts | high | Fixed 4 bugs: purgeStale used startedAt (premature output loss), close overwrites error exitCode, sendSignal ignores kill() return, cleanupProcesses not idempotent; 8 new tests (33→41) |
+| 495 | friction | tools/http-request.ts | high | Fixed 3 bugs: invisible redirects (no [Redirected →] note), missing link/x-ratelimit-reset headers, save_to ENOENT on subdirectories (no auto-mkdir); 9 new tests (59→68) |
 
 ## Approach Summary
 

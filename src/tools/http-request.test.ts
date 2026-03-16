@@ -516,6 +516,144 @@ describe("runHttpRequest", () => {
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Request error:");
   });
+
+  // --- Redirect visibility ---
+
+  it("shows redirect note when response was redirected", async () => {
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      redirected: true,
+      url: "https://api.example.com/v2/users",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text: () => Promise.resolve("ok"),
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com/v1/users" });
+    expect(result.content).toContain("[Redirected → https://api.example.com/v2/users]");
+    expect(result.content).toContain("HTTP 200 OK");
+  });
+
+  it("shows redirect note on HEAD request", async () => {
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      redirected: true,
+      url: "https://example.com/final",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+    });
+    const result = await runHttpRequest({ url: "http://example.com/start", method: "HEAD" });
+    expect(result.content).toContain("[Redirected → https://example.com/final]");
+    expect(result.content).toContain("(HEAD — no body)");
+  });
+
+  it("does not show redirect note when not redirected", async () => {
+    mockFetch({ body: "ok" });
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.content).not.toContain("[Redirected");
+  });
+
+  it("does not show redirect note when url matches (no real redirect)", async () => {
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      redirected: false,
+      url: "https://api.example.com",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text: () => Promise.resolve("ok"),
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com" });
+    expect(result.content).not.toContain("[Redirected");
+  });
+
+  // --- API headers: link and x-ratelimit-reset ---
+
+  it("shows link header for pagination", async () => {
+    mockFetch({
+      body: "[]",
+      contentType: "application/json",
+      headers: { link: '<https://api.example.com/repos?page=2>; rel="next"' },
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com/repos" });
+    expect(result.content).toContain("link: <https://api.example.com/repos?page=2>");
+  });
+
+  it("shows x-ratelimit-reset header", async () => {
+    mockFetch({
+      body: "[]",
+      contentType: "application/json",
+      headers: { "x-ratelimit-reset": "1700000000" },
+    });
+    const result = await runHttpRequest({ url: "https://api.example.com/data" });
+    expect(result.content).toContain("x-ratelimit-reset: 1700000000");
+  });
+
+  // --- save_to auto-mkdir ---
+
+  it("auto-creates parent directories for save_to", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const savePath = path.join(dir, "nested", "deep", "data.json");
+
+    mockFetch({ body: '{"saved":true}', contentType: "application/json" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/export",
+      save_to: savePath,
+    });
+    expect(result.content).toContain("[Saved to");
+    expect(result.is_error).toBeUndefined();
+    expect(fs.existsSync(savePath)).toBe(true);
+    expect(fs.readFileSync(savePath, "utf-8")).toBe('{"saved":true}');
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it("auto-creates parent directories for binary save_to", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const savePath = path.join(dir, "sub", "image.bin");
+
+    const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const responseHeaders = new Map<string, string>([["content-type", "image/png"]]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      arrayBuffer: () => Promise.resolve(binaryData.buffer),
+    });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/image.png",
+      save_to: savePath,
+    });
+    expect(result.content).toContain("[Saved to");
+    expect(fs.existsSync(savePath)).toBe(true);
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it("shows redirect note with save_to", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const savePath = path.join(dir, "data.txt");
+
+    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: "OK",
+      redirected: true,
+      url: "https://cdn.example.com/data.txt",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text: () => Promise.resolve("data"),
+    });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/download",
+      save_to: savePath,
+    });
+    expect(result.content).toContain("[Redirected → https://cdn.example.com/data.txt]");
+    expect(result.content).toContain("[Saved to");
+    fs.rmSync(dir, { recursive: true });
+  });
 });
 
 describe("formatTabularJson", () => {

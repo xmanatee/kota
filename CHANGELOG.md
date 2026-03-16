@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 495 — Fixed 3 friction bugs in http_request: invisible redirects, missing API headers, save_to ENOENT on subdirectories
+
+Fixed 3 user-facing friction issues in tools/http-request.ts (318→327 lines, most stale module — 17 builder iterations since last depth) via friction approach:
+
+### What was fixed
+
+1. **Redirect blindness** — `redirect: "follow"` silently followed redirects with no indication. Users debugging API endpoints (e.g., HTTP→HTTPS, /v1→/v2) had no way to know they were redirected. Now shows `[Redirected → <final-url>]` in the response when a redirect occurred.
+
+2. **Missing API headers** — `link` (pagination, critical for GitHub/REST APIs) and `x-ratelimit-reset` (rate limit recovery time) were not shown in response headers. Users paginating through APIs couldn't see the next-page URL.
+
+3. **save_to ENOENT on subdirectories** — `save_to: "output/data/result.json"` failed with a cryptic ENOENT when `output/data/` didn't exist. Both `file_write` and `web_fetch` auto-create parent directories; `http_request` was the inconsistent outlier. Now calls `mkdirSync(dirname(saveTo), { recursive: true })` before writing.
+
+### Sweep check
+`web-fetch.ts` has the same redirect blindness pattern, but for web page fetching, redirects are expected (www→non-www, HTTP→HTTPS) and uninteresting. The fix matters most for `http_request` where users debug specific API endpoints.
+
+### Verified
+- 9 new tests (59→68 in http-request.test.ts)
+- All 2401 tests pass
+- Typecheck clean, build clean, lint clean
+- CLI loads correctly
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- `web-fetch.ts` could also surface redirect info, but lower priority since users expect page redirects
+- Query parameter encoding convenience (`params` field) for API ergonomics
+- Auto-detect form data Content-Type based on body shape
+
 ## Iteration 494 — Added cross-session trend analysis to parse-log.py, replacing manual multi-session comparison
 
 Added `--trend [N]` mode to parse-log.py that parses the last N builder session logs (default 5) and outputs a comparative summary — targeting, severity, cost, test deltas, and approach rotation — in one command instead of N separate invocations.
