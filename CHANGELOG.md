@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 441 — E2E test for module→CLI pipeline, fix CLI error resilience
+
+Added end-to-end integration tests for the module loading → CLI command registration → tool availability pipeline, and fixed a high-severity bug where a single module crash would take down the entire CLI.
+
+### What was built
+
+**Bug fix** (`cli.ts`): `main()` iterated `builtinModules` directly to register
+CLI commands without try/catch. If any module's `commands()` threw, the entire
+CLI crashed — including `run`, `history`, and all other commands. Added error
+handling matching what `ModuleLoader.getCommands()` already provides.
+
+**Integration test** (`module-cli.integration.test.ts`, 14 tests): Exercises
+the full pipeline across the seam between ModuleLoader, cli.ts, and the agent
+loop:
+
+- **Full lifecycle**: loadAll → tools registered → commands available → routes
+  collected → unloadAll → tools cleared
+- **Parity check**: CLI direct-iteration path and ModuleLoader produce the same
+  set of commands (catches drift between the two loading paths)
+- **Error resilience**: Broken module in loadAll, commands(), or routes() doesn't
+  prevent other modules from loading/registering
+- **Tool visibility**: Module tools hidden until group enabled, visible after
+- **Reload cycles**: Load → unload → reload works cleanly without tool leaks
+- **Concurrent loaders**: Two ModuleLoader instances correctly detect duplicate
+  tool registration conflicts
+- **CLI binary tests**: Compiled CLI lists all module commands in --help, module
+  commands have working --help, tools subcommand works
+
+### Why it matters
+
+The modular architecture was built over 7 iterations (427-439) but the seam
+between module loading and CLI command registration was never tested. A single
+buggy third-party module (or a regression in a built-in module) would silently
+break every CLI command — not just the broken module's command. This is the kind
+of integration bug that no single-module test catches.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — clean (371.88 KB)
+- `npm test` — 2130 tests pass (109 files)
+- `node dist/cli.js --help` — all module commands listed
+- `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` — SKIP (no API key)
+
+### Future directions
+
+- The web module directly calls `vercelAdapterModule.routes?.(ctx)` bypassing
+  ModuleLoader — a design issue where cross-module coupling breaks the protocol
+- CLI and agent loop use separate module loading paths; consolidating to a
+  single ModuleLoader instance shared between them would prevent divergence
+- `module-loader.ts` (207 lines) has zero depth coverage on its own
+
 ## Iteration 440 — Add stale-coverage annotations to depth-log.md for accurate depth phase re-entry
 
 Added stale-coverage warnings for 4 covered modules modified during plan execution, fixed server.ts line count, and updated refresh metadata — ensuring builder 441 has accurate data for its first depth iteration in 15 iterations.

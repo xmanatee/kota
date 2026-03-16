@@ -401,16 +401,22 @@ async function main() {
 
   // Register CLI commands from built-in modules
   const config = loadConfig();
+  const ctx = {
+    cwd: process.cwd(),
+    verbose: false,
+    config,
+    registerGroup: () => {},
+  };
   for (const mod of builtinModules) {
     if (mod.commands) {
-      const cmds = mod.commands({
-        cwd: process.cwd(),
-        verbose: false,
-        config,
-        registerGroup: () => {},
-      });
-      for (const cmd of cmds) {
-        program.addCommand(cmd);
+      try {
+        const cmds = mod.commands(ctx);
+        for (const cmd of cmds) {
+          program.addCommand(cmd);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[kota] Module "${mod.name}" command registration failed: ${msg}`);
       }
     }
   }
