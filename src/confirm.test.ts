@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { confirmExecution, isDangerous, setSkipConfirmations } from "./confirm.js";
+import { confirmAction, confirmExecution, isDangerous, setSkipConfirmations } from "./confirm.js";
 
 afterEach(() => {
   setSkipConfirmations(false);
@@ -70,6 +70,21 @@ describe("confirmExecution", () => {
     setSkipConfirmations(false);
     // In test environment, stdin is not a TTY
     const result = await confirmExecution("rm -rf /");
+    expect(result).toBe(false);
+  });
+});
+
+describe("confirmAction", () => {
+  it("returns true when skip is enabled", async () => {
+    setSkipConfirmations(true);
+    const result = await confirmAction("Delete everything?");
+    expect(result).toBe(true);
+  });
+
+  it("returns false when stdin is not a TTY", async () => {
+    setSkipConfirmations(false);
+    // In test environment, stdin is not a TTY
+    const result = await confirmAction("Delete everything?");
     expect(result).toBe(false);
   });
 });

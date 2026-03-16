@@ -1,7 +1,9 @@
 import { execFileSync, type SpawnSyncReturns } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { formatAuthError, parseIntOption } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -241,5 +243,74 @@ describe("subcommand help", () => {
     expect(out).toContain("resume");
     expect(out).toContain("delete");
     expect(out).toContain("clear");
+  });
+});
+
+describe("history clear confirmation", () => {
+  let tempHome: string;
+
+  beforeEach(() => {
+    tempHome = join(tmpdir(), `kota-test-clear-${Date.now()}`);
+    const histDir = join(tempHome, ".kota", "history");
+    mkdirSync(histDir, { recursive: true });
+    // Create a fake conversation index with one entry for root cwd
+    const index = {
+      conversations: [
+        {
+          id: "test-abc123",
+          title: "test conversation",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          model: "claude-sonnet-4-6",
+          messageCount: 2,
+          cwd: root,
+        },
+      ],
+    };
+    writeFileSync(join(histDir, "index.json"), JSON.stringify(index));
+    writeFileSync(
+      join(histDir, "test-abc123.json"),
+      JSON.stringify({ record: index.conversations[0], messages: [], compactionCount: 0, lastInputTokens: 0 }),
+    );
+  });
+
+  it("cancels when stdin is not a TTY (no --yes)", () => {
+    const { stdout, exitCode } = runFull(["history", "clear"], {
+      env: { HOME: tempHome },
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("Cancelled");
+    // Verify conversation was NOT deleted
+    expect(existsSync(join(tempHome, ".kota", "history", "test-abc123.json"))).toBe(true);
+  });
+
+  it("deletes when --yes flag is provided", () => {
+    const { stdout, exitCode } = runFull(["history", "clear", "--yes"], {
+      env: { HOME: tempHome },
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("Deleted 1 conversation(s)");
+  });
+
+  it("reports no conversations when history is empty", () => {
+    // Use a fresh home with no history
+    const emptyHome = join(tmpdir(), `kota-test-empty-${Date.now()}`);
+    mkdirSync(emptyHome, { recursive: true });
+    const { stdout, exitCode } = runFull(["history", "clear"], {
+      env: { HOME: emptyHome },
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("No conversations to delete");
+  });
+});
+
+describe("history resume API key validation", () => {
+  it("exits with clear message when ANTHROPIC_API_KEY is unset", () => {
+    const { stderr, exitCode } = runFull(["history", "resume", "someId"], {
+      env: { ANTHROPIC_API_KEY: "" },
+    });
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("ANTHROPIC_API_KEY");
+    expect(stderr).toContain("console.anthropic.com");
   });
 });

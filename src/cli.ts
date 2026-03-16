@@ -2,7 +2,7 @@ import { createInterface } from "node:readline";
 import { Command } from "commander";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
-import { setSkipConfirmations } from "./confirm.js";
+import { confirmAction, setSkipConfirmations } from "./confirm.js";
 import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { installTool, listTools, removeTool, updateTool } from "./registry.js";
@@ -430,6 +430,7 @@ historyCmd
   .option("-m, --model <model>", "Model to use")
   .option("-v, --verbose", "Show debug output")
   .action(async (idOrPrefix, opts) => {
+    ensureApiKey();
     const config = loadConfig();
     const history = getHistory();
     const fullId = resolveConversationId(history, idOrPrefix);
@@ -459,9 +460,26 @@ historyCmd
 historyCmd
   .command("clear")
   .description("Delete all conversations for the current directory")
-  .action(() => {
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async (opts) => {
     const history = getHistory();
     const list = history.list({ cwd: process.cwd(), limit: 1000 });
+
+    if (list.length === 0) {
+      console.log("No conversations to delete.");
+      return;
+    }
+
+    if (!opts.yes) {
+      const confirmed = await confirmAction(
+        `This will permanently delete ${list.length} conversation(s). Continue?`,
+      );
+      if (!confirmed) {
+        console.log("Cancelled.");
+        return;
+      }
+    }
+
     let count = 0;
     for (const c of list) {
       if (history.remove(c.id)) count++;

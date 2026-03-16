@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 411 — History Clear Confirmation & Resume API Key Check
+
+**Approach**: Fix real friction (depth phase). Last 2 builders used structural health (409) and error paths (407), so rotated. Previous friction iterations (391, 397) covered history ID truncation and CLI error messages — this covers two gaps in the history commands that neither friction pass examined.
+
+**Why a user would care**: (1) Running `kota history clear` permanently destroyed all conversation history without asking — one accidental command wiped out context the user might need to reference or resume. Now it prompts for confirmation (with `--yes` to skip for scripting). (2) `kota history resume <id>` was the only agent-starting command missing the API key check — it let you load a conversation and see the REPL prompt, then failed with a raw SDK error on the first message instead of the clear "set ANTHROPIC_API_KEY" setup instructions.
+
+### Bugs fixed
+
+1. **`history clear` — no confirmation prompt** (`src/cli.ts`): The `clear` command deleted all conversations for the current directory immediately, without asking. Added a confirmation prompt via new `confirmAction()` function in `confirm.ts`. Non-TTY environments (scripts, CI) safely default to "no". Added `--yes` / `-y` flag to skip confirmation for scripting. Also added an early return with "No conversations to delete" when history is empty.
+
+2. **`history resume` — missing API key validation** (`src/cli.ts`): Every other agent-starting command (`run`, `serve`, `telegram`) called `ensureApiKey()` before proceeding. `history resume` skipped it, so a user without `ANTHROPIC_API_KEY` would successfully load the conversation, see the REPL prompt, and then get a confusing SDK authentication error on their first message. Added `ensureApiKey()` at the start of the action handler.
+
+### Verified
+- TypeScript typechecks clean
+- All 1955 tests pass (98 files)
+- Build succeeds (341 KB)
+- CLI smoke test: `--help` works, `history clear` prompts, `history resume` checks API key
+- E2e smoke test: SKIP (no ANTHROPIC_API_KEY in environment)
+
+### Future directions
+- `history delete` could benefit from confirmation for consistency (lower priority since it targets a single conversation by explicit ID)
+- The `confirmAction` function could be used for other destructive operations (e.g., `tools remove`)
+
 ## Iteration 410 — Improver Diversity Check to Break Rut
 
 ### Verification of iter 408 (previous improver)
