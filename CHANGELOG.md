@@ -1,5 +1,67 @@
 # KOTA Changelog
 
+## Iteration 476 — Staleness-first sort in depth-log + module-first targeting in builder prompt
+
+Stale table now sorted by staleness (was line-count); builder prompt reordered to module-first targeting.
+
+### Verification of iter 474 (previous improver)
+
+| Expected Effect | Actual (iter 475) | Verdict |
+|---|---|---|
+| Builder 475 references gap matrix when choosing target | Read depth-log (tool #4). Key text: "never had structural-health" — used gap matrix data | **confirmed** |
+| Builder 475 picks untried module+approach combination | registry.ts + structural-health → gap matrix shows `—` for that cell | **confirmed** |
+| Builder 475 does NOT use friction or harden | Used structural-health | **confirmed** |
+
+All 3/3 confirmed.
+
+### Diagnosis
+
+**Builder 475** executed well — split registry.ts (427→299+167 lines), found 2 bugs, added 19 tests. $2.73, 43 turns. Clean.
+
+**But**: telegram.ts has been stale for **43 builder iterations** (since iter 389) — the most neglected module by far. Builder 475 read it (tool call #10) but chose registry.ts instead. Root cause: two reinforcing biases —
+
+1. **Stale table sorted by line count**, not staleness. telegram.ts (400 lines, 43 iters stale) appeared at position #3, below cli.ts (424 lines, 17 iters stale). The builder anchored on what it saw first.
+2. **Builder prompt said "Prefer under-used approaches"**, encouraging approach-first thinking. The builder picked structural-health (least used) then found registry.ts as the best fit for that approach — bypassing more-neglected modules.
+
+### Changes
+
+**`refresh-depth-log.py`** (+3 lines):
+- Stale modules now sorted by staleness descending (ties broken by line count). telegram.ts moves from position #3 to #1 in both the stale table and gap matrix.
+
+**`prompts/build-agent.md`** (depth orientation section):
+- Reordered to "pick the module first, then the approach" — explicit module-first flow
+- Removed "Prefer under-used approaches" — this drove approach-first anchoring; the rotation rule (don't repeat last 2) already provides sufficient approach diversity
+- Added "start from the top — the first module is your default pick unless you have a strong reason to skip it" — reinforces staleness priority
+
+**`depth-log.md`** (refreshed via script):
+- Stale: 10→11 modules (scheduler.ts, task-store.ts newly stale)
+- registry.ts dropped from stale list (covered at 475)
+- All tables now staleness-sorted
+- 47/66 untried combinations
+
+### Diversity check
+
+| Iter | Lever |
+|------|-------|
+| 476 | **evaluation signals + builder prompt** |
+| 474 | harness/scripts |
+| 472 | own prompt |
+| 470 | builder prompt |
+
+Primary lever: evaluation signals (sort order fix). Secondary: builder prompt (targeting reorder).
+
+### Expected effects
+
+1. **Builder 477 targets telegram.ts (position #1 in stale table)**: Key assistant text should mention telegram.ts as the primary candidate. Observable: key text mentions "telegram" in targeting rationale.
+2. **Builder 477 picks module first, then selects approach from gap matrix**: Key text mentions choosing the module before the approach (not "structural-health is least used, so which module fits?"). Observable: key text ordering — module name appears before approach name in the targeting rationale.
+3. **Builder 477 uses a rotation-eligible untried approach for its chosen module**: Last 2 builders used structural-health (475) and friction (473). Observable: approach in depth-log row is one of harden/error-paths/audit/e2e.
+
+### Future directions
+
+- **Severity calibration**: Last 8 depth iterations all rated high — consider whether severity is inflating or critical bugs are genuinely exhausted.
+- **Per-approach effectiveness stats**: error-paths finds 50% critical bugs (3/6) vs other approaches. Deferred: sample sizes still too small for reliable signal.
+- **Depth saturation metric**: Track cumulative coverage (tried/total combinations) to signal when depth phase is approaching diminishing returns.
+
 ## Iteration 475 — Split registry.ts into focused modules; fixed 2 bugs in install path tracking
 
 Split `registry.ts` (427 lines) into `registry.ts` (299) + `registry-installers.ts` (167), separating install execution from orchestration.

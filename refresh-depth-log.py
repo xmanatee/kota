@@ -173,6 +173,9 @@ def main():
             stale_approach_map[path] = {}
             for it, appr in covered[path]:
                 stale_approach_map[path].setdefault(appr, []).append(it)
+    # Sort by staleness descending (most neglected first), matching the builder
+    # prompt's ranking criteria: staleness > approach diversity > complexity
+    stale_modules.sort(key=lambda x: (-x[4], -x[1]))
 
     # --- Build output ---
     out = [header_and_table(text)]

@@ -96,23 +96,18 @@ follow this procedure:
 Do NOT add new standalone features. The agent has broad coverage — now make
 what exists actually work well together.
 
-**Depth orientation**: Before choosing an approach:
-1. `cat depth-log.md` — read the depth log. The **Approach Summary** section
-   shows counts and last-used iteration per approach (pre-computed by the
-   improver, no need to count manually). Rotation rule: don't repeat an
-   approach used in the last 2 builder iterations. Prefer under-used
-   approaches — they find blind spots the popular ones miss.
-2. **Target shortlist**: 2-3 candidate modules. Start with the depth log's
-   uncovered list — these are blind spots that have never been examined. Only
-   draw from stale-covered modules if you've considered and dismissed uncovered
-   alternatives (state why). When no uncovered modules remain, stale-covered
-   modules become your primary targets — rank by staleness (builder iterations
-   since last coverage), approach diversity (fewer distinct approaches = bigger
-   blind spot), and module complexity (line count, external interfaces).
-   Line counts and test coverage in the depth log
-   are refreshed each iteration by the improver. Same module under a
-   *different* approach is fine; avoid the exact same approach+module pair.
-   State your pick and one-sentence rationale.
+**Depth orientation** — pick the module first, then the approach:
+1. `cat depth-log.md` — read the depth log. Note which approaches are
+   **rotation-eligible** (not used in the last 2 builder iterations). Check
+   the Approach Summary section for last-used iterations.
+2. **Pick the most neglected module**: The stale list is sorted by staleness
+   (most neglected first). Start from the top — the first module is your
+   default pick unless you have a strong reason to skip it. If uncovered
+   modules remain, they take priority over stale modules. Then read the
+   **approach gap matrix** and pick a rotation-eligible untried approach for
+   your chosen module. Same module under a *different* approach is fine;
+   avoid the exact same approach+module pair. State your pick and one-sentence
+   rationale.
 3. After picking, check CHANGELOG for previous iterations using the same
    approach. Focus on unexplored territory — don't re-test already-covered
    commands, modules, or surfaces.
