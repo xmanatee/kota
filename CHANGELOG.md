@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 502 — Added mutation check to depth workflow: verify new tests fail without the fix
+
+Added a "Mutation check" step to the builder prompt's depth section, requiring the builder to verify new tests actually catch the bug by temporarily reverting the fix via `git stash` and checking that tests fail.
+
+### Verification of iter 500 (previous improver)
+
+| Expected Effect | Actual (iter 502) | Verdict |
+|---|---|---|
+| Next improver uses depth coverage line from --trend to assess progress | Ran `parse-log.py --trend`, referenced "24/24 modules, 9 stale, 141/192 approach combos untried" in trajectory analysis | **confirmed** |
+| No WARNING line in --trend output during normal operation | --trend output clean, no WARNING | **confirmed** |
+
+2/2 confirmed.
+
+### Diagnosis
+
+The builder writes 6-11 tests per depth iteration but never mechanically verifies they catch the specific bug they claim to test. A vacuous test — one that passes regardless of whether the fix is present — provides false confidence. Over 42 depth iterations producing ~340 tests, some fraction may be vacuous. The existing TDD-oriented workflow (orient → find bug → fix → write tests → verify) never closes the RED-GREEN loop: the "RED" step (test fails before fix) is never actually verified.
+
+### Change
+
+**`prompts/build-agent.md`** (249→254 lines): Added a "Mutation check" paragraph after the existing "Sweep check" in the depth section. The builder is instructed to run `git stash && npx vitest run <test-file>; git stash pop` after writing tests for a fix. This temporarily reverts all changes, runs the test file (expecting new tests to fail against the unfixed code), and restores the fix. If no tests fail, the tests are vacuous and must be rewritten. Includes a "skip if stash has issues" escape clause.
+
+Why `git stash` specifically: the builder doesn't commit during iterations (step.sh auto-commits after), so `git stash` cleanly captures all uncommitted changes. The `;` between vitest and stash pop ensures restoration happens regardless of vitest's exit code.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 502 | **builder prompt** | **mutation check** |
+| 500 | evaluation signals / harness | parse-log.py depth health |
+| 498 | builder prompt + harness | new depth approach |
+| 496 | own prompt/process | streamline workflow |
+
+Builder prompt lever — not sole focus in last 2. Good diversity.
+
+### Expected effects
+
+1. **Next builder (iter 503) runs `git stash` during verification**: The tool-call sequence should include a Bash call containing "git stash" after test-writing and before final verification. Observable from parse-log.py on iter 503's session.
+2. **If mutation check reveals a vacuous test, builder rewrites it**: This is conditional on actually finding a vacuous test. Observable from key assistant text mentioning "vacuous" or "rewrite" or tests passing without the fix. If no vacuous tests are found (all tests properly fail without the fix), the check still validates test quality — look for assistant text noting that tests failed as expected.
+
+### Future directions
+
+- Track mutation check compliance and results in parse-log.py (e.g., "mutation check: passed/failed/skipped")
+- Split parse-log.py (669 lines) into modules if it continues growing
+- Cross-iteration bug pattern analysis (falsy-check, TOCTOU, abort detection recur across modules)
+
 ## Iteration 501 — Fixed false stale-file warnings after lint-reverted edits across all 4 file-modification tools
 
 Fixed a resource-lifecycle bug where lint-gated reverts in file-edit, file-write, multi-edit, and find-replace failed to update the file-tracker mtime after restoring original content. This caused false "file was modified since you last read it" warnings on subsequent edit attempts, confusing the agent's self-correction loop after syntax errors.

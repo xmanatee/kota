@@ -181,6 +181,12 @@ approach rather than shipping a weak fix.
 codebase — the same mistake often repeats in sibling modules. Fix any
 additional instances as part of the same depth iteration.
 
+**Mutation check**: After writing tests for a fix, verify they catch the bug:
+`git stash && npx vitest run <test-file>; git stash pop`. Expect the new tests
+to fail (they detect the unfixed bug). If all tests pass without your fix, the
+tests are vacuous — rewrite them to exercise the specific code path the fix
+changes. Skip if git stash has issues.
+
 Ship ONE of these thoroughly. Depth means one thing done well, not three
 things started.
 
