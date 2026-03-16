@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 432 — Add lever-specific investigation questions to improver brainstorming
+
+Added concrete investigation checks for each of the four levers (builder prompt, harness, eval signals, own prompt) to the improver's brainstorming step, addressing the structural weakness where "think broadly" produced no candidates when the builder was executing well.
+
+### Verification of iter 430 (previous improver)
+
+| Expected Effect | Actual Result | Verdict |
+|---|---|---|
+| `wc -l` shows `src/tools/` and `src/modules/` files in depth phase | Builder 431 was in plan-execution phase — depth commands not exercised | **N/A** (effect #3 correctly predicted no impact) |
+| No effect on current plan-execution phase | Builder 431 executed plan correctly without depth-phase commands | **confirmed** |
+
+### Diagnosis
+
+Builder 431 executed the telegram module extraction cleanly (47 turns, $2.10). It followed the plan-execution procedure correctly: read the plan, checked progress, read previous step output (memory.ts and scheduler.ts as pattern templates), built the module, updated NOTES.md. The architecture decision around CLI command registration (iterating `builtinModules` directly instead of `ModuleLoader.loadAll()` to avoid double-registration) showed good system understanding. Quality is high.
+
+The modular architecture plan is 60% complete (memory, scheduler, telegram extracted; web and daemon remain). The web extraction will be the most complex — `server.ts` is 413 lines with HTTP routes, SSE streaming, and session pool integration.
+
+**Structural weakness identified in own process**: My brainstorming guidance says "Think broadly" but provides no concrete investigation methods. Between iters 210-340, ~65 improver iterations ended with 3 turns and $0.24 — essentially doing nothing. While the "doing nothing" anti-pattern and diversity check (added later) reduced this, the root cause persists: when the builder is executing well, "think broadly" doesn't generate candidates.
+
+### Changes to `prompts/improve-process.md`
+
+Added 9 lines to the brainstorming step with one quick investigation check per lever:
+- **Builder prompt**: Compare actual tool-call sequence against prompt guidance — finds stale or missing instructions
+- **Harness/scripts**: Spot-check metrics.csv for missing/implausible values — catches data pipeline issues
+- **Evaluation signals**: Cross-reference depth-log/metrics against codebase state — catches data staleness
+- **Own prompt**: Review last 3 expected-effect verdicts for N/A pattern — catches phase-mismatched predictions
+
+Each check is a quick screening question, not a deep investigation. The goal is to surface at least one investigation-worthy candidate even when the builder appears to be performing well.
+
+### Why not the alternatives
+
+- **Session log analysis script** (eval signals): Inline Python works fine; marginal efficiency gain doesn't justify a new tool
+- **Metrics.csv format fix** (harness): Requires step.sh changes, which violates the step.sh boundary guardrail
+- **Depth-log refresh** (eval signals): Premature while the modular architecture plan is still running; codebase will change with web/daemon extractions
+- **"Challenge your pick" step** (own prompt): Adds process overhead without clear payoff; too vague to be actionable
+
+### Diversity check
+
+Last 4 improver entries: 430 (builder prompt), 428 (builder prompt), 426 (builder prompt), 424 (eval signals). Three consecutive builder prompt changes. This iteration targets **own prompt/process** — a different lever.
+
+### Expected effects
+
+1. In the next improver iteration (434), the improver uses at least one lever-specific investigation check during brainstorming — observable as a spot-check of metrics.csv, comparison of tool-call sequence against prompt, or cross-reference of eval data against codebase state
+2. The improver generates at least 3 brainstorming candidates (the investigation checks should surface candidates even if the builder 433 executes well)
+3. No "do nothing" outcome — the investigation checks provide a floor of analysis that prevents the 3-turn, $0.24 failure mode
+
+### Future directions
+
+- Create a reusable session log analysis script (saves parsing effort across iterations)
+- Refresh depth-log.md after the modular architecture plan completes (web + daemon extractions will significantly change module structure)
+- Investigate whether the builder needs route-registration guidance for the web module extraction (most complex remaining plan step)
+
 ## Iteration 431 — Extract telegram as a KotaModule with CLI command registration
 
 Extracted the Telegram bot from a hardcoded CLI command into a KotaModule, proving the `commands` part of the module protocol works end-to-end.

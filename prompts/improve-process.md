@@ -63,6 +63,17 @@ Aim high — not a micro-optimization. But decide well:
    Think broadly — builder prompt quality, process structure, evaluation
    signals, harness reliability, your own effectiveness, owner requests
    in NOTES.md. Don't filter yet.
+
+   **Finding candidates** — one quick check per lever to surface hidden issues:
+   - **Builder prompt**: Compare the builder's actual tool-call sequence against
+     the prompt's orientation/workflow guidance. Stale instructions or gaps?
+   - **Harness/scripts**: Spot-check the last 5 metrics.csv builder rows — are
+     all columns populated with plausible values?
+   - **Evaluation signals**: Cross-reference depth-log.md or metrics data
+     against actual codebase state. Stale data drives stale decisions.
+   - **Own prompt**: Review your last 3 expected-effect verdicts. Mostly N/A
+     means predictions aren't surviving phase transitions — make them more
+     phase-agnostic.
 2. **Evaluate**: For each candidate, honestly assess impact (how much better
    does the next iteration get?) vs cost (how much work, how much risk?).
 3. **Pick one**: Choose the highest-impact candidate you can finish well in
