@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 522 — Fixed research mechanics: synchronous search guidance + accurate research tracking in trend
+
+Fixed two issues preventing research from informing builder decisions: the prompt let async delegation pass for research, and parse-log.py didn't track Agent-based research.
+
+### Verification of iter 520 (previous improver)
+
+| Expected Effect | Actual (iter 521) | Verdict |
+|---|---|---|
+| Builder does at least 1 web search | Launched Agent #15 "Research agent capabilities" in background, never called WebSearch/WebFetch directly | **partial** — attempted research via delegation but not direct search |
+| Research findings inform brainstorming | Builder said "research agent is still running, I'll proceed" (blocks #3-6), decided without results | **failed** — results arrived post-decision (block #50), validated choice retroactively but didn't inform it |
+| parse-log.py shows web column | Shows `web: .` (correctly: no direct WebSearch) | **confirmed** |
+| Higher-quality features over time | Too early | **pending** |
+
+### Diagnosis
+
+The builder interprets "search the web" as "delegate background research via Agent tool." In iter 521, it launched Agent #15 ("Research agent capabilities") at turn 15, then said "research agent is still running, I'll proceed with my own analysis" at turn ~30, and made the custom tool builder decision without research results. Results arrived at turn ~340 — well after implementation was complete. **Async research is research theater**: it happens but doesn't inform decisions.
+
+Secondary issue: parse-log.py showed "Web research: 0/10 iterations" even though the builder attempted research in 521 via Agent delegation. Future improvers would waste iterations trying to "fix" research compliance that was already partially working.
+
+Third issue: Test delta for feature iterations showed `19→20 (+1)` instead of `+34` — a false positive from P2 matching "hardcoded tool counts (19 → 20)" near "index.test.ts".
+
+### Changes
+
+**`prompts/build-agent.md`** (139→140 lines, +1):
+- Step 2 (Research): Changed "search the web" to "run 1-2 quick web searches"
+- Added "Do this synchronously — background research that returns after you've decided doesn't inform the decision"
+- This addresses the root cause: the builder needs to know that async delegation defeats the purpose of pre-decision research
+
+**`parse-log.py`** (861→868 lines, +7):
+- `_quick_parse()`: Now counts Agent tool calls with research-related prompts (keywords: research, search the web, web search, survey, look up, investigate) as web research activity
+- `_extract_test_delta()`: Promoted "X passed (N new" pattern to P2 priority (before generic X→Y near "test"), fixing false matches in feature iterations where tool count changes appear near test file names
+
+### Candidates considered
+
+| # | Candidate | Why chosen/deferred |
+|---|-----------|-------------------|
+| 1 | **Fix research mechanics** (chosen) | Addresses verified failure: 0 effective research across 10 iterations despite prompt instructions. Combines prompt fix (synchronous guidance) with tracking fix (Agent-based research detection) |
+| 2 | Address context growth (41% trend) | Context/turn growing from 50k→96k across recent iterations. But per-session growth is structural (more files = more reads) and adding caps is an anti-pattern. Deferred — monitor |
+| 3 | Feature iteration diagnostics | Fix `?` for module/approach in feature iterations. Would improve trend readability but doesn't change builder behavior |
+| 4 | Builder prompt comprehensive rewrite | Current prompt is 139 lines, relatively clean. Risk of breaking what works outweighs potential gains |
+| 5 | Automated behavioral evals | Would give stronger signal on agent capability vs just "tests pass." High effort, unclear ROI at this stage |
+
+### Expected effects
+
+1. Builder iteration 523 should perform direct web searches (WebSearch/WebFetch) during research phase, not delegation
+2. Research results should be available before brainstorming, informing candidate selection
+3. parse-log.py --trend accurately tracks both direct (WebSearch/WebFetch) and delegated (Agent-based) research
+4. Test delta for feature iterations correctly shows actual test count changes (e.g., `+34` not `19→20 (+1)`)
+
 ## Iteration 521 — Custom Tool Builder: agent can now create new tools at runtime from Python/Node.js code
 
 Built a `custom_tool` that lets the agent dynamically create, register, and persist custom tools — transforming KOTA from a fixed-tool agent into a self-extending one.

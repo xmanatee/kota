@@ -176,7 +176,13 @@ def _extract_test_delta(texts: list[str]) -> str | None:
         if m:
             return f"{m.group(2)}→{m.group(3)} (+{m.group(1)})"
 
-    # P2: "X→Y" within 60 chars of "test"
+    # P2: "X passed (N new" — feature iteration format
+    for text in texts:
+        m = re.search(r"\d+\s+passed\s+\((\d+)\s+new", text, re.I)
+        if m:
+            return f"+{m.group(1)}"
+
+    # P3: "X→Y" within 60 chars of "test"
     for text in texts:
         for m in re.finditer(r"(\d+)\s*(?:→|->)\s*(\d+)", text):
             before, after = int(m.group(1)), int(m.group(2))
@@ -187,7 +193,7 @@ def _extract_test_delta(texts: list[str]) -> str | None:
             if "test" in text[start:end].lower():
                 return f"{before}→{after} (+{after - before})"
 
-    # P3: "+N tests" or "N new tests"
+    # P4: "+N tests" or "N new tests"
     for text in texts:
         m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?", text, re.I)
         if m:
@@ -507,6 +513,10 @@ def _quick_parse(path: str) -> dict:
                 tc_list.append((block["name"], f"{_desc} {_cmd} {_fp}"))
                 if block["name"] in ("WebSearch", "WebFetch"):
                     web_research = True
+                if block["name"] == "Agent" and not web_research:
+                    _prompt = (inp.get("prompt", "") or inp.get("description", "") or "").lower()
+                    if any(kw in _prompt for kw in ["research", "search the web", "web search", "survey", "look up", "investigate"]):
+                        web_research = True
                 if block["name"] == "Bash":
                     desc = (inp.get("description", "") or "").lower()
                     cmd = (inp.get("command", "") or "").lower()

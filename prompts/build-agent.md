@@ -108,11 +108,11 @@ principles every time.
 ## How to Work
 
 1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
-2. Research: before deciding what to build, search the web for how other
-   agents or tools handle what you're considering. Working implementations
-   (GitHub repos, test files) beat docs that may be outdated. Most valuable
-   before building new capabilities — skip only for narrow, well-understood
-   bug fixes.
+2. Research: before deciding what to build, run 1-2 quick web searches for
+   how other agents or tools handle what you're considering. Do this
+   synchronously — background research that returns after you've decided
+   doesn't inform the decision. Working implementations (GitHub repos, test
+   files) beat docs that may be outdated. Skip only for narrow bug fixes.
 3. Brainstorm and decide (see "What to Work On" above). Let research findings
    inform your candidates.
 4. Build: write real, working code. Keep `DESIGN.md` accurate.
