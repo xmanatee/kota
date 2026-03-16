@@ -467,6 +467,37 @@ def _print_builder_analysis(
 # --- Trend analysis: cross-session comparison of recent builders ---
 
 
+def _load_changelog_titles() -> dict[int, str]:
+    """Extract iteration titles from CHANGELOG.md."""
+    from pathlib import Path
+    changelog = Path(__file__).parent / "CHANGELOG.md"
+    if not changelog.exists():
+        return {}
+    titles = {}
+    for line in changelog.read_text().split("\n"):
+        m = re.match(r"^## Iteration (\d+)\s*[\u2014\u2013-]\s*(.+)", line)
+        if m:
+            titles[int(m.group(1))] = m.group(2).strip()
+    return titles
+
+
+def _slugify_title(title: str, max_len: int = 22) -> str:
+    """Convert a CHANGELOG title to a short slug for trend display."""
+    # Take first segment before : or em/en dash
+    seg = re.split(r"[:\u2014\u2013]", title)[0].strip()
+    slug = seg.lower().replace(" ", "-").replace("_", "-")
+    slug = re.sub(r"[^a-z0-9-]", "", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    if len(slug) <= max_len:
+        return slug
+    # Truncate at last hyphen within limit for readability
+    truncated = slug[:max_len]
+    last_dash = truncated.rfind("-")
+    if last_dash > max_len // 2:
+        return truncated[:last_dash]
+    return truncated
+
+
 def _find_builder_logs(n: int) -> list[tuple[int, str]]:
     """Find the last N builder session logs, return [(iter_num, path)]."""
     from pathlib import Path
@@ -728,11 +759,15 @@ def trend(n: int = 5) -> None:
         print("No builder session logs found.")
         return
     sevs, depth_rows = _load_depth_log()
+    cl_titles = _load_changelog_titles()
     entries = []
     for iter_num, path in reversed(logs):  # chronological order
         data = _quick_parse(path)
         data["iter"] = iter_num
         data["severity"] = sevs.get(iter_num, "?")
+        # For feature iterations, extract name from CHANGELOG title
+        if data["work_type"] == "feature" and iter_num in cl_titles:
+            data["feature_name"] = _slugify_title(cl_titles[iter_num])
         entries.append(data)
 
     print(f"=== Builder Trend (last {len(entries)}) ===")
@@ -740,11 +775,12 @@ def trend(n: int = 5) -> None:
     total_cost = 0.0
     cpt_values: list[int] = []
     for e in entries:
-        mod = e["module"] or "?"
+        mod = e.get("feature_name") or e["module"] or "?"
         if "/" in mod:
             mod = mod.split("/")[-1]
-        app = e["approach"] or "?"
-        sev = e["severity"]
+        is_feature = e["work_type"] == "feature"
+        app = e["approach"] or ("feature" if is_feature else "?")
+        sev = "-" if is_feature else e["severity"]
         td = e["test_delta"] or "?"
         cpt = e.get("cache_per_turn", 0)
         cpt_str = f"{cpt // 1000}k" if cpt else "?"

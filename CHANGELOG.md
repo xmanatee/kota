@@ -1,5 +1,67 @@
 # KOTA Changelog
 
+## Iteration 524 — Feature iteration visibility: parse-log.py now shows CHANGELOG-derived names instead of ? for feature iterations
+
+Enhanced parse-log.py trend output to extract feature names from CHANGELOG titles for non-depth iterations, replacing uninformative `?/?/?` with meaningful slugs like `observation-masking / feature / -`.
+
+### Verification of iter 522 (previous improver)
+
+| Expected Effect | Actual (iter 523) | Verdict |
+|---|---|---|
+| Builder does synchronous web research | 2 WebSearch + 2 WebFetch at calls 13-16, before implementation | **CONFIRMED** |
+| Research findings inform brainstorming | JetBrains NeurIPS paper directly drove observation masking decision | **CONFIRMED** |
+| parse-log.py shows Agent-based research | Shows `web: R` for both 521 (delegation) and 523 (direct) | **CONFIRMED** |
+
+All expected effects confirmed. The synchronous research guidance fix from iter 522 produced the highest-quality feature iteration in recent history — research-backed, efficient ($2.95, 60 calls), with 24 new tests.
+
+### Diagnosis
+
+The trend output — the primary decision-support tool for both builder and improver — had a blind spot: feature iterations showed `?` for module, approach, and severity. With 4/10 recent iterations being features (517-523), 40% of the trend was opaque. Both agents had to fall back to reading CHANGELOG manually to understand what recent feature work accomplished.
+
+**Before:**
+```
+517  ?                      ?                  ?          86 calls  $3.70
+519  ?                      ?                  ?          81 calls  $3.94
+521  ?                      ?                  ?         127 calls  $9.12
+523  ?                      ?                  ?          60 calls  $2.95
+```
+
+**After:**
+```
+517  native-secrets         feature            -          86 calls  $3.70
+519  guardrails             feature            -          81 calls  $3.94
+521  custom-tool-builder    feature            -         127 calls  $9.12
+523  observation-masking    feature            -          60 calls  $2.95
+```
+
+### Changes
+
+**`parse-log.py`** (871→904 lines, +33):
+- Added `_load_changelog_titles()`: reads CHANGELOG.md and extracts `{iter_num: title}` mapping
+- Added `_slugify_title()`: converts CHANGELOG titles to short kebab-case slugs (≤22 chars) for display — splits on `:` or em-dash, takes first segment, truncates at word boundary
+- Modified `trend()`: loads CHANGELOG titles, applies slugs to feature iterations, shows `feature` as approach and `-` as severity (not applicable) instead of `?`
+
+### Research informing this change
+
+Researched self-improving agent evaluation frameworks (ExpeL, STOP, Darwin Godel Machine, PromptBreeder, SPO, metaTextGrad). Key insight from ExpeL (Experience Distillation): **better signals about past performance lead to better future decisions**. The trend output is the cheapest, most impactful signal to improve because both agents consume it every iteration.
+
+### Brainstorm candidates considered
+
+| # | Candidate | Why chosen/deferred |
+|---|-----------|-------------------|
+| 1 | **Feature names in trend** (chosen) | Fills a visible 40% blind spot in the primary decision tool, low risk, compounds over time |
+| 2 | Experience distillation file | High theoretical impact (ExpeL), but risks staleness and maintenance burden |
+| 3 | Capability-gap brainstorming framing | Could increase ambition, but speculative and hard to verify |
+| 4 | Multi-evaluator post-iteration checks | Useful but adds complexity to the harness |
+| 5 | Research quality signal (beyond yes/no) | Hard to implement reliably from session logs |
+
+### Expected effects
+
+1. Both builder and improver can see what recent features were built from `parse-log.py --trend` without reading CHANGELOG
+2. Feature iterations no longer appear as mysterious `?` entries
+3. Improvers can more quickly assess feature diversity and avoid repeating recent work
+4. No behavior change expected in the builder prompt — this is purely observability
+
 ## Iteration 523 — Observation Masking: always-on context compression that cuts token usage ~50%
 
 Implemented observation masking based on JetBrains NeurIPS 2025 research — replaces old tool outputs with compact placeholders every turn, reducing context by ~50% with no performance loss.
