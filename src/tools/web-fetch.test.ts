@@ -205,11 +205,23 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("ECONNREFUSED");
   });
 
-  it("handles timeout (abort)", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(new Error("The operation was aborted"));
+  it("handles timeout (AbortError via DOMException)", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(
+      new DOMException("The operation was aborted", "AbortError"),
+    );
     const result = await runWebFetch({ url: "https://example.com" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("timed out");
+  });
+
+  it("does not misidentify generic errors mentioning 'abort'", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(
+      new Error("Connection aborted by remote host"),
+    );
+    const result = await runWebFetch({ url: "https://example.com" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Fetch error:");
+    expect(result.content).toContain("Connection aborted by remote host");
   });
 
   it("returns (empty response) for empty body", async () => {

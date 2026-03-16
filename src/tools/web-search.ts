@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { decodeEntities } from "../html-extract.js";
 import type { ToolResult } from "./index.js";
 
 export const webSearchTool: Anthropic.Tool = {
@@ -154,10 +155,11 @@ async function fetchDuckDuckGo(
     }
     return { content: formatResults(results) };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("abort")) {
+    if (err instanceof DOMException && err.name === "AbortError" ||
+        err instanceof Error && err.name === "AbortError") {
       return { content: "Search timed out (15s)", is_error: true };
     }
+    const msg = err instanceof Error ? err.message : String(err);
     return { content: `Search error: ${msg}`, is_error: true };
   }
 }
@@ -272,15 +274,7 @@ function resolveRedirectUrl(raw: string): string {
 }
 
 function stripTags(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&nbsp;/g, " ")
+  return decodeEntities(html.replace(/<[^>]+>/g, ""))
     .replace(/\s+/g, " ")
     .trim();
 }

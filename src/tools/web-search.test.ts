@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isRateLimited, parseBraveResults, parseSearchResults } from "./web-search.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isRateLimited, parseBraveResults, parseSearchResults, runWebSearch } from "./web-search.js";
 
 describe("isRateLimited", () => {
   it("detects CAPTCHA pages", () => {
@@ -270,5 +270,113 @@ describe("parseBraveResults", () => {
     const results = parseBraveResults(data, 5);
     expect(results).toHaveLength(1);
     expect(results[0].title).toBe("Valid");
+  });
+});
+
+describe("parseSearchResults — entity decoding (cross-module: html-extract)", () => {
+  const makeResult = (title: string, snippet: string) =>
+    `<div class="result">` +
+    `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent("https://example.com")}">${title}</a>` +
+    `<a class="result__snippet">${snippet}</a>` +
+    `</div>`;
+
+  it("decodes &mdash; and &ndash; in titles", () => {
+    const html = makeResult("Python &mdash; A Language", "Guide &ndash; overview");
+    const results = parseSearchResults(html, 5);
+    expect(results[0].title).toBe("Python — A Language");
+    expect(results[0].snippet).toBe("Guide – overview");
+  });
+
+  it("decodes &hellip; in snippets (common truncation)", () => {
+    const html = makeResult("Title", "This is a long snippet&hellip;");
+    const results = parseSearchResults(html, 5);
+    expect(results[0].snippet).toBe("This is a long snippet…");
+  });
+
+  it("decodes &apos; (apostrophe)", () => {
+    const html = makeResult("It&apos;s working", "Don&apos;t panic");
+    const results = parseSearchResults(html, 5);
+    expect(results[0].title).toBe("It's working");
+    expect(results[0].snippet).toBe("Don't panic");
+  });
+
+  it("decodes &trade; &copy; &reg; in titles", () => {
+    const html = makeResult("Product&trade; by Corp&copy; &reg;", "Info");
+    const results = parseSearchResults(html, 5);
+    expect(results[0].title).toBe("Product™ by Corp© ®");
+  });
+
+  it("decodes &bull; and &middot; separators", () => {
+    const html = makeResult("A &bull; B &middot; C", "separator test");
+    const results = parseSearchResults(html, 5);
+    expect(results[0].title).toBe("A • B · C");
+  });
+
+  it("decodes &laquo; and &raquo; quotation marks", () => {
+    const html = makeResult("&laquo;Quoted&raquo;", "text");
+    const results = parseSearchResults(html, 5);
+    expect(results[0].title).toBe("«Quoted»");
+  });
+
+  it("decodes mixed named and numeric entities together", () => {
+    const html = makeResult("A&mdash;B&#8212;C", "&hellip;more&#x2026;");
+    const results = parseSearchResults(html, 5);
+    // Both &mdash; (named) and &#8212; (numeric for em dash) should decode
+    expect(results[0].title).toBe("A—B—C");
+    expect(results[0].snippet).toBe("…more…");
+  });
+
+  it("fallback parser also decodes extended entities", () => {
+    // No div.result blocks → triggers fallback parser
+    const html =
+      `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent("https://example.com")}">Title &mdash; test</a>` +
+      `<a class="result__snippet">Snippet&hellip;</a>`;
+    const results = parseSearchResults(html, 5);
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Title — test");
+    expect(results[0].snippet).toBe("Snippet…");
+  });
+});
+
+describe("runWebSearch — abort detection", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    delete process.env.BRAVE_SEARCH_API_KEY;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("detects AbortError by error name, not message content", () => {
+    const abortErr = new DOMException("The operation was aborted", "AbortError");
+    globalThis.fetch = vi.fn().mockRejectedValue(abortErr);
+
+    return runWebSearch({ query: "test" }).then((result) => {
+      expect(result.content).toBe("Search timed out (15s)");
+      expect(result.is_error).toBe(true);
+    });
+  });
+
+  it("does not misidentify generic errors mentioning 'abort'", () => {
+    const genericErr = new Error("Connection aborted by remote host");
+    globalThis.fetch = vi.fn().mockRejectedValue(genericErr);
+
+    return runWebSearch({ query: "test" }).then((result) => {
+      expect(result.content).toBe("Search error: Connection aborted by remote host");
+      expect(result.is_error).toBe(true);
+    });
+  });
+
+  it("handles non-abort errors normally", () => {
+    const networkErr = new Error("getaddrinfo ENOTFOUND html.duckduckgo.com");
+    globalThis.fetch = vi.fn().mockRejectedValue(networkErr);
+
+    return runWebSearch({ query: "test" }).then((result) => {
+      expect(result.content).toContain("Search error:");
+      expect(result.content).toContain("ENOTFOUND");
+      expect(result.is_error).toBe(true);
+    });
   });
 });

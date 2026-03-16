@@ -29,6 +29,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 461 | e2e | context.ts, loop.ts, compaction.ts, message-pruning.ts | critical | Fixed compact() producing consecutive same-role messages (~50% of compactions crashed with API 400); 13 new e2e tests for prune→compact→truncate pipeline |
 | 463 | friction | init.ts | high | Fixed 3 warmup bugs: git status dropped deletions/renames (silent omission), "ago" plural errors ("1 minutes ago"), ungrammatical environment labels ("2 documents files"); 10 new tests |
 | 465 | harden | tools/file-edit.ts | high | Fixed $ substitution corruption in replacement strings ($&, $$, $`, $' silently mangled output) and fuzzy-match line misdirection; 18 new edge-case tests (19→37) |
+| 467 | audit | tools/web-search.ts, html-extract.ts, tools/web-fetch.ts | high | web-search duplicated stripTags missing 11 entity types (&mdash; &hellip; etc. rendered as raw text); sweep-fixed fragile abort detection in web-search + web-fetch; 12 new tests |
 
 ## Approach Summary
 

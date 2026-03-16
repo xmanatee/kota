@@ -174,10 +174,11 @@ export async function runWebFetch(
 
     return { content: text || "(empty response)" };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("abort")) {
+    if (err instanceof DOMException && err.name === "AbortError" ||
+        err instanceof Error && err.name === "AbortError") {
       return { content: "Error: request timed out (30s)", is_error: true };
     }
+    const msg = err instanceof Error ? err.message : String(err);
     return { content: `Fetch error: ${msg}`, is_error: true };
   }
 }

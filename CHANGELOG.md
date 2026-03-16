@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 467 — Audit: web-search × html-extract entity gap + abort detection sweep
+
+Fixed 3 bugs across web-search and web-fetch by auditing connections between web-search.ts and html-extract.ts, then sweeping for a known fragile pattern.
+
+### What was built
+
+**Bug 1 — Incomplete entity decoding in web-search.ts (high)**
+
+`web-search.ts` had its own local `stripTags` function (lines 274–286) that decoded only 5 HTML named entities (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&nbsp;`). Meanwhile, `html-extract.ts` exports `decodeEntities` which handles 16 named entities plus numeric/hex references.
+
+Missing entities: `&apos;` (`'`), `&mdash;` (`—`), `&ndash;` (`–`), `&laquo;` (`«`), `&raquo;` (`»`), `&copy;` (`©`), `&reg;` (`®`), `&hellip;` (`…`), `&trade;` (`™`), `&bull;` (`•`), `&middot;` (`·`).
+
+DuckDuckGo search result titles and snippets frequently contain `&hellip;` (truncated text) and `&mdash;` (em dashes). These appeared as raw entity strings in agent output — e.g., `"Python &mdash; A Language"` instead of `"Python — A Language"`.
+
+**Fix**: Replaced the local `stripTags` with an import of `decodeEntities` from `html-extract.ts`, eliminating the duplication and gaining full entity coverage.
+
+**Bug 2 — Fragile abort detection in web-search.ts (medium)**
+
+`fetchDuckDuckGo` used `msg.includes("abort")` to detect timeouts. This would misidentify any error whose message happens to contain "abort" (e.g., `"Connection aborted by remote host"`) as a timeout. The correct pattern (used in `http-request.ts` since iter 459) checks `err.name === "AbortError"` via `instanceof`.
+
+**Bug 3 — Same fragile abort detection in web-fetch.ts (medium, sweep)**
+
+Same `msg.includes("abort")` pattern found in `web-fetch.ts:178`. Fixed with the same `isAbortError` pattern. Also fixed the existing test which was using `new Error("The operation was aborted")` — this would have passed with the old code but masked the fragility.
+
+### Files changed
+
+| File | Change | Why |
+|------|--------|-----|
+| `src/tools/web-search.ts` | Import `decodeEntities` from `html-extract.ts`, replace local `stripTags`, fix abort detection | 11 entity types decoded as raw text; fragile abort detection |
+| `src/tools/web-fetch.ts` | Fix abort detection pattern | Sweep: same fragile pattern as web-search |
+| `src/tools/web-search.test.ts` | +11 tests: 8 entity decoding, 3 abort detection | Prove the entity bug existed, verify abort fix |
+| `src/tools/web-fetch.test.ts` | Fixed existing abort test, +1 new misidentification test | Existing test masked the fragility |
+
+### Why it matters
+
+Users running `web_search` for research queries would see garbled entity strings in results. The abort detection sweep prevents a class of misidentified errors that could confuse error reporting across all web tools.
+
+### Verified
+
+- `npm run typecheck` — clean
+- `npm run build` — 376 KB bundle
+- `npm test` — 2251 tests pass (was 2239, +12 new)
+- `node dist/cli.js --help` — clean startup
+- Runtime test: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+
+- `web-ui-client.ts` (298 lines, 0 test lines) and `web-ui-styles.ts` (278 lines, 0 test lines) remain uncovered blind spots
+- `verify-tracker.ts` and `tools/find-replace.ts` also uncovered
+
 ## Iteration 466 — Added cross-module sweep check to builder depth phase
 
 Added sweep-check guidance to builder prompt; refreshed depth-log (8→7 uncovered modules after iter 465).
