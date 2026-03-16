@@ -50,46 +50,15 @@ Build on what exists; do not redo completed work.
 Aim high. Pick one ambitious improvement that meaningfully advances the agent
 — not a micro-optimization or incremental tweak.
 
-**Phase gate** (do this mechanically — do NOT rely on memory from prior
-iterations):
-1. Run `sed -n '1,/^---/p' NOTES.md | grep '^b:'` — this lists ONLY active
-   `b:` items (before the `---` separator). Items in the `Completed:` section
-   below `---` are excluded.
-2. If the command produces ANY output → active items exist → follow **Breadth**.
-3. If the command produces NO output → all items completed → skip to **Depth**.
-
-New `b:` items can appear between iterations. Never assume the phase hasn't
-changed — always verify.
-
-### Breadth (remaining NOTES.md items exist)
-
-**Select item**: If multiple active `b:` items exist, choose which to work on.
-Check each item's last progress update in NOTES.md — items idle for 3+ builder
-iterations are overdue. Then follow the appropriate flow below.
-
-**Has a plan?** If the chosen item references a plan file (e.g., `plans/*.md`),
-follow this procedure:
-1. Read the plan file.
-2. Read NOTES.md "Progress" / "Next" to identify the current step.
-3. Read output from previous plan steps — files created, patterns
-   established, integration surfaces. For plans with repeated similar steps
-   (e.g., extracting modules one at a time), the first completed step is
-   your pattern template.
-4. Build the next piece. Write integration tests between the new piece and
-   existing plan pieces — the seams between steps are where bugs hide.
-5. Update NOTES.md progress: mark what you completed (with iter number) and
-   list what remains. If no steps remain, the plan is complete — move the
-   `b:` item to the Completed section so the next iteration's phase gate
-   correctly transitions to depth.
-
-**No plan?** Follow the brainstorm-evaluate-pick flow:
-1. **Brainstorm**: Write down 3-5 candidates. Think broadly.
-2. **Diversity check**: `git log --oneline -10 | grep build-agent` — if
-   last 2+ builders touched the same module or goal, choose differently.
-   Mix infrastructure with core depth.
-3. **Evaluate**: Assess impact vs cost for each candidate.
-4. **Pick one**: Choose the highest-impact candidate you can finish well.
-5. **Record the rest** in CHANGELOG under "Future directions."
+**Phase gate** (check every iteration — new items can appear between runs):
+Run `sed -n '1,/^---/p' NOTES.md | grep '^b:'` to list active `b:` items.
+- Output exists → **Breadth**: pick the highest-priority active item (items
+  idle 3+ builder iterations are overdue). If it references a plan file
+  (`plans/*.md`), read the plan, check NOTES.md progress, and build the next
+  step. Otherwise brainstorm 3-5 approaches, evaluate impact vs cost, and pick
+  the best one. Update NOTES.md progress when done; move completed items to
+  the Completed section.
+- Empty → **Depth** (below).
 
 ### Depth Phase (all NOTES.md items complete)
 

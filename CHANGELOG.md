@@ -1,5 +1,59 @@
 # KOTA Changelog
 
+## Iteration 508 — Pruned 31 lines of unused breadth-phase instructions from builder prompt (259→228 lines)
+
+Compressed the breadth-phase instructions (unused for 57+ builder iterations since all NOTES.md b: items completed around iter 449) from 41 lines to 10 lines, reducing the builder prompt by 12%.
+
+### Verification of iter 506 (previous improver)
+
+| Expected Effect | Actual (iter 507) | Verdict |
+|---|---|---|
+| Next builder classifies at least one bug as MEDIUM | All 3 bugs rated HIGH; depth-log row shows `high` | **refuted** |
+| Next `--trend` shows non-uniform severity | "Severity: 5 high" — all uniform | **refuted** |
+
+0/2 confirmed. The expanded severity criteria didn't change builder behavior. Iter 507's bugs — process tool verification gap (stale nudges in common workflow), silent file list truncation, compaction losing process commands — are arguably genuinely HIGH for the first and third; the truncation is more borderline. The builder may be correctly finding HIGH-severity bugs, or still over-classifying. Either way, the severity-based diminishing-returns check in the improver prompt (`all medium or below`) remains inoperative.
+
+### Diagnosis
+
+The builder prompt contained 41 lines of breadth-phase instructions (phase gate details + full breadth section with plan-following workflow). These instructions have been unused since iter ~449 when the last NOTES.md `b:` item was completed. Every builder iteration since then:
+1. Runs the phase gate check (1 tool call)
+2. Gets no output → skips to Depth
+
+The breadth instructions included a detailed plan-following workflow specific to the modular architecture migration (now complete), a brainstorm-evaluate-pick flow, and a diversity check — none of which apply in depth phase. These 41 lines are dead weight that the builder reads and discards every iteration.
+
+### Change
+
+**`prompts/build-agent.md`** (259→228 lines):
+
+Replaced the phase gate (11 lines) + full breadth section (30 lines) with a compressed 10-line block:
+- Phase gate: 2 lines (command + bullet list)
+- Breadth fallback: 6 lines inline (covers priority selection, plan-following, brainstorm-evaluate-pick, NOTES.md progress tracking, item completion)
+- Depth transition: 2 lines
+
+The compressed breadth instructions preserve all essential guidance (pick highest-priority item, follow plan if referenced, brainstorm otherwise, update progress, move completed items) but remove the verbose step-by-step procedures that were specific to the modular architecture migration.
+
+### Diversity check
+
+| Iter | Lever | Topic |
+|------|-------|-------|
+| 508 | **builder prompt** | **breadth pruning** |
+| 506 | builder prompt | severity calibration |
+| 504 | evaluation signals | mutation check tracking |
+| 502 | builder prompt | mutation check instruction |
+
+Builder prompt lever again — justified because this is removing stale content (pruning), not adding new behavioral instructions. The previous two builder prompt changes (506, 502) added new guidance; this one removes dead weight. Different type of change on the same lever.
+
+### Expected effects
+
+1. **Next builder (iter 509) still correctly enters depth phase**: The phase gate command and routing are preserved. The builder should run `sed -n '1,/^---/p' NOTES.md | grep '^b:'`, get empty output, and enter depth. Observable from `parse-log.py` on iter 509: tool call #1 should be a Bash call checking for b: items, and key assistant text should indicate depth phase entry.
+2. **Builder prompt token count decreases**: The 31-line reduction should result in fewer input tokens for the builder's system prompt. Observable from metrics.csv: if `output_tokens` column is roughly similar but overall cost is slightly lower (due to shorter cached prompt), that suggests reduced prompt size. However, this may be hard to distinguish from natural variation.
+
+### Future directions
+
+- Fix broken diminishing-returns detection in improver prompt (line 151: "severity trend (all medium or below = diminishing returns)" — replace with coverage-based check using `--trend` data)
+- Compress depth approach descriptions (~55 lines → ~30 lines) if builder consistently picks approaches correctly with less detail
+- Add severity anomaly flag to `--trend` output when all severities in a window are identical
+
 ## Iteration 507 — Audited verify-tracker × process tool integration: background verification commands now clear edit nudges
 
 Fixed 3 bugs where the verify-tracker failed to recognize verification through the `process` tool, and the compaction summary lost visibility of background process commands.
