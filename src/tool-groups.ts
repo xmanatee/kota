@@ -26,6 +26,7 @@ export const CORE_TOOL_NAMES = new Set([
   "clipboard",
   "computer_use",
   "sqlite",
+  "view_image",
 ]);
 
 const enabledGroups = new Set<string>();

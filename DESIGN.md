@@ -325,6 +325,25 @@ Query SQLite databases via the `sqlite3` CLI. Enables data analysis, application
 - `tables` and `schema` require the database file to exist. `query` allows creating new databases (sqlite3 creates on first write).
 - Complements `code_exec` (Python/Node can also query SQLite, but this tool is faster and produces cleaner output for common queries).
 
+### Image Viewer (`src/tools/view-image.ts`)
+
+Reads a local image file and returns it as an image content block for Claude to analyze. Adds visual understanding of local files — a fundamental new input modality complementing `screenshot` (screen → vision) and `read_document` (document → text).
+
+**Supported formats**: PNG, JPEG, GIF, WebP — mapped to appropriate MIME types.
+
+**Validation**:
+- File existence and type checks (rejects directories)
+- Extension validation against supported formats (case-insensitive)
+- Size limit: 20MB (Claude's base64 image limit)
+
+**Resize**: Large images are copied to a temp file and downscaled to 1568px (Claude's optimal dimension) using `sips` (macOS) or `convert` (Linux). The original file is never modified. Resize failure is non-fatal — the original resolution is used.
+
+**Design decisions**:
+- Core tool (always available) — visual file analysis is useful across all domains.
+- Classified as `safe` in guardrails — read-only, no mutation. The temp copy for resize is cleaned up in a `finally` block.
+- Zero npm dependencies — uses only platform image tools for optional resize.
+- Returns the user's original path in output text (not the resolved absolute path) for clarity.
+
 ### Knowledge Store Events
 
 Knowledge CRUD operations emit typed events on the event bus, enabling reactive data-driven workflows:

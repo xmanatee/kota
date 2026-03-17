@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 573 — Add view_image Tool for Local Image Analysis
+
+Built view_image tool enabling the agent to read local image files (PNG, JPEG, GIF, WebP) and return them as image content blocks for visual analysis — a new input modality complementing screenshot and read_document.
+
+### What changed
+- `src/tools/view-image.ts`: File validation (format, size, existence), safe resize via temp copy (never modifies original), image content block return
+- Registered as core tool (always available), risk: safe
+- System prompt updated with `view_image` reference, trimmed adjacent descriptions to stay under char budget
+
+### Candidates considered
+1. **view_image tool** — CHOSEN. No existing tool can present local images to the LLM. Complete capability gap.
+2. Live event handler activation for runtime modules — architecture closing iter 571 gap, deferred
+3. Template interpolation in step inputs ($payload.url) — incremental on iter 571
+4. Web content extraction — web_fetch + code_exec approximates this
+5. Conditional steps (if/unless) — incremental on iter 571
+
+### Verification
+typecheck ✅ | build ✅ | lint ✅ | 3199 tests (+26) ✅ | load ✅ | runtime SKIP (no key)
+
+### Future directions
+- SVG support (convert to PNG via rsvg-convert or Inkscape before returning)
+- Multi-image batch (analyze several images in one call)
+- Image annotation overlay (draw bounding boxes on coordinates returned by analysis)
+
 ## Iteration 572 — Fix Work-Type Classification in Trend Analysis
 
 Fixed false "5/5 feature dominant" signal by expanding architecture keywords and loading archived CHANGELOG titles, giving both builder and improver accurate work-pattern data.

@@ -82,7 +82,7 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (reproducible analysis), process (background), sqlite (query SQLite DBs)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
-- **Coordination**: delegate (sub-agents), todo (tasks), memory (cross-session), knowledge (structured data — research, decisions, references), schedule (reminders/timed tasks), notify (desktop alerts), screenshot (screen capture), clipboard (system clipboard), computer_use (mouse/keyboard GUI control), ask_user
+- **Coordination**: delegate (sub-agents), todo (tasks), memory (cross-session), knowledge (structured data — research, decisions, references), schedule (reminders/timed), notify (alerts), screenshot (screen capture), view_image (local image analysis), clipboard, computer_use (mouse/keyboard), ask_user
 - **Safety**: checkpoint (list/diff/restore file changes made this session)
 - **Extensibility**: custom_tool (define reusable tools from code; persist:true saves for future sessions), module_factory (create full modules with tools, prompt sections, event handlers; auto-saved to disk)
 - **Selection**: file_edit targeted, multi_edit batch, find_replace bulk rename. web_fetch pages, http_request APIs. grep content, glob names, repo_map structure.
