@@ -11,17 +11,12 @@ vi.mock("./tools/index.js", () => ({
 vi.mock("./context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
 }));
-vi.mock("./tool-retry.js", () => ({
-  maybeRetry: vi.fn().mockResolvedValue(null),
-}));
 
 import { truncateToolResult } from "./context.js";
-import { maybeRetry } from "./tool-retry.js";
 import { executeTool } from "./tools/index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
 const mockTruncate = vi.mocked(truncateToolResult);
-const mockRetry = vi.mocked(maybeRetry);
 
 function toolBlock(
   name: string,
@@ -137,7 +132,6 @@ describe("executeToolCalls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTruncate.mockImplementation((text: string) => text);
-    mockRetry.mockResolvedValue(null);
   });
 
   it("routes tool call to executeTool and returns result", async () => {
@@ -204,28 +198,11 @@ describe("executeToolCalls", () => {
     expect(mcpManager.executeTool).not.toHaveBeenCalled();
   });
 
-  it("retries on error and uses retried result", async () => {
-    mockExecuteTool.mockResolvedValue({
-      content: "timeout",
-      is_error: true,
-    });
-    mockRetry.mockResolvedValue({ content: "success on retry" });
-    const results = await executeToolCalls(
-      [toolBlock("web_fetch", { url: "http://x" })],
-      50000,
-      false,
-    );
-    expect(mockRetry).toHaveBeenCalled();
-    expect(results[0].content).toBe("success on retry");
-    expect(results[0].is_error).toBeUndefined();
-  });
-
-  it("keeps original error when retry returns null", async () => {
+  it("passes through error for non-retryable tools (no middleware)", async () => {
     mockExecuteTool.mockResolvedValue({
       content: "permanent error",
       is_error: true,
     });
-    mockRetry.mockResolvedValue(null);
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "bad" })],
       50000,

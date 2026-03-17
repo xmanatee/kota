@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { maybeRetry, RETRY_POLICIES } from "./tool-retry.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRetryMiddleware, getRetryStats, maybeRetry, RETRY_POLICIES, resetRetryStats } from "./tool-retry.js";
 import type { ToolResult } from "./tools/index.js";
 
 // --- Shell retry policy ---
@@ -159,5 +159,168 @@ describe("maybeRetry", () => {
     expect(runner).toHaveBeenCalledWith("web_search", { query: "test" });
     expect(result!.content).toContain("results");
     vi.useRealTimers();
+  });
+});
+
+// --- createRetryMiddleware ---
+
+describe("createRetryMiddleware", () => {
+  const noSleep = () => Promise.resolve();
+  let callCount: number;
+
+  beforeEach(() => {
+    resetRetryStats();
+    callCount = 0;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetRetryStats();
+  });
+
+  it("passes through for tools without retry policy", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const result = await mw(
+      { name: "file_read", input: { path: "/a.txt" } },
+      async () => ({ content: "File not found", is_error: true }),
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.content).toBe("File not found");
+    expect(getRetryStats().totalRetries).toBe(0);
+  });
+
+  it("passes through on success (no retry needed)", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const result = await mw(
+      { name: "web_fetch", input: { url: "https://ok.com" } },
+      async () => ({ content: "<html>ok</html>" }),
+    );
+    expect(result.content).toBe("<html>ok</html>");
+    expect(result.is_error).toBeUndefined();
+    expect(getRetryStats().totalRetries).toBe(0);
+  });
+
+  it("retries web_fetch on transient network error and succeeds", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const next = async () => {
+      callCount++;
+      if (callCount === 1) return { content: "ECONNRESET", is_error: true } as ToolResult;
+      return { content: "<html>page</html>" } as ToolResult;
+    };
+    const result = await mw({ name: "web_fetch", input: { url: "https://x.com" } }, next);
+    expect(result.content).toContain("<html>page</html>");
+    expect(result.content).toContain("auto-retry");
+    expect(callCount).toBe(2);
+    expect(getRetryStats().totalRetries).toBe(1);
+    expect(getRetryStats().successAfterRetry).toBe(1);
+  });
+
+  it("retries shell timeout with adjusted input", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const call = { name: "shell", input: { command: "npm test", timeout_ms: 120_000 } };
+    const next = async () => {
+      callCount++;
+      if (callCount === 1) return { content: "Command timed out after 120s", is_error: true } as ToolResult;
+      return { content: "tests pass" } as ToolResult;
+    };
+    const result = await mw(call, next);
+    expect(result.content).toContain("tests pass");
+    expect(result.content).toContain("auto-retry");
+    expect(result.content).toContain("240s");
+    // Middleware should have mutated call.input for baseFn
+    expect(call.input.timeout_ms).toBe(240_000);
+  });
+
+  it("does not retry shell on non-timeout errors", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const result = await mw(
+      { name: "shell", input: { command: "bad" } },
+      async () => ({ content: "exit code 1", is_error: true }),
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.content).toBe("exit code 1");
+    expect(getRetryStats().totalRetries).toBe(0);
+  });
+
+  it("does not retry shell when doubled timeout exceeds max", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const result = await mw(
+      { name: "shell", input: { command: "slow", timeout_ms: 200_000 } },
+      async () => ({ content: "timed out", is_error: true }),
+    );
+    expect(result.is_error).toBe(true);
+    expect(getRetryStats().totalRetries).toBe(0);
+  });
+
+  it("returns combined error when retry also fails", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const next = async () => {
+      callCount++;
+      if (callCount === 1) return { content: "HTTP 502 Bad Gateway", is_error: true } as ToolResult;
+      return { content: "HTTP 503 Service Unavailable", is_error: true } as ToolResult;
+    };
+    const result = await mw({ name: "http_request", input: { url: "https://down.com" } }, next);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("503");
+    expect(result.content).toContain("Auto-retry also failed");
+    expect(result.content).toContain("502");
+    expect(getRetryStats().totalRetries).toBe(1);
+    expect(getRetryStats().exhausted).toBe(1);
+  });
+
+  it("does not retry web_fetch on permanent errors (404)", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    const result = await mw(
+      { name: "web_fetch", input: { url: "https://x.com/missing" } },
+      async () => ({ content: "Error: HTTP 404 Not Found", is_error: true }),
+    );
+    expect(result.is_error).toBe(true);
+    expect(getRetryStats().totalRetries).toBe(0);
+  });
+
+  it("calls sleepFn with policy.delayMs before retry", async () => {
+    const delays: number[] = [];
+    const trackingSleep = async (ms: number) => { delays.push(ms); };
+    const mw = createRetryMiddleware(trackingSleep);
+    const next = async () => {
+      callCount++;
+      if (callCount === 1) return { content: "ETIMEDOUT", is_error: true } as ToolResult;
+      return { content: "ok" } as ToolResult;
+    };
+    await mw({ name: "web_fetch", input: { url: "https://slow.com" } }, next);
+    expect(delays).toEqual([1500]); // web_fetch policy.delayMs = 1500
+  });
+
+  it("does not call sleepFn for policies without delayMs (shell)", async () => {
+    const delays: number[] = [];
+    const trackingSleep = async (ms: number) => { delays.push(ms); };
+    const mw = createRetryMiddleware(trackingSleep);
+    const next = async () => {
+      callCount++;
+      if (callCount === 1) return { content: "timed out", is_error: true } as ToolResult;
+      return { content: "ok" } as ToolResult;
+    };
+    await mw({ name: "shell", input: { command: "npm test" } }, next);
+    expect(delays).toEqual([]); // shell has no delayMs
+  });
+
+  it("stats accumulate across multiple calls", async () => {
+    const mw = createRetryMiddleware(noSleep);
+    // Two successful retries
+    for (let i = 0; i < 2; i++) {
+      let c = 0;
+      await mw(
+        { name: "web_fetch", input: { url: "https://x.com" } },
+        async () => {
+          c++;
+          if (c === 1) return { content: "ECONNRESET", is_error: true } as ToolResult;
+          return { content: "ok" } as ToolResult;
+        },
+      );
+    }
+    expect(getRetryStats().totalRetries).toBe(2);
+    expect(getRetryStats().successAfterRetry).toBe(2);
+    expect(getRetryStats().exhausted).toBe(0);
   });
 });

@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 607 — Retry middleware module
+
+Converted ad-hoc tool retry from manual `maybeRetry()` calls to a proper middleware module using the iter 599 middleware system.
+
+### What changed
+- `src/tool-retry.ts`: Added `createRetryMiddleware()` — same policies (shell timeout doubling, web transient errors), now runs inside the middleware chain with retry stats tracking
+- `src/modules/tool-retry.ts`: New module (priority 20, after cache at 10) auto-registered on startup
+- `src/tool-runner.ts`: Removed manual `maybeRetry` call; `baseFn` now reads from `call.input` so middleware can adjust it
+- 14 new tests (3522→3536), 151 test files
+
+### Candidates considered
+- **Retry middleware module** — CHOSEN. Second concrete middleware, proves the pattern for reliability use cases
+- LLM provider abstraction — higher impact but too large for one iteration
+- Rate-limiting middleware — defensive, less immediate value than retry
+
+### Verification
+Static: typecheck ✓, build ✓. Unit+integration: 3536 pass. Lint: clean. Load: ✓. Runtime: SKIP (no key).
+
+### Future directions
+- Multi-retry with exponential backoff + jitter (current: single retry, preserves existing behavior)
+- Rate-limiting middleware (third middleware type)
+- Migrate delegate.ts retry to middleware (requires delegate to use middleware chain)
+
 ## Iteration 606 — Fix Domain Concentration Signal + Fix Cycle Detection Accuracy
 
 Two metric/signal accuracy fixes improving the verifier.

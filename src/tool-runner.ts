@@ -3,7 +3,6 @@ import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { McpManager } from "./mcp-manager.js";
 import { getSecretStore } from "./secrets.js";
 import { getToolMiddleware } from "./tool-middleware.js";
-import { maybeRetry } from "./tool-retry.js";
 import { getToolTelemetry } from "./tool-telemetry.js";
 import type { ToolResultBlock } from "./tools/index.js";
 import { executeTool } from "./tools/index.js";
@@ -68,23 +67,17 @@ export async function executeToolCalls(
         }
       }
 
-      // Route MCP tools through the manager, with middleware chain
+      // Route MCP tools through the manager, with middleware chain.
+      // baseFn reads from call.input so retry middleware can adjust it
+      // (e.g. shell timeout doubling).
       const startMs = performance.now();
       const middleware = getToolMiddleware();
+      const call = { name: block.name, input };
       const baseFn = () =>
-        mcpManager?.isMcpTool(block.name)
-          ? mcpManager.executeTool(block.name, input)
-          : executeTool(block.name, input);
-      let result = await middleware.execute({ name: block.name, input }, baseFn);
-
-      // Auto-retry transient failures (timeouts, network errors)
-      if (result.is_error) {
-        const executor = mcpManager?.isMcpTool(block.name)
-          ? (n: string, i: Record<string, unknown>) => mcpManager.executeTool(n, i)
-          : executeTool;
-        const retried = await maybeRetry(block.name, input, result, executor);
-        if (retried) result = retried;
-      }
+        mcpManager?.isMcpTool(call.name)
+          ? mcpManager.executeTool(call.name, call.input)
+          : executeTool(call.name, call.input);
+      const result = await middleware.execute(call, baseFn);
 
       const durationMs = Math.round(performance.now() - startMs);
       const telemetry = getToolTelemetry();

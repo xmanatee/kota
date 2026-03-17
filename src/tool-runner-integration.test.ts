@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
+import { createRetryMiddleware, resetRetryStats } from "./tool-retry.js";
 import { executeToolCalls } from "./tool-runner.js";
 import { executeTool } from "./tools/index.js";
 
-// Mock only the leaf tool executor — let real maybeRetry and truncateToolResult run
+// Mock only the leaf tool executor — let real retry middleware and truncateToolResult run
 vi.mock("./tools/index.js", () => ({
   executeTool: vi.fn(),
 }));
@@ -16,15 +18,21 @@ const block = (name: string, input: Record<string, unknown> = {}) => ({
   input,
 });
 
-describe("executeToolCalls × tool-retry integration", () => {
+describe("executeToolCalls × tool-retry middleware integration", () => {
   beforeEach(() => {
     mockExec.mockReset();
     vi.spyOn(console, "error").mockImplementation(() => {});
+    // Register retry middleware (normally done by module loader)
+    resetToolMiddleware();
+    resetRetryStats();
+    getToolMiddleware().add("tool-retry", createRetryMiddleware(), { priority: 20 });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+    resetToolMiddleware();
+    resetRetryStats();
   });
 
   it("retries shell timeout with doubled timeout_ms", async () => {

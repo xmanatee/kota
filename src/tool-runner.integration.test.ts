@@ -1,11 +1,13 @@
 /**
- * Cross-module integration tests: tool-runner × tool-retry
+ * Cross-module integration tests: tool-runner × tool-retry middleware
  *
- * These tests use the REAL maybeRetry (not mocked) with a mocked executeTool.
+ * These tests use the REAL retry middleware (not mocked) with a mocked executeTool.
  * They verify that retry policies fire correctly through executeToolCalls —
  * the actual integration boundary between these two modules.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
+import { createRetryMiddleware, resetRetryStats } from "./tool-retry.js";
 import { executeToolCalls } from "./tool-runner.js";
 
 // Mock executeTool and truncateToolResult, but NOT tool-retry
@@ -28,9 +30,20 @@ function toolBlock(
   return { type: "tool_use" as const, id, name, input };
 }
 
-describe("tool-runner × tool-retry integration", () => {
+describe("tool-runner × tool-retry middleware integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // Register retry middleware (normally done by module loader)
+    resetToolMiddleware();
+    resetRetryStats();
+    getToolMiddleware().add("tool-retry", createRetryMiddleware(), { priority: 20 });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetToolMiddleware();
+    resetRetryStats();
   });
 
   it("retries shell timeout with doubled timeout_ms", async () => {

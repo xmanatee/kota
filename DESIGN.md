@@ -767,6 +767,10 @@ Composable pre/post hooks for tool execution. Modules register middleware via `c
 
 Session-scoped middleware that caches deterministic read tool results (`file_read`, `grep`, `glob`, `repo_map`, `files_overview`, `read_document`, `view_image`). Cache key: tool name + canonical JSON of sorted input. Auto-invalidates the entire cache when mutating tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`, `shell`, `code_exec`, `notebook`, `process`, `computer_use`) execute. Errors are never cached. Stats (hits/misses/invalidations/size) available via `getToolCache().stats`. Registered as a module with priority 10 (runs before logging middleware). Singleton: `getToolCache()` / `resetToolCache()`.
 
+### Tool Retry Middleware (`src/tool-retry.ts`, `src/modules/tool-retry.ts`)
+
+Middleware that auto-retries transient tool failures. Per-tool policies in `RETRY_POLICIES`: `shell` retries on timeout with doubled `timeout_ms` (max 300s), `web_fetch`/`web_search`/`http_request` retry on transient network errors (ECONNRESET, ETIMEDOUT, 429, 502, 503, 504) with 1500ms delay. Permanent errors (404, 401, 403) are never retried. The middleware mutates `call.input` for input adjustment (shell timeout), so `baseFn` must read from `call.input`. Stats: `getRetryStats()` tracks totalRetries/successAfterRetry/exhausted. Registered as a module with priority 20 (after cache). Legacy `maybeRetry()` kept for delegate.ts which has its own execution loop.
+
 ### Interactive Code Execution (`src/tools/code-exec.ts`)
 
 Persistent REPL sessions (Python / Node.js) for iterative computation. Wrapper processes use a sentinel-based protocol: code lines are sent via stdin until a sentinel marker, then executed, with a done marker printed to stdout when complete. State (variables, imports) persists across calls within a session. AST-based last-expression extraction (Python) displays return values like IPython. Sessions are managed per-language and cleaned up on agent shutdown.
