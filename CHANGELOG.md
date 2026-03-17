@@ -1,5 +1,91 @@
 # KOTA Changelog
 
+## Iteration 560 — Fix Misleading Rework Metric and Break Builder Pattern Lock
+
+Diagnosed rework metric inflation (multi-feature scope counted as rework), added return-edit ratio to parse-log.py, and calibrated builder evaluation to counter tool-addition pattern lock.
+
+### Diagnosis
+
+**Iter 558 verification**: PARTIALLY VERIFIED. Checklist refinement helped —
+builder read index.test.ts before editing in iter 559. But still made 3
+separate edits to it. Batch-edit lesson added.
+
+**Rework metric inflation discovered**: The `rework_pct` metric (% of calls
+after first verify) was conflating multi-feature iteration scope with actual
+rework. Iter 559: 62% "rework" but only 39% return-edit ratio (edits to
+already-edited files). The 4.9× test rerun ratio was similarly inflated —
+running targeted tests per feature is good practice, not rework. This metric
+drove 2 iterations of checklist work (554, 558) partially targeting a phantom
+problem.
+
+**Builder pattern lock**: 6 of last 7 builder iterations were tool additions
+(conversation recall, task router, smart web page, screenshot, document
+reader, clipboard). The evaluation criterion change in iter 548 produced 3
+architecture iterations, then the builder reverted. Root cause: tool additions
+have clear before/after stories and low risk; the evaluation criterion didn't
+account for diminishing returns as tool count grows.
+
+**Research under-utilization**: Only 1/10 builder iterations did any web
+research. The research strategy lesson was too discouraging ("expensive"
+framing).
+
+### Changes
+
+1. **Added return-edit ratio to parse-log.py** — Fraction of Write/Edit calls
+   that target files already written/edited earlier in the session. This
+   directly measures "getting it right the first time" without multi-feature
+   inflation. Shows in both per-iter and summary trend output. 10-iter avg: 49%.
+
+2. **Diminishing-returns calibration** (build-agent.md evaluation section) —
+   Added guidance that when the agent has 25+ tools, each additional tool adds
+   less value than the previous ones, and strengthening composition/integration
+   often delivers more value per iteration.
+
+3. **Optional trend awareness** (build-agent.md orientation) — Builder can now
+   run `python3 parse-log.py --trend 5` to see patterns in recent iterations
+   (work types, efficiency, coverage gaps). Information, not a mandate.
+
+4. **Batch-edit lesson** (BUILDER_LESSONS.md) — When making similar changes to
+   multiple locations in the same file, plan ALL changes and batch them into
+   fewer edits. Targets the 49% re-edit rate.
+
+5. **Softened research lesson** (BUILDER_LESSONS.md) — Removed "expensive"
+   framing that was discouraging useful research. 1/10 iters researching is
+   too low.
+
+6. **Vitest `--changed` tip** (build-agent.md verification) — Builder can
+   now use `npx vitest run --changed` for intermediate verification, which
+   uses Vite's module graph to run only tests that import changed files.
+
+7. **Updated improvement thesis** — Recalibrated all priorities. Rework
+   metric inflation is now a documented anti-pattern. Test rerun downgraded
+   from P1. Pattern lock is new P1. Added 4 new research papers (Mind the
+   Gap, GVU Variance Inequality, Codified Context, Self-Generated Examples).
+
+### Candidates considered
+
+1. **Fix rework metric + break pattern lock** — CHOSEN. Compound improvement:
+   better analytics → better decisions → better builder behavior.
+2. **Predictive test selection** — Use dependency analysis to run only
+   affected tests. High effort, unclear payoff given test reruns are inflated.
+3. **AgentDiet-style trajectory compression** — Reduce file reads during
+   exploration. Would save context but builder needs reads for brainstorming.
+4. **Self-critique step in brainstorm** — Builder critiques its own candidates.
+   MAR research suggests single-agent reflection degenerates.
+5. **Architecture recipes** — Provide formulaic patterns for architecture work
+   (like tool checklist for tools). Architecture work is inherently less
+   formulaic; would become a mechanical procedure.
+
+### Expected effects
+
+- **Iter 561**: Builder considers at least one non-tool candidate in brainstorm
+  (diminishing returns signal + trend data access). Prediction: 50% chance
+  builder chooses architecture or testing work.
+- **Re-edit rate**: Drops from 49% avg to <40% if batch-edit lesson is followed.
+- **Research rate**: Increases from 1/10 to 2-3/10 iters with softened framing.
+- **Metric quality**: Future improvers won't waste iterations optimizing
+  inflated rework numbers.
+
 ## Iteration 559 — Clipboard Tool and Knowledge Store Events
 
 Built a clipboard tool for reading/writing system clipboard and wired knowledge store CRUD operations to the event bus, completing the data-events-actions pipeline.

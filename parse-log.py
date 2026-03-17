@@ -746,6 +746,33 @@ def _quick_parse(path: str) -> dict:
     # candidates that weren't chosen, causing false positives)
     work_type = "depth" if (target_mod and target_app) else "feature"
 
+    # Return-edit ratio: fraction of Write/Edit calls that target files
+    # already written/edited earlier in the session. Measures "getting it right
+    # the first time" without being inflated by multi-feature scope.
+    _doc_files_re = {"changelog.md", "depth-log.md", "notes.md", "design.md",
+                     "builder_lessons.md"}
+    _edited_files: set[str] = set()
+    _total_impl_calls = 0
+    _return_edits = 0
+    for name, s in tc_list:
+        if name not in ("Write", "Edit"):
+            continue
+        if any(d in s for d in _doc_files_re):
+            continue
+        _total_impl_calls += 1
+        # Extract file path: last whitespace-separated token (from _fp)
+        fp = s.rsplit(" ", 1)[-1].strip() if s.strip() else ""
+        if not fp:
+            continue
+        if fp in _edited_files:
+            _return_edits += 1
+        else:
+            _edited_files.add(fp)
+    return_edit_ratio = (
+        round(_return_edits / _total_impl_calls * 100)
+        if _total_impl_calls > 0 else 0
+    )
+
     # Post-implementation rework analysis: what fraction of calls come after
     # the first verification attempt following implementation?
     _doc_files = {"changelog.md", "depth-log.md", "notes.md", "design.md"}
@@ -813,6 +840,7 @@ def _quick_parse(path: str) -> dict:
         "rework_pct": rework_pct,
         "fix_cycles": fix_cycles,
         "verify_runs": verify_runs,
+        "return_edit_pct": return_edit_ratio,
     }
 
 
@@ -969,11 +997,13 @@ def trend(n: int = 5) -> None:
         rework = e.get("rework_pct", 0)
         fix_c = e.get("fix_cycles", 0)
         rework_str = f"{rework}%/{fix_c}" if rework else "0%"
+        re_pct = e.get("return_edit_pct", 0)
+        re_str = f"{re_pct}%" if re_pct else "0%"
         print(
             f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
             f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
-            f"  rsrch: {research:<3s} rework: {rework_str}"
+            f"  rsrch: {research:<3s} rework: {rework_str}  re-edit: {re_str}"
         )
         total_calls += e["calls"]
         total_cost += e["cost"]
@@ -1002,12 +1032,20 @@ def trend(n: int = 5) -> None:
             f"  Sweep: {total_sweep} total ({avg_sweep:.0f}/iter avg)"
         )
     # Rework: post-verification overhead (% of calls after first verify, fix cycles)
+    # NOTE: rework_pct is inflated for multi-feature iterations — it counts ALL
+    # calls after first verify, including legitimate second-feature work.
     rework_vals = [e.get("rework_pct", 0) for e in entries]
     total_fix = sum(e.get("fix_cycles", 0) for e in entries)
     avg_rework = sum(rework_vals) / len(rework_vals) if rework_vals else 0
+    re_vals = [e.get("return_edit_pct", 0) for e in entries]
+    avg_re = sum(re_vals) / len(re_vals) if re_vals else 0
     print(
-        f"  Rework: {avg_rework:.0f}% avg post-verify overhead, "
+        f"  Rework: {avg_rework:.0f}% post-verify overhead, "
         f"{total_fix} fix cycles total"
+    )
+    print(
+        f"  Re-edit: {avg_re:.0f}% avg (edits to already-edited files — "
+        f"lower = fewer return visits)"
     )
     # Verification breakdown: average runs per check type (>1 means reruns)
     vr_keys = ["typecheck", "test", "lint", "build"]

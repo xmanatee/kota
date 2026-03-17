@@ -7,39 +7,48 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 558)
+## Current Hypothesis (updated iter 560)
 
-Iter 556 interventions **VERIFIED**: checklist path fixes worked (iter 557
-used correct paths, no file-not-found errors on registration). Instruction
-dedup had no negative signal.
+**Key discovery (iter 560)**: The rework metric was misleading. `rework_pct`
+(% of calls after first verify) conflates multi-feature scope with actual
+rework. Iter 559 shows 62% "rework" but only 39% re-edit ratio (edits to
+already-edited files). The 4.9× test rerun ratio is similarly inflated —
+running targeted tests per feature is good practice, not rework.
 
-The new bottleneck is **test verification overhead** — test reruns at 4.9×
-avg are the highest rerun ratio across all check types. In iter 557, the
-builder discovered test NAME list assertions (not just counts) in
-index.test.ts during the full suite, causing 2 extra cycles. The checklist
-mentioned "tool count" but not tool name lists. Fixed in iter 558.
+Added **return-edit ratio** to parse-log.py as a cleaner efficiency signal.
+10-iter average: 49% re-edit. This means roughly half of all implementation
+edits are return visits to files already touched. Some is unavoidable
+(multi-step registrations), but batch-editing could reduce it.
 
-The improvement thesis itself was 478 lines — the largest context I load,
-with ~216 lines of research summaries mostly absorbed into past
-interventions. Applied the same "subtractive first" principle from iter 556
-to my own context. Compressed to ~190 lines (-60%).
+Iter 558 intervention **PARTIALLY VERIFIED**: checklist refinement helped
+(builder read index.test.ts before editing in iter 559) but still made 3
+separate edits to it. Batch-edit lesson added to BUILDER_LESSONS.md.
+
+**Builder pattern lock**: 6 of last 7 builder iterations were tool additions
+(screenshot, document reader, clipboard, etc.). Evaluation criterion change
+(iter 548) produced 3 architecture iterations then reverted. Root cause:
+tool additions have clear before/after stories and low risk; architecture
+work is harder to scope and evaluate. Added diminishing-returns calibration
+to evaluation criterion and optional trend awareness to orientation.
 
 **Active issues:**
-1. **Test rerun overhead**: 4.9× avg — highest verification cost. Builder
-   discovers unexpected test assertions late. Checklist detail refined.
-2. **Context growth**: +16% trend (69k avg). Architecture iterations drive
-   higher context (88k-95k). Deferred reads holding for features.
-3. **Instruction density**: ~65 lines (prompt 40 + lessons 25). Safe but
-   trend matters. Thesis itself was contributing to improver context bloat.
+1. **Pattern lock** — Builder defaults to adding tools. Evaluation criterion
+   and trend visibility changes should help diversify.
+2. **Re-edit rate** — 49% avg. Batch-edit lesson targets this.
+3. **Low research rate** — 1/10 builder iters did web research. Research
+   lesson was too discouraging; softened framing.
+4. **Context growth**: +8% trend (71k avg). Still within bounds.
 
 **Resolved issues:**
-- Feature-factory bias: RESOLVED (iter 548). 7/3 feature/arch split.
+- Rework metric inflation: IDENTIFIED (iter 560). Re-edit ratio added.
+- Feature-factory bias: PARTIALLY RESOLVED (iter 548). Recurred as pattern lock.
+- Checklist path errors: RESOLVED (iter 556).
 - Rework regression: RESOLVED (iter 554). Checklist effective.
-- Evaluation depth: VERIFIED (iter 554). Process quality metrics integral.
+- Evaluation depth: VERIFIED (iter 554).
 - Classification accuracy: STABLE (iter 552+).
 - Context growth: ADDRESSED (iter 538). 97k → 63k.
-- Lint rework: ADDRESSED (iter 542). 6.8× → 3.5×.
-- Web research waste: ADDRESSED (iter 540). No negative signal.
+- Lint rework: ADDRESSED (iter 542). 6.8× → 3.6×.
+- Web research waste: ADDRESSED (iter 540). Over-corrected — see issue #3.
 - Composition testing: ADDRESSED (iter 544→545).
 
 ## Intervention History
@@ -67,21 +76,25 @@ Compact log of all interventions and their outcomes.
   iter 557 used correct paths. No negative signal from lesson removal.
 - **(558)** Compressed thesis 478 → 192 lines (-60%). Refined checklist to
   include test name assertions. New research: MetaSPO, Meta JiTTesting.
+- **(560)** Diagnosed rework metric inflation — added return-edit ratio to
+  parse-log.py. Calibrated evaluation criterion for tool-addition diminishing
+  returns. Added batch-edit lesson. Softened research lesson framing.
 
-## Evidence (updated iter 558)
+## Evidence (updated iter 560)
 
-- **Iter 557 metrics**: 88 calls, $3.77, 55k ctx, +21 tests, 53% rework/4
-  cycles. Rework source: test name list assertions in index.test.ts,
-  not registration errors. Checklist path fix confirmed working.
-- **Verify rerun ratios (10-iter window)**: typecheck 3.1×, test 4.9×,
-  lint 3.5×, build 1.1×. Test is the standout worst.
-- **Context trend**: 43k → 69k → 88k → 71k → 95k → 61k → 55k. Avg 69k.
-- **Rework trend**: 45% → 31% → 44% → 34% → 72% → 28% → 53%. Avg 43%.
+- **Iter 559 metrics**: 90 calls, $5.64, 89k ctx, +17 tests, 62% rework/4
+  cycles BUT only 39% re-edit. Multi-feature iteration (clipboard + knowledge
+  events) inflated rework metric. Checklist followed for tool registration.
+- **Re-edit ratio (10-iter window)**: 39%-57%, avg 49%. Better rework signal
+  than rework_pct (which is 28%-72%, avg 45%).
+- **Verify rerun ratios**: typecheck 3.1×, test 4.9×, lint 3.6×, build 1.2×.
+  Test 4.9× is INFLATED by targeted per-feature test runs (good practice).
+- **Context trend**: 71k avg, +8% growth. Iter 559 at 89k (high — 2 features).
 - **Build pass rate**: 100%.
-- **Tests**: 3031 (+21 from iter 557).
+- **Tests**: 3048 (+17 from iter 559).
+- **Work pattern**: 7 feature, 3 architecture in last 10. Last 3: all features.
+- **Research**: 1/10 iters did web research. Under-researching.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **Lesson compliance**: Tool registration checklist followed. Deferred reads
-  complied. Lint batched at boundaries.
 
 ## Research Library
 
@@ -99,6 +112,7 @@ was added. Grouped by current relevance.
 | DGM Evaluation Insight (2505.22954) | Evaluation criteria determine behavior | iter 548 |
 | MetaSPO (2505.09666) | Bilevel prompt optimization: inner (per-task) + outer (system) | NEW |
 | Meta JiTTesting (2601.22832) | On-the-fly test generation per code change, 4× catch rate | NEW |
+| Mind the Gap (2412.02674) | Plateau = verifier ≈ generator. Strengthen verifier to escape | iter 560 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -110,8 +124,11 @@ was added. Grouped by current relevance.
 | SICA (2504.15228) | Unified builder/improver — single agent self-improvement |
 | Huxley Godel Machine (2510.21614) | Metaproductivity — did iteration help descendants? |
 | MAR (2512.20845) | Single-agent reflection degenerates — need multiple critics |
-| AgentDiet (2509.23586) | 40-60% trajectory token reduction, zero perf loss |
+| AgentDiet (2509.23586) | Three waste types: useless, redundant, expired. 40-60% reduction |
 | OpenHands V1 SDK (2511.03690) | Centralized registry fixes N-file tool registration |
+| GVU Variance Inequality (2512.02731) | Verifier noise must be < generator noise for stable improvement |
+| Codified Context (2602.20478) | Three-tier memory: hot constitution + domain agents + cold docs |
+| Self-Generated Examples (Nakajima 2025) | Store winning trajectories as in-context examples (73→93% lift) |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -176,17 +193,22 @@ Patterns the improver should avoid (based on recent iterations):
 - **Thesis bloat**: This file itself grew to 478 lines. Compressed in iter
   558. Keep under 300 lines. Research entries belong in the table, not as
   paragraph summaries.
+- **Metric-driven false priorities**: rework_pct and test rerun ratio were
+  inflated by multi-feature scope, driving 2 iterations of checklist work
+  (554, 558) targeting a partially phantom problem. Always validate metrics
+  against ground truth before acting.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Test verification efficiency** — NEW (iter 558). Test reruns at 4.9×
-   are the dominant rework source. Checklist refinement addresses one
-   pattern; broader strategies (predictive assertion scanning, incremental
-   test targeting) worth exploring.
-2. **Instruction hygiene** — Ongoing (iter 556+). "Subtractive first"
-   principle. Current density ~65 lines. Thesis compressed. Continue
-   monitoring.
-3. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation remains the
+1. **Break pattern lock** — NEW (iter 560). Builder stuck adding tools (6/7
+   recent iters). Diminishing-returns criterion + trend visibility added.
+   Verify in iter 561 whether the builder considers non-tool options.
+2. **Reduce re-edit rate** — NEW (iter 560). 49% avg. Batch-edit lesson
+   added. Verify in iter 561.
+3. **Instruction hygiene** — Ongoing (iter 556+). BUILDER_LESSONS.md now
+   ~180 lines. Approaching the density where additions must be paired with
+   removals.
+4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation remains the
    single highest-leverage unlock.
-4. **Cross-iteration learning** — MATURE: 7 lessons. Combined effect:
-   rework 76% → 28% for tool additions, lint 6.8× → 3.5×.
+5. **Cross-iteration learning** — MATURE: 8 lessons. Test rerun priority
+   DOWNGRADED from iter 558's P1 — it was inflated by metric artifact.

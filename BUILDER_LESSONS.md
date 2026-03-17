@@ -27,10 +27,9 @@ Check these before starting new work:
 
 ## Research Strategy
 
-Web research is valuable but expensive — in iter 539, 24 web calls (19% of all
-calls) were spent trying to read library documentation, with 7 HTTP errors
-(429 rate limits, 404/403 forbidden). The builder got stuck in a Fetch→Fail
-loop instead of switching strategies.
+Web research is valuable for unfamiliar APIs, novel patterns, and checking
+for recent best practices. The risk is getting stuck in a Fetch→Fail loop
+when sites are unavailable.
 
 **Failure-driven strategy switching** (inspired by PALADIN, ICLR 2026):
 
@@ -56,9 +55,8 @@ context with irrelevant documentation.
 
 ## Lint Efficiency
 
-Lint reruns averaged 6.8× pre-intervention and are now down to ~4.7× (iter
-542 intervention), but remain the worst rerun ratio across all check types.
-The anti-pattern is a "discovery-and-rework cycle":
+Lint reruns are down to ~3.6× (from 6.8× pre-intervention). The remaining
+rework comes from a "discovery-and-rework cycle":
 
 ```
 Per-file fix → Intermediate verification → Discover warnings
@@ -81,7 +79,7 @@ verification checks between auto-fix passes.
 
 ## Architecture as Capability
 
-The agent is feature-rich (25+ capabilities, 3010+ tests). Features have
+The agent is feature-rich (26+ tools, 3048+ tests). Features have
 diminishing returns when the architecture can't support them independently.
 
 Architecture work IS capability work when it enables something that wasn't
@@ -143,6 +141,21 @@ full picture before you touch anything.
 causing 5 fix cycles and 72% rework. Planning the full set of edits upfront
 and doing them in order (tool → registry → tests → docs) avoids the
 discover-fix-discover loop.
+
+## Batch Edits to the Same File
+
+When making similar changes to multiple locations in the same file, plan ALL
+changes before starting and batch them into fewer Edit calls. Re-editing a
+file multiple times costs context and increases the chance of conflicts.
+
+**Example**: Adding event emissions to 4 CRUD operations in the same file —
+do them in 1-2 edits covering all operations, not 4 separate edits. Similarly,
+if `index.test.ts` needs both a count update AND a name-list update, do them
+in one Edit with enough surrounding context to be unique.
+
+**Why this matters**: In iter 559, 39% of all implementation edits were to
+files already edited earlier in the session. Planning reduces return visits,
+saves context, and catches related changes you'd otherwise discover later.
 
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 

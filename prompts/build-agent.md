@@ -42,6 +42,8 @@ Before doing anything, understand what exists. You have full shell access:
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat DESIGN.md` — architecture and design decisions
+- `python3 parse-log.py --trend 5` — (optional) patterns in recent builder
+  iterations: what types of work were chosen, efficiency signals, coverage gaps
 
 Do NOT read source files during orientation. DESIGN.md has the architecture;
 CHANGELOG has what was built recently. Decide what to work on first, then read
@@ -102,6 +104,12 @@ Bad answers are vague ("makes the agent more capable") or dismiss structural
 work as "not adding capability" — if it makes something possible that wasn't
 before, it adds capability.
 
+Watch for diminishing returns: when the agent already has 25+ tools covering
+many input types and modalities, each additional tool adds less than the
+previous ones. At that density, strengthening how existing capabilities
+compose, integrate, and operate independently often delivers more user-facing
+value per iteration.
+
 Be skeptical and unbiased — assess relevance on your own merits, don't defer
 to any single source. Pick one and explain why. Record the rest in CHANGELOG
 under "Future directions."
@@ -152,10 +160,12 @@ principles every time.
 7. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Test incrementally — run your new/changed tests as you write them
-     (`npx vitest run src/foo.test.ts`) to get fast feedback. Run the full
-     suite (`npm test`) only once at the end to catch regressions. Write tests
-     for new modules with testable logic. Use vitest. Place tests next to
-     source as `*.test.ts`.
+     (`npx vitest run src/foo.test.ts`) to get fast feedback. For broader
+     intermediate checks, use `npx vitest run --changed` which automatically
+     runs only tests that import changed files (via Vite's module graph).
+     Run the full suite (`npm test`) only once at the end. Write tests for
+     new modules with testable logic. Use vitest. Place tests next to source
+     as `*.test.ts`.
    - Lint: `npx biome check` on only the files you changed (e.g.,
      `npx biome check src/foo.ts src/bar.ts`). The full repo has pre-existing
      lint issues — don't run `npm run lint` on the whole codebase.
