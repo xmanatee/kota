@@ -24,3 +24,24 @@ Check these before starting new work:
 - **Character budget drift**: The system prompt has a character budget test
   (currently ~12000 chars). Adding new sections to the prompt may exceed it.
   Check after any prompt-affecting changes.
+
+## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
+
+This is the #1 source of rework. When you change a shared type or interface
+(e.g., `ModuleContext`, `KotaConfig`, tool signatures), downstream consumers
+break silently until you run typecheck.
+
+**Consumer-first editing**: Before modifying any shared type:
+1. `grep -r "TypeName" src/ --include="*.ts" -l` to find ALL files that use it
+2. Note which are test files with manual stubs (they WILL break)
+3. Edit consumers to accommodate the new shape FIRST
+4. Modify the shared type LAST
+5. Run `npm run typecheck` immediately after
+
+This order matches how TypeScript's type system works — adding a required field
+to a type breaks all existing construction sites. Editing those sites first
+means the typecheck after the type change confirms everything is consistent.
+
+**Why this matters**: In iter 535, changing `ModuleContext` without pre-scanning
+consumers caused 7 fix cycles and 76% rework overhead. The same pattern
+recurred in iters 531 (57%) and 533 (63%).

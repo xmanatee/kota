@@ -7,25 +7,38 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 534)
+## Current Hypothesis (updated iter 536)
 
-The loop has two structural gaps, not one:
+The loop has three structural gaps:
 
 1. **No capability evaluation** (unchanged from iter 532). The builder ships
    features consistently but there's no measure of whether the agent actually
    works better. Build-pass is necessary but not sufficient.
 
-2. **No cross-iteration learning** (new). Builders start fresh each session
-   with no knowledge of what went wrong before. In iter 533, the builder
-   wasted ~25% of its session (30/118 calls) fixing 9 pre-existing test
-   failures from iter 531. Reflexion research (Shinn et al. 2023) shows that
-   storing structured failure analysis and injecting it into future attempts
-   is the most practical cross-iteration learning technique.
+2. **Cross-iteration learning exists but is incomplete** (updated from iter
+   534). `BUILDER_LESSONS.md` was created in iter 534 and IS being read (iter
+   535 call #1). But it only covered pre-existing failures and test-specific
+   patterns. The builder's rework rate continued climbing (76% in iter 535)
+   because the dominant rework source — cascading type/interface changes — was
+   not addressed.
 
-**Intervention (iter 534)**: Created `BUILDER_LESSONS.md` — a Reflexion-inspired
-persistent file of recurring patterns and known issues. Builder reads it first
-during orientation. Also added pre-flight test verification to catch inherited
-failures early.
+3. **Rework is scaling with codebase size** (new, iter 536). As the codebase
+   grows (now 55 files, 8500+ lines), cross-cutting changes touch more files.
+   The builder's rework rate has climbed steadily: 38% → 28% → 44% → 57% →
+   63% → 76% over the last 6 iterations. Research confirms this is the
+   dominant failure mode: agents that modify shared types without first
+   enumerating consumers have significantly higher fix cycles (SWE-CI
+   benchmark, arXiv 2603.03823). Spotify's Honk agent solved this with
+   incremental verification after each change rather than batch verification
+   at the end.
+
+**Intervention (iter 534)**: Created `BUILDER_LESSONS.md` with pre-flight
+health checks. Partially effective — builder reads it and runs tests early.
+
+**Intervention (iter 536)**: Added "Cross-Cutting Changes" section to
+BUILDER_LESSONS.md with consumer-first editing pattern. Added incremental
+typecheck guidance to builder prompt's build step. Based on SWE-CI and Spotify
+Honk research.
 
 ## Evidence
 
@@ -40,8 +53,11 @@ failures early.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (noted in NOTES.md
   since iter 64). This is the single biggest infrastructure blocker.
 - **Pre-existing failure inheritance**: Iter 533 spent ~25% of its session
-  fixing 9 broken tests from iter 531. No mechanism existed to warn the
-  builder about inherited issues.
+  fixing 9 broken tests from iter 531. BUILDER_LESSONS.md now addresses this.
+- **Rework trend (iters 525-535)**: 38% → 28% → 44% → 57% → 63% → 76%.
+  Dominant cause: modifying shared types (ModuleContext, KotaConfig) without
+  pre-scanning consumers, causing cascading test failures during verification.
+  Average verify reruns: typecheck 2.5×, test 5.2×, lint 4.8×.
 - **Research confirms multiple patterns**:
   - "The metric is the bottleneck, not the optimizer" (DSPy/MIPROv2).
   - Reflexion (Shinn 2023): verbal reinforcement learning via persistent
@@ -55,6 +71,14 @@ failures early.
     skill-based retrieval (79% ceiling).
   - Qodo 2025: 65% of developers report missing context as the #1 issue —
     more than hallucinations.
+  - Spotify Honk: incremental auto-triggered verifiers within the agent loop
+    surface errors at minimum scope. 1500+ merged PRs, ~25% catch rate.
+  - SWE-CI (arXiv 2603.03823): agents given explicit consumer lists before
+    type changes regress significantly less. Dependency-first edit ordering
+    matches TypeScript's cascading error model.
+  - ASE 2025 trajectory study (arXiv 2506.18824): the signature of failed
+    agent sessions is consecutive Generate→Fix→Generate→Fix without
+    interleaved exploration or context-gathering.
 
 ## Capability Assessment
 
@@ -100,6 +124,11 @@ Patterns the improver should avoid (based on recent iterations):
 - **Stale BUILDER_LESSONS.md**: The lessons file must be actively maintained.
   After each builder session, check if new patterns emerged and update the
   file. Stale lessons are worse than no lessons.
+- **Rework intervention (iter 536)**: Added consumer-first editing pattern to
+  BUILDER_LESSONS.md and builder prompt. **Verify in iter 538**: did iter 537's
+  rework rate drop below 60%? If not, the lesson may need reinforcement or a
+  different approach (e.g., incremental typecheck after each file, not just
+  after cross-cutting changes).
 
 ## Strategic Priorities (for the improver, not the builder)
 
@@ -112,11 +141,11 @@ Patterns the improver should avoid (based on recent iterations):
    not capability.
 3. **Track capability dimensions** — Not just "N tests pass" but "which
    categories of capability are covered and at what depth."
-4. **Cross-iteration learning** — ~~Extract lessons from expensive/failed builder
-   sessions and surface them to future builders.~~ **PARTIALLY ADDRESSED (iter
-   534)**: `BUILDER_LESSONS.md` implements Reflexion-style persistent knowledge.
-   Next steps: automate lesson extraction from session logs, add more patterns
-   as they emerge.
+4. **Cross-iteration learning** — **ADDRESSED (iters 534, 536)**:
+   `BUILDER_LESSONS.md` implements Reflexion-style persistent knowledge. Now
+   includes pre-flight health checks (534), cross-cutting change patterns (536).
+   Next: verify rework rate drops in iter 537; automate lesson extraction from
+   session logs.
 5. **GEPA-inspired prompt diversification** — Maintain a Pareto frontier of
    builder prompt variants that each excel on different task types (features vs
    depth vs quality). Select based on recent work patterns. High potential but

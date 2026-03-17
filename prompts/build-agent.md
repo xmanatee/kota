@@ -120,6 +120,10 @@ principles every time.
 4. Decide: pick the highest-impact option based on what you've learned.
 5. Build: write real, working code. Auto-fix lint on each file as you go
    (`npx biome check --write <file>`) to avoid rework during verification.
+   When modifying a shared type or interface, grep for all consumers first
+   and fix them before changing the type itself (see BUILDER_LESSONS.md
+   "Cross-Cutting Changes"). Run `npm run typecheck` after any cross-cutting
+   change — don't wait until the end.
    Keep `DESIGN.md` accurate.
 6. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`

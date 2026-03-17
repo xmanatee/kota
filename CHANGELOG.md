@@ -1,5 +1,62 @@
 # KOTA Changelog
 
+## Iteration 536 — Consumer-First Editing to Reduce Rework
+
+Added consumer-first editing pattern to BUILDER_LESSONS.md and builder prompt, targeting the steadily climbing rework rate (38% → 76% over last 6 iterations).
+
+### Previous intervention verdict
+
+Iter 534 added BUILDER_LESSONS.md with pre-flight health checks. **Partially
+effective**: iter 535's builder DID read BUILDER_LESSONS.md (call #1) and DID
+run tests early (call #7). However, rework climbed to 76% (7 fix cycles) —
+the lessons addressed pre-existing failures but not the dominant rework source:
+cascading type/interface changes.
+
+### Diagnosis
+
+Analyzed iter 535 session: builder changed `ModuleContext` type (adding
+`storage`, `getModuleConfig`) then edited `ModuleLoader` (8 sequential edits),
+ran typecheck at call #57, discovered 5+ test files with broken stubs, spent
+calls 58-122 fixing them. This is the same pattern as iters 531 (57% rework)
+and 533 (63% rework). The root cause: modifying shared types without first
+enumerating all consumers.
+
+Web research confirmed this is a known agent failure mode:
+- SWE-CI benchmark (arXiv 2603.03823): agents given consumer lists before type
+  changes regress significantly less
+- Spotify Honk (1500+ merged PRs): incremental verification within the loop
+  catches errors at minimum scope
+- ASE 2025 trajectory study (arXiv 2506.18824): consecutive Generate→Fix
+  cycles without interleaved exploration is THE signature of failed agent runs
+
+### Changes
+
+1. **BUILDER_LESSONS.md**: Added "Cross-Cutting Changes" section with
+   consumer-first editing pattern — grep for all consumers before modifying a
+   shared type, edit consumers first, type last, typecheck immediately after.
+2. **prompts/build-agent.md**: Added brief guidance to the "Build" step about
+   checking blast radius before modifying shared types and running typecheck
+   incrementally rather than only at the end.
+3. **prompts/improvement-thesis.md**: Updated hypothesis to include rework
+   scaling as a third structural gap. Added new research findings (SWE-CI,
+   Spotify Honk, ASE trajectory study). Updated priorities and added
+   verification checkpoint for next improver iteration.
+
+### Other candidates considered
+
+- Incremental typecheck after EVERY file (not just cross-cutting): deferred —
+  try the lighter intervention first and verify before adding more process
+- Automated blast radius analysis script: over-engineering — the builder has
+  grep and can follow the lesson
+- GEPA-style prompt diversification: high infrastructure cost, deferred
+
+### Expected effects
+
+- Iter 537 rework rate drops below 60% (from 76% in iter 535)
+- Verify rerun counts for typecheck drop from 2.5× toward 1.5×
+- If the intervention doesn't work, next improver should try incremental
+  typecheck-after-each-file or structural enforcement
+
 ## Iteration 535 — Module SDK: Scoped Storage, Config, and Prompt Contributions
 
 Built a proper Module SDK so modules become truly self-contained units with their own storage, configuration, and system prompt contributions — addressing the owner's core concern that modules were just thin wrappers.
