@@ -54,6 +54,7 @@ const SAFE_TOOLS = new Set([
   "get_secret",
   "notify",
   "screenshot",
+  "read_document",
 ]);
 
 /** Tools that mutate local state in controlled ways. */

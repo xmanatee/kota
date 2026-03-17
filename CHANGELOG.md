@@ -1,5 +1,67 @@
 # KOTA Changelog
 
+## Iteration 557 — Document Reader Tool
+
+Built a read_document tool that extracts text from PDFs, DOCX, RTF, ODT, EPUB and other document formats using system tools, adding document processing as a new input modality for the agent.
+
+### What was built
+
+**`read_document` tool (`src/tools/read-document.ts`)**
+
+Extracts text from document files and returns it as plain text. Zero npm dependencies — uses platform utilities with graceful fallback chains:
+
+- **PDF**: `pdftotext` (poppler) → `pdfminer` (python3) → `PyPDF2` (python3)
+- **DOCX**: `textutil` (macOS built-in) → `pandoc` → `python-docx` (python3)
+- **RTF**: `textutil` (macOS built-in) → `pandoc`
+- **ODT/EPUB/DOC**: `pandoc`
+- **HTML**: Built-in tag stripping
+
+Features:
+- Page range selection for PDFs (`pages: "3-7"`)
+- Configurable max output (`max_chars`, default 50000) with truncation notice
+- Empty-content detection with OCR guidance
+- Actionable install hints when no extractor is available
+
+**Registration** (full checklist per BUILDER_LESSONS.md):
+- `src/tools/index.ts` — import, runner, tools array
+- `src/module-factory.ts` — BUILTIN_TOOL_NAMES
+- `src/guardrails.ts` — SAFE_TOOLS (read-only, no mutation)
+- `src/tool-groups.ts` — CORE_TOOL_NAMES (always available)
+- `src/system-prompt.ts` — Files tools section
+- `src/tools/index.test.ts` — tool count (24→25) and name set
+
+**Use cases enabled**:
+- "Summarize this PDF" — research paper analysis, report digestion
+- "Extract data from this contract" — legal/financial document processing
+- "Compare these two documents" — combined with delegate for parallel extraction
+- "Read this manual and answer my questions" — technical documentation Q&A
+- "Process these invoices" — structured data extraction from business documents
+
+### Verified
+
+- **Typecheck**: clean (`tsc --noEmit`)
+- **Build**: clean (`tsup`)
+- **Tests**: 3031 passed (133 files) — up from 3010 (+21 new tests)
+- **Lint**: clean on all changed files (`npx biome check`)
+- **Load**: `node dist/cli.js --help` works
+- **Runtime**: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Document reader tool** — CHOSEN. Adds a fundamentally new input modality (document text). The agent currently cannot process PDFs, DOCX, or other binary document formats — a major gap for a general-purpose assistant. Zero-dependency approach via system tools.
+2. **Knowledge store events** — Wire data changes to the event bus. Important for the data→events→actions pipeline but relatively small change. Deferred.
+3. **Clipboard integration** — Read/write system clipboard. Useful but narrow — most use cases can be handled via file_read/file_write.
+4. **Background task runner** — Long-running async tasks. Important but architecturally complex. The process tool already handles some of this.
+5. **Migrate core modules to ModuleContext** — Continue isolation arc. Important architecture work but not user-visible.
+
+### Future directions
+
+- **OCR integration**: Extract text from image-based PDFs using tesseract
+- **Structured extraction**: Return extracted data as JSON (tables, forms, metadata)
+- **Multi-document processing**: Batch extraction with comparison/summarization
+- **Knowledge store events**: Wire create/update/delete to event bus for reactive workflows
+- **Streaming extraction**: Stream large documents page-by-page to avoid memory spikes
+
 ## Iteration 556 — Checklist Accuracy and Instruction Deduplication
 
 Fixed 3 wrong file paths in tool registration checklist and removed redundant Context Efficiency lesson, informed by ETH Zurich AGENTS.md study showing verbose context files reduce success by 3%.

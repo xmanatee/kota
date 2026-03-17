@@ -99,6 +99,7 @@ const BUILTIN_TOOL_NAMES = new Set([
 	"checkpoint",
 	"notify",
 	"screenshot",
+	"read_document",
 ]);
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,48}[a-z0-9]$/;

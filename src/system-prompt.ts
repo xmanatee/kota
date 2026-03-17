@@ -78,7 +78,7 @@ Real tasks span multiple patterns — research feeds planning, analysis produces
 
 ## Tools
 Tools load progressively. Core tools always available. Call enable_tools with group names (web, code, advanced_editing, management) or any tool name — aliases resolve automatically.
-- **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked), multi_edit (batch), find_replace (bulk rename), files_overview (directory survey)
+- **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked), multi_edit (batch), find_replace (bulk rename), files_overview (directory survey), read_document (PDF/DOCX/RTF→text)
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (Jupyter-style for reproducible analysis), process (background)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)

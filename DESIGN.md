@@ -176,6 +176,30 @@ Captures a screenshot of the screen and returns it as an image content block for
 - Returns `ToolResult.blocks` with image content block — the existing pipeline handles image blocks in tool results, observation masking, and context management.
 - Temp file cleaned up after capture regardless of success/failure.
 
+### Document Reader (`src/tools/read-document.ts`)
+
+Extracts text from PDFs, DOCX, RTF, ODT, EPUB, and other document formats using available system tools. Zero npm dependencies — leverages platform utilities with graceful fallback chains.
+
+**Extraction chains** (tried in order until one succeeds):
+- **PDF**: `pdftotext` (poppler) → `pdfminer` (python3) → `PyPDF2` (python3)
+- **DOCX**: `textutil` (macOS built-in) → `pandoc` → `python-docx` (python3)
+- **RTF**: `textutil` (macOS built-in) → `pandoc`
+- **ODT/EPUB/DOC**: `pandoc`
+- **HTML**: Built-in tag stripping (no external tools needed)
+
+**Features**:
+- Page range selection for PDFs (`pages: "3-7"`)
+- Configurable max output length (`max_chars`, default 50000)
+- Truncation with notice when output exceeds limit
+- Empty-content detection with OCR guidance
+
+**Design decisions**:
+- Core tool (always available) — document processing is useful across all domains.
+- Classified as `safe` in guardrails — read-only, no mutation.
+- Zero npm dependencies — uses only system tools. Missing tools produce actionable install hints.
+- Complements `file_read` (raw text) and `screenshot` (visual) as a third input modality.
+- 30s timeout per extraction attempt to handle large documents without hanging.
+
 ### Custom Tool Builder (`src/tools/custom-tool.ts`)
 
 Lets the agent dynamically create new tools at runtime from Python/Node.js code. Transforms the agent from a fixed-tool system into a self-extending one.

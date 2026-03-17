@@ -18,6 +18,7 @@ import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 import { notifyTool, runNotify } from "./notify.js";
 import { processTool, runProcess } from "./process.js";
+import { readDocumentTool, runReadDocument } from "./read-document.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
 import { runScreenshot, screenshotTool } from "./screenshot.js";
 import { runShell, shellTool } from "./shell.js";
@@ -62,6 +63,7 @@ const runners: Record<string, ToolRunner> = {
   module_factory: runModuleFactory,
   notify: runNotify,
   screenshot: runScreenshot,
+  read_document: runReadDocument,
 
   enable_tools: runEnableTools,
 };
@@ -92,6 +94,7 @@ const tools: Anthropic.Tool[] = [
   moduleFactoryTool,
   notifyTool,
   screenshotTool,
+  readDocumentTool,
 ];
 
 /** Returns the full tool list (core + module-registered). Read-only. */
