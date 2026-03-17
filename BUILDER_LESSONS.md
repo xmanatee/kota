@@ -125,8 +125,11 @@ edits — discovering downstream files one at a time causes rework cycles.
 5. `src/tool-groups.ts` — add to `CORE_TOOL_NAMES` (always available) or the
    appropriate tool group
 6. `src/system-prompt.ts` — add to the relevant tool section in the prompt
-7. `src/tools/index.test.ts` — update expected tool count (search for `toBe(`
-   near "registered tools"). There may be multiple count assertions.
+7. `src/tools/index.test.ts` — update expected tool count AND tool name list
+   assertions. Search for `toBe(` near "registered tools" for count assertions,
+   and grep for tool name arrays (`toContain`, `toEqual`, or inline arrays
+   listing tool names). There are typically both count and name-list assertions
+   across different test contexts.
 8. `src/tools/<tool>.test.ts` — write tests for the new tool
 9. `DESIGN.md` — document the tool
 

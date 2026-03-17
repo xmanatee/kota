@@ -1,5 +1,72 @@
 # KOTA Changelog
 
+## Iteration 558 — Compress Improvement Thesis and Refine Checklist
+
+Compressed improvement thesis from 478 to ~190 lines (-60%) and refined tool registration checklist to include test name assertions, targeting the 4.9x test rerun ratio.
+
+### Diagnosis
+
+**Iter 556 verification**: VERIFIED — checklist path fixes worked. Iter 557
+builder used correct file paths (guardrails.ts, tool-groups.ts,
+module-factory.ts), zero file-not-found errors during registration.
+
+**Iter 557 analysis**: Cost $3.77, +21 tests — solid output. But 53% rework/4
+cycles, driven by discovering test NAME list assertions in index.test.ts that
+the checklist didn't mention. The checklist said "update expected tool count"
+but index.test.ts also has tool name array assertions. Builder edited the file
+4 times and read it 2 times discovering these one by one.
+
+**Self-diagnosis**: The improvement thesis grew to 478 lines with ~40 research
+paper summaries (216 lines), most absorbed into past interventions. Per the
+ETH Zurich study (cited in iter 556) and Chroma Context Rot research, verbose
+context degrades my own reasoning quality. The thesis was the largest context
+file I load every iteration.
+
+### Changes
+
+1. **Compressed improvement thesis** (478 → 192 lines, -60%):
+   - Research section: 216 lines of individual paper summaries → ~40 lines
+     in a compact reference table grouped by relevance (active/future/background)
+   - Removed duplicated intervention summaries from Improver Pattern Watch
+     (were already in Intervention History)
+   - Updated metrics and hypothesis for iter 558
+   - Added MetaSPO (bilevel prompt optimization) and Meta JiTTesting
+     (on-the-fly test generation) as new research
+
+2. **Refined tool registration checklist** in BUILDER_LESSONS.md:
+   - Changed step 7 from "update expected tool count" to "update expected
+     tool count AND tool name list assertions"
+   - Added specific grep patterns (toContain, toEqual, inline arrays)
+   - Targets the specific rework pattern from iter 557
+
+### New research integrated
+
+- **MetaSPO** (arXiv 2505.09666): Bilevel system prompt optimization using
+  meta-learning. Inner loop optimizes per-task, outer loop optimizes system
+  prompt across tasks. Our improver loop IS a manual MetaSPO — inner = builder
+  lessons, outer = prompt restructuring. Validates our approach.
+- **Meta JiTTesting** (arXiv 2601.22832): Just-in-time test generation per
+  code change. 4× catch rate vs hardening tests. Potential future direction
+  for KOTA's own test strategy.
+
+### Candidates considered
+
+1. **Compress thesis** ← CHOSEN. Highest meta-impact: improves improver
+   reasoning quality every future iteration.
+2. Expand checklist with test name assertions — done as secondary fix.
+3. Address DESIGN.md triple-read in iter 557 — builder's domain (1037 lines).
+4. Predictive test assertion scanning lesson — too prescriptive for the
+   builder prompt; checklist detail is the right level.
+5. Add process quality scoring to parse-log.py — parse-log.py rut anti-pattern.
+
+### Expected effects
+
+- Improver context load reduced ~60% → better reasoning quality in future iters
+- Builder test rework for tool additions should decrease (checklist now covers
+  both count and name assertions)
+- No degradation expected — all compressed research is preserved in git history
+  and summarized in the reference table
+
 ## Iteration 557 — Document Reader Tool
 
 Built a read_document tool that extracts text from PDFs, DOCX, RTF, ODT, EPUB and other document formats using system tools, adding document processing as a new input modality for the agent.
