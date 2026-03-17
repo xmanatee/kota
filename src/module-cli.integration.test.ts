@@ -75,12 +75,13 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.loadAll(builtinModules);
 
     const names = loader.getLoadedModules();
-    expect(names).toHaveLength(9);
+    expect(names).toHaveLength(10);
     expect(names).toContain("memory");
     expect(names).toContain("knowledge");
     expect(names).toContain("scheduler");
     expect(names).toContain("telegram");
     expect(names).toContain("daemon");
+    expect(names).toContain("mcp-server");
     expect(names).toContain("vercel-adapter");
     expect(names).toContain("web");
     expect(names).toContain("registry");
@@ -135,7 +136,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     const loader = new ModuleLoader({});
     await loader.loadAll(builtinModules);
 
-    expect(loader.getModuleCount()).toBe(9);
+    expect(loader.getModuleCount()).toBe(10);
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
 
     await loader.unloadAll();
@@ -192,7 +193,7 @@ describe("module error resilience", () => {
     // But all builtin modules should still load
     expect(loader.getLoadedModules()).toContain("memory");
     expect(loader.getLoadedModules()).toContain("scheduler");
-    expect(loader.getModuleCount()).toBe(9);
+    expect(loader.getModuleCount()).toBe(10);
 
     errSpy.mockRestore();
     await loader.unloadAll();
@@ -302,7 +303,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // First cycle
     await loader.loadAll(builtinModules);
-    expect(loader.getModuleCount()).toBe(9);
+    expect(loader.getModuleCount()).toBe(10);
     const memResult1 = await executeTool("memory", { action: "list" });
     expect(memResult1.is_error).toBeFalsy();
 
@@ -312,7 +313,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     // Second cycle — should work identically
     const loader2 = new ModuleLoader({});
     await loader2.loadAll(builtinModules);
-    expect(loader2.getModuleCount()).toBe(9);
+    expect(loader2.getModuleCount()).toBe(10);
     const memResult2 = await executeTool("memory", { action: "list" });
     expect(memResult2.is_error).toBeFalsy();
 

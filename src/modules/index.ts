@@ -9,6 +9,7 @@
 import type { KotaModule } from "../module-types.js";
 import daemonModule from "./daemon.js";
 import knowledgeModule from "./knowledge.js";
+import mcpServerModule from "./mcp-server.js";
 import memoryModule from "./memory.js";
 import registryModule from "./registry.js";
 import schedulerModule from "./scheduler.js";
@@ -28,4 +29,5 @@ export const builtinModules: KotaModule[] = [
   vercelAdapterModule,
   webModule,
   registryModule,
+  mcpServerModule,
 ];

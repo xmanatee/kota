@@ -112,7 +112,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 9 modules: `secrets`, `memory`, `knowledge`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 10 modules: `secrets`, `memory`, `knowledge`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`, `mcp-server`.
 
 **Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
@@ -193,6 +193,45 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 - Manifest validation rejects: builtin module/tool name conflicts, invalid schemas, duplicate tool names.
 - Modules are tracked per-session (`loadedManifestModules` set) for status display.
 - `deleteManifest()` removes only the manifest file, preserving module storage data.
+
+### MCP Server (`src/mcp-server.ts`, `src/modules/mcp-server.ts`)
+
+Expose KOTA's tools via the Model Context Protocol — any MCP-compatible host (Claude Code, Cursor, VS Code, Zed) can connect and use KOTA's tools without a custom integration. Mirrors the client implementation in `mcp-client.ts` but in the server direction.
+
+**Protocol**: JSON-RPC 2.0 over stdio, implementing MCP protocol version `2024-11-05`. Handles `initialize`, `tools/list`, `tools/call`, `ping`, and `shutdown` methods.
+
+**Tool exposure**: All registered KOTA tools (core + module-registered) are exposed by default. The `--tools` flag filters to a specific set. Tool schemas are converted from Anthropic format (`input_schema`) to MCP format (`inputSchema`).
+
+**Tool execution**: `tools/call` routes through the existing `executeTool()` from the tool registry. Results are converted from KOTA's `ToolResult` (text + optional image blocks) to MCP's `CallToolResult` content blocks.
+
+**Module**: The `mcp-server` built-in module registers the `kota mcp-server` CLI command. On startup, it loads config, initializes all modules (to register their tools), then starts the stdio server.
+
+**Usage**:
+```bash
+# Expose all tools
+kota mcp-server
+
+# Expose only specific tools
+kota mcp-server --tools file_read,grep,glob,shell
+```
+
+**Claude Code integration** (`.claude/settings.local.json`):
+```json
+{
+  "mcpServers": {
+    "kota": {
+      "command": "node",
+      "args": ["dist/cli.js", "mcp-server"]
+    }
+  }
+}
+```
+
+**Design decisions**:
+- Custom JSON-RPC 2.0 implementation (no `@modelcontextprotocol/sdk` dependency) — consistent with the existing MCP client and KOTA's minimal-dependency philosophy.
+- Stdio transport only — local process-spawned integration is the standard for MCP tool servers. HTTP/SSE transport can be added later via the existing HTTP server if needed.
+- No guardrails in MCP mode — the MCP host is responsible for its own safety policies. KOTA tools execute directly.
+- Tools are exposed read-only from the registry; MCP clients cannot register new tools.
 
 ### Guardrails (`src/guardrails.ts`)
 

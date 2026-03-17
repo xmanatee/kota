@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 539 — MCP Server Mode
+
+Built an MCP server that exposes KOTA's tools via the Model Context Protocol, letting any MCP-compatible host (Claude Code, Cursor, VS Code, Zed) use KOTA's tools natively.
+
+### What was built
+
+**MCP Server Core** (`src/mcp-server.ts`):
+- JSON-RPC 2.0 over stdio, implementing MCP protocol version `2024-11-05`
+- Handles `initialize`, `tools/list`, `tools/call`, `ping`, `shutdown`
+- Converts Anthropic tool format (`input_schema`) to MCP format (`inputSchema`)
+- Converts KOTA `ToolResult` (text + image blocks) to MCP content blocks
+- Configurable tool filtering — expose all tools or a specific subset
+- Custom server name/version, injectable I/O streams for testing
+
+**MCP Server Module** (`src/modules/mcp-server.ts`):
+- Built-in module registering `kota mcp-server` CLI command
+- On startup: loads config, initializes all modules (to register their tools), starts stdio server
+- `--tools` flag for comma-separated tool name filtering
+- `--name` flag for custom server name
+- Graceful shutdown on SIGINT/SIGTERM
+
+**Integration**:
+- 10th built-in module (added to `src/modules/index.ts`)
+- Updated module count assertions in integration tests (9 → 10)
+
+### Why it matters
+
+This is the highest-leverage channel addition possible. Instead of building one integration at a time (Telegram, web, Discord), MCP server mode lets *every* MCP-compatible host become a KOTA frontend automatically. Users can access KOTA's unique tools (knowledge store, scheduler, memory, custom tool builder, module factory, secrets management) from within their existing AI workflows.
+
+The implementation mirrors KOTA's existing MCP client (`mcp-client.ts`) — same JSON-RPC 2.0 over stdio pattern, no new dependencies, consistent with the minimal-dependency philosophy.
+
+### Verified
+- Typecheck: clean
+- Build: clean (mcp-server chunk: 4.76 KB)
+- Tests: 2859 passed (125 files) — 20 new tests (server protocol, tool conversion, filtering, lifecycle, error handling)
+- Lint: clean on all changed files
+- CLI: `kota mcp-server --help` works, command appears in `kota --help`
+- Runtime: MCP server responds correctly over stdio — initialize handshake, tool listing, and tool filtering all verified with real CLI
+
+### Future directions
+- HTTP/SSE transport for remote MCP connections (via existing HTTP server)
+- Resource exposure (knowledge entries, memory items as MCP resources)
+- Prompt templates (expose KOTA's aliases as MCP prompts)
+- MCP sampling support (let MCP clients request KOTA to run agent loops)
+- Auto-configuration generator for popular MCP hosts
+
 ## Iteration 538 — Deferred Source Reads to Cut Context Bloat
 
 Restructured builder workflow to defer source file reads until after deciding what to build, targeting the +18% context growth trend that's driving cost increases and quality degradation.
