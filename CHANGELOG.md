@@ -1,5 +1,86 @@
 # KOTA Changelog
 
+## Iteration 564 — Compress Builder Prompt 184→94 Lines
+
+Compressed builder prompt by 49% by merging duplicate sections (Orient/Gather/Brainstorm/Choose/How-to-Work → single workflow), removing redundant Goals/Non-Goals, while preserving the calibrated evaluation criterion from iter 548.
+
+### Intervention verdicts (from iter 562)
+
+- **BUILDER_LESSONS compression (179→75)**: INCONCLUSIVE. Iter 563 had 112
+  calls (-16% from 561's 133) but context hit 100k (highest ever) and rework
+  was 69%/9 fix cycles. Task complexity (14-file cross-cutting provider system)
+  confounds comparison. No regression detected.
+- **Circular import lesson**: NOT TESTED. Iter 563 didn't encounter circular
+  imports.
+- **Research lesson removal**: CONFIRMED. 0 research calls in iter 563.
+  Removing the dead lesson had no negative effect.
+
+### Diagnosis
+
+The builder prompt (184 lines) was 71% of the total instruction load (~260
+lines). In iter 562 I compressed BUILDER_LESSONS from 179→75 (-58%) but left
+the prompt untouched. Research consistently shows:
+- Models degrade above ~150 instruction density (Prompt Instruction Limits paper)
+- 25k tokens is the practical sweet spot for instruction adherence (Aider findings)
+- The builder's context/turn hit 100k in iter 563 — highest recorded
+
+The prompt had significant redundancy:
+- "Do NOT read source files" stated 3 times → 1
+- "Gather signals" in §What-to-Work-On duplicated §How-to-Work steps 1-3
+- "Brainstorm" section duplicated §How-to-Work step 2
+- §Goals repeated the identity paragraph
+- §Non-Goals repeated guardrails
+
+### What changed
+
+**`prompts/build-agent.md` (184 → 94 lines, -49%)**
+
+Merged five sections (Orient, What to Work On with Gather/Brainstorm/Choose,
+Goals, Non-Goals, How to Work) into a single 6-step workflow. The evaluation
+criterion from iter 548 (architecture-as-capability, diminishing returns,
+skeptical assessment) is preserved verbatim in step 2.
+
+Total instruction load: 94 + 75 = 169 lines (was 259). Now within striking
+distance of the ~150 instruction threshold.
+
+### Candidates considered
+
+1. **Builder prompt compression** — CHOSEN. Largest remaining instruction
+   source (71% of total). Directly extends the iter 562 strategy that addressed
+   the Prompt Instruction Limits finding.
+2. **Sub-agent delegation lesson for mock updates** — The builder already used
+   Agent delegation in iter 563 (call 68). Lessons don't change strategic
+   behavior (proven pattern). Skipped.
+3. **Context growth mitigation via harness changes** — Would violate the
+   step.sh simplicity guardrail. The builder's context is Claude Code's domain.
+4. **Parse-log.py rework metric fix** — "9 fix cycles" vs "1 fix-verify cycle"
+   discrepancy is confusing but fixing metrics doesn't improve the builder.
+5. **BUILDER_LESSONS update for mock-site planning** — The Cross-Cutting
+   Changes lesson already says "Note test files with manual stubs (they WILL
+   break)." Adding more words won't improve adherence.
+
+### Expected effects
+
+- **Instruction density**: 259→169 (-35%). Closer to the ~150 threshold.
+- **Context/turn**: Should decrease slightly — lighter prompt prefix means more
+  room for actual work before degradation.
+- **Builder behavior**: Unchanged in substance — all guidance is preserved, just
+  deduplicated. Watch for regressions in research behavior, evaluation quality,
+  or verification thoroughness.
+
+### Research informing this iteration
+
+- Factory.ai context compression study: structured compression retained more
+  technical details (3.70 vs Anthropic 3.44, OpenAI 3.35) — compress structure,
+  preserve specifics.
+- Manus context engineering: append-only context + filesystem offloading.
+  Todo.md trap: 1/3 of actions spent on tracking overhead.
+- JetBrains "Complexity Trap" (NeurIPS 2025): simple observation masking
+  matches LLM summarization at lower cost.
+- Incremental vs batch verification: research favors checking after each
+  meaningful edit — the cost of cascading bad edits exceeds extra verification.
+- Aider architect/editor separation: improved edit correctness 92%→100%.
+
 ## Iteration 563 — Provider System for Swappable Core Services
 
 Built typed provider interfaces (MemoryProvider, KnowledgeProvider) and a ProviderRegistry so modules can swap core service backends via config — enabling plug-and-play memory, knowledge, and future service implementations.
