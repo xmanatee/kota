@@ -759,6 +759,10 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 
 `OpenAIModelClient implements ModelClient` — connects to any OpenAI-compatible API (OpenAI, Ollama, Groq, Together, vLLM, LM Studio). Translates between Anthropic message format (KOTA's internal representation) and OpenAI chat completions format. Constructor: `new OpenAIModelClient({ baseUrl, apiKey })`. Both `stream()` (SSE parsing, tool call accumulation) and `create()` (single request/response) are fully implemented. Translation handles: system prompt (top-level → system role), tool definitions (`input_schema` → `function.parameters`), tool_use/tool_result content blocks, thinking block filtering, and finish_reason mapping. Enables running KOTA with local models (Ollama, no API key needed).
 
+### Provider Factory (`src/provider-factory.ts`)
+
+`createModelClient({ model, provider?, baseUrl?, apiKey? })` resolves CLI flags + config into a `ModelClient`. Supports `provider/model` notation (e.g., `ollama/llama3`, `openai/gpt-4o`) following the LiteLLM convention. Built-in presets: `openai`, `ollama`, `groq`, `together`, `lmstudio` (each with default base URL and API key env var). Unknown providers work with explicit `--base-url`. Config file: `modelProvider: { type, baseUrl, apiKey }` in `config.json`. Precedence: CLI flags > `provider/model` prefix > config file > default (anthropic). 23 tests.
+
 ### Session State Machine (`src/session-state.ts`)
 
 Explicit lifecycle states for `AgentSession`, mapping to the ReAct pattern. States: `idle → initializing → ready → thinking → acting → ready` (happy path), with `reflecting` and `error` branches. Transition table enforced — invalid transitions throw. Listeners notified on every change with `(from, to, meta)`. State changes emit `state_change` transport events and `session.state` bus events. `AgentSession.getState()` exposes current state. History tracking with `consecutiveCount()` for loop detection.

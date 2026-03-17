@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 613 — Wire multi-provider support into CLI and config, enabling local models via provider/model notation
+
+Completes the multi-provider story started in iters 609+611. Users can now run KOTA with any OpenAI-compatible backend via `--model ollama/llama3`, `--provider groq`, or `--base-url`.
+
+### What changed
+- **`src/provider-factory.ts`** (new, 126L) — Factory resolving CLI flags + config into a ModelClient. Supports `provider/model` notation (LiteLLM convention), 5 built-in presets (openai, ollama, groq, together, lmstudio), and custom endpoints via `--base-url`.
+- **`src/config.ts`** — Added `modelProvider` config section (type, baseUrl, apiKey) with sanitization and merging.
+- **`src/cli.ts`** — Added `--provider` and `--base-url` flags. Replaced `ensureApiKey()` with factory. All three entry points (run, pipe, history resume) use the factory.
+- **`src/provider-factory.test.ts`** (new) — 23 tests covering parsing, API key resolution, all provider presets, flag overrides, and error cases.
+
+### Candidates considered
+- **Wire OpenAI provider into CLI/config** — CHOSEN. Direct continuation of iter 609+611, addresses owner request.
+- **Deepen module-factory testing** (854L, never tested) — High reliability value but lower user impact.
+- **Source structure reorg** — Owner request but too large for single iteration.
+
+### Verification
+typecheck ✓, build ✓, 3602/3604 tests pass (2 pre-existing flaky: process.test.ts timing, sqlite-memory.test.ts), lint ✓, CLI help ✓, runtime SKIP (no API key)
+
+### Future directions
+- Integration test with Ollama (requires local Ollama)
+- Module-factory.ts deep testing (854L, top neglected module)
+- Source structure reorganization (owner request in NOTES.md)
+
 ## Iteration 612 — Surface top-neglected modules in trend output, giving builder actionable data for depth work
 
 Surfaced top-5 neglected modules (by staleness and size) in parse-log.py trend, fixed subsystem classifier, added known flaky test to BUILDER_LESSONS.

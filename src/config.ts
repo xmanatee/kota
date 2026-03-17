@@ -41,6 +41,13 @@ export type KotaConfig = {
 
   /** Provider overrides. Keys are service types (e.g. "memory", "knowledge"), values are provider names. */
   providers?: Record<string, string>;
+
+  /** Model provider configuration for non-Anthropic backends (OpenAI-compat, Ollama, etc.). */
+  modelProvider?: {
+    type?: string;
+    baseUrl?: string;
+    apiKey?: string;
+  };
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -117,6 +124,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(providers).length > 0) out.providers = providers;
   }
 
+  if (typeof raw.modelProvider === "object" && raw.modelProvider !== null && !Array.isArray(raw.modelProvider)) {
+    const mp: KotaConfig["modelProvider"] = {};
+    const src = raw.modelProvider as Record<string, unknown>;
+    if (typeof src.type === "string" && src.type) mp.type = src.type;
+    if (typeof src.baseUrl === "string" && src.baseUrl) mp.baseUrl = src.baseUrl;
+    if (typeof src.apiKey === "string" && src.apiKey) mp.apiKey = src.apiKey;
+    if (mp.type || mp.baseUrl) out.modelProvider = mp;
+  }
+
   return out;
 }
 
@@ -144,6 +160,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.modules = { ...a.modules, ...(val as Record<string, Record<string, unknown>>) };
     } else if (key === "providers" && typeof val === "object") {
       merged.providers = { ...a.providers, ...(val as Record<string, string>) };
+    } else if (key === "modelProvider" && typeof val === "object") {
+      merged.modelProvider = { ...a.modelProvider, ...(val as KotaConfig["modelProvider"]) };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];

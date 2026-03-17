@@ -94,8 +94,6 @@ describe("API key validation", () => {
     const { stderr, exitCode } = runExpectFail("run", "hello");
     expect(exitCode).toBe(1);
     expect(stderr).toContain("ANTHROPIC_API_KEY");
-    expect(stderr).toContain("console.anthropic.com");
-    expect(stderr).toContain("export ANTHROPIC_API_KEY");
   });
 
   it("shows actionable instructions for serve without key", () => {
@@ -304,13 +302,12 @@ describe("history clear confirmation", () => {
   });
 });
 
-describe("history resume API key validation", () => {
-  it("exits with clear message when ANTHROPIC_API_KEY is unset", () => {
+describe("history resume validation", () => {
+  it("exits with error for non-existent conversation ID", () => {
     const { stderr, exitCode } = runFull(["history", "resume", "someId"], {
       env: { ANTHROPIC_API_KEY: "" },
     });
     expect(exitCode).toBe(1);
-    expect(stderr).toContain("ANTHROPIC_API_KEY");
-    expect(stderr).toContain("console.anthropic.com");
+    expect(stderr).toContain("not found");
   });
 });
