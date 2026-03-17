@@ -2,6 +2,7 @@ import { truncateToolResult } from "./context.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { McpManager } from "./mcp-manager.js";
 import { getSecretStore } from "./secrets.js";
+import { getToolMiddleware } from "./tool-middleware.js";
 import { maybeRetry } from "./tool-retry.js";
 import { getToolTelemetry } from "./tool-telemetry.js";
 import type { ToolResultBlock } from "./tools/index.js";
@@ -67,11 +68,14 @@ export async function executeToolCalls(
         }
       }
 
-      // Route MCP tools through the manager
+      // Route MCP tools through the manager, with middleware chain
       const startMs = performance.now();
-      let result = mcpManager?.isMcpTool(block.name)
-        ? await mcpManager.executeTool(block.name, input)
-        : await executeTool(block.name, input);
+      const middleware = getToolMiddleware();
+      const baseFn = () =>
+        mcpManager?.isMcpTool(block.name)
+          ? mcpManager.executeTool(block.name, input)
+          : executeTool(block.name, input);
+      let result = await middleware.execute({ name: block.name, input }, baseFn);
 
       // Auto-retry transient failures (timeouts, network errors)
       if (result.is_error) {

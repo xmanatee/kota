@@ -37,6 +37,7 @@ describe("vercel-adapter module", () => {
       registerProvider: () => {},
       getProvider: () => null,
       callTool: async () => ({ content: "" }),
+      registerMiddleware: () => {},
     };
 
     const routes = vercelAdapterModule.routes!(ctx);

@@ -12,6 +12,7 @@ import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import type { ModuleStorage } from "./module-storage.js";
+import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/index.js";
 
 /** Scoped logger available to modules via ModuleContext. */
@@ -92,6 +93,8 @@ export type ModuleContext = {
   getProvider: <T>(type: string) => T | null;
   /** Invoke a registered tool directly without going through the LLM. Skips guardrails. */
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
+  /** Register a middleware that wraps tool execution. Lower priority runs first. */
+  registerMiddleware: (name: string, fn: ToolMiddlewareFn, priority?: number) => void;
 };
 
 /**

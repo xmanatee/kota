@@ -18,6 +18,7 @@ import type { CreateSessionOptions, KotaModule, ModuleContext, ModuleEventProxy,
 import { getProviderRegistry } from "./providers.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
+import { getToolMiddleware } from "./tool-middleware.js";
 import { deregisterModuleTools, executeTool, getRegisteredTools, registerTool } from "./tools/index.js";
 
 export type ModuleLoaderOptions = {
@@ -145,6 +146,9 @@ export class ModuleLoader {
         } finally {
           this.toolCallDepth--;
         }
+      },
+      registerMiddleware: (name, fn, priority) => {
+        getToolMiddleware().add(name, fn, { priority, owner: modName });
       },
     };
   }
@@ -382,8 +386,9 @@ export class ModuleLoader {
       }
     }
 
-    // Deregister this module's tools
+    // Deregister this module's tools and middleware
     deregisterModuleTools(moduleName);
+    getToolMiddleware().removeByOwner(moduleName);
 
     // Remove prompt section, storage, and tool count references
     this.promptSections.delete(moduleName);
@@ -457,9 +462,10 @@ export class ModuleLoader {
     this.promptSections.clear();
     this.bus = null;
 
-    // Clear provider registry
+    // Clear provider registry and middleware
     const reg = getProviderRegistry();
     if (reg) reg.clear();
+    getToolMiddleware().clear();
   }
 
   /** Activate providers specified in config.providers after all modules are loaded. */

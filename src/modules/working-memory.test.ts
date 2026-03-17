@@ -133,6 +133,7 @@ describe("working-memory module tool", async () => {
 		registerProvider: () => {},
 		getProvider: () => null,
 		callTool: async () => ({ content: "" }),
+		registerMiddleware: () => {},
 	} as never;
 
 	const tools = typeof workingMemoryModule.tools === "function"

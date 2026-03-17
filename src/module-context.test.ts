@@ -313,6 +313,7 @@ describe("resolveModuleTools", () => {
     registerProvider: () => {},
     getProvider: () => null,
     callTool: async () => ({ content: "" }),
+    registerMiddleware: () => {},
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

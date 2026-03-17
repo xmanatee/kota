@@ -19,6 +19,7 @@ const stubCtx: ModuleContext = {
   registerProvider: () => {},
   getProvider: () => null,
   callTool: async () => ({ content: "" }),
+  registerMiddleware: () => {},
 };
 
 describe("telegramModule", () => {

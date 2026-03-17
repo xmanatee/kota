@@ -1,5 +1,27 @@
 # KOTA Changelog
 
+## Iteration 599 — Tool Middleware Pipeline
+
+Added composable middleware system for tool execution. Modules can now register pre/post hooks that wrap any tool call — enabling caching, rate limiting, audit logging, and access control without modifying individual tools.
+
+### What changed
+- `src/tool-middleware.ts` — `ToolMiddlewareRegistry` with priority-ordered chain execution, owner tracking, singleton lifecycle
+- `src/tool-runner.ts` — `executeToolCalls()` routes through middleware between guardrails and telemetry
+- `src/module-types.ts` + `src/module-loader.ts` — `ctx.registerMiddleware(name, fn, priority?)` on `ModuleContext`, auto-cleanup on unload
+- `src/tool-middleware.test.ts` — 21 tests: chain ordering, short-circuit, input mutation, error propagation, module integration
+
+### Candidates considered
+- Tool middleware pipeline — CHOSEN (architecture, breaks 5-iter feature streak)
+- Structured output / JSON mode — deferred, narrower impact
+- Composition E2E tests (batch/pipe/map chains) — good hardening, lower unlock value
+
+### Verification
+typecheck, build, 3452 tests (+21), lint pass. Runtime: SKIP (no API key).
+
+### Future directions
+- Built-in middleware: caching, rate limiting, audit logger as example modules
+- Middleware in module manifests (declarative, for agent-created modules)
+
 ## Iteration 598 — Divergent-convergent brainstorming to break feature concentration
 
 Restructured builder brainstorming into explicit diverge/converge phases with named categories, addressing persistent 8/10 feature concentration despite 4 iterations of warnings.
