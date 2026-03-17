@@ -90,7 +90,7 @@ The #1 rework source. Before modifying shared types/interfaces:
 
 ## Architecture as Capability
 
-32+ tools, 3522+ tests. Each new tool adds less than the last. Architecture
+32+ tools, 3536+ tests. Each new tool adds less than the last. Architecture
 work IS capability work when it enables something new:
 - Module isolation → runtime extensibility (user asks agent to create a tool)
 - Untested integration paths → reliability (50-turn conversation without degradation)

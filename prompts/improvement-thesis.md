@@ -7,36 +7,46 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 606)
+## Current Hypothesis (updated iter 608)
 
-**Key findings (iter 606)**:
-1. Domain concentration prompt fix deployed — builder now checks both
-   Domains and Work pattern lines for CONCENTRATED warnings.
-2. Fix cycle detection was severely undercounting (0 reported vs 7 actual
-   across 10 iters). Root cause: verify calls (typecheck, build) and
-   diagnostic calls (Read, Grep) between edit→test→edit broke the tracking
-   chain. Fixed both session detail and trend algorithms.
+**Key findings (iter 608)**:
+1. Domain concentration prompt fix (iter 606) was INEFFECTIVE — builder in
+   iter 607 saw CONCENTRATED warning but chose tools anyway (retry middleware).
+   After 7 iterations of domain-concentration interventions (588→606), accepting
+   as partially tractable. Soft warnings work sometimes (601: other, 603:
+   modules) but can't prevent all concentration. Root cause may be fundamental
+   to single-agent decision-making.
+2. New approach: added "Owner request" brainstorming category. Builder now
+   generates at least one candidate from pending NOTES.md `b:` items. This
+   addresses concentration indirectly — owner priorities span diverse domains.
+3. Simplified concentration section (5→2 lines) — soft guidance, not mandate.
 
-**Confirmed (iter 604→605)**: Edit-planning guidance tentatively positive
-(re-edit 38%, down from 75%). Build MISS fix confirmed. Implementation
-efficiency metrics confirmed.
+**Confirmed (iter 606→607)**: Fix cycle detection accuracy CONFIRMED (2 cycles
+reported, matches session). Edit-planning guidance inconsistent (re-edit
+bounced from 38%→52% — task-dependent, not a stable improvement).
 
 **Active issues:**
-1. **Domain concentration** — Prompt fix deployed (iter 606). 3/5 tools
-   domain in current window. Verify in iter 607-609.
+1. **Owner-priority alignment** — Builder gravitates to incremental
+   infrastructure (middleware#3) over owner-requested features (dual SDK,
+   module plug-n-play). New brainstorming category deployed (iter 608).
+   Verify in iter 609-611.
 2. **Composition verification** — Partially addressed by iter 595's E2E tests.
    Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
-4. **Implementation efficiency** — Verify reruns (test 5.6×, lint 5.4×) still
-   elevated. Edit-planning tentatively helping (re-edit 38%). Monitor.
-5. **Context growth** — 55k avg, shrinking (-23%). No action needed.
+4. **Implementation efficiency** — Verify reruns (test 5.6×, lint 4.4×) still
+   elevated. Re-edit inconsistent (37→71→75→38→52%). Monitor.
+5. **Cost volatility** — $5.40 spike in iter 607 (37% above avg). Driven by
+   73k context/turn. Likely task-specific (cross-cutting refactor) not systemic.
 
 **Resolved issues:**
+- **Domain concentration**: ACCEPTED (iters 588→608). 7 iterations of
+   interventions. Soft warnings partially work. Further prompt-level fixes
+   are diminishing returns. The "Owner request" category addresses it
+   indirectly by diversifying the candidate pool.
 - **Brainstorming quality**: RESOLVED (iters 598→600→verified 601+603).
 - **Web research drought**: RESOLVED (iter 600).
 - **Decision quality**: RESOLVED (iter 600→verified 601+603).
-- **Signal accuracy**: RESOLVED (iters 586→602→604→606). Fix cycle detection
-  and build MISS both fixed. Domain concentration signal aligned.
+- **Signal accuracy**: RESOLVED (iters 586→602→604→606).
 - **Feature concentration**: RESOLVED (iters 594→602). Work-type diversity OK.
 - **DESIGN.md growth**: RESOLVED (iter 596→597). 896 lines, healthy.
 - **DESIGN.md read bloat**: RESOLVED (iter 582→583).
@@ -162,21 +172,31 @@ efficiency metrics confirmed.
   (typecheck, build) and diagnostic calls (Read, Grep) always separate them
   in practice. 0 reported vs 7 actual across 10 iters. Fix: only Write/Agent
   break the chain. Both session detail and trend algorithms updated.
+  **Domain fix INEFFECTIVE** (607 still chose tools). **Fix cycles CONFIRMED**.
+- **(608)** Owner-priority brainstorming category + concentration simplification.
+  After 7 iterations of domain-concentration interventions with limited
+  success, accepted as partially tractable. New approach: added "Owner
+  request" as 4th brainstorming category so builder generates candidates from
+  pending NOTES.md `b:` items. Simplified concentration section (5→2 lines).
+  Research: PromptWizard (self-critique instruction refinement), S2R (trained
+  self-verification), EvolveR (trajectory principle distillation).
 
-## Evidence (updated iter 606)
+## Evidence (updated iter 608)
 
-- **Iter 605 metrics**: 81 calls, $3.32, 51k ctx, +23 tests, 1 fix cycle
-  (corrected from 0), 42% rework, 38% re-edit, 19 web research calls.
-- **5-iter trend (597-605)**: calls avg 92, cost avg $3.97, +22.2 tests/iter.
-  Context 55k avg (shrinking -23%). 3 fix cycles total (corrected from 0).
-  Re-edit 55% avg, 2.6 edits/file avg. Verify reruns: test 5.6×, lint 5.4×,
-  build 1.2×. Domains: 3/5 tools CONCENTRATED. Work pattern: 4/5 architecture,
-  diversity 46% (moderately concentrated). Web research: 3/5 iters.
-- **10-iter trend (587-605)**: 7 fix cycles total (was 0 — all undercounted).
-  Iters 591(3), 593(1), 601(2), 605(1). No false positives in 587,589,595,
-  597,599,603.
+- **Iter 607 metrics**: 93 calls, $5.40, 73k ctx, +14 tests, 2 fix cycles,
+  47% rework, 52% re-edit, 5 web research calls. Cost spike driven by
+  context/turn (cross-cutting middleware refactor with many test updates).
+- **5-iter trend (599-607)**: calls avg 92, cost avg $3.94, +21.0 tests/iter.
+  Context 54k avg (growing +6%). 5 fix cycles total. Re-edit 55% avg.
+  Verify reruns: test 5.6×, lint 4.4×,
+  build 1.4×. Domains: 3/5 tools CONCENTRATED. Work pattern: 4/5 architecture,
+  diversity 46%. Web research: 4/5 iters, 68 total (17/iter avg).
+- **Domain concentration arc**: 7 improver iterations (588→606) produced
+  signals (domain tracking, work-type tracking, diverge/converge, research
+  injection) that partially work — builder diversifies sometimes (601, 603)
+  but gravitates back (605, 607). Accepted as partially tractable.
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
-- **Instruction load**: ~100 lines builder prompt (+2 lines). Under ~150.
+- **Instruction load**: ~99 lines builder prompt (net -2 from iter 608).
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -225,6 +245,10 @@ Compressed references. Grouped by current relevance.
 | SWE-PRM taxonomy correction (2509.02360) | Taxonomy of SWE agent failures + PRM mid-trajectory feedback. +5-11pp resolution, trajectory lengths maintained | iter 604 (research) |
 | ABC-Bench (2601.11077) | r=0.87 correlation between trajectory depth (including fix cycles) and task success. Fix cycles = engagement depth, not just rework | iter 606 (research) |
 | AgentDiet (2509.23586) | Waste taxonomy for trajectories: expired/redundant/useless steps. 40-60% token reduction, no perf loss. Could classify productive vs churning fix cycles | iter 606 (research) |
+| PromptWizard (Microsoft 2025) | LLM iteratively critiques+refines its own instructions and examples in tandem. Combines exploration (diverse candidates) with exploitation (refine best) | iter 608 (research) |
+| S2R (ACL 2025) | Self-verification as trainable skill: SFT on 3.1k examples + outcome-level RL. 51→82% accuracy. Outcome-level RL > process-level for self-correction | iter 608 (research) |
+| Self-Evolving Agents Survey (2508.07407) | Unified framework: 4 evolution dimensions (memory, tools, plans, weights). Taxonomy for deciding which dimension to evolve | iter 608 (research) |
+| EvoPrompt/DEEVO (2506.00178) | Evolutionary mutation of prompts with Elo-based fitness from structured debates. Tournament selection without hand-crafted reward | iter 608 (research) |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -441,16 +465,27 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   to ensure the algorithm matches how the builder actually works, not how you
   imagine it works. This is the third metric accuracy fix (586: 3x inflation,
   604: build MISS, 606: fix cycle undercount).
+- **Know when to accept partial results**: Domain concentration was chased for
+  7 iterations (588→606) with increasingly sophisticated interventions. Each
+  partially worked but the builder found workarounds. After 7 iterations, the
+  return on further prompt tweaking was clearly negative. Signs of an
+  intractable-at-this-level problem: (a) multiple different approaches all
+  partially work, (b) the builder satisfies the letter but not the spirit,
+  (c) the root cause may be fundamental (single-agent mode collapse). When
+  you hit 3+ iterations on the same issue, consider whether to accept partial
+  results and redirect effort.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Domain concentration** — Prompt fix deployed (iter 606). 3/5 tools in
-   current window (down from 7/10). Verify in iter 607-609.
-2. **Implementation efficiency** — Verify reruns (test 5.6×, lint 5.4×) still
-   high. Edit-planning tentatively helping re-edit (38%). Monitor.
+1. **Owner-priority alignment** — Builder gravitates to incremental infra over
+   owner requests. "Owner request" brainstorming category deployed (iter 608).
+   Verify in 609-611: does the builder generate owner-request candidates?
+2. **Implementation efficiency** — Verify reruns (test 5.6×, lint 4.4×) still
+   high. Re-edit inconsistent (38→52%). Monitor for patterns.
 3. **Composition verification** — Partially addressed (iter 595 E2E tests).
    Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
 4. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
 5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-6. **Classification maintenance** — Keywords drift. May need LLM-as-judge.
+6. **Domain concentration** — ACCEPTED as partially tractable. Soft warnings
+   exist. No further prompt-level intervention planned.

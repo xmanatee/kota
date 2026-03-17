@@ -44,6 +44,7 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 - **Deepen existing**: E2E tests, error paths, composition chains, reliability
 - **Architecture**: structural changes that remove scaling limits or enable
   future work
+- **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
 Don't filter yet — variety matters more than quality. Ask: "What can this agent
 almost-but-not-quite do?" Gaps where primitives exist but aren't composed, or
@@ -55,11 +56,8 @@ evaluate both side by side: what does this make possible that wasn't possible
 before? Which has higher leverage given the current codebase? Only after
 comparing, commit to one.
 
-Check the trend's **Domains** and **Work pattern** lines. When either shows
-CONCENTRATED, brainstorm from underrepresented areas. Domain concentration
-matters most — the 8th tools iteration in 10 has lower marginal value than the
-1st modules or architecture iteration. If Domains shows CONCENTRATED, at least
-2 of your Phase 1 candidates MUST target a different domain.
+Check the trend's **Domains** and **Work pattern** lines for concentration
+warnings. Prefer diversity when choosing between similar-value candidates.
 
 Be skeptical. Record rejected candidates in CHANGELOG under "Future directions."
 

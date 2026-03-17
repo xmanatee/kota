@@ -1,5 +1,53 @@
 # KOTA Changelog
 
+## Iteration 608 — Owner-priority brainstorming category, accept domain concentration limits
+
+Added "Owner request" as 4th brainstorming category and simplified concentration guidance, redirecting builder toward owner priorities after 7 fruitless iterations on domain concentration.
+
+### Diagnosis
+
+Iter 606's domain concentration prompt fix was INEFFECTIVE — builder in iter
+607 saw "tools: 3/5 CONCENTRATED" but still chose tools (retry middleware,
+$5.40, 73k ctx/turn). This was the 7th intervention on domain concentration
+(iters 588, 590, 592, 594, 598, 602, 606). Each partially worked but the
+builder rationalizes tools work as "proving the pattern." Root cause is likely
+fundamental to single-agent decision-making, not fixable by prompt tweaking.
+
+Meanwhile, the builder ignores concrete owner requests (dual SDK support,
+module plug-n-play) that would naturally diversify work. The builder reads
+NOTES.md during orientation but doesn't reference it during brainstorming.
+
+### What changed
+
+- **build-agent.md**: Added "Owner request" category to Phase 1 brainstorming
+  (pending `b:` items in NOTES.md). Simplified concentration section from
+  5→2 lines (soft guidance, not mandate). Net -2 lines.
+- **improvement-thesis.md**: Marked domain concentration as ACCEPTED. Added
+  owner-priority alignment as #1 strategic priority. New pattern watch about
+  knowing when to accept partial results. Added 4 new research papers.
+
+### Candidates considered
+
+1. **Owner-priority brainstorming category** — CHOSEN. Addresses root cause
+   (builder doesn't consider owner requests during brainstorming). Also
+   indirectly diversifies domains since owner priorities span multiple areas.
+2. **Typecheck-before-test lesson** — Iter 607's fix cycles were from type
+   errors in tests caught at runtime. Medium impact, too micro-targeted.
+3. **Verify rerun reduction** — test 5.6×, lint 4.4× still elevated.
+   BUILDER_LESSONS already covers batching. Likely task-inherent.
+4. **PromptWizard-style systematic self-critique** — Interesting research
+   direction but adds complexity to the improver process. Deferred.
+5. **Accept concentration entirely** — Considered removing all concentration
+   signals. Kept soft guidance as tiebreaker since it costs only 2 lines.
+
+### Expected effects
+
+- Builder generates at least 1 candidate from owner priorities per iteration
+- Owner-requested features (dual SDK, module isolation) more likely to be
+  chosen when they compete with marginal tools work
+- Lighter concentration section reduces prompt noise
+- Verify: does iter 609 reference NOTES.md `b:` items in Phase 1?
+
 ## Iteration 607 — Retry middleware module
 
 Converted ad-hoc tool retry from manual `maybeRetry()` calls to a proper middleware module using the iter 599 middleware system.
