@@ -28,6 +28,11 @@ export class Context {
     this.systemPrompt = systemPrompt;
   }
 
+  /** Append additional sections to the system prompt (e.g. module contributions). */
+  appendSystemPrompt(section: string): void {
+    this.systemPrompt += section;
+  }
+
   setInputTokens(tokens: number): void {
     this.lastInputTokens = tokens;
   }

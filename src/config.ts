@@ -35,6 +35,9 @@ export type KotaConfig = {
 
   /** Guardrails — risk classification and policy enforcement for tool calls. */
   guardrails?: GuardrailsConfig;
+
+  /** Per-module configuration. Keys are module names, values are module-specific settings. */
+  modules?: Record<string, Record<string, unknown>>;
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -93,6 +96,16 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (parsed) out.guardrails = parsed;
   }
 
+  if (typeof raw.modules === "object" && raw.modules !== null && !Array.isArray(raw.modules)) {
+    const modules: Record<string, Record<string, unknown>> = {};
+    for (const [name, val] of Object.entries(raw.modules)) {
+      if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+        modules[name] = val as Record<string, unknown>;
+      }
+    }
+    if (Object.keys(modules).length > 0) out.modules = modules;
+  }
+
   return out;
 }
 
@@ -116,6 +129,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
         policies: { ...(base?.policies), ...over.policies },
         toolOverrides: over.toolOverrides ?? base?.toolOverrides,
       };
+    } else if (key === "modules" && typeof val === "object") {
+      merged.modules = { ...a.modules, ...(val as Record<string, Record<string, unknown>>) };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];

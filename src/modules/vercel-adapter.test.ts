@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ModuleStorage } from "../module-storage.js";
+import type { ModuleContext } from "../module-types.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 
 describe("vercel-adapter module", () => {
@@ -19,12 +21,14 @@ describe("vercel-adapter module", () => {
   });
 
   it("registers POST /api/chat/vercel route", () => {
-    const ctx = {
+    const ctx: ModuleContext = {
       cwd: "/tmp",
       verbose: false,
       config: { model: "test-model" } as import("../config.js").KotaConfig,
+      storage: new ModuleStorage("/tmp", "vercel-adapter"),
       registerGroup: () => {},
       getRoutes: () => [],
+      getModuleConfig: () => undefined,
     };
 
     const routes = vercelAdapterModule.routes!(ctx);

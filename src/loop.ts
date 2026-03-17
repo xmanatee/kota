@@ -234,6 +234,12 @@ export class AgentSession {
     const pluginModules = await discoverPluginModules(undefined, this.verbose);
     await this.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
 
+    // Append module prompt sections to system prompt
+    const modulePromptSections = this.moduleLoader.getPromptSections();
+    if (modulePromptSections) {
+      this.context.appendSystemPrompt(modulePromptSections);
+    }
+
     // Load persisted custom tools from .kota/tools/
     const customToolCount = loadSavedTools();
     if (customToolCount > 0 && this.verbose) {

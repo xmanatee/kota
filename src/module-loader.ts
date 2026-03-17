@@ -12,6 +12,7 @@
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
+import { ModuleStorage } from "./module-storage.js";
 import type { KotaModule, ModuleContext, RouteRegistration } from "./module-types.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { deregisterModuleTools, registerTool } from "./tools/index.js";
@@ -26,12 +27,17 @@ export class ModuleLoader {
   private eventUnsubs: (() => void)[] = [];
   /** Per-module event unsubscribe functions for targeted cleanup. */
   private moduleEventUnsubs = new Map<string, (() => void)[]>();
+  /** Per-module storage instances. */
+  private moduleStorages = new Map<string, ModuleStorage>();
   /** Original module definitions for reload support. */
   private moduleRegistry = new Map<string, KotaModule>();
+  /** Collected prompt sections from loaded modules. */
+  private promptSections = new Map<string, string>();
   /** Event bus reference for reconnecting events after reload. */
   private bus: EventBus | null = null;
   private verbose: boolean;
   private config: KotaConfig;
+  private cwd: string;
   private commandsOnly: boolean;
   /** Reentrancy guard for getRoutes() — prevents infinite recursion when
    *  a module's routes() callback calls ctx.getRoutes(). */
@@ -40,19 +46,40 @@ export class ModuleLoader {
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
     this.verbose = verbose;
+    this.cwd = process.cwd();
     this.commandsOnly = options?.commandsOnly ?? false;
   }
 
-  private createContext(): ModuleContext {
+  /** Create a module-specific context with scoped storage and config access. */
+  private createContext(moduleName?: string): ModuleContext {
+    const storage = moduleName
+      ? this.getOrCreateStorage(moduleName)
+      : new ModuleStorage(this.cwd, "_default");
+    const modName = moduleName;
     return {
-      cwd: process.cwd(),
+      cwd: this.cwd,
       verbose: this.verbose,
       config: this.config,
+      storage,
       registerGroup: (name, toolNames, pattern) => {
         registerCustomGroup(name, toolNames, pattern);
       },
       getRoutes: () => this.getRoutes(),
+      getModuleConfig: <T = Record<string, unknown>>(): T | undefined => {
+        if (!modName) return undefined;
+        return this.config.modules?.[modName] as T | undefined;
+      },
     };
+  }
+
+  /** Get or create the scoped storage for a module. */
+  private getOrCreateStorage(moduleName: string): ModuleStorage {
+    let storage = this.moduleStorages.get(moduleName);
+    if (!storage) {
+      storage = new ModuleStorage(this.cwd, moduleName);
+      this.moduleStorages.set(moduleName, storage);
+    }
+    return storage;
   }
 
   /** Register and initialize a single module. */
@@ -80,8 +107,21 @@ export class ModuleLoader {
       }
     }
 
-    const ctx = this.createContext();
+    const ctx = this.createContext(mod.name);
     if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
+
+    // Collect prompt section if provided
+    if (mod.promptSection && !this.commandsOnly) {
+      try {
+        const section = mod.promptSection(ctx);
+        if (section) {
+          this.promptSections.set(mod.name, section);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[kota] Module "${mod.name}" promptSection failed: ${msg}`);
+      }
+    }
 
     this.modules.push(mod);
     this.moduleRegistry.set(mod.name, mod);
@@ -116,12 +156,11 @@ export class ModuleLoader {
 
   /** Collect CLI commands from all loaded modules. */
   getCommands(): Command[] {
-    const ctx = this.createContext();
     const commands: Command[] = [];
     for (const mod of this.modules) {
       if (mod.commands) {
         try {
-          commands.push(...mod.commands(ctx));
+          commands.push(...mod.commands(this.createContext(mod.name)));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(
@@ -140,12 +179,11 @@ export class ModuleLoader {
     if (this.collectingRoutes) return [];
     this.collectingRoutes = true;
     try {
-      const ctx = this.createContext();
       const routes: RouteRegistration[] = [];
       for (const mod of this.modules) {
         if (mod.routes) {
           try {
-            routes.push(...mod.routes(ctx));
+            routes.push(...mod.routes(this.createContext(mod.name)));
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(
@@ -184,6 +222,21 @@ export class ModuleLoader {
     }
   }
 
+  /** Get all prompt sections contributed by loaded modules, joined with headings. */
+  getPromptSections(): string {
+    if (this.promptSections.size === 0) return "";
+    const parts: string[] = [];
+    for (const [name, section] of this.promptSections) {
+      parts.push(`\n### ${name}\n${section}`);
+    }
+    return `\n\n## Module Capabilities\n${parts.join("\n")}`;
+  }
+
+  /** Get the storage instance for a specific module. */
+  getModuleStorage(moduleName: string): ModuleStorage | undefined {
+    return this.moduleStorages.get(moduleName);
+  }
+
   /** Unload a single module by name. Returns true if found and unloaded. */
   async unload(moduleName: string): Promise<boolean> {
     const idx = this.modules.findIndex((m) => m.name === moduleName);
@@ -220,6 +273,10 @@ export class ModuleLoader {
 
     // Deregister this module's tools
     deregisterModuleTools(moduleName);
+
+    // Remove prompt section and storage reference
+    this.promptSections.delete(moduleName);
+    this.moduleStorages.delete(moduleName);
 
     // Remove from loaded list
     this.modules.splice(idx, 1);
@@ -283,6 +340,8 @@ export class ModuleLoader {
     this.modules = [];
     this.moduleEventUnsubs.clear();
     this.moduleRegistry.clear();
+    this.moduleStorages.clear();
+    this.promptSections.clear();
     this.bus = null;
   }
 

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus, getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
+import { EventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
-import { getAllTools, clearCustomTools, executeTool } from "./tools/index.js";
+import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
 function makeTool(name: string) {
   return {
@@ -588,6 +588,170 @@ describe("getRoutes reentrancy guard", () => {
     expect(routes2).toHaveLength(1);
 
     errSpy.mockRestore();
+  });
+});
+
+describe("Module SDK — storage, config, promptSection", () => {
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  it("provides scoped storage via ModuleContext", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({}, false);
+    await loader.load({ name: "storage-mod", onLoad });
+
+    const ctx = onLoad.mock.calls[0][0];
+    expect(ctx.storage).toBeDefined();
+    expect(ctx.storage.getDir()).toContain(".kota/modules/storage-mod");
+  });
+
+  it("each module gets its own isolated storage", async () => {
+    const onLoadA = vi.fn();
+    const onLoadB = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "mod-a", onLoad: onLoadA });
+    await loader.load({ name: "mod-b", onLoad: onLoadB });
+
+    const storageA = onLoadA.mock.calls[0][0].storage;
+    const storageB = onLoadB.mock.calls[0][0].storage;
+    expect(storageA.getDir()).not.toBe(storageB.getDir());
+    expect(storageA.getDir()).toContain("mod-a");
+    expect(storageB.getDir()).toContain("mod-b");
+  });
+
+  it("getModuleConfig returns the module's config section", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({
+      modules: {
+        "my-mod": { apiKey: "secret", retries: 3 },
+      },
+    });
+    await loader.load({ name: "my-mod", onLoad });
+
+    const ctx = onLoad.mock.calls[0][0];
+    const config = ctx.getModuleConfig();
+    expect(config).toEqual({ apiKey: "secret", retries: 3 });
+  });
+
+  it("getModuleConfig returns undefined when no config exists", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "no-config", onLoad });
+
+    const ctx = onLoad.mock.calls[0][0];
+    expect(ctx.getModuleConfig()).toBeUndefined();
+  });
+
+  it("collects promptSection from modules", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "helper-mod",
+      promptSection: () => "Use the helper tool for quick lookups.",
+    });
+
+    const sections = loader.getPromptSections();
+    expect(sections).toContain("## Module Capabilities");
+    expect(sections).toContain("### helper-mod");
+    expect(sections).toContain("Use the helper tool for quick lookups.");
+  });
+
+  it("skips promptSection that returns undefined", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "silent-mod",
+      promptSection: () => undefined,
+    });
+
+    expect(loader.getPromptSections()).toBe("");
+  });
+
+  it("handles promptSection errors gracefully", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "bad-prompt",
+      promptSection: () => { throw new Error("prompt boom"); },
+    });
+
+    expect(loader.getPromptSections()).toBe("");
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Module "bad-prompt" promptSection failed'),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("collects multiple prompt sections in load order", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "mod-a",
+      promptSection: () => "Section A content.",
+    });
+    await loader.load({
+      name: "mod-b",
+      promptSection: () => "Section B content.",
+    });
+
+    const sections = loader.getPromptSections();
+    const idxA = sections.indexOf("### mod-a");
+    const idxB = sections.indexOf("### mod-b");
+    expect(idxA).toBeLessThan(idxB);
+    expect(sections).toContain("Section A content.");
+    expect(sections).toContain("Section B content.");
+  });
+
+  it("removes prompt section on module unload", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "removable",
+      promptSection: () => "Removable content.",
+    });
+
+    expect(loader.getPromptSections()).toContain("Removable content.");
+
+    await loader.unload("removable");
+    expect(loader.getPromptSections()).toBe("");
+  });
+
+  it("getModuleStorage returns storage for loaded module", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "stored-mod" });
+
+    const storage = loader.getModuleStorage("stored-mod");
+    expect(storage).toBeDefined();
+    expect(storage!.getDir()).toContain("stored-mod");
+  });
+
+  it("getModuleStorage returns undefined for unknown module", () => {
+    const loader = new ModuleLoader({});
+    expect(loader.getModuleStorage("unknown")).toBeUndefined();
+  });
+
+  it("cleans up storage references on unloadAll", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "cleanup-storage" });
+    expect(loader.getModuleStorage("cleanup-storage")).toBeDefined();
+
+    await loader.unloadAll();
+    expect(loader.getModuleStorage("cleanup-storage")).toBeUndefined();
+  });
+
+  it("commandsOnly mode skips promptSection collection", async () => {
+    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    await loader.load({
+      name: "skip-prompt",
+      promptSection: () => "Should not appear.",
+    });
+
+    expect(loader.getPromptSections()).toBe("");
   });
 });
 

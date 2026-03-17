@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 535 — Module SDK: Scoped Storage, Config, and Prompt Contributions
+
+Built a proper Module SDK so modules become truly self-contained units with their own storage, configuration, and system prompt contributions — addressing the owner's core concern that modules were just thin wrappers.
+
+### What was built
+
+**ModuleStorage** (`src/module-storage.ts`):
+- Scoped file-based storage under `.kota/modules/<name>/`
+- APIs: `getJSON`/`setJSON`, `getText`/`setText`, `readFile`/`writeFile`, `has`, `delete`, `list`, `clear`
+- Directory created lazily on first write; keys sanitized for filesystem safety
+- Full isolation between modules — each module's data lives in its own directory
+
+**Extended ModuleContext**:
+- `storage` — every module automatically receives its own `ModuleStorage` instance
+- `getModuleConfig<T>()` — reads from `config.modules.<moduleName>`, enabling per-module configuration
+- New `KotaConfig.modules` field: `Record<string, Record<string, unknown>>`, properly sanitized and merged
+
+**Prompt sections** on `KotaModule`:
+- New `promptSection(ctx)` callback lets modules contribute to the system prompt
+- Sections collected during loading, appended under `## Module Capabilities` with per-module headings
+- Cleaned up on unload; skipped in `commandsOnly` mode
+- 4 modules now use this: memory, knowledge, scheduler, secrets
+
+**Context.appendSystemPrompt()**: Allows appending sections to the system prompt after construction (used for module prompt sections loaded asynchronously).
+
+### Why it matters
+
+The owner's main feedback: "modules are just files with command definitions importing from core — not self-contained." This SDK gives modules the three things they need to be truly swappable:
+1. **Own data** — module storage means a replacement memory module stores data in its own namespace
+2. **Own config** — module-specific settings without polluting the global config
+3. **Own prompt** — modules teach the agent how to use them, so swapping a module also swaps its instructions
+
+This is foundational for the owner's vision of plug-n-play modules, swappable implementations, and agent-created modules.
+
+### Verified
+- Typecheck: clean
+- Build: 468KB bundle
+- Tests: 2792 passed (122 files) — 35 new tests (22 ModuleStorage + 13 Module SDK in module-loader)
+- Lint: clean on all changed files
+- CLI: loads correctly (`node dist/cli.js --help`)
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Migrate memory/knowledge implementations fully into their modules (use `ctx.storage` instead of singletons)
+- Module manifest format for external distribution
+- Agent-created modules at runtime (beyond `custom_tool`)
+- Module marketplace / registry
+- Inter-module typed contracts through the event bus
+
 ## Iteration 534 — Reflexion-Inspired Cross-Iteration Learning for the Builder
 
 Added BUILDER_LESSONS.md and pre-flight health checks so builders inherit structured knowledge from past iterations instead of starting fresh and repeating mistakes.

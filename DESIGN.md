@@ -92,6 +92,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 - **CLI commands** — subcommands that appear in `kota --help`
 - **HTTP routes** — endpoints available when the server runs
 - **Event subscriptions** — react to events on the bus
+- **Prompt sections** — contribute to the system prompt, teaching the agent how to use the module's capabilities
 
 **Module lifecycle**:
 1. `ModuleLoader.loadAll(modules)` — topologically sorts by dependencies, then loads each module
@@ -104,12 +105,14 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **ModuleContext** provided to modules:
 - `cwd`, `verbose`, `config` — environment info
+- `storage` — scoped file-based storage (`ModuleStorage`) under `.kota/modules/<name>/`. Supports JSON (`getJSON`/`setJSON`), text (`getText`/`setText`), and raw files (`readFile`/`writeFile`). Each module's data is fully isolated.
+- `getModuleConfig<T>()` — access module-specific config section from `config.modules.<name>`
 - `registerGroup(name, toolNames, pattern?)` — create/extend tool groups
 - `getRoutes()` — discover HTTP routes from all loaded modules (decouples modules from each other)
 
 **Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 8 modules: `secrets`, `memory`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 9 modules: `secrets`, `memory`, `knowledge`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`.
 
 **Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
@@ -118,6 +121,12 @@ Pluggable architecture where features are self-contained modules instead of hard
 **Hot-restart**: Individual modules can be unloaded and reloaded without stopping the KOTA process. `unload(name)` deregisters only that module's tools (via per-module ownership tracking), disconnects only its event subscriptions, and calls its `onUnload()` hook. Dependency safety: unloading a module that others depend on throws an error — unload dependents first. `reload(name)` is `unload` + `load` from the stored definition, with automatic event reconnection.
 
 **Per-module tool ownership**: `registerTool()` accepts an optional `moduleName` parameter. Tools are tracked in a `moduleToolOwners` map, enabling surgical `deregisterModuleTools(name)` — removing only one module's tools without affecting others. This replaces the previous `clearCustomTools()` nuclear approach where unloading modules or plugins would wipe out each other's tools.
+
+**Module SDK** (iter 535): Modules now receive a full SDK through `ModuleContext`:
+- **Scoped storage** (`src/module-storage.ts`): Each module gets its own directory at `.kota/modules/<name>/` with APIs for JSON, text, and raw file storage. Directory created lazily on first write, keys sanitized for filesystem safety.
+- **Module config**: Per-module configuration in `config.modules.<name>`. Example: `{ "modules": { "telegram": { "botToken": "..." } } }`.
+- **Prompt sections**: Modules contribute to the system prompt via `promptSection()`. Sections are collected during loading and appended under a `## Module Capabilities` heading with per-module `###` headings.
+- **Config type**: `KotaConfig.modules` is a `Record<string, Record<string, unknown>>`, sanitized and merged like other config sections.
 
 **Design decisions**:
 - Dependency ordering via topological sort — a module can declare dependencies on other modules.

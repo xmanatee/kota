@@ -6,11 +6,12 @@
  * same protocol. See plans/modular-architecture.md for the full vision.
  */
 
-import type { Command } from "commander";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
+import type { ModuleStorage } from "./module-storage.js";
 import type { ToolResult } from "./tools/index.js";
 
 /** A tool definition — used by modules and plugins alike. */
@@ -33,10 +34,14 @@ export type ModuleContext = {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
+  /** Scoped file-based storage for this module (`.kota/modules/<name>/`). */
+  storage: ModuleStorage;
   /** Register a custom tool group with optional auto-detect regex. */
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
   /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
   getRoutes: () => RouteRegistration[];
+  /** Get this module's config section from the KOTA config. */
+  getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
 };
 
 /**
@@ -81,6 +86,14 @@ export type KotaModule = {
    * Must return an array of unsubscribe functions for cleanup.
    */
   events?: (bus: EventBus) => (() => void)[];
+
+  /**
+   * System prompt section this module contributes.
+   * Returned string is appended to the system prompt under a heading.
+   * Enables modules to teach the agent how to use their capabilities.
+   * Called once after load; return null/undefined to skip.
+   */
+  promptSection?: (ctx: ModuleContext) => string | undefined;
 
   /** Called after the module is loaded and tools are registered. */
   onLoad?: (ctx: ModuleContext) => Promise<void> | void;

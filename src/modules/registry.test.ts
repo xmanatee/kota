@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ModuleStorage } from "../module-storage.js";
 import type { ModuleContext } from "../module-types.js";
 import registryModule from "./registry.js";
 
@@ -6,8 +7,10 @@ const stubCtx: ModuleContext = {
   cwd: "/tmp/test",
   verbose: false,
   config: {} as ModuleContext["config"],
+  storage: new ModuleStorage("/tmp/test", "registry"),
   registerGroup: () => {},
   getRoutes: () => [],
+  getModuleConfig: () => undefined,
 };
 
 describe("registryModule", () => {
