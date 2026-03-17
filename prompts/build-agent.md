@@ -42,7 +42,10 @@ Before doing anything, understand what exists. You have full shell access:
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat DESIGN.md` — architecture and design decisions
-- `ls src/` — current source files
+
+Do NOT read source files during orientation. DESIGN.md has the architecture;
+CHANGELOG has what was built recently. Decide what to work on first, then read
+only the source files you need (see "How to Work" step 5).
 
 Build on what exists; do not redo completed work.
 
@@ -66,8 +69,9 @@ your decision — weigh everything critically:
   specific implementation questions — what API to use, how others solved the
   same problem, known pitfalls. Target your searches: know what question each
   search is answering before you run it.
-- **Internal exploration**: Recent git log, CHANGELOG, DESIGN.md, the codebase,
-  test coverage, plans/ directory. What exists, what's missing, what's broken.
+- **Internal exploration**: Recent git log, CHANGELOG, DESIGN.md, plans/
+  directory. What exists, what's missing, what's broken. Do NOT read source
+  files at this stage — defer that to step 5 (targeted exploration).
 - **Delegation**: Use the `delegate` tool for parallel research when useful.
 
 ### 2. Brainstorm
@@ -109,7 +113,8 @@ principles every time.
 
 ## How to Work
 
-1. Orient: read git history, recent CHANGELOG, and `DESIGN.md`.
+1. Orient: read BUILDER_LESSONS.md, git log, CHANGELOG, NOTES.md, and
+   DESIGN.md. Run tests to check health. Do NOT read source files yet.
 2. Brainstorm candidates (see "What to Work On" above).
 3. Research targeted unknowns: for your top 2-3 candidates, identify what you
    need to know to choose between them and implement the winner. Search for
@@ -118,14 +123,18 @@ principles every time.
    outdated. Stop when you can confidently choose and start building.
    Skip for narrow bug fixes.
 4. Decide: pick the highest-impact option based on what you've learned.
-5. Build: write real, working code. Auto-fix lint on each file as you go
+5. Targeted exploration: NOW read source files — but only the ones relevant
+   to your chosen work. Use grep to find the files you need. Every file you
+   read adds to your context and degrades downstream reasoning quality
+   (research shows performance drops well before context limits are hit).
+6. Build: write real, working code. Auto-fix lint on each file as you go
    (`npx biome check --write <file>`) to avoid rework during verification.
    When modifying a shared type or interface, grep for all consumers first
    and fix them before changing the type itself (see BUILDER_LESSONS.md
    "Cross-Cutting Changes"). Run `npm run typecheck` after any cross-cutting
    change — don't wait until the end.
    Keep `DESIGN.md` accurate.
-6. Verify (all five levels):
+7. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Test incrementally — run your new/changed tests as you write them
      (`npx vitest run src/foo.test.ts`) to get fast feedback. Run the full
@@ -139,9 +148,9 @@ principles every time.
    - Runtime: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
      (exercises the real agent loop; cheap with Haiku). If it fails due to
      missing `ANTHROPIC_API_KEY`, report as SKIP — don't silently omit it.
-7. Update NOTES.md if your work relates to any `b:` item (complete → move to
+8. Update NOTES.md if your work relates to any `b:` item (complete → move to
    Completed, partial → add brief progress note).
-8. Record: update `CHANGELOG.md` with what you built, why, what you verified,
+9. Record: update `CHANGELOG.md` with what you built, why, what you verified,
    and possible next directions.
 
 ## Tech

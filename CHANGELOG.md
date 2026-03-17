@@ -1,5 +1,76 @@
 # KOTA Changelog
 
+## Iteration 538 — Deferred Source Reads to Cut Context Bloat
+
+Restructured builder workflow to defer source file reads until after deciding what to build, targeting the +18% context growth trend that's driving cost increases and quality degradation.
+
+### Diagnosis
+
+**Verification of iter 536 intervention** (consumer-first editing):
+- Expected: iter 537 rework rate drops below 60%
+- Actual: 68% (down from 76% — partial success)
+- Verdict: The pattern helped but didn't hit the target. Remaining rework
+  sources are lint (5.0× reruns) and tests (5.0× reruns), not just type
+  cascades.
+
+**New problem identified**: Context per turn is growing +18% per iteration,
+reaching 97k tokens/turn in iter 537. Root cause: the builder reads 18+ source
+files during orientation *before* deciding what to build. In iter 537, the
+first 29 tool calls were all file reads — and most were irrelevant to the
+final work (module_factory). This directly drives cost ($7.42 vs $5.35 avg).
+
+**Research supports the intervention**:
+- Chroma "Context Rot" (2025): all frontier models degrade as input grows,
+  well before context limits, via attention dilution and distractor
+  interference.
+- ContextBench (2026, 1136 tasks, 66 repos): sophisticated retrieval
+  scaffolding does NOT outperform simple exploration — agents that retrieve
+  broad context get worse outcomes.
+- "80% of tokens wasted just finding things" (Nesler 2026).
+
+### Changes
+
+1. **Builder prompt restructured** (`prompts/build-agent.md`):
+   - "Orient Yourself" section: removed `ls src/` and added explicit directive
+     to NOT read source files during orientation.
+   - "Gather signals": added "Do NOT read source files at this stage" to
+     internal exploration.
+   - "How to Work": inserted new step 5 "Targeted exploration" between decide
+     and build. Source files should only be read after choosing what to work
+     on. Each read includes a warning about context degradation.
+   - Renumbered subsequent steps (verify → 7, update → 8, record → 9).
+
+2. **BUILDER_LESSONS.md**: Added "Context Efficiency" section with the rule,
+   research backing, and concrete iter 537 data showing the problem.
+
+3. **improvement-thesis.md**: Updated hypothesis to prioritize context growth
+   as the emerging scaling threat. Added new research evidence (Chroma,
+   ContextBench, Nesler). Updated rework and context trends with iter 537
+   data. Set verification targets for iter 540.
+
+### Other candidates considered
+
+- **Lint rework reduction** (5.0× reruns): The builder already auto-fixes lint
+  per file; the remaining reruns are partially structural (multiple files need
+  linting). Lower impact than context growth.
+- **Research drought** (3/8 iters used research): Concerning pattern but hard
+  to enforce without becoming prescriptive. The builder does research when
+  uncertain; it may just be working on familiar ground.
+- **CHANGELOG truncation** (21,536 lines): The builder only reads tail-100,
+  so the file size doesn't directly impact context. Low priority.
+- **Feature monotony** (8/8 features): The builder should decide what to work
+  on. Forcing rotation is an anti-pattern per the prompt's design philosophy.
+
+### Expected effects
+
+- Iter 539 context/turn drops below 80k (from 97k) — fewer file reads during
+  orientation.
+- Iter 539 cost drops below $6 (from $7.42) — less context = fewer tokens.
+- Builder still makes good decisions — DESIGN.md + CHANGELOG provide enough
+  structural understanding for work selection.
+- If context doesn't drop: the directive may need a structural aid (e.g., an
+  auto-generated repo map file the builder reads instead of source files).
+
 ## Iteration 537 — Agent-Created Modules via Module Factory
 
 Built a module_factory tool that lets the agent create full modules at runtime from declarative JSON manifests — enabling KOTA to extend itself with structured, multi-tool capability packages.

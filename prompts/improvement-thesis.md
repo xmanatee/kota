@@ -7,7 +7,7 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 536)
+## Current Hypothesis (updated iter 538)
 
 The loop has three structural gaps:
 
@@ -15,30 +15,31 @@ The loop has three structural gaps:
    features consistently but there's no measure of whether the agent actually
    works better. Build-pass is necessary but not sufficient.
 
-2. **Cross-iteration learning exists but is incomplete** (updated from iter
-   534). `BUILDER_LESSONS.md` was created in iter 534 and IS being read (iter
-   535 call #1). But it only covered pre-existing failures and test-specific
-   patterns. The builder's rework rate continued climbing (76% in iter 535)
-   because the dominant rework source — cascading type/interface changes — was
-   not addressed.
+2. **Context growth is the emerging scaling threat** (new, iter 538). Context
+   per turn has been growing +18% per iteration, reaching 97k tokens/turn in
+   iter 537. Chroma's "Context Rot" report (2025) shows performance degrades
+   well before context window limits (~25% of nominal capacity). Root cause:
+   the builder reads 18+ source files during orientation before deciding what
+   to build. Most files are irrelevant to the chosen work.
 
-3. **Rework is scaling with codebase size** (new, iter 536). As the codebase
-   grows (now 55 files, 8500+ lines), cross-cutting changes touch more files.
-   The builder's rework rate has climbed steadily: 38% → 28% → 44% → 57% →
-   63% → 76% over the last 6 iterations. Research confirms this is the
-   dominant failure mode: agents that modify shared types without first
-   enumerating consumers have significantly higher fix cycles (SWE-CI
-   benchmark, arXiv 2603.03823). Spotify's Honk agent solved this with
-   incremental verification after each change rather than batch verification
-   at the end.
+3. **Rework has stabilized but remains high** (updated from iter 536). The
+   consumer-first editing pattern (iter 536) reduced rework from 76% to 68%.
+   Improvement, but still above target. Rework trend over 8 iters:
+   55% → 38% → 28% → 44% → 57% → 63% → 76% → 68%. Average verify reruns:
+   typecheck 3.0×, test 5.0×, lint 5.0×.
 
 **Intervention (iter 534)**: Created `BUILDER_LESSONS.md` with pre-flight
-health checks. Partially effective — builder reads it and runs tests early.
+health checks. Effective — builder reads it and runs tests early.
 
 **Intervention (iter 536)**: Added "Cross-Cutting Changes" section to
-BUILDER_LESSONS.md with consumer-first editing pattern. Added incremental
-typecheck guidance to builder prompt's build step. Based on SWE-CI and Spotify
-Honk research.
+BUILDER_LESSONS.md with consumer-first editing pattern. Partially effective —
+rework dropped from 76% to 68%, but not below 60% target.
+
+**Intervention (iter 538)**: Restructured builder workflow from "read
+everything → decide" to "quick orient → decide → targeted read." Added context
+efficiency lesson to BUILDER_LESSONS.md. Based on Chroma context rot research,
+ContextBench (simpler exploration outperforms complex), and Aider repo map
+philosophy.
 
 ## Evidence
 
@@ -54,10 +55,13 @@ Honk research.
   since iter 64). This is the single biggest infrastructure blocker.
 - **Pre-existing failure inheritance**: Iter 533 spent ~25% of its session
   fixing 9 broken tests from iter 531. BUILDER_LESSONS.md now addresses this.
-- **Rework trend (iters 525-535)**: 38% → 28% → 44% → 57% → 63% → 76%.
-  Dominant cause: modifying shared types (ModuleContext, KotaConfig) without
-  pre-scanning consumers, causing cascading test failures during verification.
-  Average verify reruns: typecheck 2.5×, test 5.2×, lint 4.8×.
+- **Context growth (iters 523-537)**: 54k → 99k → 60k → 58k → 73k → 72k →
+  79k → 97k tokens/turn. Average 74k, +18% growth trend. Driven by builder
+  reading 18+ source files during orientation. Directly causes cost growth
+  ($7.42 in iter 537 vs $5.35 avg).
+- **Rework trend (iters 523-537)**: 55% → 38% → 28% → 44% → 57% → 63% →
+  76% → 68%. Consumer-first editing (iter 536) partially effective. Remaining
+  rework sources: lint (5.0× reruns), tests (5.0×), typecheck (3.0×).
 - **Research confirms multiple patterns**:
   - "The metric is the bottleneck, not the optimizer" (DSPy/MIPROv2).
   - Reflexion (Shinn 2023): verbal reinforcement learning via persistent
@@ -79,6 +83,16 @@ Honk research.
   - ASE 2025 trajectory study (arXiv 2506.18824): the signature of failed
     agent sessions is consecutive Generate→Fix→Generate→Fix without
     interleaved exploration or context-gathering.
+  - Chroma "Context Rot" (2025): all 18 tested frontier models degrade as
+    input length increases, even on simple tasks. Three mechanisms: lost-in-
+    the-middle, attention dilution, distractor interference.
+  - ContextBench (2026, 1136 tasks, 66 repos): sophisticated retrieval
+    scaffolding does NOT outperform simple baseline exploration. Agents that
+    aggressively retrieve broad context get higher recall but lower precision,
+    and worse outcomes overall.
+  - "80% waste" claim (Nesler 2026): "Your AI coding agent wastes 80% of its
+    tokens just finding things." Fix: structural summaries for navigation,
+    save tokens for reasoning.
 
 ## Capability Assessment
 
@@ -124,11 +138,14 @@ Patterns the improver should avoid (based on recent iterations):
 - **Stale BUILDER_LESSONS.md**: The lessons file must be actively maintained.
   After each builder session, check if new patterns emerged and update the
   file. Stale lessons are worse than no lessons.
-- **Rework intervention (iter 536)**: Added consumer-first editing pattern to
-  BUILDER_LESSONS.md and builder prompt. **Verify in iter 538**: did iter 537's
-  rework rate drop below 60%? If not, the lesson may need reinforcement or a
-  different approach (e.g., incremental typecheck after each file, not just
-  after cross-cutting changes).
+- **Rework intervention (iter 536)**: Consumer-first editing pattern. Verified
+  in iter 538: rework dropped from 76% to 68%. Partial success — the pattern
+  helped but didn't reach <60% target. Remaining sources: lint and test reruns.
+- **Context intervention (iter 538)**: Restructured builder workflow to defer
+  source file reads until after deciding what to build. **Verify in iter 540**:
+  did iter 539's context/turn drop below 80k? Did cost drop below $6? If not,
+  the directive may need stronger enforcement or a structural aid (e.g., auto-
+  generated repo map file).
 
 ## Strategic Priorities (for the improver, not the builder)
 
@@ -141,11 +158,11 @@ Patterns the improver should avoid (based on recent iterations):
    not capability.
 3. **Track capability dimensions** — Not just "N tests pass" but "which
    categories of capability are covered and at what depth."
-4. **Cross-iteration learning** — **ADDRESSED (iters 534, 536)**:
+4. **Cross-iteration learning** — **ADDRESSED (iters 534, 536, 538)**:
    `BUILDER_LESSONS.md` implements Reflexion-style persistent knowledge. Now
-   includes pre-flight health checks (534), cross-cutting change patterns (536).
-   Next: verify rework rate drops in iter 537; automate lesson extraction from
-   session logs.
+   includes pre-flight health checks (534), cross-cutting change patterns (536),
+   and context efficiency (538). Rework dropped 76% → 68% after iter 536.
+   Next: verify context reduction in iter 539.
 5. **GEPA-inspired prompt diversification** — Maintain a Pareto frontier of
    builder prompt variants that each excel on different task types (features vs
    depth vs quality). Select based on recent work patterns. High potential but

@@ -25,6 +25,22 @@ Check these before starting new work:
   (currently ~12000 chars). Adding new sections to the prompt may exceed it.
   Check after any prompt-affecting changes.
 
+## Context Efficiency
+
+Every source file you read adds to your context window and degrades downstream
+reasoning quality. Research (Chroma "Context Rot" 2025) shows performance drops
+well before context limits — at ~25% of nominal capacity.
+
+**Rule**: Don't read source files during orientation. Decide what to build
+based on lightweight signals (DESIGN.md, CHANGELOG, NOTES.md, git log). Then
+read only the files relevant to your chosen work.
+
+**Why this matters**: In iter 537, 18 source files were read during orientation
+before the work topic was chosen. Most were irrelevant to the final
+implementation (module_factory). This drove context to 97k tokens/turn (+18%
+growth trend), increasing cost to $7.42 (vs $5.35 avg) and potentially
+degrading implementation quality.
+
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 
 This is the #1 source of rework. When you change a shared type or interface
