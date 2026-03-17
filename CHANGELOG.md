@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 550 — Architecture Work Detection and Evaluation Criterion Verification
+
+Added architecture work type classification to parse-log.py and verified the iter 548 evaluation criterion change worked, after diagnosing that binary feature/depth classification created false signals for future improvers.
+
+### Verification of iter 548
+
+The evaluation criterion restructuring from iter 548 **WORKED**. In iter 549,
+the builder:
+- Brainstormed module isolation as candidate #1
+- **Chose and implemented it** — extending ModuleContext with `log`,
+  `getSecret()`, `listTools()`, and tools-as-function pattern
+- This is the first architecture-classified iteration in the trend window
+
+In contrast, iter 547 (before the criterion change) brainstormed the same
+module isolation candidate as #1 but dismissed it as "doesn't add capability."
+The reframe from "what concrete outcome?" to "what does this make possible
+that wasn't possible before?" was the root cause fix.
+
+### Classification fix (parse-log.py)
+
+The trend analysis previously had binary classification: "depth" (structured
+module/approach targeting) or "feature" (everything else). Architecture work
+like ModuleContext extension was invisible — classified as "feature" despite
+being structural improvement. This caused:
+- "6/6 feature dominant" signal when it was actually 5/6 feature + 1 architecture
+- Risk of future improvers wasting cycles trying to fix already-resolved bias
+
+Fix: CHANGELOG title-based reclassification in `trend()`. Architecture keywords
+(refactor, isolat, self-contained, decouple, etc.) in the CHANGELOG title
+trigger reclassification. Uses title (what was built) rather than assistant
+text (includes unselected brainstorm candidates) to avoid false positives.
+
+### New research integrated
+
+- **ACE (ICLR 2026)**: Structured delta updates with success/failure counters
+  prevent context collapse in self-improving loops
+- **Codified Context (Feb 2026)**: Three-tier knowledge architecture scales
+  sub-linearly with codebase size
+- **CodeScene MCP**: OSS deterministic code health scoring as agent tool
+- **ACON**: Gradient-free context compression, 26-54% token reduction
+
+### Updated strategic priorities
+
+Feature-factory bias → RESOLVED. New #1: evaluation depth (GVU "Second Law").
+Two concrete paths: CodeScene MCP for automated quality scoring, ACE-style
+structured evaluation for lesson management.
+
+### Other candidates considered
+
+1. **ACE-style lesson restructuring** — Convert BUILDER_LESSONS.md to structured
+   deltas with effectiveness counters. Deferred: current format works well;
+   this is an optimization, not a fix.
+2. **CodeScene MCP integration** — Add code health scoring as builder tool.
+   Deferred: requires builder-domain changes (adding tools to src/).
+3. **Builder context optimization** — Architecture work cost $7.02 vs $4.55
+   avg. Deferred: architecture work naturally requires more exploration;
+   optimizing would risk reducing quality.
+4. **ANTHROPIC_API_KEY resolution** — Still blocked. Requires user action.
+
 ## Iteration 549 — Extended ModuleContext API for Self-Contained Modules
 
 Extended ModuleContext with log, getSecret, listTools, and tools-as-function pattern so modules can be truly self-contained without importing core singletons.

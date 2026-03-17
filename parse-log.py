@@ -634,6 +634,9 @@ def _quick_parse(path: str) -> dict:
             sweep_calls = max(0, verify_first - mutation_last - 1)
 
     # Classify work type: "depth" if module/approach detected, else "feature"
+    # (architecture detection happens in trend() using CHANGELOG titles, which
+    # reliably reflect what was built — assistant text includes brainstorm
+    # candidates that weren't chosen, causing false positives)
     work_type = "depth" if (target_mod and target_app) else "feature"
 
     # Post-implementation rework analysis: what fraction of calls come after
@@ -820,9 +823,19 @@ def trend(n: int = 5) -> None:
         data = _quick_parse(path)
         data["iter"] = iter_num
         data["severity"] = sevs.get(iter_num, "?")
-        # For feature iterations, extract name from CHANGELOG title
-        if data["work_type"] == "feature" and iter_num in cl_titles:
+        # For non-depth iterations, extract name from CHANGELOG title
+        if data["work_type"] != "depth" and iter_num in cl_titles:
             data["feature_name"] = _slugify_title(cl_titles[iter_num])
+            # Reclassify using CHANGELOG title as additional signal
+            if data["work_type"] == "feature":
+                title_low = cl_titles[iter_num].lower()
+                _title_arch_kws = [
+                    "refactor", "isolat", "self-contained", "decouple",
+                    "module context", "modulecontext", "restructur",
+                    "harden", "api boundary", "plug-and-play",
+                ]
+                if any(kw in title_low for kw in _title_arch_kws):
+                    data["work_type"] = "architecture"
         entries.append(data)
 
     print(f"=== Builder Trend (last {len(entries)}) ===")
@@ -833,9 +846,9 @@ def trend(n: int = 5) -> None:
         mod = e.get("feature_name") or e["module"] or "?"
         if "/" in mod:
             mod = mod.split("/")[-1]
-        is_feature = e["work_type"] == "feature"
-        app = e["approach"] or ("feature" if is_feature else "?")
-        sev = "-" if is_feature else e["severity"]
+        is_depth = e["work_type"] == "depth"
+        app = e["approach"] or e["work_type"]
+        sev = e["severity"] if is_depth else "-"
         td = e["test_delta"] or "?"
         cpt = e.get("cache_per_turn", 0)
         cpt_str = f"{cpt // 1000}k" if cpt else "?"

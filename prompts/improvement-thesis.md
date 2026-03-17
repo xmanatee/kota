@@ -7,33 +7,37 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 548)
+## Current Hypothesis (updated iter 550)
 
-The loop's primary gap is the **feature-factory bias in the evaluation
-criterion**, now confirmed by two iterations of failed lesson-based
-interventions and validated by external research:
+The feature-factory bias is **RESOLVED**. The next gap is **evaluation depth**
+— the loop has no way to measure whether the builder's output is getting
+architecturally better, only whether it compiles and tests pass.
 
-1. **Evaluation criterion is the bottleneck** (evolved from iter 546). The
-   iter 546 intervention (broadened criterion + Quality Beyond Features lesson)
-   FAILED — iter 547 builder listed module isolation as candidate #1 but
-   dismissed it: "important but doesn't add capability." The builder evaluates
-   all candidates through a feature-shaped lens because the criterion asks
-   "what concrete outcome?" and features have more vivid outcomes. Iter 548
-   restructures the criterion to make architecture outcomes as concrete as
-   feature outcomes, validated by DGM research: "evaluation criteria determine
-   behavior."
+1. **Feature-factory bias: RESOLVED** (iter 548 → verified iter 550). The
+   evaluation criterion restructuring from iter 548 WORKED. In iter 549, the
+   builder brainstormed module isolation as candidate #1 AND chose it —
+   extending ModuleContext with `log`, `getSecret()`, `listTools()`, and
+   tools-as-function pattern. This is the first architecture-classified
+   iteration in the trend window. The key insight (DGM): reframing the
+   evaluation question from "what concrete outcome?" to "what does this make
+   possible that wasn't possible before?" made architecture work evaluable
+   on equal footing with features.
 
-2. **Architecture quality untested**. The owner flagged that modules aren't
-   truly self-contained (NOTES.md). 55+ source files, 8000+ lines, but no
-   verification that the module system actually supports plug-and-play. This
-   is the deeper quality dimension beyond composition testing.
+2. **Evaluation depth is the new bottleneck**. The GVU "Second Law" says:
+   when improvements plateau, strengthen the verifier. Our evaluation is still
+   binary: tests pass/fail, typecheck pass/fail. We can't distinguish "builder
+   produced good architecture" from "builder produced working code." ACE
+   (ICLR 2026) shows structured evaluation with success/failure counters
+   outperforms free-text assessment. CodeScene MCP offers deterministic
+   code health scoring that could serve as a quality gate.
 
-3. **Efficiency is mature**. All interventions landed and verified. Cost trends
-   stable ($4.52 in iter 547). Further efficiency work is diminishing returns.
+3. **Signal quality improved** (iter 550). parse-log.py now detects
+   "architecture" work type from CHANGELOG titles, giving future improvers
+   accurate work-type distribution data. Previously all non-depth work was
+   classified as "feature," masking architecture iterations.
 
-4. **Prompt instruction density is safe**. Counted ~72 instruction-like lines
-   across builder prompt (40) + lessons (32). Well below the 150-instruction
-   threshold for reasoning models (arXiv 2507.11538). Room to add if needed.
+4. **Prompt instruction density is safe**. ~72 instruction-like lines across
+   builder prompt (40) + lessons (32). Below 150-instruction threshold.
 
 **Previously addressed gaps:**
 - Context growth: ADDRESSED (iter 538, verified iter 540). 97k → 63k (-35%).
@@ -65,29 +69,42 @@ interventions and validated by external research:
   architecture outcomes as concrete as feature outcomes. Replaced "Quality
   Beyond Features" lesson with "Architecture as Capability" — outcome-oriented
   framing that links quality work to specific workflows it enables. Informed
-  by DGM research: evaluation criteria determine behavior. Verify in iter 550:
-  does the builder evaluate quality candidates as genuine capability work?
+  by DGM research: evaluation criteria determine behavior.
+  **VERIFIED** (iter 550): builder chose architecture work (ModuleContext
+  extension) in iter 549. First architecture-classified iteration in window.
+  The evaluation criterion change was the root cause fix — lesson-based
+  approaches (iters 544, 546) failed, but reframing the evaluation question
+  itself worked.
+- **(iter 550)** Added "architecture" work type to parse-log.py trend analysis.
+  Previously all non-depth work was classified as "feature," creating false
+  signals that led to two wasted iterations (546, 548) trying to fix a bias
+  that was partially obscured by the classification system itself. New research
+  integrated: ACE (ICLR 2026) on structured context evolution, Codified
+  Context on tiered knowledge, CodeScene MCP on automated quality scoring.
 
 ## Evidence
 
-- **Feature factory confirmed**: 8/8 recent iters classified as "feature."
-  Iter 547 explicitly dismissed quality work as "not adding capability" despite
-  it being the #1 brainstorm candidate. The evaluation criterion structurally
-  favors features — lessons alone cannot override this bias.
-- **Iter 547 was efficient but still a feature**: 89 calls, $4.52, 31% rework
-  (lowest ever), 0 errors, 35 new tests. Quality execution of a feature. The
-  builder is skilled at building features — the question is whether it can be
-  equally skilled at architecture work.
-- **Lint batching holding**: Lint reruns at 5.4× in latest window (down from
-  6.8× pre-intervention). Steady improvement.
+- **Feature factory RESOLVED**: Iter 549 chose architecture work (ModuleContext
+  extension for module isolation) — brainstormed it as #1 AND implemented it.
+  Trend now shows "5 feature, 1 architecture" with accurate classification.
+- **Iter 549 architecture execution**: 134 calls, $7.02, 88k ctx, +16 tests,
+  44% rework, 1 error. Architecture work is more expensive (requires reading
+  more source files to understand the system) but the builder executed well:
+  audited all 12 modules, extended ModuleContext API, refactored secrets module
+  as proof of concept, 16 new tests.
+- **Architecture cost premium**: Iter 549 cost $7.02 vs $4.55 avg. Context
+  88k vs 68k avg. Architecture work naturally requires more exploration. This
+  is acceptable cost if quality improves — not a signal to optimize.
+- **Lint batching holding**: Lint reruns at 3.3× in latest window (down from
+  6.8× pre-intervention). Verified improvement.
 - **Build pass rate**: 100% — necessary but not sufficient.
-- **Tests**: 2938+ tests across the codebase. E2E composition tests (iter 545)
+- **Tests**: 2954+ tests across the codebase. E2E composition tests (iter 545)
   verify multi-step workflows.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **Context trend (iters 533-545)**: 72k → 79k → 97k → 63k → 72k → 71k → 43k.
-  Avg 71k. Iter 545's 43k shows focused work (test writing) uses less context.
-- **Rework trend (iters 533-545)**: 63% → 76% → 68% → 36% → 51% → 33% → 45%.
-  Avg 54%. Below 60% in 4 of last 5.
+- **Context trend (iters 539-549)**: 63k → 72k → 71k → 43k → 69k → 88k.
+  Avg 68k. Architecture iter (549) shows 88k — expected for cross-module work.
+- **Rework trend (iters 539-549)**: 36% → 51% → 33% → 45% → 31% → 44%.
+  Avg 40%. Consistently below 50% — improvement holding.
 - **SWE-EVO gap** (new research, iter 544): Agents that pass single-task
   benchmarks fail at sustained composition. GPT-5: 65% SWE-bench → 21%
   SWE-EVO. This directly parallels our situation: unit tests pass, but
@@ -222,6 +239,25 @@ interventions and validated by external research:
     agents need intrinsic metacognitive learning — ability to evaluate own
     capabilities and adapt strategy. Without it, agents default to repeating
     what produced positive signals last time (features).
+  - **ACE — Agentic Context Engineering (ICLR 2026, arXiv 2510.04618)**: Three-
+    role cycle: Generator (trajectories), Reflector (lessons), Curator (structured
+    deltas with helpful/harmful counters). Prevents two failure modes: brevity
+    bias (dropping details for conciseness) and context collapse (iterative
+    rewriting eroding specifics). +10.6% on agent tasks. Directly applicable:
+    BUILDER_LESSONS.md entries should be structured deltas, not free-text.
+  - **Codified Context (Feb 2026, arXiv 2602.20478)**: Three-tier knowledge
+    architecture tested on 108K-line system over 283 sessions: hot-memory
+    constitution (always loaded), domain-expert agents (on demand), cold-memory
+    knowledge base (on demand). Infrastructure grew sub-linearly. Relevant as
+    KOTA codebase grows — single AGENTS.md/DESIGN.md may hit a ceiling.
+  - **CodeScene MCP Server (2025-2026)**: OSS MCP server exposing Code Health
+    scoring as tools. Three checkpoints: per-snippet during generation,
+    pre-commit safeguard, PR pre-flight. If health degrades, the signal feeds
+    back to the agent loop. Concrete path to automated architecture evaluation.
+  - **ACON — Gradient-Free Context Compression (Oct 2025, arXiv 2510.00615)**:
+    Compresses observations and histories using prompts refined via failure
+    analysis. 26-54% token reduction, >95% accuracy preserved. Potential for
+    reducing architecture work's context cost premium.
 
 ## Capability Assessment
 
@@ -304,31 +340,34 @@ Patterns the improver should avoid (based on recent iterations):
   make possible that wasn't possible before?" (neutral). Made architecture
   outcomes as concrete as feature outcomes with equal-quality examples. Replaced
   "Quality Beyond Features" lesson with "Architecture as Capability" — links
-  quality work to specific workflows it enables. **Verify in iter 550**: does
-  the builder evaluate quality candidates as genuine capability work?
+  quality work to specific workflows it enables.
+  **VERIFIED** (iter 550): builder chose architecture work in iter 549.
+- **Classification fix (iter 550)**: Added "architecture" work type to
+  parse-log.py trend analysis, preventing false "feature dominant" signals.
+  New research: ACE, Codified Context, CodeScene MCP, ACON. Updated thesis
+  priorities: evaluation depth is the new #1.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Break feature-factory bias** — IN PROGRESS (iter 548). Evaluation criterion
-   restructured. The lesson-based approach failed twice (iters 544, 546). The
-   criterion change targets the root cause: the builder's mental model of
-   "capability." If iter 549 still chooses a feature over quality work, consider
-   CodeScene-style quantitative quality gates as a blocking constraint.
+1. **Strengthen evaluation depth** — The GVU "Second Law" says: when
+   improvements plateau, strengthen the verifier. Our evaluation is binary
+   (tests pass/fail). Two concrete paths:
+   - **CodeScene MCP** (OSS, works today): integrate as tool in builder loop
+     for deterministic code health scoring. Builder sees architecture quality
+     as a measurable metric it can optimize.
+   - **ACE-style structured evaluation** (ICLR 2026): structured delta updates
+     with success/failure counters for BUILDER_LESSONS.md, preventing "context
+     collapse" from iterative free-text rewriting.
 2. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation is the single
    highest-leverage unlock. Even cheap Haiku-based scenario tests would give
    real capability signal.
-3. **Strengthen evaluation per GVU theory** — The "Second Law" (arXiv
-   2512.02731) says: when improvements plateau, strengthen the verifier. Our
-   evaluation is binary (tests pass/fail) + metrics (cost/rework). DGM research
-   confirms: evaluation criteria determine behavior. Multi-dimensional
-   evaluation (maintainability, architecture fitness) would give better signal.
-4. **Cross-iteration learning** — **MATURE**: BUILDER_LESSONS.md implements
+3. **Signal quality** — COMPLETED (iter 550). parse-log.py now classifies
+   architecture work accurately. Future: consider Hodoscope-style unsupervised
+   trajectory behavior discovery for emergent pattern detection.
+4. **Feature-factory bias** — RESOLVED (iter 548, verified iter 550). The
+   evaluation criterion reframe was the root cause fix. Monitor: if next 3
+   builder iterations are all features again, re-evaluate.
+5. **Cross-iteration learning** — **MATURE**: BUILDER_LESSONS.md implements
    Reflexion-style persistent knowledge. 7 lessons. Combined effect: rework
-   76% → 36%, context 97k → 63k, lint runs -35%. Instruction count (72)
-   is safely below the 150-instruction degradation threshold.
-5. **Escalation plan if criterion change fails**: If the builder still
-   systematically chooses features after iter 548's intervention, the next
-   move is quantitative quality scoring — embed a measurable architecture
-   metric (e.g., core import count, cross-module coupling) that the builder
-   can "beat," inspired by CodeScene's approach. Agents optimize what they
-   can measure.
+   76% → 36%, context 97k → 63k, lint runs -35%. Future: consider ACE-style
+   structured deltas with effectiveness counters instead of free-text.
