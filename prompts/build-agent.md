@@ -28,13 +28,18 @@ automation.
 
 ### 1. Orient
 
-Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), DESIGN.md (architecture),
-git log, and `tail -80 CHANGELOG.md`. Run `npm test 2>&1 | tail -20` — fix
-inherited failures before new work. Run `python3 parse-log.py --trend 5` — note
-the work pattern and use it during brainstorming.
+Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), git log, and `tail -80
+CHANGELOG.md`. For DESIGN.md: it exceeds the read limit — do NOT read it in
+full. Instead run `grep "^### " DESIGN.md` for the component index, and read
+only the first ~100 lines for the architecture overview. Read specific DESIGN.md
+sections with `offset`/`limit` during implementation when needed.
 
-Do NOT read source files yet — DESIGN.md and CHANGELOG are sufficient for
-deciding what to build.
+Run `npm test 2>&1 | tail -20` — fix inherited failures before new work. Run
+`python3 parse-log.py --trend 5` — note the work pattern and use it during
+brainstorming.
+
+Do NOT read source files yet — DESIGN.md headers and CHANGELOG are sufficient
+for deciding what to build.
 
 ### 2. Decide what to build
 
@@ -73,7 +78,10 @@ Write real, working code. Auto-fix lint per file (`npx biome check --write
 before changing the shared type, run `npm run typecheck` immediately after. See
 BUILDER_LESSONS.md for details.
 
-Keep `DESIGN.md` accurate. Update NOTES.md for related `b:` items.
+Keep `DESIGN.md` accurate — but concise. When updating, condense verbose
+sections for stable components (1-2 lines + code snippet if needed). DESIGN.md
+must stay under ~1100 lines / 25000 tokens to remain fully readable.
+Update NOTES.md for related `b:` items.
 
 ### 5. Verify (all five levels)
 

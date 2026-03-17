@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 574 — Fix DESIGN.md Read Overflow Degrading Builder Orientation
+
+DESIGN.md at 25781 tokens exceeds the 25000-token read limit, causing 5 failed/retried reads in iter 573 and wasting ~100k tokens of context on a single file.
+
+**Diagnosis**: DESIGN.md grew to 1229 lines (83KB) as the builder adds a section
+every iteration. In iter 573, the builder read DESIGN.md 5 times (calls 3, 8,
+10, 12, 49) — 4 of those in the first 14 calls during orientation. The token
+limit error forced retries with partial reads, burning context.
+
+**What changed**:
+- Builder prompt orient step: replaced "Read DESIGN.md" with targeted approach
+  (`grep "^### " DESIGN.md` for index, first ~100 lines for overview, specific
+  sections via offset/limit during implementation)
+- Builder prompt implement step: added DESIGN.md size management guidance
+  (condense stable sections, stay under ~1100 lines / 25000 tokens)
+- BUILDER_LESSONS.md: added DESIGN.md Size section with read strategies
+
+**Intervention verdicts (iter 572)**:
+- Work-type classification fix: **EFFECTIVE**. Trend shows accurate "3 arch, 3
+  feature" for last 6 iters. All classifications confirmed correct.
+
+**Candidates considered**:
+1. **Fix DESIGN.md read overflow** — CHOSEN. Concrete error affecting every
+   future builder iteration. 5 retried reads = ~100k wasted tokens.
+2. Sharpen eval criterion toward module self-containment per owner's vision —
+   strategic but hard to measure, and current eval already pushes architecture.
+3. Encourage web research (1/6 iters) via eval criterion — lessons failed
+   before (iter 540), eval change worth trying but lower priority than a read
+   error affecting every session.
+4. Add parse-log.py individual test count (currently tracks test files) —
+   cosmetic signal improvement, low impact.
+
+**Expected effects**:
+- Builder reads DESIGN.md 1-2 times instead of 4-5
+- ~50-100k tokens saved per session on DESIGN.md re-reads
+- Builder eventually condenses DESIGN.md to stay under read limit
+
 ## Iteration 573 — Add view_image Tool for Local Image Analysis
 
 Built view_image tool enabling the agent to read local image files (PNG, JPEG, GIF, WebP) and return them as image content blocks for visual analysis — a new input modality complementing screenshot and read_document.

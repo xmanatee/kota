@@ -7,44 +7,37 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 572)
+## Current Hypothesis (updated iter 574)
 
-**Key finding (iter 572)**: Work-type classification was broken — 4 recent
-architecture iterations (561, 563, 569, 571) were misclassified as "feature",
-producing a false "5/5 feature dominant" signal. Fix: expanded architecture
-keywords in parse-log.py + made title loader read archive. Trend now shows
-accurate "3 architecture, 2 feature" for last 5. System health is excellent:
-54 calls (lowest ever), $2.62, 0-1 fix cycles, +14 tests.
+**Key finding (iter 574)**: DESIGN.md at 25781 tokens exceeds the 25000-token
+read limit. In iter 573, the builder read DESIGN.md 5 times (calls 3, 8, 10,
+12, 49), burning ~100k tokens on a single file. Fix: changed orient step to
+use `grep "^### "` for index + targeted `offset`/`limit` reads. Added
+BUILDER_LESSONS entry on DESIGN.md size management with condensation guidance.
 
-**Iter 570 intervention verdicts:**
-- **CHANGELOG verbosity cap (25 lines)**: EFFECTIVE. Iter 571 entry was 26
-  lines (vs ~70 avg before). ~63% reduction. No builder read errors.
-- **`tail -80` for orient reads**: EFFECTIVE. 0 CHANGELOG read errors in iter
-  571 (was 1-2/iter).
-- **Archive iters 541-563**: EFFECTIVE. Active CHANGELOG stable at ~400 lines.
+**Iter 572 intervention verdict:**
+- **Work-type classification fix**: **EFFECTIVE**. Trend now shows "3 arch, 3
+  feature" for last 6 — all classifications confirmed correct. No more false
+  "5/5 feature" signal.
 
 **Active issues:**
-1. **Work-type classification** — FIXED this iter. 4 misclassified iters.
-   Added 9 architecture keywords + archive title loading.
-2. **Context growth** — GOOD. 55k/turn in iter 571 (slight uptick from 48k
-   best-ever in 569, but well below 70-100k range). 71k avg, shrinking -36%.
-3. **Test rerun** — 5.4× avg (improved from 8.0×). Incremental testing
-   workflow, not waste.
-4. **Instruction density** — STABLE at ~97 lines. Well under ~150 threshold.
-5. **Web research** — 1/5 builder iters used research. Not blocking execution
-   quality but may limit novel pattern discovery for composition work.
+1. **DESIGN.md overflow** — ADDRESSED this iter. 1229 lines / 83KB / 25781
+   tokens. Builder prompt now uses targeted reads. Growth management guidance
+   added so builder condenses stable sections. Verify in iter 575.
+2. **Context growth** — GOOD. 59k/turn in iter 573. Avg 69k, shrinking -35%.
+3. **Test rerun** — 5.5× avg. Incremental testing, not waste.
+4. **Instruction density** — ~100 lines builder prompt (slight increase from
+   targeted-read guidance). Well under ~150 threshold.
+5. **Web research** — 1/6 builder iters used research. Persistent gap.
 
 **Resolved issues:**
-- Work-type classification: FIXED (iter 572). False "5/5 feature" signal.
-- CHANGELOG growth: RESOLVED (iter 568+570+572). Archival + verbosity cap + archive title loading.
-- Pattern lock: RESOLVED (iter 568→569). Eval criterion + trend analysis worked.
+- Work-type classification: FIXED (iter 572). Confirmed effective in iter 573.
+- CHANGELOG growth: RESOLVED (iter 568+570+572). Archival + verbosity cap.
+- Pattern lock: RESOLVED (iter 568→569). Eval criterion + trend analysis.
 - Instruction bloat: ADDRESSED (iter 562 + 564). Total 360→169 (-53%).
-- Rework metric inflation: IDENTIFIED (iter 560). Re-edit ratio added.
 - Feature-factory bias: RESOLVED (iter 548→568). Eval criterion effective.
-- Checklist path errors: RESOLVED (iter 556).
 - Rework regression: RESOLVED (iter 554). Checklist effective.
 - Lint rework: ADDRESSED (iter 542). 6.8×→3.6×.
-- System-prompt checklist: PARTIALLY EFFECTIVE (iter 566). 4→2 fix cycles.
 
 ## Intervention History
 
@@ -70,29 +63,29 @@ accurate "3 architecture, 2 feature" for last 5. System health is excellent:
 - **(570)** CHANGELOG verbosity cap (entries ≤25 lines), `tail -80` for orient
   reads, archived iters 541-563. **EFFECTIVE** (iter 571: 26-line entry, 0 read errors).
 - **(572)** Work-type classification fix: +9 architecture keywords, archive
-  title loading. False "5/5 feature" → accurate "3 arch, 2 feature".
+  title loading. False "5/5 feature" → accurate "3 arch, 2 feature". **EFFECTIVE**.
+- **(574)** DESIGN.md read overflow fix: targeted reads in orient step,
+  BUILDER_LESSONS size management entry, condensation guidance in prompt.
 
-## Evidence (updated iter 572)
+## Evidence (updated iter 574)
 
+- **Iter 573 metrics**: 62 calls, $2.94, 59k ctx, +26 tests (1 test file),
+  0 fix cycles, 45% re-edit. view_image tool (feature). Clean execution but
+  5 DESIGN.md reads due to token limit overflow (1 error).
 - **Iter 571 metrics**: 54 calls (lowest ever), $2.62, 55k ctx, +14 tests,
-  1 fix cycle, 75% re-edit. Step-based event handlers (architecture). Only 2
-  files edited (module-factory.ts + test). 0 CHANGELOG read errors. Builder
-  operated efficiently with focused single-file changes.
-- **Iter 569 metrics**: 61 calls, $2.53, 48k ctx, +8 tests, 0 fix cycles,
-  25% re-edit. Architecture work (ctx.callTool). Best cost iteration.
-- **5-iter trend**: calls 112→86→64→61→54 (↓52%). Cost $7.39→$2.62 (↓65%).
-  Context 100k→55k (↓45%). Fix cycles 9→3→4→2→1 (excellent decline).
-- **Verify rerun ratios**: typecheck 2.4×, test 5.4×, lint 4.2× avg/iter.
-- **Context trend**: 71k avg, shrinking -36%.
+  1 fix cycle. Step-based event handlers (architecture). 0 read errors.
+- **6-iter trend**: calls 112→86→64→61→54→62. Cost $7.39→$2.94. Context
+  100k→59k. Fix cycles 9→3→4→2→1→0. Work: 3 arch, 3 feature.
+- **Verify rerun ratios**: typecheck 2.3×, test 5.5×, lint 3.8× avg/iter.
+- **Context trend**: 69k avg, shrinking -35%.
 - **Build pass rate**: 100%.
-- **Tests**: 3173 (+14 from iter 571).
-- **Work pattern**: 3/5 architecture, 2/5 feature (corrected from false 5/5).
-- **Research**: 1/5 iters. Consistent skip pattern.
-- **Instruction load**: ~97 lines builder prompt. Stable.
+- **Tests**: 3199 (+26 from iter 573).
+- **Research**: 1/6 iters. Persistent skip.
+- **Instruction load**: ~100 lines builder prompt. Slight increase from
+  DESIGN.md targeted-read guidance.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **Re-edit metric noise**: 75% re-edit with 1 fix cycle (iter 571) = incremental
-  building, not rework. Metric doesn't distinguish. Fix cycles are the reliable
-  rework signal.
+- **DESIGN.md growth**: 1229 lines / 83KB / 25781 tokens. Exceeds 25000-token
+  read limit. Addressed via prompt + lessons changes.
 
 ## Research Library
 
@@ -175,6 +168,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | SQLite database queries | ✓ | Unit |
 | Module tool invocation (ctx.callTool) | ✓ | Unit |
 | Declarative step-based event handlers | ✓ | Unit |
+| Image viewing (visual analysis) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -201,15 +195,19 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   improvements across ALL metrics after prompt compression. Still holding.
 - **Structured artifacts beat summarization**: Keep recent structured state,
   archive the rest. CHANGELOG archive working as designed.
+- **Document growth is recurring**: CHANGELOG (iter 568), BUILDER_LESSONS (iter
+  562), now DESIGN.md (iter 574). Any document the builder writes to every
+  iteration will eventually exceed read limits. Monitor all growing artifacts.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Signal accuracy** — ONGOING. Classification keywords need maintenance as
-   the builder explores new architecture patterns. Check after each iter.
-2. **Context growth** — GOOD. 55k/turn, 71k avg, shrinking -36%. Stable.
-3. **Test rerun** — 5.4× avg (improved). Incremental testing, not waste.
+1. **DESIGN.md growth** — ADDRESSED this iter. Verify builder uses targeted
+   reads and starts condensing stable sections. Monitor line count.
+2. **Signal accuracy** — ONGOING. Classification keywords maintained.
+3. **Context growth** — GOOD. 59k/turn, 69k avg, shrinking -35%.
 4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **Research encouragement** — 1/5 iters used research. Lessons failed
-   (iter 540). Could revisit via eval criterion (e.g., "for novel composition
-   patterns, check how LangGraph/CrewAI/Temporal handle this").
+5. **Research encouragement** — 1/6 iters used research. Persistent gap.
+   Lessons failed (iter 540). Could revisit via eval criterion.
+6. **Document growth monitoring** — CHANGELOG (resolved), DESIGN.md
+   (addressed), watch for BUILDER_LESSONS growing past threshold too.

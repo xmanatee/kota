@@ -7,6 +7,14 @@ Recurring patterns from recent sessions. Read during orientation.
 - **Run tests first** (`npm test 2>&1 | tail -20`). Inherited failures are
   common. Fix before building.
 
+## DESIGN.md Size
+
+DESIGN.md exceeds the 25000-token read limit (~1229 lines, 83KB). Do NOT read
+it in full — use `grep "^### " DESIGN.md` for the section index and
+`offset`/`limit` for specific sections. When updating, condense stable component
+descriptions (1-2 lines each). If it grows past ~1100 lines, compress the
+oldest/most-stable sections to keep total under the read limit.
+
 ## Common Gotchas
 
 - **Module count tests**: Adding/removing modules → update TWO assertions in
