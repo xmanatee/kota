@@ -826,6 +826,10 @@ Fresh API call per delegation — main context only sees task + final answer. Su
 
 **MCP tool integration**: When MCP servers are configured, their tools are automatically available to sub-agents. The `McpManager` is threaded through `DelegateConfig` after MCP initialization. In the delegate loop, tool calls are routed: MCP-namespaced tools (`mcp__*`) go through `McpManager.executeTool()`, built-in tools through the standard runners. This ensures users' external tool servers work consistently across the main loop and delegated tasks.
 
+### Batch Parallel Delegation (`src/tools/batch.ts`)
+
+Scatter-gather orchestrator: takes an array of task descriptions, spawns parallel sub-agents (reusing `runDelegate`), collects all results. Concurrency-limited (default 3, max 5, max 10 tasks). Per-task result budget scales inversely with task count (total 30K). Partial failures don't block other tasks — all results returned with success/error status.
+
 ### Background Process Management (`src/tools/process.ts`)
 
 Enables async workflows — start servers, run watchers, monitor long-running tasks:

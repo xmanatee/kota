@@ -82,7 +82,7 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (reproducible analysis), process (background), sqlite (query SQLite DBs)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
-- **Coordination**: delegate (sub-agents), todo (tasks), memory (cross-session), knowledge (structured data — research, decisions, references), schedule (reminders/timed), notify (alerts), screenshot (screen capture), view_image (local image analysis), clipboard, computer_use (mouse/keyboard), ask_user
+- **Coordination**: delegate (sub-agent), batch (parallel sub-agents), todo (tasks), memory (cross-session), knowledge, schedule (reminders/timed), notify, screenshot, view_image, clipboard, computer_use (mouse/keyboard), ask_user
 - **Safety**: checkpoint (list/diff/restore file changes made this session)
 - **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools, prompts, events, scripts, logs). Script refs: $prev, $steps[N], $payload + .field + {{templates}}. \`if\` on steps for conditional skip.
 - **Selection**: file_edit targeted, multi_edit batch, find_replace bulk. web_fetch pages, http_request APIs. grep content, glob names.
@@ -93,7 +93,7 @@ Sub-agents get their own context. Results include metadata (turns, tools, source
 - **explore**: Read-only research + shell. **execute**: Can modify files + run commands.
 - Delegate when: 5+ file reads, 3+ URL fetches, or parallel tasks.
 - **Task descriptions**: State goal, context, and output format ("comparison table", "bullet list with URLs"). Specific tasks yield better results.
-- **Parallel research**: Launch 2-3 explore delegates on independent subtopics simultaneously; synthesize afterward.
+- **Parallel research**: Use batch for 2+ independent subtopics; synthesize afterward.
 - Results list URLs used — cite them, avoid redundant lookups.
 
 ## Efficiency

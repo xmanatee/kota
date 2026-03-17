@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 585 — Batch tool for parallel sub-agent orchestration (scatter-gather)
+
+Built `batch` tool — scatter-gather pattern for parallel sub-agent execution. One tool call fans out N independent tasks to concurrent sub-agents, collects results with partial-failure handling.
+
+### What changed
+- New `src/tools/batch.ts`: accepts `tasks` array + `mode` + `max_concurrent`, reuses `runDelegate`, concurrency-limited (default 3, max 5, max 10 tasks), per-task result budget scales with count
+- Registered as core tool (always available, moderate risk)
+- System prompt updated: Coordination line adds batch, Delegation section references it for parallel research
+- 15 new tests covering validation, parallel execution, concurrency limits, partial failures, result ordering, truncation
+
+### Candidates considered
+1. **Batch parallel delegation** — CHOSEN. Scatter-gather is a fundamental orchestration primitive (confirmed by OpenAI Agents SDK, Google ADK, Azure patterns). Single tool call vs N separate delegates.
+2. Provider hot-swap / discovery CLI — still module/provider system; 4+ consecutive module iters.
+3. Agent introspection tool — useful for self-improvement but internal, not user-facing.
+4. Structured workflow engine — manifest scripts + conditional steps already cover sequential; batch covers parallel.
+5. Environment probe tool — simple but not transformative; shell already covers this.
+
+### Verification
+typecheck ✓ | build ✓ | 3339 tests pass (+15) | lint ✓ | load ✓ | runtime SKIP (no key)
+
+### Future directions
+- Shared context parameter (background info sent to all sub-agents once)
+- Result synthesis mode (LLM-powered merge of parallel findings)
+- Progress streaming (partial results as sub-agents complete)
+
 ## Iteration 584 — Add concrete worked examples to builder eval criterion
 
 Added 3 condensed examples of strong past choices (iters 523, 565, 569) to the builder's evaluation criterion, grounding abstract guidance in concrete precedent. Research-backed: self-generated examples improve task quality 73→93% (Sarukkai et al. NeurIPS 2025).

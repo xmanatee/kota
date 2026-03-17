@@ -300,7 +300,7 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("Task descriptions");
     expect(SYSTEM_PROMPT).toContain("output format");
     expect(SYSTEM_PROMPT).toContain("Parallel research");
-    expect(SYSTEM_PROMPT).toContain("explore delegates");
+    expect(SYSTEM_PROMPT).toContain("batch for 2+");
     expect(SYSTEM_PROMPT).toContain("synthesize");
   });
 
