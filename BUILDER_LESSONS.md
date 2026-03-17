@@ -115,10 +115,41 @@ possible before:
 - **Tight coupling → independent evolution**: If changing a module requires
   understanding 5 other files, modules can't evolve independently. Outcome:
   "swap the memory backend by replacing one module, touching zero other files."
+- **Tool registration coupling → zero-blast-radius tools**: Adding a core tool
+  currently requires updating 8+ files (see "New Core Tool Registration"
+  checklist above). A centralized tool registry with self-descriptive metadata
+  would reduce this to 1-2 files. Outcome: "add a new tool by writing one
+  file — it registers itself, declares its risk level, and documents itself."
 
 **The test**: can you describe a before/after scenario where the user
 experience improves? If yes, it's capability work regardless of whether it
 adds a new feature or strengthens an existing one.
+
+## New Core Tool Registration
+
+Adding a core tool touches many files. Plan the full scope before starting
+edits — discovering downstream files one at a time causes rework cycles.
+
+**Complete checklist** (grep each before editing to find the right location):
+
+1. `src/tools/<tool>.ts` — implement the tool
+2. `src/tools/index.ts` — register in `allTools` array AND add to
+   `BUILTIN_TOOL_NAMES` (prevents module_factory name conflicts)
+3. `src/tools/guardrails.ts` — add to `SAFE_TOOLS`, `MUTATING_TOOLS`, or
+   `DANGEROUS_TOOLS` based on risk level
+4. `src/tools/tool-groups.ts` — add to `CORE_TOOL_NAMES` (always available)
+   or the appropriate tool group
+5. `src/system-prompt.ts` — add to the relevant tool section in the prompt
+6. `src/tools/index.test.ts` — update expected tool count (search for `toBe(`
+   near "registered tools"). There may be multiple count assertions.
+7. `src/tools/<tool>.test.ts` — write tests for the new tool
+8. `DESIGN.md` — document the tool
+
+**Why this matters**: In iter 553, adding the `notify` tool required updating
+8+ files. The builder discovered these one at a time during verification,
+causing 5 fix cycles and 72% rework. Planning the full set of edits upfront
+and doing them in order (tool → registry → tests → docs) avoids the
+discover-fix-discover loop.
 
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 

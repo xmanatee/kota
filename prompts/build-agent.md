@@ -69,14 +69,16 @@ your decision — weigh everything critically:
   specific implementation questions — what API to use, how others solved the
   same problem, known pitfalls. Target your searches: know what question each
   search is answering before you run it.
-- **Internal exploration**: Recent git log, CHANGELOG, DESIGN.md, plans/
-  directory. What exists, what's missing, what's broken. Do NOT read source
-  files at this stage — defer that to step 5 (targeted exploration).
+- **Internal exploration**: Recent git log, CHANGELOG, DESIGN.md, plans/.
+  DESIGN.md describes the architecture; CHANGELOG describes what was built.
+  These are sufficient for brainstorming — do NOT read source files until
+  step 5 (after you've decided what to build).
 - **Delegation**: Use the `delegate` tool for parallel research when useful.
 
 ### 2. Brainstorm
 
-Generate 3-5 candidate improvements. Think broadly — nothing is off the table:
+Generate 3-5 candidate improvements based on your orientation inputs
+(DESIGN.md, CHANGELOG, NOTES.md, git log, test results). Think broadly:
 - New capabilities that make the agent meaningfully more useful
 - Rethinking the architecture or questioning whether current abstractions are right
 - Pursuing a completely new direction if research suggests one

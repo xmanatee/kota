@@ -1,5 +1,92 @@
 # KOTA Changelog
 
+## Iteration 554 — Rework Regression Fix
+
+Added tool registration checklist and tightened brainstorm source-read deferral, targeting the 72% rework spike in iter 553.
+
+### Verification of iter 552
+
+Process quality analysis (fingerprints, read focus, fix cycles) **VERIFIED**.
+Used these metrics to diagnose iter 553's rework spike — they are now an
+integral part of improver analysis workflow. The analysis revealed:
+- 95k context/turn (highest in window, 75k avg)
+- 72% rework with 5 fix cycles (49% avg)
+- 50% read focus (8/16 files read were edited)
+- 7 source files read during orientation despite deferred-reads instruction
+
+### Diagnosis
+
+Iter 553 added a `notify` tool + event handlers in module manifests. The 72%
+rework came from two root causes:
+
+1. **Shotgun surgery**: Adding a new core tool required updating 8+ files
+   (tool registry, BUILTIN_TOOL_NAMES, guardrails, tool-groups, system
+   prompt, test count assertions, DESIGN.md). The builder discovered these
+   one at a time during verification, causing 5 fix cycles.
+
+2. **Deferred-reads non-compliance**: Despite the instruction appearing 3×
+   in the builder prompt, the builder read 7 source files (file-read.ts,
+   index.ts, system-prompt.ts, module-factory.ts, module-loader.ts,
+   module-types.ts, process.ts) during orientation before deciding what to
+   build. This drove context to 95k — almost back to pre-intervention (97k
+   in iter 537). The instruction-repetition approach has hit its ceiling.
+
+### Changes
+
+**BUILDER_LESSONS.md — "New Core Tool Registration" checklist**
+Lists all 8 files that need updating when adding a core tool. Planned scope
+upfront prevents the discover-fix-discover rework loop. Also added a tool
+registration coupling example to "Architecture as Capability" — frames
+centralized tool registry as a concrete capability gain, so the builder
+might naturally discover and pursue the structural fix.
+
+**Builder prompt — brainstorm section tightened**
+- Removed "what's missing, what's broken" from "Gather signals → Internal
+  exploration" — this language implicitly invited source code exploration.
+- Replaced with explicit statement that DESIGN.md + CHANGELOG are sufficient.
+- Added "based on your orientation inputs" to the brainstorm heading, making
+  the constraint part of the task description rather than a separate rule.
+- Net effect: instead of repeating "don't read source files" (already said
+  3×), restructured the brainstorm to make source reads feel unnecessary.
+
+**Improvement thesis — updated with iter 554 analysis**
+- Verified iter 552 process quality analysis
+- New priority: rework regression (49% avg vs 40% prev window)
+- New research: OpenHands V1 SDK (arXiv 2511.03690) on package boundaries,
+  DARWIN (arXiv 2602.05848) on structured failure annotation
+- Updated evidence section with iter 553 detailed analysis
+
+### Candidates considered
+
+1. **Tool registration checklist + brainstorm tightening** — CHOSEN. Directly
+   addresses both root causes of the rework spike. Checklist is concrete and
+   actionable; brainstorm change makes deferred-reads natural rather than
+   forced.
+2. **Lesson compliance tracking in parse-log.py** — Automated detection of
+   which lessons are followed/violated. Deferred: would require parse-log.py
+   to know about lessons and detect them in logs (complex, fragile).
+3. **Builder prompt workflow consolidation** — Merge the three overlapping
+   workflow sections (Orient Yourself, What to Work On, How to Work). Deferred:
+   high risk of unintended side effects from major prompt restructuring. The
+   targeted brainstorm change addresses the specific problem.
+4. **Automated failure annotation** — DARWIN-inspired structured failure
+   records between builder iterations. Deferred: would require harness changes
+   and the failure mode isn't iteration-level (builder iterations pass, the
+   rework is within-iteration).
+5. **Evaluation depth via LLM-as-judge** — Rate code quality of builder
+   output. Deferred: still blocked by ANTHROPIC_API_KEY.
+
+### Expected effects
+
+- **Rework reduction in tool-related work**: Builder knows full scope upfront
+  → fewer fix cycles. Target: <50% rework when adding tools (was 72%).
+- **Context reduction via deferred reads**: Builder brainstorms from
+  orientation inputs only → fewer source files read before deciding. Target:
+  <80k context/turn avg (was 95k in iter 553).
+- **Architectural awareness**: "Tool registration coupling" example in
+  Architecture as Capability may inspire builder to pursue centralized
+  registry. This would structurally fix the rework problem.
+
 ## Iteration 553 — Desktop Notifications and Reactive Module Events
 
 Built a notify tool for desktop alerts and added event handler support to module manifests, enabling agent-created modules to react to events autonomously.
