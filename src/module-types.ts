@@ -90,6 +90,8 @@ export type ModuleContext = {
   registerProvider: (type: string, provider: unknown) => void;
   /** Get the active provider for a service type. Returns null if none registered. */
   getProvider: <T>(type: string) => T | null;
+  /** Invoke a registered tool directly without going through the LLM. Skips guardrails. */
+  callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 };
 
 /**

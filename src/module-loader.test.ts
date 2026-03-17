@@ -755,6 +755,212 @@ describe("Module SDK — storage, config, promptSection", () => {
   });
 });
 
+describe("ctx.callTool — direct tool invocation", () => {
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  it("invokes a registered tool and returns its result", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "tool-provider",
+      tools: [makeTool("helper_tool")],
+    });
+
+    let capturedCtx: any;
+    await loader.load({
+      name: "tool-caller",
+      onLoad: (ctx) => { capturedCtx = ctx; },
+    });
+
+    const result = await capturedCtx.callTool("helper_tool", {});
+    expect(result.content).toBe("result from helper_tool");
+    expect(result.is_error).toBeFalsy();
+  });
+
+  it("returns error for unknown tool", async () => {
+    const loader = new ModuleLoader({});
+    let capturedCtx: any;
+    await loader.load({
+      name: "caller",
+      onLoad: (ctx) => { capturedCtx = ctx; },
+    });
+
+    const result = await capturedCtx.callTool("nonexistent_tool", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Unknown tool");
+  });
+
+  it("returns error when tool runner throws", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "throwing-mod",
+      tools: [{
+        tool: {
+          name: "throws_tool",
+          description: "Throws",
+          input_schema: { type: "object" as const, properties: {} },
+        },
+        runner: async () => { throw new Error("boom"); },
+      }],
+    });
+
+    let capturedCtx: any;
+    await loader.load({
+      name: "caller",
+      onLoad: (ctx) => { capturedCtx = ctx; },
+    });
+
+    const result = await capturedCtx.callTool("throws_tool", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("boom");
+  });
+
+  it("enforces recursion depth limit", async () => {
+    const loader = new ModuleLoader({});
+    let capturedCtx: any;
+
+    await loader.load({
+      name: "recursive-mod",
+      tools: (ctx) => {
+        capturedCtx = ctx;
+        return [{
+          tool: {
+            name: "recursive_tool",
+            description: "Calls itself",
+            input_schema: { type: "object" as const, properties: {} },
+          },
+          runner: async () => ctx.callTool("recursive_tool", {}),
+        }];
+      },
+    });
+
+    const result = await capturedCtx.callTool("recursive_tool", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("depth limit exceeded");
+  });
+
+  it("resets depth counter after successful call", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "tool-mod",
+      tools: [makeTool("simple_tool")],
+    });
+
+    let capturedCtx: any;
+    await loader.load({
+      name: "caller",
+      onLoad: (ctx) => { capturedCtx = ctx; },
+    });
+
+    // Multiple sequential calls should all succeed (depth resets)
+    const r1 = await capturedCtx.callTool("simple_tool", {});
+    const r2 = await capturedCtx.callTool("simple_tool", {});
+    const r3 = await capturedCtx.callTool("simple_tool", {});
+    expect(r1.content).toBe("result from simple_tool");
+    expect(r2.content).toBe("result from simple_tool");
+    expect(r3.content).toBe("result from simple_tool");
+  });
+
+  it("passes input to the tool runner", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "echo-mod",
+      tools: [{
+        tool: {
+          name: "echo_tool",
+          description: "Echoes input",
+          input_schema: { type: "object" as const, properties: { msg: { type: "string" } } },
+        },
+        runner: async (input) => ({ content: `echo: ${input.msg}` }),
+      }],
+    });
+
+    let capturedCtx: any;
+    await loader.load({
+      name: "caller",
+      onLoad: (ctx) => { capturedCtx = ctx; },
+    });
+
+    const result = await capturedCtx.callTool("echo_tool", { msg: "hello" });
+    expect(result.content).toBe("echo: hello");
+  });
+
+  it("allows chained tool calls within depth limit", async () => {
+    const loader = new ModuleLoader({});
+
+    // Tool A calls Tool B, which returns a result
+    await loader.load({
+      name: "chain-mod",
+      tools: (ctx) => [
+        {
+          tool: {
+            name: "tool_b",
+            description: "Leaf tool",
+            input_schema: { type: "object" as const, properties: {} },
+          },
+          runner: async () => ({ content: "leaf result" }),
+        },
+        {
+          tool: {
+            name: "tool_a",
+            description: "Calls tool_b",
+            input_schema: { type: "object" as const, properties: {} },
+          },
+          runner: async () => {
+            const inner = await ctx.callTool("tool_b", {});
+            return { content: `chained: ${inner.content}` };
+          },
+        },
+      ],
+    });
+
+    let capturedCtx: any;
+    await loader.load({
+      name: "caller",
+      onLoad: (c) => { capturedCtx = c; },
+    });
+
+    const result = await capturedCtx.callTool("tool_a", {});
+    expect(result.content).toBe("chained: leaf result");
+  });
+
+  it("callTool works from event handlers via captured context", async () => {
+    const bus = new EventBus();
+    const loader = new ModuleLoader({});
+    let eventResult: any;
+
+    await loader.load({
+      name: "tool-mod",
+      tools: [makeTool("event_target")],
+    });
+
+    await loader.load({
+      name: "event-caller",
+      tools: (ctx) => {
+        // Event handler captures ctx and uses callTool
+        bus.on("test.trigger", async () => {
+          eventResult = await ctx.callTool("event_target", {});
+        });
+        return [];
+      },
+    });
+
+    bus.emit("test.trigger", {});
+    // Wait for async handler
+    await new Promise((r) => setTimeout(r, 10));
+    expect(eventResult?.content).toBe("result from event_target");
+  });
+});
+
 describe("module event bus integration", () => {
   beforeEach(() => {
     clearCustomTools();

@@ -1,5 +1,76 @@
 # KOTA Changelog
 
+## Iteration 569 — Tool Invocation API for Modules (ctx.callTool)
+
+Added ctx.callTool(name, input) to ModuleContext, enabling modules to invoke any registered tool directly without LLM overhead — architecture work that makes all 26+ existing tools composable from module code.
+
+### What was built
+
+**Core: `ctx.callTool(name, input)` on ModuleContext**
+
+Modules can now invoke any registered KOTA tool programmatically:
+- Returns `ToolResult` (content string + optional error flag)
+- Skips guardrails — programmatic in-process calls are trusted
+- Recursion depth tracked per-loader instance (limit: 10) to prevent infinite tool-to-tool chains
+- Depth counter resets correctly after each call completes (try/finally)
+- Injected via dependency injection — no new imports in module-types.ts, no circular dependency risk
+
+**Accessible from all module extension points:**
+- `onLoad(ctx)` handlers
+- Tool runners via factory pattern closure (`tools: (ctx) => [...]`)
+- Event handlers via captured context
+- Any code that holds a `ModuleContext` reference
+
+### Before/after
+
+- **Before**: Module event handlers and tools can only run isolated code snippets (Python/Node REPL) or spawn expensive LLM sessions via `ctx.createSession()` ($0.01-0.10 per call). A scheduled module that needs to fetch a URL and save to knowledge requires an LLM round-trip for each step.
+- **After**: `ctx.callTool("web_fetch", {url})` then `ctx.callTool("knowledge", {action: "create", ...})` — direct, instant, free. Modules can compose any combination of the 26+ registered tools without LLM involvement.
+
+### Why this matters (architecture, not feature)
+
+Trend analysis showed 5/5 consecutive feature iterations. The iter 568 improver flagged: "Builder should at least consider architecture candidates after seeing 5/5 feature trend." With 26+ tools already built, each new tool delivers diminishing returns. Architecture work that makes EXISTING tools composable from modules delivers multiplicative value:
+
+- Every tool is now a building block for autonomous module behavior
+- Event-driven workflows (schedule fires → fetch data → analyze → store → notify) become cheap and direct
+- The module SDK is now feature-complete for programmatic tool composition: storage, config, logging, secrets, events, sessions, providers, and now tool invocation
+
+### Tests
+
+8 new tests covering:
+- Direct tool invocation (registered tool returns correct result)
+- Unknown tool (returns is_error with "Unknown tool" message)
+- Tool runner error propagation (thrown errors wrapped in ToolResult)
+- Recursion depth limit enforcement (recursive tool chain stopped at limit)
+- Depth counter reset (sequential calls all succeed after prior completions)
+- Input passing (tool receives input parameters correctly)
+- Chained tool calls (tool A calls tool B within depth limit)
+- Event handler tool invocation (captured context works from async bus handlers)
+
+All 3159 tests pass (3151 existing + 8 new).
+
+### Verification
+
+- Static: `tsc --noEmit` clean, `tsup` build clean
+- Unit: 3159/3159 pass
+- Lint: all 9 changed files clean (biome check)
+- Load: `node dist/cli.js --help` works
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Tool Invocation API for Modules** (`ctx.callTool`) — CHOSEN. Architecture work that makes all 26+ tools composable from module code. Multiplicative value: every existing tool becomes a building block for autonomous modules.
+2. **Session Persistence / Crash Recovery** — Serialize and resume sessions across restarts. High value for daemon reliability but complex (REPL state, tool state, partial results). Too ambitious for one iteration.
+3. **Workflow/Recipe System** — Save and replay multi-step tool sequences. But the LLM already reasons through steps well, and `callTool` enables the same composition programmatically. Lower delta given #1.
+4. **Parallel Delegation Enhancement** — Fan-out/join for concurrent sub-agents. Agent can already call delegate multiple times per turn (parallel tool execution). Low delta.
+5. **Auto-Enabling Tool Groups** — Automatically enable groups based on prompt content. Saves one `enable_tools` call per session. Low impact.
+
+### Future directions
+
+- **Manifest module bridge**: Extend `callTool` to manifest modules (Python/Node REPL code) via IPC — inject a `kota.call_tool()` helper into REPL sessions that communicates with the parent process.
+- **Tool composition DSL**: Higher-level pipeline syntax for chaining tools declaratively (e.g., `pipe("web_fetch", {url}) | "knowledge.create"`).
+- **Guardrail pass-through option**: Optional `{guardrails: true}` parameter for `callTool` to enable guardrail checks on programmatic calls (useful for user-facing module tools).
+- **More provider types**: TaskProvider, SchedulerProvider — extend iter 563's pattern to more service types.
+
 ## Iteration 568 — Archive CHANGELOG and Sharpen Diminishing Returns Signal
 
 Archived 540 iterations of CHANGELOG (1.3MB → 107KB) to fix 256KB read errors, sharpened builder eval criterion for tool additions, and made trend analysis non-optional.

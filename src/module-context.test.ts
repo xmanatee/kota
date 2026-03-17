@@ -312,6 +312,7 @@ describe("resolveModuleTools", () => {
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,
+    callTool: async () => ({ content: "" }),
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

@@ -36,6 +36,7 @@ describe("vercel-adapter module", () => {
       createSession: () => ({ send: async () => "", close: () => {} }),
       registerProvider: () => {},
       getProvider: () => null,
+      callTool: async () => ({ content: "" }),
     };
 
     const routes = vercelAdapterModule.routes!(ctx);

@@ -17,7 +17,7 @@ import type { CreateSessionOptions, KotaModule, ModuleContext, ModuleEventProxy,
 import { getProviderRegistry } from "./providers.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
-import { deregisterModuleTools, getRegisteredTools, registerTool } from "./tools/index.js";
+import { deregisterModuleTools, executeTool, getRegisteredTools, registerTool } from "./tools/index.js";
 
 export type ModuleLoaderOptions = {
   /** Skip tool registration — only load modules for command/route discovery. */
@@ -48,6 +48,9 @@ export class ModuleLoader {
   private collectingRoutes = false;
   /** Injected session factory — set by AgentSession to avoid circular imports. */
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
+  /** Recursion depth counter for ctx.callTool — prevents infinite tool→tool chains. */
+  private toolCallDepth = 0;
+  private static MAX_TOOL_CALL_DEPTH = 10;
 
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
@@ -120,6 +123,17 @@ export class ModuleLoader {
       getProvider: <T>(type: string): T | null => {
         const reg = getProviderRegistry();
         return reg?.get<T>(type) ?? null;
+      },
+      callTool: async (name: string, input: Record<string, unknown>) => {
+        if (this.toolCallDepth >= ModuleLoader.MAX_TOOL_CALL_DEPTH) {
+          return { content: `Tool call depth limit exceeded (max ${ModuleLoader.MAX_TOOL_CALL_DEPTH})`, is_error: true };
+        }
+        this.toolCallDepth++;
+        try {
+          return await executeTool(name, input);
+        } finally {
+          this.toolCallDepth--;
+        }
       },
     };
   }

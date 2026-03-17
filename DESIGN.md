@@ -138,6 +138,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 - **Session factory** (iter 551): `ctx.createSession(options?)` creates `ModuleSession` instances (send + close) without importing `AgentSession`. Avoids circular imports via dependency injection — `AgentSession` sets a factory on `ModuleLoader` via `setSessionFactory()`. Sessions default to `noHistory: true`, `historySource: "action"`, `reflectionEnabled: false`, and `BufferTransport`. Throws if called before factory injection (e.g., in CLI-only mode).
 - **Config type**: `KotaConfig.modules` is a `Record<string, Record<string, unknown>>`, sanitized and merged like other config sections.
 - **Provider registration** (iter 563): `ctx.registerProvider(type, provider)` registers the module as a provider for a service type (e.g., "memory", "knowledge"). `ctx.getProvider<T>(type)` retrieves the active provider. See Provider System below.
+- **Tool invocation** (iter 569): `ctx.callTool(name, input)` invokes any registered tool directly, returning a `ToolResult`. Skips guardrails (programmatic calls are trusted). Recursion depth tracked per-loader instance with a limit of 10 to prevent infinite tool→tool chains. Enables modules to compose existing tools cheaply — event handlers, `onLoad`, and tool runners can call `web_fetch`, `memory`, `knowledge`, etc. without LLM overhead.
 
 **Design decisions**:
 - Dependency ordering via topological sort — a module can declare dependencies on other modules.
