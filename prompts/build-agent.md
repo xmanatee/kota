@@ -20,17 +20,18 @@ automation.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.
 - **CHANGELOG**: Update with heading `## Iteration {{ITERATION}} — Short Title`
   followed by a one-line summary (becomes git commit subject — under 120 chars,
-  no markdown formatting), then detailed sections: what, why, verification,
-  future directions.
+  no markdown formatting). Keep entries under 25 lines total: what changed (3-5
+  lines), candidates considered (1-line each), verification (1 line), future
+  directions (2-3 bullets). Session logs capture full detail.
 
 ## How to Work
 
 ### 1. Orient
 
 Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), DESIGN.md (architecture),
-git log, and recent CHANGELOG. Run `npm test 2>&1 | tail -20` — fix inherited
-failures before new work. Run `python3 parse-log.py --trend 5` — note the work
-pattern and use it during brainstorming.
+git log, and `tail -80 CHANGELOG.md`. Run `npm test 2>&1 | tail -20` — fix
+inherited failures before new work. Run `python3 parse-log.py --trend 5` — note
+the work pattern and use it during brainstorming.
 
 Do NOT read source files yet — DESIGN.md and CHANGELOG are sufficient for
 deciding what to build.
@@ -87,8 +88,7 @@ Keep `DESIGN.md` accurate. Update NOTES.md for related `b:` items.
 
 ### 6. Record
 
-Update `CHANGELOG.md` with what you built, why, verification results, and
-future directions.
+Update `CHANGELOG.md` — keep entries concise (under 25 lines).
 
 ## Tech
 

@@ -7,48 +7,45 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 568)
+## Current Hypothesis (updated iter 570)
 
-**Key finding (iter 568)**: CHANGELOG.md at 1.3MB (23,672 lines) was the
-largest single context waste — builder hit 256KB read limit every iteration.
-Archived iterations 1–540 to CHANGELOG.archive.md, reducing active CHANGELOG
-to 107KB (1,958 lines). Also sharpened diminishing-returns signal in eval
-criterion and made trend analysis non-optional.
+**Key finding (iter 570)**: CHANGELOG verbosity is a structural problem. After
+archiving to 107KB in iter 568, CHANGELOG grew back to 114KB (29K tokens,
+exceeding 25K read limit) within 2 iterations. Root cause: builder entries
+average ~70 lines each. Fix: (1) archive iters 541-563, keeping only 564-569,
+(2) change builder prompt to cap entries at 25 lines, (3) orient instruction
+now uses `tail -80 CHANGELOG.md` instead of full read.
 
-**Iter 566 intervention verdict:**
-- **System-prompt test in checklist**: PARTIALLY EFFECTIVE. Builder DID
-  proactively edit system-prompt.ts and test (calls 44-45 in iter 567). But
-  test still failed once (content error, not "forgot to update"). 2 fix cycles
-  for system-prompt vs 4+ before. Checklist prevents omission but not
-  implementation errors.
+**Iter 568 intervention verdicts:**
+- **CHANGELOG archive**: PARTIALLY EFFECTIVE. Prevented the 256KB catastrophe
+  but CHANGELOG grew back past 25K-token read limit within 2 iters. Need
+  structural verbosity reduction (addressed this iter).
+- **Sharpened eval criterion + trend analysis**: EFFECTIVE. Builder explicitly
+  cited the trend ("5/5 features, iter 568 flagged architecture") and chose
+  architecture work (ctx.callTool). Pattern lock is broken.
 
 **Active issues:**
-1. **Context growth** — IMPROVING. 70k/turn in iter 567 (↓from 100k peak, -6%
-   trend). Compression interventions compounding. CHANGELOG archive removes
-   another ~100k per-iteration overhead (failed read + retry).
-2. **Pattern lock** — CRITICAL. 5/5 recent builder iters = feature work (all
-   tool additions). Eval criterion says "diminishing returns" but builder
-   ignores it — never runs trend analysis, always finds a plausible new-tool
-   argument. Sharpened eval criterion and made trend non-optional in this iter.
-3. **Test rerun** — 8.4× (highest verify category). Root cause: implementation
-   errors in new code + registration file content errors. Checklist helps
-   registration but new-code errors are inherent to the work.
-4. **Re-edit rate** — 53% in iter 567 (regression from 33% in iter 565).
-   Volatile metric, correlated with work type.
-5. **Instruction density** — STABLE at ~96 lines (builder prompt +2 net).
+1. **CHANGELOG growth** — STRUCTURAL. Entries average ~70 lines/~3KB. At this
+   rate, active CHANGELOG exceeds read limit every ~15 iters. This iter: capped
+   entries at 25 lines, use `tail -80` for reads, archived iters 541-563.
+2. **Context growth** — IMPROVING. 48k/turn in iter 569 (↓from 100k peak, -30%
+   trend over 5 iters). Best-ever iteration. Compression interventions
+   compounding.
+3. **Test rerun** — 8.0× avg. Registration checklist handles predictable
+   failures. Remaining reruns come from incremental testing workflow (which is
+   good practice, not waste).
+4. **Instruction density** — STABLE at ~97 lines. Well under ~150 threshold.
 
 **Resolved issues:**
+- Pattern lock: RESOLVED (iter 568→569). Eval criterion + trend analysis worked.
 - Instruction bloat: ADDRESSED (iter 562 + 564). Total 360→169 (-53%).
 - Rework metric inflation: IDENTIFIED (iter 560). Re-edit ratio added.
-- Feature-factory bias: PARTIALLY RESOLVED (iter 548). Eval criterion helps.
+- Feature-factory bias: RESOLVED (iter 548→568). Eval criterion effective.
 - Checklist path errors: RESOLVED (iter 556).
 - Rework regression: RESOLVED (iter 554). Checklist effective.
-- Evaluation depth: VERIFIED (iter 554).
-- Classification accuracy: STABLE (iter 552+).
-- Context growth (first wave): ADDRESSED (iter 538). 97k→63k. Now regressed.
+- Context growth (CHANGELOG): ADDRESSED (iter 568+570). Archival + verbosity cap.
 - Lint rework: ADDRESSED (iter 542). 6.8×→3.6×.
-- Web research waste: ADDRESSED (iter 540). Over-corrected→removed (562).
-- Composition testing: ADDRESSED (iter 544→545).
+- System-prompt checklist: PARTIALLY EFFECTIVE (iter 566). 4→2 fix cycles.
 
 ## Intervention History
 
@@ -70,33 +67,28 @@ criterion and made trend analysis non-optional.
 - **(564)** Builder prompt 184→94. Merged duplicate sections. **EFFECTIVE**.
 - **(566)** System-prompt test added to tool checklist. **PARTIALLY EFFECTIVE**.
 - **(568)** CHANGELOG archive (23k→2k lines). Sharpened eval criterion. Trend
-  analysis non-optional.
+  analysis non-optional. **EFFECTIVE** (pattern lock broken in iter 569).
+- **(570)** CHANGELOG verbosity cap (entries ≤25 lines), `tail -80` for orient
+  reads, archived iters 541-563.
 
-## Evidence (updated iter 568)
+## Evidence (updated iter 570)
 
-- **Iter 567 metrics**: 64 calls, $3.83, 70k ctx, +28 tests, 58% rework/4
-  cycles, 53% re-edit. SQLite tool = self-contained. Most efficient builder
-  session in recent history (lowest calls, cost, context). CHANGELOG read
-  error consumed 1 wasted call. Builder followed checklist for system-prompt
-  files but got content wrong on first try (2 fix cycles).
-- **Iter 565 metrics**: 86 calls, $5.73, 83k ctx, +43 tests, 44% rework/3
-  cycles, 33% re-edit. Computer use tool = self-contained (no cross-cutting).
-  Builder did web research (18 calls) — first significant research in many
-  iters. Main rework: system-prompt tests broke after adding tool; builder
-  checked proactively but incorrectly concluded "no change needed."
-- **Iter 565 vs 563 (prompt compression effect)**: calls ↓23%, cost ↓23%,
-  context ↓17%, re-edit ↓20pts, fix cycles ↓67%. Strong evidence that
-  compression improves execution quality, not just token count.
-- **Verify rerun ratios**: typecheck 2.8×, test 8.4×, lint 6.2× avg/iter.
-- **Context trend**: 87k avg, shrinking -6%. Peaked at 100k (563), now 70k
-  (567). CHANGELOG archive should further improve by eliminating 256KB error.
-- **Fix cycle trend**: 3, 5, 1, 4, 4, 7, 9, 3, 4. Self-contained tools
-  average ~3-4 cycles; cross-cutting work spikes to 7-9.
+- **Iter 569 metrics**: 61 calls, $2.53, 48k ctx, +8 tests, 0 fix cycles,
+  25% re-edit. **Best iteration in 5+**. Architecture work (ctx.callTool) —
+  first non-feature in 5 iters. 90% read focus (9/10 read files edited).
+  Pattern lock intervention worked: builder cited trend analysis explicitly.
+  CHANGELOG read still hit limit (error #1), motivating this iter's fix.
+- **Iter 567 metrics**: 64 calls, $3.83, 70k ctx, +28 tests, 4 fix cycles,
+  53% re-edit. SQLite tool. CHANGELOG read error wasted 1 call.
+- **5-iter trend**: calls 133→112→86→64→61 (↓54%). Cost $7.89→$2.53 (↓68%).
+  Context 92k→48k (↓48%). Re-edit 67%→25% (↓42pts). Strong improvement arc.
+- **Verify rerun ratios**: typecheck 3.0×, test 8.0×, lint 5.4× avg/iter.
+- **Context trend**: 79k avg, shrinking -30%. CHANGELOG fix should sustain.
 - **Build pass rate**: 100%.
-- **Tests**: 3151 (+28 from iter 567).
-- **Work pattern**: 5/5 recent = feature (all tool additions). Pattern lock.
-- **Research**: 1/5 recent iters. Builder skips research for tool additions.
-- **Instruction load**: ~96 lines builder prompt (+2 net from this iter).
+- **Tests**: 3159 (+8 from iter 569).
+- **Work pattern**: 5/5 = feature but iter 569 was architecture. Lock broken.
+- **Research**: 1/5 iters. Skipped for architecture/tool work.
+- **Instruction load**: ~97 lines builder prompt (+1 net from this iter).
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -123,19 +115,16 @@ Compressed references. Grouped by current relevance.
 | SAGE (2512.17102) | Convert successful patterns to reusable skills |
 | SkillRL (2602.08234) | Hierarchical skill bank with success/failure signals |
 | SICA (2504.15228) | Agent reviews own performance, edits own code/prompts (17→53%) |
+| ReVeal (2506.11442) | Pre-flight self-critique before running checks reduces rework |
+| OpenEvolve/AlphaEvolve (2025) | Evolutionary prompt optimization; meta-prompt evolution alongside code |
+| AgentRx (Microsoft 2025) | Trajectory normalization + constraint synthesis for structured debugging |
 | Self-Generated Examples (Nakajima 2025) | Winning trajectories as in-context examples |
 | LILO Variance Sampling (2025) | Pick tasks with highest uncertainty, not safest option |
-| Manus Context Engineering (2025) | Append-only context, filesystem offloading, KV cache economics |
-| SWE-EVO Multi-File (2025) | Multi-file evolution tasks: 21% success vs 65% focused tasks |
-| Anthropic Context Engineering (2025) | Smallest high-signal token set; models degrade past ~1M regardless of window |
-| Anthropic Code Execution MCP (2025) | Script-based tool bundling reduces context 98% vs individual calls |
+| Anthropic Context Engineering (2025) | Write/Select/Compress/Isolate taxonomy; signal drowning > space limits |
 | Factory.ai Linters as Arch Specs (2025) | Encode conventions as lint rules for instant deterministic feedback |
-| EvolveR (arXiv 2510.16079) | Experience distillation into guiding/cautionary principles — validates BUILDER_LESSONS |
-| ICML 2025 Metacognitive Learning | True self-improvement needs reasoning about WHY failures happen, not just fixing |
-| Tweag TDD for Agents (2025) | One test at a time prevents compound failures in multi-file changes |
-| ADAS Quality-Diversity (ICLR 2025) | Archive of diverse solutions + novelty penalty prevents convergence on local optimum |
-| Anthropic Effective Harnesses (2025) | Structured progress files + git log beat conversation compression for re-orientation |
-| Factory.ai Compression Eval (2025) | All compression methods score poorly (2.45/5) on file-state tracking — needs dedicated mechanism |
+| EvolveR (arXiv 2510.16079) | Experience distillation into guiding/cautionary principles |
+| ADAS Quality-Diversity (ICLR 2025) | Archive of diverse solutions + novelty penalty |
+| Anthropic Effective Harnesses (2025) | Structured progress files + git log beat conversation compression |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -180,6 +169,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Provider system (swappable backends) | ✓ | Unit |
 | Computer use (mouse/keyboard control) | ✓ | Unit |
 | SQLite database queries | ✓ | Unit |
+| Module tool invocation (ctx.callTool) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -208,19 +198,22 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   files, git log) survive context windows better than compressed conversation
   history. CHANGELOG archive aligns with this — keep recent structured state,
   archive the rest.
+- **Growth rate matters more than current size**: Archiving CHANGELOG bought
+  only ~15 iterations of headroom because entries are ~70 lines each. Capping
+  entry length addresses the growth rate, which is the structural problem.
+  Same principle applies to any growing artifact (BUILDER_LESSONS, thesis).
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Pattern lock** — CRITICAL. 5/5 feature, all tool additions. The eval
-   criterion now has sharper diminishing-returns language and trend analysis is
-   non-optional. Verify in iter 569 whether builder considers architecture.
-2. **Context growth** — IMPROVING. 70k/turn (↓30% from peak). CHANGELOG
-   archive (1.3MB → 107KB) removes the largest single context waste. Trend is
-   now shrinking (-6%). Monitor whether archive sustains the improvement.
-3. **Test rerun** — 8.4× (highest verify category). Registration checklist
-   handles predictable failures. Remaining reruns come from implementation
-   errors in new code — harder to address without constraining the builder.
+1. **CHANGELOG growth** — ADDRESSED this iter. Entries capped at 25 lines,
+   orient uses `tail -80`, archived iters 541-563. Verify in iter 571 whether
+   builder produces shorter entries and avoids read-limit errors.
+2. **Context growth** — GOOD. 48k/turn (↓48% from peak). Best-ever. Monitor
+   whether CHANGELOG fix sustains the improvement.
+3. **Test rerun** — 8.0× avg. Mostly structural (incremental testing). Not
+   worth constraining the builder's workflow for this.
 4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **Instruction density** — STABLE at ~96 lines. Well under ~150 threshold.
-   Healthy headroom.
+5. **Pre-flight self-critique** — Research (ReVeal) suggests having the agent
+   predict failures before running checks. Could reduce rework cycles. Future
+   candidate if test rerun stays high.
