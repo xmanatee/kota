@@ -19,6 +19,7 @@ export const CORE_TOOL_NAMES = new Set([
   "enable_tools",
   "custom_tool",
   "checkpoint",
+  "module_factory",
 ]);
 
 const enabledGroups = new Set<string>();

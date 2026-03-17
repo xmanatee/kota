@@ -155,6 +155,45 @@ Lets the agent dynamically create new tools at runtime from Python/Node.js code.
 - Replacing an existing custom tool deregisters the old one first (no duplicates).
 - `deregisterTool(name)` added to `tools/index.ts` for surgical single-tool removal.
 
+### Module Factory (`src/module-factory.ts`, `src/tools/module-factory.ts`)
+
+Lets the agent create full modules at runtime from declarative JSON manifests. Transforms KOTA from an agent that can create individual tools (via `custom_tool`) into one that can create structured, multi-tool capability packages with metadata, prompt sections, and persistence.
+
+**Manifest format** (JSON):
+```json
+{
+  "name": "weather",
+  "version": "1.0.0",
+  "description": "Weather tools",
+  "tools": [{
+    "name": "get_weather",
+    "description": "Get weather for a city",
+    "parameters": { "type": "object", "properties": { "city": { "type": "string" } } },
+    "code": "print('sunny')",
+    "language": "python"
+  }],
+  "promptSection": "Use get_weather to look up weather.",
+  "dependencies": []
+}
+```
+
+**Actions**: `create` (define module from manifest), `list` (show custom modules), `remove` (unload and delete), `info` (show details).
+
+**Persistence**: Manifests are saved to `.kota/modules/<name>/manifest.json`. This is the same directory used by `ModuleStorage`, so module definition and module data live together. Manifests are auto-discovered on startup via `discoverManifestModules()` in `plugin-loader.ts`.
+
+**Tool execution**: Module tools use the same REPL session pattern as `custom_tool` — code runs in persistent Python/Node.js sessions with base64-encoded parameter passing.
+
+**Hot-loading**: When a module is created, its tools are immediately registered via `registerTool()` with module-name ownership tracking. Prompt sections take effect on next session startup (the system prompt is already built for the current session).
+
+**Relationship to custom_tool**: `custom_tool` creates individual tools quickly (ad-hoc needs). `module_factory` creates structured packages of related tools with organization and metadata. A module can have zero tools (prompt-section only) or multiple tools with shared purpose.
+
+**Design decisions**:
+- Core tool (always available) — classified as `moderate` in guardrails.
+- Max 10 custom modules (vs. 20 for individual custom tools) — modules are heavier.
+- Manifest validation rejects: builtin module/tool name conflicts, invalid schemas, duplicate tool names.
+- Modules are tracked per-session (`loadedManifestModules` set) for status display.
+- `deleteManifest()` removes only the manifest file, preserving module storage data.
+
 ### Guardrails (`src/guardrails.ts`)
 
 Centralized risk classification and policy enforcement for all tool calls. Every tool call is assessed before execution — the policy determines whether to allow, require confirmation, or deny.

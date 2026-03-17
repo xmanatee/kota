@@ -13,6 +13,7 @@ import { findReplaceTool, runFindReplace } from "./find-replace.js";
 import { globTool, runGlob } from "./glob.js";
 import { grepTool, runGrep } from "./grep.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
+import { moduleFactoryTool, runModuleFactory } from "./module-factory.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 import { processTool, runProcess } from "./process.js";
@@ -56,6 +57,7 @@ const runners: Record<string, ToolRunner> = {
   files_overview: runFilesOverview,
   custom_tool: runCustomTool,
   checkpoint: runCheckpoint,
+  module_factory: runModuleFactory,
 
   enable_tools: runEnableTools,
 };
@@ -83,6 +85,7 @@ const tools: Anthropic.Tool[] = [
   filesOverviewTool,
   customToolTool,
   checkpointTool,
+  moduleFactoryTool,
 ];
 
 /** Returns the full tool list (core + module-registered). Read-only. */

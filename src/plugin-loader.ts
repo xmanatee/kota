@@ -11,6 +11,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { discoverManifestModules } from "./module-factory.js";
 import type { KotaModule } from "./module-types.js";
 import { adaptExport } from "./tool-adapters.js";
 
@@ -46,6 +47,10 @@ export async function discoverPluginModules(cwd?: string, verbose = false): Prom
   // 2. npm-installed packages from .kota/packages/
   const npmModules = await discoverNpmPackages(base);
   modules.push(...npmModules);
+
+  // 3. Manifest-based modules from .kota/modules/*/manifest.json
+  const manifestModules = discoverManifestModules(base);
+  modules.push(...manifestModules);
 
   if (modules.length > 0 && verbose) {
     const toolCount = modules.reduce((n, m) => n + (m.tools?.length ?? 0), 0);

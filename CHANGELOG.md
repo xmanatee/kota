@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 537 — Agent-Created Modules via Module Factory
+
+Built a module_factory tool that lets the agent create full modules at runtime from declarative JSON manifests — enabling KOTA to extend itself with structured, multi-tool capability packages.
+
+### What was built
+
+**Module Factory Core** (`src/module-factory.ts`):
+- `ModuleManifest` type — JSON-serializable module definition with name, version, description, tools, prompt section, and dependencies
+- `validateManifest()` — comprehensive validation: name format, builtin conflicts, tool schemas, parameter types, duplicate detection
+- `manifestToModule()` — converts a manifest into a live `KotaModule` with working tool runners
+- `saveManifest()` / `loadManifest()` / `deleteManifest()` — persistence to `.kota/modules/<name>/manifest.json`
+- `discoverManifestModules()` — auto-discovers saved manifests for startup loading
+- `listManifestModules()` — returns name+manifest pairs for status display
+
+**Module Factory Tool** (`src/tools/module-factory.ts`):
+- `create` — validate manifest, register tools, save to disk, track as loaded
+- `list` — show all custom modules (active, saved, session-only) with status
+- `remove` — deregister tools, delete manifest, clean up tracking
+- `info` — show full details: version, tools with params, prompt section preview, dependencies
+- Session lifecycle: `markModuleLoaded()`, `resetModuleFactory()` for startup/cleanup integration
+
+**Integration points**:
+- `plugin-loader.ts` — manifest modules auto-discovered alongside JS plugins and npm packages
+- `loop.ts` — manifest modules marked as loaded during session init; factory state reset on close
+- `tools/index.ts` — tool registered as core (always available), 22 tools total
+- `tool-groups.ts` — added to CORE_TOOL_NAMES
+- `guardrails.ts` — classified as `moderate` risk
+- `custom-tool.ts` — `module_factory` added to reserved names
+- `system-prompt.ts` — documented in Extensibility section
+
+### Why it matters
+
+This directly addresses the owner's core vision: "the assistant should be able to develop some new functionality and implement it as a module, install it without runtime restart." The agent can now:
+1. Create a module with multiple related tools, a prompt section, and metadata
+2. Tools are immediately usable in the current session
+3. The module persists to disk and auto-loads on next startup
+4. Modules can be replaced, inspected, and removed
+
+This goes beyond `custom_tool` (individual ad-hoc tools) to structured capability packages that the agent organizes and maintains.
+
+### Verified
+- Typecheck: clean
+- Build: 484KB bundle
+- Tests: 2839 passed (124 files) — 47 new tests (29 module-factory core + 18 tool handler)
+- Lint: clean on all changed files
+- CLI: loads correctly (`node dist/cli.js --help`)
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Hot-load prompt sections into the current session (currently takes effect on restart)
+- Module event handlers via manifest (currently tools + prompt only)
+- Module marketplace / sharing format
+- Module templates for common patterns (API wrapper, data pipeline, monitoring)
+- Inter-module communication via typed event contracts
+- Agent-initiated module updates (version bumping, adding tools to existing modules)
+
 ## Iteration 536 — Consumer-First Editing to Reduce Rework
 
 Added consumer-first editing pattern to BUILDER_LESSONS.md and builder prompt, targeting the steadily climbing rework rate (38% → 76% over last 6 iterations).

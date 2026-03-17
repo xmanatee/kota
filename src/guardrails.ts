@@ -65,6 +65,7 @@ const MODERATE_TOOLS = new Set([
   "delegate",
   "schedule",
   "custom_tool",
+  "module_factory",
 ]);
 
 /** Patterns in shell/process commands that indicate destructive operations. */

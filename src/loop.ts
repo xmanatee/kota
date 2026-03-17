@@ -10,6 +10,7 @@ import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from 
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
+import { listManifestModules } from "./module-factory.js";
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
@@ -26,6 +27,7 @@ import { cleanupSessions } from "./tools/code-exec.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
 import { getAllTools } from "./tools/index.js";
+import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory.js";
 import { cleanupProcesses } from "./tools/process.js";
 import { CliTransport, type Transport } from "./transport.js";
 import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
@@ -232,6 +234,8 @@ export class AgentSession {
     }
 
     const pluginModules = await discoverPluginModules(undefined, this.verbose);
+    // Track which manifest modules were discovered for module_factory status
+    for (const { name } of listManifestModules()) markModuleLoaded(name);
     await this.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
 
     // Append module prompt sections to system prompt
@@ -457,6 +461,7 @@ export class AgentSession {
     cleanupProcesses();
     cleanupSessions();
     resetCustomTools();
+    resetModuleFactory();
     resetChangeTracker();
     resetGroups();
     this.moduleLoader.unloadAll().catch(() => {});

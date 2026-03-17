@@ -34,7 +34,7 @@ const RESERVED_NAMES = new Set([
   "shell", "file_read", "file_write", "file_edit", "multi_edit", "find_replace",
   "grep", "glob", "todo", "repo_map", "delegate", "web_fetch", "web_search",
   "ask_user", "http_request", "process", "code_exec", "notebook", "files_overview",
-  "enable_tools", "custom_tool", "memory", "schedule", "get_secret",
+  "enable_tools", "custom_tool", "module_factory", "memory", "schedule", "get_secret",
 ]);
 
 // ─── Internal state ───────────────────────────────────────────────────
