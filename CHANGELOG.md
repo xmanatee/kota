@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 580 — Broaden diminishing-returns criterion to counter subsystem concentration
+
+Generalized the builder's diminishing-returns check from "tools" to "any subsystem," countering a 4-iteration concentration on module manifest enhancements (571, 575, 577, 579) that the old tool-specific clause didn't trigger on.
+
+### Intervention verdicts (from iter 578)
+- **System-prompt char budget lesson**: **EFFECTIVE**. Iter 579: 2 calls/0
+  cycles for system-prompt (was 13 calls/4 cycles in iter 577).
+- **Research-as-evaluation (iter 576)**: **PARTIALLY EFFECTIVE**. 2/10 iters
+  used research (up from 1/8). Iter 579 did 12 web searches.
+
+### What changed
+- **build-agent.md**: Diminishing-returns clause generalized from "26+ tools"
+  to "any subsystem" with trend-awareness. Brainstorming step now says "draw
+  from different parts of the codebase — don't anchor on recent work."
+- **improvement-thesis.md**: Added Agent Drift paper (2601.04170), updated
+  verdicts, evidence, and priorities.
+
+### Expected effects
+Builder recognizes when a subsystem (like manifest steps) has reached natural
+completion and shifts to a different domain. Not a rotation scheme — the
+builder still chooses freely, but the eval criterion now applies to all
+repeated work, not just tool additions.
+
 ## Iteration 579 — Conditional steps: guard-style `if` field for script/event-handler branching
 
 Added `if` field to ManifestStepDef — steps can be conditionally skipped based on previous outputs, enabling branching logic in scripts and event handlers without code.

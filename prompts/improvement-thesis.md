@@ -7,41 +7,44 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 578)
+## Current Hypothesis (updated iter 580)
 
-**Key finding (iter 578)**: System-prompt char budget rework is the top
-measurable waste pattern. In iter 577, calls 40-52 (13 calls, 20% of session)
-were spent on 4 edit-test cycles to trim 13 chars. Same pattern in iters 575
-(6 calls) and 573 (7 calls) — 3/4 recent feature iters hit this. Root cause:
-builder doesn't know the budget has ≤200 chars headroom before writing verbose
-additions. Fix: updated BUILDER_LESSONS with pre-check guidance (run tests
-first to see current length, trim aggressively upfront). This is a procedural
-pattern — lessons are effective for these (proven: lint batching, consumer-first
-edits).
+**Key finding (iter 580)**: Subsystem concentration is the top strategic
+concern. The builder has enhanced the module manifest system for 4 of the last
+5 feature iterations (571 event-handler steps, 575 scripts, 577 step refs,
+579 conditional steps). Each is good work individually, but the diminishing
+returns clause in the eval criterion only mentioned "tools" — it didn't trigger
+for manifest features. Root cause: anchoring on recent work during brainstorming.
+Fix: generalized the diminishing-returns clause to "any subsystem" and added
+anti-anchoring guidance to brainstorming.
 
-**Iter 576 intervention verdict:**
-- **Research-as-evaluation**: TOO EARLY. Only 1 builder iter (577) since change.
-  Iter 577 did no research, but the task (step output references) was narrow
-  incremental work where research wasn't needed. Need 3-4 more builder iters
-  before judging. Watch for iters where the builder picks a NEW capability —
-  those are where research should kick in.
-- **DESIGN.md targeted reads**: INEFFECTIVE. Builder read DESIGN.md in full in
-  both iter 575 and 577, ignoring the "do NOT read it in full" instruction.
-  But no read errors occurred — the file (1260 lines) fits within read limits.
-  The instruction was factually wrong. Removed it this iter.
+This is an instance of **agent drift** (arXiv 2601.04170): behavioral
+convergence where an agent repeatedly enhances the same subsystem. The DGM
+archive approach and LILO variance sampling both prescribe diversity in
+exploration as the antidote. Eval criterion changes have proven effective for
+strategic behavior (iter 548, 568, 576).
+
+**Iter 578 intervention verdicts:**
+- **System-prompt char budget lesson**: **EFFECTIVE**. Iter 579: 2 calls/0
+  cycles for system-prompt (was 13 calls/4 cycles in 577). The pre-check
+  strategy works — builder checked char count BEFORE editing.
+- **Research-as-evaluation (iter 576)**: **PARTIALLY EFFECTIVE**. 2/10 iters
+  used web research (up from 1/8). Iter 579 did 12 web searches. But 8/10
+  still had zero. Pattern is binary: heavy research or none. Need more data.
 
 **Active issues:**
-1. **Web research** — ADDRESSED iter 576. 1/8 rate. Folded into eval criterion.
-   Verify over next 3-4 builder iters. Target: 2-4/8 research usage.
-2. **DESIGN.md growth** — 1260 lines, target was 1100. Prompt + lesson guidance
-   not effective. Accepting current state — file reads successfully and context
-   per turn is healthy (44k in iter 577). Will re-evaluate if read errors recur.
-3. **System-prompt rework** — ADDRESSED this iter. 3/4 recent feature iters
-   burned 6-13 calls on char budget iteration. Lesson added.
-4. **Context growth** — GOOD. 44k/turn in iter 577 (lowest in 8-iter window).
-5. **Instruction density** — 100 lines builder prompt (was 103). Under threshold.
+1. **Subsystem concentration** — ADDRESSED this iter. Eval criterion broadened.
+   Verify: does builder iter 581 target a different area than manifest steps?
+2. **Web research** — ADDRESSED iter 576. 2/10 rate (was 1/8). Improving but
+   slowly. Continue monitoring — target: 3-4/10 research usage.
+3. **DESIGN.md growth** — ~1260 lines. Accepting: reads successfully, context
+   healthy. Re-evaluate if read errors recur.
+4. **System-prompt rework** — RESOLVED iter 578. Lesson effective in iter 579.
+5. **Context growth** — GOOD. 57k/turn in iter 579, 67k avg, shrinking.
+6. **Instruction density** — 101 lines builder prompt. Under ~150 threshold.
 
 **Resolved issues:**
+- System-prompt rework: RESOLVED (iter 578→579). Lesson effective. 0 cycles.
 - Work-type classification: FIXED (iter 572). Confirmed effective in iter 573.
 - CHANGELOG growth: RESOLVED (iter 568+570+572). Archival + verbosity cap.
 - Pattern lock: RESOLVED (iter 568→569). Eval criterion + trend analysis.
@@ -83,25 +86,30 @@ edits).
 - **(578)** System-prompt char budget lesson + DESIGN.md read instruction fix.
   Removed factually wrong "do NOT read in full" (file fits within limits).
   Added pre-check guidance for system-prompt char budget (≤200 headroom).
+  **EFFECTIVE** (system-prompt) + **PARTIAL** (DESIGN.md read removed).
+- **(580)** Broadened diminishing-returns criterion from "tools" to "any
+  subsystem." Added anti-anchoring guidance to brainstorming. Addresses 4/5
+  feature iters concentrating on module manifest steps.
 
-## Evidence (updated iter 578)
+## Evidence (updated iter 580)
 
+- **Iter 579 metrics**: 76 calls, $3.23, 57k ctx, +28 tests, 0 fix cycles,
+  75% re-edit, 12 web searches. Conditional steps (feature, module manifest).
+  System-prompt: 2 calls/0 cycles — lesson EFFECTIVE.
 - **Iter 577 metrics**: 65 calls, $2.47, 44k ctx, +26 tests, 5 fix cycles,
-  73% re-edit. Step output references (feature). System-prompt char budget
-  rework dominated: 13 calls (20%) spent on 4 edit-test trim cycles.
-- **Iter 575 metrics**: 79 calls, $3.80, 63k ctx, +21 tests, 6 fix cycles,
-  72% re-edit. Module scripts (feature). System-prompt rework (6 calls).
-- **8-iter trend**: calls 112→86→64→61→54→62→79→65. Cost $7.39→$2.47.
-  Context 100k→44k. Fix cycles 9→3→4→2→1→2→6→5 (avg 4.0). Work: 5 feat, 3 arch.
-- **Verify rerun ratios**: typecheck 2.2×, test 6.5×, lint 3.5× avg/iter.
-- **Context trend**: 65k avg, shrinking -26%.
+  73% re-edit. Step output references (feature, module manifest). No research.
+- **10-iter trend**: calls avg 79, cost avg $4.24. Context 67k avg, shrinking
+  -29%. Fix cycles avg 4.1. Work: 6 feat, 4 arch. Research: 2/10.
+- **Subsystem concentration**: 4/5 last feature iters = module manifest
+  (571 steps, 575 scripts, 577 refs, 579 conditionals). Only iter 573
+  (view_image) was different.
+- **Verify rerun ratios**: typecheck 2.6×, test 7.3×, lint 4.0× avg/iter.
 - **Build pass rate**: 100%.
-- **Tests**: 3246 (+26 from iter 577).
-- **Research**: 1/8 iters. Eval criterion change (iter 576) needs 3-4 more iters.
-- **Instruction load**: 100 lines builder prompt. Under ~150 threshold.
+- **Tests**: 3269 (+28 from iter 579).
+- **Research**: 2/10 iters (was 1/8). Binary pattern: heavy or none.
+- **Instruction load**: 101 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **DESIGN.md**: 1260 lines. Reads successfully — no longer a read-limit issue.
-- **System-prompt rework**: 3/4 recent feature iters affected (573, 575, 577).
+- **System-prompt rework**: RESOLVED. 0 cycles in iter 579 (was 3/4 affected).
 
 ## Research Library
 
@@ -119,6 +127,7 @@ Compressed references. Grouped by current relevance.
 | Mind the Gap (2412.02674) | Plateau = verifier ≈ generator. Strengthen verifier | iter 560 |
 | Factory.ai Compression (2025) | Structured compression retains technical details better | iter 564 |
 | JetBrains Complexity Trap (NeurIPS 2025) | Simple masking matches LLM summarization | iter 564 |
+| Agent Drift (2601.04170) | Behavioral convergence over extended interactions; diversity in exploration as antidote | iter 580 |
 | Aider Architect/Editor (2024) | Separation improves edit correctness 92%→100% | Background |
 
 ### Potential Future Directions
@@ -190,6 +199,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Image viewing (visual analysis) | ✓ | Unit |
 | Module scripts (on-demand tool sequences) | ✓ | Unit |
 | Step output references ($steps[N] data flow) | ✓ | Unit |
+| Conditional steps (if guards on manifest steps) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -223,16 +233,20 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   full" instruction was factually wrong (file fits in read limit) and the
   builder ignored it in every iteration. No error, no rework — just noise in
   the prompt. Audit instructions for factual accuracy, not just usefulness.
+- **Subsystem anchoring**: The builder anchors brainstorming on recent work.
+  After 4 manifest-step iterations, it naturally generates more manifest-step
+  candidates. Fix: eval criterion that explicitly generalizes diminishing
+  returns beyond tools, plus anti-anchoring brainstorming guidance. Eval
+  criterion changes work for strategic behavior (proven pattern).
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Research encouragement** — ADDRESSED iter 576. Eval criterion approach.
-   Verify over next 3-4 builder iters. Target: 2-4/8 research usage.
-2. **System-prompt rework** — ADDRESSED iter 578. Lesson added. Verify in
-   next 2-3 feature iters. Target: ≤2 calls on system-prompt per iter.
-3. **Signal accuracy** — ONGOING. Classification keywords maintained.
-4. **Context growth** — GOOD. 44k/turn, 65k avg, shrinking.
-5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+1. **Subsystem concentration** — ADDRESSED iter 580. Eval criterion broadened.
+   Verify: does iter 581 target a different area? If not, stronger intervention.
+2. **Research encouragement** — ADDRESSED iter 576. 2/10 rate. Continue
+   monitoring. Target: 3-4/10 research usage.
+3. **System-prompt rework** — RESOLVED iter 578. 0 cycles in iter 579.
+4. **Signal accuracy** — ONGOING. Classification keywords maintained.
+5. **Context growth** — GOOD. 57k/turn, 67k avg, shrinking.
+6. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-6. **DESIGN.md growth** — 1260 lines. Accepting: reads successfully, context
-   healthy. Re-evaluate if read errors recur or context trend reverses.

@@ -42,7 +42,8 @@ for deciding what to build.
 
 **Brainstorm 3-5 candidates** from your orientation inputs. Think broadly: new
 capabilities, architecture improvements, composition of existing features,
-owner suggestions, research-inspired ideas.
+owner suggestions, research-inspired ideas. Draw from different parts of the
+codebase — don't anchor on what was recently built.
 
 **Choose the highest-impact option.** Evaluate each on: what does this make
 possible that wasn't possible before? Features unlock new workflows ("user asks
@@ -51,10 +52,11 @@ unlocks new properties ("any developer can create a working module using
 ModuleContext alone" or "modules can be swapped without touching other code").
 Both are concrete capability gains.
 
-Watch for diminishing returns: with 26+ tools, each new tool must clear a
-higher bar. Ask: can existing tools approximate this? If yes, the delta is
-small. Architecture and composition work that makes the EXISTING 26 tools
-more reliable, independent, or composable often delivers more per iteration.
+Watch for diminishing returns in any subsystem. If recent iterations
+concentrated on the same area, the next enhancement there delivers less than
+opening a new front. Ask: can existing capabilities approximate this? If yes,
+the delta is small. Architecture and composition work that makes existing
+capabilities more reliable, independent, or composable often delivers more.
 
 For promising candidates, search the web for prior art, APIs, and pitfalls —
 existing implementations often reveal better approaches or hidden complexity
