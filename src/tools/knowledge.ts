@@ -6,6 +6,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import { tryEmit } from "../event-bus.js";
 import { getKnowledgeStore } from "../knowledge-store.js";
 import type { ToolResult } from "./index.js";
 
@@ -138,18 +139,21 @@ export async function runKnowledge(
 				};
 			}
 			const content = (input.content as string) || "";
+			const entryType = (input.type as string) || "note";
+			const entryTags = (input.tags as string[]) || [];
+			const entryScope = (input.scope as "project" | "global") || "project";
 			const id = store.create({
 				title,
 				content,
-				type: (input.type as string) || "note",
-				tags: (input.tags as string[]) || [],
+				type: entryType,
+				tags: entryTags,
 				status: (input.status as string) || "active",
-				scope:
-					(input.scope as "project" | "global") || "project",
+				scope: entryScope,
 				meta: (input.meta as Record<string, string>) || undefined,
 			});
+			tryEmit("knowledge.create", { id, title, type: entryType, tags: entryTags, scope: entryScope });
 			return {
-				content: `Created entry ${id}: "${title}" (${(input.type as string) || "note"})`,
+				content: `Created entry ${id}: "${title}" (${entryType})`,
 			};
 		}
 
@@ -200,9 +204,11 @@ export async function runKnowledge(
 				};
 			}
 			const ok = store.update(id, changes);
-			return ok
-				? { content: `Updated entry ${id}` }
-				: { content: `Entry ${id} not found`, is_error: true };
+			if (ok) {
+				tryEmit("knowledge.update", { id, fields: Object.keys(changes) });
+				return { content: `Updated entry ${id}` };
+			}
+			return { content: `Entry ${id} not found`, is_error: true };
 		}
 
 		case "delete": {
@@ -214,9 +220,11 @@ export async function runKnowledge(
 				};
 			}
 			const ok = store.delete(id);
-			return ok
-				? { content: `Deleted entry ${id}` }
-				: { content: `Entry ${id} not found`, is_error: true };
+			if (ok) {
+				tryEmit("knowledge.delete", { id });
+				return { content: `Deleted entry ${id}` };
+			}
+			return { content: `Entry ${id} not found`, is_error: true };
 		}
 
 		case "search": {

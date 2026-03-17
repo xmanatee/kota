@@ -1,5 +1,72 @@
 # KOTA Changelog
 
+## Iteration 559 — Clipboard Tool and Knowledge Store Events
+
+Built a clipboard tool for reading/writing system clipboard and wired knowledge store CRUD operations to the event bus, completing the data-events-actions pipeline.
+
+### What was built
+
+**1. Clipboard tool (`src/tools/clipboard.ts`)**
+
+Read from and write to the system clipboard. New interaction modality that enables seamless data transfer between the agent and other applications.
+
+- **Actions**: `read` (get clipboard text), `write` (set clipboard text)
+- **Platform support**: macOS (`pbpaste`/`pbcopy`), Linux (`xclip`), error with guidance on unsupported platforms
+- **Limits**: Read truncates at 50K chars, write rejects over 100K chars
+- **Zero npm dependencies** — uses only platform clipboard utilities
+
+Registration (full checklist per BUILDER_LESSONS.md):
+- `src/tools/index.ts` — import, runner, tools array
+- `src/module-factory.ts` — BUILTIN_TOOL_NAMES
+- `src/guardrails.ts` — SAFE_TOOLS (low-risk, reversible)
+- `src/tool-groups.ts` — CORE_TOOL_NAMES (always available)
+- `src/system-prompt.ts` — Coordination tools section
+- `src/tools/index.test.ts` — tool count (25→26) and name set
+
+Use cases enabled:
+- "Analyze what I just copied" — user copies a stack trace, code, or data
+- "Put this on my clipboard" — agent formats results for pasting into another app
+- "Format my clipboard" — copy rough text, agent transforms it
+- "Extract data from what I copied" — agent parses clipboard content
+
+**2. Knowledge store events (`src/tools/knowledge.ts`, `src/event-bus.ts`)**
+
+Wired knowledge CRUD operations to the event bus, completing the data→events→actions pipeline the owner has been building toward since iter 531.
+
+- `knowledge.create` — emitted with `{id, title, type, tags, scope}`
+- `knowledge.update` — emitted with `{id, fields}` (lists changed keys)
+- `knowledge.delete` — emitted with `{id}`
+
+Events fire via `tryEmit()` — no-op when bus isn't initialized. Only on success; failed operations emit nothing. Combined with module manifest event handlers (iter 553), this enables:
+- Modules that react automatically to data changes
+- "When new research is added, notify me" via manifest eventHandlers
+- Foundation for reactive data workflows
+
+### Verified
+
+- **Typecheck**: clean (`tsc --noEmit`)
+- **Build**: clean (`tsup`)
+- **Tests**: 3048 passed (135 files) — up from 3031 (+17 new tests: 10 clipboard, 7 knowledge events)
+- **Lint**: clean on all changed files (`npx biome check`)
+- **Load**: `node dist/cli.js --help` works
+- **Runtime**: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Clipboard tool + knowledge events** — CHOSEN. Clipboard adds a new interaction modality (agent ↔ other apps). Knowledge events complete the data→events→actions pipeline. Together they advance both UX and architecture.
+2. **Browser automation** — Playwright-based web control. Massive capability but heavyweight dependency and too complex for one iteration.
+3. **Semantic search for knowledge** — Embedding-based search. Needs external API or local model.
+4. **File watcher** — Monitor directories for changes. Complex (polling vs. OS events) and narrow use case.
+5. **Module scripts/logs** — Let modules define executable scripts. Owner asked for it but lower impact than events.
+
+### Future directions
+
+- **Knowledge event filtering**: Module manifests could declare filters on event payloads (e.g., only fire for entries with tag "urgent")
+- **Clipboard monitoring**: Watch clipboard for changes and process automatically (combined with scheduler)
+- **Data pipeline composition**: Chain knowledge events → processing → notification workflows declaratively
+- **Knowledge store search improvements**: Fuzzy matching, weighted field search, related entries
+- **Migrate core modules to use ctx.events**: Continue the module isolation arc using the new events
+
 ## Iteration 558 — Compress Improvement Thesis and Refine Checklist
 
 Compressed improvement thesis from 478 to ~190 lines (-60%) and refined tool registration checklist to include test name assertions, targeting the 4.9x test rerun ratio.

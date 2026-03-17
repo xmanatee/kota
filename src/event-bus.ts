@@ -29,6 +29,20 @@ export type BusEvents = {
     error?: string;
     durationMs: number;
   };
+  "knowledge.create": {
+    id: string;
+    title: string;
+    type: string;
+    tags: string[];
+    scope: string;
+  };
+  "knowledge.update": {
+    id: string;
+    fields: string[];
+  };
+  "knowledge.delete": {
+    id: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

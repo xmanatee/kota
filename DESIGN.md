@@ -200,6 +200,36 @@ Extracts text from PDFs, DOCX, RTF, ODT, EPUB, and other document formats using 
 - Complements `file_read` (raw text) and `screenshot` (visual) as a third input modality.
 - 30s timeout per extraction attempt to handle large documents without hanging.
 
+### Clipboard (`src/tools/clipboard.ts`)
+
+Read from and write to the system clipboard. Enables seamless data transfer between the agent and other applications — users can copy text, have the agent process it, and get results back on their clipboard ready to paste.
+
+**Platform support**:
+- **macOS**: `pbpaste` / `pbcopy` (built-in)
+- **Linux**: `xclip -selection clipboard` (requires `xclip` package)
+- **Fallback**: Error with platform-specific guidance
+
+**Design decisions**:
+- Core tool (always available) — clipboard interaction is useful across all domains.
+- Classified as `safe` in guardrails — clipboard read/write is low-risk and reversible.
+- Read limit: 50,000 chars. Write limit: 100,000 chars. Prevents excessive clipboard usage.
+- Zero npm dependencies — uses only platform clipboard utilities.
+
+### Knowledge Store Events
+
+Knowledge CRUD operations emit typed events on the event bus, enabling reactive data-driven workflows:
+- `knowledge.create` — emitted with `{id, title, type, tags, scope}` after successful creation
+- `knowledge.update` — emitted with `{id, fields}` after successful update (fields lists changed keys)
+- `knowledge.delete` — emitted with `{id}` after successful deletion
+
+Events are emitted from the tool runner (`src/tools/knowledge.ts`) via `tryEmit()` — no-op if the bus isn't initialized. Only fires on success; failed operations (not found, validation error) emit nothing.
+
+**What this enables**:
+- Agent-created modules with `eventHandlers` can react to data changes automatically
+- "When a new research entry is added, send a notification" via module manifest
+- "When a task entry is marked done, archive related notes" via event-driven automation
+- Foundation for the data→events→actions pipeline
+
 ### Custom Tool Builder (`src/tools/custom-tool.ts`)
 
 Lets the agent dynamically create new tools at runtime from Python/Node.js code. Transforms the agent from a fixed-tool system into a self-extending one.
