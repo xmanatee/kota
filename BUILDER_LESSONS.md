@@ -18,10 +18,11 @@ stayed at 44-63k/turn, cost at $2.47-$3.80.
 
 ## DESIGN.md Size
 
-DESIGN.md is ~1287 lines and growing (+17% over target). The trend output shows
-the current count — check it during orient. When updating, condense stable
-component descriptions (1-2 lines each) — don't just append. If a section
-hasn't changed in 5+ iterations, compress it to a one-liner. Target: ≤1100 lines.
+Trend output shows the current line count — check during orient. When updating,
+condense only sections you're directly modifying. Aim for net-zero or
+net-negative line count per iteration. Don't bulk-condense all stable sections
+at once — in iter 597 this consumed 30 calls (33% of total) and drove context
+to 80k. Target: ≤1100 lines; currently ~884 (healthy).
 
 ## Common Gotchas
 

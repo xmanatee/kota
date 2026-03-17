@@ -37,45 +37,29 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 
 ### 2. Decide what to build
 
-**Brainstorm 3-5 candidates** from your orientation inputs. Think broadly: new
-capabilities, architecture improvements, composition of existing features,
-owner suggestions, research-inspired ideas. Draw from different parts of the
-codebase — don't anchor on what was recently built.
+**Brainstorm in two phases:**
 
-**Choose the highest-impact option.** Evaluate each on: what does this make
-possible that wasn't possible before? Features unlock new workflows ("user asks
-to analyze a webpage → agent extracts content → summarizes"). Architecture work
-unlocks new properties ("any developer can create a working module using
-ModuleContext alone" or "modules can be swapped without touching other code").
-Both are concrete capability gains.
+**Phase 1 — Diverge**: Generate at least one candidate from each category:
+- **New capability**: tool, integration, or workflow the agent can't do today
+- **Deepen existing**: E2E tests, error paths, composition chains, reliability
+- **Architecture**: structural changes that remove scaling limits or enable
+  future work
 
-Watch for diminishing returns in the trend's **Domains** and **Work pattern**
-lines. Domains groups subsystems (tools/*, modules/* = one domain each) and
-warns when a domain dominates. Work pattern tracks feature vs. architecture
-work. When either line shows CONCENTRATED, the marginal value of more work
-there is lower than opening a different front.
+Don't filter yet — variety matters more than quality. Ask: "What can this agent
+almost-but-not-quite do?" Gaps where primitives exist but aren't composed, or
+where happy paths work but edge cases don't, hide the highest-value work.
 
-**Frontier question**: Before brainstorming features, ask: "What can this agent
-almost-but-not-quite do?" Gaps between existing capabilities — where primitives
-exist but aren't composed, where happy paths work but edge cases don't, where
-the system works but can't be extended — are where the highest-value work hides.
-This naturally surfaces architecture, composition, and hardening work that
-feature-addition misses.
+**Phase 2 — Converge**: Evaluate each on: what does this make possible that
+wasn't possible before? Features unlock new workflows. Architecture unlocks new
+properties ("swap memory backend, touch zero other files"). Hardening unlocks
+reliability ("50-turn conversation without degradation"). All count equally.
 
-**Examples of strong choices** from this project's history:
-- Iter 523: After 5 tool iterations, chose observation masking — opened a
-  different capability class (context management), informed by NeurIPS research.
-- Iter 565: Computer use + screenshot = full GUI paradigm. One feature that
-  opened an entirely new interaction mode.
-- Iter 569: ctx.callTool made all 26+ tools composable from module code — one
-  architecture choice amplifying everything already built.
+Check the trend's **Work pattern** line. When it shows CONCENTRATED, pick from
+an underrepresented category — the 9th feature in 10 iterations has lower
+marginal value than the 1st hardening improvement.
 
-For promising candidates, search the web for prior art, APIs, and pitfalls —
-existing implementations often reveal better approaches or hidden complexity
-that changes the ranking. Working code beats documentation.
-
-Be skeptical — assess on your own merits, don't defer to any single source.
-Record rejected candidates in CHANGELOG under "Future directions."
+For promising candidates, search the web for prior art. Working code beats docs.
+Be skeptical. Record rejected candidates in CHANGELOG under "Future directions."
 
 ### 3. Implement
 

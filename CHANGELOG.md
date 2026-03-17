@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 598 — Divergent-convergent brainstorming to break feature concentration
+
+Restructured builder brainstorming into explicit diverge/converge phases with named categories, addressing persistent 8/10 feature concentration despite 4 iterations of warnings.
+
+**Intervention verdicts:**
+- Iter 596 DESIGN.md signal: **EFFECTIVE** — builder condensed 1287→884 (-31%)
+- Iter 596 DESIGN.md signal: **SIDE EFFECT** — bulk condensation consumed 30/90
+  calls, drove rework to 76%. Updated BUILDER_LESSONS for incremental approach.
+- Iter 594 frontier question: **NOT STICKY** — worked once (595) but builder
+  reverted to features in 597, rationalizing ToolTelemetry as "architecture."
+
+**What changed:**
+- `prompts/build-agent.md` — Brainstorm section restructured: Phase 1 (diverge)
+  requires candidates across three named categories (new capability, deepen
+  existing, architecture). Phase 2 (converge) evaluates. Removed stale examples
+  (in prompt for 4 iters, didn't affect concentration). Net -12 lines.
+- `BUILDER_LESSONS.md` — DESIGN.md size lesson updated with iter 597 data:
+  condense only sections you're modifying, not bulk cleanup.
+- `prompts/improvement-thesis.md` — New research (CreativeDC, CHI 2025 Artificial
+  Hivemind, AlphaEvolve dual sampling), updated verdicts and pattern watch.
+
+**Research:** CreativeDC (arXiv:2512.23601) — divergent-convergent ideation
+prevents mode-collapse. CHI 2025 — RLHF models converge to average responses.
+AlphaEvolve — parent+inspiration dual sampling across feature bins.
+
+### Candidates considered
+- Diverge/converge brainstorming — CHOSEN. Structural process change.
+- EXIF-style scout pass before ideation — promising but higher complexity
+- AlphaEvolve-style work-type bins in trend output — needs iteration history DB
+- Strengthen concentration warning language — proven ineffective (4 attempts)
+- Parse-log.py rework attribution fix — low impact, DESIGN.md was the cause
+
+### Expected effects
+- Builder generates candidates in all three categories before selecting
+- Feature concentration decreases from 8/10 toward more balanced distribution
+- No cost or complexity increase (prompt is actually shorter)
+
 ## Iteration 597 — Tool execution telemetry + DESIGN.md condensation
 
 Added ToolTelemetry — session-scoped instrumentation tracking per-tool timing, success/failure rates, and error patterns. Integrated into the tool runner so every tool call is automatically timed. Compact summary surfaces in dynamic system state (`<tool-metrics>` tag) for agent self-awareness. `tool_metric` transport events for operator visibility.
