@@ -751,6 +751,10 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 - **Verification nudges** (`src/verify-tracker.ts`): Tracks unverified edits, detects available test/build commands, escalates after 3 turns.
 - **File change tracking & undo** (`src/file-changes.ts`, `src/tools/checkpoint.ts`): Automatically records the original state of every file before its first modification. The `checkpoint` tool (core, always available) lets the agent list changes, diff against originals, and restore files — surgical undo for multi-file edits gone wrong. Singleton lifecycle managed in `AgentSession` (init on construction, reset on close). Change summary injected into dynamic system state for agent awareness.
 
+### Session State Machine (`src/session-state.ts`)
+
+Explicit lifecycle states for `AgentSession`, mapping to the ReAct pattern. States: `idle → initializing → ready → thinking → acting → ready` (happy path), with `reflecting` and `error` branches. Transition table enforced — invalid transitions throw. Listeners notified on every change with `(from, to, meta)`. State changes emit `state_change` transport events and `session.state` bus events. `AgentSession.getState()` exposes current state. History tracking with `consecutiveCount()` for loop detection.
+
 ### Tool Execution Telemetry (`src/tool-telemetry.ts`)
 
 Session-scoped instrumentation tracking per-tool timing, success/failure rates, and error patterns. Integrated into `executeToolCalls()` — every tool call is timed and recorded automatically. Compact summary injected into dynamic system state (`<tool-metrics>` tag) so the agent can see tool performance and adapt strategy. `tool_metric` transport events emitted for operator visibility. Singleton lifecycle: `getToolTelemetry()` / `resetToolTelemetry()` managed in `AgentSession`.

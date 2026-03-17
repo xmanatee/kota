@@ -18,6 +18,12 @@ export type BusEvents = {
     error?: string;
     durationMs: number;
   };
+  "session.state": {
+    sessionId: string;
+    from: string;
+    to: string;
+    meta?: Record<string, unknown>;
+  };
   "schedule.fire": {
     itemId: number;
     description: string;

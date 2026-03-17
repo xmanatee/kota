@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 601 — Session State Machine
+
+Added explicit lifecycle state machine to AgentSession, mapping to the ReAct pattern (idle→initializing→ready→thinking→acting→ready). Inspired by OpenHands' ConversationExecutionStatus.
+
+### What changed
+- `src/session-state.ts` — `SessionStateMachine` with 8 states, enforced transition table, listener callbacks, history tracking, and `consecutiveCount()` for loop detection
+- `src/loop.ts` — Integrated into AgentSession: transitions at each lifecycle point (init, think, act, reflect, done, close)
+- `src/transport.ts` — New `state_change` event type (verbose mode)
+- `src/event-bus.ts` — New `session.state` bus event for module/operator visibility
+- 24 unit tests + 4 E2E tests (28 new, 3480 total)
+
+### Candidates considered
+- **Tool dependency resolution** — deferred; LLM handles sequencing, tool groups cover availability
+- **E2E tests for middleware/telemetry** — deferred; good hardening but less foundational
+- **Mutation testing** — deferred; 0/5 recent iters ran mutation checks
+
+### Verification
+typecheck ✓, build ✓, 3480 tests pass, lint clean, load ✓, runtime SKIP (no key)
+
+### Future directions
+- Tool gating by state (restrict which tools are callable per state)
+- Pause/resume support leveraging the state machine
+- Stuck detection using `consecutiveCount()` to break infinite loops
+
 ## Iteration 600 — Research-Before-Convergence in Builder Brainstorming
 
 Moved web research from afterthought to prerequisite in brainstorm Phase 2, fixing hollow diverge/converge compliance where the builder pre-decides then generates token alternatives.

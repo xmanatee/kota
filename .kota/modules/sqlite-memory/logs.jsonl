@@ -1,756 +1,3 @@
-{"ts":"2026-03-17T11:41:04.566Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T11:41:04.567Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:04.584Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:04.585Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:04.587Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:04.587Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:04.818Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:04.819Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:04.947Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:04.948Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.031Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.031Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.181Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.181Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.197Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.197Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.346Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.346Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.351Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.351Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.515Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.515Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.604Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.604Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.656Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.656Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.741Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.741Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.795Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.796Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.899Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.900Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:05.963Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:05.963Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:06.107Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:06.108Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:06.241Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:06.242Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:06.372Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:06.372Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:06.512Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:06.512Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:06.645Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:06.645Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:41:06.775Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:41:06.775Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.392Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.392Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.396Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.397Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.504Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.504Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.557Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.558Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.606Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.606Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.687Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.687Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.698Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.698Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.781Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.781Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.787Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.787Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.891Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.891Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.938Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.939Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:10.979Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:10.979Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.030Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.030Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.072Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.072Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.135Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.135Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.179Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.180Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.274Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.274Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.373Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.373Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.466Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.466Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.542Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T11:42:11.542Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.553Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.553Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.646Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.646Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:42:11.728Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:42:11.728Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:36.372Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:36.373Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:36.579Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:36.579Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:36.807Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:36.808Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:37.004Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:37.004Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:37.203Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:37.203Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:37.514Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:37.514Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:37.753Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:37.753Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:38.019Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:38.019Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:38.394Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:38.395Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:38.616Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:38.616Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:38.826Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:38.826Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:38.849Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:38.850Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.001Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.002Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.181Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.182Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.215Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.215Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.478Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.478Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.509Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.509Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.683Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.683Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.727Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:39.727Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:39.902Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T11:57:39.903Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:40.101Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:40.102Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:40.307Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:40.308Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T11:57:40.530Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T11:57:40.530Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.633Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.634Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.634Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.634Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.744Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.744Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.799Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.799Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.850Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.851Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.937Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.937Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:23.943Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:23.944Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.034Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.034Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.034Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.034Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.133Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.133Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.193Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.194Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.233Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.233Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.291Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.291Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.326Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.326Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.396Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.396Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.438Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.439Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.558Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.558Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.684Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.685Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:24.869Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:24.869Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:25.056Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:25.057Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:25.239Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:25.240Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:25.400Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T12:11:25.401Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T12:11:25.704Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T12:11:25.709Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:22.504Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:22.505Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:22.613Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:22.613Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:22.711Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:22.711Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:22.807Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:22.807Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:22.898Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:22.898Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:22.995Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:22.995Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:23.084Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:23.084Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:23.185Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:23.185Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:23.321Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:23.321Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:23.413Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:23.413Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:23.505Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:23.505Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:23.711Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:23.712Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:24.056Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:24.057Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:24.451Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:24.452Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:24.871Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:24.874Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:25.887Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T13:44:25.889Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:26.253Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:26.255Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:27.075Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:27.075Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:27.554Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:27.554Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:27.820Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:27.821Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:28.430Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:28.431Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:28.912Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:28.912Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T13:44:29.296Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T13:44:29.297Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:57.811Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:57.811Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:57.812Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:57.812Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:57.915Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:57.915Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:57.927Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T14:02:57.928Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:57.967Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:57.967Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.008Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.008Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.099Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.099Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.099Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.100Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.190Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.190Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.190Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.191Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.287Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.287Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.344Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.345Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.376Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.376Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.439Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.439Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.477Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.478Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.578Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.578Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.624Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.624Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.739Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.739Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.843Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.844Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:58.956Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:58.956Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:59.077Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:59.077Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:59.250Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:59.250Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:02:59.437Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:02:59.437Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:17.842Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:17.843Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:17.949Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:17.950Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.046Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.046Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.136Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.137Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.227Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.228Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.329Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.329Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.418Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.418Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.524Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.524Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.654Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.655Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.746Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.746Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.851Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.851Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:18.977Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:18.979Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.007Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.007Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.216Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.221Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.343Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.343Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.536Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.537Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.736Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.737Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.763Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.764Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:19.932Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:19.933Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:20.316Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:20.317Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:20.555Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:20.555Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:20.575Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T14:18:20.578Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:18:20.782Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:18:20.783Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:44.513Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:44.514Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:44.516Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:44.517Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:44.701Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:44.701Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:44.814Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:44.814Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:44.877Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:44.878Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.057Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.057Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.058Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.058Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.310Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.310Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.332Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.334Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.646Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.647Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.705Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.707Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.844Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.844Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:45.908Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:45.911Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.032Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:46.032Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.148Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:46.149Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.239Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:46.239Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.427Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:46.428Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.439Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T14:25:46.440Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.630Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:46.631Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:46.825Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:46.825Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:47.033Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:47.034Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:47.256Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:47.256Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:25:47.456Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:25:47.456Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:26.717Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:26.717Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:26.717Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:26.717Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:26.824Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:26.824Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:26.874Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:26.874Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:26.921Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:26.921Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.002Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.003Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.013Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.013Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.091Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.092Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.101Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.101Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.196Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.196Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.246Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.246Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.285Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.286Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.347Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.348Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.392Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.392Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.479Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.480Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.531Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.532Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.627Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.627Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.716Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.717Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.801Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.801Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.884Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.884Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:27.992Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:27.993Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:28.197Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:40:28.197Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:40:28.548Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T14:40:28.549Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:20.838Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:20.838Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:20.990Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:20.990Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:21.143Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:21.144Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:21.270Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:21.271Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:21.393Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:21.394Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:21.545Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:21.545Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:21.724Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:21.727Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:21.910Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:21.910Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.057Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.058Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.210Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.212Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.338Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.339Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.453Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.453Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.576Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.577Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.697Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.697Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.728Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.729Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.808Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.808Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.880Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T14:58:22.880Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:22.933Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:22.934Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:23.107Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:23.107Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:23.247Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:23.248Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:23.508Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:23.508Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:23.636Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:23.637Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T14:58:23.776Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T14:58:23.777Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.090Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.091Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.188Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.188Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.279Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.279Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.377Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.377Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.473Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.473Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.567Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.567Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.689Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.689Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:24.987Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:24.988Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.542Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.542Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.648Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.649Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.755Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.756Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.820Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.821Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.844Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.845Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.934Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.935Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:25.974Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:25.975Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.035Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.037Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.112Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.112Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.123Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.123Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.213Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.214Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.354Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.354Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.431Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.432Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.436Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T15:09:26.436Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:09:26.516Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:09:26.516Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.316Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.316Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.397Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.397Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.475Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.475Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.553Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.553Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.619Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.620Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.696Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.696Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.766Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.766Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.838Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.838Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.919Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.920Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:41.994Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:41.994Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.068Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.068Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.109Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.109Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.136Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.136Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.203Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.204Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.227Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.227Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.270Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.271Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.330Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.330Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.336Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.336Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.402Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.403Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.501Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T15:21:42.502Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.521Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.524Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.593Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.593Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:21:42.721Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:21:42.725Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.470Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.471Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.562Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.562Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.645Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.645Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.725Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.725Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.798Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.799Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.895Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.895Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:22.973Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:22.973Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.074Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.074Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.220Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.222Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.322Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.323Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.410Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.411Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.466Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.466Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.510Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.510Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.588Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.588Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.601Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.601Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.669Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.670Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.708Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.708Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.726Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T15:32:23.726Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.740Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.741Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.782Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.782Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.909Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.909Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:23.983Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:23.983Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:32:24.092Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:32:24.093Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:24.918Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:24.918Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:24.998Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:24.999Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.064Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.065Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.140Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.141Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.205Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.205Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.268Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.268Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.331Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.332Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.397Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.397Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:38:25.467Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:38:25.468Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:27.896Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:27.897Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:27.972Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:27.973Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.038Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.038Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.105Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.106Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.171Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.171Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.235Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.235Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.299Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.300Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.365Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.366Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:28.436Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:28.436Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.220Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.220Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.298Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.298Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.368Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.368Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.437Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.437Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.509Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.510Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.591Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.591Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.663Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.663Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.731Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.732Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.811Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.812Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.890Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.890Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:51.975Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:51.975Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.043Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.044Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.052Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.053Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.109Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.110Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.165Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.165Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.172Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.172Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.240Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.240Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.269Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.270Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.344Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.345Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.442Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.443Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.471Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.471Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.522Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T15:39:52.523Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.533Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.533Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.538Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.539Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.600Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.600Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.614Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.614Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.671Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.671Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.738Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.738Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.811Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.811Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.876Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.876Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:52.943Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:52.943Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:39:53.016Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:39:53.017Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.419Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.419Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.502Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.503Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.601Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.601Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.683Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.683Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.761Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.761Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.844Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.844Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:00.923Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:00.924Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.016Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.017Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.170Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.170Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.292Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.292Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.383Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.383Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.481Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.481Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.521Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.522Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.579Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.579Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.666Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.667Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.673Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.674Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.717Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.718Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.762Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.762Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.821Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.821Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.829Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.830Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.922Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.923Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:01.931Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:01.931Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:02.058Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:02.059Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:02.114Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:02.114Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:02.163Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
-{"ts":"2026-03-17T15:51:02.164Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:02.168Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:02.168Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:02.228Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
-{"ts":"2026-03-17T15:51:02.229Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
-{"ts":"2026-03-17T15:51:02.286Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
 {"ts":"2026-03-17T15:51:02.287Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
 {"ts":"2026-03-17T15:51:02.364Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
 {"ts":"2026-03-17T15:51:02.365Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
@@ -996,3 +243,609 @@
 {"ts":"2026-03-17T16:33:34.327Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
 {"ts":"2026-03-17T16:33:34.403Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
 {"ts":"2026-03-17T16:33:34.403Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:33.231Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:33.232Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:33.377Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:33.380Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:33.517Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:33.518Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:33.650Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:33.651Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:33.781Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:33.782Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:33.953Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:33.954Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.117Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.118Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.294Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.295Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.479Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.480Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.629Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.630Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.665Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.666Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.759Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.760Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.862Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.863Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.881Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.881Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:34.887Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:34.888Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.024Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.024Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.025Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.025Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.092Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.092Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.165Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.165Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.165Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.166Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.225Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.226Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.289Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.290Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.298Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.299Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.436Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.437Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.458Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.459Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.564Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.565Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.591Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.592Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.598Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:24:35.599Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.687Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.687Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.727Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.727Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.814Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.815Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:24:35.975Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:24:35.976Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:28.674Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:28.675Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:28.805Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:28.806Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:28.911Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:28.912Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.012Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.012Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.105Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.106Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.210Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.211Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.387Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.387Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.612Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.612Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.786Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.787Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.893Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.894Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:29.984Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:29.985Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.077Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.077Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.176Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.176Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.300Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.300Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.390Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.391Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.476Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.477Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.562Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.563Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.648Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.648Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:34:30.731Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:34:30.731Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:13.136Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:13.137Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:13.356Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:13.357Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:13.576Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:13.577Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:13.859Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:13.860Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:14.187Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:14.189Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:14.533Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:14.538Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:14.910Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:14.911Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.017Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.019Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.194Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.195Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.419Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.420Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.501Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.502Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.570Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.571Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.712Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.712Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.744Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.745Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.827Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.828Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.924Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.925Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:15.940Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:15.942Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.052Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.052Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.144Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.145Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.312Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.314Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.316Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.317Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.399Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.400Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.566Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.567Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.578Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.578Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.797Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.798Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.893Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.894Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:16.973Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:16.976Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.007Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.008Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.127Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.127Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.252Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.253Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.402Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.403Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.496Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.496Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.688Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.688Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.711Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:35:17.712Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:17.753Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:17.754Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:35:18.049Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:35:18.050Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:07.909Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:07.910Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:07.936Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:07.939Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.069Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.070Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.127Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.128Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.255Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.256Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.292Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.293Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.333Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.334Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.490Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.492Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.519Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.519Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.536Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.536Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.799Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.801Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.852Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.853Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:08.856Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:08.856Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.110Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.110Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.194Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.195Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.336Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.337Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.386Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.386Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.443Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.444Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.544Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.545Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.621Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.622Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.716Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.717Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:09.982Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:09.983Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:10.008Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:10.009Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:10.118Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:10.119Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:10.294Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:10.295Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:10.392Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:10.393Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:10.657Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:10.658Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:10.919Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:10.920Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:11.101Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:11.102Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:11.202Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:36:11.203Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:11.318Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:11.319Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:11.570Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:11.571Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:11.876Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:11.877Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:12.051Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:12.052Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:12.320Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:12.320Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:36:12.609Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:36:12.611Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.390Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.391Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.392Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.393Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.512Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.512Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.512Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.513Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.609Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.610Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.621Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.621Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.711Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.712Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.717Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.718Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.812Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.812Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.818Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.819Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.904Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.905Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:02.926Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:02.926Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.056Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.056Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.082Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.083Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.201Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.203Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.237Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.238Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.325Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.326Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.369Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.371Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:03.794Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:03.795Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:04.288Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:04.289Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:04.524Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:04.526Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:04.719Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:04.719Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:05.267Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:05.269Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:05.376Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:05.377Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:05.676Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:05.676Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:06.027Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:06.028Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:06.368Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:37:06.369Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:06.394Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:06.394Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:06.782Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:06.783Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:06.890Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:06.891Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:07.437Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:07.440Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:07.606Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:07.607Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:08.226Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:08.226Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:08.312Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:08.313Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:08.804Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:08.806Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:37:09.094Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:37:09.095Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:08.818Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:08.819Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:08.821Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:39:08.822Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:08.854Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:08.855Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.110Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.112Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.196Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.197Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.357Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.359Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.633Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.634Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.725Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.728Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.920Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.921Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:09.987Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:09.988Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:10.254Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:10.255Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:10.285Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:10.286Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:10.541Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:10.541Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:10.583Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:10.584Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:10.838Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:10.839Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:10.912Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:10.913Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:11.146Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:11.148Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:11.433Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:11.434Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:11.660Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:11.661Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:11.883Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:11.884Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:12.072Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:12.073Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:12.301Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:12.301Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:12.546Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:12.549Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:12.797Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:12.798Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:13.042Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:13.043Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:13.255Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:13.256Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:13.542Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:13.543Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:15.124Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:15.125Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:15.407Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:15.408Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:15.680Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:15.681Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:15.914Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:15.915Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:16.212Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:16.215Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:16.429Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:16.430Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:16.730Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:16.731Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:17.084Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:17.084Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:39:17.502Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:39:17.502Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.572Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.572Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.573Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.573Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.683Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.683Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.684Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.684Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.780Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.780Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.783Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.784Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.886Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.887Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:01.887Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:01.887Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:02.087Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:02.087Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:02.087Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:02.088Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:02.279Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:02.280Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:02.333Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:02.334Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:03.015Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:03.016Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:03.205Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:03.206Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:03.595Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:03.596Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:03.678Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:03.679Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:04.205Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:04.206Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:04.353Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:04.354Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:04.674Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:04.675Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:05.090Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:05.091Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:05.183Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:05.185Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:05.276Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:40:05.277Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:05.398Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:05.399Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:05.690Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:05.691Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:05.711Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:05.712Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.204Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.207Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.276Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.278Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.524Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.525Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.598Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.599Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.748Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.749Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.941Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.942Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:06.969Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:06.970Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:07.124Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:07.125Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:07.153Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:07.154Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:07.451Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:07.452Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:40:07.454Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:40:07.455Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:02.816Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:02.816Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:02.817Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:02.817Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:02.824Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:02.825Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.065Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.065Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.083Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.084Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.163Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.164Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.275Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.276Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.282Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.282Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.499Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.499Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.506Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.507Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.529Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.531Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.844Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.845Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.871Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.872Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:03.913Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:03.914Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.223Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.224Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.230Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.231Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.330Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.331Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.418Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.420Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.437Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.438Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.538Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.538Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.621Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.623Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.635Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.638Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.777Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.778Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.872Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.874Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:04.936Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:04.937Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:05.189Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:05.190Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:05.415Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:05.416Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:05.634Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:05.635Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:05.760Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:41:05.762Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:05.830Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:05.831Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:06.014Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:06.015Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:06.199Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:06.200Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:06.430Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:06.432Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:06.675Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:06.676Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:06.884Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:06.885Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:07.065Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:07.066Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:51.992Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:51.992Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:51.993Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:51.993Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.102Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.102Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.154Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.155Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.201Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.202Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.290Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.291Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.291Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.291Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.391Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.392Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.392Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.392Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.487Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.488Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.550Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.551Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.577Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.577Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.670Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.671Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:52.748Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:52.749Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.128Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.129Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.233Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.234Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.497Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.498Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.678Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.679Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.731Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.732Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.834Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.834Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.919Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.919Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:53.974Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:53.975Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.049Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.050Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.130Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.130Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.258Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.259Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.322Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.323Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.448Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.449Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.494Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.494Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.634Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.635Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.670Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.670Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.737Z","level":"warn","module":"sqlite-memory","msg":"Cannot register provider for \"memory\" — registry not initialized"}
+{"ts":"2026-03-17T18:41:54.738Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.796Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.797Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.833Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.833Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:54.970Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:54.971Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:55.009Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:55.009Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}
+{"ts":"2026-03-17T18:41:55.241Z","level":"info","module":"sqlite-memory","msg":"Registered as provider for \"memory\""}
+{"ts":"2026-03-17T18:41:55.242Z","level":"info","module":"sqlite-memory","msg":"SQLite memory provider registered"}

@@ -20,6 +20,7 @@ import { initProviderRegistry, registerDefaultProviders, resetProviderRegistry }
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 import { initScheduler } from "./scheduler.js";
+import { type SessionState, SessionStateMachine } from "./session-state.js";
 import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { formatTaskHint, routeTask } from "./task-router.js";
@@ -98,6 +99,7 @@ export class AgentSession {
   private sessionStartTime = 0;
   private guardrailsConfig: GuardrailsConfig;
   private reflectionEnabled: boolean;
+  private stateMachine: SessionStateMachine;
 
   constructor(options: LoopOptions = {}) {
     this.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -218,6 +220,12 @@ export class AgentSession {
       };
     });
 
+    this.stateMachine = new SessionStateMachine();
+    this.stateMachine.onChange((from, to, meta) => {
+      this.transport.emit({ type: "state_change", from, to, meta });
+      tryEmit("session.state", { sessionId: this.sessionId, from, to, meta });
+    });
+    this.stateMachine.transition("initializing");
     this.initPromise = this.initExtensions();
 
     this.sigintHandler = () => {
@@ -279,6 +287,9 @@ export class AgentSession {
     if (bus) this.moduleLoader.connectEvents(bus);
 
     this.initialized = true;
+    if (this.stateMachine.canTransition("ready")) {
+      this.stateMachine.transition("ready");
+    }
   }
 
   /** Send a prompt and run the agent loop until the agent stops. */
@@ -374,6 +385,10 @@ export class AgentSession {
       // Progressive disclosure: filter built-in tools by active groups, include MCP tools
       const activeTools = [...filterTools(getAllTools()), ...mcpTools];
 
+      if (this.stateMachine.canTransition("thinking")) {
+        this.stateMachine.transition("thinking", { turn: i + 1 });
+      }
+
       const { response, streamedText } = await streamMessage({
         client: this.client,
         model: this.model,
@@ -421,6 +436,9 @@ export class AgentSession {
           const responseText = streamedText || getLastAssistantText(this.context.getMessages());
           if (shouldReflect(this.context.getMessages(), responseText)) {
             reflectionDone = true;
+            if (this.stateMachine.canTransition("reflecting")) {
+              this.stateMachine.transition("reflecting");
+            }
             const reflectionPrompt = buildReflectionPrompt(this.context.getMessages());
             this.context.addUserMessage(reflectionPrompt);
             this.transport.emit({ type: "status", message: "[kota] Self-reflecting on response quality..." });
@@ -428,6 +446,10 @@ export class AgentSession {
           }
         }
         break;
+      }
+
+      if (this.stateMachine.canTransition("acting")) {
+        this.stateMachine.transition("acting", { toolCount: toolBlocks.length });
       }
 
       const resultLimit = this.context.getToolResultLimit();
@@ -455,6 +477,9 @@ export class AgentSession {
 
     if (this.sessionPath) this.context.save(this.sessionPath);
     this.saveToHistory();
+    if (this.stateMachine.canTransition("ready")) {
+      this.stateMachine.transition("ready");
+    }
     return lastResult;
   }
 
@@ -475,6 +500,11 @@ export class AgentSession {
     return this.costTracker.getSummary();
   }
 
+  /** Get the current session lifecycle state. */
+  getState(): SessionState {
+    return this.stateMachine.current();
+  }
+
   /** Get the conversation ID for this session (null if history tracking disabled). */
   getConversationId(): string | null {
     return this.conversationId;
@@ -484,6 +514,12 @@ export class AgentSession {
   close(errored = false): void {
     if (this.closed) return;
     this.closed = true;
+    if (errored && this.stateMachine.canTransition("error")) {
+      this.stateMachine.transition("error");
+    }
+    if (this.stateMachine.canTransition("closed")) {
+      this.stateMachine.transition("closed");
+    }
     process.removeListener("SIGINT", this.sigintHandler);
     if (this.sessionPath) this.context.save(this.sessionPath);
     this.saveToHistory();

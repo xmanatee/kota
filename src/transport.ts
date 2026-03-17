@@ -17,7 +17,8 @@ export type AgentEvent =
   | { type: "error"; message: string }
   | { type: "notification"; id: number; description: string; scheduledFor: string }
   | { type: "guardrail"; tool: string; risk: string; policy: string; reason: string }
-  | { type: "tool_metric"; tool: string; durationMs: number; success: boolean };
+  | { type: "tool_metric"; tool: string; durationMs: number; success: boolean }
+  | { type: "state_change"; from: string; to: string; meta?: Record<string, unknown> };
 
 /** Receives agent events and renders them for a specific frontend. */
 export interface Transport {
@@ -74,6 +75,11 @@ export class CliTransport implements Transport {
         if (this.verbose) {
           const status = event.success ? "ok" : "FAIL";
           console.error(`[kota] ${event.tool}: ${status} (${event.durationMs}ms)`);
+        }
+        break;
+      case "state_change":
+        if (this.verbose) {
+          console.error(`[kota] State: ${event.from} → ${event.to}`);
         }
         break;
     }

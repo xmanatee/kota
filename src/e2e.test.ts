@@ -461,3 +461,102 @@ describe("E2E: mock client behavior", () => {
 		expect(toolNames).toContain("grep");
 	});
 });
+
+describe("E2E: session state machine", () => {
+	beforeEach(() => {
+		resetMockIds();
+	});
+
+	afterEach(() => {
+		resetEventBus();
+	});
+
+	it("emits state_change transport events through a single-turn text response", async () => {
+		const { session, transport } = createTestSession([
+			textResponse("Hello!"),
+		]);
+
+		await session.send("Hi");
+		expect(session.getState()).toBe("ready");
+
+		session.close();
+		expect(session.getState()).toBe("closed");
+
+		const stateEvents = transport.events
+			.filter((e) => e.type === "state_change")
+			.map((e) => {
+				const se = e as { from: string; to: string };
+				return `${se.from}→${se.to}`;
+			});
+
+		// Should include: idle→initializing, initializing→ready, ready→thinking, thinking→ready, ready→closed
+		expect(stateEvents).toContain("idle→initializing");
+		expect(stateEvents).toContain("initializing→ready");
+		expect(stateEvents).toContain("ready→thinking");
+		expect(stateEvents).toContain("thinking→ready");
+		expect(stateEvents).toContain("ready→closed");
+	});
+
+	it("includes acting state during tool call cycles", async () => {
+		const testDir = join(tmpdir(), `kota-e2e-state-${Date.now()}`);
+		mkdirSync(testDir, { recursive: true });
+		const testFile = join(testDir, "hello.txt");
+		writeFileSync(testFile, "world", "utf-8");
+
+		const { session, transport } = createTestSession([
+			toolUseResponse("file_read", { path: testFile }),
+			textResponse("The file says world."),
+		]);
+
+		await session.send("Read the file");
+		session.close();
+
+		const stateEvents = transport.events
+			.filter((e) => e.type === "state_change")
+			.map((e) => {
+				const se = e as { from: string; to: string };
+				return `${se.from}→${se.to}`;
+			});
+
+		// Should include thinking→acting (tool execution) and acting→thinking (back to LLM)
+		expect(stateEvents).toContain("thinking→acting");
+		expect(stateEvents).toContain("acting→thinking");
+
+		rmSync(testDir, { recursive: true, force: true });
+	});
+
+	it("emits session.state events on the event bus", async () => {
+		initEventBus();
+		const bus = getEventBus()!;
+		const stateEvents: Array<{ from: string; to: string }> = [];
+
+		bus.on("session.state", (payload) => {
+			stateEvents.push({ from: payload.from, to: payload.to });
+		});
+
+		const { session } = createTestSession([textResponse("OK")]);
+		await session.send("test");
+		session.close();
+
+		// Should have captured state transitions via the bus
+		expect(stateEvents.length).toBeGreaterThanOrEqual(4);
+		expect(stateEvents[0]).toEqual({ from: "idle", to: "initializing" });
+		expect(stateEvents[1]).toEqual({ from: "initializing", to: "ready" });
+		expect(stateEvents.some((e) => e.to === "thinking")).toBe(true);
+		expect(stateEvents.some((e) => e.to === "closed")).toBe(true);
+	});
+
+	it("getState() reflects current state during session lifecycle", async () => {
+		const { session } = createTestSession([textResponse("Done")]);
+
+		// After construction + init, state should be ready
+		// (initPromise resolves during send)
+		expect(session.getState()).toBe("initializing");
+
+		await session.send("test");
+		expect(session.getState()).toBe("ready");
+
+		session.close();
+		expect(session.getState()).toBe("closed");
+	});
+});
