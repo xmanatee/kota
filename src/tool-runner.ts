@@ -3,6 +3,7 @@ import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { McpManager } from "./mcp-manager.js";
 import { getSecretStore } from "./secrets.js";
 import { maybeRetry } from "./tool-retry.js";
+import { getToolTelemetry } from "./tool-telemetry.js";
 import type { ToolResultBlock } from "./tools/index.js";
 import { executeTool } from "./tools/index.js";
 import type { Transport } from "./transport.js";
@@ -67,6 +68,7 @@ export async function executeToolCalls(
       }
 
       // Route MCP tools through the manager
+      const startMs = performance.now();
       let result = mcpManager?.isMcpTool(block.name)
         ? await mcpManager.executeTool(block.name, input)
         : await executeTool(block.name, input);
@@ -78,6 +80,18 @@ export async function executeToolCalls(
           : executeTool;
         const retried = await maybeRetry(block.name, input, result, executor);
         if (retried) result = retried;
+      }
+
+      const durationMs = Math.round(performance.now() - startMs);
+      const telemetry = getToolTelemetry();
+      telemetry.record(
+        block.name,
+        durationMs,
+        !result.is_error,
+        result.is_error ? result.content.slice(0, 200) : undefined,
+      );
+      if (transport) {
+        transport.emit({ type: "tool_metric", tool: block.name, durationMs, success: !result.is_error });
       }
 
       return {

@@ -26,6 +26,7 @@ import { formatTaskHint, routeTask } from "./task-router.js";
 import { initTaskStore } from "./task-store.js";
 import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
+import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
@@ -363,7 +364,9 @@ export class AgentSession {
         { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
       ];
       const changesSummary = getChangeTracker()?.getSummary() ?? "";
-      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + changesSummary + getWorkingMemoryState();
+      const telemetrySummary = getToolTelemetry().getSummary();
+      const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
+      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + changesSummary + getWorkingMemoryState() + telemetryBlock;
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }
@@ -491,6 +494,7 @@ export class AgentSession {
     resetChangeTracker();
     resetGroups();
     resetProviderRegistry();
+    resetToolTelemetry();
     this.moduleLoader.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     if (this.sessionStartTime > 0) {

@@ -197,154 +197,31 @@ Typed interfaces for swappable core services. Modules can register alternative i
 
 ### Desktop Notifications (`src/tools/notify.ts`)
 
-Sends desktop notifications to the user via the OS notification system. Enables the agent to proactively alert the user about completed tasks, monitoring events, or anything needing attention when the user isn't watching the terminal.
-
-**Platform support**:
-- **macOS**: `osascript` with `display notification` (supports sound via `sound name "Glass"`)
-- **Linux**: `notify-send` from libnotify (error message if not installed)
-- **Fallback**: Console output via stderr (for unsupported platforms or when desktop fails)
-
-**Design decisions**:
-- Core tool (always available) — notifications are universally useful.
-- Desktop failure automatically falls back to console — never silently fails.
-- Sound enabled by default, can be disabled with `sound: false`.
-- AppleScript string escaping for quotes and backslashes in messages.
+OS-native desktop notifications (macOS `osascript`, Linux `notify-send`) with console fallback. Core tool, safe risk. Sound enabled by default.
 
 ### Screenshot Capture (`src/tools/screenshot.ts`)
 
-Captures a screenshot of the screen and returns it as an image content block for Claude to analyze. Adds visual understanding — a fundamentally new input modality for the agent.
-
-**Platform support**:
-- **macOS**: `screencapture -x` (silent, built-in). Resizes with `sips` if image exceeds 1568px.
-- **Linux**: Tries `gnome-screenshot`, `scrot`, then `import` (ImageMagick). Resizes with `convert`.
-- **Unsupported**: Returns an error with platform-specific guidance.
-
-**Design decisions**:
-- Core tool (always available) — visual context is useful across all domains.
-- Classified as `safe` in guardrails — read-only, no mutation.
-- Resize to 1568px max (Claude's optimal image dimension) to minimize token cost.
-- Only downscales, never upscales — resize failures are non-fatal.
-- Returns `ToolResult.blocks` with image content block — the existing pipeline handles image blocks in tool results, observation masking, and context management.
-- Temp file cleaned up after capture regardless of success/failure.
+Captures screen as image content block. macOS `screencapture`, Linux fallback chain. Auto-resizes to 1568px (Claude optimal). Core tool, safe risk.
 
 ### Document Reader (`src/tools/read-document.ts`)
 
-Extracts text from PDFs, DOCX, RTF, ODT, EPUB, and other document formats using available system tools. Zero npm dependencies — leverages platform utilities with graceful fallback chains.
-
-**Extraction chains** (tried in order until one succeeds):
-- **PDF**: `pdftotext` (poppler) → `pdfminer` (python3) → `PyPDF2` (python3)
-- **DOCX**: `textutil` (macOS built-in) → `pandoc` → `python-docx` (python3)
-- **RTF**: `textutil` (macOS built-in) → `pandoc`
-- **ODT/EPUB/DOC**: `pandoc`
-- **HTML**: Built-in tag stripping (no external tools needed)
-
-**Features**:
-- Page range selection for PDFs (`pages: "3-7"`)
-- Configurable max output length (`max_chars`, default 50000)
-- Truncation with notice when output exceeds limit
-- Empty-content detection with OCR guidance
-
-**Design decisions**:
-- Core tool (always available) — document processing is useful across all domains.
-- Classified as `safe` in guardrails — read-only, no mutation.
-- Zero npm dependencies — uses only system tools. Missing tools produce actionable install hints.
-- Complements `file_read` (raw text) and `screenshot` (visual) as a third input modality.
-- 30s timeout per extraction attempt to handle large documents without hanging.
+Extracts text from PDFs, DOCX, RTF, ODT, EPUB via platform tool fallback chains (e.g., `pdftotext` → `pdfminer` → `PyPDF2`). Page ranges for PDFs, 50K char limit, 30s timeout. Core tool, safe risk. Zero npm deps.
 
 ### Clipboard (`src/tools/clipboard.ts`)
 
-Read from and write to the system clipboard. Enables seamless data transfer between the agent and other applications — users can copy text, have the agent process it, and get results back on their clipboard ready to paste.
-
-**Platform support**:
-- **macOS**: `pbpaste` / `pbcopy` (built-in)
-- **Linux**: `xclip -selection clipboard` (requires `xclip` package)
-- **Fallback**: Error with platform-specific guidance
-
-**Design decisions**:
-- Core tool (always available) — clipboard interaction is useful across all domains.
-- Classified as `safe` in guardrails — clipboard read/write is low-risk and reversible.
-- Read limit: 50,000 chars. Write limit: 100,000 chars. Prevents excessive clipboard usage.
-- Zero npm dependencies — uses only platform clipboard utilities.
+System clipboard read/write via `pbpaste`/`pbcopy` (macOS) or `xclip` (Linux). Core tool, safe risk. 50K read / 100K write limits.
 
 ### Computer Use (`src/tools/computer-use.ts`)
 
-Control mouse and keyboard to interact with the computer's GUI. Combined with the existing screenshot tool, enables the full computer use paradigm — the agent can see the screen, click buttons, fill forms, navigate menus, and automate GUI applications.
-
-**Actions**:
-- `click` / `double_click` / `right_click` — click at (x, y) coordinates
-- `move` — move cursor to (x, y)
-- `drag` — drag from (start_x, start_y) to (x, y)
-- `type` — type a text string
-- `key` — press a key or key combo (e.g., `"enter"`, `"cmd+c"`, `"ctrl+shift+z"`)
-- `scroll` — scroll up/down (via Page Up/Down on macOS, mouse wheel on Linux)
-- `cursor_position` — get current cursor coordinates
-
-**Platform support**:
-- **macOS**: `cliclick` for mouse operations (`brew install cliclick`), `osascript` for keyboard (built-in). Click falls back to `osascript` System Events when `cliclick` isn't available.
-- **Linux**: `xdotool` for all operations (`apt install xdotool`).
-- **Unsupported**: Returns error with platform-specific guidance.
-
-**Workflow** (screenshot → action → screenshot loop):
-1. Agent calls `screenshot()` to see the current screen
-2. Agent identifies target (button, field, menu item) from the image
-3. Agent calls `computer_use(action: "click", x: 500, y: 300)` to interact
-4. Agent calls `screenshot()` again to verify the result
-5. Repeat as needed
-
-**Design decisions**:
-- Core tool (always available) — GUI interaction is useful across all domains, pairs with screenshot.
-- Classified as `moderate` in guardrails — user-level input, can have side effects but locally contained.
-- Zero npm dependencies — uses only system tools with graceful fallback chains.
-- Coordinates are rounded to integers (fractional pixels not meaningful).
-- Scroll amount capped at 20 to prevent abuse.
-- AppleScript string escaping handles embedded quotes via `character id 34` concatenation.
-- Tool detection (`cliclick`, `xdotool`) is cached per-session with `resetComputerUseState()` for testing.
-- Accessibility permission errors are detected and surfaced with setup instructions.
+Mouse/keyboard GUI control — click, type, key combos, scroll, drag, cursor position. macOS: `cliclick` + `osascript`; Linux: `xdotool`. Pairs with screenshot for the see→act→verify loop. Core tool, moderate risk. Scroll capped at 20, coordinates rounded to int.
 
 ### SQLite Queries (`src/tools/sqlite.ts`)
 
-Query SQLite databases via the `sqlite3` CLI. Enables data analysis, application debugging, structured queries, and database inspection — a fundamental capability for a general-purpose agent.
-
-**Actions**:
-- `tables` — list all user tables in the database
-- `schema` — show column definitions, row count, and DDL for a table
-- `query` — run arbitrary SQL and return results as markdown tables
-
-**Implementation**:
-- Uses `sqlite3 -json` for structured output parsing. Results formatted as markdown tables with column alignment.
-- Mutations (INSERT/UPDATE/DELETE) append `SELECT changes()` in the same session to report affected rows.
-- Table name validation via regex to prevent injection in PRAGMA/schema queries.
-- Max 100 rows displayed, 50K char output cap. 30s timeout, 10MB buffer.
-
-**Platform support**:
-- **macOS**: `sqlite3` pre-installed (part of macOS).
-- **Linux**: `apt install sqlite3` or equivalent.
-
-**Design decisions**:
-- Core tool (always available) — database queries are broadly useful across domains.
-- Classified as `moderate` in guardrails — SQL can mutate data but is confined to local files.
-- Zero npm dependencies — uses only the `sqlite3` CLI.
-- `tables` and `schema` require the database file to exist. `query` allows creating new databases (sqlite3 creates on first write).
-- Complements `code_exec` (Python/Node can also query SQLite, but this tool is faster and produces cleaner output for common queries).
+Query SQLite via `sqlite3` CLI — `tables`, `schema`, `query` actions. Results as markdown tables, 100 row / 50K char cap, 30s timeout. Mutations report affected rows. Core tool, moderate risk.
 
 ### Image Viewer (`src/tools/view-image.ts`)
 
-Reads a local image file and returns it as an image content block for Claude to analyze. Adds visual understanding of local files — a fundamental new input modality complementing `screenshot` (screen → vision) and `read_document` (document → text).
-
-**Supported formats**: PNG, JPEG, GIF, WebP — mapped to appropriate MIME types.
-
-**Validation**:
-- File existence and type checks (rejects directories)
-- Extension validation against supported formats (case-insensitive)
-- Size limit: 20MB (Claude's base64 image limit)
-
-**Resize**: Large images are copied to a temp file and downscaled to 1568px (Claude's optimal dimension) using `sips` (macOS) or `convert` (Linux). The original file is never modified. Resize failure is non-fatal — the original resolution is used.
-
-**Design decisions**:
-- Core tool (always available) — visual file analysis is useful across all domains.
-- Classified as `safe` in guardrails — read-only, no mutation. The temp copy for resize is cleaned up in a `finally` block.
-- Zero npm dependencies — uses only platform image tools for optional resize.
-- Returns the user's original path in output text (not the resolved absolute path) for clarity.
+Reads local images (PNG, JPEG, GIF, WebP) as image content blocks. Auto-resizes to 1568px, 20MB limit. Core tool, safe risk.
 
 ### Knowledge Store Events
 
@@ -473,42 +350,7 @@ Code and steps are mutually exclusive per handler. Handlers run asynchronously; 
 
 ### MCP Server (`src/mcp-server.ts`, `src/modules/mcp-server.ts`)
 
-Expose KOTA's tools via the Model Context Protocol — any MCP-compatible host (Claude Code, Cursor, VS Code, Zed) can connect and use KOTA's tools without a custom integration. Mirrors the client implementation in `mcp-client.ts` but in the server direction.
-
-**Protocol**: JSON-RPC 2.0 over stdio, implementing MCP protocol version `2024-11-05`. Handles `initialize`, `tools/list`, `tools/call`, `ping`, and `shutdown` methods.
-
-**Tool exposure**: All registered KOTA tools (core + module-registered) are exposed by default. The `--tools` flag filters to a specific set. Tool schemas are converted from Anthropic format (`input_schema`) to MCP format (`inputSchema`).
-
-**Tool execution**: `tools/call` routes through the existing `executeTool()` from the tool registry. Results are converted from KOTA's `ToolResult` (text + optional image blocks) to MCP's `CallToolResult` content blocks.
-
-**Module**: The `mcp-server` built-in module registers the `kota mcp-server` CLI command. On startup, it loads config, initializes all modules (to register their tools), then starts the stdio server.
-
-**Usage**:
-```bash
-# Expose all tools
-kota mcp-server
-
-# Expose only specific tools
-kota mcp-server --tools file_read,grep,glob,shell
-```
-
-**Claude Code integration** (`.claude/settings.local.json`):
-```json
-{
-  "mcpServers": {
-    "kota": {
-      "command": "node",
-      "args": ["dist/cli.js", "mcp-server"]
-    }
-  }
-}
-```
-
-**Design decisions**:
-- Custom JSON-RPC 2.0 implementation (no `@modelcontextprotocol/sdk` dependency) — consistent with the existing MCP client and KOTA's minimal-dependency philosophy.
-- Stdio transport only — local process-spawned integration is the standard for MCP tool servers. HTTP/SSE transport can be added later via the existing HTTP server if needed.
-- No guardrails in MCP mode — the MCP host is responsible for its own safety policies. KOTA tools execute directly.
-- Tools are exposed read-only from the registry; MCP clients cannot register new tools.
+Exposes all KOTA tools via MCP (JSON-RPC 2.0 over stdio). Any MCP-compatible host (Claude Code, Cursor, VS Code) can use KOTA tools natively. Custom implementation (no SDK dep). `--tools` flag to filter. No guardrails in MCP mode — host handles safety. Usage: `kota mcp-server`.
 
 ### Guardrails (`src/guardrails.ts`)
 
@@ -623,122 +465,19 @@ Gives the agent access to its own conversation history — search, list, and rea
 
 ### HTTP API Server (`src/server.ts`)
 
-Makes KOTA accessible via HTTP — the bridge from CLI-only agent to embeddable service. Any frontend (web UI, Telegram bot, Discord bot, automation pipeline) can connect via standard HTTP.
-
-**Endpoints**:
-- `POST /api/chat` — Send `{ message, session_id? }`, receive SSE stream of agent events
-- `POST /api/chat/vercel` — Vercel AI SDK Data Stream Protocol (module route, stateless)
-- `POST /api/sessions` — Create a new session, returns `{ session_id }`
-- `GET /api/sessions` — List active sessions with busy/idle status
-- `DELETE /api/sessions/:id` — Close and clean up a session
-- `GET /api/schedules` — List pending scheduled items (JSON)
-- `GET /api/notifications` — SSE stream for real-time reminder notifications
-- `POST /api/events/:name` — Fire a custom event on the bus (webhook trigger for CI, GitHub, etc.)
-- `GET /api/daemon/status` — Daemon health (PID liveness check) and server status
-- `GET /api/health` — Health check with session count
-
-**SSE event stream** (maps 1:1 to `AgentEvent` types):
-```
-event: session
-data: {"session_id":"abc12345"}
-
-event: text
-data: {"type":"text","content":"Hello!"}
-
-event: status
-data: {"type":"status","message":"[kota] Turn 1"}
-
-event: done
-data: {"session_id":"abc12345","result":"Hello!"}
-```
-
-**Key design decisions**:
-- **ProxyTransport pattern**: Each `AgentSession` gets a `ProxyTransport` whose target is swapped per-request. The SSE transport for the current HTTP response is set as target during `send()`, then reset to `NullTransport` after. Zero changes to `AgentSession`.
-- **SessionPool**: Manages session lifecycle — create, get, delete, TTL-based cleanup (30 min idle), LRU eviction at capacity (max 10). Busy sessions can't be evicted.
-- **Concurrency**: One request per session at a time (409 Conflict for concurrent requests to same session).
-- **No external deps**: Pure `node:http`. CORS enabled by default.
-
-**Usage**: `kota serve --port 3000`
+Pure `node:http` server exposing KOTA via REST + SSE. Key endpoints: `POST /api/chat` (SSE stream), sessions CRUD, schedules, notifications, events webhook, health. ProxyTransport pattern swaps SSE target per-request. SessionPool with TTL cleanup (30min) and LRU eviction (max 10). Usage: `kota serve --port 3000`.
 
 ### Web UI (`src/web-ui.ts`, `src/web-ui-styles.ts`, `src/web-ui-client.ts`, `src/web-ui-markdown.ts`)
 
-Embedded browser-based chat interface served directly from the HTTP server at `GET /`. No build step, no external files — HTML/CSS/JS assembled from separate modules.
-
-**Features**:
-- **Real-time streaming**: Reads SSE from `POST /api/chat` via ReadableStream, renders text as it arrives.
-- **Session management**: Create, switch, and delete sessions via sidebar. Auto-creates session on first message.
-- **Conversation history**: Lists recent conversations from `GET /api/history`.
-- **Markdown rendering**: Code blocks, inline code, bold, italic, headers, links.
-- **Health monitoring**: Periodic health check with visual indicator.
-- **Responsive design**: Works on mobile with collapsible sidebar.
-- **Keyboard shortcuts**: Enter to send, Shift+Enter for newlines, auto-resizing textarea.
-- **XSS protection**: HTML escaping covers all 5 dangerous characters (`&`, `<`, `>`, `"`, `'`). Links restricted to `http:`, `https:`, `mailto:` protocols only.
-
-**Module split**:
-- `web-ui.ts` — HTML structure + assembly (imports CSS and JS)
-- `web-ui-styles.ts` — CSS template literal
-- `web-ui-client.ts` — Client-side JavaScript template literal (session management, SSE streaming, chat UI)
-- `web-ui-markdown.ts` — Testable TypeScript `escapeHtml()` and `renderMarkdown()` (canonical reference for the browser-side rendering logic)
-
-**Design decisions**:
-- **Embedded HTML**: `getWebUI()` returns a complete HTML string. No separate build pipeline, no static file serving. Keeps deployment as simple as `kota serve`.
-- **Zero dependencies**: Pure HTML/CSS/JS. No React, no bundler, no framework.
-- **Same SSE protocol**: Consumes the exact same SSE events as any other client. The web UI is just another consumer of the existing API.
-- **Testable rendering**: Markdown/escaping logic exists both as browser-side JS (in the template literal) and as real TypeScript functions (in `web-ui-markdown.ts`). Tests verify the TypeScript functions, catching rendering and security bugs that would otherwise be untestable.
-
-**Usage**: Start `kota serve`, open `http://localhost:3000/` in a browser.
+Embedded browser chat at `GET /`. Zero-dependency HTML/CSS/JS assembled from 4 modules. SSE streaming, session management, markdown rendering, XSS protection, responsive design. Testable rendering via `web-ui-markdown.ts`.
 
 ### Telegram Bot (`src/telegram.ts`)
 
-First real messaging frontend — makes KOTA accessible as a personal assistant via Telegram. Uses the Telegram Bot API via HTTP (no external dependencies). Validates and exercises the full transport/session infrastructure.
-
-**Architecture** (same ProxyTransport pattern as HTTP server):
-- Each chat ID gets an `AgentSession` with a `ProxyTransport`
-- On each message, a `TelegramTransport` is set as the proxy target
-- `TelegramTransport` buffers `text` events, shows typing indicators, flushes as Telegram messages
-- After response, proxy resets to `NullTransport`
-
-**Key features**:
-- **Long polling**: `getUpdates` with 30s timeout. Error backoff at 5s.
-- **Typing indicators**: Sent every 4s while agent is processing.
-- **Message chunking**: Long responses split at newline boundaries (4096 char Telegram limit).
-- **Chat session persistence**: One `AgentSession` per chat — conversation state persists across messages.
-- **Commands**: `/start` (greeting), `/clear` (reset session), `/status` (session info + pending reminders).
-- **Access control**: Optional `allowedChatIds` whitelist.
-- **Concurrency**: One message per chat at a time (busy guard). Other messages get "please wait".
-- **Scheduler integration**: 30-second timer checks for due reminders and scheduled actions. Reminders are broadcast to all active chats. Autonomous actions run via `ActionExecutor` and results are delivered as messages.
-
-**Usage**: `kota telegram --token <BOT_TOKEN>` or set `TELEGRAM_BOT_TOKEN` env var.
-
-**No new dependencies**: Uses Node's built-in `fetch` for all Telegram API calls.
-
-**Scheduler lifecycle**: The bot owns the scheduler lifecycle — `initScheduler()` on `start()`, `resetScheduler()` on `stop()`. Individual `AgentSession.close()` calls (from `/clear`) do not reset the shared scheduler, preventing one session's cleanup from killing reminders for all chats.
+Telegram messaging frontend using Bot API over `fetch` (zero deps). ProxyTransport pattern (same as HTTP server). Per-chat sessions with typing indicators, message chunking (4096 char limit), long polling. Commands: `/start`, `/clear`, `/status`. Access control via `allowedChatIds`. Scheduler integration for reminders and autonomous actions. Usage: `kota telegram --token <TOKEN>`.
 
 ### Daemon Mode (`src/daemon.ts`)
 
-Long-running process that hosts the event bus, scheduler, and idle tasks — an event-driven runtime for autonomous agent operation. Third piece of the self-hosting loop plan.
-
-**Core responsibilities**:
-- **Event bus + scheduler hosting**: Initializes both singletons, connects the scheduler to the bus so event-triggered items fire automatically.
-- **Time-based polling**: Runs the scheduler timer to detect and fire due items.
-- **Idle tasks**: When no actions are running and no idle task is active, picks the next idle task (round-robin) and runs it as an `AgentSession`. Respects configurable cooldowns.
-- **Self-restart**: Watches `dist/cli.js` mtime. When it changes (after a build), saves state and exits with code 75. A wrapper script can detect this and restart the daemon.
-- **State persistence**: Saves `daemon-state.json` to `~/.kota/` with cycle count, last idle task, and PID. On startup, recovers previous state.
-- **Graceful shutdown**: SIGINT/SIGTERM → stops accepting new work, waits up to 30s for the active idle session to finish, cleans up scheduler connections, saves state.
-
-**CLI**: `kota daemon [--idle-prompt "..."] [--idle-cooldown 300] [--poll-interval 30] [--no-restart]`
-
-**Self-hosting loop pattern**: With event-triggered scheduler items, the daemon can run the build/improve loop:
-1. Daemon starts idle → picks up "self-build" idle task
-2. Session runs, builds code, emits `session.end`
-3. Event trigger fires: "on session.end → run self-improve"
-4. If `dist/` changed → daemon exits 75, wrapper restarts it
-
-**Design decisions**:
-- No hot reload — restart is simpler and safer.
-- Idle tasks are preempted by scheduled actions (checked via `executor.activeCount`).
-- State persistence is best-effort — daemon functions correctly without it.
-- The HTTP server (`kota serve`) also connects the event bus to the scheduler, so `POST /api/events/:name` webhooks trigger event-based scheduler items without requiring the daemon. The daemon status endpoint reads `daemon-state.json` and checks PID liveness.
+Long-running event-driven runtime hosting event bus, scheduler, and round-robin idle tasks. Self-restart on `dist/cli.js` change (exit 75). State persisted to `~/.kota/daemon-state.json`. Graceful shutdown (30s drain). CLI: `kota daemon [--idle-prompt "..."] [--idle-cooldown 300]`.
 
 ### Context Management (`src/context.ts`)
 
@@ -998,34 +737,7 @@ Content in markdown...
 
 ### Conversation History (`src/history.ts`)
 
-Automatic conversation persistence that lets KOTA resume previous conversations across sessions. Every `AgentSession` auto-saves to `~/.kota/history/` — the agent remembers what you were working on and can pick up where you left off.
-
-**Storage**: Each conversation is stored as `~/.kota/history/<id>.json` with full message history + metadata. An `index.json` file provides fast listing without reading every conversation file.
-
-**ConversationRecord metadata**: id, title (auto-generated from first user message), createdAt, updatedAt, model, messageCount, cwd (project directory), source (`"user"` or `"action"`).
-
-**Auto-save lifecycle**:
-1. `AgentSession` constructor creates a new conversation entry (unless `noHistory: true` or using legacy `--session`)
-2. After each tool-execution turn and at end of `send()`, state is saved to history
-3. On SIGINT, state is saved before exit
-
-**CLI commands** (`kota history`):
-- `list` — recent conversations, filterable by `--search`, `--limit`, `--all` (cross-directory)
-- `show <id>` — conversation details and message preview
-- `resume <id>` — resume in interactive mode
-- `delete <id>` — remove a conversation
-- `clear` — delete all conversations for current directory
-
-**Resume shortcut**: `kota run --continue` resumes the most recent conversation for the current directory. `kota run --continue <id>` resumes a specific conversation.
-
-**Session warmup**: At session start, if a recent conversation (< 7 days) exists for the current directory, a hint is shown: "Previous conversation: 'Fix auth bug' (5 messages, 2 hours ago). Resume with: kota run --continue"
-
-**API endpoints** (HTTP server):
-- `GET /api/history` — list conversations (supports `?search=` and `?limit=`)
-- `GET /api/history/:id` — full conversation data
-- `DELETE /api/history/:id` — remove a conversation
-
-**Auto-prune**: Source-aware pruning — user conversations (50 max) and action conversations (20 max) are pruned independently. Autonomous action sessions can never evict user conversations. `ActionExecutor` tags sessions with `historySource: "action"` via `LoopOptions`.
+Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast listing. Resume via `kota run --continue [id]`. CLI: list, show, resume, delete, clear. HTTP: `/api/history` CRUD. Source-aware auto-prune (50 user / 20 action max). Session warmup shows recent conversations on start.
 
 ### Safety & Error Recovery
 
@@ -1038,6 +750,10 @@ Automatic conversation persistence that lets KOTA resume previous conversations 
 - **Error context enrichment** (`src/error-context.ts`): Pre-fetches source code around file:line references in errors.
 - **Verification nudges** (`src/verify-tracker.ts`): Tracks unverified edits, detects available test/build commands, escalates after 3 turns.
 - **File change tracking & undo** (`src/file-changes.ts`, `src/tools/checkpoint.ts`): Automatically records the original state of every file before its first modification. The `checkpoint` tool (core, always available) lets the agent list changes, diff against originals, and restore files — surgical undo for multi-file edits gone wrong. Singleton lifecycle managed in `AgentSession` (init on construction, reset on close). Change summary injected into dynamic system state for agent awareness.
+
+### Tool Execution Telemetry (`src/tool-telemetry.ts`)
+
+Session-scoped instrumentation tracking per-tool timing, success/failure rates, and error patterns. Integrated into `executeToolCalls()` — every tool call is timed and recorded automatically. Compact summary injected into dynamic system state (`<tool-metrics>` tag) so the agent can see tool performance and adapt strategy. `tool_metric` transport events emitted for operator visibility. Singleton lifecycle: `getToolTelemetry()` / `resetToolTelemetry()` managed in `AgentSession`.
 
 ### Interactive Code Execution (`src/tools/code-exec.ts`)
 
@@ -1071,134 +787,15 @@ File-based plugin architecture for extending KOTA without modifying core code. D
 
 ### Tool Format Adapters (`src/tool-adapters.ts`)
 
-Plugins don't need to use KOTA's native `ToolDef` format. The adapter layer auto-detects and converts common formats:
-
-**Supported formats**:
-- **Native KotaModule**: `{ name, tools: [{ tool, runner }] }` — pass-through
-- **Simple**: `{ name, description, parameters, run }` — minimal, one function per tool
-- **OpenAI function-calling**: `{ type: "function", function: { name, description, parameters }, run }` — compatible with OpenAI ecosystem tools
-- **Vercel AI SDK**: `{ description, parameters, execute }` — compatible with tools created via `tool()` from the Vercel AI SDK. Parameters can be Zod schemas (auto-converted), `jsonSchema()` results, or raw JSON Schema objects. Also detects tool maps: `{ toolName: { execute, parameters }, ... }`
-- **Array**: `[simpleTool, openAITool, vercelTool, ...]` — multiple tools from one file, any mix of formats
-- **Hybrid KotaModule**: `{ name, tools: [simpleTool, ...], onLoad, onUnload }` — module with lifecycle hooks but simple-format tools
-
-**Zod → JSON Schema conversion**: Vercel AI SDK tools commonly use Zod schemas for parameter validation. The adapter includes a lightweight converter that handles common Zod types (ZodString, ZodNumber, ZodBoolean, ZodEnum, ZodArray, ZodObject, ZodOptional, ZodDefault, ZodLiteral) without requiring Zod as a dependency. For `jsonSchema()` results from the AI SDK, the embedded JSON Schema is extracted directly.
-
-**Result normalization**: External tool `run`/`execute` functions can return strings, numbers, objects, or `{ content, text }` — all normalized to KOTA's `ToolResult`. Native `{ content: string }` passes through unchanged.
-
-**Programmatic API**: `fromSimple(def)`, `fromOpenAI(def)`, and `fromVercelAI(def, name)` for explicit conversion. `adaptExport(moduleExport, fileName)` for auto-detection (used by `discoverPluginModules()`).
-
-**Example — simple format plugin** (`.kota/plugins/weather.mjs`):
-```js
-export default {
-  name: "get_weather",
-  description: "Get current weather for a location",
-  parameters: {
-    type: "object",
-    properties: { location: { type: "string" } },
-    required: ["location"],
-  },
-  run: async ({ location }) => `Weather in ${location}: 72°F, sunny`,
-};
-```
-
-**Example — OpenAI format** (drop-in from OpenAI ecosystem):
-```js
-export default {
-  type: "function",
-  function: {
-    name: "calculate",
-    description: "Evaluate a math expression",
-    parameters: { type: "object", properties: { expr: { type: "string" } } },
-  },
-  run: async ({ expr }) => eval(expr),
-};
-```
-
-**Example — Vercel AI SDK format** (compatible with `tool()` from the `ai` package):
-```js
-// Single tool — name derived from filename
-export default {
-  description: "Get weather for a location",
-  parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
-  execute: async ({ city }) => `Weather in ${city}: 72°F, sunny`,
-};
-```
-
-```js
-// Map of tools — names derived from object keys
-export default {
-  get_weather: {
-    description: "Get weather",
-    parameters: z.object({ city: z.string() }), // Zod schemas auto-converted
-    execute: async ({ city }) => fetchWeather(city),
-  },
-  search: {
-    description: "Web search",
-    parameters: z.object({ query: z.string() }),
-    execute: async ({ query }) => searchWeb(query),
-  },
-};
-```
+Auto-detects and converts plugin formats to KOTA's `ToolDef`: native KotaModule, simple (`{name, run}`), OpenAI function-calling, Vercel AI SDK (`{execute, parameters}`), arrays, and hybrid modules. Includes lightweight Zod→JSON Schema conversion (no Zod dep). Result normalization handles strings, objects, `{content}`. `adaptExport()` used by plugin discovery.
 
 ### Remote Tool Registry (`src/registry.ts`)
 
-Install, remove, and manage KOTA tools from external sources — npm packages, URLs, and GitHub repos. This connects the plugin system, tool format adapters, and Vercel AI SDK compatibility into a real distribution mechanism.
-
-**Sources**:
-- **npm**: `kota tools install <package>` or `kota tools install npm:@scope/package` — installs to `.kota/packages/` via npm, auto-loaded on startup
-- **URL**: `kota tools install https://example.com/tool.mjs` — downloads to `.kota/plugins/`
-- **GitHub**: `kota tools install github:user/repo` or `kota tools install user/repo` — installs via npm's GitHub support
-
-**Manifest** (`.kota/tools.json`): Tracks installed tools with source type, URI, version, file paths, and install timestamp. Used for list, remove, and update operations.
-
-**CLI commands**:
-- `kota tools install <source>` — install from npm, URL, or GitHub
-- `kota tools list` — show installed tools with source, version, URI
-- `kota tools remove <name>` — uninstall and clean up files
-- `kota tools update <name>` — reinstall latest version
-
-**Discovery integration**: `discoverPluginModules()` scans two locations:
-1. `.kota/plugins/` — file-based plugins (manual drops + URL downloads)
-2. `.kota/packages/node_modules/` — npm-installed packages (reads dependencies from `.kota/packages/package.json`)
-
-**Name derivation**: `kota-` and `tool-` prefixes are stripped automatically (e.g., `kota-weather` → `weather`, `@scope/tool-calc` → `calc`).
-
-**Example workflow**:
-```bash
-kota tools install kota-weather              # npm package
-kota tools install https://raw.github.../tool.mjs  # URL download
-kota tools install user/kota-search          # GitHub repo
-kota tools list                              # show all installed
-kota tools remove weather                    # uninstall
-```
+Install tools from npm, URLs, or GitHub: `kota tools install <source>`. Manifest at `.kota/tools.json`. Discovery scans `.kota/plugins/` (files) and `.kota/packages/node_modules/` (npm). CLI: install, list, remove, update. `kota-`/`tool-` prefixes auto-stripped.
 
 ### Vercel AI SDK Streaming (`src/vercel-ai-stream.ts`, `src/modules/vercel-adapter.ts`)
 
-The vercel-adapter module provides Vercel AI SDK Data Stream Protocol v1 integration via `POST /api/chat/vercel`. It's registered as a KotaModule with HTTP routes — the first module to exercise the route registration mechanism. Each request is stateless (fresh AgentSession per request), matching the `useChat()` pattern where the client sends the full messages array.
-
-**Wire format**: `{TYPE_CODE}:{JSON}\n` (not SSE). Type codes:
-- `0`: text delta
-- `2`: data annotation (status/cost metadata)
-- `3`: error
-- `9`: tool call (toolCallId, toolName, args)
-- `a`: tool result (toolCallId, result)
-- `d`: finish message (finishReason, usage)
-- `e`: finish step (finishReason, usage, isContinued)
-- `g`: reasoning (extended thinking)
-
-**Headers**: `Content-Type: text/plain; charset=utf-8`, `X-Vercel-AI-Data-Stream: v1`
-
-**Endpoints**:
-- `POST /api/chat` → KOTA's native SSE format: `{ message: "...", session_id?: "..." }` (used by the built-in web UI)
-- `POST /api/chat/vercel` → Vercel AI SDK Data Stream Protocol v1: `{ messages: [{role, content}, ...] }` (used by `useChat()`)
-
-**Usage with Next.js**:
-```tsx
-import { useChat } from "ai/react";
-const { messages, input, handleSubmit } = useChat({
-  api: "http://localhost:3000/api/chat/vercel",
-});
-```
+Data Stream Protocol v1 at `POST /api/chat/vercel`. Stateless per-request sessions matching `useChat()` pattern. Wire format: `{TYPE_CODE}:{JSON}\n` with codes for text deltas, tool calls/results, thinking, finish. Compatible with `useChat()` from `ai/react`.
 
 ### Configuration (`src/config.ts`)
 

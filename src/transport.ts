@@ -16,7 +16,8 @@ export type AgentEvent =
   | { type: "cost"; summary: string; budgetPercent: number }
   | { type: "error"; message: string }
   | { type: "notification"; id: number; description: string; scheduledFor: string }
-  | { type: "guardrail"; tool: string; risk: string; policy: string; reason: string };
+  | { type: "guardrail"; tool: string; risk: string; policy: string; reason: string }
+  | { type: "tool_metric"; tool: string; durationMs: number; success: boolean };
 
 /** Receives agent events and renders them for a specific frontend. */
 export interface Transport {
@@ -67,6 +68,12 @@ export class CliTransport implements Transport {
           console.error(`[guardrail] ${event.tool}: ${event.policy} (${event.risk} — ${event.reason})`);
         } else if (this.verbose) {
           console.error(`[guardrail] ${event.tool}: ${event.policy} (${event.risk})`);
+        }
+        break;
+      case "tool_metric":
+        if (this.verbose) {
+          const status = event.success ? "ok" : "FAIL";
+          console.error(`[kota] ${event.tool}: ${status} (${event.durationMs}ms)`);
         }
         break;
     }

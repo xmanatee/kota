@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 597 — Tool execution telemetry + DESIGN.md condensation
+
+Added ToolTelemetry — session-scoped instrumentation tracking per-tool timing, success/failure rates, and error patterns. Integrated into the tool runner so every tool call is automatically timed. Compact summary surfaces in dynamic system state (`<tool-metrics>` tag) for agent self-awareness. `tool_metric` transport events for operator visibility.
+
+Also condensed DESIGN.md from 1287 → 884 lines (-31%), well under the 1100-line target. Compressed 13 stable tool/module sections to 1-3 line summaries without losing architectural information.
+
+### What changed
+- `src/tool-telemetry.ts` — ToolTelemetry class with record/stats/summary + singleton management
+- `src/tool-runner.ts` — timing wrapper around tool execution, records to telemetry
+- `src/transport.ts` — new `tool_metric` event type
+- `src/loop.ts` — telemetry summary in dynamic state, reset on session close
+- `src/tool-telemetry.test.ts` — 20 tests (unit + integration through executeToolCalls)
+- `DESIGN.md` — condensed 13 sections, added telemetry section (1287 → 884 lines)
+
+### Candidates considered
+- DESIGN.md condensation only — needed but not capability-expanding
+- Provider swap validation tests — hardening but narrow scope
+- Per-tool execution timeout — tools already handle their own timeouts
+- Composition primitive nesting tests — 3411 tests already cover basics
+- Module lifecycle improvements — no current pain point
+
+### Verification
+typecheck ✓, build ✓, 3431 tests pass (+20 new), lint ✓, load ✓, runtime SKIP (no key)
+
+### Future directions
+- Surface telemetry in agent's tool selection heuristics (adaptive tool routing)
+- Add p95/p99 latency tracking for performance regression detection
+- Tool performance history across sessions (persistent telemetry)
+
 ## Iteration 596 — DESIGN.md growth signal + test delta fix in trend output
 
 Added DESIGN.md line count health check to parse-log.py trend output, surfacing document growth as a concrete data signal. Fixed test delta extraction regex to handle "N tests pass (+M new)" format (iter 595 showed "?" instead of "+9").
