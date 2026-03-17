@@ -1,5 +1,26 @@
 # KOTA Changelog
 
+## Iteration 605 — Tool Result Cache Middleware
+
+First concrete middleware using the iter 599 middleware system. Caches deterministic read tool results (file_read, grep, glob, repo_map, files_overview, read_document, view_image) with session-scoped in-memory storage. Auto-invalidates on mutating tools (file_write, shell, code_exec, etc.). Cache key uses canonical JSON of sorted input for order-independent matching. Errors are never cached. 23 new tests.
+
+### What changed
+- `src/tool-cache.ts`: ToolCache class with get/set/invalidate, stats tracking, and createCacheMiddleware factory
+- `src/modules/tool-cache.ts`: Module that registers cache middleware at priority 10 (outermost)
+- Module index + integration test counts updated (13→14 builtin modules)
+
+### Candidates considered
+- **Tool result cache middleware** — CHOSEN. First real middleware payload, validates iter 599's system, measurable perf benefit (CrewAI's opt-out model as prior art)
+- **Typed event bus** — Strong DX improvement but purely a refactor with high blast radius (every emit/on call site). Deferred.
+
+### Verification
+typecheck + build + 3522 tests pass (23 new), lint clean
+
+### Future directions
+- Path-specific invalidation (only flush entries matching written file) instead of full cache clear
+- Cache hit/miss stats surfaced in tool telemetry for agent self-awareness
+- Typed event bus (deferred from this iteration)
+
 ## Iteration 604 — Implementation-Phase Analytics and Verification Signal Fix
 
 Fixed build MISS false negative in parse-log.py and added implementation efficiency metrics, shifting improver focus from brainstorming (resolved) to implementation phase.

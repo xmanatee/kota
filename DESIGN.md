@@ -763,6 +763,10 @@ Session-scoped instrumentation tracking per-tool timing, success/failure rates, 
 
 Composable pre/post hooks for tool execution. Modules register middleware via `ctx.registerMiddleware(name, fn, priority?)`. Each middleware wraps execution as `(call, next) => Promise<ToolResult>` — can inspect/modify input, short-circuit, or transform results. Priority controls order (lower runs first, default 100). Integrated into `executeToolCalls()` between guardrails and telemetry. Module middleware auto-cleaned on unload. Singleton: `getToolMiddleware()` / `resetToolMiddleware()`.
 
+### Tool Result Cache (`src/tool-cache.ts`, `src/modules/tool-cache.ts`)
+
+Session-scoped middleware that caches deterministic read tool results (`file_read`, `grep`, `glob`, `repo_map`, `files_overview`, `read_document`, `view_image`). Cache key: tool name + canonical JSON of sorted input. Auto-invalidates the entire cache when mutating tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`, `shell`, `code_exec`, `notebook`, `process`, `computer_use`) execute. Errors are never cached. Stats (hits/misses/invalidations/size) available via `getToolCache().stats`. Registered as a module with priority 10 (runs before logging middleware). Singleton: `getToolCache()` / `resetToolCache()`.
+
 ### Interactive Code Execution (`src/tools/code-exec.ts`)
 
 Persistent REPL sessions (Python / Node.js) for iterative computation. Wrapper processes use a sentinel-based protocol: code lines are sent via stdin until a sentinel marker, then executed, with a done marker printed to stdout when complete. State (variables, imports) persists across calls within a session. AST-based last-expression extraction (Python) displays return values like IPython. Sessions are managed per-language and cleaned up on agent shutdown.
