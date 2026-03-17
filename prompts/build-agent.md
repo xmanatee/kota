@@ -37,10 +37,7 @@ Before doing anything, understand what exists. You have full shell access:
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat DESIGN.md` — architecture and design decisions
-- `cat metrics.csv` — per-iteration stats (duration, tests, cost)
-- `python3 parse-log.py --trend 5` — recent builder patterns and work-type trends
 - `ls src/` — current source files
-- `ls logs/` — session logs from previous iterations (`.session.jsonl`)
 
 Build on what exists; do not redo completed work.
 
