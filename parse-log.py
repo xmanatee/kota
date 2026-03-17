@@ -1186,10 +1186,19 @@ def trend(n: int = 5) -> None:
             dom_warn = f" — {dom} domain: {cnt}/{ne} iters (nearing saturation)"
     print(f"  Domains: {dom_str}{dom_warn}")
 
-    # Work-type distribution (kept for backward compatibility)
+    # Work-type distribution with concentration warning
     type_ctr = Counter(e.get("work_type", "?") for e in entries)
     type_str = ", ".join(f"{v} {k}" for k, v in type_ctr.most_common())
-    print(f"  Work pattern: {type_str}")
+    type_warn = ""
+    for wt, cnt in type_ctr.most_common(1):
+        if wt == "feature" and ne >= 4 and cnt >= ne * 0.7:
+            type_warn = (
+                f" — feature work: {cnt}/{ne} iters CONCENTRATED "
+                f"(consider architecture/composition/hardening)"
+            )
+        elif wt == "feature" and ne >= 4 and cnt >= ne * 0.6:
+            type_warn = f" — feature work: {cnt}/{ne} iters (nearing saturation)"
+    print(f"  Work pattern: {type_str}{type_warn}")
 
     # Severity assessment
     sev_ctr = Counter(e["severity"] for e in entries if e["severity"] != "?")

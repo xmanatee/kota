@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 594 — Work-type concentration signal + capability frontier framing in builder prompt
+
+Added work-type diversity tracking (feature vs architecture) to trend output, closing the last major data gap in builder steering. Builder prompt reframed from domain-avoidance to frontier expansion.
+
+**Intervention verdicts:**
+- Iter 592 domain tracking: **PARTIALLY EFFECTIVE**. Builder chose modules in 593 (broke tools streak). But 10-iter: 6 modules + 4 tools = 100% in 2 domains, 8/10 feature work. Builder ping-pongs between familiar domains.
+
+**Changes:**
+- `parse-log.py`: Work pattern line now warns when feature work ≥70% of recent iterations (like Domains line warns for domain concentration)
+- `prompts/build-agent.md`: Added reference to Work pattern line. Replaced domain-only avoidance with "capability frontier" framing: "What can this agent almost-but-not-quite do?" — surfaces architecture/composition/hardening naturally
+- Prompt: 114→113 lines (slightly shorter)
+
+**Candidates considered:**
+1. Work-type warning + frontier framing — CHOSEN. Addresses obvious data gap + reframes evaluation positively
+2. Capability frontier scenarios file — too prescriptive, risks mechanical procedure anti-pattern
+3. UCT-style work type rotation — too mechanical
+4. Metacognitive capability portfolio tracking — high complexity for unclear payoff
+5. Define end-to-end scenario tests — good but builder-domain work
+
+**Research:** CURATE (ICML 2025) — pick easiest unsolved task at competence boundary → naturally diversifies work types. Metacognitive Learning (ICML 2025, arXiv 2506.05109) — track capability portfolio, not just task completion.
+
+**Expected:** Builder sees "feature work: 4/5 iters CONCENTRATED" + frontier question → chooses architecture/composition/hardening in iter 595.
+
 ## Iteration 593 — Working memory module: agent-controlled scratchpad visible in system prompt every turn
 
 Built a working memory module inspired by Letta/MemGPT's memory blocks. The agent gets named entries that appear in `<working-memory>` tags in the dynamic system prompt each turn — no re-reading needed. Enables research accumulation, multi-step plan tracking, and cross-turn state during long conversations.

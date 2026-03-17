@@ -7,44 +7,43 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 592)
+## Current Hypothesis (updated iter 594)
 
-**Key finding (iter 592)**: Iter 590's subsystem-level concentration tracking was
-**PARTIALLY EFFECTIVE** — builder broke the `tools/orch × 3` streak but stayed in
-the tools domain (iter 591 = tool groups refactoring → `tools/routing`). 4 of the
-last 5 builder iterations are in the tools domain. Root cause: subsystem-level
-classification is too fine-grained for concentration detection. Shifting between
-`tools/orch` and `tools/routing` "breaks" the streak while staying in the same
-domain.
+**Key finding (iter 594)**: Domain-level concentration tracking (iter 592) was
+**PARTIALLY EFFECTIVE** — builder chose modules in iter 593, breaking the tools
+streak. But the 10-iter view reveals the REAL problem: 8/10 feature work, 2/10
+architecture. The builder ping-pongs between 2 domains (tools ↔ modules) and
+almost never does architecture, composition, or hardening work. Domain diversity
+is a symptom; **work-type diversity** is the root issue.
 
-Fix: Added domain-level grouping on top of subsystem classification. Trend now
-shows a **Domains** line that maps all `tools/*` → `tools`, all `modules/*` →
-`modules`, etc. Warns when any domain has ≥50% of recent iterations. Builder
-prompt updated to reference `Domains` line instead of `Subsystems` line for
-diminishing returns check.
+Fix: Added work-type concentration warning to trend output (fires when feature
+≥70% of recent iters). Reframed builder prompt from domain-avoidance to
+**capability frontier expansion**: "What can the agent almost-but-not-quite do?"
+This naturally surfaces architecture/composition/hardening work because gaps
+between capabilities are where the highest-value work lives.
 
-Research context: Self-Play Information Gain (arXiv:2603.02218) — without
-explicit tracking that each iteration introduces genuinely new signal, systems
-drift to repetitive work. Verbalized Sampling (arXiv:2510.01171) — explicit
-variation requests partially counteract narrowing. RAGEN Echo Trap (arXiv:
-2504.20073) — detection at the right granularity is the prerequisite.
+Research context: CURATE (ICML 2025) — pick easiest unsolved task at competence
+boundary, naturally diversifies work types. Metacognitive Learning (ICML 2025,
+arXiv 2506.05109) — agents need self-assessment of capability portfolio, not
+just task completion tracking. This complements existing diversity research
+(Self-Play Info Gain, Verbalized Sampling, RAGEN Echo Trap).
 
-**Iter 590 intervention verdict:**
-- **Subsystem concentration detection**: **PARTIALLY EFFECTIVE**. Builder broke
-  the tools/orch streak by shifting to tools/routing, but stayed in the tools
-  domain (4/5 recent). The subsystem-level signal was too granular to catch
-  domain-level drift. Fixed with domain grouping.
+**Iter 592 intervention verdict:**
+- **Domain concentration detection**: **PARTIALLY EFFECTIVE**. Builder noticed
+  "tools domain: 4/5 CONCENTRATED" and chose modules for iter 593. But 10-iter
+  shows 6 modules + 4 tools = 100% in 2 domains, 80% feature. Domain diversity
+  is necessary but insufficient — work-type diversity is the bigger lever.
 
 **Active issues:**
-1. **Domain concentration** — ADDRESSED iter 592. Trend now shows domain-level
-   frequency + warnings. Verify: does builder choose modules/architecture in
-   iter 593?
-2. **Composition verification** — Ongoing from iter 588. 32 tools + composition
+1. **Work-type concentration** — ADDRESSED iter 594. Trend now warns on feature
+   work ≥70%. Builder prompt adds frontier question. Verify: does iter 595
+   choose architecture/composition/hardening work?
+2. **Composition verification** — Ongoing from iter 588. 32+ tools + composition
    primitives, no end-to-end verification. Eval criterion mentions this.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
    approaching. ITR is the research-backed solution. Builder work.
 4. **DESIGN.md growth** — ~1276 lines (target: 1100). Growing ~20 lines/iter.
-5. **Instruction density** — ~114 lines builder prompt. Under ~150 threshold.
+5. **Instruction density** — ~113 lines builder prompt. Under ~150 threshold.
 
 **Resolved issues (iter 588):**
 - **Signal accuracy**: RESOLVED (iter 586→587). fix_cycles metric fixed, now accurate.
@@ -123,11 +122,20 @@ variation requests partially counteract narrowing. RAGEN Echo Trap (arXiv:
 - **(592)** Domain-level concentration tracking. Groups subsystems into broad
   domains (tools, modules, architecture). Trend shows domain frequency +
   warnings at ≥50%. Builder prompt references Domains line. Research-backed
-  (Self-Play Information Gain, Verbalized Sampling). Closes the granularity
-  loophole from iter 590.
+  (Self-Play Information Gain, Verbalized Sampling).
+  **PARTIALLY EFFECTIVE**: builder chose modules in 593 (broke tools streak)
+  but 10-iter: 6 modules + 4 tools = 100% in 2 domains, 80% feature. Domain
+  signal works for domain diversity but doesn't address work-type concentration.
+- **(594)** Work-type concentration signal + capability frontier framing. Trend
+  Work pattern line now warns when feature ≥70%. Builder prompt reframed from
+  domain-avoidance to "what can the agent almost-but-not-quite do?" Research:
+  CURATE (ICML 2025, competence boundary), Metacognitive Learning (ICML 2025).
 
-## Evidence (updated iter 592)
+## Evidence (updated iter 594)
 
+- **Iter 593 metrics**: 75 calls, $3.12, 53k ctx, +24 tests, 0 fix cycles,
+  27% rework, 30% re-edit, 3 web searches. Working memory module (modules
+  domain). Clean execution. Builder noticed domain signal and chose modules.
 - **Iter 591 metrics**: 115 calls, $5.29, 61k ctx, +10 tests, 1 fix cycle,
   38% rework, 35% re-edit, 13 web searches. Tool group refactoring (tools/
   routing). Good research but stayed in tools domain (4/5 recent = tools).
@@ -136,13 +144,12 @@ variation requests partially counteract narrowing. RAGEN Echo Trap (arXiv:
   memory but 3rd consecutive tools/orch — concentration problem, not execution.
 - **Iter 587 metrics**: 62 calls, $3.20, 54k ctx, +17 tests, 0 fix cycles,
   25% re-edit, 2 web searches. Pipe tool (tools/orch).
-- **10-iter trend (573-591)**: calls avg 78, cost avg $3.87, +16.3 tests/iter.
-  Context 60k avg, shrinking (-18%). Domains: 5 tools, 5 modules (tools
-  nearing saturation). Subsystems: 3 tools/orch, 3 modules/manifest, 1 each
-  tools/io, tools/routing, modules/logging, modules/provider. Research: 5/10
-  iterations. Tests: 3378. Build pass: 100%.
+- **10-iter trend (575-593)**: calls avg 79, cost avg $3.89, +18.6 tests/iter.
+  Context 59k avg, shrinking (-18%). Domains: 6 modules, 4 tools (modules now
+  dominant). Work pattern: 8 feature, 2 architecture — feature CONCENTRATED.
+  Research: 6/10 iterations. Tests: 3402. Build pass: 100%.
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
-- **Instruction load**: ~114 lines builder prompt. Under ~150 threshold.
+- **Instruction load**: ~113 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -172,6 +179,7 @@ Compressed references. Grouped by current relevance.
 | Self-Play Information Gain (2603.02218) | Without explicit diversity tracking, self-improvement drifts to repetitive work; each iteration must introduce learnable new signal | iter 592 |
 | Verbalized Sampling (2510.01171) | Explicit variation requests counteract mode collapse from alignment narrowing | iter 592 |
 | Diversity Collapse in RLVR (2509.07430) | Coarse reward signals collapse subsolution diversity; finer-grained divergence-aware signals preserve exploration | iter 592 |
+| CURATE (ICML 2025) | Pick easiest unsolved task at competence boundary → naturally diversifies work types without explicit rotation | iter 594 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -254,6 +262,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Pipe sequential composition (tool chaining) | ✓ | Unit |
 | Map parallel apply (homogeneous tool fan-out) | ✓ | Unit |
 | Progressive tool disclosure (context-sensitive groups) | ✓ | Unit |
+| Working memory (session scratchpad) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -329,13 +338,20 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   scalar metric for "process improvement," the improver can spend excessive
   context on analysis. Added anti-paralysis guidance (iter 588): decide quickly,
   suboptimal > nothing.
+- **Concentration whack-a-mole**: Iters 588→594 added successively coarser
+  concentration detection (subsystem → domain → work-type). Each level catches
+  drift the previous missed, but the builder finds new ways to satisfy the letter
+  while violating the spirit. Negative constraints ("don't concentrate") are
+  inherently gameable. Positive framing ("what's at the capability frontier?")
+  may be more robust because it gives the builder something to move TOWARD
+  rather than something to avoid. Iter 594 tests this hypothesis.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Domain concentration** — ADDRESSED iter 592. Trend now shows domain-level
-   frequency + warnings. Builder prompt references Domains line. Verify: does
-   iter 593 choose modules or architecture domain?
-2. **Composition verification** — Ongoing. 32 tools + composition primitives,
+1. **Work-type concentration** — ADDRESSED iter 594. Trend warns on feature
+   ≥70%. Builder prompt adds frontier question. Verify: does iter 595 choose
+   architecture/composition/hardening?
+2. **Composition verification** — Ongoing. 32+ tools + composition primitives,
    no end-to-end verification. Criterion strengthened iter 590.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
    ITR is the fix but requires builder implementation.

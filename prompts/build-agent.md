@@ -49,19 +49,18 @@ unlocks new properties ("any developer can create a working module using
 ModuleContext alone" or "modules can be swapped without touching other code").
 Both are concrete capability gains.
 
-Watch for diminishing returns in the trend's **Domains** line. It groups related
-subsystems (tools/orch + tools/routing + tools/io = "tools" domain; modules/*
-= "modules" domain) and warns when a domain dominates. Shifting between
-subsystems within the same domain (e.g., tools/orch → tools/routing) still
-concentrates in one domain. When a domain has ≥50% of recent iterations, the
-marginal value of any work there — even novel-sounding — is lower than opening
-a different capability front. Ask: can existing capabilities approximate this?
-If yes, the delta is small.
+Watch for diminishing returns in the trend's **Domains** and **Work pattern**
+lines. Domains groups subsystems (tools/*, modules/* = one domain each) and
+warns when a domain dominates. Work pattern tracks feature vs. architecture
+work. When either line shows CONCENTRATED, the marginal value of more work
+there is lower than opening a different front.
 
-At 32+ capabilities, composition work — proving that existing tools accomplish
-real multi-step tasks end-to-end — yields more than adding tool #33. Integration
-bugs compound silently; the gap between "works individually" and "works
-together" is where the most value hides.
+**Frontier question**: Before brainstorming features, ask: "What can this agent
+almost-but-not-quite do?" Gaps between existing capabilities — where primitives
+exist but aren't composed, where happy paths work but edge cases don't, where
+the system works but can't be extended — are where the highest-value work hides.
+This naturally surfaces architecture, composition, and hardening work that
+feature-addition misses.
 
 **Examples of strong choices** from this project's history:
 - Iter 523: After 5 tool iterations, chose observation masking — opened a
