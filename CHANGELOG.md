@@ -1,5 +1,68 @@
 # KOTA Changelog
 
+## Iteration 533 — E2E Testing with Mock Anthropic Client
+
+Built E2E test infrastructure that exercises the full agent loop without a real API key, directly addressing the owner's request for proper testing.
+
+### What was built
+
+**`src/mock-client.ts`** (~170 lines) — Mock Anthropic client for testing:
+- `createMockClient(responses)` — returns a mock client and captured API calls
+- `MockStream` — simulates the SDK's MessageStream with `on()` and `finalMessage()`
+- Response builders: `textResponse()`, `toolUseResponse()`, `multiToolResponse()`
+- Call capture: every API request is recorded for test assertions
+- Sequence mode: responses are consumed in order; last response reused when exhausted
+
+**`src/loop.ts`** — Dependency injection for the Anthropic client:
+- Added `client?: Anthropic` option to `LoopOptions`
+- `AgentSession` uses injected client when provided, falls back to `new Anthropic()`
+- Standard DI pattern — no test-specific branches in production code
+
+**`src/e2e.test.ts`** (~420 lines) — 15 E2E tests across 5 suites:
+- **Core agent loop** (8 tests): single-turn text, tool call → result → text, parallel tool calls, file_write through loop, shell execution, circuit breaker, todo state persistence, grep through loop
+- **Event bus integration** (2 tests): session.start/end events fire, error status reporting
+- **Multi-send session persistence** (1 test): context accumulates across send() calls
+- **Observation masking** (1 test): old tool results get masked as context grows
+- **Mock client behavior** (2 tests): sequence exhaustion, API call parameter capture
+
+### Also fixed
+
+**9 pre-existing test failures** from iter 531 (knowledge store):
+- `module-cli.integration.test.ts` (4 tests): Expected 8 builtin modules, now 9 (knowledge module added)
+- `system-prompt.test.ts` (5 tests): Memory section tests referenced old content before knowledge store rewrite; prompt char budget exceeded (11644 vs 11450)
+- Updated budget tests to 12000 chars to accommodate the knowledge store section
+
+### Why it matters
+
+Before this iteration, the only way to test the full agent loop was with a real API key ($0.005/run). The mock client enables:
+- Testing the full send() path: streaming → tool execution → context management → event bus
+- Regression testing for tool integration (file_read, file_write, shell, grep, todo)
+- Testing edge cases (circuit breaker, observation masking) without API cost
+- Fast CI-compatible tests (~1 second for all 15 E2E tests)
+
+### Verified
+- TypeScript: `tsc --noEmit` clean
+- Build: `tsup` clean (461KB bundle)
+- Tests: 2757 pass, 0 fail (121 test files — up from 2742 pass / 9 fail)
+- Lint: `biome check` clean on all changed files
+- Load: `node dist/cli.js --help` works
+- Runtime: SKIP (ANTHROPIC_API_KEY not set)
+
+### Candidates considered
+1. **E2E testing with LLM mocking** (chosen) — owner explicitly requested, foundational for development
+2. **Parallel delegation** — launch multiple sub-agents simultaneously; medium impact
+3. **Conversation forking** — branch conversations to explore alternatives; power-user feature
+4. **Intelligent task routing** — pre-analyze task type for better first-turn quality; optimization
+5. **Better error recovery** — smarter diagnosis of tool failures; incremental improvement
+
+### Future directions
+- Add delegate E2E tests (mock sub-agent API calls)
+- Test architect mode with mock client
+- Test compaction (requires injecting high token counts into mock responses)
+- Test conversation resume/history integration
+- Add mock client helpers for thinking blocks and error responses
+- Integration test for scheduled actions with mock execution
+
 ## Iteration 532 — Persistent Improvement Thesis and Incremental Test Guidance
 
 Created a strategic context document (prompts/improvement-thesis.md) to break the improver out of its micro-optimization rut, and added incremental test verification guidance to reduce the 5.2x test rerun rate.

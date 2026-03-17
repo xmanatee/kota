@@ -54,6 +54,8 @@ export type LoopOptions = {
   label?: string;
   /** Enable self-reflection before delivering final response. Default: true. */
   reflectionEnabled?: boolean;
+  /** Inject an Anthropic client (for testing with mock clients). */
+  client?: Anthropic;
 };
 
 /**
@@ -114,7 +116,7 @@ export class AgentSession {
       ? thinkingBudget + this.maxTokens
       : this.maxTokens;
 
-    this.client = new Anthropic({ maxRetries: 5 });
+    this.client = options.client ?? new Anthropic({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
     // Initialize persistent stores for this project

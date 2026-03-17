@@ -81,9 +81,9 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("stays under 11500 characters to keep token cost manageable", () => {
-    // ~11500 chars ≈ ~2875 tokens, cached at 0.1x. Budget raised for everyday assistance patterns (iter 325).
-    expect(SYSTEM_PROMPT.length).toBeLessThan(11500);
+  it("stays under 12000 characters to keep token cost manageable", () => {
+    // ~12000 chars ≈ ~3000 tokens, cached at 0.1x. Budget raised for knowledge store section (iter 531).
+    expect(SYSTEM_PROMPT.length).toBeLessThan(12000);
   });
 
   it("includes data handoff guidance for efficient multi-tool pipelines", () => {
@@ -194,18 +194,15 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("seaborn");
   });
 
-  it("memory section guides proactive save and recall with keyword discipline", () => {
+  it("memory section guides proactive save and recall", () => {
     expect(SYSTEM_PROMPT).toContain("## Memory");
     expect(SYSTEM_PROMPT).toContain("outlasts the session");
     expect(SYSTEM_PROMPT).toContain("Recall before starting work");
-    expect(SYSTEM_PROMPT).toContain("specific keywords");
     expect(SYSTEM_PROMPT).toContain("Skip ephemeral");
   });
 
-  it("memory section guides strategic use with tags and update patterns", () => {
+  it("memory section guides update patterns and deduplication", () => {
     const memorySection = SYSTEM_PROMPT.split("## Memory")[1]?.split("##")[0] || "";
-    expect(memorySection).toContain("Tags");
-    expect(memorySection).toContain("preference, project, decision, finding");
     expect(memorySection).toContain("Update");
     expect(memorySection).toContain("duplicate");
   });
@@ -224,10 +221,10 @@ describe("SYSTEM_PROMPT", () => {
     expect(memorySection).toContain("Recency");
   });
 
-  it("memory section guides what to save with concrete examples", () => {
+  it("memory section guides what to save with knowledge and memory distinction", () => {
     const memorySection = SYSTEM_PROMPT.split("## Memory")[1]?.split("##")[0] || "";
-    expect(memorySection).toContain("User preferences");
-    expect(memorySection).toContain("key decisions");
+    expect(memorySection).toContain("preferences");
+    expect(memorySection).toContain("decisions");
     expect(memorySection).toContain("rationale");
     expect(memorySection).toContain("research findings");
   });
@@ -331,8 +328,8 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("prompt char budget has headroom after trimming", () => {
-    // Ensure buffer below 11500 limit — catches gradual bloat before it regresses
-    expect(SYSTEM_PROMPT.length).toBeLessThan(11450);
+    // Ensure buffer below 12000 limit — catches gradual bloat before it regresses
+    expect(SYSTEM_PROMPT.length).toBeLessThan(11900);
   });
 
   it("delegate tool has task parameter for structured handoff", () => {

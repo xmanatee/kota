@@ -14,7 +14,7 @@ import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 import { builtinModules } from "./modules/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
-import { getAllTools, clearCustomTools, executeTool } from "./tools/index.js";
+import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "dist/cli.js");
@@ -70,13 +70,14 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.unloadAll();
   });
 
-  it("ModuleLoader.loadAll registers all 7 builtin modules", async () => {
+  it("ModuleLoader.loadAll registers all builtin modules", async () => {
     const loader = new ModuleLoader({});
     await loader.loadAll(builtinModules);
 
     const names = loader.getLoadedModules();
-    expect(names).toHaveLength(8);
+    expect(names).toHaveLength(9);
     expect(names).toContain("memory");
+    expect(names).toContain("knowledge");
     expect(names).toContain("scheduler");
     expect(names).toContain("telegram");
     expect(names).toContain("daemon");
@@ -134,7 +135,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     const loader = new ModuleLoader({});
     await loader.loadAll(builtinModules);
 
-    expect(loader.getModuleCount()).toBe(8);
+    expect(loader.getModuleCount()).toBe(9);
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
 
     await loader.unloadAll();
@@ -191,7 +192,7 @@ describe("module error resilience", () => {
     // But all builtin modules should still load
     expect(loader.getLoadedModules()).toContain("memory");
     expect(loader.getLoadedModules()).toContain("scheduler");
-    expect(loader.getModuleCount()).toBe(8);
+    expect(loader.getModuleCount()).toBe(9);
 
     errSpy.mockRestore();
     await loader.unloadAll();
@@ -301,7 +302,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // First cycle
     await loader.loadAll(builtinModules);
-    expect(loader.getModuleCount()).toBe(8);
+    expect(loader.getModuleCount()).toBe(9);
     const memResult1 = await executeTool("memory", { action: "list" });
     expect(memResult1.is_error).toBeFalsy();
 
@@ -311,7 +312,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     // Second cycle — should work identically
     const loader2 = new ModuleLoader({});
     await loader2.loadAll(builtinModules);
-    expect(loader2.getModuleCount()).toBe(8);
+    expect(loader2.getModuleCount()).toBe(9);
     const memResult2 = await executeTool("memory", { action: "list" });
     expect(memResult2.is_error).toBeFalsy();
 

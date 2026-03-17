@@ -772,6 +772,32 @@ Extracted HTTP session infrastructure — `SseTransport`, `SessionPool`, `Manage
 
 Biome linter enforces code quality across all source files. Rules cover unused imports/variables, type-only imports, template literal preference, `Number.isNaN` over global `isNaN`, and import sorting. Run via `npm run lint`; auto-fix via `npm run lint:fix`.
 
+## Testing
+
+### E2E Tests with Mock Client (`src/mock-client.ts`, `src/e2e.test.ts`)
+
+The mock client enables full agent loop testing without a real API key:
+
+```typescript
+import { createMockClient, textResponse, toolUseResponse } from "./mock-client.js";
+
+// Define the response sequence the "LLM" will return
+const [client, calls] = createMockClient([
+  toolUseResponse("file_read", { path: "/tmp/test.txt" }),  // Turn 1: agent calls file_read
+  textResponse("The file says hello."),                      // Turn 2: agent responds
+]);
+
+const session = new AgentSession({ client, transport: new BufferTransport(), noHistory: true });
+await session.send("Read the file");
+// `calls` contains every API request for assertion
+```
+
+**How it works**: `AgentSession` accepts an optional `client` via `LoopOptions`. The mock client's `messages.stream()` returns a `MockStream` that emits text/thinking events and resolves `finalMessage()` with pre-configured responses. Each call consumes the next response in sequence; the last response is reused when exhausted.
+
+**Response builders**: `textResponse(text)`, `toolUseResponse(name, input)`, `multiToolResponse([...])`. All produce valid `Anthropic.Message` objects with proper usage fields.
+
+**Test coverage**: Core loop (single/multi-turn, parallel tools, circuit breaker), event bus (session.start/end), context persistence (multi-send), observation masking, tool integration (file_read, file_write, shell, grep, todo).
+
 ## Dependencies
 
 - `@anthropic-ai/sdk` — Claude API client
