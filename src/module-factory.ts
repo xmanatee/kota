@@ -33,6 +33,15 @@ export type ManifestToolDef = {
 	group?: string;
 };
 
+export type ManifestEventHandler = {
+	/** Event name to subscribe to (e.g. "schedule:fire", "process:exit"). */
+	event: string;
+	/** Code to run when the event fires. Receives `event_name` and `payload` variables. */
+	code: string;
+	/** Language for code execution (default: "python"). */
+	language?: Language;
+};
+
 export type ModuleManifest = {
 	name: string;
 	version?: string;
@@ -40,6 +49,8 @@ export type ModuleManifest = {
 	tools?: ManifestToolDef[];
 	promptSection?: string;
 	dependencies?: string[];
+	/** Event handlers — subscribe to bus events and run code when they fire. */
+	eventHandlers?: ManifestEventHandler[];
 };
 
 // ─── Validation ──────────────────────────────────────────────────────
@@ -86,6 +97,7 @@ const BUILTIN_TOOL_NAMES = new Set([
 	"get_secret",
 	"knowledge",
 	"checkpoint",
+	"notify",
 ]);
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,48}[a-z0-9]$/;
@@ -200,6 +212,31 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 		}
 	}
 
+	// eventHandlers
+	if (m.eventHandlers !== undefined) {
+		if (!Array.isArray(m.eventHandlers)) {
+			errors.push({ field: "eventHandlers", message: "eventHandlers must be an array" });
+		} else {
+			for (let i = 0; i < m.eventHandlers.length; i++) {
+				const h = m.eventHandlers[i] as Record<string, unknown>;
+				const prefix = `eventHandlers[${i}]`;
+				if (!h || typeof h !== "object") {
+					errors.push({ field: prefix, message: "each handler must be an object" });
+					continue;
+				}
+				if (typeof h.event !== "string" || !h.event) {
+					errors.push({ field: `${prefix}.event`, message: "event name is required" });
+				}
+				if (typeof h.code !== "string" || !h.code) {
+					errors.push({ field: `${prefix}.code`, message: "handler code is required" });
+				}
+				if (h.language !== undefined && h.language !== "python" && h.language !== "node") {
+					errors.push({ field: `${prefix}.language`, message: 'language must be "python" or "node"' });
+				}
+			}
+		}
+	}
+
 	// promptSection
 	if (
 		m.promptSection !== undefined &&
@@ -284,7 +321,56 @@ export function manifestToModule(manifest: ModuleManifest): KotaModule {
 		mod.promptSection = () => section;
 	}
 
+	if (manifest.eventHandlers && manifest.eventHandlers.length > 0) {
+		const handlers = manifest.eventHandlers;
+		mod.events = (bus) => {
+			const unsubs: (() => void)[] = [];
+			for (const handler of handlers) {
+				const unsub = bus.on(handler.event, (payload) => {
+					runEventHandler(manifest.name, handler, payload);
+				});
+				unsubs.push(unsub);
+			}
+			return unsubs;
+		};
+	}
+
 	return mod;
+}
+
+/**
+ * Execute a manifest event handler's code in a REPL session.
+ * Injects `event_name` and `payload` variables into the code environment.
+ * Errors are logged but never propagated — event handlers must not crash the bus.
+ */
+function runEventHandler(
+	moduleName: string,
+	handler: ManifestEventHandler,
+	payload: Record<string, unknown>,
+): void {
+	const lang: Language = handler.language || "python";
+	const payloadJson = JSON.stringify(payload);
+	const b64 = Buffer.from(payloadJson).toString("base64");
+
+	const wrapper =
+		lang === "python"
+			? `import json as __j, base64 as __b\nevent_name = ${JSON.stringify(handler.event)}\npayload = __j.loads(__b.b64decode('${b64}').decode())\n${handler.code}`
+			: `const event_name = ${JSON.stringify(handler.event)};\nconst payload = JSON.parse(Buffer.from('${b64}','base64').toString());\n${handler.code}`;
+
+	const session = sessions[lang];
+	session.execute(wrapper, DEFAULT_TIMEOUT).then(
+		({ output, isError }) => {
+			if (isError) {
+				console.error(`[module:${moduleName}] Event handler error (${handler.event}): ${output}`);
+			} else if (output.trim()) {
+				console.error(`[module:${moduleName}] Event handler (${handler.event}): ${output.trim()}`);
+			}
+		},
+		(err) => {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error(`[module:${moduleName}] Event handler failed (${handler.event}): ${msg}`);
+		},
+	);
 }
 
 // ─── Persistence ─────────────────────────────────────────────────────

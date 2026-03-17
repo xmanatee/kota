@@ -144,6 +144,59 @@ describe("validateManifest", () => {
 		});
 		expect(errors.some((e) => e.field === "dependencies")).toBe(true);
 	});
+
+	// ─── eventHandlers validation ──────────────────────────────────────
+
+	it("accepts valid eventHandlers", () => {
+		const errors = validateManifest({
+			name: "event-mod",
+			eventHandlers: [
+				{ event: "schedule.fire", code: "print('fired')" },
+				{ event: "custom.event", code: "console.log('ok')", language: "node" },
+			],
+		});
+		expect(errors).toHaveLength(0);
+	});
+
+	it("rejects non-array eventHandlers", () => {
+		const errors = validateManifest({
+			name: "event-mod",
+			eventHandlers: "not-array",
+		});
+		expect(errors.some((e) => e.field === "eventHandlers")).toBe(true);
+	});
+
+	it("rejects event handler missing event name", () => {
+		const errors = validateManifest({
+			name: "event-mod",
+			eventHandlers: [{ code: "print(1)" }],
+		});
+		expect(errors.some((e) => e.field === "eventHandlers[0].event")).toBe(true);
+	});
+
+	it("rejects event handler missing code", () => {
+		const errors = validateManifest({
+			name: "event-mod",
+			eventHandlers: [{ event: "test.event" }],
+		});
+		expect(errors.some((e) => e.field === "eventHandlers[0].code")).toBe(true);
+	});
+
+	it("rejects event handler with invalid language", () => {
+		const errors = validateManifest({
+			name: "event-mod",
+			eventHandlers: [{ event: "test.event", code: "print(1)", language: "ruby" }],
+		});
+		expect(errors.some((e) => e.field === "eventHandlers[0].language")).toBe(true);
+	});
+
+	it("rejects non-object event handler entries", () => {
+		const errors = validateManifest({
+			name: "event-mod",
+			eventHandlers: ["not-an-object"],
+		});
+		expect(errors.some((e) => e.field === "eventHandlers[0]")).toBe(true);
+	});
 });
 
 // ─── manifestToModule ─────────────────────────────────────────────────
@@ -213,6 +266,58 @@ describe("manifestToModule", () => {
 			}],
 		});
 		expect(toolsOf(mod)[0].group).toBe("my-group");
+	});
+
+	it("creates events function from eventHandlers", () => {
+		const mod = manifestToModule({
+			name: "evented",
+			eventHandlers: [
+				{ event: "test.ping", code: "print('pong')" },
+			],
+		});
+		expect(mod.events).toBeDefined();
+		expect(typeof mod.events).toBe("function");
+	});
+
+	it("events function returns unsubscribe functions", () => {
+		const mod = manifestToModule({
+			name: "evented",
+			eventHandlers: [
+				{ event: "test.ping", code: "print('pong')" },
+				{ event: "test.pong", code: "print('ping')" },
+			],
+		});
+
+		// Create a minimal mock bus
+		const handlers = new Map<string, Set<(p: Record<string, unknown>) => void>>();
+		const mockBus = {
+			on: (event: string, handler: (p: Record<string, unknown>) => void) => {
+				let set = handlers.get(event);
+				if (!set) { set = new Set(); handlers.set(event, set); }
+				set.add(handler);
+				return () => { set!.delete(handler); };
+			},
+		};
+
+		const unsubs = mod.events!(mockBus as never);
+		expect(unsubs).toHaveLength(2);
+		expect(handlers.get("test.ping")?.size).toBe(1);
+		expect(handlers.get("test.pong")?.size).toBe(1);
+
+		// Unsubscribe all
+		for (const unsub of unsubs) unsub();
+		expect(handlers.get("test.ping")?.size).toBe(0);
+		expect(handlers.get("test.pong")?.size).toBe(0);
+	});
+
+	it("module without eventHandlers has no events function", () => {
+		const mod = manifestToModule({ name: "no-events" });
+		expect(mod.events).toBeUndefined();
+	});
+
+	it("empty eventHandlers array produces no events function", () => {
+		const mod = manifestToModule({ name: "empty-events", eventHandlers: [] });
+		expect(mod.events).toBeUndefined();
 	});
 });
 

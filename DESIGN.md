@@ -144,6 +144,21 @@ Pluggable architecture where features are self-contained modules instead of hard
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
 - Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
 
+### Desktop Notifications (`src/tools/notify.ts`)
+
+Sends desktop notifications to the user via the OS notification system. Enables the agent to proactively alert the user about completed tasks, monitoring events, or anything needing attention when the user isn't watching the terminal.
+
+**Platform support**:
+- **macOS**: `osascript` with `display notification` (supports sound via `sound name "Glass"`)
+- **Linux**: `notify-send` from libnotify (error message if not installed)
+- **Fallback**: Console output via stderr (for unsupported platforms or when desktop fails)
+
+**Design decisions**:
+- Core tool (always available) — notifications are universally useful.
+- Desktop failure automatically falls back to console — never silently fails.
+- Sound enabled by default, can be disabled with `sound: false`.
+- AppleScript string escaping for quotes and backslashes in messages.
+
 ### Custom Tool Builder (`src/tools/custom-tool.ts`)
 
 Lets the agent dynamically create new tools at runtime from Python/Node.js code. Transforms the agent from a fixed-tool system into a self-extending one.
@@ -182,6 +197,11 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
     "code": "print('sunny')",
     "language": "python"
   }],
+  "eventHandlers": [{
+    "event": "schedule.fire",
+    "code": "print(f'Scheduled: {payload}')",
+    "language": "python"
+  }],
   "promptSection": "Use get_weather to look up weather.",
   "dependencies": []
 }
@@ -192,6 +212,8 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 **Persistence**: Manifests are saved to `.kota/modules/<name>/manifest.json`. This is the same directory used by `ModuleStorage`, so module definition and module data live together. Manifests are auto-discovered on startup via `discoverManifestModules()` in `plugin-loader.ts`.
 
 **Tool execution**: Module tools use the same REPL session pattern as `custom_tool` — code runs in persistent Python/Node.js sessions with base64-encoded parameter passing.
+
+**Event handlers**: Manifest modules can subscribe to event bus events via `eventHandlers`. Each handler specifies an `event` name and `code` to run when it fires. The code receives `event_name` (string) and `payload` (dict/object) variables. Handlers run asynchronously in REPL sessions; errors are logged but never crash the bus. This enables agent-created modules to react to events autonomously — e.g., run analysis when a schedule fires, or send notifications when a process exits.
 
 **Hot-loading**: When a module is created, its tools are immediately registered via `registerTool()` with module-name ownership tracking. Prompt sections take effect on next session startup (the system prompt is already built for the current session).
 

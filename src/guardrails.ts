@@ -52,6 +52,7 @@ const SAFE_TOOLS = new Set([
   "conversation_recall",
   "web_search",
   "get_secret",
+  "notify",
 ]);
 
 /** Tools that mutate local state in controlled ways. */

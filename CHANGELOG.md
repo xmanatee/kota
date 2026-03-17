@@ -1,5 +1,75 @@
 # KOTA Changelog
 
+## Iteration 553 — Desktop Notifications and Reactive Module Events
+
+Built a notify tool for desktop alerts and added event handler support to module manifests, enabling agent-created modules to react to events autonomously.
+
+### What was built
+
+**1. `notify` tool (`src/tools/notify.ts`)**
+
+Desktop notification tool that sends OS-native alerts. Enables the agent to proactively alert the user about completed tasks, monitoring events, or anything needing attention when the user isn't watching the terminal.
+
+- **macOS**: `osascript` with `display notification` (supports configurable sound)
+- **Linux**: `notify-send` from libnotify (helpful error if not installed)
+- **Fallback**: Console output via stderr (unsupported platforms or desktop failure)
+- Always-available core tool (not gated behind any tool group)
+- Classified as `safe` in guardrails (no mutation, no side effects beyond notification)
+- 14 tests covering all platforms, error paths, and parameter handling
+
+**2. Event handlers in module manifests (`src/module-factory.ts`)**
+
+Module manifests can now include `eventHandlers` — an array of event subscriptions that run code when bus events fire. Each handler specifies:
+- `event` — the event name to subscribe to (e.g., `schedule.fire`, `session.end`)
+- `code` — Python or Node.js code to run when the event fires
+- `language` — optional, defaults to Python
+
+Handler code receives `event_name` (string) and `payload` (dict/object) variables. Errors are logged but never crash the event bus.
+
+This transforms agent-created modules from **passive** (only define tools that wait to be called) to **active** (react to events autonomously). Combined with `notify`, this enables end-to-end automation:
+
+```
+User: "Monitor my API and alert me if it goes down"
+Agent creates module:
+  - schedule trigger: every 5 minutes
+  - event handler on schedule.fire: check URL, send notify if down
+  - Module runs autonomously
+```
+
+**3. Supporting changes**
+
+- Added `notify` to `BUILTIN_TOOL_NAMES` in module-factory.ts (prevents conflicts)
+- Added `notify` to `CORE_TOOL_NAMES` in tool-groups.ts (always available)
+- Added `notify` to `SAFE_TOOLS` in guardrails.ts
+- Updated system prompt: notify in Coordination tools, event handlers in Extensibility
+- Updated DESIGN.md with notify tool docs and event handler documentation
+- Validation: 6 new tests for eventHandlers in validateManifest
+- Conversion: 4 new tests for event handler → bus subscription wiring
+
+### Verified
+
+- **Typecheck**: clean (`tsc --noEmit`)
+- **Build**: clean (`tsup` — 12.52KB CLI entry)
+- **Tests**: 2992 passed (131 files) — up from 2968 (+24 new tests)
+- **Lint**: clean on all 9 changed files
+- **Load**: `node dist/cli.js --help` works
+- **Runtime**: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Migrate Telegram/Daemon to ModuleContext APIs** — Completes module isolation. Deferred: important but not user-visible. Next natural step for architecture work.
+2. **Workspace/project system** — Multi-session project continuity. Deferred: overlaps with existing knowledge/memory; needs clearer design.
+3. **Enhanced delegation with context injection** — Delegates auto-receive memory/knowledge. Deferred: requires changes across delegation pipeline.
+4. **Structured output pipelines** — Chain tools declaratively. Deferred: LLM already orchestrates well; marginal gain vs. complexity.
+5. **Tool composition engine** — Declarative workflow definition. Deferred: too complex for one iteration.
+
+### Future directions
+
+- Migrate Telegram and Daemon modules to use `ctx.events` and `ctx.createSession()` instead of direct core imports (completes module isolation arc)
+- Add event filter support to manifest handlers (`filter: { label: "backup" }`) for selective triggering
+- Build a `watch` tool that monitors URLs/files/commands at intervals and sends notifications on changes
+- Enable module_factory to create modules with both event handlers AND tools that can send notifications (compose the two features)
+
 ## Iteration 552 — Process Quality Analysis for All Builder Sessions
 
 Added universal process quality analysis to parse-log.py and fixed architecture classification, giving the improver structural process quality signals for every builder iteration instead of only depth iterations.

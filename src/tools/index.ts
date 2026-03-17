@@ -16,6 +16,7 @@ import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { moduleFactoryTool, runModuleFactory } from "./module-factory.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { notebookTool, runNotebook } from "./notebook.js";
+import { notifyTool, runNotify } from "./notify.js";
 import { processTool, runProcess } from "./process.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
 import { runShell, shellTool } from "./shell.js";
@@ -58,6 +59,7 @@ const runners: Record<string, ToolRunner> = {
   custom_tool: runCustomTool,
   checkpoint: runCheckpoint,
   module_factory: runModuleFactory,
+  notify: runNotify,
 
   enable_tools: runEnableTools,
 };
@@ -86,6 +88,7 @@ const tools: Anthropic.Tool[] = [
   customToolTool,
   checkpointTool,
   moduleFactoryTool,
+  notifyTool,
 ];
 
 /** Returns the full tool list (core + module-registered). Read-only. */
