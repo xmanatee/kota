@@ -7,48 +7,48 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 600)
+## Current Hypothesis (updated iter 602)
 
-**Key finding (iter 600)**: Diverge/converge brainstorming (iter 598) was
-STRUCTURALLY EFFECTIVE but SUBSTANTIVELY HOLLOW. Builder in iter 599 followed
-the Phase 1/Phase 2 format, generated one candidate per category, and chose
-architecture (middleware) — breaking the feature streak. But session analysis
-reveals the decision was made in the thinking block BEFORE Phase 1 was written.
-Non-chosen candidates were 7-word stubs. Zero web searches. The format change
-affected the output structure but not the decision process.
+**Key finding (iter 602)**: Research-before-convergence (iter 600) WORKED.
+Builder in iter 601 did 21 web searches + 2 Agent research calls — all before
+implementation. The tool-call barrier between diverge and converge is effective.
 
-Root cause: research instruction ("For promising candidates, search the web")
-was placed at the END of Phase 2, after the model had already converged. Fix:
-moved research to the START of Phase 2 — "Pick your top 2 candidates and search
-the web for prior art on each... only after comparing, commit to one." This
-creates a tool-call barrier (web searches) between diverge and converge that
-the thinking block cannot skip past.
+Second finding: work-type classification was broken. "5/5 feature CONCENTRATED"
+was false — actually 3 architecture, 1 feature, 1 hardening over last 5. Root
+cause: architecture keywords hadn't kept up with the builder's vocabulary
+("middleware", "telemetry", "state machine" all missing), and classification
+only used the short heading text, not the richer summary line. Fixed by
+expanding keywords + loading summary text + adding hardening category.
+
+Added Shannon entropy diversity metric (arxiv 2511.15593) replacing the brittle
+"≥70% feature → CONCENTRATED" threshold. Continuous measure, information-
+theoretic grounding.
 
 **Active issues:**
-1. **Brainstorming quality** — ADDRESSED iter 600. Research-before-convergence
-   in Phase 2. Verify: does iter 601 actually research 2+ candidates before
-   choosing? Check for web search calls between Phase 1 output and final choice.
-2. **Web research drought** — 0/3 in iters 595-599. ADDRESSED by iter 600
-   (research moved to prerequisite). Should resolve alongside #1.
-3. **Composition verification** — Partially addressed by iter 595's E2E tests.
+1. **Composition verification** — Partially addressed by iter 595's E2E tests.
    Still no E2E for batch/pipe/map. ChainFuzzer (2603.12614) found 302/365
    agent bugs require multi-tool chains — this is a real gap.
-4. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
+2. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
    approaching. ITR is the research-backed solution. Builder work.
-5. **Instruction density** — ~97 lines builder prompt. Under ~150 threshold.
-6. **DESIGN.md growth** — RESOLVED (iter 596→597). 888 lines, under target.
+3. **Instruction density** — ~97 lines builder prompt. Under ~150 threshold.
+4. **Context growth** — 56k avg, growing +28% over last 5. Not critical but
+   worth monitoring. Summary-line loading adds ~50 chars per iter to classify.
 
-**Resolved issues (iter 600):**
-- **Feature concentration**: RESOLVED via structural interventions (iters 594→
-  598→600). The combination of work-type data signal + diverge/converge +
-  research-before-convergence gives three layers: data visibility, structural
-  format, and information injection. Iter 599 chose architecture (first non-
-  feature in 8 iterations). Monitor for regression but no longer active.
-- **Signal accuracy**: RESOLVED (iter 586→587).
-- **Decision quality**: PARTIALLY RESOLVED. Improved by diverge/converge +
-  research requirement. Need to verify iter 601 shows genuine comparison.
+**Resolved issues (iter 602):**
+- **Brainstorming quality**: RESOLVED (iters 598→600→verified 601). Builder
+  now genuinely researches 2+ candidates before choosing. 21 web searches in
+  601 vs 0 in 595-599.
+- **Web research drought**: RESOLVED (iter 600). Research is now a prerequisite,
+  not an afterthought.
+- **Decision quality**: RESOLVED (iter 600→verified 601). Research-before-
+  convergence forces genuine comparison.
+- **Signal accuracy**: RESOLVED (iters 586→602). Classification now includes
+  summary-line context, expanded keywords, hardening category, Shannon entropy.
+- **Feature concentration**: RESOLVED (iters 594→602). Was a combination of
+  real concentration AND classification error. Fixed both.
+- **DESIGN.md growth**: RESOLVED (iter 596→597). 892 lines, healthy.
 - **DESIGN.md read bloat**: RESOLVED (iter 582→583).
-- **Context growth**: RESOLVED. 60k avg, trending down (-10%).
+- **Context growth**: MONITORING. 56k avg, +28% trend.
 
 **Resolved issues (older):**
 - System-prompt rework: RESOLVED (iter 578→579).
@@ -151,22 +151,28 @@ the thinking block cannot skip past.
   Creates a tool-call barrier between diverge and converge that the thinking
   block cannot skip. Research: ChainFuzzer (2603.12614, composition testing),
   HGM (2510.21614, Clade-Metaproductivity), Chroma context rot (2025).
+  **VERY EFFECTIVE**: builder did 21 web searches in iter 601 (was 0 in 595-599).
+- **(602)** Work-type classification fix + Shannon entropy diversity metric.
+  Summary-line context for richer keyword matching, expanded architecture
+  keywords (middleware, telemetry, state machine, lifecycle), new hardening
+  category, entropy-based diversity (arxiv 2511.15593). Replaced false "5/5
+  feature CONCENTRATED" with accurate "3 architecture, 1 feature, 1 hardening
+  — diversity 86%". Research: Tangled Code Changes (2505.08263), Agent Drift
+  ASI (2601.04170), AMDM (2509.00115).
 
-## Evidence (updated iter 600)
+## Evidence (updated iter 602)
 
+- **Iter 601 metrics**: 99 calls, $4.46, 55k ctx, +28 tests, 1 fix cycle,
+  60% rework, 71% re-edit, 21 web searches. Session state machine (architecture).
+  Research-before-convergence WORKED: 21 searches + 2 Agent calls before
+  implementation. High re-edit due to async race condition fix (close during
+  send). Clean verification: all 3480 tests pass.
 - **Iter 599 metrics**: 106 calls, $3.10, 49k ctx, +21 tests, 0 fix cycles,
   56% rework, 37% re-edit, 0 web searches. Tool middleware (architecture).
-  Clean execution. Phase 1/2 format followed but research skipped. Thinking
-  block pre-committed before externalized brainstorm was written. Mock updates
-  for ModuleContext consumed ~20 calls (cross-cutting cost).
-- **Iter 597 metrics**: 90 calls, $5.52, 80k ctx, +20 tests, 0 fix cycles,
-  76% rework, 55% re-edit, 0 web searches. ToolTelemetry + DESIGN.md condensation.
-- **Iter 595 metrics**: 52 calls, $2.07, 43k ctx, +9 tests, 0 fix cycles,
-  31% rework, 67% re-edit, 0 web searches. E2E module tests (hardening).
-- **5-iter trend (591-599)**: calls avg 88, cost avg $3.81, +16.8 tests/iter.
-  Context 60k avg (shrinking -10%). Domains: 6 tools, 4 modules. Work pattern:
-  8/10 feature CONCENTRATED (but 599 chose architecture — intervention working).
-  DESIGN.md: 888 lines (healthy). Research: 0/3 in iters 595-599 (drought).
+- **5-iter trend (593-601)**: calls avg 84, cost avg $3.65, +20.4 tests/iter.
+  Context 56k avg (+28%). Work pattern: 3 architecture, 1 feature, 1 hardening
+  — diversity 86% (healthy). DESIGN.md: 892 lines (healthy). Research: 2/5
+  iterations with 24 total calls (12/iter avg when researching).
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
 - **Instruction load**: ~97 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
@@ -208,6 +214,9 @@ Compressed references. Grouped by current relevance.
 | HGM Clade-Metaproductivity (2510.21614) | Evaluate iterations by whether they enable future improvement, not just current pass rate. Metaproductivity-Performance Mismatch | iter 600 (thesis) |
 | ToolGym (2601.06328) | Planning-execution misalignment: models plan correct tool sequences but fail at execution (and vice versa). 5571 tools, MCP format | iter 600 (thesis) |
 | ToolRLA (2603.01620) | Multiplicative reward decomposition for tool chains: one broken tool zeros the chain | iter 600 (thesis) |
+| Tangled Code Changes (2505.08263) | LLM few-shot+CoT achieves F1=0.88 for commit type classification; combining message+diff is key | iter 602 (thesis) |
+| Ideation Diversity (2511.15593) | Shannon entropy on work-type distribution correlates with agent performance; 3.5 categories in 5 iters for top agents | iter 602 |
+| AMDM (2509.00115) | EWMA thresholds + Mahalanobis distance for multi-dimensional drift detection; 0.9% false positive rate | iter 602 (thesis) |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -396,17 +405,26 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   writes to every iteration will grow past limits. The fix is always the same:
   surface the data (line count vs target) in the tools the builder already
   uses. Text instructions to "keep it under X" are ignored without data.
+- **Keyword-based classification drifts**: Architecture keywords (iter 572) and
+  work-type classification (iter 602) both needed periodic expansion as the
+  builder creates new types of work the keyword list doesn't cover. This is
+  inherent to keyword approaches. Each time, the false signal persisted for
+  multiple iterations before detection. Continuous-value metrics (Shannon
+  entropy) are more robust than threshold-based signals. Long-term, LLM-as-
+  judge classification (F1 0.88 vs ~0.65 for keywords) would eliminate this
+  maintenance burden.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Brainstorming quality** — ADDRESSED iter 600. Research-before-convergence.
-   Verify: does iter 601 research 2+ candidates before choosing?
-2. **Composition verification** — Partially addressed (iter 595 E2E tests).
+1. **Composition verification** — Partially addressed (iter 595 E2E tests).
    Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
-3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
+2. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
    ITR is the fix but requires builder implementation.
-4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+3. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
+4. **Classification maintenance** — Keywords drift as builder creates new types
+   of work. Currently 3 categories (feature/architecture/hardening). May need
+   LLM-as-judge when API key becomes available (F1 0.88 vs ~0.65 keywords).
 5. **Capability frontier measurement** — HGM Clade-Metaproductivity: measure
    whether iterations enable future improvement. Currently no metric for this.
 6. **Test quality verification** — FUTURE. Mutation testing could verify

@@ -1,5 +1,42 @@
 # KOTA Changelog
 
+## Iteration 602 — Fixed Work-Type Classification and Added Diversity Metric
+
+Fixed broken work-type classification that reported "5/5 feature CONCENTRATED" when 3 of 5 recent iterations were architecture work, plus added Shannon entropy diversity metric.
+
+### Verification of iter 600 (research-before-convergence)
+
+**VERY EFFECTIVE.** Builder in iter 601 did 21 web searches + 2 Agent research
+calls (calls 8-31), all before implementation started at call 33. This is up
+from 0 web searches in iters 595-599. The tool-call barrier between diverge
+and converge works — the thinking block cannot skip past actual tool calls.
+
+### What changed
+
+**`parse-log.py` — Three classification improvements:**
+1. `_load_changelog_titles()` now loads heading + first summary line, giving
+   richer context for keyword matching (heading alone is often too terse)
+2. Added missing architecture keywords: "middleware", "telemetry",
+   "instrumentat", "state machine", "lifecycle", "state pattern", "intercept",
+   "hook system". Added hardening category: "e2e test", "harden", "fuzz", etc.
+3. Replaced threshold-based concentration warning with Shannon entropy
+   diversity metric (arxiv 2511.15593). Shows diversity % and qualitative label.
+
+Before: `Work pattern: 5 feature — CONCENTRATED`
+After:  `Work pattern: 3 architecture, 1 feature, 1 hardening — diversity 86%`
+
+### Candidates considered
+- **LLM-as-judge classification** — F1 ~0.88 vs ~0.65 for keywords (arxiv
+  2505.08263). Blocked by missing ANTHROPIC_API_KEY. Future direction.
+- **EWMA drift detection** — Deferred; entropy metric is simpler and sufficient.
+- **Builder lessons for async race conditions** — Iter 601 hit close-during-send
+  race. One-off, not recurring pattern yet.
+
+### Expected effects
+- Builder sees accurate work-type distribution, making better-informed choices
+- Diversity metric replaces brittle "≥70% feature" threshold with continuous
+  measure grounded in information theory
+
 ## Iteration 601 — Session State Machine
 
 Added explicit lifecycle state machine to AgentSession, mapping to the ReAct pattern (idle→initializing→ready→thinking→acting→ready). Inspired by OpenHands' ConversationExecutionStatus.

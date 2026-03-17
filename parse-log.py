@@ -577,7 +577,11 @@ def _print_builder_analysis(
 
 
 def _load_changelog_titles() -> dict[int, str]:
-    """Extract iteration titles from CHANGELOG.md and archive."""
+    """Extract iteration titles + summary from CHANGELOG.md and archive.
+
+    Returns heading text combined with the first summary line (if any),
+    giving richer context for work-type classification.
+    """
     from pathlib import Path
     base = Path(__file__).parent
     titles = {}
@@ -585,10 +589,21 @@ def _load_changelog_titles() -> dict[int, str]:
         path = base / name
         if not path.exists():
             continue
-        for line in path.read_text().split("\n"):
+        lines = path.read_text().split("\n")
+        for i, line in enumerate(lines):
             m = re.match(r"^## Iteration (\d+)\s*[\u2014\u2013-]\s*(.+)", line)
             if m:
-                titles[int(m.group(1))] = m.group(2).strip()
+                heading = m.group(2).strip()
+                # Grab first non-empty, non-heading line as summary
+                summary = ""
+                for j in range(i + 1, min(i + 5, len(lines))):
+                    s = lines[j].strip()
+                    if s and not s.startswith("#"):
+                        summary = s
+                        break
+                titles[int(m.group(1))] = (
+                    f"{heading} {summary}" if summary else heading
+                )
     return titles
 
 
@@ -1029,21 +1044,34 @@ def trend(n: int = 5) -> None:
         if data["work_type"] != "depth" and iter_num in cl_titles:
             data["feature_name"] = _slugify_title(cl_titles[iter_num])
             data["subsystem"] = _classify_subsystem(cl_titles[iter_num])
-            # Reclassify using CHANGELOG title as additional signal
+            # Reclassify using CHANGELOG title+summary as additional signal
             if data["work_type"] == "feature":
                 title_low = cl_titles[iter_num].lower()
                 _title_arch_kws = [
                     "refactor", "isolat", "self-contained", "decouple",
                     "module context", "modulecontext", "restructur",
-                    "harden", "api boundary", "plug-and-play",
+                    "api boundary", "plug-and-play",
                     "event proxy", "session factory", "dependency inject",
                     "singleton", "module api", "module event",
                     "module isolat", "core import", "context ext",
                     "provider", "registry", "self-register",
                     "calltool", "call_tool", "tool invocation",
                     "tool composition", "composab", "step-based",
+                    # Added iter 602: architecture keywords that were missing
+                    "middleware", "telemetry", "instrumentat",
+                    "state machine", "lifecycle", "state pattern",
+                    "intercept", "hook system",
                 ]
-                if any(kw in title_low for kw in _title_arch_kws):
+                _title_harden_kws = [
+                    "e2e test", "end-to-end test", "harden",
+                    "stress test", "fuzz", "error path", "error recover",
+                    "reliability", "resilien", "integration test",
+                    "composition test", "regression",
+                ]
+                # Check hardening first (more specific) then architecture
+                if any(kw in title_low for kw in _title_harden_kws):
+                    data["work_type"] = "hardening"
+                elif any(kw in title_low for kw in _title_arch_kws):
                     data["work_type"] = "architecture"
         else:
             data["subsystem"] = "other"
@@ -1186,18 +1214,25 @@ def trend(n: int = 5) -> None:
             dom_warn = f" — {dom} domain: {cnt}/{ne} iters (nearing saturation)"
     print(f"  Domains: {dom_str}{dom_warn}")
 
-    # Work-type distribution with concentration warning
+    # Work-type distribution with Shannon entropy diversity metric
     type_ctr = Counter(e.get("work_type", "?") for e in entries)
     type_str = ", ".join(f"{v} {k}" for k, v in type_ctr.most_common())
     type_warn = ""
-    for wt, cnt in type_ctr.most_common(1):
-        if wt == "feature" and ne >= 4 and cnt >= ne * 0.7:
-            type_warn = (
-                f" — feature work: {cnt}/{ne} iters CONCENTRATED "
-                f"(consider architecture/composition/hardening)"
-            )
-        elif wt == "feature" and ne >= 4 and cnt >= ne * 0.6:
-            type_warn = f" — feature work: {cnt}/{ne} iters (nearing saturation)"
+    # Shannon entropy: H = -Σ p*log(p). Max for 3 types = ln(3) ≈ 1.10.
+    # Below 60% of max → concentrated. (arxiv 2511.15593: diversity correlates
+    # with agent performance)
+    import math
+    if ne >= 4:
+        probs = [cnt / ne for cnt in type_ctr.values()]
+        entropy = -sum(p * math.log(p) for p in probs if p > 0)
+        max_entropy = math.log(3)  # 3 work types: feature, architecture, hardening
+        diversity = entropy / max_entropy if max_entropy > 0 else 0
+        if diversity < 0.3:
+            type_warn = f" — diversity {diversity:.0%} LOW (strongly concentrated)"
+        elif diversity < 0.6:
+            type_warn = f" — diversity {diversity:.0%} (moderately concentrated)"
+        else:
+            type_warn = f" — diversity {diversity:.0%} (healthy)"
     print(f"  Work pattern: {type_str}{type_warn}")
 
     # Severity assessment
