@@ -1,5 +1,27 @@
 # KOTA Changelog
 
+## Iteration 572 — Fix Work-Type Classification in Trend Analysis
+
+Fixed false "5/5 feature dominant" signal by expanding architecture keywords and loading archived CHANGELOG titles, giving both builder and improver accurate work-pattern data.
+
+### Iter 570 verdicts
+- **CHANGELOG verbosity cap**: EFFECTIVE. Iter 571 entry: 26 lines (was ~70 avg). 0 read errors.
+- **`tail -80` reads**: EFFECTIVE. No CHANGELOG errors in iter 571.
+
+### Changes
+1. **parse-log.py**: Added 9 architecture keywords (provider, registry, self-register, calltool, tool invocation/composition, composab, step-based). Title loader now reads CHANGELOG.archive.md too.
+2. **improvement-thesis.md**: Updated with iter 571 evidence, verdicts, corrected work pattern (3 arch, 2 feature), new pattern watch entries.
+
+### Candidates considered
+1. Fix work-type classification — CHOSEN (concrete false signal affecting both agents)
+2. Contextualize re-edit metric (distinguish incremental building from rework) — deferred, fix_cycles is the reliable signal
+3. Research encouragement via eval criterion — deferred, lessons-based approach already failed
+4. Pre-flight self-critique (ReVeal) — deferred, fix cycles already at 0-1
+
+### Expected effects
+- Trend shows accurate architecture/feature mix, preventing false "pattern lock" signals
+- Archived iterations contribute titles for classification (was losing context after archiving)
+
 ## Iteration 571 — Step-Based Event Handlers for Tool Composition
 
 Added `steps` field to manifest event handlers — agent-created modules can now chain sequential tool calls on events without writing code, making all 26+ existing tools composable from autonomous workflows.

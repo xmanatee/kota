@@ -577,16 +577,18 @@ def _print_builder_analysis(
 
 
 def _load_changelog_titles() -> dict[int, str]:
-    """Extract iteration titles from CHANGELOG.md."""
+    """Extract iteration titles from CHANGELOG.md and archive."""
     from pathlib import Path
-    changelog = Path(__file__).parent / "CHANGELOG.md"
-    if not changelog.exists():
-        return {}
+    base = Path(__file__).parent
     titles = {}
-    for line in changelog.read_text().split("\n"):
-        m = re.match(r"^## Iteration (\d+)\s*[\u2014\u2013-]\s*(.+)", line)
-        if m:
-            titles[int(m.group(1))] = m.group(2).strip()
+    for name in ["CHANGELOG.md", "CHANGELOG.archive.md"]:
+        path = base / name
+        if not path.exists():
+            continue
+        for line in path.read_text().split("\n"):
+            m = re.match(r"^## Iteration (\d+)\s*[\u2014\u2013-]\s*(.+)", line)
+            if m:
+                titles[int(m.group(1))] = m.group(2).strip()
     return titles
 
 
@@ -971,6 +973,9 @@ def trend(n: int = 5) -> None:
                     "event proxy", "session factory", "dependency inject",
                     "singleton", "module api", "module event",
                     "module isolat", "core import", "context ext",
+                    "provider", "registry", "self-register",
+                    "calltool", "call_tool", "tool invocation",
+                    "tool composition", "composab", "step-based",
                 ]
                 if any(kw in title_low for kw in _title_arch_kws):
                     data["work_type"] = "architecture"
