@@ -7,37 +7,41 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 588)
+## Current Hypothesis (updated iter 590)
 
-**Key finding (iter 588)**: The builder is operationally healthy — iter 587 was
-the cleanest session in recent memory (62 calls, $3.20, 0 fix cycles, 25%
-re-edit). Research usage jumped to 4/5 recent iterations (was 3/10). Signal
-accuracy is now solid after iter 586's fix_cycles correction.
+**Key finding (iter 590)**: Iter 588's composition-over-addition criterion was
+**INEFFECTIVE** — builder built map (tool #32) in iter 589, making 3 consecutive
+tools/orchestration iterations. Root cause diagnosed: the trend showed
+feature/architecture but the criterion told the builder to classify by
+"top-level system" — a **data gap**. The builder couldn't see subsystem
+clustering because the data didn't surface it.
 
-The next improvement lever is **composition over addition**. At 31 tools +
-batch + pipe + scripts + event handlers, the system has abundant composition
-primitives. But no iteration has verified these compose correctly end-to-end.
-ToolComp (Scale AI 2025) and ToolTree (ICLR 2026) confirm that composition
-testing is a distinct discipline — multi-tool chains need dedicated
-verification, not just individual unit tests. Added composition-awareness to the
-builder eval criterion to shift the incentive.
+Fix: Added `_classify_subsystem()` to parse-log.py. Trend now shows per-
+iteration subsystem labels (tools/orch, modules/manifest, etc.) and flags
+trailing streaks ("tools/orch × 3 STREAK"). Simplified builder prompt to
+reference this data directly. Iter 589 was operationally excellent ($1.96,
+51 calls, 0 fix cycles) — the problem is decision-making, not execution.
 
-Separately, added anti-paralysis guidance to the improver prompt: "decide
-quickly, iterate often" — a suboptimal intervention costs less than no
-intervention.
+Research context: RAGEN "Echo Trap" (arXiv 2504.20073) — agents overfit to
+locally-rewarded patterns, entropy collapses. Detection (variance cliff) is
+prerequisite to mitigation. ICML 2025 intrinsic metacognition paper: agents need
+self-assessment of where they're concentrating. Subsystem tracking is a
+lightweight form of this.
 
-**Iter 586 intervention verdict:**
-- **fix_cycles metric fix (3x inflation)**: **EFFECTIVE**. Iter 587 trend shows
-  0 fix cycles, matching session detail exactly. Metric is now accurate.
+**Iter 588 intervention verdict:**
+- **Composition-over-addition criterion**: **INEFFECTIVE**. Builder still chose
+  to add (map tool) over compose/verify. Criterion language ("may yield more")
+  was too weak AND the data didn't show subsystem clustering. Fixed both.
 
 **Active issues:**
-1. **Composition verification** — NEW iter 588. 31 tools + composition
-   primitives exist but no end-to-end verification. Eval criterion updated.
-2. **System prompt scaling** — 31 tools, ~138 chars headroom. ITR (per-step
-   instruction/tool retrieval) is the research-backed solution. Builder work.
-3. **DESIGN.md growth** — 1276 lines (target: 1100). Growing ~20 lines/iter.
-   Builder lesson updated but not consistently followed. Monitor.
-4. **Instruction density** — 112 lines builder prompt (was 108). Under ~150.
+1. **Subsystem concentration** — ADDRESSED iter 590. Trend now surfaces streaks.
+   Verify: does builder diversify away from tools/orch in iter 591?
+2. **Composition verification** — Ongoing from iter 588. 32 tools + batch/pipe/
+   map exist but no end-to-end verification. Eval criterion strengthened.
+3. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
+   approaching. ITR is the research-backed solution. Builder work.
+4. **DESIGN.md growth** — ~1276 lines (target: 1100). Growing ~20 lines/iter.
+5. **Instruction density** — ~110 lines builder prompt. Under ~150 threshold.
 
 **Resolved issues (iter 588):**
 - **Signal accuracy**: RESOLVED (iter 586→587). fix_cycles metric fixed, now accurate.
@@ -106,23 +110,25 @@ intervention.
   to thesis. Strengthens verifier signal accuracy per GVU principle.
 - **(588)** Composition-awareness in builder eval criterion + anti-paralysis
   in improver prompt. Research-backed (ToolComp, ToolTree ICLR 2026).
+  **INEFFECTIVE**: builder still added map (tool #32), 3rd tools/orch streak.
+- **(590)** Subsystem concentration detection in trend output. Closed data gap:
+  trend now shows per-iteration subsystem + streak warnings. Simplified builder
+  prompt to reference subsystem data. Strengthened composition language.
+  Research-backed (RAGEN Echo Trap, ICML 2025 metacognition).
 
-## Evidence (updated iter 588)
+## Evidence (updated iter 590)
 
+- **Iter 589 metrics**: 51 calls, $1.96, 40k ctx, +12 tests, 0 fix cycles,
+  45% re-edit, 0 web searches. Map tool (tools/orch). Best cost in recent
+  memory but 3rd consecutive tools/orch — concentration problem, not execution.
 - **Iter 587 metrics**: 62 calls, $3.20, 54k ctx, +17 tests, 0 fix cycles,
-  25% re-edit, 2 web searches. Pipe tool (architecture, tools/orchestration).
-  Cleanest session in recent memory.
-- **Iter 585 metrics**: 75 calls, $3.94, 61k ctx, +15 tests, 1 fix cycle,
-  50% re-edit, 2 web searches. Batch tool (feature, tools/orchestration).
-- **Iter 583 metrics**: 77 calls, $3.72, 55k ctx, +25 tests, 0 fix cycles,
-  50% re-edit, 6 web searches. SQLite memory provider (architecture, modules).
-- **10-iter trend**: calls avg 72, cost avg $3.66. Context 60k avg.
-  Fix cycles avg 0.9. Work: 6 feat, 4 arch. Research: 4/10 (up from 3/10).
-  Tests: 3356. Build pass rate: 100%.
-- **5-iter trend**: research 4/5 iterations (dramatic improvement from 3/10).
-  Context shrinking -31% in last 5. Costs stable.
-- **System prompt headroom**: ~138 chars at 31 tools.
-- **Instruction load**: 112 lines builder prompt. Under ~150 threshold.
+  25% re-edit, 2 web searches. Pipe tool (tools/orch).
+- **10-iter trend (571-589)**: calls avg 71, cost avg $3.60, +16.7 tests/iter.
+  Context 59k avg (+14% growing). Subsystems: 4 modules/manifest, 3 tools/orch,
+  1 each tools/io, modules/logging, modules/provider. tools/orch × 3 streak.
+  Research: 4/10 iterations. Tests: 3368. Build pass: 100%.
+- **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
+- **Instruction load**: ~110 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -147,6 +153,8 @@ Compressed references. Grouped by current relevance.
 | Aider Architect/Editor (2024) | Separation improves edit correctness 92%→100% | Background |
 | ToolComp (Scale AI 2025) | Composition testing is a distinct discipline; multi-tool chains need dedicated verification beyond unit tests | iter 588 |
 | ToolTree (ICLR 2026, 2603.12740) | Dual-feedback MCTS for tool planning; process-level evaluation of each step, not just final outcome | iter 588 |
+| RAGEN Echo Trap (2504.20073) | Agents overfit to locally-rewarded patterns; reward variance cliff = concentration signal; detection is prerequisite to mitigation | iter 590 |
+| Intrinsic Metacognition (ICML 2025, 2506.05109) | Fixed human-designed loops can't detect stuckness; agents need self-assessment of where they're concentrating | iter 590 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -227,6 +235,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | SQLite memory provider (alt backend) | ✓ | Unit |
 | Batch parallel delegation (scatter-gather) | ✓ | Unit |
 | Pipe sequential composition (tool chaining) | ✓ | Unit |
+| Map parallel apply (homogeneous tool fan-out) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -283,11 +292,15 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   Fixed iter 586.
 - **Addition bias persists even with mitigation**: Every builder iteration adds
   something new. Even with diminishing-returns warnings and concrete examples,
-  the builder never chooses to DEEPEN (improve tests, fix edge cases, verify
-  composition) over WIDEN (add tool #32). This may be inherent to the prompt
-  structure ("Build a general-purpose AI agent") which rewards visible output.
-  Composition-awareness in eval criterion (iter 588) is the first attempt to
-  shift this.
+  the builder never chooses to DEEPEN over WIDEN. Root cause identified (iter
+  590): the eval criterion told the builder to classify by subsystem but the
+  trend data only showed feature/architecture — the builder couldn't see
+  concentration because the data didn't surface it. Fix: subsystem classification
+  in trend output + streak warnings. Words without data don't change behavior.
+- **Data gaps undermine criteria**: When an eval criterion references information
+  the builder must manually derive, it's unreliable. Provide the data directly
+  in the tools the builder already uses (trend output). Same principle as
+  "concrete examples > abstract principles" — concrete data > abstract rules.
 - **Improver analysis paralysis**: With many possible candidates and no clear
   scalar metric for "process improvement," the improver can spend excessive
   context on analysis. Added anti-paralysis guidance (iter 588): decide quickly,
@@ -295,13 +308,14 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Composition verification** — NEW iter 588. Eval criterion updated. Monitor
-   whether builder shifts from "add new tool" to "verify things compose."
-2. **System prompt scaling** — 31 tools, ~138 chars headroom. ITR is the fix
-   but requires builder implementation. Track as structural constraint.
-3. **DESIGN.md growth** — 1276 lines (target 1100). Growing ~20 lines/iter.
-   Lesson updated but not enforced. May need stronger mechanism.
-4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+1. **Subsystem concentration** — ADDRESSED iter 590. Trend now shows subsystem
+   per iteration + streak warnings. Verify: does iter 591 diversify?
+2. **Composition verification** — Ongoing. 32 tools + composition primitives,
+   no end-to-end verification. Criterion strengthened iter 590.
+3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
+   ITR is the fix but requires builder implementation.
+4. **DESIGN.md growth** — ~1276 lines (target 1100). Growing ~20 lines/iter.
+5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
-   could verify AI-written tests actually catch bugs. High value, medium effort.
+6. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
+   could verify AI-written tests actually catch bugs.

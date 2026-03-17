@@ -962,6 +962,31 @@ def _depth_health(rows: list[dict]) -> dict:
     }
 
 
+def _classify_subsystem(title: str) -> str:
+    """Classify a CHANGELOG title into a top-level subsystem for concentration detection."""
+    t = title.lower().replace("`", "")
+    # Order matters: more specific patterns first
+    if any(kw in t for kw in ["batch", "pipe", "map tool", "scatter-gather", "sequential chain", "composition primitive"]):
+        return "tools/orch"
+    if any(kw in t for kw in ["view_image", "image", "screenshot", "clipboard", "document read", "computer use", "pdf", "visual"]):
+        return "tools/io"
+    if any(kw in t for kw in ["script", "step", "event handler", "conditional", "manifest", "$steps"]):
+        return "modules/manifest"
+    if any(kw in t for kw in ["modulecontext", "module context", "ctx.", "event proxy", "session factory", "dependency inject"]):
+        return "modules/ctx"
+    if any(kw in t for kw in ["provider", "sqlite", "memory backend", "alternative backend"]):
+        return "modules/provider"
+    if any(kw in t for kw in ["log storage", "persistent log", "audit trail", "module log"]):
+        return "modules/logging"
+    if any(kw in t for kw in ["registry", "self-register", "observation mask", "context manag"]):
+        return "architecture"
+    if any(kw in t for kw in ["tool", "built"]):
+        return "tools"
+    if any(kw in t for kw in ["module", "mcp"]):
+        return "modules"
+    return "other"
+
+
 def trend(n: int = 5) -> None:
     """Cross-session trend of the last N builder iterations."""
     logs = _find_builder_logs(n)
@@ -975,9 +1000,10 @@ def trend(n: int = 5) -> None:
         data = _quick_parse(path)
         data["iter"] = iter_num
         data["severity"] = sevs.get(iter_num, "?")
-        # For non-depth iterations, extract name from CHANGELOG title
+        # For non-depth iterations, extract name and subsystem from CHANGELOG title
         if data["work_type"] != "depth" and iter_num in cl_titles:
             data["feature_name"] = _slugify_title(cl_titles[iter_num])
+            data["subsystem"] = _classify_subsystem(cl_titles[iter_num])
             # Reclassify using CHANGELOG title as additional signal
             if data["work_type"] == "feature":
                 title_low = cl_titles[iter_num].lower()
@@ -994,6 +1020,8 @@ def trend(n: int = 5) -> None:
                 ]
                 if any(kw in title_low for kw in _title_arch_kws):
                     data["work_type"] = "architecture"
+        else:
+            data["subsystem"] = "other"
         entries.append(data)
 
     print(f"=== Builder Trend (last {len(entries)}) ===")
@@ -1006,7 +1034,7 @@ def trend(n: int = 5) -> None:
             mod = mod.split("/")[-1]
         is_depth = e["work_type"] == "depth"
         app = e["approach"] or e["work_type"]
-        sev = e["severity"] if is_depth else "-"
+        subsys = e.get("subsystem", "?")
         td = e["test_delta"] or "?"
         cpt = e.get("cache_per_turn", 0)
         cpt_str = f"{cpt // 1000}k" if cpt else "?"
@@ -1020,7 +1048,7 @@ def trend(n: int = 5) -> None:
         re_pct = e.get("return_edit_pct", 0)
         re_str = f"{re_pct}%" if re_pct else "0%"
         print(
-            f"  {e['iter']}  {mod:<22s} {app:<18s} {sev:<9s}"
+            f"  {e['iter']}  {mod:<22s} {subsys:<18s}"
             f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
             f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
             f"  rsrch: {research:<3s} rework: {rework_str}  re-edit: {re_str}"
@@ -1098,23 +1126,28 @@ def trend(n: int = 5) -> None:
         avg_cpt = sum(cpt_values) / len(cpt_values)
         print(f"  Context/turn: {avg_cpt // 1000}k avg, {direction}")
 
-    # Work-type distribution and dominance signal
+    # Subsystem distribution and streak detection
+    sub_ctr = Counter(e.get("subsystem", "?") for e in entries)
+    sub_str = ", ".join(f"{v} {k}" for k, v in sub_ctr.most_common())
+    # Detect trailing streak (consecutive same-subsystem at the end)
+    trail_sub = entries[-1].get("subsystem", "?") if entries else "?"
+    trail_streak = 0
+    for e in reversed(entries):
+        if e.get("subsystem", "?") == trail_sub:
+            trail_streak += 1
+        else:
+            break
+    streak_warn = ""
+    if trail_streak >= 3:
+        streak_warn = f" — {trail_sub} × {trail_streak} STREAK (diminishing returns)"
+    elif trail_streak == 2:
+        streak_warn = f" — {trail_sub} × {trail_streak} (watch for saturation)"
+    print(f"  Subsystems: {sub_str}{streak_warn}")
+
+    # Work-type distribution (kept for backward compatibility)
     type_ctr = Counter(e.get("work_type", "?") for e in entries)
     type_str = ", ".join(f"{v} {k}" for k, v in type_ctr.most_common())
-    # Compute longest consecutive run of the dominant type
-    dominant = type_ctr.most_common(1)[0][0] if type_ctr else "?"
-    max_run = cur_run = 0
-    for e in entries:
-        if e.get("work_type", "?") == dominant:
-            cur_run += 1
-            max_run = max(max_run, cur_run)
-        else:
-            cur_run = 0
-    dom_note = ""
-    dom_count = type_ctr.get(dominant, 0)
-    if ne >= 5 and dom_count / ne >= 0.8:
-        dom_note = f" — {dominant} dominant ({dom_count}/{ne})"
-    print(f"  Work pattern: {type_str}{dom_note}")
+    print(f"  Work pattern: {type_str}")
 
     # Severity assessment
     sev_ctr = Counter(e["severity"] for e in entries if e["severity"] != "?")

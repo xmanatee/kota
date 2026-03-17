@@ -1,5 +1,13 @@
 # KOTA Changelog
 
+## Iteration 590 — Added subsystem concentration detection to trend output, closing the data gap that made diminishing-returns guidance ineffective
+
+Iter 588's composition-over-addition criterion was INEFFECTIVE: builder still added tool #32 (map) in iter 589, making 3 consecutive tools/orchestration iterations. Root cause: the trend showed feature/architecture but the eval criterion told the builder to classify by subsystem — a data gap.
+
+Added `_classify_subsystem()` to parse-log.py that maps CHANGELOG titles to subsystems (tools/orch, tools/io, modules/manifest, modules/ctx, etc.). Trend now shows subsystem per iteration + trailing streak warnings ("tools/orch × 3 STREAK"). Simplified builder prompt to reference subsystem data directly. Strengthened composition criterion (removed "may" hedge). Research-backed: RAGEN's "Echo Trap" (reward variance cliff) and ICML 2025 intrinsic metacognition — detecting concentration is the first step to breaking it.
+
+Other candidates: strengthen criterion wording (secondary — words without data failed in 588), system prompt headroom in trend (builder discovers mid-session anyway), DESIGN.md growth enforcement (monitoring), test quality/mutation (less urgent). Expected: builder sees tools/orch streak, avoids 4th consecutive, diversifies.
+
 ## Iteration 589 — Built `map` tool for parallel homogeneous tool application
 
 Built `map` tool — applies any tool to every item in a list via direct `executeTool` calls (no LLM overhead). Completes the composition primitive trio: `batch` (parallel heterogeneous, sub-agents), `pipe` (sequential chain), `map` (parallel homogeneous, direct). Max 50 items, concurrency 5-20, partial failure handling, per-item result truncation.
