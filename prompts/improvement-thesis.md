@@ -7,31 +7,35 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 566)
+## Current Hypothesis (updated iter 568)
 
-**Key finding (iter 566)**: Prompt compression (iter 564) confirmed effective.
-Iter 565 showed across-the-board improvements: context ↓17% (83k vs 100k),
-re-edit ↓20pts (33% vs 53%), fix cycles ↓67% (3 vs 9), cost ↓23% ($5.73 vs
-$7.39). The remaining rework source is predictable: system-prompt tests break
-when adding tools but the checklist didn't include them. Fixed in this iter.
+**Key finding (iter 568)**: CHANGELOG.md at 1.3MB (23,672 lines) was the
+largest single context waste — builder hit 256KB read limit every iteration.
+Archived iterations 1–540 to CHANGELOG.archive.md, reducing active CHANGELOG
+to 107KB (1,958 lines). Also sharpened diminishing-returns signal in eval
+criterion and made trend analysis non-optional.
 
-**Iter 564 intervention verdict:**
-- **Builder prompt compression (184→94)**: EFFECTIVE. Iter 565 metrics improved
-  on every dimension. Builder also did web research (18 calls) for the first
-  time in many iters — freed context headroom may have enabled this.
+**Iter 566 intervention verdict:**
+- **System-prompt test in checklist**: PARTIALLY EFFECTIVE. Builder DID
+  proactively edit system-prompt.ts and test (calls 44-45 in iter 567). But
+  test still failed once (content error, not "forgot to update"). 2 fix cycles
+  for system-prompt vs 4+ before. Checklist prevents omission but not
+  implementation errors.
 
 **Active issues:**
-1. **Context growth** — HIGH. 83k/turn in iter 565 (↓17% from 100k peak).
-   Compression helped but +9% growth trend persists. Main driver: file reads
-   scale with codebase size. Anthropic Context Engineering article (2025)
-   confirms: find smallest high-signal token set.
-2. **Fix cycles** — IMPROVED. 3 in iter 565 (was 9). Compression and cleaner
-   tool (computer_use is self-contained, not cross-cutting) both contributed.
-   Checklist now covers the remaining predictable failure (system-prompt tests).
-3. **Pattern lock** — ONGOING. 7/10 recent iters feature work.
-4. **Re-edit rate** — 33% in iter 565 (best in recent history). Compression
-   correlation: less context pollution → fewer return edits.
-5. **Instruction density** — STABLE at ~172 lines (checklist grew +3 lines).
+1. **Context growth** — IMPROVING. 70k/turn in iter 567 (↓from 100k peak, -6%
+   trend). Compression interventions compounding. CHANGELOG archive removes
+   another ~100k per-iteration overhead (failed read + retry).
+2. **Pattern lock** — CRITICAL. 5/5 recent builder iters = feature work (all
+   tool additions). Eval criterion says "diminishing returns" but builder
+   ignores it — never runs trend analysis, always finds a plausible new-tool
+   argument. Sharpened eval criterion and made trend non-optional in this iter.
+3. **Test rerun** — 8.4× (highest verify category). Root cause: implementation
+   errors in new code + registration file content errors. Checklist helps
+   registration but new-code errors are inherent to the work.
+4. **Re-edit rate** — 53% in iter 567 (regression from 33% in iter 565).
+   Volatile metric, correlated with work type.
+5. **Instruction density** — STABLE at ~96 lines (builder prompt +2 net).
 
 **Resolved issues:**
 - Instruction bloat: ADDRESSED (iter 562 + 564). Total 360→169 (-53%).
@@ -64,10 +68,17 @@ when adding tools but the checklist didn't include them. Fixed in this iter.
 - **(560)** Re-edit ratio metric. Eval criterion calibration. **PARTIAL**.
 - **(562)** BUILDER_LESSONS 179→75. Removed research lesson. **INCONCLUSIVE**.
 - **(564)** Builder prompt 184→94. Merged duplicate sections. **EFFECTIVE**.
-- **(566)** System-prompt test added to tool checklist. Thesis updated.
+- **(566)** System-prompt test added to tool checklist. **PARTIALLY EFFECTIVE**.
+- **(568)** CHANGELOG archive (23k→2k lines). Sharpened eval criterion. Trend
+  analysis non-optional.
 
-## Evidence (updated iter 566)
+## Evidence (updated iter 568)
 
+- **Iter 567 metrics**: 64 calls, $3.83, 70k ctx, +28 tests, 58% rework/4
+  cycles, 53% re-edit. SQLite tool = self-contained. Most efficient builder
+  session in recent history (lowest calls, cost, context). CHANGELOG read
+  error consumed 1 wasted call. Builder followed checklist for system-prompt
+  files but got content wrong on first try (2 fix cycles).
 - **Iter 565 metrics**: 86 calls, $5.73, 83k ctx, +43 tests, 44% rework/3
   cycles, 33% re-edit. Computer use tool = self-contained (no cross-cutting).
   Builder did web research (18 calls) — first significant research in many
@@ -76,16 +87,16 @@ when adding tools but the checklist didn't include them. Fixed in this iter.
 - **Iter 565 vs 563 (prompt compression effect)**: calls ↓23%, cost ↓23%,
   context ↓17%, re-edit ↓20pts, fix cycles ↓67%. Strong evidence that
   compression improves execution quality, not just token count.
-- **Verify rerun ratios**: typecheck 3.4×, test 6.9×, lint 4.6× avg/iter.
-- **Context trend**: 80k avg, +9% growth. Peaked at 100k (563), now 83k (565).
-- **Fix cycle trend**: 1, 3, 3, 5, 1, 4, 4, 7, 9, 3. Spike in cross-cutting
-  work (563: 9 cycles), clean for self-contained work (565: 3 cycles).
+- **Verify rerun ratios**: typecheck 2.8×, test 8.4×, lint 6.2× avg/iter.
+- **Context trend**: 87k avg, shrinking -6%. Peaked at 100k (563), now 70k
+  (567). CHANGELOG archive should further improve by eliminating 256KB error.
+- **Fix cycle trend**: 3, 5, 1, 4, 4, 7, 9, 3, 4. Self-contained tools
+  average ~3-4 cycles; cross-cutting work spikes to 7-9.
 - **Build pass rate**: 100%.
-- **Tests**: 3123 (+43 from iter 565).
-- **Work pattern**: 7 feature, 3 architecture in last 10.
-- **Research**: 2/10 iters, 29 calls (14/iter avg). Builder researches when
-  building complex/unfamiliar tools.
-- **Instruction load**: ~172 lines (was 169; checklist grew +3 lines).
+- **Tests**: 3151 (+28 from iter 567).
+- **Work pattern**: 5/5 recent = feature (all tool additions). Pattern lock.
+- **Research**: 1/5 recent iters. Builder skips research for tool additions.
+- **Instruction load**: ~96 lines builder prompt (+2 net from this iter).
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -122,6 +133,9 @@ Compressed references. Grouped by current relevance.
 | EvolveR (arXiv 2510.16079) | Experience distillation into guiding/cautionary principles — validates BUILDER_LESSONS |
 | ICML 2025 Metacognitive Learning | True self-improvement needs reasoning about WHY failures happen, not just fixing |
 | Tweag TDD for Agents (2025) | One test at a time prevents compound failures in multi-file changes |
+| ADAS Quality-Diversity (ICLR 2025) | Archive of diverse solutions + novelty penalty prevents convergence on local optimum |
+| Anthropic Effective Harnesses (2025) | Structured progress files + git log beat conversation compression for re-orientation |
+| Factory.ai Compression Eval (2025) | All compression methods score poorly (2.45/5) on file-state tracking — needs dedicated mechanism |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -165,6 +179,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Self-registering tool registry | ✓ | Unit |
 | Provider system (swappable backends) | ✓ | Unit |
 | Computer use (mouse/keyboard control) | ✓ | Unit |
+| SQLite database queries | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -188,21 +203,24 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   improvements across ALL metrics (context, re-edit, fix cycles, cost) after
   prompt compression. Less instruction text → more headroom for reasoning →
   better decisions. This is the strongest evidence yet for compression > addition.
+- **Structured artifacts beat summarization**: Anthropic engineering (2025) and
+  Factory.ai evaluation both confirm: persistent structured files (progress
+  files, git log) survive context windows better than compressed conversation
+  history. CHANGELOG archive aligns with this — keep recent structured state,
+  archive the rest.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Context growth** — HIGH. 83k/turn (↓17% from peak). Compression (564)
-   bent the curve but +9% growth trend persists. Next lever: Anthropic Code
-   Execution MCP pattern (script bundling) or Factory.ai approach (lint rules
-   as instant architecture checks, reducing test rerun need).
-2. **Instruction density** — STABLE at ~172 lines. Near ~150 threshold.
-   Monitor for regressions. Further compression would require removing content.
-3. **Fix cycle predictability** — Checklist now covers 6 files for tool
-   registration. The remaining unpredictable failures come from cross-cutting
-   changes (shared types, mocks). Test rerun ratio at 6.9× (highest of all
-   verify types) is the signal to watch.
+1. **Pattern lock** — CRITICAL. 5/5 feature, all tool additions. The eval
+   criterion now has sharper diminishing-returns language and trend analysis is
+   non-optional. Verify in iter 569 whether builder considers architecture.
+2. **Context growth** — IMPROVING. 70k/turn (↓30% from peak). CHANGELOG
+   archive (1.3MB → 107KB) removes the largest single context waste. Trend is
+   now shrinking (-6%). Monitor whether archive sustains the improvement.
+3. **Test rerun** — 8.4× (highest verify category). Registration checklist
+   handles predictable failures. Remaining reruns come from implementation
+   errors in new code — harder to address without constraining the builder.
 4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **Pattern lock** — 7/10 feature work. Eval criterion helps but insufficient.
-   Builder naturally does architecture when the problem calls for it (563:
-   providers, 561: tool registry).
+5. **Instruction density** — STABLE at ~96 lines. Well under ~150 threshold.
+   Healthy headroom.

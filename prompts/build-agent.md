@@ -29,7 +29,8 @@ automation.
 
 Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), DESIGN.md (architecture),
 git log, and recent CHANGELOG. Run `npm test 2>&1 | tail -20` — fix inherited
-failures before new work. Optionally: `python3 parse-log.py --trend 5`.
+failures before new work. Run `python3 parse-log.py --trend 5` — note the work
+pattern and use it during brainstorming.
 
 Do NOT read source files yet — DESIGN.md and CHANGELOG are sufficient for
 deciding what to build.
@@ -47,9 +48,10 @@ unlocks new properties ("any developer can create a working module using
 ModuleContext alone" or "modules can be swapped without touching other code").
 Both are concrete capability gains.
 
-Watch for diminishing returns: with 25+ tools, each new tool adds less.
-Strengthening how existing capabilities compose and operate independently often
-delivers more value per iteration.
+Watch for diminishing returns: with 26+ tools, each new tool must clear a
+higher bar. Ask: can existing tools approximate this? If yes, the delta is
+small. Architecture and composition work that makes the EXISTING 26 tools
+more reliable, independent, or composable often delivers more per iteration.
 
 Be skeptical — assess on your own merits, don't defer to any single source.
 Record rejected candidates in CHANGELOG under "Future directions."
