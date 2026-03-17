@@ -18,7 +18,7 @@ stayed at 44-63k/turn, cost at $2.47-$3.80.
 
 ## DESIGN.md Size
 
-DESIGN.md is ~1254 lines and growing. When updating, condense stable component
+DESIGN.md is ~1276 lines and growing. When updating, condense stable component
 descriptions (1-2 lines each) — don't just append. If a section hasn't changed
 in 5+ iterations, compress it to a one-liner. Target: under ~1100 lines.
 

@@ -150,3 +150,6 @@ or process reliability.
 - **Separate "working" from "good"**: a process that produces passing builds
   is working. A process that produces an agent that's genuinely getting more
   capable is good. These are not the same thing.
+- **Decide quickly, iterate often**: A suboptimal intervention (reversible next
+  iteration) costs less than analysis paralysis. Once you have 3+ viable
+  candidates, score them and commit.

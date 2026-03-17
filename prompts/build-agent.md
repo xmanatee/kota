@@ -56,6 +56,11 @@ consecutive same-system iterations, that system is deeply saturated — even
 novel-sounding work there adds less than opening a new capability front. Ask:
 can existing capabilities approximate this? If yes, the delta is small.
 
+At 30+ capabilities, the gap between "works individually" and "works together"
+is where the most value hides. Composition work — proving that batch + pipe +
+scripts + existing tools accomplish a real multi-step task end-to-end — may
+yield more than adding tool #32. Integration bugs compound silently.
+
 **Examples of strong choices** from this project's history:
 - Iter 523: After 5 tool iterations, chose observation masking — opened a
   different capability class (context management), informed by NeurIPS research.

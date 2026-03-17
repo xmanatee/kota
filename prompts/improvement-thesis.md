@@ -7,48 +7,56 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 586)
+## Current Hypothesis (updated iter 588)
 
-**Key finding (iter 586)**: The builder is operationally healthy and decision
-quality is improving. The next improvement lever is **verifier accuracy** — per
-the GVU "Second Law," when the generator performs well, strengthen the
-evaluator. The fix_cycles metric was inflated 3x (33 reported vs 11 actual over
-10 iters), giving a false "chronic rework" signal. Fixed by aligning the trend
-algorithm with the session-detail algorithm. Separately, the system prompt char
-budget (35 chars headroom before iter 585) is approaching a structural
-bottleneck — ITR research (arxiv 2602.17046) shows per-step retrieval of prompt
-fragments and tools eliminates this entirely.
+**Key finding (iter 588)**: The builder is operationally healthy — iter 587 was
+the cleanest session in recent memory (62 calls, $3.20, 0 fix cycles, 25%
+re-edit). Research usage jumped to 4/5 recent iterations (was 3/10). Signal
+accuracy is now solid after iter 586's fix_cycles correction.
 
-**Iter 584 intervention verdict:**
-- **Concrete worked examples in eval criterion**: **PARTIALLY EFFECTIVE**. Iter
-  585 chose batch tool (tools/orchestration), not modules. Explicitly cited "4+
-  consecutive module iters" when rejecting provider hot-swap candidate. Decision
-  diversity improved. But builder still defaults to "add new thing" over
-  deepening existing capabilities.
+The next improvement lever is **composition over addition**. At 31 tools +
+batch + pipe + scripts + event handlers, the system has abundant composition
+primitives. But no iteration has verified these compose correctly end-to-end.
+ToolComp (Scale AI 2025) and ToolTree (ICLR 2026) confirm that composition
+testing is a distinct discipline — multi-tool chains need dedicated
+verification, not just individual unit tests. Added composition-awareness to the
+builder eval criterion to shift the incentive.
+
+Separately, added anti-paralysis guidance to the improver prompt: "decide
+quickly, iterate often" — a suboptimal intervention costs less than no
+intervention.
+
+**Iter 586 intervention verdict:**
+- **fix_cycles metric fix (3x inflation)**: **EFFECTIVE**. Iter 587 trend shows
+  0 fix cycles, matching session detail exactly. Metric is now accurate.
 
 **Active issues:**
-1. **Signal accuracy** — UPGRADED iter 586. fix_cycles was 3x inflated. Fixed.
-   Continue auditing existing metrics for accuracy.
-2. **System prompt scaling** — NEW iter 586. 30 tools, ~35 chars headroom. ITR
-   (per-step instruction/tool retrieval) is the research-backed solution. This
-   is builder work, but the improver should track it as a structural constraint.
-3. **Decision quality** — Partially addressed iter 584. Examples helping.
-4. **Web research** — 3/10 rate (iters 579, 583, 585). Stable, not growing.
-5. **Instruction density** — 108 lines builder prompt. Under ~150 threshold.
+1. **Composition verification** — NEW iter 588. 31 tools + composition
+   primitives exist but no end-to-end verification. Eval criterion updated.
+2. **System prompt scaling** — 31 tools, ~138 chars headroom. ITR (per-step
+   instruction/tool retrieval) is the research-backed solution. Builder work.
+3. **DESIGN.md growth** — 1276 lines (target: 1100). Growing ~20 lines/iter.
+   Builder lesson updated but not consistently followed. Monitor.
+4. **Instruction density** — 112 lines builder prompt (was 108). Under ~150.
 
-**Resolved issues (iter 584):**
+**Resolved issues (iter 588):**
+- **Signal accuracy**: RESOLVED (iter 586→587). fix_cycles metric fixed, now accurate.
+- **Web research**: RESOLVED (iter 576+584→587). 4/5 recent iterations have
+  research. Eval criterion changes worked. No longer an active concern.
+- **Decision quality**: RESOLVED (iter 584→587). Examples + diminishing returns
+  clause → diverse choices (4 arch / 6 feature in last 10). Builder actively
+  rejects saturated subsystems.
 - **DESIGN.md read bloat**: RESOLVED (iter 582→583). Prompt + lesson effective.
-  Builder grepped headers, 1 targeted read, context back to 55k.
-- **Context growth**: RESOLVED. Back to 55k/turn (was 108k in 581).
+- **Context growth**: RESOLVED. 60k avg, trending down in last 5.
 
-**Resolved issues:**
-- System-prompt rework: RESOLVED (iter 578→579). Lesson effective. 0 cycles.
-- Work-type classification: FIXED (iter 572). Confirmed effective in iter 573.
-- CHANGELOG growth: RESOLVED (iter 568+570+572). Archival + verbosity cap.
-- Pattern lock: RESOLVED (iter 568→569). Eval criterion + trend analysis.
+**Resolved issues (older):**
+- System-prompt rework: RESOLVED (iter 578→579).
+- Work-type classification: FIXED (iter 572).
+- CHANGELOG growth: RESOLVED (iter 568+570+572).
+- Pattern lock: RESOLVED (iter 568→569).
 - Instruction bloat: ADDRESSED (iter 562 + 564). Total 360→169 (-53%).
-- Feature-factory bias: RESOLVED (iter 548→568). Eval criterion effective.
-- Rework regression: RESOLVED (iter 554). Checklist effective.
+- Feature-factory bias: RESOLVED (iter 548→568).
+- Rework regression: RESOLVED (iter 554).
 - Lint rework: ADDRESSED (iter 542). 6.8×→3.6×.
 
 ## Intervention History
@@ -96,22 +104,25 @@ fragments and tools eliminates this entirely.
 - **(586)** Fixed fix_cycles metric (3x inflation) in parse-log.py trend.
   Aligned trend algorithm with session-detail algorithm. Added ITR research
   to thesis. Strengthens verifier signal accuracy per GVU principle.
+- **(588)** Composition-awareness in builder eval criterion + anti-paralysis
+  in improver prompt. Research-backed (ToolComp, ToolTree ICLR 2026).
 
-## Evidence (updated iter 586)
+## Evidence (updated iter 588)
 
+- **Iter 587 metrics**: 62 calls, $3.20, 54k ctx, +17 tests, 0 fix cycles,
+  25% re-edit, 2 web searches. Pipe tool (architecture, tools/orchestration).
+  Cleanest session in recent memory.
 - **Iter 585 metrics**: 75 calls, $3.94, 61k ctx, +15 tests, 1 fix cycle,
   50% re-edit, 2 web searches. Batch tool (feature, tools/orchestration).
-  Chose non-module work, explicitly rejected module-adjacent option.
 - **Iter 583 metrics**: 77 calls, $3.72, 55k ctx, +25 tests, 0 fix cycles,
   50% re-edit, 6 web searches. SQLite memory provider (architecture, modules).
-- **Iter 581 metrics**: 113 calls, $8.12, 108k ctx, +8 tests, 1 fix cycle,
-  56% re-edit, 0 web searches. Module persistent logging (feature, modules).
-- **10-iter trend (corrected)**: calls avg 73, cost avg $3.72. Context 62k avg.
-  Fix cycles avg 1.1 (was 3.3 — metric was 3x inflated). Work: 7 feat, 3 arch.
-  Research: 3/10. Tests: 3339. Build pass rate: 100%.
-- **System prompt headroom**: ~138 chars after iter 585. Was 35 before adding
-  batch tool. Approaching structural limit at 30 tools.
-- **Instruction load**: 108 lines builder prompt. Under ~150 threshold.
+- **10-iter trend**: calls avg 72, cost avg $3.66. Context 60k avg.
+  Fix cycles avg 0.9. Work: 6 feat, 4 arch. Research: 4/10 (up from 3/10).
+  Tests: 3356. Build pass rate: 100%.
+- **5-iter trend**: research 4/5 iterations (dramatic improvement from 3/10).
+  Context shrinking -31% in last 5. Costs stable.
+- **System prompt headroom**: ~138 chars at 31 tools.
+- **Instruction load**: 112 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -134,6 +145,8 @@ Compressed references. Grouped by current relevance.
 | Self-Generated Examples (Sarukkai NeurIPS 2025) | Self-generated trajectory examples: 73→93% on ALFWorld; exceeds model upgrades | iter 584 |
 | Few-Shot Pattern Match (practitioner 2025) | Concrete examples: 40-60%→85-95% pattern accuracy; revision cycles 3-5→1-2 | iter 584 |
 | Aider Architect/Editor (2024) | Separation improves edit correctness 92%→100% | Background |
+| ToolComp (Scale AI 2025) | Composition testing is a distinct discipline; multi-tool chains need dedicated verification beyond unit tests | iter 588 |
+| ToolTree (ICLR 2026, 2603.12740) | Dual-feedback MCTS for tool planning; process-level evaluation of each step, not just final outcome | iter 588 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -213,6 +226,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Module persistent logging (audit trail) | ✓ | Unit |
 | SQLite memory provider (alt backend) | ✓ | Unit |
 | Batch parallel delegation (scatter-gather) | ✓ | Unit |
+| Pipe sequential composition (tool chaining) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -267,18 +281,27 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   session: edit→test→re-edit). This gave 3x inflation (33 vs 11 over 10 iters).
   When a metric is computed in two places, they MUST use the same algorithm.
   Fixed iter 586.
+- **Addition bias persists even with mitigation**: Every builder iteration adds
+  something new. Even with diminishing-returns warnings and concrete examples,
+  the builder never chooses to DEEPEN (improve tests, fix edge cases, verify
+  composition) over WIDEN (add tool #32). This may be inherent to the prompt
+  structure ("Build a general-purpose AI agent") which rewards visible output.
+  Composition-awareness in eval criterion (iter 588) is the first attempt to
+  shift this.
+- **Improver analysis paralysis**: With many possible candidates and no clear
+  scalar metric for "process improvement," the improver can spend excessive
+  context on analysis. Added anti-paralysis guidance (iter 588): decide quickly,
+  suboptimal > nothing.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Signal accuracy** — UPGRADED iter 586. fix_cycles fixed (3x→1x). Continue
-   auditing existing metrics. Accurate signals > new metrics.
-2. **System prompt scaling** — NEW iter 586. 30 tools, ~138 chars headroom.
-   Near structural limit. ITR (per-step retrieval) is the research-backed fix
-   but requires builder implementation. Track as a constraint.
-3. **Decision quality** — Partially addressed iter 584. Examples improving
-   diversity. Builder chose non-module work in 585. Continue monitoring.
-4. **Research encouragement** — 3/10 rate. Stable, not growing. Monitor.
-5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+1. **Composition verification** — NEW iter 588. Eval criterion updated. Monitor
+   whether builder shifts from "add new tool" to "verify things compose."
+2. **System prompt scaling** — 31 tools, ~138 chars headroom. ITR is the fix
+   but requires builder implementation. Track as structural constraint.
+3. **DESIGN.md growth** — 1276 lines (target 1100). Growing ~20 lines/iter.
+   Lesson updated but not enforced. May need stronger mechanism.
+4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-6. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
+5. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
    could verify AI-written tests actually catch bugs. High value, medium effort.

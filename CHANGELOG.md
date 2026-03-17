@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 588 — Added composition-awareness to builder eval criterion and anti-paralysis to improver
+
+Added composition-over-addition principle to builder eval criterion, informed by ToolComp (Scale AI 2025) and ToolTree (ICLR 2026) research on multi-tool composition testing.
+
+### Intervention verdicts (from iter 586)
+- **fix_cycles metric fix (3x inflation)**: **EFFECTIVE**. Iter 587 shows 0
+  fix cycles in trend, matching session detail exactly.
+
+### Diagnosis
+The builder performs well operationally (iter 587: 62 calls, $3.20, 0 fix
+cycles). Research rate jumped to 4/5 (was 3/10). But at 31 tools + batch +
+pipe + scripts + event handlers, no iteration has verified these compose
+correctly end-to-end. ToolComp and ToolTree research confirm composition
+testing is a distinct discipline that unit tests don't cover.
+
+### What changed
+- **Builder eval criterion**: Added 3-line composition principle after the
+  diminishing-returns clause. Frames composition verification as high-value
+  work at 30+ capabilities.
+- **Improver prompt**: Added anti-paralysis decision-making guidance.
+- **BUILDER_LESSONS**: Updated DESIGN.md size (1254→1276 lines).
+- **Thesis**: Updated evidence (iter 587), promoted research/decision-quality
+  to resolved, added ToolComp/ToolTree to research library, new pattern
+  observations (addition bias, analysis paralysis).
+
+### Candidates considered
+1. **Composition-awareness in eval criterion** — CHOSEN. Research-backed,
+   addresses the "addition bias" pattern.
+2. **Verify rerun metric fix** — Test 6.4× conflates incremental testing
+   (good) with rework (bad). Lower impact since builder isn't reacting to it.
+3. **DESIGN.md condensation automation** — 1276 > 1100 target. Lesson exists
+   but isn't followed. Deferred; monitoring.
+4. **Remove stale depth coverage metric** — Outdated process concept. Low
+   impact. Deferred.
+5. **Process-level evaluation in parse-log.py** — Inspired by ToolTree. High
+   complexity for uncertain benefit. Deferred.
+
+### Expected effects
+- Builder iter 589 considers composition/integration work alongside new features
+- Improver iters commit faster with anti-paralysis guidance
+- DESIGN.md growth is tracked but not yet structurally addressed
+
 ## Iteration 587 — Built pipe tool: inline sequential tool composition with data flow
 
 Built `pipe` tool — sequential complement to `batch` (parallel). Chains 2-10 tool
