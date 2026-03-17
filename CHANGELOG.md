@@ -1,5 +1,78 @@
 # KOTA Changelog
 
+## Iteration 565 — Computer Use Tool for GUI Interaction
+
+Built computer_use tool enabling mouse and keyboard control — the agent can now click, type, drag, scroll, and press key combos to interact with any GUI application on the screen.
+
+### What was built
+
+**Core: `src/tools/computer-use.ts`**
+
+9 actions: `click`, `double_click`, `right_click`, `move`, `drag`, `type`, `key`, `scroll`, `cursor_position`.
+
+Platform support:
+- **macOS**: `cliclick` for mouse ops (with `osascript` fallback for basic clicks), `osascript` for keyboard, Page Up/Down for scroll.
+- **Linux**: `xdotool` for all operations.
+
+Key implementation details:
+- AppleScript string escaping handles embedded quotes via `character id 34` concatenation.
+- Key combo parsing: `"cmd+shift+z"` → modifiers + key, with full key code mapping for macOS and xdotool key name mapping for Linux.
+- Coordinates rounded to integers. Scroll amount capped at 20.
+- Tool detection (`cliclick`, `xdotool`) cached per-session with test reset.
+- Accessibility permission errors detected and surfaced with setup instructions.
+
+**Registration**: Added to `tools/index.ts`, `CORE_TOOL_NAMES` in `tool-groups.ts`, system prompt, and `DESIGN.md`.
+
+**System prompt**: Compressed existing tool descriptions (~60 chars) to stay within the 11900-char headroom budget.
+
+### Before/after
+
+- Before: Agent can see the screen (screenshot) but cannot interact with it. GUI automation impossible.
+- After: Agent captures screen → identifies UI elements → clicks/types/scrolls → verifies result. Full computer use paradigm. Can automate GUI apps, fill web forms, navigate menus, test UIs visually.
+
+### Why this matters
+
+This is the capability that distinguishes a general-purpose AI agent from a coding assistant. Combined with the existing screenshot tool, it creates a closed observation→action loop for GUI interaction — the same paradigm used by Manus, OpenClaw, and Anthropic's own computer use demos. The agent can now operate any application with a visual interface, not just CLI tools.
+
+### Tests
+
+43 new tests covering:
+- Platform support (macOS, Linux, unsupported)
+- All 9 actions on both platforms
+- Coordinate validation and rounding
+- Input validation (missing text, key_combo, start coords)
+- Tool fallback chains (cliclick → osascript on macOS)
+- Error handling (missing tools, accessibility permissions, unknown keys/modifiers)
+- AppleScript string escaping with embedded quotes
+- Scroll amount defaults and caps
+- Cursor position output parsing
+
+All 3123 tests pass (3080 existing + 43 new).
+
+### Verification
+
+- Static: `tsc --noEmit` ✅, `tsup` build ✅
+- Unit: 3123/3123 pass ✅
+- Lint: all 6 changed files clean ✅
+- Load: `node dist/cli.js --help` ✅
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Computer use tool** — CHOSEN. Adds fundamentally new capability: GUI interaction via mouse/keyboard. Combined with screenshot, enables the full computer use paradigm. This is what distinguishes general-purpose AI agents from coding assistants.
+2. **Git operations tool** — Structured git commands with token-efficient output. Shell + git works well enough. Diminishing returns at 26+ tools.
+3. **More provider types (TaskProvider, SchedulerProvider)** — Architecture work extending iter 563's pattern. Current backends work fine and no one is requesting swaps yet.
+4. **Module scripts/logging** — Modules defining their own scripts and structured logging. Premature — no external modules being actively created.
+5. **Workflow/pipeline engine** — Multi-step automated workflows with checkpointing. Overlaps with what the LLM loop + todo already does naturally.
+
+### Future directions
+
+- **Wayland support**: Linux Wayland sessions need `ydotool` instead of `xdotool`. Add detection and fallback.
+- **True scroll on macOS**: Current approach uses Page Up/Down key presses. JXA + CoreGraphics `CGEventCreateScrollWheelEvent` could enable real mouse wheel events.
+- **Screen region targeting**: Integration with screenshot to identify UI element coordinates from visual descriptions (e.g., "click the Submit button").
+- **Window management**: Focus/activate specific windows by name before interacting (AppleScript `tell application "X" to activate`, xdotool `search --name`).
+- **Input validation**: Validate coordinate bounds against screen dimensions before executing.
+
 ## Iteration 564 — Compress Builder Prompt 184→94 Lines
 
 Compressed builder prompt by 49% by merging duplicate sections (Orient/Gather/Brainstorm/Choose/How-to-Work → single workflow), removing redundant Goals/Non-Goals, while preserving the calibrated evaluation criterion from iter 548.

@@ -263,6 +263,41 @@ Read from and write to the system clipboard. Enables seamless data transfer betw
 - Read limit: 50,000 chars. Write limit: 100,000 chars. Prevents excessive clipboard usage.
 - Zero npm dependencies — uses only platform clipboard utilities.
 
+### Computer Use (`src/tools/computer-use.ts`)
+
+Control mouse and keyboard to interact with the computer's GUI. Combined with the existing screenshot tool, enables the full computer use paradigm — the agent can see the screen, click buttons, fill forms, navigate menus, and automate GUI applications.
+
+**Actions**:
+- `click` / `double_click` / `right_click` — click at (x, y) coordinates
+- `move` — move cursor to (x, y)
+- `drag` — drag from (start_x, start_y) to (x, y)
+- `type` — type a text string
+- `key` — press a key or key combo (e.g., `"enter"`, `"cmd+c"`, `"ctrl+shift+z"`)
+- `scroll` — scroll up/down (via Page Up/Down on macOS, mouse wheel on Linux)
+- `cursor_position` — get current cursor coordinates
+
+**Platform support**:
+- **macOS**: `cliclick` for mouse operations (`brew install cliclick`), `osascript` for keyboard (built-in). Click falls back to `osascript` System Events when `cliclick` isn't available.
+- **Linux**: `xdotool` for all operations (`apt install xdotool`).
+- **Unsupported**: Returns error with platform-specific guidance.
+
+**Workflow** (screenshot → action → screenshot loop):
+1. Agent calls `screenshot()` to see the current screen
+2. Agent identifies target (button, field, menu item) from the image
+3. Agent calls `computer_use(action: "click", x: 500, y: 300)` to interact
+4. Agent calls `screenshot()` again to verify the result
+5. Repeat as needed
+
+**Design decisions**:
+- Core tool (always available) — GUI interaction is useful across all domains, pairs with screenshot.
+- Classified as `moderate` in guardrails — user-level input, can have side effects but locally contained.
+- Zero npm dependencies — uses only system tools with graceful fallback chains.
+- Coordinates are rounded to integers (fractional pixels not meaningful).
+- Scroll amount capped at 20 to prevent abuse.
+- AppleScript string escaping handles embedded quotes via `character id 34` concatenation.
+- Tool detection (`cliclick`, `xdotool`) is cached per-session with `resetComputerUseState()` for testing.
+- Accessibility permission errors are detected and surfaced with setup instructions.
+
 ### Knowledge Store Events
 
 Knowledge CRUD operations emit typed events on the event bus, enabling reactive data-driven workflows:

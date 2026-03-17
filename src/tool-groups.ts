@@ -24,6 +24,7 @@ export const CORE_TOOL_NAMES = new Set([
   "screenshot",
   "read_document",
   "clipboard",
+  "computer_use",
 ]);
 
 const enabledGroups = new Set<string>();

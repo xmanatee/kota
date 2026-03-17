@@ -4,6 +4,7 @@ import { registration as askUser } from "./ask-user.js";
 import { registration as checkpoint } from "./checkpoint.js";
 import { registration as clipboard } from "./clipboard.js";
 import { registration as codeExec } from "./code-exec.js";
+import { registration as computerUse } from "./computer-use.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
 import { registration as fileEdit } from "./file-edit.js";
@@ -85,6 +86,7 @@ const registrationImports = [
   () => screenshot,
   () => readDocument,
   () => clipboard,
+  () => computerUse,
 ];
 
 let _coreRegistrations: ToolRegistration[] | null = null;
