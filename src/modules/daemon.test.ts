@@ -11,6 +11,9 @@ const stubCtx: ModuleContext = {
   registerGroup: () => {},
   getRoutes: () => [],
   getModuleConfig: () => undefined,
+  log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+  getSecret: () => null,
+  listTools: () => [],
 };
 
 describe("daemonModule", () => {

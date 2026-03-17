@@ -96,7 +96,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Module lifecycle**:
 1. `ModuleLoader.loadAll(modules)` — topologically sorts by dependencies, then loads each module
-2. For each module: register tools → call `onLoad(ctx)` → add to loaded list
+2. For each module: create context → resolve tools (array or factory) → register tools → call `onLoad(ctx)` → add to loaded list
 3. `connectEvents(bus)` — wire up event subscriptions (called when bus is available)
 4. `getCommands()` / `getRoutes()` — collected lazily when CLI/server needs them
 5. `unload(name)` — deregister module's tools, disconnect its events, call `onUnload()`
@@ -109,6 +109,11 @@ Pluggable architecture where features are self-contained modules instead of hard
 - `getModuleConfig<T>()` — access module-specific config section from `config.modules.<name>`
 - `registerGroup(name, toolNames, pattern?)` — create/extend tool groups
 - `getRoutes()` — discover HTTP routes from all loaded modules (decouples modules from each other)
+- `log` — scoped logger (`info`, `warn`, `error`, `debug`) with `[module:<name>]` prefix. `debug` is silent unless verbose mode is active.
+- `getSecret(key)` — get a secret value by name. Returns null if not found or store not initialized. Enables tool runners to access credentials without importing the SecretStore singleton.
+- `listTools()` — list names of all currently registered tools. Read-only introspection for modules that need to discover available capabilities.
+
+**Tools as factory function** (iter 549): `tools` can be a static `ToolDef[]` array (existing pattern) or a factory function `(ctx: ModuleContext) => ToolDef[]`. The factory form lets tool runners capture the context via closure, accessing `ctx.log`, `ctx.getSecret()`, `ctx.listTools()`, and `ctx.storage` without importing core singletons. The loader resolves the factory during `load()` before tool registration. `resolveModuleTools(mod, ctx?)` is the canonical helper for normalizing the union type.
 
 **Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
@@ -122,10 +127,13 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Per-module tool ownership**: `registerTool()` accepts an optional `moduleName` parameter. Tools are tracked in a `moduleToolOwners` map, enabling surgical `deregisterModuleTools(name)` — removing only one module's tools without affecting others. This replaces the previous `clearCustomTools()` nuclear approach where unloading modules or plugins would wipe out each other's tools.
 
-**Module SDK** (iter 535): Modules now receive a full SDK through `ModuleContext`:
+**Module SDK** (iter 535, extended iter 549): Modules receive a complete SDK through `ModuleContext`:
 - **Scoped storage** (`src/module-storage.ts`): Each module gets its own directory at `.kota/modules/<name>/` with APIs for JSON, text, and raw file storage. Directory created lazily on first write, keys sanitized for filesystem safety.
 - **Module config**: Per-module configuration in `config.modules.<name>`. Example: `{ "modules": { "telegram": { "botToken": "..." } } }`.
 - **Prompt sections**: Modules contribute to the system prompt via `promptSection()`. Sections are collected during loading and appended under a `## Module Capabilities` heading with per-module `###` headings.
+- **Scoped logger**: `ctx.log.{info,warn,error,debug}` with `[module:<name>]` prefix. Debug only logs in verbose mode.
+- **Secret access**: `ctx.getSecret(key)` provides credential lookup without importing SecretStore.
+- **Tool introspection**: `ctx.listTools()` returns names of all registered tools.
 - **Config type**: `KotaConfig.modules` is a `Record<string, Record<string, unknown>>`, sanitized and merged like other config sections.
 
 **Design decisions**:

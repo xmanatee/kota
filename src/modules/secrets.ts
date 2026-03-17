@@ -4,12 +4,16 @@
  * Registers:
  * - `kota secrets set/get/list/remove` CLI commands
  * - `get_secret` agent tool (injects into env, returns placeholder to LLM)
+ *
+ * The agent tool uses ModuleContext.getSecret() via closure — demonstrating
+ * the self-contained module pattern where tool runners access services
+ * through the context rather than importing core singletons.
  */
 
 import { createInterface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
-import type { KotaModule } from "../module-types.js";
+import type { KotaModule, ModuleContext } from "../module-types.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "../secrets.js";
 import type { ToolResult } from "../tools/index.js";
 
@@ -32,28 +36,33 @@ const getSecretTool: Anthropic.Tool = {
   },
 };
 
-async function runGetSecret(input: Record<string, unknown>): Promise<ToolResult> {
-  const name = input.name as string;
-  if (!name || typeof name !== "string") {
-    return { content: "Error: secret name is required", is_error: true };
-  }
+/** Build the get_secret tool runner with context-injected secret access. */
+function makeGetSecretRunner(ctx: ModuleContext) {
+  return async (input: Record<string, unknown>): Promise<ToolResult> => {
+    const name = input.name as string;
+    if (!name || typeof name !== "string") {
+      return { content: "Error: secret name is required", is_error: true };
+    }
 
-  const store = getSecretStore();
-  if (!store) {
-    return { content: "Error: secret store not initialized", is_error: true };
-  }
+    // Use ctx.getSecret() instead of importing getSecretStore() directly
+    const value = ctx.getSecret(name);
+    if (!value) {
+      // Fall back to store for listing available secrets in error hint
+      const store = getSecretStore();
+      const available = store ? store.list().map((s) => s.name) : [];
+      const hint = available.length > 0
+        ? `\nAvailable secrets: ${available.join(", ")}`
+        : "\nNo secrets configured. Use 'kota secrets set <name>' to add one.";
+      return { content: `Secret "${name}" not found.${hint}`, is_error: true };
+    }
 
-  const injected = store.inject(name);
-  if (!injected) {
-    const available = store.list().map((s) => s.name);
-    const hint = available.length > 0
-      ? `\nAvailable secrets: ${available.join(", ")}`
-      : "\nNo secrets configured. Use 'kota secrets set <name>' to add one.";
-    return { content: `Secret "${name}" not found.${hint}`, is_error: true };
-  }
+    // Inject into process.env so shell/code_exec tools can use it
+    process.env[name] = value;
+    ctx.log.debug(`Secret "${name}" injected into environment`);
 
-  return {
-    content: `Secret "${name}" injected into environment as $${name}. Value: <secret:${name}>`,
+    return {
+      content: `Secret "${name}" injected into environment as $${name}. Value: <secret:${name}>`,
+    };
   };
 }
 
@@ -82,10 +91,11 @@ const secretsModule: KotaModule = {
   version: "1.0.0",
   description: "Secure credential management with output masking",
 
-  tools: [
+  // Tools as factory function — runner captures ctx via closure
+  tools: (ctx) => [
     {
       tool: getSecretTool,
-      runner: runGetSecret,
+      runner: makeGetSecretRunner(ctx),
       group: "management",
     },
   ],

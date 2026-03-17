@@ -13,9 +13,10 @@ import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { ModuleStorage } from "./module-storage.js";
-import type { KotaModule, ModuleContext, RouteRegistration } from "./module-types.js";
+import type { KotaModule, ModuleContext, ModuleLogger, RouteRegistration, ToolDef } from "./module-types.js";
+import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
-import { deregisterModuleTools, registerTool } from "./tools/index.js";
+import { deregisterModuleTools, getRegisteredTools, registerTool } from "./tools/index.js";
 
 export type ModuleLoaderOptions = {
   /** Skip tool registration — only load modules for command/route discovery. */
@@ -31,6 +32,8 @@ export class ModuleLoader {
   private moduleStorages = new Map<string, ModuleStorage>();
   /** Original module definitions for reload support. */
   private moduleRegistry = new Map<string, KotaModule>();
+  /** Resolved tool counts per module (needed when tools is a function). */
+  private moduleToolCounts = new Map<string, number>();
   /** Collected prompt sections from loaded modules. */
   private promptSections = new Map<string, string>();
   /** Event bus reference for reconnecting events after reload. */
@@ -56,6 +59,15 @@ export class ModuleLoader {
       ? this.getOrCreateStorage(moduleName)
       : new ModuleStorage(this.cwd, "_default");
     const modName = moduleName;
+    const prefix = modName ? `[module:${modName}]` : "[module]";
+    const log: ModuleLogger = {
+      info: (msg: string) => console.error(`${prefix} ${msg}`),
+      warn: (msg: string) => console.error(`${prefix} WARN: ${msg}`),
+      error: (msg: string) => console.error(`${prefix} ERROR: ${msg}`),
+      debug: (msg: string) => {
+        if (this.verbose) console.error(`${prefix} DEBUG: ${msg}`);
+      },
+    };
     return {
       cwd: this.cwd,
       verbose: this.verbose,
@@ -68,6 +80,14 @@ export class ModuleLoader {
       getModuleConfig: <T = Record<string, unknown>>(): T | undefined => {
         if (!modName) return undefined;
         return this.config.modules?.[modName] as T | undefined;
+      },
+      log,
+      getSecret: (key: string): string | null => {
+        const store = getSecretStore();
+        return store?.get(key) ?? null;
+      },
+      listTools: (): string[] => {
+        return getRegisteredTools().map((t) => t.name);
       },
     };
   }
@@ -98,16 +118,23 @@ export class ModuleLoader {
       }
     }
 
-    if (mod.tools && !this.commandsOnly) {
-      for (const def of mod.tools) {
+    const ctx = this.createContext(mod.name);
+
+    // Resolve tools — static array or factory function
+    const tools: ToolDef[] | undefined = mod.tools
+      ? typeof mod.tools === "function" ? mod.tools(ctx) : mod.tools
+      : undefined;
+
+    if (tools && !this.commandsOnly) {
+      for (const def of tools) {
         registerTool(def.tool, def.runner, mod.name);
         if (def.group) {
           registerCustomGroup(def.group, [def.tool.name]);
         }
       }
+      this.moduleToolCounts.set(mod.name, tools.length);
     }
 
-    const ctx = this.createContext(mod.name);
     if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
 
     // Collect prompt section if provided
@@ -126,7 +153,7 @@ export class ModuleLoader {
     this.modules.push(mod);
     this.moduleRegistry.set(mod.name, mod);
     if (this.verbose) {
-      const tc = mod.tools?.length ?? 0;
+      const tc = this.moduleToolCounts.get(mod.name) ?? 0;
       console.error(`[kota] Module "${mod.name}" loaded (${tc} tools)`);
     }
   }
@@ -144,12 +171,8 @@ export class ModuleLoader {
     }
 
     if (this.modules.length > 0 && this.verbose) {
-      const toolCount = this.modules.reduce(
-        (n, m) => n + (m.tools?.length ?? 0),
-        0,
-      );
       console.error(
-        `[kota] Modules: ${this.modules.length} loaded, ${toolCount} tool(s)`,
+        `[kota] Modules: ${this.modules.length} loaded, ${this.getToolCount()} tool(s)`,
       );
     }
   }
@@ -274,9 +297,10 @@ export class ModuleLoader {
     // Deregister this module's tools
     deregisterModuleTools(moduleName);
 
-    // Remove prompt section and storage reference
+    // Remove prompt section, storage, and tool count references
     this.promptSections.delete(moduleName);
     this.moduleStorages.delete(moduleName);
+    this.moduleToolCounts.delete(moduleName);
 
     // Remove from loaded list
     this.modules.splice(idx, 1);
@@ -341,6 +365,7 @@ export class ModuleLoader {
     this.moduleEventUnsubs.clear();
     this.moduleRegistry.clear();
     this.moduleStorages.clear();
+    this.moduleToolCounts.clear();
     this.promptSections.clear();
     this.bus = null;
   }
@@ -355,7 +380,9 @@ export class ModuleLoader {
 
   getToolCount(): number {
     if (this.commandsOnly) return 0;
-    return this.modules.reduce((n, m) => n + (m.tools?.length ?? 0), 0);
+    let total = 0;
+    for (const count of this.moduleToolCounts.values()) total += count;
+    return total;
   }
 }
 

@@ -271,7 +271,7 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
 // --- Format detection ---
 
 function isKotaModule(obj: Record<string, unknown>): boolean {
-  return typeof obj.name === "string" && (obj.tools === undefined || Array.isArray(obj.tools));
+  return typeof obj.name === "string" && (obj.tools === undefined || Array.isArray(obj.tools) || typeof obj.tools === "function");
 }
 
 function isOpenAIFormat(obj: Record<string, unknown>): boolean {

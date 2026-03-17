@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { KotaModule, ToolDef } from "./module-types.js";
 import {
   adaptExport,
   extractJsonSchema,
@@ -11,6 +12,11 @@ import {
   type VercelAITool,
   zodDefToJsonSchema,
 } from "./tool-adapters.js";
+
+/** Helper to get tools as array from a KotaModule (tests always produce static arrays). */
+function toolsOf(mod: KotaModule): ToolDef[] {
+  return Array.isArray(mod.tools) ? mod.tools : [];
+}
 
 describe("normalizeResult", () => {
   it("passes through ToolResult objects", () => {
@@ -383,9 +389,9 @@ describe("adaptExport", () => {
     const plugin = adaptExport(exported, "hello.js");
     expect(plugin.name).toBe("hello");
     expect(plugin.tools).toHaveLength(1);
-    expect(plugin.tools![0].tool.name).toBe("hello");
+    expect(toolsOf(plugin)[0].tool.name).toBe("hello");
 
-    const result = await plugin.tools![0].runner({});
+    const result = await toolsOf(plugin)[0].runner({});
     expect(result.content).toBe("Hello!");
   });
 
@@ -399,7 +405,7 @@ describe("adaptExport", () => {
     expect(plugin.name).toBe("calc");
     expect(plugin.tools).toHaveLength(1);
 
-    const result = await plugin.tools![0].runner({});
+    const result = await toolsOf(plugin)[0].runner({});
     expect(result.content).toBe("42");
   });
 
@@ -411,12 +417,12 @@ describe("adaptExport", () => {
     const plugin = adaptExport(exported, "math.js");
     expect(plugin.name).toBe("math");
     expect(plugin.tools).toHaveLength(2);
-    expect(plugin.tools![0].tool.name).toBe("add");
-    expect(plugin.tools![1].tool.name).toBe("sub");
+    expect(toolsOf(plugin)[0].tool.name).toBe("add");
+    expect(toolsOf(plugin)[1].tool.name).toBe("sub");
 
-    const r1 = await plugin.tools![0].runner({ a: 3, b: 2 });
+    const r1 = await toolsOf(plugin)[0].runner({ a: 3, b: 2 });
     expect(r1.content).toBe("5");
-    const r2 = await plugin.tools![1].runner({ a: 3, b: 2 });
+    const r2 = await toolsOf(plugin)[1].runner({ a: 3, b: 2 });
     expect(r2.content).toBe("1");
   });
 
@@ -431,8 +437,8 @@ describe("adaptExport", () => {
     ];
     const plugin = adaptExport(exported, "mixed.js");
     expect(plugin.tools).toHaveLength(2);
-    expect(plugin.tools![0].tool.name).toBe("simple_tool");
-    expect(plugin.tools![1].tool.name).toBe("openai_tool");
+    expect(toolsOf(plugin)[0].tool.name).toBe("simple_tool");
+    expect(toolsOf(plugin)[1].tool.name).toBe("openai_tool");
   });
 
   it("adapts a KotaModule with simple-format tools array", async () => {
@@ -447,10 +453,10 @@ describe("adaptExport", () => {
     const plugin = adaptExport(exported, "hybrid.js");
     expect(plugin.name).toBe("hybrid");
     expect(plugin.tools).toHaveLength(2);
-    expect(plugin.tools![0].tool.name).toBe("tool_a");
+    expect(toolsOf(plugin)[0].tool.name).toBe("tool_a");
     expect(plugin.onLoad).toBeDefined();
 
-    const result = await plugin.tools![0].runner({});
+    const result = await toolsOf(plugin)[0].runner({});
     expect(result.content).toBe("a");
   });
 
@@ -483,7 +489,7 @@ describe("adaptExport", () => {
       run: () => "sync result",
     };
     const plugin = adaptExport(exported, "sync.js");
-    const result = await plugin.tools![0].runner({});
+    const result = await toolsOf(plugin)[0].runner({});
     expect(result.content).toBe("sync result");
   });
 
@@ -496,9 +502,9 @@ describe("adaptExport", () => {
     const plugin = adaptExport(exported, "weather.js");
     expect(plugin.name).toBe("weather");
     expect(plugin.tools).toHaveLength(1);
-    expect(plugin.tools![0].tool.name).toBe("weather");
+    expect(toolsOf(plugin)[0].tool.name).toBe("weather");
 
-    const result = await plugin.tools![0].runner({ city: "NYC" });
+    const result = await toolsOf(plugin)[0].runner({ city: "NYC" });
     expect(result.content).toBe("Weather in NYC: sunny");
   });
 
@@ -517,10 +523,10 @@ describe("adaptExport", () => {
     };
     const plugin = adaptExport(exported, "tools.js");
     expect(plugin.tools).toHaveLength(2);
-    expect(plugin.tools![0].tool.name).toBe("get_weather");
-    expect(plugin.tools![1].tool.name).toBe("search");
+    expect(toolsOf(plugin)[0].tool.name).toBe("get_weather");
+    expect(toolsOf(plugin)[1].tool.name).toBe("search");
 
-    const r1 = await plugin.tools![0].runner({});
+    const r1 = await toolsOf(plugin)[0].runner({});
     expect(r1.content).toBe("sunny");
   });
 
@@ -538,7 +544,7 @@ describe("adaptExport", () => {
       execute: async () => "found it",
     };
     const plugin = adaptExport(exported, "search.mjs");
-    expect(plugin.tools![0].tool.input_schema.properties).toEqual({ query: { type: "string" } });
+    expect(toolsOf(plugin)[0].tool.input_schema.properties).toEqual({ query: { type: "string" } });
   });
 
   it("adapts an array containing Vercel AI SDK tools", () => {
@@ -551,7 +557,7 @@ describe("adaptExport", () => {
     ];
     const plugin = adaptExport(exported, "vercel-tools.js");
     expect(plugin.tools).toHaveLength(1);
-    expect(plugin.tools![0].tool.name).toBe("tool_0");
+    expect(toolsOf(plugin)[0].tool.name).toBe("tool_0");
   });
 });
 
@@ -603,8 +609,8 @@ describe("error paths", () => {
       ];
       const plugin = adaptExport(exported, "mixed.js");
       expect(plugin.tools).toHaveLength(2);
-      expect(plugin.tools![0].tool.name).toBe("good");
-      expect(plugin.tools![1].tool.name).toBe("also_good");
+      expect(toolsOf(plugin)[0].tool.name).toBe("good");
+      expect(toolsOf(plugin)[1].tool.name).toBe("also_good");
     });
 
     it("adaptExport throws only when ALL tools in array are bad", () => {
@@ -625,7 +631,7 @@ describe("error paths", () => {
       };
       const plugin = adaptExport(exported, "mixed-plugin.js");
       expect(plugin.tools).toHaveLength(1);
-      expect(plugin.tools![0].tool.name).toBe("good_tool");
+      expect(toolsOf(plugin)[0].tool.name).toBe("good_tool");
     });
   });
 

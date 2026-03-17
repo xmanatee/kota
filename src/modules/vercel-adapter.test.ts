@@ -29,6 +29,9 @@ describe("vercel-adapter module", () => {
       registerGroup: () => {},
       getRoutes: () => [],
       getModuleConfig: () => undefined,
+      log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+      getSecret: () => null,
+      listTools: () => [],
     };
 
     const routes = vercelAdapterModule.routes!(ctx);

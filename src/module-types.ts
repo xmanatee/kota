@@ -14,6 +14,14 @@ import type { EventBus } from "./event-bus.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { ToolResult } from "./tools/index.js";
 
+/** Scoped logger available to modules via ModuleContext. */
+export type ModuleLogger = {
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+  error: (msg: string) => void;
+  debug: (msg: string) => void;
+};
+
 /** A tool definition — used by modules and plugins alike. */
 export type ToolDef = {
   tool: Anthropic.Tool;
@@ -42,6 +50,12 @@ export type ModuleContext = {
   getRoutes: () => RouteRegistration[];
   /** Get this module's config section from the KOTA config. */
   getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
+  /** Scoped logger — messages prefixed with `[module:<name>]`. */
+  log: ModuleLogger;
+  /** Get a secret value by name. Returns null if not found or store not initialized. */
+  getSecret: (key: string) => string | null;
+  /** List names of all currently registered tools. */
+  listTools: () => string[];
 };
 
 /**
@@ -66,8 +80,12 @@ export type KotaModule = {
   /** Names of modules that must be loaded before this one. */
   dependencies?: string[];
 
-  /** Tools this module provides. Registered during load. */
-  tools?: ToolDef[];
+  /**
+   * Tools this module provides. Registered during load.
+   * Can be a static array or a factory that receives ModuleContext,
+   * allowing tool runners to access module services via closure.
+   */
+  tools?: ToolDef[] | ((ctx: ModuleContext) => ToolDef[]);
 
   /**
    * CLI commands this module adds. Called once at load time.
@@ -101,3 +119,16 @@ export type KotaModule = {
   /** Called on shutdown — clean up resources, close connections. */
   onUnload?: () => Promise<void> | void;
 };
+
+/** Resolve tools from a KotaModule — handles both static array and factory function forms. */
+export function resolveModuleTools(
+  mod: KotaModule,
+  ctx?: ModuleContext,
+): ToolDef[] {
+  if (!mod.tools) return [];
+  if (typeof mod.tools === "function") {
+    if (!ctx) throw new Error(`Module "${mod.name}" has tools factory but no context provided`);
+    return mod.tools(ctx);
+  }
+  return mod.tools;
+}

@@ -1,5 +1,81 @@
 # KOTA Changelog
 
+## Iteration 549 — Extended ModuleContext API for Self-Contained Modules
+
+Extended ModuleContext with log, getSecret, listTools, and tools-as-function pattern so modules can be truly self-contained without importing core singletons.
+
+### What was built
+
+**Three new ModuleContext properties** — every module now receives:
+- `ctx.log` — scoped logger (`info`, `warn`, `error`, `debug`) with `[module:<name>]` prefix. Debug only logs in verbose mode.
+- `ctx.getSecret(key)` — get a secret value by name. Returns null if not found or store not initialized. Decouples modules from the SecretStore singleton.
+- `ctx.listTools()` — list names of all registered tools. Read-only introspection for modules that need to discover available capabilities.
+
+**Tools-as-function pattern** — `KotaModule.tools` now accepts both:
+- `ToolDef[]` (static array, existing pattern — backward compatible)
+- `(ctx: ModuleContext) => ToolDef[]` (factory function, new pattern)
+
+The factory form lets tool runners capture the context via closure. This is the key enabler for self-contained modules — tool runners can use `ctx.log`, `ctx.getSecret()`, `ctx.listTools()`, and `ctx.storage` without importing anything from core.
+
+**`resolveModuleTools(mod, ctx?)` utility** — canonical helper for normalizing the `ToolDef[] | Function` union type. Used in the module loader and available for external consumers.
+
+**Secrets module refactored** — demonstrates the tools-as-function pattern. The `get_secret` tool runner now uses `ctx.getSecret()` via closure instead of directly importing `getSecretStore()`. Uses `ctx.log.debug()` for inject logging.
+
+### Why it matters
+
+The owner's longest-standing concern: "modules are just files which import stuff from core... modularization should enable plug-n-play tools, skills, channels, memory systems."
+
+Before this change, a module's tool runner couldn't access any KOTA service without importing a core singleton. This forced every module to be tightly coupled to core internals.
+
+After this change, a module developer can build a fully functional tool using only `ModuleContext`:
+```typescript
+const myModule: KotaModule = {
+  name: "weather",
+  tools: (ctx) => [{
+    tool: { name: "get_weather", ... },
+    runner: async (input) => {
+      const apiKey = ctx.getSecret("WEATHER_API_KEY");
+      ctx.log.info(`Fetching weather for ${input.city}`);
+      // ... implementation using only ctx ...
+      return { content: result };
+    },
+  }],
+};
+```
+
+No core imports needed. The module is a self-contained unit.
+
+### Verified
+- Typecheck: clean
+- Build: clean
+- Tests: 2954 passed (130 files) — 16 new tests, 2938 existing unchanged
+- Lint: clean on all 13 changed files
+- CLI: `kota --help` loads correctly
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Files changed
+- `src/module-types.ts` — added `ModuleLogger` type, `log`/`getSecret`/`listTools` to ModuleContext, `tools` union type, `resolveModuleTools()` helper
+- `src/module-loader.ts` — updated `createContext()` to provide new APIs, `load()` to resolve tools factory, tracked tool counts per module
+- `src/modules/secrets.ts` — refactored to use tools-as-function with `ctx.getSecret()` via closure
+- `src/tools/module-factory.ts` — updated to use `resolveModuleTools()` for type safety
+- `src/tool-adapters.ts` — updated `isKotaModule()` to accept function tools
+- `src/module-context.test.ts` (new) — 16 tests for log, getSecret, listTools, tools-as-function, resolveModuleTools
+- 7 test files — updated stubs to include new ModuleContext properties
+
+### Candidates considered
+1. **Module isolation — extend ModuleContext** ← CHOSEN. Owner's #1 concern, makes possible: "developer creates a working plugin using only ModuleContext — no core knowledge needed."
+2. **Multi-step plan execution** — Systematic decomposition with verification gates. Important for complex tasks but not foundational.
+3. **Structured data pipeline** — Purpose-built tools for CSV/JSON analysis. Useful for data work but code_exec already covers this.
+4. **Cross-session project continuity** — Auto-persist project state. Partially covered by knowledge store + conversation history.
+5. **Background task orchestration** — Parallel agent sessions. Interesting but high complexity.
+
+### Future directions
+- **Event bus on context** — Add `ctx.events` as a lifecycle-aware proxy (emit/subscribe from any hook). Requires buffering subscriptions before bus connects.
+- **Migrate more modules** — Apply the tools-as-function pattern to memory, knowledge, history, scheduler modules.
+- **Module API documentation** — Auto-generate API docs from the `ModuleContext` type for external developers.
+- **Module testing utilities** — `createTestContext()` helper so module developers don't need to manually build stubs.
+- **`ctx.createSession()`** — Factory for autonomous agent sessions, enabling modules like daemon and telegram to use the context rather than importing the loop directly.
+
 ## Iteration 548 — Restructure Evaluation Criterion to Break Feature-Factory Bias
 
 Restructured the builder's evaluation criterion and lessons to make architecture outcomes compete on equal footing with features, after verifying the iter 546 lesson-based approach failed.

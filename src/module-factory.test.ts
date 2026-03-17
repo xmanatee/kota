@@ -12,6 +12,12 @@ import {
 	saveManifest,
 	validateManifest,
 } from "./module-factory.js";
+import type { KotaModule, ToolDef } from "./module-types.js";
+
+/** Helper to get tools as array from a KotaModule. */
+function toolsOf(mod: KotaModule): ToolDef[] {
+  return Array.isArray(mod.tools) ? mod.tools : [];
+}
 
 // ─── validateManifest ─────────────────────────────────────────────────
 
@@ -160,9 +166,9 @@ describe("manifestToModule", () => {
 				code: "print('hello')",
 			}],
 		});
-		expect(mod.tools).toHaveLength(1);
-		expect(mod.tools![0].tool.name).toBe("say_hello");
-		expect(typeof mod.tools![0].runner).toBe("function");
+		expect(toolsOf(mod)).toHaveLength(1);
+		expect(toolsOf(mod)[0].tool.name).toBe("say_hello");
+		expect(typeof toolsOf(mod)[0].runner).toBe("function");
 	});
 
 	it("creates a KotaModule with prompt section", () => {
@@ -193,7 +199,7 @@ describe("manifestToModule", () => {
 				code: "print('ok')",
 			}],
 		});
-		expect(mod.tools![0].tool.input_schema.type).toBe("object");
+		expect(toolsOf(mod)[0].tool.input_schema.type).toBe("object");
 	});
 
 	it("preserves tool group assignments", () => {
@@ -206,7 +212,7 @@ describe("manifestToModule", () => {
 				group: "my-group",
 			}],
 		});
-		expect(mod.tools![0].group).toBe("my-group");
+		expect(toolsOf(mod)[0].group).toBe("my-group");
 	});
 });
 

@@ -19,6 +19,7 @@ import {
 	saveManifest,
 	validateManifest,
 } from "../module-factory.js";
+import { resolveModuleTools } from "../module-types.js";
 import type { ToolResult } from "./index.js";
 import { deregisterModuleTools, registerTool } from "./index.js";
 
@@ -131,8 +132,9 @@ function handleCreate(
 
 	// Convert to KotaModule and register tools
 	const mod = manifestToModule(manifest);
-	if (mod.tools) {
-		for (const def of mod.tools) {
+	const tools = resolveModuleTools(mod);
+	if (tools.length > 0) {
+		for (const def of tools) {
 			try {
 				registerTool(def.tool, def.runner, manifest.name);
 			} catch (err) {
@@ -157,13 +159,13 @@ function handleCreate(
 		return {
 			content:
 				`Module "${manifest.name}" created (session-only — failed to persist: ${msg}). ` +
-				`${mod.tools?.length || 0} tool(s) registered.`,
+				`${tools.length} tool(s) registered.`,
 		};
 	}
 
 	loadedManifestModules.add(manifest.name);
 
-	const toolNames = mod.tools?.map((t) => t.tool.name).join(", ") || "none";
+	const toolNames = tools.map((t) => t.tool.name).join(", ") || "none";
 	const promptNote = manifest.promptSection
 		? " Prompt section will be active on next session."
 		: "";
