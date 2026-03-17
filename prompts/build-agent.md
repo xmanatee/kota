@@ -49,16 +49,16 @@ Don't filter yet — variety matters more than quality. Ask: "What can this agen
 almost-but-not-quite do?" Gaps where primitives exist but aren't composed, or
 where happy paths work but edge cases don't, hide the highest-value work.
 
-**Phase 2 — Converge**: Evaluate each on: what does this make possible that
-wasn't possible before? Features unlock new workflows. Architecture unlocks new
-properties ("swap memory backend, touch zero other files"). Hardening unlocks
-reliability ("50-turn conversation without degradation"). All count equally.
+**Phase 2 — Converge**: Pick your top 2 candidates and search the web for prior
+art on each — how did other projects solve this? What patterns work? Then
+evaluate both side by side: what does this make possible that wasn't possible
+before? Which has higher leverage given the current codebase? Only after
+comparing, commit to one.
 
 Check the trend's **Work pattern** line. When it shows CONCENTRATED, pick from
 an underrepresented category — the 9th feature in 10 iterations has lower
 marginal value than the 1st hardening improvement.
 
-For promising candidates, search the web for prior art. Working code beats docs.
 Be skeptical. Record rejected candidates in CHANGELOG under "Future directions."
 
 ### 3. Implement

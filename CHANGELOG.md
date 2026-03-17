@@ -1,5 +1,72 @@
 # KOTA Changelog
 
+## Iteration 600 — Research-Before-Convergence in Builder Brainstorming
+
+Moved web research from afterthought to prerequisite in brainstorm Phase 2, fixing hollow diverge/converge compliance where the builder pre-decides then generates token alternatives.
+
+### Verification of iter 598 (diverge/converge brainstorming)
+
+**STRUCTURALLY EFFECTIVE, SUBSTANTIVELY HOLLOW.** The builder in iter 599
+followed the Phase 1/Phase 2 format and chose architecture (middleware),
+breaking the feature streak. But session analysis reveals the decision was
+made in the thinking block BEFORE Phase 1 was written. Phase 1 contained
+three minimum-viable stubs (7 words for "new capability"). Phase 2 evaluated
+only the pre-chosen option. Zero web searches despite prompt instruction.
+The diverge/converge labels are cosmetic; the decision process is unchanged.
+
+### What changed
+
+**`prompts/build-agent.md` — Phase 2 restructured:**
+- Research moved from end-of-section suggestion ("For promising candidates,
+  search the web") to the FIRST action in Phase 2 ("Pick your top 2 candidates
+  and search the web for prior art on each")
+- Comparative evaluation made explicit: "evaluate both side by side" and "only
+  after comparing, commit to one"
+- Net change: -1 line (98→97 lines). No prompt bloat.
+
+### Why this should work
+
+The builder's thinking block runs before tool calls. Current Phase 2 says
+"evaluate each" then later suggests research — by which point the model has
+already committed. Moving research to the START of Phase 2 means the model
+must issue web search tool calls before it can write its convergence analysis.
+This creates a genuine information injection between diverge and converge that
+can shift the pre-decision.
+
+### Candidates considered
+
+1. **Research-before-convergence** — CHOSEN. Fixes the root cause: research
+   (which could change the decision) happens after the decision is already made.
+2. **Require minimum detail per candidate** — Would increase diverge quality
+   but doesn't prevent the thinking-block pre-commitment. Stubs would get
+   longer but still be post-hoc.
+3. **Composition test coverage signal in trend** — ChainFuzzer (2603.12614)
+   found 302/365 bugs need multi-tool chains. Important but addresses a
+   different problem (what to build vs how to decide).
+4. **Clade-Metaproductivity metric** — HGM insight: measure whether iteration
+   enables future improvement. Strategic but hard to operationalize in one iter.
+5. **Integration depth metric** — Track how many existing systems a change
+   coordinates with. Good signal but requires parse-log.py changes.
+
+### Expected effects
+
+- **Research frequency**: Should increase from 0/3 to at least 2/3 recent iters
+- **Decision quality**: Research may surface better alternatives or patterns
+- **Brainstorming depth**: Comparing two researched candidates prevents
+  single-candidate tunnel vision
+- **No cost increase**: Research typically adds 2-5 calls ($0.01-0.05)
+
+### Research informing this iteration
+
+- ChainFuzzer (arXiv:2603.12614): 302/365 agent vulnerabilities require
+  multi-tool execution; single-tool testing misses composition bugs
+- HGM Clade-Metaproductivity (arXiv:2510.21614): evaluate iterations by
+  whether they enable future improvement, not just current test pass rate
+- Chroma Context Rot (2025): 15-20% accuracy degradation from position alone;
+  critical rules must be at top/bottom of prompt
+- ToolGym (arXiv:2601.06328): planning-execution misalignment in tool use;
+  models can plan correct sequences but fail at execution (and vice versa)
+
 ## Iteration 599 — Tool Middleware Pipeline
 
 Added composable middleware system for tool execution. Modules can now register pre/post hooks that wrap any tool call — enabling caching, rate limiting, audit logging, and access control without modifying individual tools.

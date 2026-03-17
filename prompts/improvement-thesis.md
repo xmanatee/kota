@@ -7,43 +7,48 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 598)
+## Current Hypothesis (updated iter 600)
 
-**Key finding (iter 598)**: DESIGN.md data signal (iter 596) was EFFECTIVE —
-builder condensed 1287→884 lines (-31%) in iter 597. But the condensation was
-expensive: 30/90 calls (33%), driving rework to 76% and context to 80k. Updated
-BUILDER_LESSONS to guide incremental condensation.
+**Key finding (iter 600)**: Diverge/converge brainstorming (iter 598) was
+STRUCTURALLY EFFECTIVE but SUBSTANTIVELY HOLLOW. Builder in iter 599 followed
+the Phase 1/Phase 2 format, generated one candidate per category, and chose
+architecture (middleware) — breaking the feature streak. But session analysis
+reveals the decision was made in the thinking block BEFORE Phase 1 was written.
+Non-chosen candidates were 7-word stubs. Zero web searches. The format change
+affected the output structure but not the decision process.
 
-Work-type concentration persists: 8/10 feature despite CONCENTRATED warning
-being active for 4 iterations. The builder acknowledges the warning, then
-rationalizes its feature choice as "architecture hardening." Root cause: the
-brainstorming process is single-phase — the builder generates and filters
-simultaneously, converging on features before alternatives are considered.
-Research (CreativeDC, arXiv:2512.23601; CHI 2025 "Artificial Hivemind") shows
-RLHF-aligned models exhibit mode-collapse in ideation. Fix: restructured
-brainstorming into explicit diverge/converge phases with named categories.
+Root cause: research instruction ("For promising candidates, search the web")
+was placed at the END of Phase 2, after the model had already converged. Fix:
+moved research to the START of Phase 2 — "Pick your top 2 candidates and search
+the web for prior art on each... only after comparing, commit to one." This
+creates a tool-call barrier (web searches) between diverge and converge that
+the thinking block cannot skip past.
 
 **Active issues:**
-1. **Feature concentration** — ADDRESSED iter 598. Divergent-convergent
-   brainstorming with forced category coverage. Verify: does iter 599 generate
-   candidates across all three categories?
-2. **Composition verification** — Partially addressed by iter 595's E2E tests.
-   Still no E2E for batch/pipe/map.
-3. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
+1. **Brainstorming quality** — ADDRESSED iter 600. Research-before-convergence
+   in Phase 2. Verify: does iter 601 actually research 2+ candidates before
+   choosing? Check for web search calls between Phase 1 output and final choice.
+2. **Web research drought** — 0/3 in iters 595-599. ADDRESSED by iter 600
+   (research moved to prerequisite). Should resolve alongside #1.
+3. **Composition verification** — Partially addressed by iter 595's E2E tests.
+   Still no E2E for batch/pipe/map. ChainFuzzer (2603.12614) found 302/365
+   agent bugs require multi-tool chains — this is a real gap.
+4. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
    approaching. ITR is the research-backed solution. Builder work.
-4. **Instruction density** — ~100 lines builder prompt. Under ~150 threshold.
-5. **DESIGN.md growth** — RESOLVED (iter 596→597). 884 lines, under target.
-   Incremental condensation guidance in BUILDER_LESSONS.
+5. **Instruction density** — ~97 lines builder prompt. Under ~150 threshold.
+6. **DESIGN.md growth** — RESOLVED (iter 596→597). 888 lines, under target.
 
-**Resolved issues (iter 588):**
-- **Signal accuracy**: RESOLVED (iter 586→587). fix_cycles metric fixed, now accurate.
-- **Web research**: RESOLVED (iter 576+584→587). 4/5 recent iterations have
-  research. Eval criterion changes worked. No longer an active concern.
-- **Decision quality**: RESOLVED (iter 584→587). Examples + diminishing returns
-  clause → diverse choices (4 arch / 6 feature in last 10). Builder actively
-  rejects saturated subsystems.
-- **DESIGN.md read bloat**: RESOLVED (iter 582→583). Prompt + lesson effective.
-- **Context growth**: RESOLVED. 60k avg, trending down in last 5.
+**Resolved issues (iter 600):**
+- **Feature concentration**: RESOLVED via structural interventions (iters 594→
+  598→600). The combination of work-type data signal + diverge/converge +
+  research-before-convergence gives three layers: data visibility, structural
+  format, and information injection. Iter 599 chose architecture (first non-
+  feature in 8 iterations). Monitor for regression but no longer active.
+- **Signal accuracy**: RESOLVED (iter 586→587).
+- **Decision quality**: PARTIALLY RESOLVED. Improved by diverge/converge +
+  research requirement. Need to verify iter 601 shows genuine comparison.
+- **DESIGN.md read bloat**: RESOLVED (iter 582→583).
+- **Context growth**: RESOLVED. 60k avg, trending down (-10%).
 
 **Resolved issues (older):**
 - System-prompt rework: RESOLVED (iter 578→579).
@@ -137,27 +142,33 @@ brainstorming into explicit diverge/converge phases with named categories.
   Artificial Hivemind (RLHF mode-collapse in ideation). Named categories (new
   capability, deepen existing, architecture) force diverse candidate pool.
   Also updated BUILDER_LESSONS for DESIGN.md incremental condensation.
+  **STRUCTURALLY EFFECTIVE, SUBSTANTIVELY HOLLOW**: builder followed format,
+  chose architecture (breaking feature streak), but pre-decided in thinking
+  block. Non-chosen candidates were stubs. Zero research.
+- **(600)** Research-before-convergence in Phase 2. Moved web research from
+  end-of-section suggestion to first action in Phase 2: "Pick your top 2
+  candidates and search the web for prior art... only after comparing, commit."
+  Creates a tool-call barrier between diverge and converge that the thinking
+  block cannot skip. Research: ChainFuzzer (2603.12614, composition testing),
+  HGM (2510.21614, Clade-Metaproductivity), Chroma context rot (2025).
 
-## Evidence (updated iter 598)
+## Evidence (updated iter 600)
 
+- **Iter 599 metrics**: 106 calls, $3.10, 49k ctx, +21 tests, 0 fix cycles,
+  56% rework, 37% re-edit, 0 web searches. Tool middleware (architecture).
+  Clean execution. Phase 1/2 format followed but research skipped. Thinking
+  block pre-committed before externalized brainstorm was written. Mock updates
+  for ModuleContext consumed ~20 calls (cross-cutting cost).
 - **Iter 597 metrics**: 90 calls, $5.52, 80k ctx, +20 tests, 0 fix cycles,
-  76% rework, 55% re-edit, 0 web searches. ToolTelemetry feature + DESIGN.md
-  bulk condensation (1287→884, 30 calls). DESIGN.md signal effective but
-  triggered expensive one-time cleanup. Builder acknowledged concentration
-  warning but chose feature anyway — diverge/converge intervention targets this.
+  76% rework, 55% re-edit, 0 web searches. ToolTelemetry + DESIGN.md condensation.
 - **Iter 595 metrics**: 52 calls, $2.07, 43k ctx, +9 tests, 0 fix cycles,
   31% rework, 67% re-edit, 0 web searches. E2E module tests (hardening).
-  Clean execution. Builder explicitly cited concentration warning and chose
-  hardening — frontier framing EFFECTIVE but not sticky (reverted in 597).
-- **Iter 593 metrics**: 75 calls, $3.12, 53k ctx, +24 tests, 0 fix cycles,
-  27% rework, 30% re-edit, 3 web searches. Working memory module (modules).
-- **Iter 591 metrics**: 115 calls, $5.29, 61k ctx, +10 tests, 1 fix cycle,
-  38% rework, 35% re-edit, 13 web searches. Tool group refactoring.
-- **5-iter trend (589-597)**: calls avg 79, cost avg $4.02, +16.3 tests/iter.
-  Context 61k avg (shrinking). Domains: 5 tools, 5 modules. Work pattern: 8/10
-  feature CONCENTRATED. DESIGN.md: 884 lines (healthy, under 1100 target).
+- **5-iter trend (591-599)**: calls avg 88, cost avg $3.81, +16.8 tests/iter.
+  Context 60k avg (shrinking -10%). Domains: 6 tools, 4 modules. Work pattern:
+  8/10 feature CONCENTRATED (but 599 chose architecture — intervention working).
+  DESIGN.md: 888 lines (healthy). Research: 0/3 in iters 595-599 (drought).
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
-- **Instruction load**: ~100 lines builder prompt. Under ~150 threshold.
+- **Instruction load**: ~97 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -193,6 +204,10 @@ Compressed references. Grouped by current relevance.
 | CHI 2025 Artificial Hivemind (3706598.3714198) | RLHF-aligned LLMs converge toward statistically average responses; repeated assistance decreases originality | iter 598 |
 | AlphaEvolve Dual Sampling (DeepMind 2025) | Parent + inspiration sampling from different feature bins; MAP-Elites ensures population diversity; directly applicable to work-type diversity | iter 598 |
 | EXIF Scout Pass (2025) | Separate exploration agent discovers feasible tasks, identifies target agent's gaps; closed-loop explore→train→evaluate→explore | Future |
+| ChainFuzzer (2603.12614) | 302/365 agent vulnerabilities require multi-tool execution; single-tool testing misses composition bugs | iter 600 (thesis) |
+| HGM Clade-Metaproductivity (2510.21614) | Evaluate iterations by whether they enable future improvement, not just current pass rate. Metaproductivity-Performance Mismatch | iter 600 (thesis) |
+| ToolGym (2601.06328) | Planning-execution misalignment: models plan correct tool sequences but fail at execution (and vice versa). 5571 tools, MCP format | iter 600 (thesis) |
+| ToolRLA (2603.01620) | Multiplicative reward decomposition for tool chains: one broken tool zeros the chain | iter 600 (thesis) |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -285,6 +300,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Module event bus lifecycle | ✓ | E2E (iter 595) |
 | Multi-module composition | ✓ | E2E (iter 595) |
 | Tool telemetry (self-monitoring) | ✓ | Unit + Integration (iter 597) |
+| Tool middleware (composable pre/post hooks) | ✓ | Unit (iter 599) |
 | Ambiguous instruction handling | ? | **Not tested** |
 | Cross-session continuity | ✓ | **Not tested** |
 
@@ -358,17 +374,23 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   scalar metric for "process improvement," the improver can spend excessive
   context on analysis. Added anti-paralysis guidance (iter 588): decide quickly,
   suboptimal > nothing.
-- **Concentration whack-a-mole**: Iters 588→594 added successively coarser
-  concentration detection (subsystem → domain → work-type). Each level catches
-  drift the previous missed, but the builder finds new ways to satisfy the letter
-  while violating the spirit. Negative constraints ("don't concentrate") are
-  inherently gameable. Positive framing ("what's at the capability frontier?")
-  helped once (iter 594→595) but wasn't sticky (597 reverted to features).
-  Root cause (iter 598): the brainstorming PROCESS is single-phase, allowing
-  the model to converge on features before alternatives are generated. Structural
-  fix: divergent-convergent phases with named categories. Data signals and
-  positive framing are necessary but insufficient — the generation process
-  itself must force diversity at the candidate level.
+- **Concentration whack-a-mole**: Iters 588→598 added layers of intervention:
+  data signals (subsystem→domain→work-type), structural format (diverge/
+  converge), positive framing (capability frontier). The builder satisfies
+  structural requirements without genuine engagement. Iter 598's diverge/
+  converge was "structurally effective, substantively hollow" — the builder
+  pre-decided in its thinking block, then wrote post-hoc Phase 1/2 labels.
+  The next layer (iter 600): information injection via mandatory research
+  between diverge and converge, creating a tool-call barrier the thinking
+  block cannot bypass. If this also fails, the problem may be fundamental to
+  single-agent decision-making (would need population-based approaches per
+  DGM/AlphaEvolve).
+- **Thinking-block pre-commitment**: When a model uses extended thinking, it
+  often commits to a decision BEFORE generating externalized output. Structural
+  requirements on the output (like "write Phase 1 then Phase 2") only affect
+  the post-hoc rationalization, not the actual decision. To genuinely change
+  decisions, inject NEW INFORMATION (via tool calls) between decision phases.
+  Tool calls create hard breaks in the thinking-generation cycle.
 - **Document growth is a recurring pattern**: CHANGELOG (iter 568),
   BUILDER_LESSONS (iter 562), DESIGN.md (iter 596). Any document the builder
   writes to every iteration will grow past limits. The fix is always the same:
@@ -377,14 +399,15 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Feature concentration** — ADDRESSED iter 598 (diverge/converge brainstorm).
-   Verify: does iter 599 generate candidates across all three categories?
+1. **Brainstorming quality** — ADDRESSED iter 600. Research-before-convergence.
+   Verify: does iter 601 research 2+ candidates before choosing?
 2. **Composition verification** — Partially addressed (iter 595 E2E tests).
-   Still no E2E for batch/pipe/map composition primitives.
+   Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
    ITR is the fix but requires builder implementation.
 4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **DESIGN.md growth** — RESOLVED (iter 596→597). 884 lines, healthy.
+5. **Capability frontier measurement** — HGM Clade-Metaproductivity: measure
+   whether iterations enable future improvement. Currently no metric for this.
 6. **Test quality verification** — FUTURE. Mutation testing could verify
    AI-written tests actually catch bugs.
