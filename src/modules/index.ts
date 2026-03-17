@@ -8,6 +8,7 @@
 
 import type { KotaModule } from "../module-types.js";
 import daemonModule from "./daemon.js";
+import historyModule from "./history.js";
 import knowledgeModule from "./knowledge.js";
 import mcpServerModule from "./mcp-server.js";
 import memoryModule from "./memory.js";
@@ -23,6 +24,7 @@ export const builtinModules: KotaModule[] = [
   secretsModule,
   memoryModule,
   knowledgeModule,
+  historyModule,
   schedulerModule,
   telegramModule,
   daemonModule,

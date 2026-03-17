@@ -49,6 +49,7 @@ const SAFE_TOOLS = new Set([
   "enable_tools",
   "files_overview",
   "memory",
+  "conversation_recall",
   "web_search",
   "get_secret",
 ]);

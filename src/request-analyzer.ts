@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
+import { type ConversationRecord, getHistory } from "./history.js";
 import { getMemoryStore, type Memory } from "./memory.js";
 
 export type PathInfo = {
@@ -14,10 +15,13 @@ export type RequestAnalysis = {
   paths: PathInfo[];
   /** Memories found by searching with extracted key terms. */
   memories: Memory[];
+  /** Past conversations matching extracted key terms. */
+  conversations: ConversationRecord[];
 };
 
 const MAX_PATHS = 5;
 const MAX_MEMORIES = 3;
+const MAX_CONVERSATIONS = 3;
 const MIN_MESSAGE_LENGTH = 20;
 
 /** Common code/config file extensions for standalone filename detection. */
@@ -141,6 +145,7 @@ export function analyzeRequest(
 
   const terms = extractSearchTerms(message);
   let memories: Memory[] = [];
+  let conversations: ConversationRecord[] = [];
   if (terms.length > 0) {
     try {
       const store = getMemoryStore();
@@ -148,10 +153,16 @@ export function analyzeRequest(
     } catch {
       // Memory store unavailable — skip
     }
+    try {
+      const history = getHistory();
+      conversations = history.list({ search: terms.join(" "), limit: MAX_CONVERSATIONS });
+    } catch {
+      // History unavailable — skip
+    }
   }
 
-  if (paths.length === 0 && memories.length === 0) return null;
-  return { paths, memories };
+  if (paths.length === 0 && memories.length === 0 && conversations.length === 0) return null;
+  return { paths, memories, conversations };
 }
 
 /**
@@ -179,6 +190,14 @@ export function formatContextHint(analysis: RequestAnalysis): string {
       return `"${snippet}"${tags}`;
     });
     parts.push(`Recalled: ${descs.join("; ")}`);
+  }
+
+  if (analysis.conversations.length > 0) {
+    const descs = analysis.conversations.map((c) => {
+      const date = c.updatedAt.slice(0, 10);
+      return `"${c.title}" (${date}, ${c.messageCount} msgs, id:${c.id})`;
+    });
+    parts.push(`Related conversations: ${descs.join("; ")}`);
   }
 
   return `\n\n[Pre-loaded context: ${parts.join(". ")}]`;

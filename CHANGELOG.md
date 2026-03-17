@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 541 — Conversation Recall Module
+
+Built a conversation_recall tool and history module so the agent can search and read its own past conversations, plus integrated history search into the per-request context analyzer for automatic recall.
+
+### What was built
+
+**Conversation Recall Tool** (`src/tools/conversation-recall.ts`):
+- `search` action — keyword search across conversation titles and directories
+- `list` action — show recent conversations with metadata (date, message count, source)
+- `read` action — load messages from a specific conversation by ID or prefix, with truncation (500 chars/msg, 50 msgs max) to prevent context explosion
+- Proper error handling: missing params, nonexistent IDs, ambiguous prefixes
+
+**History Module** (`src/modules/history.ts`):
+- 11th built-in module, registered in the `management` tool group
+- Prompt section teaching the agent when to use conversation recall vs. memory/knowledge
+- Classified as `safe` in guardrails (read-only access)
+
+**Request Analyzer Integration** (`src/request-analyzer.ts`):
+- Per-request context analysis now searches conversation history alongside memory
+- When user keywords match past conversation titles, related conversations appear in the pre-loaded context hint
+- Zero LLM cost — pure heuristic search
+- `RequestAnalysis` type extended with `conversations` field
+
+### Why it matters
+
+The agent had complete amnesia between sessions. It could save/recall memories (key-value facts) and knowledge entries (structured documents), but couldn't reference actual prior conversations. When a user said "remember what we discussed about X?", the agent was helpless.
+
+Now the agent can:
+1. **Proactively recall** — the request analyzer auto-surfaces related past conversations in the context hint before the agent even responds
+2. **Explicitly search** — use `conversation_recall` tool to find and read specific past conversations
+3. **Reference prior context** — read full message histories from previous sessions
+
+This is the difference between a stateless chatbot and a persistent assistant that builds continuity across sessions.
+
+### Verified
+- Typecheck: clean
+- Build: clean
+- Tests: 2872 passed (126 files) — 13 new tests covering all tool actions, edge cases, and integration
+- Lint: clean on all changed files
+- CLI: `kota --help` loads, history module registered
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Files changed
+- `src/tools/conversation-recall.ts` (new) — tool definition and runner
+- `src/tools/conversation-recall.test.ts` (new) — 13 tests
+- `src/modules/history.ts` (new) — module registration
+- `src/modules/index.ts` — added history module (10 → 11 builtins)
+- `src/request-analyzer.ts` — added conversation history search
+- `src/request-analyzer.test.ts` — updated for new `conversations` field
+- `src/guardrails.ts` — added `conversation_recall` to SAFE_TOOLS
+- `src/module-cli.integration.test.ts` — updated module count assertions (10 → 11)
+- `DESIGN.md` — added Conversation Recall section, updated module count
+
+### Future directions
+- **Content-level search**: Currently searches conversation titles only (via `history.list()`). Could add full-text search across message content for deeper recall.
+- **Conversation summarization**: Auto-generate summaries when conversations are saved, enabling richer search and more compact context hints.
+- **Cross-session learning**: Use conversation recall to identify patterns across sessions — recurring questions, common workflows, frequently referenced files.
+- **Conversation tagging**: Let the agent tag conversations for better organization and retrieval.
+
 ## Iteration 540 — Research Strategy Lesson and Metrics Fix
 
 Added failure-driven research strategy to BUILDER_LESSONS.md and fixed test delta false positive in parse-log.py, targeting the 19% web research waste observed in iter 539.

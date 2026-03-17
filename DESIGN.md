@@ -112,7 +112,7 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Loading modes**: `ModuleLoader` supports `commandsOnly` mode that skips tool registration and `onLoad` hooks — used by the CLI for command discovery without side effects. Agent sessions use full mode for tool and event registration.
 
-**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 10 modules: `secrets`, `memory`, `knowledge`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`, `mcp-server`.
+**Built-in modules** (`src/modules/index.ts`): Ship with KOTA, loaded at session startup. 11 modules: `secrets`, `memory`, `knowledge`, `history`, `scheduler`, `telegram`, `daemon`, `vercel-adapter`, `web`, `registry`, `mcp-server`.
 
 **Module isolation**: Modules interact with the core and each other only through `ModuleContext` — no direct imports between modules. The web module discovers vercel-adapter routes via `ctx.getRoutes()` rather than importing the vercel-adapter module.
 
@@ -320,6 +320,25 @@ Provider-based credential management with automatic output masking. Prevents sec
 **CLI**: `kota secrets set|get|list|remove` with `--global`/`--project` scope flags. `set` prompts for the value interactively (never accepts secrets as CLI arguments).
 
 **Singleton**: `initSecretStore(cwd)` / `getSecretStore()` / `resetSecretStore()` — same pattern as TaskStore and Scheduler.
+
+### Conversation Recall (`src/tools/conversation-recall.ts`, `src/modules/history.ts`)
+
+Gives the agent access to its own conversation history — search, list, and read past conversations. Transforms the agent from having amnesia between sessions to being able to reference prior interactions.
+
+**Agent tool**: `conversation_recall` with three actions:
+- `search` — keyword search across conversation titles and directories
+- `list` — show recent conversations with metadata (date, message count, source)
+- `read` — load messages from a specific conversation by ID or prefix
+
+**History module** (`src/modules/history.ts`): Built-in module registering the tool in the `management` group. Prompt section teaches the agent when to use conversation recall vs. memory/knowledge.
+
+**Request analyzer integration** (`src/request-analyzer.ts`): Per-request context analysis now searches conversation history alongside memory. When a user's message contains keywords that match past conversation titles, the relevant conversations are surfaced in the pre-loaded context hint — giving the agent immediate awareness of related prior discussions at zero LLM cost.
+
+**Design decisions**:
+- Read-only: the agent can search and read but not modify or delete conversations. History management stays in the CLI (`kota history delete/clear`).
+- Classified as `safe` in guardrails — pure read-only access to local data.
+- Messages truncated to 500 chars each, max 50 messages per read — prevents context explosion when reading long conversations.
+- Builds on existing `ConversationHistory` infrastructure (iter 525+) — no new storage layer needed.
 
 ### HTTP API Server (`src/server.ts`)
 

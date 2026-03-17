@@ -179,6 +179,7 @@ describe("formatContextHint", () => {
         { path: "src/foo.ts", type: "file", sizeKB: 4, estimatedLines: 89 },
       ],
       memories: [],
+      conversations: [],
     };
     const hint = formatContextHint(analysis);
     expect(hint).toContain("src/foo.ts");
@@ -191,6 +192,7 @@ describe("formatContextHint", () => {
     const analysis: RequestAnalysis = {
       paths: [{ path: "src/tools", type: "dir", sizeKB: 0 }],
       memories: [],
+      conversations: [],
     };
     const hint = formatContextHint(analysis);
     expect(hint).toContain("src/tools (dir)");
@@ -207,6 +209,7 @@ describe("formatContextHint", () => {
           created: "2025-03-01",
         },
       ],
+      conversations: [],
     };
     const hint = formatContextHint(analysis);
     expect(hint).toContain("user prefers TypeScript");
@@ -226,6 +229,7 @@ describe("formatContextHint", () => {
           created: "2025-03-01",
         },
       ],
+      conversations: [],
     };
     const hint = formatContextHint(analysis);
     expect(hint).toContain("src/bar.ts");
@@ -239,6 +243,7 @@ describe("formatContextHint", () => {
       memories: [
         { id: "xyz", content: longContent, tags: [], created: "2025-03-01" },
       ],
+      conversations: [],
     };
     const hint = formatContextHint(analysis);
     expect(hint).toContain("…");
@@ -262,6 +267,7 @@ describe("formatContextHint", () => {
           created: "2025-03-01",
         },
       ],
+      conversations: [],
     };
     const hint = formatContextHint(analysis);
     expect(hint).toContain("first memory");
