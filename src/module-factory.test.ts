@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	deleteManifest,
 	discoverManifestModules,
+	evaluateCondition,
 	getFieldByPath,
 	listManifestModules,
 	loadManifest,
@@ -245,6 +246,28 @@ describe("validateManifest", () => {
 		expect(errors.some((e) => e.field.includes("steps[0]"))).toBe(true);
 	});
 
+	it("accepts steps with string if field", () => {
+		const errors = validateManifest({
+			name: "cond-mod",
+			eventHandlers: [{
+				event: "test.event",
+				steps: [{ tool: "shell", if: "$prev.status == ok" }],
+			}],
+		});
+		expect(errors).toHaveLength(0);
+	});
+
+	it("rejects steps with non-string if field", () => {
+		const errors = validateManifest({
+			name: "cond-mod",
+			eventHandlers: [{
+				event: "test.event",
+				steps: [{ tool: "shell", if: 42 }],
+			}],
+		});
+		expect(errors.some((e) => e.field.includes("if"))).toBe(true);
+	});
+
 	it("accepts steps without input (no-arg tool call)", () => {
 		const errors = validateManifest({
 			name: "step-mod",
@@ -351,6 +374,33 @@ describe("validateManifest", () => {
 			scripts: { "bad-entry": "not-object" },
 		});
 		expect(errors.some((e) => e.field === "scripts.bad-entry")).toBe(true);
+	});
+
+	it("accepts script steps with if conditions", () => {
+		const errors = validateManifest({
+			name: "cond-script",
+			scripts: {
+				"check-and-notify": {
+					steps: [
+						{ tool: "shell", input: { command: "echo ok" } },
+						{ tool: "notify", input: { message: "done" }, if: "$prev == ok" },
+					],
+				},
+			},
+		});
+		expect(errors).toHaveLength(0);
+	});
+
+	it("rejects script steps with non-string if", () => {
+		const errors = validateManifest({
+			name: "cond-script",
+			scripts: {
+				"bad-if": {
+					steps: [{ tool: "shell", if: true }],
+				},
+			},
+		});
+		expect(errors.some((e) => e.field.includes("if"))).toBe(true);
 	});
 });
 
@@ -1009,5 +1059,175 @@ describe("resolveRef", () => {
 	it("handles out-of-bounds $steps[N]", () => {
 		const r = resolveRef("$steps[99]", "", {}, ["only-one"]);
 		expect(r).toEqual({ hit: true, value: "" });
+	});
+});
+
+// ─── evaluateCondition ───────────────────────────────────────────────
+
+describe("evaluateCondition", () => {
+	it("returns true for empty expression", () => {
+		expect(evaluateCondition("", "", {}, [])).toBe(true);
+		expect(evaluateCondition("  ", "", {}, [])).toBe(true);
+	});
+
+	it("bare $prev — truthy when non-empty", () => {
+		expect(evaluateCondition("$prev", "hello", {}, [])).toBe(true);
+	});
+
+	it("bare $prev — falsy when empty", () => {
+		expect(evaluateCondition("$prev", "", {}, [])).toBe(false);
+	});
+
+	it("bare $prev.field — truthy when field exists", () => {
+		expect(evaluateCondition("$prev.name", '{"name":"Alice"}', {}, [])).toBe(true);
+	});
+
+	it("bare $prev.field — falsy when field missing", () => {
+		expect(evaluateCondition("$prev.missing", '{"name":"Alice"}', {}, [])).toBe(false);
+	});
+
+	it("== comparison with string values", () => {
+		expect(evaluateCondition("$prev.status == ok", '{"status":"ok"}', {}, [])).toBe(true);
+		expect(evaluateCondition("$prev.status == fail", '{"status":"ok"}', {}, [])).toBe(false);
+	});
+
+	it("!= comparison", () => {
+		expect(evaluateCondition("$prev.status != error", '{"status":"ok"}', {}, [])).toBe(true);
+		expect(evaluateCondition("$prev.status != ok", '{"status":"ok"}', {}, [])).toBe(false);
+	});
+
+	it("> comparison with numeric values", () => {
+		expect(evaluateCondition("$prev.count > 0", '{"count":5}', {}, [])).toBe(true);
+		expect(evaluateCondition("$prev.count > 10", '{"count":5}', {}, [])).toBe(false);
+	});
+
+	it("< comparison", () => {
+		expect(evaluateCondition("$prev.count < 10", '{"count":5}', {}, [])).toBe(true);
+		expect(evaluateCondition("$prev.count < 3", '{"count":5}', {}, [])).toBe(false);
+	});
+
+	it(">= and <= comparisons", () => {
+		expect(evaluateCondition("$prev.count >= 5", '{"count":5}', {}, [])).toBe(true);
+		expect(evaluateCondition("$prev.count <= 5", '{"count":5}', {}, [])).toBe(true);
+		expect(evaluateCondition("$prev.count >= 6", '{"count":5}', {}, [])).toBe(false);
+	});
+
+	it("$steps[N] reference in condition", () => {
+		expect(evaluateCondition("$steps[0].ok == true", "", {}, ['{"ok":"true"}'])).toBe(true);
+	});
+
+	it("$payload reference in condition", () => {
+		expect(evaluateCondition("$payload.mode == fast", "", { mode: "fast" }, [])).toBe(true);
+	});
+
+	it("falsy values: 'false', '0', null, undefined", () => {
+		expect(evaluateCondition("$prev", "false", {}, [])).toBe(false);
+		expect(evaluateCondition("$prev", "0", {}, [])).toBe(false);
+		expect(evaluateCondition("$prev.x", '{"y":1}', {}, [])).toBe(false);
+	});
+});
+
+// ─── runModuleScript with conditional steps ──────────────────────────
+
+describe("runModuleScript conditional steps", () => {
+	beforeEach(() => {
+		mockExecute.mockReset();
+	});
+
+	it("skips step when if condition is false", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: '{"status":"error"}' })
+			.mockResolvedValueOnce({ content: "fallback-done" });
+
+		const result = await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "web_fetch", input: { url: "https://api.test" } },
+				{ tool: "notify", input: { message: "success" }, if: "$prev.status == ok" },
+				{ tool: "notify", input: { message: "fallback" }, if: "$prev.status == error" },
+			],
+		});
+
+		expect(result.content).toBe("fallback-done");
+		expect(mockExecute).toHaveBeenCalledTimes(2);
+		// Step 2 (notify success) was skipped; step 3 executed
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "notify", { message: "fallback" });
+	});
+
+	it("executes step when if condition is true", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: '{"count":5}' })
+			.mockResolvedValueOnce({ content: "notified" });
+
+		const result = await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo json" } },
+				{ tool: "notify", input: { message: "items found" }, if: "$prev.count > 0" },
+			],
+		});
+
+		expect(result.content).toBe("notified");
+		expect(mockExecute).toHaveBeenCalledTimes(2);
+	});
+
+	it("skipped step produces empty $steps[N] output", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: "first" })
+			.mockResolvedValueOnce({ content: "third" });
+
+		await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo first" } },
+				{ tool: "shell", input: { command: "skipped" }, if: "$prev == nope" },
+				{ tool: "notify", input: { message: "$steps[1]" } },
+			],
+		});
+
+		// Step 2 was skipped, so $steps[1] is ""
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "notify", { message: "" });
+	});
+
+	it("skipped step does not update $prev", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: "original" })
+			.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo original" } },
+				{ tool: "shell", input: { command: "skipped" }, if: "$prev == nope" },
+				{ tool: "notify", input: { message: "$prev" } },
+			],
+		});
+
+		// $prev should still be "original" since step 2 was skipped
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "notify", { message: "original" });
+	});
+
+	it("steps without if always execute", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: "a" })
+			.mockResolvedValueOnce({ content: "b" });
+
+		const result = await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo a" } },
+				{ tool: "shell", input: { command: "echo b" } },
+			],
+		});
+
+		expect(result.content).toBe("b");
+		expect(mockExecute).toHaveBeenCalledTimes(2);
+	});
+
+	it("all steps skipped returns last prevContent", async () => {
+		const result = await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", if: "$prev == never" },
+			],
+		});
+
+		// $prev starts as "" which doesn't match, step skipped, returns ""
+		expect(result.content).toBe("");
+		expect(mockExecute).not.toHaveBeenCalled();
 	});
 });

@@ -48,6 +48,13 @@ export type ManifestStepDef = {
 	 * - "text {{$prev.field}} more" → inline template interpolation
 	 */
 	input?: Record<string, unknown>;
+	/**
+	 * Guard condition — step is skipped when this evaluates to falsy.
+	 * Supports references ($prev, $steps[N], $payload) with .field access,
+	 * comparisons (==, !=, >, <, >=, <=), and bare truthiness checks.
+	 * Examples: "$prev.status == ok", "$steps[0].count > 0", "$prev"
+	 */
+	if?: string;
 };
 
 export type ManifestEventHandler = {
@@ -272,6 +279,9 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 						if (s.input !== undefined && (typeof s.input !== "object" || s.input === null || Array.isArray(s.input))) {
 							errors.push({ field: `${sp}.input`, message: "step input must be an object" });
 						}
+						if (s.if !== undefined && typeof s.if !== "string") {
+							errors.push({ field: `${sp}.if`, message: "step if must be a string" });
+						}
 					}
 				}
 			}
@@ -309,6 +319,9 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 						}
 						if (s.input !== undefined && (typeof s.input !== "object" || s.input === null || Array.isArray(s.input))) {
 							errors.push({ field: `${sp}.input`, message: "step input must be an object" });
+						}
+						if (s.if !== undefined && typeof s.if !== "string") {
+							errors.push({ field: `${sp}.if`, message: "step if must be a string" });
 						}
 					}
 				}
@@ -459,6 +472,69 @@ function runEventHandler(
 	);
 }
 
+// ─── Conditional step evaluation ─────────────────────────────────────
+
+const COMPARISON_RE = /^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/;
+
+function resolveValue(
+	expr: string,
+	prevContent: string,
+	payload: Record<string, unknown>,
+	allOutputs: string[],
+): unknown {
+	const ref = resolveRef(expr, prevContent, payload, allOutputs);
+	if (ref.hit) return ref.value;
+	return expr;
+}
+
+function isTruthy(value: unknown): boolean {
+	if (value === null || value === undefined) return false;
+	if (value === "" || value === "false" || value === "0") return false;
+	if (value === false || value === 0) return false;
+	return true;
+}
+
+function compareValues(left: unknown, right: unknown, op: string): boolean {
+	const lStr = String(left);
+	const rStr = String(right);
+	const lNum = Number(left);
+	const rNum = Number(right);
+	const numeric = left !== "" && right !== "" && !Number.isNaN(lNum) && !Number.isNaN(rNum);
+
+	switch (op) {
+		case "==": return lStr === rStr;
+		case "!=": return lStr !== rStr;
+		case ">": return numeric ? lNum > rNum : lStr > rStr;
+		case "<": return numeric ? lNum < rNum : lStr < rStr;
+		case ">=": return numeric ? lNum >= rNum : lStr >= rStr;
+		case "<=": return numeric ? lNum <= rNum : lStr <= rStr;
+		default: return false;
+	}
+}
+
+/**
+ * Evaluate a guard condition expression.
+ * Returns true if the step should execute, false if it should be skipped.
+ */
+export function evaluateCondition(
+	expr: string,
+	prevContent: string,
+	payload: Record<string, unknown>,
+	allOutputs: string[],
+): boolean {
+	const trimmed = expr.trim();
+	if (!trimmed) return true;
+
+	const m = COMPARISON_RE.exec(trimmed);
+	if (m) {
+		const left = resolveValue(m[1].trim(), prevContent, payload, allOutputs);
+		const right = resolveValue(m[3].trim(), prevContent, payload, allOutputs);
+		return compareValues(left, right, m[2]);
+	}
+
+	return isTruthy(resolveValue(trimmed, prevContent, payload, allOutputs));
+}
+
 // ─── Step-based event handlers ───────────────────────────────────────
 
 // ─── Step input resolution helpers ───────────────────────────────────
@@ -586,6 +662,10 @@ function runStepHandler(
 		let prevContent = "";
 		const allOutputs: string[] = [];
 		for (const step of steps) {
+			if (step.if && !evaluateCondition(step.if, prevContent, payload, allOutputs)) {
+				allOutputs.push("");
+				continue;
+			}
 			const input = resolveStepInput(step.input, prevContent, payload, allOutputs);
 			try {
 				const result = await executeTool(step.tool, input);
@@ -630,6 +710,10 @@ export async function runModuleScript(
 	const allOutputs: string[] = [];
 	for (let i = 0; i < steps.length; i++) {
 		const step = steps[i];
+		if (step.if && !evaluateCondition(step.if, prevContent, args, allOutputs)) {
+			allOutputs.push("");
+			continue;
+		}
 		const input = resolveStepInput(step.input, prevContent, args, allOutputs);
 		try {
 			const result = await executeTool(step.tool, input);

@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 579 — Conditional steps: guard-style `if` field for script/event-handler branching
+
+Added `if` field to ManifestStepDef — steps can be conditionally skipped based on previous outputs, enabling branching logic in scripts and event handlers without code.
+
+### What changed
+- `ManifestStepDef.if` — optional guard condition string evaluated via `evaluateCondition()`
+- `evaluateCondition()` — expression evaluator supporting bare truthiness, comparisons (==, !=, >, <, >=, <=), and all existing references ($prev, $steps[N], $payload with .field access)
+- `runModuleScript` / `runStepHandler` — skip steps when `if` evaluates falsy; skipped steps produce empty output, don't update $prev
+- Validation for `if` field in both event handler and script step validators
+- System prompt, DESIGN.md updated with conditional step docs
+
+### Candidates considered
+- Conditional steps (guard-style `if`) — CHOSEN. Most common pattern across workflow engines (GitHub Actions, Argo). Flat step list, no nesting/convergence issues.
+- For-each iteration over arrays — high impact but more complex; better as follow-up
+- Step timeout/retry — resilience feature, lower capability gain
+- Switch/match multi-way branching — overkill for flat step lists; `if` guards cover most cases
+- Module templates — reduces creation friction but doesn't enable new workflows
+
+### Verification
+typecheck ✓ | build ✓ | 3269 tests (3246→3269, +23) ✓ | lint ✓ | load ✓ | runtime SKIP (no key)
+
+### Future directions
+- For-each iteration in steps (loop over arrays from step results)
+- Logical operators in conditions (&&, ||, !) for compound guards
+- Step timeout/retry configuration
+
 ## Iteration 578 — Fix system-prompt rework and outdated DESIGN.md read restriction
 
 Eliminated two sources of builder inefficiency: system-prompt char budget trim loops (20% of iter 577) and a factually wrong DESIGN.md read restriction that was silently ignored every iteration.

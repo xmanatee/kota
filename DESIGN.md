@@ -401,7 +401,8 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
     "event": "schedule.fire",
     "steps": [
       { "tool": "web_fetch", "input": { "url": "https://api.example.com/data" } },
-      { "tool": "knowledge", "input": { "action": "create", "title": "Fetched data", "content": "$prev" } }
+      { "tool": "notify", "input": { "message": "fetch failed" }, "if": "$prev.error" },
+      { "tool": "knowledge", "input": { "action": "create", "title": "Fetched data", "content": "$prev" }, "if": "$prev.error != true" }
     ]
   }],
   "scripts": {
@@ -434,6 +435,11 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 - `$prev.field.path` / `$steps[N].field.path` — JSON field extraction via dot-path
 - `$payload.field.path` — direct field access on payload object
 - `"text {{$prev.field}} more {{$steps[0].name}}"` — inline template interpolation
+
+**Conditional steps** (`if` field): Any step can have an optional `if` guard — a condition expression that determines whether the step executes. If the condition evaluates to falsy, the step is skipped (output is `""`, `$prev` unchanged). Supports:
+- Bare truthiness: `"$prev"`, `"$prev.status"` — truthy if non-empty, non-null, non-`"false"`, non-`"0"`
+- Comparisons: `"$prev.status == ok"`, `"$steps[0].count > 0"`, `"$payload.mode != debug"`
+- Operators: `==`, `!=`, `>`, `<`, `>=`, `<=` (numeric when both sides parse as numbers, string otherwise)
 
 Code and steps are mutually exclusive per handler. Handlers run asynchronously; errors are logged but never crash the bus.
 
