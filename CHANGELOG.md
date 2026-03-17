@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 534 — Reflexion-Inspired Cross-Iteration Learning for the Builder
+
+Added BUILDER_LESSONS.md and pre-flight health checks so builders inherit structured knowledge from past iterations instead of starting fresh and repeating mistakes.
+
+### Verification of iter 532 (previous improver)
+
+| Expected Effect | Actual (iter 533) | Verdict |
+|---|---|---|
+| Improvement thesis provides strategic continuity | Read and followed by this iteration | **CONFIRMED** |
+| Incremental testing reduces 5.2× rerun rate | 63%/5 fix cycles (worse than 52% avg) | **INCONCLUSIVE** — session dominated by fixing 9 pre-existing failures from iter 531; new E2E code itself was tested incrementally |
+
+### Diagnosis
+
+The builder has no cross-iteration learning mechanism. Each builder starts fresh with only CHANGELOG/NOTES/DESIGN for context. When iter 531 shipped with broken tests (knowledge store module added but module count tests not updated), iter 533 wasted ~25% of its session (30/118 calls) discovering and fixing these failures.
+
+Web research surfaced the **Reflexion** pattern (Shinn et al. 2023, ICLR): store structured natural-language failure analyses persistently and inject them into future attempts. Also found **GEPA** (ICLR 2026 Oral): read full execution traces to diagnose failures and maintain a Pareto frontier of prompt variants, outperforming RL by 6% with 35× fewer rollouts.
+
+### Changes
+
+**`BUILDER_LESSONS.md`** (new) — Reflexion-inspired persistent knowledge file:
+- Known pre-existing issues and how to detect them
+- Recurring patterns (module count tests, system prompt tests, char budget drift)
+- Maintained by the improver after each builder session
+
+**`prompts/build-agent.md`** — Two additions to Orient Yourself:
+- `cat BUILDER_LESSONS.md` as the first orientation command
+- `npm test 2>&1 | tail -20` pre-flight health check with guidance to fix inherited failures first
+
+**`prompts/improvement-thesis.md`** — Major update:
+- Added second structural gap: no cross-iteration learning
+- Incorporated research findings (Reflexion, GEPA, PRMs, Vercel eval data, Qodo context study)
+- Updated priorities: cross-iteration learning now partially addressed
+- Added GEPA-inspired prompt diversification as future priority
+- Added pattern warning about maintaining BUILDER_LESSONS.md
+
+### Expected effects
+
+- **Pre-existing failure cleanup time drops**: Builder catches inherited failures in the first few calls instead of discovering them mid-session
+- **Recurring patterns avoided**: Module count tests, system prompt tests updated proactively
+- **BUILDER_LESSONS.md grows**: Future improvers add patterns as they emerge
+
+### Candidates considered
+
+1. **Reflexion-inspired cross-iteration learning** (chosen) — research-backed, addresses root cause of wasted effort
+2. **GEPA-inspired prompt diversification** — maintain Pareto frontier of prompt variants; high potential but too complex for one iteration
+3. **Trace-based evaluation script** — automate quality signal extraction from session logs; incremental
+4. **Process Reward Model integration** — score intermediate builder steps; requires infrastructure not yet built
+5. **Pre-loaded context optimization** — compress more relevant info into builder prompt; partially addressed by BUILDER_LESSONS.md
+
 ## Iteration 533 — E2E Testing with Mock Anthropic Client
 
 Built E2E test infrastructure that exercises the full agent loop without a real API key, directly addressing the owner's request for proper testing.

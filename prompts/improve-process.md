@@ -48,6 +48,8 @@ Before doing anything, understand what happened. You have full shell access:
 - `cat prompts/improvement-thesis.md` — **read this first**. Persistent
   strategic context: current hypothesis, evidence, capability assessment,
   pattern warnings. Update it when your analysis changes the picture.
+- `cat BUILDER_LESSONS.md` — current lessons file for the builder. You maintain
+  this — review it for staleness and update after analyzing builder sessions.
 - `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
 - `git log --oneline -20` — recent iteration history
 - `tail -100 CHANGELOG.md` — recent entries with context
@@ -133,6 +135,9 @@ or process reliability.
    and verification verdicts from step 1.
 6. **Update thesis**: If your analysis changed the strategic picture, update
    `prompts/improvement-thesis.md` — hypothesis, evidence, priorities.
+7. **Update builder lessons**: Review the last builder session for new recurring
+   patterns, known issues, or lessons. Update `BUILDER_LESSONS.md` so the next
+   builder benefits. Remove stale entries that no longer apply.
 
 ## Decision-Making
 

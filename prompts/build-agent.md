@@ -33,6 +33,11 @@ entire identity.
 ## Orient Yourself
 
 Before doing anything, understand what exists. You have full shell access:
+- `cat BUILDER_LESSONS.md` — patterns and lessons from recent iterations
+  (maintained by the improver). Read this first to avoid repeating past mistakes.
+- `npm test 2>&1 | tail -20` — verify the codebase is healthy. If tests fail,
+  fix them before starting new work. Inherited failures are common and cheaper
+  to fix early.
 - `cat NOTES.md` — owner suggestions (`b:` = for you). One input among many.
 - `git log --oneline -20` — what's been built recently
 - `tail -100 CHANGELOG.md` — recent entries with context
