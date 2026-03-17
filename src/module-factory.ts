@@ -52,6 +52,14 @@ export type ManifestEventHandler = {
 	steps?: ManifestStepDef[];
 };
 
+/** A named, on-demand sequence of tool calls that a module exposes. */
+export type ManifestScriptDef = {
+	/** Human-readable description of what the script does. */
+	description?: string;
+	/** Sequential tool invocations. Each step's output feeds into the next via "$prev". */
+	steps: ManifestStepDef[];
+};
+
 export type ModuleManifest = {
 	name: string;
 	version?: string;
@@ -61,6 +69,8 @@ export type ModuleManifest = {
 	dependencies?: string[];
 	/** Event handlers — subscribe to bus events and run code when they fire. */
 	eventHandlers?: ManifestEventHandler[];
+	/** Named scripts — reusable tool-call sequences invokable on demand. */
+	scripts?: Record<string, ManifestScriptDef>;
 };
 
 // ─── Validation ──────────────────────────────────────────────────────
@@ -242,6 +252,44 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 				if (Array.isArray(h.steps)) {
 					for (let j = 0; j < h.steps.length; j++) {
 						const s = h.steps[j] as Record<string, unknown>;
+						const sp = `${prefix}.steps[${j}]`;
+						if (!s || typeof s !== "object") {
+							errors.push({ field: sp, message: "each step must be an object" });
+							continue;
+						}
+						if (typeof s.tool !== "string" || !s.tool) {
+							errors.push({ field: `${sp}.tool`, message: "step tool name is required" });
+						}
+						if (s.input !== undefined && (typeof s.input !== "object" || s.input === null || Array.isArray(s.input))) {
+							errors.push({ field: `${sp}.input`, message: "step input must be an object" });
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// scripts
+	if (m.scripts !== undefined) {
+		if (typeof m.scripts !== "object" || m.scripts === null || Array.isArray(m.scripts)) {
+			errors.push({ field: "scripts", message: "scripts must be an object" });
+		} else {
+			const scriptNameRe = /^[a-z][a-z0-9_-]{0,48}[a-z0-9]$/;
+			for (const [sName, sDef] of Object.entries(m.scripts as Record<string, unknown>)) {
+				const prefix = `scripts.${sName}`;
+				if (!scriptNameRe.test(sName)) {
+					errors.push({ field: prefix, message: "script name must be 2-50 chars, lowercase letters/digits/hyphens/underscores" });
+				}
+				if (!sDef || typeof sDef !== "object" || Array.isArray(sDef)) {
+					errors.push({ field: prefix, message: "each script must be an object" });
+					continue;
+				}
+				const sd = sDef as Record<string, unknown>;
+				if (!Array.isArray(sd.steps) || sd.steps.length === 0) {
+					errors.push({ field: `${prefix}.steps`, message: "script must have at least one step" });
+				} else {
+					for (let j = 0; j < sd.steps.length; j++) {
+						const s = sd.steps[j] as Record<string, unknown>;
 						const sp = `${prefix}.steps[${j}]`;
 						if (!s || typeof s !== "object") {
 							errors.push({ field: sp, message: "each step must be an object" });
@@ -463,6 +511,48 @@ function runStepHandler(
 			}
 		}
 	})();
+}
+
+// ─── Script execution ────────────────────────────────────────────────
+
+/**
+ * Execute a named module script — sequential tool invocations, awaitable.
+ * Returns the final step's ToolResult, or an error result if any step fails.
+ * `args` is passed as the payload for "$payload" substitution in step inputs.
+ */
+export async function runModuleScript(
+	_moduleName: string,
+	script: ManifestScriptDef,
+	args: Record<string, unknown> = {},
+): Promise<ToolResult> {
+	const { steps } = script;
+	if (!steps || steps.length === 0) {
+		return { content: "Script has no steps", is_error: true };
+	}
+
+	let prevContent = "";
+	for (let i = 0; i < steps.length; i++) {
+		const step = steps[i];
+		const input = resolveStepInput(step.input, prevContent, args);
+		try {
+			const result = await executeTool(step.tool, input);
+			if (result.is_error) {
+				return {
+					content: `Step ${i + 1}/${steps.length} ("${step.tool}") failed: ${result.content}`,
+					is_error: true,
+				};
+			}
+			prevContent = result.content;
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			return {
+				content: `Step ${i + 1}/${steps.length} ("${step.tool}") threw: ${msg}`,
+				is_error: true,
+			};
+		}
+	}
+
+	return { content: prevContent };
 }
 
 // ─── Persistence ─────────────────────────────────────────────────────

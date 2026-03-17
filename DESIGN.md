@@ -404,12 +404,21 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
       { "tool": "knowledge", "input": { "action": "create", "title": "Fetched data", "content": "$prev" } }
     ]
   }],
+  "scripts": {
+    "refresh": {
+      "description": "Fetch and store latest data",
+      "steps": [
+        { "tool": "web_fetch", "input": { "url": "https://api.example.com/data" } },
+        { "tool": "notify", "input": { "message": "Data refreshed: $prev" } }
+      ]
+    }
+  },
   "promptSection": "Use get_weather to look up weather.",
   "dependencies": []
 }
 ```
 
-**Actions**: `create` (define module from manifest), `list` (show custom modules), `remove` (unload and delete), `info` (show details).
+**Actions**: `create` (define module from manifest), `list` (show custom modules), `remove` (unload and delete), `info` (show details), `run` (execute a named script).
 
 **Persistence**: Manifests are saved to `.kota/modules/<name>/manifest.json`. This is the same directory used by `ModuleStorage`, so module definition and module data live together. Manifests are auto-discovered on startup via `discoverManifestModules()` in `plugin-loader.ts`.
 
@@ -420,6 +429,22 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 - **Step-based** (`steps` field): Executes a sequence of KOTA tool calls via `executeTool()`. Each step specifies a `tool` name and optional `input`. Steps run sequentially; the previous step's output is available as `"$prev"` in the next step's input, and the event payload as `"$payload"`. Stops on first error. Good for composing existing tools into workflows without writing code.
 
 Code and steps are mutually exclusive per handler. Handlers run asynchronously; errors are logged but never crash the bus.
+
+**Scripts**: Named, on-demand tool-call sequences defined in the manifest's `scripts` field. Unlike event handlers (reactive, fire-and-forget), scripts are invoked explicitly via `module_factory(action:"run", name, script, args?)` and return the final step's result. Use the same step resolution (`$prev`, `$payload`) as event handler steps. `args` maps to `$payload` for parameter passing. Example manifest with scripts:
+```json
+{
+  "name": "ops",
+  "scripts": {
+    "daily-check": {
+      "description": "Fetch status page and store result",
+      "steps": [
+        { "tool": "web_fetch", "input": { "url": "https://status.example.com" } },
+        { "tool": "knowledge", "input": { "action": "create", "title": "Status check", "content": "$prev" } }
+      ]
+    }
+  }
+}
+```
 
 **Hot-loading**: When a module is created, its tools are immediately registered via `registerTool()` with module-name ownership tracking. Prompt sections take effect on next session startup (the system prompt is already built for the current session).
 

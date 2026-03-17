@@ -163,6 +163,70 @@ describe("runModuleFactory — unknown action", () => {
 	});
 });
 
+describe("runModuleFactory — run", () => {
+	it("rejects missing name", async () => {
+		const result = await runModuleFactory({ action: "run", script: "go" });
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("name is required");
+	});
+
+	it("rejects missing script", async () => {
+		const result = await runModuleFactory({ action: "run", name: "test-mod" });
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("script is required");
+	});
+
+	it("rejects unknown module", async () => {
+		const result = await runModuleFactory({ action: "run", name: "nope", script: "go" });
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("no custom module");
+	});
+
+	it("rejects module with no scripts", async () => {
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
+		const result = await runModuleFactory({ action: "run", name: "test-mod", script: "go" });
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("has no scripts");
+	});
+
+	it("rejects unknown script name", async () => {
+		await runModuleFactory({
+			action: "create",
+			manifest: {
+				name: "scripted-mod",
+				scripts: {
+					check: { steps: [{ tool: "shell", input: { command: "echo ok" } }] },
+				},
+			},
+		});
+		const result = await runModuleFactory({
+			action: "run", name: "scripted-mod", script: "unknown",
+		});
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("no script");
+		expect(result.content).toContain("check"); // shows available scripts
+	});
+
+	it("shows scripts in info output", async () => {
+		await runModuleFactory({
+			action: "create",
+			manifest: {
+				name: "scripted-mod",
+				scripts: {
+					deploy: {
+						description: "Deploy to prod",
+						steps: [{ tool: "shell", input: { command: "echo deploying" } }],
+					},
+				},
+			},
+		});
+		const result = await runModuleFactory({ action: "info", name: "scripted-mod" });
+		expect(result.content).toContain("Scripts (1)");
+		expect(result.content).toContain("deploy");
+		expect(result.content).toContain("Deploy to prod");
+	});
+});
+
 describe("session lifecycle", () => {
 	it("markModuleLoaded tracks loaded modules", () => {
 		expect(getLoadedManifestModuleCount()).toBe(0);

@@ -16,6 +16,7 @@ import {
 	loadManifest,
 	type ModuleManifest,
 	manifestToModule,
+	runModuleScript,
 	saveManifest,
 	validateManifest,
 } from "../module-factory.js";
@@ -35,29 +36,38 @@ const MAX_MANIFEST_MODULES = 10;
 export const moduleFactoryTool: Anthropic.Tool = {
 	name: "module_factory",
 	description:
-		"Create, list, remove, or inspect custom modules. " +
-		"Modules bundle related tools, prompt sections, and metadata — " +
-		"more structured than custom_tool. " +
-		"Modules persist to disk and auto-load on startup.",
+		"Create, list, remove, inspect, or run scripts from custom modules. " +
+		"Modules bundle related tools, prompt sections, scripts, and metadata. " +
+		"Scripts are named tool-call sequences defined in the manifest.",
 	input_schema: {
 		type: "object" as const,
 		properties: {
 			action: {
 				type: "string",
-				enum: ["create", "list", "remove", "info"],
+				enum: ["create", "list", "remove", "info", "run"],
 				description:
 					"create: define a new module. list: show all custom modules. " +
-					"remove: unload and delete. info: show details of one module.",
+					"remove: unload and delete. info: show details of one module. " +
+					"run: execute a named script from a module.",
 			},
 			manifest: {
 				type: "object",
 				description:
 					'Module manifest (for create). Must include "name" (string). ' +
-					'Optional: "description", "version", "tools" (array), "promptSection" (string), "dependencies" (array).',
+					'Optional: "description", "version", "tools" (array), "promptSection" (string), ' +
+					'"scripts" (object mapping script names to {steps: [{tool, input}]}), "dependencies" (array).',
 			},
 			name: {
 				type: "string",
-				description: "Module name (for remove/info actions)",
+				description: "Module name (for remove/info/run actions)",
+			},
+			script: {
+				type: "string",
+				description: "Script name to execute (for run action)",
+			},
+			args: {
+				type: "object",
+				description: 'Arguments passed to the script. Available in step inputs via "$payload".',
 			},
 		},
 		required: ["action"],
@@ -79,9 +89,15 @@ export async function runModuleFactory(
 			return handleRemove(input.name as string);
 		case "info":
 			return handleInfo(input.name as string);
+		case "run":
+			return handleRun(
+				input.name as string,
+				input.script as string,
+				(input.args as Record<string, unknown>) || {},
+			);
 		default:
 			return {
-				content: `Unknown action: "${action}". Use create, list, remove, or info.`,
+				content: `Unknown action: "${action}". Use create, list, remove, info, or run.`,
 				is_error: true,
 			};
 	}
@@ -300,11 +316,56 @@ function handleInfo(name: string | undefined): ToolResult {
 		parts.push(`\nPrompt section: ${preview}`);
 	}
 
+	if (manifest.scripts && Object.keys(manifest.scripts).length > 0) {
+		const scriptNames = Object.keys(manifest.scripts);
+		parts.push(`\nScripts (${scriptNames.length}):`);
+		for (const sName of scriptNames) {
+			const s = manifest.scripts[sName];
+			const stepCount = s.steps?.length || 0;
+			parts.push(`  - ${sName}: ${s.description || "(no description)"} (${stepCount} steps)`);
+		}
+	}
+
 	if (manifest.dependencies && manifest.dependencies.length > 0) {
 		parts.push(`Dependencies: ${manifest.dependencies.join(", ")}`);
 	}
 
 	return { content: parts.join("\n") };
+}
+
+// ─── Run ─────────────────────────────────────────────────────────────
+
+async function handleRun(
+	name: string | undefined,
+	scriptName: string | undefined,
+	args: Record<string, unknown>,
+): Promise<ToolResult> {
+	if (!name) {
+		return { content: "Error: name is required for run action", is_error: true };
+	}
+	if (!scriptName) {
+		return { content: "Error: script is required for run action", is_error: true };
+	}
+
+	const manifest = loadManifest(name);
+	if (!manifest) {
+		return { content: `Error: no custom module named "${name}"`, is_error: true };
+	}
+
+	if (!manifest.scripts || Object.keys(manifest.scripts).length === 0) {
+		return { content: `Error: module "${name}" has no scripts`, is_error: true };
+	}
+
+	const script = manifest.scripts[scriptName];
+	if (!script) {
+		const available = Object.keys(manifest.scripts).join(", ");
+		return {
+			content: `Error: no script "${scriptName}" in module "${name}". Available: ${available}`,
+			is_error: true,
+		};
+	}
+
+	return runModuleScript(name, script, args);
 }
 
 // ─── Session lifecycle ───────────────────────────────────────────────

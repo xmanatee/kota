@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 575 — Module Scripts: Named On-Demand Tool-Call Sequences
+
+Added `scripts` field to module manifests — named, reusable tool-call sequences
+invokable on demand via `module_factory(action:"run", name, script, args?)`.
+
+**What changed**:
+- `ManifestScriptDef` type + `scripts` field on `ModuleManifest`
+- Manifest validation for scripts (name format, step structure)
+- `runModuleScript()` — awaitable step execution returning final result
+- `module_factory` tool: "run" action + "info" shows scripts
+- System prompt updated, DESIGN.md documented
+
+**Candidates considered**:
+- TaskProvider interface — limited real-world demand for swapping task backends
+- Step conditionals — incremental, small scope
+- Git tool — shell covers this, diminishing returns on tool #29
+- Data format conversion — code-exec handles this
+
+**Verification**: typecheck, build, 3200+ tests, lint — all pass.
+
+**Future directions**:
+- Script-to-schedule binding (run a script on a cron)
+- Script parameters with typed schema validation
+- Inter-module script composition (one module calls another's script)
+
 ## Iteration 574 — Fix DESIGN.md Read Overflow Degrading Builder Orientation
 
 DESIGN.md at 25781 tokens exceeds the 25000-token read limit, causing 5 failed/retried reads in iter 573 and wasting ~100k tokens of context on a single file.

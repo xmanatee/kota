@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	deleteManifest,
 	discoverManifestModules,
@@ -10,6 +10,7 @@ import {
 	type ModuleManifest,
 	manifestToModule,
 	resolveStepInput,
+	runModuleScript,
 	saveManifest,
 	validateManifest,
 } from "./module-factory.js";
@@ -267,6 +268,87 @@ describe("validateManifest", () => {
 			eventHandlers: ["not-an-object"],
 		});
 		expect(errors.some((e) => e.field === "eventHandlers[0]")).toBe(true);
+	});
+
+	// ─── scripts validation ───────────────────────────────────────────
+
+	it("accepts valid scripts", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: {
+				"daily-check": {
+					description: "Run a daily check",
+					steps: [{ tool: "shell", input: { command: "echo hello" } }],
+				},
+			},
+		});
+		expect(errors).toHaveLength(0);
+	});
+
+	it("accepts scripts without description", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: {
+				run: { steps: [{ tool: "shell" }] },
+			},
+		});
+		expect(errors).toHaveLength(0);
+	});
+
+	it("rejects non-object scripts", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: "not-object",
+		});
+		expect(errors.some((e) => e.field === "scripts")).toBe(true);
+	});
+
+	it("rejects scripts with invalid name format", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: { "A": { steps: [{ tool: "shell" }] } },
+		});
+		expect(errors.some((e) => e.field === "scripts.A")).toBe(true);
+	});
+
+	it("rejects script with empty steps", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: { "empty-script": { steps: [] } },
+		});
+		expect(errors.some((e) => e.field === "scripts.empty-script.steps")).toBe(true);
+	});
+
+	it("rejects script with missing steps", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: { "no-steps": {} },
+		});
+		expect(errors.some((e) => e.field === "scripts.no-steps.steps")).toBe(true);
+	});
+
+	it("rejects script step with missing tool", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: { "bad-step": { steps: [{ input: { foo: "bar" } }] } },
+		});
+		expect(errors.some((e) => e.field.includes("steps[0].tool"))).toBe(true);
+	});
+
+	it("rejects script step with invalid input type", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: { "bad-input": { steps: [{ tool: "shell", input: "not-obj" }] } },
+		});
+		expect(errors.some((e) => e.field.includes("steps[0].input"))).toBe(true);
+	});
+
+	it("rejects non-object script entry", () => {
+		const errors = validateManifest({
+			name: "script-mod",
+			scripts: { "bad-entry": "not-object" },
+		});
+		expect(errors.some((e) => e.field === "scripts.bad-entry")).toBe(true);
 	});
 });
 
@@ -598,5 +680,102 @@ describe("manifest persistence", () => {
 		expect(list).toHaveLength(1);
 		expect(list[0].name).toBe("test-mod");
 		expect(list[0].manifest.description).toBe("A test module");
+	});
+});
+
+// ─── runModuleScript ──────────────────────────────────────────────────
+
+import { executeTool } from "./tools/index.js";
+
+vi.mock("./tools/index.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("./tools/index.js")>();
+	return { ...actual, executeTool: vi.fn() };
+});
+
+const mockExecute = vi.mocked(executeTool);
+
+describe("runModuleScript", () => {
+	beforeEach(() => {
+		mockExecute.mockReset();
+	});
+
+	it("executes steps sequentially and returns final result", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: "step1-output" })
+			.mockResolvedValueOnce({ content: "final-output" });
+
+		const result = await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo hello" } },
+				{ tool: "notify", input: { message: "$prev" } },
+			],
+		});
+
+		expect(result.is_error).toBeUndefined();
+		expect(result.content).toBe("final-output");
+		expect(mockExecute).toHaveBeenCalledTimes(2);
+		// Second step should receive $prev resolved to first step's output
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "notify", { message: "step1-output" });
+	});
+
+	it("stops on first error and reports which step failed", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: "ok" })
+			.mockResolvedValueOnce({ content: "bad thing happened", is_error: true });
+
+		const result = await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo ok" } },
+				{ tool: "shell", input: { command: "bad-cmd" } },
+				{ tool: "notify", input: { message: "$prev" } },
+			],
+		});
+
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("Step 2/3");
+		expect(result.content).toContain("bad thing happened");
+		expect(mockExecute).toHaveBeenCalledTimes(2); // 3rd step never reached
+	});
+
+	it("handles tool execution errors (throws)", async () => {
+		mockExecute.mockRejectedValueOnce(new Error("connection refused"));
+
+		const result = await runModuleScript("test-mod", {
+			steps: [{ tool: "http_request", input: { url: "http://down" } }],
+		});
+
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("connection refused");
+		expect(result.content).toContain("Step 1/1");
+	});
+
+	it("returns error for empty steps", async () => {
+		const result = await runModuleScript("test-mod", { steps: [] });
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("no steps");
+	});
+
+	it("passes args as payload for $payload substitution", async () => {
+		mockExecute.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript(
+			"test-mod",
+			{ steps: [{ tool: "shell", input: { command: "$payload" } }] },
+			{ topic: "AI", count: 5 },
+		);
+
+		expect(mockExecute).toHaveBeenCalledWith("shell", {
+			command: JSON.stringify({ topic: "AI", count: 5 }),
+		});
+	});
+
+	it("single step returns its output directly", async () => {
+		mockExecute.mockResolvedValueOnce({ content: "hello world" });
+
+		const result = await runModuleScript("test-mod", {
+			steps: [{ tool: "shell", input: { command: "echo hello world" } }],
+		});
+
+		expect(result.content).toBe("hello world");
 	});
 });
