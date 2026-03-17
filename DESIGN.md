@@ -380,8 +380,10 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
   }],
   "eventHandlers": [{
     "event": "schedule.fire",
-    "code": "print(f'Scheduled: {payload}')",
-    "language": "python"
+    "steps": [
+      { "tool": "web_fetch", "input": { "url": "https://api.example.com/data" } },
+      { "tool": "knowledge", "input": { "action": "create", "title": "Fetched data", "content": "$prev" } }
+    ]
   }],
   "promptSection": "Use get_weather to look up weather.",
   "dependencies": []
@@ -394,7 +396,11 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 
 **Tool execution**: Module tools use the same REPL session pattern as `custom_tool` — code runs in persistent Python/Node.js sessions with base64-encoded parameter passing.
 
-**Event handlers**: Manifest modules can subscribe to event bus events via `eventHandlers`. Each handler specifies an `event` name and `code` to run when it fires. The code receives `event_name` (string) and `payload` (dict/object) variables. Handlers run asynchronously in REPL sessions; errors are logged but never crash the bus. This enables agent-created modules to react to events autonomously — e.g., run analysis when a schedule fires, or send notifications when a process exits.
+**Event handlers**: Manifest modules can subscribe to event bus events via `eventHandlers`. Two handler modes:
+- **Code-based** (`code` field): Runs code in a REPL session with `event_name` and `payload` variables. Good for custom logic, data processing, and calling external APIs.
+- **Step-based** (`steps` field): Executes a sequence of KOTA tool calls via `executeTool()`. Each step specifies a `tool` name and optional `input`. Steps run sequentially; the previous step's output is available as `"$prev"` in the next step's input, and the event payload as `"$payload"`. Stops on first error. Good for composing existing tools into workflows without writing code.
+
+Code and steps are mutually exclusive per handler. Handlers run asynchronously; errors are logged but never crash the bus.
 
 **Hot-loading**: When a module is created, its tools are immediately registered via `registerTool()` with module-name ownership tracking. Prompt sections take effect on next session startup (the system prompt is already built for the current session).
 

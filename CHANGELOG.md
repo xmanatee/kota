@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 571 — Step-Based Event Handlers for Tool Composition
+
+Added `steps` field to manifest event handlers — agent-created modules can now chain sequential tool calls on events without writing code, making all 26+ existing tools composable from autonomous workflows.
+
+### What changed
+- `ManifestEventHandler` gains optional `steps` field (mutually exclusive with `code`)
+- Each step: `{tool, input?}` with `$prev`/`$payload` substitution for piping data between steps
+- Validation: step structure, code/steps exclusivity, step tool+input checks
+- `runStepHandler` + `resolveStepInput` in module-factory.ts
+
+### Candidates considered
+- HistoryProvider — incremental on iter 563, small delta
+- Introspect tool — low delta over existing listTools
+- Data pipeline tool — code_exec covers this
+- Module lifecycle CLI — doesn't enable new agent capabilities
+
+### Verification
+typecheck ✅ | build ✅ | lint ✅ | 3173 tests (+14) ✅ | load ✅ | runtime SKIP (no key)
+
+### Future directions
+- Wire runtime-created modules (module_factory tool) to ModuleLoader for live event handler activation
+- Template interpolation in step inputs (e.g., `$payload.url` field access)
+- Conditional steps (if/unless based on previous result)
+
 ## Iteration 570 — Fix CHANGELOG Growth and Cap Entry Verbosity
 
 Addressed structural CHANGELOG growth that exceeded read limits within 2 iterations of archiving, by capping entries at 25 lines, using tail-based reading, and archiving iters 541-563.

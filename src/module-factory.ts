@@ -20,7 +20,7 @@ import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import type { KotaModule, ToolDef } from "./module-types.js";
 import type { Language } from "./repl-session.js";
 import { sessions } from "./repl-session.js";
-import { getCoreRegistrations, type ToolResult } from "./tools/index.js";
+import { executeTool, getCoreRegistrations, type ToolResult } from "./tools/index.js";
 
 // ─── Manifest types ──────────────────────────────────────────────────
 
@@ -33,13 +33,23 @@ export type ManifestToolDef = {
 	group?: string;
 };
 
+/** A single tool invocation step in a step-based event handler. */
+export type ManifestStepDef = {
+	/** Tool name to invoke (must be a registered tool). */
+	tool: string;
+	/** Input to pass to the tool. String values "$prev" and "$payload" are replaced at runtime. */
+	input?: Record<string, unknown>;
+};
+
 export type ManifestEventHandler = {
 	/** Event name to subscribe to (e.g. "schedule:fire", "process:exit"). */
 	event: string;
-	/** Code to run when the event fires. Receives `event_name` and `payload` variables. */
-	code: string;
+	/** Code to run when the event fires. Receives `event_name` and `payload` variables. Mutually exclusive with `steps`. */
+	code?: string;
 	/** Language for code execution (default: "python"). */
 	language?: Language;
+	/** Sequential tool invocations to run when the event fires. Mutually exclusive with `code`. */
+	steps?: ManifestStepDef[];
 };
 
 export type ModuleManifest = {
@@ -216,11 +226,34 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 				if (typeof h.event !== "string" || !h.event) {
 					errors.push({ field: `${prefix}.event`, message: "event name is required" });
 				}
-				if (typeof h.code !== "string" || !h.code) {
-					errors.push({ field: `${prefix}.code`, message: "handler code is required" });
+				const hasCode = typeof h.code === "string" && h.code;
+				const hasSteps = Array.isArray(h.steps) && h.steps.length > 0;
+				if (!hasCode && !hasSteps) {
+					errors.push({ field: `${prefix}`, message: "handler must have either code or steps" });
 				}
-				if (h.language !== undefined && h.language !== "python" && h.language !== "node") {
-					errors.push({ field: `${prefix}.language`, message: 'language must be "python" or "node"' });
+				if (hasCode && hasSteps) {
+					errors.push({ field: `${prefix}`, message: "handler cannot have both code and steps" });
+				}
+				if (hasCode) {
+					if (h.language !== undefined && h.language !== "python" && h.language !== "node") {
+						errors.push({ field: `${prefix}.language`, message: 'language must be "python" or "node"' });
+					}
+				}
+				if (Array.isArray(h.steps)) {
+					for (let j = 0; j < h.steps.length; j++) {
+						const s = h.steps[j] as Record<string, unknown>;
+						const sp = `${prefix}.steps[${j}]`;
+						if (!s || typeof s !== "object") {
+							errors.push({ field: sp, message: "each step must be an object" });
+							continue;
+						}
+						if (typeof s.tool !== "string" || !s.tool) {
+							errors.push({ field: `${sp}.tool`, message: "step tool name is required" });
+						}
+						if (s.input !== undefined && (typeof s.input !== "object" || s.input === null || Array.isArray(s.input))) {
+							errors.push({ field: `${sp}.input`, message: "step input must be an object" });
+						}
+					}
 				}
 			}
 		}
@@ -315,10 +348,17 @@ export function manifestToModule(manifest: ModuleManifest): KotaModule {
 		mod.events = (bus) => {
 			const unsubs: (() => void)[] = [];
 			for (const handler of handlers) {
-				const unsub = bus.on(handler.event, (payload) => {
-					runEventHandler(manifest.name, handler, payload);
-				});
-				unsubs.push(unsub);
+				if (handler.steps) {
+					const unsub = bus.on(handler.event, (payload) => {
+						runStepHandler(manifest.name, handler, payload);
+					});
+					unsubs.push(unsub);
+				} else if (handler.code) {
+					const unsub = bus.on(handler.event, (payload) => {
+						runEventHandler(manifest.name, handler, payload);
+					});
+					unsubs.push(unsub);
+				}
 			}
 			return unsubs;
 		};
@@ -360,6 +400,69 @@ function runEventHandler(
 			console.error(`[module:${moduleName}] Event handler failed (${handler.event}): ${msg}`);
 		},
 	);
+}
+
+// ─── Step-based event handlers ───────────────────────────────────────
+
+/**
+ * Resolve step input by replacing "$prev" and "$payload" string values.
+ * - "$prev" → previous step's text output (empty string for first step)
+ * - "$payload" → JSON-serialized event payload
+ * Non-string values and other strings pass through unchanged.
+ */
+export function resolveStepInput(
+	input: Record<string, unknown> | undefined,
+	prevContent: string,
+	payload: Record<string, unknown>,
+): Record<string, unknown> {
+	if (!input) return {};
+	const resolved: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(input)) {
+		if (value === "$prev") {
+			resolved[key] = prevContent;
+		} else if (value === "$payload") {
+			resolved[key] = JSON.stringify(payload);
+		} else {
+			resolved[key] = value;
+		}
+	}
+	return resolved;
+}
+
+/**
+ * Execute a step-based event handler — sequential tool invocations.
+ * Each step's output feeds into the next via "$prev". Stops on first error.
+ */
+function runStepHandler(
+	moduleName: string,
+	handler: ManifestEventHandler,
+	payload: Record<string, unknown>,
+): void {
+	if (!handler.steps || handler.steps.length === 0) return;
+
+	const steps = handler.steps;
+	(async () => {
+		let prevContent = "";
+		for (const step of steps) {
+			const input = resolveStepInput(step.input, prevContent, payload);
+			try {
+				const result = await executeTool(step.tool, input);
+				if (result.is_error) {
+					console.error(
+						`[module:${moduleName}] Step "${step.tool}" failed: ${result.content}`,
+					);
+					return;
+				}
+				prevContent = result.content;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				console.error(
+					`[module:${moduleName}] Step "${step.tool}" threw: ${msg}`,
+				);
+				return;
+			}
+		}
+	})();
 }
 
 // ─── Persistence ─────────────────────────────────────────────────────
