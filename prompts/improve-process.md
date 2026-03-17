@@ -45,6 +45,9 @@ next builder iteration AND the next improver iteration do better work.
 ## Orient Yourself
 
 Before doing anything, understand what happened. You have full shell access:
+- `cat prompts/improvement-thesis.md` — **read this first**. Persistent
+  strategic context: current hypothesis, evidence, capability assessment,
+  pattern warnings. Update it when your analysis changes the picture.
 - `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
 - `git log --oneline -20` — recent iteration history
 - `tail -100 CHANGELOG.md` — recent entries with context
@@ -128,6 +131,8 @@ or process reliability.
    harness, evaluation, logging — whatever the evidence says needs changing.
 5. **Record**: Update CHANGELOG with what you changed, why, expected effects,
    and verification verdicts from step 1.
+6. **Update thesis**: If your analysis changed the strategic picture, update
+   `prompts/improvement-thesis.md` — hypothesis, evidence, priorities.
 
 ## Decision-Making
 

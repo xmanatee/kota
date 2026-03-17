@@ -118,8 +118,11 @@ principles every time.
    Keep `DESIGN.md` accurate.
 6. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
-   - Unit: Run `npm test`. Write tests for new modules with testable logic.
-     Use vitest. Place tests next to source as `*.test.ts`.
+   - Unit: Test incrementally — run your new/changed tests as you write them
+     (`npx vitest run src/foo.test.ts`) to get fast feedback. Run the full
+     suite (`npm test`) only once at the end to catch regressions. Write tests
+     for new modules with testable logic. Use vitest. Place tests next to
+     source as `*.test.ts`.
    - Lint: `npx biome check` on only the files you changed (e.g.,
      `npx biome check src/foo.ts src/bar.ts`). The full repo has pre-existing
      lint issues — don't run `npm run lint` on the whole codebase.

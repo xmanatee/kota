@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 532 — Persistent Improvement Thesis and Incremental Test Guidance
+
+Created a strategic context document (prompts/improvement-thesis.md) to break the improver out of its micro-optimization rut, and added incremental test verification guidance to reduce the 5.2x test rerun rate.
+
+### Verification of iter 530 (previous improver)
+
+| Expected Effect | Actual (iter 531) | Verdict |
+|---|---|---|
+| Verification breakdown visible | Trend shows typecheck 3.3×, test 5.2×, lint 3.0×, build 2.1× | **CONFIRMED** |
+| Lint rework reduced | Builder used `biome check --write` during dev (calls 32, 35, 39); zero lint-only fix cycles | **CONFIRMED** |
+| Test rework unchanged | 5.2× avg, #1 rework source | **CONFIRMED** (expected, no intervention targeted this) |
+
+### Diagnosis
+
+The improver has been in a micro-optimization rut for ~6 iterations (520-530): 4 of the last 6 touched parse-log.py, the rest made minor prompt wording changes. These are useful but increasingly marginal. The pattern: each improver starts fresh, sees the most visible metric (rework, cost, research frequency), optimizes it, moves on. No strategic continuity.
+
+External research (DSPy/MIPROv2, METR time-horizon methodology, Anthropic effective harnesses, SWE-CI evaluation framework) confirms the fundamental gap: we measure process health (build pass, test count, cost) but not agent capability. "The metric is the bottleneck, not the optimizer."
+
+The 5.2× test rerun rate is the #1 measurable efficiency drain. Analysis of builder sessions shows the pattern: builder writes a batch of code, runs full test suite, discovers failures, fixes, re-runs full suite. Targeted test runs during development (already done sometimes, e.g., iter 531 call 40) would catch issues earlier.
+
+### Changes
+
+**prompts/improvement-thesis.md** (new) — Persistent strategic context across improver iterations:
+- Current hypothesis: the loop's biggest gap is absence of capability evaluation
+- Evidence summary from 10-iteration trend analysis
+- Capability assessment table (what KOTA can do, what's tested vs. untested)
+- Pattern warnings to prevent recurring improver anti-patterns
+- Strategic priorities ranked by impact
+
+**prompts/improve-process.md** — Two additions:
+- Added `improvement-thesis.md` as the first orientation step ("read this first")
+- Added step 6 to the workflow: "Update thesis if analysis changed the picture"
+
+**prompts/build-agent.md** — Incremental test verification:
+- Changed "Run `npm test`" to "Test incrementally — run new/changed tests with `npx vitest run src/foo.test.ts` for fast feedback, full suite only once at the end"
+- Targets the 5.2× test rerun rate by encouraging targeted runs during development
+
+### Other candidates considered
+
+1. **Full capability evaluation harness** — Create automated scenario tests for the agent. Highest strategic value but blocked by ANTHROPIC_API_KEY. Deferred to thesis priorities.
+2. **Trajectory quality scoring** — Composite metric from multiple signals (research, rework, orient time). Useful but risks becoming another metric to obsess over.
+3. **Cross-iteration learning extraction** — Auto-extract lessons from expensive sessions and surface to future builders. Interesting but complex to implement reliably.
+4. **Builder prompt restructuring** — Fresh rewrite of the 139-line prompt. The prompt is actually good; minor tweaks are more appropriate than a rewrite.
+5. **DSPy-style systematic prompt optimization** — Use trace data to automatically generate prompt candidates. Requires significant infrastructure investment.
+
+### Expected effects
+
+1. **Improver strategic continuity**: Next improver reads the thesis first, starts with strategic context instead of reconstructing from scratch. Should prevent another parse-log.py micro-optimization.
+2. **Test rework reduced**: Builder #533 should show fewer test rerun cycles because it runs targeted tests during development. Target: test reruns from 5.2× → 3-4× avg.
+3. **Thesis evolves**: Future improvers update the hypothesis with new evidence, creating a persistent improvement model that gets sharper over time.
+
 ## Iteration 531 — File-based Knowledge Store
 
 Built a structured data layer using markdown files with YAML front matter, directly addressing the owner's request for a text-based storage system.
