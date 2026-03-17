@@ -785,23 +785,38 @@ def _quick_parse(path: str) -> dict:
     first_impl = None
     first_verify_after_impl = None
     fix_cycles = 0
-    _impl_after_verify = False
+    # Fix-cycle detection: matches the session-detail algorithm.
+    # Only Edit (not Write) triggers fix tracking — creating new files is
+    # normal development.  Non-edit, non-test calls reset state so that
+    # multi-phase development (edit A → reads → edit B → test) doesn't
+    # inflate the count.
+    _saw_edit = False
+    _saw_test_after_edit = False
+    _test_kws = ["npm test", "vitest", "run test"]
     for i, (name, s) in enumerate(tc_list):
         is_impl = (
             name in ("Write", "Edit")
             and not any(d in s for d in _doc_files)
         )
+        is_edit = name == "Edit" and not any(d in s for d in _doc_files)
+        is_test = name == "Bash" and any(kw in s for kw in _test_kws)
         is_verify = name == "Bash" and any(kw in s for kw in _verify_kws)
         if first_impl is None and is_impl:
             first_impl = i
         if first_impl is not None and first_verify_after_impl is None and is_verify:
             first_verify_after_impl = i
-        if first_verify_after_impl is not None:
-            if is_impl:
-                _impl_after_verify = True
-            elif is_verify and _impl_after_verify:
-                fix_cycles += 1
-                _impl_after_verify = False
+        # Fix cycle = edit → test → re-edit (tight sequence, broken by
+        # intervening non-edit/non-test calls like reads or greps)
+        if _saw_test_after_edit and is_edit:
+            fix_cycles += 1
+        if is_edit:
+            _saw_edit = True
+            _saw_test_after_edit = False
+        elif is_test and _saw_edit:
+            _saw_test_after_edit = True
+            _saw_edit = False
+        elif not is_test:
+            _saw_edit = False
     rework_pct = 0
     if first_verify_after_impl is not None and tc_list:
         remaining = len(tc_list) - first_verify_after_impl - 1

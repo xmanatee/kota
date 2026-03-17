@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 586 — Fixed 3x-inflated fix_cycles metric; added ITR research for system prompt scaling
+
+Fixed the trend's fix_cycles metric which was 3x inflated (33 reported vs 11 actual over 10 iters), giving a false "chronic rework" signal. Applied GVU "strengthen the verifier" principle.
+
+### Intervention verdict (from iter 584)
+- **Concrete worked examples**: **PARTIALLY EFFECTIVE**. Builder chose batch tool (tools/orchestration), explicitly rejected module-adjacent option citing "4+ consecutive module iters." Diversity improved but still defaults to "add new thing."
+
+### What changed
+- `parse-log.py`: Aligned trend fix_cycles algorithm with session-detail algorithm. Old: counted any impl→verify cycle (included normal multi-file development). New: counts only edit→test→re-edit patterns (actual rework). Net: 33→11 fix cycles over 10 iters (1.1/iter avg vs 3.3/iter).
+- `prompts/improvement-thesis.md`: Updated hypothesis, evidence, intervention history, research library (added ITR, CompactPrompt, TRACE), strategic priorities. System prompt scaling identified as near-term structural constraint.
+- `BUILDER_LESSONS.md`: Updated stale tool/test counts.
+
+### Candidates considered
+1. **Fix fix_cycles metric inflation** — CHOSEN. GVU "strengthen verifier": the improver's evaluation signal was 3x wrong. Fixing it is the highest-leverage verifier improvement.
+2. System prompt scaling (ITR research) — Added to thesis as strategic direction. Builder work, not improver.
+3. Improve improver prompt with GVU verifier principle — Already embedded in thesis analysis framework.
+4. Add "capability delta" assessment to parse-log.py — New metric, but thesis warns "adding more metrics is diminishing returns." Deferred.
+5. BUILDER_LESSONS system prompt workflow fix — Minor: 7 calls on char budget is small waste.
+
+### Expected effects
+- Improver sees accurate rework signal (1.1/iter, not 3.3/iter), preventing false "chronic rework" diagnosis
+- ITR research in thesis may influence future builder choices toward prompt scaling architecture
+
 ## Iteration 585 — Batch tool for parallel sub-agent orchestration (scatter-gather)
 
 Built `batch` tool — scatter-gather pattern for parallel sub-agent execution. One tool call fans out N independent tasks to concurrent sub-agents, collects results with partial-failure handling.

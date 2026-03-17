@@ -7,33 +7,34 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 584)
+## Current Hypothesis (updated iter 586)
 
-**Key finding (iter 584)**: Operational efficiency is healthy — the iter 582
-interventions both landed. The next improvement lever is **decision quality**,
-not efficiency. The builder's eval criterion is all abstract ("diminishing
-returns," "architecture as capability"). Research (Sarukkai et al. NeurIPS 2025,
-practitioner few-shot studies) shows that concrete worked examples improve
-pattern matching from 40-60% to 85-95% accuracy and task completion from 73% to
-93%. Adding 3 condensed examples of strong past choices to the eval criterion
-grounds the abstract guidance in concrete precedent.
+**Key finding (iter 586)**: The builder is operationally healthy and decision
+quality is improving. The next improvement lever is **verifier accuracy** — per
+the GVU "Second Law," when the generator performs well, strengthen the
+evaluator. The fix_cycles metric was inflated 3x (33 reported vs 11 actual over
+10 iters), giving a false "chronic rework" signal. Fixed by aligning the trend
+algorithm with the session-detail algorithm. Separately, the system prompt char
+budget (35 chars headroom before iter 585) is approaching a structural
+bottleneck — ITR research (arxiv 2602.17046) shows per-step retrieval of prompt
+fragments and tools eliminates this entirely.
 
-**Iter 582 intervention verdicts:**
-- **DESIGN.md read efficiency (prompt + lesson)**: **EFFECTIVE**. Builder grepped
-  headers at call 4, then 1 targeted read at call 72 (docs). Context: 55k/turn
-  (was 108k). Cost: $3.72 (was $8.12). Exactly as prescribed.
-- **Subsystem concentration (explicit classification)**: **PARTIALLY EFFECTIVE**.
-  Builder chose SQLite memory provider — still module-adjacent (providers), but
-  classified as "architecture," addressed owner's direct request, and candidate
-  list included non-module options. Progress from iter 580, not a complete break.
+**Iter 584 intervention verdict:**
+- **Concrete worked examples in eval criterion**: **PARTIALLY EFFECTIVE**. Iter
+  585 chose batch tool (tools/orchestration), not modules. Explicitly cited "4+
+  consecutive module iters" when rejecting provider hot-swap candidate. Decision
+  diversity improved. But builder still defaults to "add new thing" over
+  deepening existing capabilities.
 
 **Active issues:**
-1. **Decision quality** — NEW iter 584. Abstract eval criterion → concrete
-   examples. Verify: does iter 585 brainstorm more diverse candidates?
-2. **Subsystem concentration** — DOWNGRADED. Builder making better choices
-   within constraint. Continue monitoring. May resolve naturally with examples.
-3. **Web research** — 3/10 rate (iters 579, 583 had research). Improving.
-4. **Instruction density** — 105 lines builder prompt. Under ~150 threshold.
+1. **Signal accuracy** — UPGRADED iter 586. fix_cycles was 3x inflated. Fixed.
+   Continue auditing existing metrics for accuracy.
+2. **System prompt scaling** — NEW iter 586. 30 tools, ~35 chars headroom. ITR
+   (per-step instruction/tool retrieval) is the research-backed solution. This
+   is builder work, but the improver should track it as a structural constraint.
+3. **Decision quality** — Partially addressed iter 584. Examples helping.
+4. **Web research** — 3/10 rate (iters 579, 583, 585). Stable, not growing.
+5. **Instruction density** — 108 lines builder prompt. Under ~150 threshold.
 
 **Resolved issues (iter 584):**
 - **DESIGN.md read bloat**: RESOLVED (iter 582→583). Prompt + lesson effective.
@@ -92,22 +93,25 @@ grounds the abstract guidance in concrete precedent.
   55k ctx, $3.72) + **PARTIALLY EFFECTIVE** (still module-adjacent but better).
 - **(584)** Concrete worked examples in eval criterion. Research-backed
   (Sarukkai et al., 73→93%). Targets: more diverse brainstorming in iter 585.
+- **(586)** Fixed fix_cycles metric (3x inflation) in parse-log.py trend.
+  Aligned trend algorithm with session-detail algorithm. Added ITR research
+  to thesis. Strengthens verifier signal accuracy per GVU principle.
 
-## Evidence (updated iter 584)
+## Evidence (updated iter 586)
 
-- **Iter 583 metrics**: 77 calls, $3.72, 55k ctx, +25 tests, 1 fix cycle,
-  50% re-edit, 5 web searches. SQLite memory provider (architecture, modules).
-  1 DESIGN.md read (docs only) — **DESIGN.md fix confirmed effective**.
-- **Iter 581 metrics**: 113 calls, $8.12, 108k ctx, +8 tests, 5 fix cycles,
+- **Iter 585 metrics**: 75 calls, $3.94, 61k ctx, +15 tests, 1 fix cycle,
+  50% re-edit, 2 web searches. Batch tool (feature, tools/orchestration).
+  Chose non-module work, explicitly rejected module-adjacent option.
+- **Iter 583 metrics**: 77 calls, $3.72, 55k ctx, +25 tests, 0 fix cycles,
+  50% re-edit, 6 web searches. SQLite memory provider (architecture, modules).
+- **Iter 581 metrics**: 113 calls, $8.12, 108k ctx, +8 tests, 1 fix cycle,
   56% re-edit, 0 web searches. Module persistent logging (feature, modules).
-- **Iter 579 metrics**: 76 calls, $3.23, 57k ctx, +28 tests, 0 fix cycles,
-  75% re-edit, 12 web searches. Conditional steps (feature, modules).
-- **DESIGN.md read pattern**: RESOLVED. Grepped headers + 1 targeted read is
-  the stable pattern now (iters 575-579, 583). Cost/context normal.
-- **10-iter trend**: calls avg 74, cost avg $3.90. Context 64k avg.
-  Fix cycles avg 3.3. Work: 7 feat, 3 arch. Research: 3/10 (improving).
-- **Tests**: 3324 (+25 from iter 583). Build pass rate: 100%.
-- **Instruction load**: 105 lines builder prompt. Under ~150 threshold.
+- **10-iter trend (corrected)**: calls avg 73, cost avg $3.72. Context 62k avg.
+  Fix cycles avg 1.1 (was 3.3 — metric was 3x inflated). Work: 7 feat, 3 arch.
+  Research: 3/10. Tests: 3339. Build pass rate: 100%.
+- **System prompt headroom**: ~138 chars after iter 585. Was 35 before adding
+  batch tool. Approaching structural limit at 30 tools.
+- **Instruction load**: 108 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -119,7 +123,7 @@ Compressed references. Grouped by current relevance.
 |---|---|---|
 | ETH Zurich AGENTS.md (2602.11988) | Verbose context files reduce success 3%, cost +20% | iter 556, 562, 564 |
 | Prompt Instruction Limits (2507.11538) | ~150 instruction threshold for reasoning models | iter 562, 564 |
-| GVU "Second Law" (2512.02731) | Plateau → strengthen verifier, not generator | iter 548 |
+| GVU "Second Law" (2512.02731) | Plateau → strengthen verifier, not generator | iter 548, 586 |
 | Chroma Context Rot (2025) | All models degrade with input length | iter 538 |
 | SWE-CI (2603.03823) | Consumer lists before type changes reduce regression | iter 536 |
 | DGM Evaluation Insight (2505.22954) | Evaluation criteria determine behavior | iter 548 |
@@ -134,6 +138,9 @@ Compressed references. Grouped by current relevance.
 ### Potential Future Directions
 | Paper | Opportunity |
 |---|---|
+| ITR (2602.17046) | Per-step retrieval of prompt fragments + tools; 95% context reduction, 32% better tool routing. Eliminates system prompt char budget problem |
+| TRACE (2602.21230, WWW 2026) | Scaffolded capability assessment: measure unrealized potential, not just pass/fail |
+| CompactPrompt (2510.18043) | Self-information scoring for prompt compression; 60% token reduction, <5% accuracy drop |
 | SAGE (2512.17102) | Convert successful patterns to reusable skills |
 | SkillRL (2602.08234) | Hierarchical skill bank with success/failure signals |
 | SICA (2504.15228) | Agent reviews own performance, edits own code/prompts (17→53%) |
@@ -146,7 +153,6 @@ Compressed references. Grouped by current relevance.
 | LILO Variance Sampling (2025) | Pick tasks with highest uncertainty, not safest option |
 | Factory.ai Linters as Arch Specs (2025) | Encode conventions as lint rules for instant deterministic feedback |
 | EvolveR (arXiv 2510.16079) | Experience distillation into guiding/cautionary principles |
-| TRACE (2602.21230, WWW 2026) | Scaffolded capability assessment: measure min guidance needed, not just pass/fail |
 | EvoAgentX (EMNLP 2025) | TextGrad/AFlow/MIPRO for automated prompt+workflow optimization; +7-20% |
 | Anthropic Evals Guide (Jan 2026) | 20-50 tasks from real failures; grade outcomes not trajectories |
 | Comprehensive Self-Evolving Survey (2508.07407) | Unified framework for self-evolving agent feedback loops |
@@ -206,6 +212,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Conditional steps (if guards on manifest steps) | ✓ | Unit |
 | Module persistent logging (audit trail) | ✓ | Unit |
 | SQLite memory provider (alt backend) | ✓ | Unit |
+| Batch parallel delegation (scatter-gather) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -255,14 +262,22 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   strategic behavior but the builder still generates narrow candidates. Research
   (Sarukkai et al., few-shot practitioner studies) shows concrete worked examples
   improve pattern matching 40-60%→85-95%. Added iter 584.
+- **Metric algorithms must match across views**: The trend and session detail
+  used different algorithms for fix_cycles (trend: any impl→verify cycle;
+  session: edit→test→re-edit). This gave 3x inflation (33 vs 11 over 10 iters).
+  When a metric is computed in two places, they MUST use the same algorithm.
+  Fixed iter 586.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Decision quality** — NEW iter 584. Concrete examples in eval criterion.
-   Verify: does iter 585 brainstorm more diverse candidates?
-2. **Subsystem concentration** — DOWNGRADED. Partially addressed. Monitor.
-3. **Research encouragement** — 3/10 rate (improving). Monitor.
-4. **Signal accuracy** — ONGOING. Classification keywords maintained.
+1. **Signal accuracy** — UPGRADED iter 586. fix_cycles fixed (3x→1x). Continue
+   auditing existing metrics. Accurate signals > new metrics.
+2. **System prompt scaling** — NEW iter 586. 30 tools, ~138 chars headroom.
+   Near structural limit. ITR (per-step retrieval) is the research-backed fix
+   but requires builder implementation. Track as a constraint.
+3. **Decision quality** — Partially addressed iter 584. Examples improving
+   diversity. Builder chose non-module work in 585. Continue monitoring.
+4. **Research encouragement** — 3/10 rate. Stable, not growing. Monitor.
 5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
 6. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
