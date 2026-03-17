@@ -81,7 +81,7 @@ describe("getCoreRegistrations", () => {
   });
 
   it("grouped tools have valid group names", () => {
-    const validGroups = new Set(["web", "code", "advanced_editing", "management"]);
+    const validGroups = new Set(["web", "code", "advanced_editing", "management", "gui", "orchestration"]);
     for (const reg of getCoreRegistrations()) {
       if (reg.group) {
         expect(validGroups.has(reg.group)).toBe(true);

@@ -1055,8 +1055,11 @@ File-based plugin architecture for extending KOTA without modifying core code. D
 - `onUnload()`: Cleanup hook called on shutdown
 
 **Tool registration**:
-- Tools with a `group` property follow progressive disclosure (hidden until `enable_tools` is called)
-- Ungrouped tools are always available
+- Tools with a `group` property follow progressive disclosure (hidden until `enable_tools` is called or auto-detected)
+- Ungrouped tools are always available (13 core tools: shell, file ops, grep, glob, delegate, ask_user, checkpoint, etc.)
+- 6 groups with auto-detect: `web`, `code`, `advanced_editing`, `management`, `gui`, `orchestration`
+- `gui` group: computer_use, screenshot, view_image, clipboard — auto-enabled for visual/screen tasks
+- `orchestration` group: batch, pipe, map — auto-enabled for parallel/sequential composition tasks
 - Module groups appear in the `enable_tools` description dynamically
 - `registerGroup()` supports auto-detect regex patterns for automatic group activation
 

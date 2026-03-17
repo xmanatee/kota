@@ -29,6 +29,12 @@ describe("tool-groups", () => {
         expect(CORE_TOOL_NAMES.has(name)).toBe(false);
       }
     });
+
+    it("does not include gui, orchestration, or relocated tools", () => {
+      for (const name of ["computer_use", "screenshot", "view_image", "clipboard", "batch", "pipe", "map", "notify", "sqlite"]) {
+        expect(CORE_TOOL_NAMES.has(name)).toBe(false);
+      }
+    });
   });
 
   describe("enableGroup", () => {
@@ -62,7 +68,7 @@ describe("tool-groups", () => {
     it("resolves code_exec to code group", () => {
       const result = enableGroup("code_exec");
       expect(result.error).toBeUndefined();
-      expect(result.tools).toEqual(["code_exec", "notebook"]);
+      expect(result.tools).toEqual(["code_exec", "notebook", "sqlite"]);
       expect(getEnabledGroups()).toEqual(["code"]);
     });
 
@@ -71,6 +77,41 @@ describe("tool-groups", () => {
       expect(result.error).toBeUndefined();
       expect(result.tools).toContain("todo");
       expect(getEnabledGroups()).toEqual(["management"]);
+    });
+
+    it("enables gui group with visual tools", () => {
+      const result = enableGroup("gui");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toEqual(["computer_use", "screenshot", "view_image", "clipboard"]);
+      expect(getEnabledGroups()).toEqual(["gui"]);
+    });
+
+    it("enables orchestration group with composition tools", () => {
+      const result = enableGroup("orchestration");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toEqual(["batch", "pipe", "map"]);
+      expect(getEnabledGroups()).toEqual(["orchestration"]);
+    });
+
+    it("resolves batch to orchestration group", () => {
+      const result = enableGroup("batch");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toEqual(["batch", "pipe", "map"]);
+      expect(getEnabledGroups()).toEqual(["orchestration"]);
+    });
+
+    it("resolves screenshot to gui group", () => {
+      const result = enableGroup("screenshot");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toEqual(["computer_use", "screenshot", "view_image", "clipboard"]);
+      expect(getEnabledGroups()).toEqual(["gui"]);
+    });
+
+    it("management group includes notify", () => {
+      const result = enableGroup("management");
+      expect(result.error).toBeUndefined();
+      expect(result.tools).toContain("notify");
+      expect(result.tools).toContain("todo");
     });
 
     it("is idempotent — enabling same group twice does not duplicate", () => {
@@ -231,6 +272,35 @@ describe("tool-groups", () => {
       expect(detectToolGroups("Bulk update all config files")).toContain("advanced_editing");
     });
 
+    it("detects gui group from visual/screen keywords", () => {
+      expect(detectToolGroups("Take a screenshot of the app")).toContain("gui");
+      expect(detectToolGroups("Click on the submit button")).toContain("gui");
+      expect(detectToolGroups("Show me what's on the screen")).toContain("gui");
+      expect(detectToolGroups("Copy the result to clipboard")).toContain("gui");
+      expect(detectToolGroups("Look at the desktop")).toContain("gui");
+      expect(detectToolGroups("Open the browser and navigate")).toContain("gui");
+      expect(detectToolGroups("View the image on screen")).toContain("gui");
+    });
+
+    it("detects orchestration group from parallel/chain keywords", () => {
+      expect(detectToolGroups("Process all files in parallel")).toContain("orchestration");
+      expect(detectToolGroups("Map over each entry in the list")).toContain("orchestration");
+      expect(detectToolGroups("Apply the transform to each file in the directory")).toContain("orchestration");
+      expect(detectToolGroups("Chain these steps together")).toContain("orchestration");
+      expect(detectToolGroups("Fan out the search concurrently")).toContain("orchestration");
+      expect(detectToolGroups("Run this for each item in the dataset")).toContain("orchestration");
+    });
+
+    it("does not detect gui for non-visual prompts", () => {
+      expect(detectToolGroups("Fix the CSS styles")).not.toContain("gui");
+      expect(detectToolGroups("Write a test for the login page")).not.toContain("gui");
+    });
+
+    it("does not detect orchestration for simple sequential requests", () => {
+      expect(detectToolGroups("Read the file and fix the bug")).not.toContain("orchestration");
+      expect(detectToolGroups("First check the logs then fix it")).not.toContain("orchestration");
+    });
+
     it("detects management + code for data planning prompts", () => {
       const groups = detectToolGroups("Plan a data analysis pipeline and compute statistics");
       expect(groups).toContain("management");
@@ -304,8 +374,10 @@ describe("tool-groups", () => {
       expect(active.has("http_request")).toBe(true);
       expect(active.has("todo")).toBe(true);
       // memory is now registered via module loader, not hardcoded in TOOL_GROUPS
-      // code_exec should NOT be enabled (not detected)
+      // code_exec should NOT be enabled (web + management detected, not code)
       expect(active.has("code_exec")).toBe(false);
+      // batch/pipe/map are in orchestration group, not enabled by web+management
+      expect(active.has("batch")).toBe(false);
     });
 
     it("detects web for general-purpose recommendation and discovery queries", () => {

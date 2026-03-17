@@ -414,4 +414,5 @@ export const registration = {
 	tool: computerUseTool,
 	runner: runComputerUse,
 	risk: "moderate" as const,
+	group: "gui",
 };

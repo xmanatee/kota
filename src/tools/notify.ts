@@ -143,4 +143,5 @@ export const registration = {
 	tool: notifyTool,
 	runner: runNotify,
 	risk: "safe" as const,
+	group: "management",
 };

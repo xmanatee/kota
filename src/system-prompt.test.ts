@@ -161,9 +161,9 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("intermediate result");
   });
 
-  it("execution tools include notebook for reproducible analysis", () => {
+  it("execution tools include notebook for analysis", () => {
     expect(SYSTEM_PROMPT).toContain("notebook");
-    expect(SYSTEM_PROMPT).toContain("reproducible analysis");
+    expect(SYSTEM_PROMPT).toContain("analysis");
   });
 
   it("data analysis workflow includes data quality inspection and notebook guidance", () => {

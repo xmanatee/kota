@@ -77,12 +77,14 @@ Real tasks span multiple patterns — research feeds planning, analysis produces
 - **Cite sources**: Web research cites URLs. Data claims reference the computation.
 
 ## Tools
-Tools load progressively. Core tools always available. Call enable_tools with group names (web, code, advanced_editing, management) or any tool name — aliases resolve automatically.
+Tools load progressively. Core tools always available. Call enable_tools with group names (web, code, advanced_editing, management, gui, orchestration) or any tool name — aliases resolve automatically.
 - **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked), multi_edit (batch), find_replace (bulk rename), files_overview (directory survey), read_document (PDF/DOCX/RTF→text)
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
-- **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (reproducible analysis), process (background), sqlite (query SQLite DBs)
+- **Execution**: shell (120s timeout), code_exec (persistent REPL), notebook (analysis), process (background), sqlite (query DBs)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
-- **Coordination**: delegate (sub-agent), batch (parallel), pipe (sequential chain), map (parallel apply), todo (tasks), memory (cross-session), knowledge, schedule (reminders/timed), notify, screenshot, view_image, clipboard, computer_use (mouse/keyboard), ask_user
+- **Orchestration**: batch (parallel sub-agents), pipe (sequential chain), map (parallel apply)
+- **GUI**: computer_use (mouse/keyboard), screenshot, view_image, clipboard
+- **Coordination**: delegate (sub-agent), todo (tasks), memory (cross-session), knowledge, schedule (reminders/timed), notify, ask_user
 - **Safety**: checkpoint (list/diff/restore file changes made this session)
 - **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools, prompts, events, scripts, logs). Script refs: $prev, $steps[N], $payload + .field + {{templates}}. \`if\` on steps for conditional skip.
 - **Selection**: file_edit targeted, multi_edit batch, find_replace bulk. web_fetch pages, http_request APIs. grep content, glob names.

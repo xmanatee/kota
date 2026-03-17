@@ -242,4 +242,5 @@ export const registration = {
 	tool: sqliteTool,
 	runner: runSqlite,
 	risk: "moderate" as const,
+	group: "code",
 };

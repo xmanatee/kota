@@ -223,13 +223,13 @@ const STRATEGIES: Record<TaskType, string> = {
 
 /** Tool groups most useful for each task type. */
 const GROUP_RECOMMENDATIONS: Record<TaskType, string[]> = {
-	research: ["web", "management"],
+	research: ["web", "management", "orchestration"],
 	coding: ["advanced_editing", "code"],
-	data_analysis: ["code"],
+	data_analysis: ["code", "orchestration"],
 	writing: [],
 	planning: ["management"],
 	debugging: ["code"],
-	automation: ["management", "code", "web"],
+	automation: ["management", "code", "web", "orchestration"],
 	general: [],
 };
 

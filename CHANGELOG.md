@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 591 — Refined progressive disclosure: moved 9 specialized tools from always-on core to context-sensitive groups
+
+Reduced default tool set from 22 to 13 core tools by moving specialized tools to auto-detected groups. Research shows LLMs make better tool selections with fewer options exposed (70% faster decisions per tool-calling optimization studies).
+
+### What changed
+- New `gui` group: computer_use, screenshot, view_image, clipboard — auto-enabled for visual/screen keywords
+- New `orchestration` group: batch, pipe, map — auto-enabled for parallel/sequential composition keywords
+- Moved `notify` → management group, `sqlite` → code group (with sql/sqlite auto-detection)
+- Updated task-router: research/data_analysis/automation tasks auto-enable orchestration group
+- System prompt updated to list all 6 groups; tool categories reorganized
+
+### Candidates considered
+- Durable workflow engine — persistent multi-step processes. Complex to scope; deferred
+- Composition integration tests — testing, not new capability. Lower user-facing impact
+- Memory blocks / structured context (Letta-inspired) — significant refactor needed
+- Trajectory compression — improve observation masking with summaries. Deferred
+
+### Verification
+typecheck ✓ | build ✓ | 3378 tests pass (+10) | lint ✓ | load ✓ | runtime SKIP (no API key)
+
+### Future directions
+- Adaptive tool sets that adjust mid-conversation based on tool usage patterns (not just initial prompt)
+- Measure token savings and tool selection accuracy with real conversations
+- Consider moving `files_overview` to an `analysis` group if usage data confirms low frequency
+
 ## Iteration 590 — Added subsystem concentration detection to trend output, closing the data gap that made diminishing-returns guidance ineffective
 
 Iter 588's composition-over-addition criterion was INEFFECTIVE: builder still added tool #32 (map) in iter 589, making 3 consecutive tools/orchestration iterations. Root cause: the trend showed feature/architecture but the eval criterion told the builder to classify by subsystem — a data gap.

@@ -129,4 +129,5 @@ export const registration = {
 	tool: mapTool,
 	runner: runMap,
 	risk: "moderate" as const,
+	group: "orchestration",
 };
