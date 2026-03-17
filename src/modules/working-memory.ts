@@ -12,15 +12,45 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ModuleStorage } from "../module-storage.js";
 import type { KotaModule, ModuleContext } from "../module-types.js";
 import type { ToolResult } from "../tools/index.js";
+import type { WorkingMemoryEntry } from "../working-memory.js";
 import {
 	clearAll,
 	getEntry,
+	getPersistentEntries,
 	listEntries,
+	loadEntries,
 	removeEntry,
 	setEntry,
 } from "../working-memory.js";
+
+const STORAGE_KEY = "entries";
+
+function savePersistent(storage: ModuleStorage): void {
+	const entries = getPersistentEntries();
+	if (entries.length === 0) {
+		storage.delete(STORAGE_KEY);
+		return;
+	}
+	storage.setJSON(
+		STORAGE_KEY,
+		entries.map((e) => ({ key: e.key, value: e.value, updatedAt: e.updatedAt })),
+	);
+}
+
+function loadPersistent(storage: ModuleStorage): number {
+	const raw = storage.getJSON<Array<{ key: string; value: string; updatedAt: number }>>(STORAGE_KEY);
+	if (!raw || !Array.isArray(raw)) return 0;
+	const entries: WorkingMemoryEntry[] = raw.map((e) => ({
+		key: e.key,
+		value: e.value,
+		updatedAt: e.updatedAt ?? Date.now(),
+		persistent: true,
+	}));
+	return loadEntries(entries);
+}
 
 type Action = "write" | "read" | "list" | "remove" | "clear";
 
@@ -46,44 +76,60 @@ const workingMemoryTool: Anthropic.Tool = {
 				type: "string",
 				description: "Entry content (required for write, max 500 chars)",
 			},
+			persist: {
+				type: "boolean",
+				description:
+					"If true, entry survives session restarts. Default: false (session-only).",
+			},
 		},
 		required: ["action"],
 	},
 };
 
-function makeRunner(_ctx: ModuleContext) {
+function makeRunner(ctx: ModuleContext) {
 	return async (input: Record<string, unknown>): Promise<ToolResult> => {
 		const action = input.action as Action;
 		const key = input.key as string | undefined;
 		const value = input.value as string | undefined;
+		const persist = input.persist as boolean | undefined;
 
 		switch (action) {
 			case "write": {
 				if (!key) return { content: "Error: key is required for write", is_error: true };
 				if (!value) return { content: "Error: value is required for write", is_error: true };
-				const err = setEntry(key, value);
+				const err = setEntry(key, value, persist);
 				if (err) return { content: `Error: ${err}`, is_error: true };
-				return { content: `Working memory "${key}" updated.` };
+				if (persist !== undefined) savePersistent(ctx.storage);
+				const label = persist ? " (persistent)" : "";
+				return { content: `Working memory "${key}" updated${label}.` };
 			}
 			case "read": {
 				if (!key) return { content: "Error: key is required for read", is_error: true };
 				const entry = getEntry(key);
 				if (!entry) return { content: `No entry "${key}" in working memory.`, is_error: true };
-				return { content: `${entry.key}: ${entry.value}` };
+				const tag = entry.persistent ? " [persistent]" : "";
+				return { content: `${entry.key}: ${entry.value}${tag}` };
 			}
 			case "list": {
 				const entries = listEntries();
 				if (entries.length === 0) return { content: "Working memory is empty." };
-				const lines = entries.map((e) => `- ${e.key}: ${e.value}`);
+				const lines = entries.map((e) => {
+					const tag = e.persistent ? " [persistent]" : "";
+					return `- ${e.key}: ${e.value}${tag}`;
+				});
 				return { content: `Working memory (${entries.length} entries):\n${lines.join("\n")}` };
 			}
 			case "remove": {
 				if (!key) return { content: "Error: key is required for remove", is_error: true };
+				const was = getEntry(key);
 				if (!removeEntry(key)) return { content: `No entry "${key}" to remove.`, is_error: true };
+				if (was?.persistent) savePersistent(ctx.storage);
 				return { content: `Removed "${key}" from working memory.` };
 			}
 			case "clear": {
+				const hadPersistent = getPersistentEntries().length > 0;
 				const count = clearAll();
+				if (hadPersistent) savePersistent(ctx.storage);
 				return { content: count > 0 ? `Cleared ${count} entries from working memory.` : "Working memory was already empty." };
 			}
 			default:
@@ -94,7 +140,7 @@ function makeRunner(_ctx: ModuleContext) {
 
 const workingMemoryModule: KotaModule = {
 	name: "working-memory",
-	version: "1.0.0",
+	version: "2.0.0",
 	description: "Agent-controlled scratchpad visible in the system prompt every turn",
 
 	tools: (ctx) => [
@@ -104,11 +150,15 @@ const workingMemoryModule: KotaModule = {
 		},
 	],
 
+	onLoad: (ctx) => {
+		const count = loadPersistent(ctx.storage);
+		if (count > 0) ctx.log.info(`Restored ${count} persistent working memory entries`);
+	},
+
 	promptSection: () =>
-		"You have a working memory scratchpad. Entries you write appear in your system prompt " +
-		"every turn inside <working-memory> tags — no need to re-read them. Use it to accumulate " +
-		"research findings, track multi-step plans, or maintain context during long tasks. " +
-		"Session-scoped (cleared on restart). For permanent storage, use the knowledge store.",
+		"You have a working memory scratchpad. Entries appear in <working-memory> tags every turn. " +
+		"Use write with persist:true to survive restarts; default entries are session-only. " +
+		"Good for research findings, plans, or cross-session state.",
 };
 
 export default workingMemoryModule;

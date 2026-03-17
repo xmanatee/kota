@@ -436,7 +436,7 @@ Provider-based credential management with automatic output masking. Prevents sec
 
 ### Working Memory (`src/working-memory.ts`, `src/modules/working-memory.ts`)
 
-Agent-controlled scratchpad — named entries that appear in `<working-memory>` tags in the dynamic system prompt every turn. Inspired by Letta/MemGPT's memory blocks. Session-scoped (in-memory only). Limits: 20 entries, 500 chars/value, 4000 chars total. The `working_memory` tool supports write/read/list/remove/clear actions. State rendered via `getWorkingMemoryState()` in the loop's dynamic prompt section.
+Agent-controlled scratchpad — named entries that appear in `<working-memory>` tags in the dynamic system prompt every turn. Inspired by Letta/MemGPT's memory blocks. Limits: 20 entries, 500 chars/value, 4000 chars total. The `working_memory` tool supports write/read/list/remove/clear actions with optional `persist:true` flag. Persistent entries are saved to `.kota/modules/working-memory/entries.json` via `ModuleStorage` and auto-restored on session start via the module's `onLoad` hook. Non-persistent entries remain session-scoped. Persistent entries show a ★ marker in the system prompt.
 
 **Agent tool**: `get_secret` injects the secret into `process.env` for use by shell/code_exec tools. The LLM receives `<secret:NAME>` — never the real value.
 

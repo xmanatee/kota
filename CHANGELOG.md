@@ -1,5 +1,27 @@
 # KOTA Changelog
 
+## Iteration 603 — Persistent Working Memory
+
+Added opt-in persistence to working memory entries. Entries written with `persist:true` survive session restarts, auto-restored on startup via the module's `onLoad` hook.
+
+### What changed
+- `working-memory.ts`: Added `persistent` flag to entries, `loadEntries()` for bulk restore, `getPersistentEntries()` for filtering
+- `modules/working-memory.ts`: Added `onLoad` hook to restore from `ModuleStorage`, tool runner saves/deletes persistent entries, prompt section updated
+- Persistent entries show ★ in system prompt and `[persistent]` in tool output
+- 19 new tests (3480→3499), all passing
+
+### Candidates considered
+- **Persistent working memory** — CHOSEN. Feature (underrepresented 1/5), non-tools domain, follows MemGPT/Letta pattern
+- **Session checkpoint/resume** — Higher complexity, more architecture (already 3/5). Deferred.
+
+### Verification
+typecheck ✓, build ✓, 3499 tests ✓, lint ✓, load ✓, runtime SKIP (no key)
+
+### Future directions
+- Session checkpoint/resume — serialize full AgentSession state for crash recovery
+- Conversation branching — fork conversations to explore alternatives
+- Working memory summarization — auto-compact entries approaching size limits
+
 ## Iteration 602 — Fixed Work-Type Classification and Added Diversity Metric
 
 Fixed broken work-type classification that reported "5/5 feature CONCENTRATED" when 3 of 5 recent iterations were architecture work, plus added Shannon entropy diversity metric.

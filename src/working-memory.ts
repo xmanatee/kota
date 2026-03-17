@@ -17,6 +17,8 @@ export type WorkingMemoryEntry = {
 	key: string;
 	value: string;
 	updatedAt: number;
+	/** If true, entry survives session restarts via module storage. */
+	persistent?: boolean;
 };
 
 let store: Map<string, WorkingMemoryEntry> | null = null;
@@ -26,7 +28,11 @@ function getStore(): Map<string, WorkingMemoryEntry> {
 	return store;
 }
 
-export function setEntry(key: string, value: string): string | null {
+export function setEntry(
+	key: string,
+	value: string,
+	persistent?: boolean,
+): string | null {
 	const s = getStore();
 	if (key.length > 80) return "Key must be 80 chars or less";
 	if (value.length > MAX_VALUE_LENGTH)
@@ -41,8 +47,31 @@ export function setEntry(key: string, value: string): string | null {
 	if (currentTotal + delta > MAX_TOTAL_CHARS)
 		return `Would exceed total size limit (${MAX_TOTAL_CHARS} chars). Shorten value or remove entries.`;
 
-	s.set(key, { key, value, updatedAt: Date.now() });
+	s.set(key, {
+		key,
+		value,
+		updatedAt: Date.now(),
+		persistent: persistent ?? existing?.persistent,
+	});
 	return null;
+}
+
+/**
+ * Load entries in bulk (for restoring persisted entries on startup).
+ * Skips entries that would violate limits.
+ */
+export function loadEntries(entries: WorkingMemoryEntry[]): number {
+	let loaded = 0;
+	for (const e of entries) {
+		const err = setEntry(e.key, e.value, e.persistent);
+		if (!err) loaded++;
+	}
+	return loaded;
+}
+
+/** Get all entries marked as persistent. */
+export function getPersistentEntries(): WorkingMemoryEntry[] {
+	return [...getStore().values()].filter((e) => e.persistent);
 }
 
 export function getEntry(key: string): WorkingMemoryEntry | undefined {
@@ -77,7 +106,10 @@ function totalChars(s: Map<string, WorkingMemoryEntry>): number {
 export function getWorkingMemoryState(): string {
 	const entries = listEntries();
 	if (entries.length === 0) return "";
-	const lines = entries.map((e) => `- **${e.key}**: ${e.value}`);
+	const lines = entries.map((e) => {
+		const tag = e.persistent ? " ★" : "";
+		return `- **${e.key}**: ${e.value}${tag}`;
+	});
 	return `\n\n<working-memory>\n${lines.join("\n")}\n</working-memory>`;
 }
 
