@@ -4,10 +4,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runArchitectPass, runEditorLoop } from "./architect.js";
 import type { CostTracker } from "./cost.js";
+import type { ModelClient } from "./model-client.js";
 import type { Transport } from "./transport.js";
 
 export type ArchitectStepConfig = {
-  client: Anthropic;
+  client: ModelClient;
   model: string;
   editorModel: string;
   maxTokens: number;

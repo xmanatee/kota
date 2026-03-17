@@ -7,6 +7,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ModelClient } from "./model-client.js";
 
 type Listener = (...args: unknown[]) => void;
 
@@ -77,7 +78,7 @@ export type MockApiCall = {
  */
 export function createMockClient(
 	responses: Anthropic.Message[],
-): [Anthropic, MockApiCall[]] {
+): [ModelClient, MockApiCall[]] {
 	const calls: MockApiCall[] = [];
 	let callIndex = 0;
 
@@ -95,7 +96,7 @@ export function createMockClient(
 				return new MockStream(responses[idx]);
 			},
 		},
-	} as unknown as Anthropic;
+	} as unknown as ModelClient;
 
 	return [client, calls];
 }

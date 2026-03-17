@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { compactMessages, extractWorkingState } from "./compaction.js";
 import { Context, truncateToolResult } from "./context.js";
 import { buildToolCallMap, pruneMessages } from "./message-pruning.js";
+import type { ModelClient } from "./model-client.js";
 
 type Message = Anthropic.MessageParam;
 
@@ -196,7 +197,7 @@ describe("context-pipeline cross-module integration", () => {
           content: [{ type: "text", text: "User asked to refactor auth module. Token validation extracted to separate file. Tests fixed and passing." }],
         }),
       },
-    } as unknown as Anthropic;
+    } as unknown as ModelClient;
 
     const compacted = await compactMessages(mockClient, "claude-sonnet", msgs, 1);
 
@@ -233,7 +234,7 @@ describe("context-pipeline cross-module integration", () => {
       messages: {
         create: vi.fn().mockRejectedValue(new Error("API timeout")),
       },
-    } as unknown as Anthropic;
+    } as unknown as ModelClient;
 
     const compacted = await compactMessages(failingClient, "claude-sonnet", msgs, 2);
 
@@ -289,7 +290,7 @@ describe("context-pipeline cross-module integration", () => {
           content: [{ type: "text", text: "Auth module refactored." }],
         }),
       },
-    } as unknown as Anthropic;
+    } as unknown as ModelClient;
 
     await ctx.compact(mockClient, "claude-sonnet");
 
@@ -318,7 +319,7 @@ describe("context-pipeline cross-module integration", () => {
           content: [{ type: "text", text: "Refactored auth module. Created src/token-validation.ts, edited src/auth.ts and tests. All 24 tests pass." }],
         }),
       },
-    } as unknown as Anthropic;
+    } as unknown as ModelClient;
 
     const compacted1 = await compactMessages(mockClient, "claude-sonnet", msgs, 1);
     expect(compacted1).toHaveLength(2);
@@ -424,7 +425,7 @@ describe("context-pipeline cross-module integration", () => {
       messages: {
         create: vi.fn(),
       },
-    } as unknown as Anthropic;
+    } as unknown as ModelClient;
 
     ctx.setInputTokens(180_000); // Way over threshold
     await ctx.compact(mockClient, "claude-sonnet");

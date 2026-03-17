@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it } from "vitest";
 import { CONTEXT_WINDOW, Context, truncateToolResult } from "./context.js";
+import type { ModelClient } from "./model-client.js";
 
 // --- truncateToolResult ---
 
@@ -344,15 +345,15 @@ describe("Context", () => {
   });
 
   describe("compact", () => {
-    // Mock Anthropic client that returns a canned summary
-    function mockClient(): Anthropic {
+    // Mock client that returns a canned summary
+    function mockClient(): ModelClient {
       return {
         messages: {
           create: async () => ({
             content: [{ type: "text", text: "Summary of conversation so far." }],
           }),
         },
-      } as unknown as Anthropic;
+      } as unknown as ModelClient;
     }
 
     /** Build a realistic alternating conversation with tool_use/tool_result pairs. */
@@ -394,7 +395,7 @@ describe("Context", () => {
       for (let i = 0; i < 10; i++) {
         ctx.addUserMessage(`msg ${i}`);
       }
-      const mock = {} as Anthropic;
+      const mock = {} as ModelClient;
       await ctx.compact(mock, "test-model");
       expect(ctx.getMessages()).toHaveLength(10);
     });
@@ -416,7 +417,7 @@ describe("Context", () => {
             return { content: [{ type: "text", text: "Summary" }] };
           },
         },
-      } as unknown as Anthropic;
+      } as unknown as ModelClient;
 
       await ctx.compact(spyClient, "test-model");
       // Should not have called the LLM
@@ -435,7 +436,7 @@ describe("Context", () => {
         messages: {
           create: async () => { throw new Error("API down"); },
         },
-      } as unknown as Anthropic;
+      } as unknown as ModelClient;
 
       // compactMessages catches the LLM error internally and falls back,
       // so this should still succeed. But let's verify count increments only once.
@@ -521,14 +522,14 @@ describe("Context", () => {
   });
 
   describe("e2e: prune → compact → truncate pipeline", () => {
-    function mockClient(): Anthropic {
+    function mockClient(): ModelClient {
       return {
         messages: {
           create: async () => ({
             content: [{ type: "text", text: "Compacted summary." }],
           }),
         },
-      } as unknown as Anthropic;
+      } as unknown as ModelClient;
     }
 
     it("prune reduces content, compact reduces messages, truncate limits new results", async () => {

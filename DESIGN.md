@@ -751,6 +751,10 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 - **Verification nudges** (`src/verify-tracker.ts`): Tracks unverified edits, detects available test/build commands, escalates after 3 turns.
 - **File change tracking & undo** (`src/file-changes.ts`, `src/tools/checkpoint.ts`): Automatically records the original state of every file before its first modification. The `checkpoint` tool (core, always available) lets the agent list changes, diff against originals, and restore files — surgical undo for multi-file edits gone wrong. Singleton lifecycle managed in `AgentSession` (init on construction, reset on close). Change summary injected into dynamic system state for agent awareness.
 
+### Model Client Abstraction (`src/model-client.ts`)
+
+`ModelClient` interface decouples the agent loop from the Anthropic SDK. Exposes `messages.stream()` and `messages.create()` — the two API surfaces used by the agent. `MessageStream` interface: `.on("text"|"thinking", cb)` + `.finalMessage()`. `AnthropicModelClient` wraps `@anthropic-ai/sdk` as the default provider. All LLM call sites (`loop.ts`, `streaming.ts`, `architect.ts`, `delegate.ts`, `compaction.ts`, `context.ts`) accept `ModelClient` instead of `Anthropic` directly. Mock clients in tests now implement `ModelClient` instead of casting to `Anthropic`. Enables future provider swapping (Claude Agent SDK, other models) without changing agent code.
+
 ### Session State Machine (`src/session-state.ts`)
 
 Explicit lifecycle states for `AgentSession`, mapping to the ReAct pattern. States: `idle → initializing → ready → thinking → acting → ready` (happy path), with `reflecting` and `error` branches. Transition table enforced — invalid transitions throw. Listeners notified on every change with `(from, to, meta)`. State changes emit `state_change` transport events and `session.state` bus events. `AgentSession.getState()` exposes current state. History tracking with `consecutiveCount()` for loop detection.

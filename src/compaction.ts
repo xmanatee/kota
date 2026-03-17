@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ModelClient } from "./model-client.js";
 
 type Message = Anthropic.MessageParam;
 type ContentBlock = Anthropic.Messages.ContentBlockParam;
@@ -146,7 +147,7 @@ export const COMPACTION_PROMPT =
  * Returns the full replacement message content.
  */
 export async function compactMessages(
-  client: Anthropic,
+  client: ModelClient,
   model: string,
   messages: Message[],
   compactionNumber: number,

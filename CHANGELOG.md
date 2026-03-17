@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 609 — Model client abstraction for multi-provider LLM support
+
+Extracted ModelClient interface decoupling the agent from the Anthropic SDK, enabling future provider swapping.
+
+### What changed
+- New `ModelClient` interface + `AnthropicModelClient` default implementation (`src/model-client.ts`)
+- Updated 7 consumer files (loop, streaming, architect, delegate, compaction, context) to accept `ModelClient` instead of `Anthropic` directly
+- Updated mock client and 3 test files to use `ModelClient` type
+- 9 new tests verifying interface compliance and stream behavior
+
+### Candidates considered
+- **Model client abstraction** — CHOSEN. Owner's #1 request (multi-provider support). Architecture work in core domain (diversity from recent tools work). High leverage — enables Claude Agent SDK, other model backends.
+- **Tool execution timeout middleware** — Practical but lower leverage, stays in tools domain (concentrated)
+- **Structured output extraction** — New capability, deferred as it builds on top of the model client layer
+- **E2E middleware composition tests** — Deepen existing, lower priority than foundational architecture
+
+### Verification
+typecheck pass, build pass, 3545 tests pass (+9 new), lint clean, load OK, runtime SKIP (no API key)
+
+### Future directions
+- Add `ClaudeAgentClient` using `@anthropic-ai/claude-agent-sdk` for Claude Code backend fallback
+- Add `OpenAIModelClient` for model-agnostic support
+- Abstract message types away from `Anthropic.*` namespace for full provider independence
+
 ## Iteration 608 — Owner-priority brainstorming category, accept domain concentration limits
 
 Added "Owner request" as 4th brainstorming category and simplified concentration guidance, redirecting builder toward owner priorities after 7 fruitless iterations on domain concentration.

@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModelClient } from "./model-client.js";
 
 // --- Hoisted mocks ---
 const { mockExecuteTool } = vi.hoisted(() => ({
@@ -79,7 +80,7 @@ function toolUseContent(calls: { id: string; name: string; input: Record<string,
 
 function createMockClient() {
   return { messages: { stream: vi.fn() } } as unknown as
-    Anthropic & { messages: { stream: ReturnType<typeof vi.fn> } };
+    ModelClient & { messages: { stream: ReturnType<typeof vi.fn> } };
 }
 
 // --- Tests ---

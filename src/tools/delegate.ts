@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
 import {
@@ -11,6 +11,7 @@ import {
   exploreTools,
 } from "../delegate-prompts.js";
 import type { McpManager } from "../mcp-manager.js";
+import { AnthropicModelClient, type ModelClient } from "../model-client.js";
 import { isRetryable } from "../streaming.js";
 import { maybeRetry } from "../tool-retry.js";
 import type { Transport } from "../transport.js";
@@ -66,7 +67,7 @@ function streamBackoff(attempt: number): Promise<void> {
 
 export type DelegateConfig = {
   model: string;
-  client?: Anthropic;
+  client?: ModelClient;
   cwd?: string;
   projectContext?: string;
   costTracker?: CostTracker;
@@ -113,7 +114,7 @@ export async function runDelegate(
   const searchQueries = new Set<string>();
   let completionReason: CompletionReason = "done";
 
-  const client = delegateConfig.client ?? new Anthropic();
+  const client = delegateConfig.client ?? new AnthropicModelClient();
   const costTracker = delegateConfig.costTracker;
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: "user", content: task },

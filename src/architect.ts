@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
+import type { ModelClient } from "./model-client.js";
 import { isRetryable } from "./streaming.js";
 import { extractModifiedFiles } from "./tools/delegate-format.js";
 import { executeTool, getAllTools } from "./tools/index.js";
@@ -43,7 +44,7 @@ export const MAX_EDITOR_TURNS = 30;
 const EDITOR_RESULT_LIMIT = 30_000;
 
 export type ArchitectOptions = {
-  client: Anthropic;
+  client: ModelClient;
   model: string;
   maxTokens: number;
   systemContext: string;
@@ -99,7 +100,7 @@ export async function runArchitectPass(opts: ArchitectOptions): Promise<string> 
 }
 
 export type EditorOptions = {
-  client: Anthropic;
+  client: ModelClient;
   model: string;
   maxTokens: number;
   plan: string;

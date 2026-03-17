@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { runArchitectStep } from "./architect-runner.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
 import { CONTEXT_WINDOW, Context } from "./context.js";
@@ -10,6 +10,7 @@ import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from 
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
+import { AnthropicModelClient, type ModelClient } from "./model-client.js";
 import { listManifestModules } from "./module-factory.js";
 import { ModuleLoader } from "./module-loader.js";
 import { initModuleLogStore } from "./module-log.js";
@@ -62,8 +63,8 @@ export type LoopOptions = {
   label?: string;
   /** Enable self-reflection before delivering final response. Default: true. */
   reflectionEnabled?: boolean;
-  /** Inject an Anthropic client (for testing with mock clients). */
-  client?: Anthropic;
+  /** Inject a model client (for testing with mock clients or alternative providers). */
+  client?: ModelClient;
 };
 
 /**
@@ -71,7 +72,7 @@ export type LoopOptions = {
  * Used by both single-shot mode and interactive REPL.
  */
 export class AgentSession {
-  private client: Anthropic;
+  private client: ModelClient;
   private context: Context;
   private costTracker: CostTracker;
   private model: string;
@@ -125,7 +126,7 @@ export class AgentSession {
       ? thinkingBudget + this.maxTokens
       : this.maxTokens;
 
-    this.client = options.client ?? new Anthropic({ maxRetries: 5 });
+    this.client = options.client ?? new AnthropicModelClient({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
     // Initialize persistent stores for this project
