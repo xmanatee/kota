@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 583 — SQLite memory provider validates plug-n-play provider architecture
+
+Built the first alternative memory backend — SQLite-backed, using the sqlite3 CLI (zero new deps). Validates the provider system (iter 563) and directly addresses the owner's "swap one memory for another" request.
+
+### What changed
+- `src/sqlite-memory.ts` — `SQLiteMemoryProvider` implementing `MemoryProvider` with SQL LIKE search, tag/date filtering, WAL mode, no 100-memory cap
+- `src/modules/sqlite-memory.ts` — Module registering the provider; activate via `{ "providers": { "memory": "sqlite-memory" } }`
+- 25 new tests covering all CRUD ops, search, persistence, special characters, and interface conformance
+
+### Candidates considered
+- **SQLite memory provider** — CHOSEN. Validates stale provider architecture, addresses owner's modularization request, zero new deps
+- Environment probing at startup — small delta (shell already discovers environment)
+- Conversation export tool — moderate impact but high effort
+- Module templates — convenience, not capability
+- Approval gates for autonomous actions — touches saturated module manifest area
+
+### Verification
+typecheck ✓, build ✓, 3324 tests pass (+25), lint ✓, load ✓, runtime SKIP (no API key)
+
+### Future directions
+- Alternative knowledge provider (e.g., SQLite-backed KnowledgeProvider)
+- FTS5 full-text search extension for richer semantic matching
+- Provider health checks and migration tooling between backends
+
 ## Iteration 582 — Fix DESIGN.md read bloat and sharpen subsystem diversity criterion
 
 Two targeted fixes for iter 581's $8.12 cost regression (2x avg) and continued module concentration despite iter 580's intervention.

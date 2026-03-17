@@ -185,18 +185,9 @@ Typed interfaces for swappable core services. Modules can register alternative i
 
 **Fallback**: If no provider is registered for a type, the convenience getters (`getMemoryProvider()`, `getKnowledgeProvider()`) fall back to the built-in singletons. This means the agent works identically with zero config.
 
-**How to swap memory backend (example)**:
-```typescript
-const vectorMemoryModule: KotaModule = {
-  name: "vector-memory",
-  description: "Vector DB backed memory with semantic search",
-  onLoad: (ctx) => {
-    const provider = new VectorMemoryProvider(ctx);
-    ctx.registerProvider("memory", provider);
-  },
-};
-```
-Then in config: `{ "providers": { "memory": "vector-memory" } }`
+**Built-in providers**:
+- `default` — file-based JSON (`MemoryStore`, `KnowledgeStore`). Active by default.
+- `sqlite-memory` — SQLite-backed memory (`src/sqlite-memory.ts`, `src/modules/sqlite-memory.ts`). SQL-powered search, no 100-memory cap, concurrent-safe via WAL mode. Uses `sqlite3` CLI (no library dependency). Activate: `{ "providers": { "memory": "sqlite-memory" } }`. DB stored at `.kota/modules/sqlite-memory/memory.db`.
 
 **Design decisions**:
 - Structural typing — existing classes don't need `implements MemoryProvider`. TypeScript duck typing ensures conformance automatically.

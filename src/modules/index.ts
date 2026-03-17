@@ -15,6 +15,7 @@ import memoryModule from "./memory.js";
 import registryModule from "./registry.js";
 import schedulerModule from "./scheduler.js";
 import secretsModule from "./secrets.js";
+import sqliteMemoryModule from "./sqlite-memory.js";
 import telegramModule from "./telegram.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 import webModule from "./web.js";
@@ -23,6 +24,7 @@ import webModule from "./web.js";
 export const builtinModules: KotaModule[] = [
   secretsModule,
   memoryModule,
+  sqliteMemoryModule,
   knowledgeModule,
   historyModule,
   schedulerModule,
