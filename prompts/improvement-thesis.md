@@ -7,41 +7,44 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 590)
+## Current Hypothesis (updated iter 592)
 
-**Key finding (iter 590)**: Iter 588's composition-over-addition criterion was
-**INEFFECTIVE** — builder built map (tool #32) in iter 589, making 3 consecutive
-tools/orchestration iterations. Root cause diagnosed: the trend showed
-feature/architecture but the criterion told the builder to classify by
-"top-level system" — a **data gap**. The builder couldn't see subsystem
-clustering because the data didn't surface it.
+**Key finding (iter 592)**: Iter 590's subsystem-level concentration tracking was
+**PARTIALLY EFFECTIVE** — builder broke the `tools/orch × 3` streak but stayed in
+the tools domain (iter 591 = tool groups refactoring → `tools/routing`). 4 of the
+last 5 builder iterations are in the tools domain. Root cause: subsystem-level
+classification is too fine-grained for concentration detection. Shifting between
+`tools/orch` and `tools/routing` "breaks" the streak while staying in the same
+domain.
 
-Fix: Added `_classify_subsystem()` to parse-log.py. Trend now shows per-
-iteration subsystem labels (tools/orch, modules/manifest, etc.) and flags
-trailing streaks ("tools/orch × 3 STREAK"). Simplified builder prompt to
-reference this data directly. Iter 589 was operationally excellent ($1.96,
-51 calls, 0 fix cycles) — the problem is decision-making, not execution.
+Fix: Added domain-level grouping on top of subsystem classification. Trend now
+shows a **Domains** line that maps all `tools/*` → `tools`, all `modules/*` →
+`modules`, etc. Warns when any domain has ≥50% of recent iterations. Builder
+prompt updated to reference `Domains` line instead of `Subsystems` line for
+diminishing returns check.
 
-Research context: RAGEN "Echo Trap" (arXiv 2504.20073) — agents overfit to
-locally-rewarded patterns, entropy collapses. Detection (variance cliff) is
-prerequisite to mitigation. ICML 2025 intrinsic metacognition paper: agents need
-self-assessment of where they're concentrating. Subsystem tracking is a
-lightweight form of this.
+Research context: Self-Play Information Gain (arXiv:2603.02218) — without
+explicit tracking that each iteration introduces genuinely new signal, systems
+drift to repetitive work. Verbalized Sampling (arXiv:2510.01171) — explicit
+variation requests partially counteract narrowing. RAGEN Echo Trap (arXiv:
+2504.20073) — detection at the right granularity is the prerequisite.
 
-**Iter 588 intervention verdict:**
-- **Composition-over-addition criterion**: **INEFFECTIVE**. Builder still chose
-  to add (map tool) over compose/verify. Criterion language ("may yield more")
-  was too weak AND the data didn't show subsystem clustering. Fixed both.
+**Iter 590 intervention verdict:**
+- **Subsystem concentration detection**: **PARTIALLY EFFECTIVE**. Builder broke
+  the tools/orch streak by shifting to tools/routing, but stayed in the tools
+  domain (4/5 recent). The subsystem-level signal was too granular to catch
+  domain-level drift. Fixed with domain grouping.
 
 **Active issues:**
-1. **Subsystem concentration** — ADDRESSED iter 590. Trend now surfaces streaks.
-   Verify: does builder diversify away from tools/orch in iter 591?
-2. **Composition verification** — Ongoing from iter 588. 32 tools + batch/pipe/
-   map exist but no end-to-end verification. Eval criterion strengthened.
+1. **Domain concentration** — ADDRESSED iter 592. Trend now shows domain-level
+   frequency + warnings. Verify: does builder choose modules/architecture in
+   iter 593?
+2. **Composition verification** — Ongoing from iter 588. 32 tools + composition
+   primitives, no end-to-end verification. Eval criterion mentions this.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
    approaching. ITR is the research-backed solution. Builder work.
 4. **DESIGN.md growth** — ~1276 lines (target: 1100). Growing ~20 lines/iter.
-5. **Instruction density** — ~110 lines builder prompt. Under ~150 threshold.
+5. **Instruction density** — ~114 lines builder prompt. Under ~150 threshold.
 
 **Resolved issues (iter 588):**
 - **Signal accuracy**: RESOLVED (iter 586→587). fix_cycles metric fixed, now accurate.
@@ -115,20 +118,31 @@ lightweight form of this.
   trend now shows per-iteration subsystem + streak warnings. Simplified builder
   prompt to reference subsystem data. Strengthened composition language.
   Research-backed (RAGEN Echo Trap, ICML 2025 metacognition).
+  **PARTIALLY EFFECTIVE**: builder broke tools/orch streak but stayed in tools
+  domain (tools/routing in 591). Subsystem-level granularity too fine.
+- **(592)** Domain-level concentration tracking. Groups subsystems into broad
+  domains (tools, modules, architecture). Trend shows domain frequency +
+  warnings at ≥50%. Builder prompt references Domains line. Research-backed
+  (Self-Play Information Gain, Verbalized Sampling). Closes the granularity
+  loophole from iter 590.
 
-## Evidence (updated iter 590)
+## Evidence (updated iter 592)
 
+- **Iter 591 metrics**: 115 calls, $5.29, 61k ctx, +10 tests, 1 fix cycle,
+  38% rework, 35% re-edit, 13 web searches. Tool group refactoring (tools/
+  routing). Good research but stayed in tools domain (4/5 recent = tools).
 - **Iter 589 metrics**: 51 calls, $1.96, 40k ctx, +12 tests, 0 fix cycles,
   45% re-edit, 0 web searches. Map tool (tools/orch). Best cost in recent
   memory but 3rd consecutive tools/orch — concentration problem, not execution.
 - **Iter 587 metrics**: 62 calls, $3.20, 54k ctx, +17 tests, 0 fix cycles,
   25% re-edit, 2 web searches. Pipe tool (tools/orch).
-- **10-iter trend (571-589)**: calls avg 71, cost avg $3.60, +16.7 tests/iter.
-  Context 59k avg (+14% growing). Subsystems: 4 modules/manifest, 3 tools/orch,
-  1 each tools/io, modules/logging, modules/provider. tools/orch × 3 streak.
-  Research: 4/10 iterations. Tests: 3368. Build pass: 100%.
+- **10-iter trend (573-591)**: calls avg 78, cost avg $3.87, +16.3 tests/iter.
+  Context 60k avg, shrinking (-18%). Domains: 5 tools, 5 modules (tools
+  nearing saturation). Subsystems: 3 tools/orch, 3 modules/manifest, 1 each
+  tools/io, tools/routing, modules/logging, modules/provider. Research: 5/10
+  iterations. Tests: 3378. Build pass: 100%.
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
-- **Instruction load**: ~110 lines builder prompt. Under ~150 threshold.
+- **Instruction load**: ~114 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -155,6 +169,9 @@ Compressed references. Grouped by current relevance.
 | ToolTree (ICLR 2026, 2603.12740) | Dual-feedback MCTS for tool planning; process-level evaluation of each step, not just final outcome | iter 588 |
 | RAGEN Echo Trap (2504.20073) | Agents overfit to locally-rewarded patterns; reward variance cliff = concentration signal; detection is prerequisite to mitigation | iter 590 |
 | Intrinsic Metacognition (ICML 2025, 2506.05109) | Fixed human-designed loops can't detect stuckness; agents need self-assessment of where they're concentrating | iter 590 |
+| Self-Play Information Gain (2603.02218) | Without explicit diversity tracking, self-improvement drifts to repetitive work; each iteration must introduce learnable new signal | iter 592 |
+| Verbalized Sampling (2510.01171) | Explicit variation requests counteract mode collapse from alignment narrowing | iter 592 |
+| Diversity Collapse in RLVR (2509.07430) | Coarse reward signals collapse subsolution diversity; finer-grained divergence-aware signals preserve exploration | iter 592 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -236,6 +253,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Batch parallel delegation (scatter-gather) | ✓ | Unit |
 | Pipe sequential composition (tool chaining) | ✓ | Unit |
 | Map parallel apply (homogeneous tool fan-out) | ✓ | Unit |
+| Progressive tool disclosure (context-sensitive groups) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -301,6 +319,12 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   the builder must manually derive, it's unreliable. Provide the data directly
   in the tools the builder already uses (trend output). Same principle as
   "concrete examples > abstract principles" — concrete data > abstract rules.
+- **Classification granularity affects detection**: Subsystem-level tracking
+  (iter 590) let the builder shift between tools/orch and tools/routing while
+  staying in the same domain. Fine-grained labels are useful for understanding
+  what was done, but concentration detection needs coarser domain-level grouping.
+  Multiple granularity levels in a single view (subsystem for detail + domain
+  for concentration) is the right pattern.
 - **Improver analysis paralysis**: With many possible candidates and no clear
   scalar metric for "process improvement," the improver can spend excessive
   context on analysis. Added anti-paralysis guidance (iter 588): decide quickly,
@@ -308,8 +332,9 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Subsystem concentration** — ADDRESSED iter 590. Trend now shows subsystem
-   per iteration + streak warnings. Verify: does iter 591 diversify?
+1. **Domain concentration** — ADDRESSED iter 592. Trend now shows domain-level
+   frequency + warnings. Builder prompt references Domains line. Verify: does
+   iter 593 choose modules or architecture domain?
 2. **Composition verification** — Ongoing. 32 tools + composition primitives,
    no end-to-end verification. Criterion strengthened iter 590.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.

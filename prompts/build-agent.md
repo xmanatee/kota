@@ -49,11 +49,14 @@ unlocks new properties ("any developer can create a working module using
 ModuleContext alone" or "modules can be swapped without touching other code").
 Both are concrete capability gains.
 
-Watch for diminishing returns in the trend's **Subsystems** line. It shows which
-subsystem each recent iteration worked on and flags streaks. At 3+ consecutive
-same-subsystem iterations, that subsystem is deeply saturated — even novel-
-sounding work there adds less than opening a new capability front. Ask: can
-existing capabilities approximate this? If yes, the delta is small.
+Watch for diminishing returns in the trend's **Domains** line. It groups related
+subsystems (tools/orch + tools/routing + tools/io = "tools" domain; modules/*
+= "modules" domain) and warns when a domain dominates. Shifting between
+subsystems within the same domain (e.g., tools/orch → tools/routing) still
+concentrates in one domain. When a domain has ≥50% of recent iterations, the
+marginal value of any work there — even novel-sounding — is lower than opening
+a different capability front. Ask: can existing capabilities approximate this?
+If yes, the delta is small.
 
 At 32+ capabilities, composition work — proving that existing tools accomplish
 real multi-step tasks end-to-end — yields more than adding tool #33. Integration

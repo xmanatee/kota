@@ -970,6 +970,8 @@ def _classify_subsystem(title: str) -> str:
         return "tools/orch"
     if any(kw in t for kw in ["view_image", "image", "screenshot", "clipboard", "document read", "computer use", "pdf", "visual"]):
         return "tools/io"
+    if any(kw in t for kw in ["tool group", "tool filter", "progressive disclosure", "tool routing", "tool set", "default tool"]):
+        return "tools/routing"
     if any(kw in t for kw in ["script", "step", "event handler", "conditional", "manifest", "$steps"]):
         return "modules/manifest"
     if any(kw in t for kw in ["modulecontext", "module context", "ctx.", "event proxy", "session factory", "dependency inject"]):
@@ -985,6 +987,29 @@ def _classify_subsystem(title: str) -> str:
     if any(kw in t for kw in ["module", "mcp"]):
         return "modules"
     return "other"
+
+
+# Map subsystems to broad domains for concentration detection.
+# Domain-level tracking catches drift that subsystem-level misses
+# (e.g., tools/orch → tools/routing still = "tools" domain).
+_SUBSYSTEM_TO_DOMAIN = {
+    "tools/orch": "tools",
+    "tools/io": "tools",
+    "tools/routing": "tools",
+    "tools": "tools",
+    "modules/manifest": "modules",
+    "modules/ctx": "modules",
+    "modules/provider": "modules",
+    "modules/logging": "modules",
+    "modules": "modules",
+    "architecture": "architecture",
+    "other": "other",
+}
+
+
+def _get_domain(subsystem: str) -> str:
+    """Map a subsystem label to its broad domain."""
+    return _SUBSYSTEM_TO_DOMAIN.get(subsystem, "other")
 
 
 def trend(n: int = 5) -> None:
@@ -1022,6 +1047,7 @@ def trend(n: int = 5) -> None:
                     data["work_type"] = "architecture"
         else:
             data["subsystem"] = "other"
+        data["domain"] = _get_domain(data.get("subsystem", "other"))
         entries.append(data)
 
     print(f"=== Builder Trend (last {len(entries)}) ===")
@@ -1143,6 +1169,22 @@ def trend(n: int = 5) -> None:
     elif trail_streak == 2:
         streak_warn = f" — {trail_sub} × {trail_streak} (watch for saturation)"
     print(f"  Subsystems: {sub_str}{streak_warn}")
+
+    # Domain-level concentration (coarser than subsystem — catches drift
+    # across related subsystems like tools/orch → tools/routing → tools)
+    dom_ctr = Counter(e.get("domain", "other") for e in entries)
+    dom_str = ", ".join(f"{v} {k}" for k, v in dom_ctr.most_common())
+    # Domain concentration warning: if any domain has >50% of iterations
+    dom_warn = ""
+    for dom, cnt in dom_ctr.most_common(1):
+        if ne >= 4 and cnt >= ne * 0.6:
+            dom_warn = (
+                f" — {dom} domain: {cnt}/{ne} iters "
+                f"CONCENTRATED (explore other domains)"
+            )
+        elif ne >= 4 and cnt >= ne * 0.5:
+            dom_warn = f" — {dom} domain: {cnt}/{ne} iters (nearing saturation)"
+    print(f"  Domains: {dom_str}{dom_warn}")
 
     # Work-type distribution (kept for backward compatibility)
     type_ctr = Counter(e.get("work_type", "?") for e in entries)

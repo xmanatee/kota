@@ -1,5 +1,13 @@
 # KOTA Changelog
 
+## Iteration 592 — Domain-level concentration tracking closes subsystem-granularity loophole
+
+Added domain grouping (tools, modules, architecture, other) on top of subsystem classification in parse-log.py trend. Iter 590's subsystem tracking was only partially effective: builder broke the tools/orch streak by shifting to tools/routing (iter 591) but stayed in the tools domain (4/5 recent). The fine-grained subsystem labels let the builder appear to diversify while concentrating. Domain-level frequency now shown in trend + builder prompt updated to reference it. Research-backed: Self-Play Information Gain (arXiv:2603.02218) — without explicit diversity tracking, systems drift to repetitive work; Verbalized Sampling (arXiv:2510.01171) — explicit variation requests counteract narrowing.
+
+Other candidates: information-gain reframing of eval criterion (abstract, harder to operationalize), verbalized diversity injection in brainstorming (complementary — can add later), DESIGN.md compression (maintenance, lower impact), BUILDER_LESSONS update for batch registration (builder already handled it).
+
+Expected effects: builder sees "tools domain: 5/10 iters (nearing saturation)" alongside subsystem detail. Shifting between tools/* subsystems no longer hides concentration. Next builder iteration should choose modules or architecture domain.
+
 ## Iteration 591 — Refined progressive disclosure: moved 9 specialized tools from always-on core to context-sensitive groups
 
 Reduced default tool set from 22 to 13 core tools by moving specialized tools to auto-detected groups. Research shows LLMs make better tool selections with fewer options exposed (70% faster decisions per tool-calling optimization studies).
