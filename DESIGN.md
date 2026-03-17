@@ -484,6 +484,24 @@ From Anthropic's "Writing Tools for Agents":
 2. Output is token-efficient — no verbose dumps, paginated where needed
 3. Errors guide the agent — "File not found at X. Did you mean Y?" not "ENOENT"
 
+### Page-Level Web Extraction (`src/html-page-extract.ts`)
+
+Enhances `web_fetch` output for HTML pages with three layers of intelligence on top of the base `extractContent()` pipeline:
+
+1. **Content region detection** (`findContentRegion`): Identifies the main content area using semantic HTML (`<article>`, `<main>`, `[role="main"]`) and common CSS patterns (`id="content"`, `.entry-content`, `.post-content`, `.article-content`). Falls back to full page when no region found. Minimum 100 chars threshold to reject empty containers.
+
+2. **Metadata extraction** (`extractMetadata`): Pulls title, description, author, date, and site name from `<head>` meta tags. Supports OpenGraph (`og:title`, `og:description`, `og:site_name`), `article:published_time`, and standard meta tags. OG tags take priority over standard tags.
+
+3. **Class/ID boilerplate removal** (`removeBoilerplateByAttr`): Removes `<div>`/`<section>` elements whose `class` or `id` matches common noise patterns: sidebar, comments, related, social, share, widget, advertisement, cookie, consent, popup, modal, banner, toolbar, newsletter, promo, sponsor.
+
+**Integration**: `web_fetch` calls `extractPage()` instead of `extractContent()` for HTML responses. The result includes a compact metadata header (title, author, date, site name, description) followed by `---` separator and clean Markdown content.
+
+**Design decisions**:
+- Separate file from `html-extract.ts` — page-level concerns (metadata, content regions) are distinct from HTML→Markdown conversion.
+- `extractPage()` delegates to `extractContent()` for the Markdown conversion step — no code duplication.
+- Zero new dependencies — all regex-based, consistent with the existing approach.
+- Content region detection uses priority ordering (article > main > role=main > id=content) to handle pages with multiple semantic containers.
+
 ### Linter-Gated Edits (`src/lint.ts`)
 
 After each `file_edit`/`file_write`, syntax is checked (JSON.parse, node --check, esbuild, python3 ast.parse). On failure, file is auto-reverted. Prevents cascading errors from bad edits.

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { extractContent } from "../html-extract.js";
+import { extractPage, formatMetadataHeader } from "../html-page-extract.js";
 import type { ToolResult } from "./index.js";
 
 export const webFetchTool: Anthropic.Tool = {
@@ -159,7 +159,9 @@ export async function runWebFetch(
 
     let text: string;
     if (contentType.includes("html")) {
-      text = extractContent(raw);
+      const page = extractPage(raw);
+      const header = formatMetadataHeader(page.metadata);
+      text = header + page.content;
     } else {
       text = raw;
     }

@@ -310,3 +310,4 @@ export function extractContent(html: string): string {
   // Phase 3: Final cleanup (restores code block placeholders)
   return finalCleanup(text, placeholders);
 }
+

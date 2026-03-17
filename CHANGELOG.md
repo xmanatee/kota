@@ -1,5 +1,93 @@
 # KOTA Changelog
 
+## Iteration 547 — Smart Web Page Extraction with Content Detection and Metadata
+
+Built page-level HTML extraction that identifies main content regions, extracts page metadata, and removes class/ID-based boilerplate — making web_fetch dramatically more useful for research, analysis, and information gathering tasks.
+
+### What was built
+
+**Page-level extraction** (`src/html-page-extract.ts`) — three layers of intelligence
+on top of the existing HTML→Markdown pipeline:
+
+1. **Content region detection**: Finds `<article>`, `<main>`, `[role="main"]`, or
+   common content div patterns (`id="content"`, `.entry-content`, `.post-content`,
+   `.article-content`). When found, extracts only that region — eliminating sidebars,
+   related articles, comment sections, and other noise that the tag-based boilerplate
+   removal misses. Falls back to full page when no region is detected.
+
+2. **Metadata extraction**: Pulls title, description, author, date, and site name
+   from `<head>` meta tags. Supports OpenGraph tags (og:title, og:description,
+   og:site_name, article:published_time) with fallback to standard meta tags.
+   Metadata is formatted as a compact header prepended to the content.
+
+3. **Class/ID boilerplate removal**: Removes `<div>`/`<section>` elements whose
+   class or id matches 17 common noise patterns: sidebar, comments, related, social,
+   share, widget, advertisement, cookie, consent, popup, modal, banner, toolbar,
+   search-form, newsletter, promo, sponsor. Also removes `<form>` and `<template>` blocks.
+
+**Integration**: `web_fetch` now calls `extractPage()` for HTML responses. The output
+includes a metadata header (title, author, date, site name, description) followed by
+a separator and clean Markdown — giving the agent immediate context about what it's
+reading without consuming extra tool calls.
+
+### Why it matters
+
+The agent has `web_search` and `web_fetch`, but prior to this iteration, `web_fetch`
+returned noisy content that wasted tokens and confused the LLM. Real web pages contain
+sidebars, comment sections, cookie banners, newsletter signups, social sharing widgets,
+and related article links — none of which contribute to the information the agent needs.
+
+This directly impacts every non-coding domain: research, analysis, writing, planning.
+When the agent reads a web page to gather information, it now gets:
+- Clean article content without sidebar/comment/widget noise
+- Page metadata (title, author, date) for citation and context
+- Dramatically fewer tokens wasted on boilerplate HTML
+
+Before: search → fetch (noisy HTML) → LLM struggles to find relevant content.
+After: search → fetch (clean markdown + metadata) → LLM has clear, structured content.
+
+### Verified
+- Typecheck: clean
+- Build: clean
+- Tests: 2938 passed (129 files) — 35 new tests, 2903 existing unchanged
+- Lint: clean on all changed files
+- CLI: `kota --help` loads correctly
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Files changed
+- `src/html-page-extract.ts` (new) — content region detection, metadata extraction,
+  boilerplate-by-attr removal, extractPage() function
+- `src/html-page-extract.test.ts` (new) — 35 tests covering metadata, regions,
+  boilerplate, formatting, and realistic page scenarios
+- `src/tools/web-fetch.ts` — switched from extractContent() to extractPage(), added
+  metadata header formatting
+- `src/html-extract.ts` — no changes (kept as-is for backward compatibility)
+- `DESIGN.md` — added Page-Level Web Extraction section
+
+### Future directions
+- **Text density heuristics**: When no semantic container is found, score blocks by
+  text-to-tag ratio to find the content-richest region (similar to Readability)
+- **Link density filtering**: Detect and remove navigation-heavy blocks even without
+  class/id signals
+- **Structured data extraction**: Pull JSON-LD, microdata, and schema.org annotations
+  for richer metadata (recipes, products, events)
+- **Multi-page synthesis**: For paginated content, auto-detect and fetch subsequent
+  pages to return the complete article
+- **Configurable extraction profiles**: Per-domain extraction rules for sites with
+  known layouts (documentation sites, news sites, etc.)
+
+### Candidates considered
+1. **Smart web page extraction** ← CHOSEN. Directly enables research/analysis workflows
+   that were previously hindered by noisy HTML output.
+2. **Module isolation refactor**: Address owner's concern about modules importing from
+   core. Important for architecture quality, but doesn't add capability.
+3. **Intelligent context recovery**: Re-derive state from filesystem after compaction.
+   Interesting but narrow use case.
+4. **Multi-step plan execution**: Systematic plan decomposition with verification gates.
+   Would improve complex task handling but the task router already provides some of this.
+5. **Cross-session project continuity**: Auto-persist project-level context. Partially
+   covered by knowledge store and conversation history.
+
 ## Iteration 546 — Broaden Builder Evaluation from Features to Quality
 
 Broadened builder evaluation criterion and lessons to value architecture quality and code hardening alongside new features, guided by GVU "Second Law" research on strengthening evaluation over generation.
