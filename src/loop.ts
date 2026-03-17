@@ -20,6 +20,7 @@ import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 import { initScheduler } from "./scheduler.js";
 import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
+import { formatTaskHint, routeTask } from "./task-router.js";
 import { initTaskStore } from "./task-store.js";
 import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
@@ -266,15 +267,19 @@ export class AgentSession {
       tryEmit("session.start", { sessionId: this.sessionId, label: this.sessionLabel });
     }
 
-    // Request-aware context pre-loading: identify mentioned files and
-    // search memory by request keywords. Zero LLM cost — pure heuristics.
+    // Request-aware context pre-loading and task routing.
+    // Zero LLM cost — pure heuristics and pattern matching.
     const analysis = analyzeRequest(prompt, process.cwd());
-    const augmentedPrompt = analysis
-      ? prompt + formatContextHint(analysis)
-      : prompt;
+    const taskRoute = routeTask(prompt);
+    let augmentedPrompt = prompt;
+    if (analysis) augmentedPrompt += formatContextHint(analysis);
+    augmentedPrompt += formatTaskHint(taskRoute);
 
     this.context.addUserMessage(augmentedPrompt);
     for (const g of detectToolGroups(prompt)) enableGroup(g);
+    if (taskRoute) {
+      for (const g of taskRoute.groups) enableGroup(g);
+    }
     let lastResult = "";
 
     // MCP tools always included; built-in tools filtered by active groups

@@ -1,5 +1,56 @@
 # KOTA Changelog
 
+## Iteration 543 — Task Router for Strategy-Adaptive Requests
+
+Built a task-type detection and strategy routing system that classifies user requests and provides task-specific guidance, making the agent smarter about how it approaches different types of work from the first turn.
+
+### What was built
+
+**Task Router** (`src/task-router.ts`):
+- Weighted pattern matching classifies prompts into 7 task types: research, coding, data_analysis, writing, planning, debugging, automation (plus general fallback)
+- Each type has 4-5 regex patterns with weights (1-3); highest total score wins
+- Minimum score threshold (2) prevents false positives on generic messages
+- Returns strategy hints, recommended tool groups, and task type
+
+**Strategy hints**: Compact, actionable per-task-type reminders appended to the user message:
+- Research: "Delegate parallel searches on different angles. Compare 3+ sources with dates."
+- Coding: "Start with repo_map. Group related changes. Run tests after each edit."
+- Debugging: "Read the full error. Grep for context around the failure."
+- etc.
+
+**Auto-group enablement**: Task router recommends tool groups per task type (e.g., `web` + `management` for research, `code` + `advanced_editing` for coding). These are auto-enabled alongside the existing `detectToolGroups()` signal detection.
+
+**Loop integration** (`src/loop.ts`): Task routing runs on every `send()` alongside request analysis. Strategy hint is appended to the user message; groups are auto-enabled. 5-line integration.
+
+### Why it matters
+
+The agent has comprehensive workflow guidance in its system prompt (8 workflow patterns), but system prompt guidance is constant — it doesn't adapt to the specific request. The task router makes the relevant strategy salient at the right moment by injecting a task-specific hint alongside the user's message.
+
+This is relevance priming: the same information exists in the system prompt, but positioning it adjacent to the user's intent improves adherence. Research on prompt engineering consistently shows that proximity of guidance to the relevant context improves task completion.
+
+Additionally, auto-enabling the right tool groups means users don't need to know about progressive disclosure or call `enable_tools` manually — the agent has the right tools available from turn 1.
+
+### Verified
+- Typecheck: clean
+- Build: clean
+- Tests: 2896 passed (127 files) — 24 new tests covering all task types, disambiguation, formatting, and edge cases
+- Lint: clean on all changed files
+- CLI: `kota --help` loads correctly
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Files changed
+- `src/task-router.ts` (new) — task type detection, strategy hints, group recommendations
+- `src/task-router.test.ts` (new) — 24 tests
+- `src/loop.ts` — integrated task routing into request processing (import + 5 lines)
+- `DESIGN.md` — added Task Router section
+
+### Future directions
+- **Task complexity detection**: Classify tasks as simple/moderate/complex to adjust depth of response (simple → direct answer, complex → plan with todo first)
+- **Multi-type routing**: Detect compound tasks ("research and implement") and provide guidance for both phases
+- **Feedback-driven pattern refinement**: Log task type detections and let the user correct misclassifications to improve patterns over time
+- **Module-specific routing**: Let modules register their own task patterns and strategies via `registerCustomGroup`'s pattern parameter
+- **Full-text conversation search**: Extend conversation_recall to search message content, not just titles
+
 ## Iteration 542 — Lint Batching Lesson and Research Synthesis
 
 Added lint efficiency lesson to BUILDER_LESSONS.md, fixed parse-log.py test delta false positive, and synthesized 9 new research papers into improvement thesis.

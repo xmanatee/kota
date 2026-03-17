@@ -539,6 +539,25 @@ Complements session warmup (which is generic, per-session) with per-request inte
 
 Zero LLM cost — pure heuristics and local lookups. Security: all paths resolved relative to cwd, rejects paths outside the working directory.
 
+### Task Router (`src/task-router.ts`)
+
+Classifies user requests by task type and provides strategy hints. Complements the request analyzer (which pre-loads context) with task-level intelligence (which adapts the agent's approach).
+
+**Task types**: `research`, `coding`, `data_analysis`, `writing`, `planning`, `debugging`, `automation`, `general`.
+
+**Per-request routing**:
+1. **Weighted pattern matching** — each task type has 4-5 regex patterns with weights (1-3). The type with the highest total score wins. Minimum score threshold (2) prevents weak matches.
+2. **Strategy hint** — a compact, task-specific reminder appended to the user message (e.g., `[Task: research — Delegate parallel searches on different angles. Compare 3+ sources with dates. Save key findings to knowledge store.]`). Makes the relevant system prompt guidance salient at the right moment.
+3. **Group recommendations** — auto-enables the tool groups most useful for the detected task type (e.g., `web` + `management` for research, `code` + `advanced_editing` for coding).
+
+**Integration** (`loop.ts`): Runs alongside `analyzeRequest()` and `detectToolGroups()` on every `send()` call. Strategy hint is appended to the user message. Group recommendations are enabled via `enableGroup()`, complementing (not replacing) the existing `GROUP_SIGNALS` detection.
+
+**Design decisions**:
+- Separate from request analyzer — different concerns (context pre-loading vs strategy adaptation).
+- Scored classification over first-match — handles mixed-intent prompts (e.g., "research and implement") by picking the dominant intent.
+- Minimum score threshold — avoids false positives on generic messages. Returns `null` for unclassifiable prompts.
+- Strategy hints echo the system prompt's Workflow Patterns, but making them salient per-request improves adherence (relevance priming).
+
 ### Project Context (`src/project-context.ts`)
 
 Reads `.kota.md` files from working directory up to root (like Claude Code's CLAUDE.md). Injected into system prompt.
