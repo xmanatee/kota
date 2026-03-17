@@ -19,9 +19,11 @@ import sqliteMemoryModule from "./sqlite-memory.js";
 import telegramModule from "./telegram.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 import webModule from "./web.js";
+import workingMemoryModule from "./working-memory.js";
 
 /** All built-in modules, in dependency order. */
 export const builtinModules: KotaModule[] = [
+  workingMemoryModule,
   secretsModule,
   memoryModule,
   sqliteMemoryModule,

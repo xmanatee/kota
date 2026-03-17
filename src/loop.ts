@@ -34,6 +34,7 @@ import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory.js"
 import { cleanupProcesses } from "./tools/process.js";
 import { BufferTransport, CliTransport, type Transport } from "./transport.js";
 import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
+import { getWorkingMemoryState } from "./working-memory.js";
 
 
 const MAX_ITERATIONS = 200;
@@ -362,7 +363,7 @@ export class AgentSession {
         { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
       ];
       const changesSummary = getChangeTracker()?.getSummary() ?? "";
-      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + changesSummary;
+      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + changesSummary + getWorkingMemoryState();
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }

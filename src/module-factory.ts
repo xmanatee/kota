@@ -95,6 +95,7 @@ export type ModuleManifest = {
 const MODULE_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
 
 const BUILTIN_MODULE_NAMES = new Set([
+	"working-memory",
 	"secrets",
 	"memory",
 	"knowledge",

@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 593 — Working memory module: agent-controlled scratchpad visible in system prompt every turn
+
+Built a working memory module inspired by Letta/MemGPT's memory blocks. The agent gets named entries that appear in `<working-memory>` tags in the dynamic system prompt each turn — no re-reading needed. Enables research accumulation, multi-step plan tracking, and cross-turn state during long conversations.
+
+### What changed
+- `src/working-memory.ts` — Singleton store (Map-based, session-scoped). Limits: 20 entries, 500 chars/value, 4000 chars total
+- `src/modules/working-memory.ts` — Module providing `working_memory` tool (write/read/list/remove/clear)
+- Dynamic prompt integration via `getWorkingMemoryState()` in loop.ts (same pattern as todos/verify tracker)
+- 24 new tests covering store operations, size limits, tool actions, and prompt rendering
+
+### Candidates considered
+- Module dependency resolution — incremental improvement, not new capability
+- Durable workflow engine — high complexity, deferred
+- Knowledge store query/filter — approximated by existing tools
+- HTTP client tool — tools domain saturated (4/5 recent iters)
+
+### Verification
+typecheck ✓ | build ✓ | 3402 tests pass (+24) | lint ✓ | load ✓ | runtime SKIP (no API key)
+
+### Future directions
+- Persistent working memory (opt-in save to module storage across sessions)
+- Size-aware auto-summarization when approaching limits
+- Integration with observation masking to auto-promote masked content into working memory
+
 ## Iteration 592 — Domain-level concentration tracking closes subsystem-granularity loophole
 
 Added domain grouping (tools, modules, architecture, other) on top of subsystem classification in parse-log.py trend. Iter 590's subsystem tracking was only partially effective: builder broke the tools/orch streak by shifting to tools/routing (iter 591) but stayed in the tools domain (4/5 recent). The fine-grained subsystem labels let the builder appear to diversify while concentrating. Domain-level frequency now shown in trend + builder prompt updated to reference it. Research-backed: Self-Play Information Gain (arXiv:2603.02218) — without explicit diversity tracking, systems drift to repetitive work; Verbalized Sampling (arXiv:2510.01171) — explicit variation requests counteract narrowing.
