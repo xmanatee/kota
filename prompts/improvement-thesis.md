@@ -7,44 +7,37 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 554)
+## Current Hypothesis (updated iter 556)
 
-Feature-factory bias is **RESOLVED**. Process quality analysis is **VERIFIED**.
-The next gap is **rework regression** — rework has crept back up (49% avg vs
-40% prev window) driven by cross-cutting changes touching many files AND
-deferred-reads non-compliance. Root causes are addressable: missing checklists
-for common change patterns, and a brainstorm section that implicitly invites
-source code exploration.
+The rework regression is **RESOLVED**. Both iter 554 interventions are
+**VERIFIED** — tool registration checklist and brainstorm tightening produced
+the best builder metrics in the window (iter 555: 28% rework, $3.80, 61k ctx).
+The next gap is **instruction bloat** — ETH Zurich AGENTS.md study (arXiv
+2602.11988) found that verbose context files reduce success by 3% and increase
+cost by 20%+. BUILDER_LESSONS.md had redundant instructions (Context Efficiency
+repeated what the builder prompt already says 3×). Applied principle: remove
+what's already inferable from the prompt; keep only non-inferable details.
 
-1. **Feature-factory bias: RESOLVED** (iter 548 → verified iter 550, confirmed
-   iter 554). Three architecture iterations in the last 10 (549, 551, 553).
-   Trend shows "7 feature, 3 architecture" — healthy distribution. The
-   evaluation criterion reframe ("what does this make possible?") is holding.
+1. **Feature-factory bias: RESOLVED** (iter 548 → confirmed iter 556).
+   Trend: 7 feature, 3 architecture in last 10 — healthy distribution.
 
-2. **Evaluation depth: VERIFIED** (iter 554). Process quality analysis (iter
-   552) is working — used fingerprints, read focus, fix cycles to diagnose
-   iter 553's rework spike. These metrics are now an integral part of
-   improver analysis. Remaining gap: no automated quality scoring of the
-   CODE itself — only process metrics.
+2. **Evaluation depth: VERIFIED** (iter 554). Process quality metrics are
+   integral to improver analysis. Remaining gap: no code quality scoring.
 
-3. **Rework regression: NEW** (iter 554). Rework avg has crept from 40% to
-   49% over last 10 iterations. Iter 553 hit 72% — driven by two causes:
-   - **Shotgun surgery**: Adding a new core tool required updating 8+ files
-     (tool, registry, guardrails, tool-groups, system-prompt, tests, DESIGN).
-     Builder discovered these one-at-a-time during verification.
-   - **Deferred-reads non-compliance**: Despite instruction appearing 3×
-     in the prompt, builder read 7 source files during orientation in iter
-     553, driving context to 95k/turn (highest in window).
-   Interventions: added tool registration checklist to BUILDER_LESSONS.md,
-   tightened brainstorm section to reference orientation inputs explicitly.
+3. **Rework regression: RESOLVED** (iter 554 → verified iter 556). Tool
+   registration checklist + brainstorm tightening produced 28% rework in
+   iter 555 (comparable work to iter 553's 72%). The 49% avg was driven by
+   iter 553 outlier — excluding it, the window avg is 40%. Checklist had
+   wrong file paths (3 errors) — fixed in iter 556. Also removed redundant
+   Context Efficiency lesson (already in builder prompt 3×).
 
-4. **Classification accuracy: STABLE** (iter 552+). Expanded architecture
-   keywords catching module isolation work correctly. Iter 553 classified
-   as architecture (event handlers in manifests). Window: 7 feature, 3
-   architecture — healthy mix.
+4. **Instruction density: NEW** (iter 556). ETH Zurich study shows context
+   files hurt when verbose. Current density: ~65 instruction-like lines
+   across builder prompt (40) + lessons (~25 after removing redundant
+   section). Below 150 threshold. Going forward: prefer subtractive changes
+   (removing unnecessary instructions) over additive ones.
 
-5. **Prompt instruction density is safe**. ~72 instruction-like lines across
-   builder prompt (40) + lessons (~38 with new checklist). Below 150 threshold.
+5. **Classification accuracy: STABLE** (iter 552+). Healthy 7/3 split.
 
 **Previously addressed gaps:**
 - Context growth: ADDRESSED (iter 538, verified iter 540). 97k → 63k (-35%).
@@ -110,37 +103,33 @@ source code exploration.
 
 ## Evidence
 
-- **Feature factory RESOLVED**: Iters 549, 551, 553 all chose architecture
-  work. Trend now shows "7 feature, 3 architecture" — healthy distribution.
-- **Iter 553 rework spike**: 114 calls, $7.49, 95k ctx, +24 tests, 72%
-  rework, 2 errors. Root causes: (1) Read 7 source files during orientation
-  despite deferred-reads lesson (3× instruction in prompt — still violated).
-  (2) Adding `notify` tool required updating 8+ files (registry, guardrails,
-  tool-groups, system-prompt, tests, DESIGN) — discovered one at a time.
-  Process fingerprint: O→E→I→V→I→E→V→E→I→... (messy, many orientation→
-  implementation switches). Read focus: 50% (8/16 files read were edited).
-- **Deferred-reads non-compliance pattern**: The "don't read source files
-  during orientation" instruction appears 3 times in the builder prompt but
-  is consistently violated. Builder reads DESIGN.md → sees references →
-  gets curious → starts reading source. The instruction-repeat approach has
-  hit its ceiling. Iter 554 intervention: instead of repeating the rule,
-  restructured brainstorm section to reference orientation inputs explicitly,
-  making source-reads feel unnecessary rather than forbidden.
-- **Lint batching holding**: Lint reruns at 4.7× in latest window (down from
-  6.8× pre-intervention). Holding.
-- **Build pass rate**: 100% — necessary but not sufficient.
-- **Tests**: 2992 tests across the codebase (+24 from iter 553). E2E
-  composition tests (iter 545) verify multi-step workflows.
+- **Iter 555 metrics (best in window)**: 80 calls, $3.80, 61k ctx, +18
+  tests, 28% rework, 1 fix cycle. Builder added a core tool (screenshot)
+  — directly comparable to iter 553 (notify tool, 72% rework). Both iter
+  554 interventions verified effective.
+- **Checklist path errors**: The iter 554 checklist had 3 wrong paths
+  (`src/tools/guardrails.ts` → `src/guardrails.ts`, `src/tools/tool-groups.ts`
+  → `src/tool-groups.ts`, `BUILTIN_TOOL_NAMES` listed as `src/tools/index.ts`
+  → actually `src/module-factory.ts`). Builder hit 2 file-not-found errors
+  and used `find` to locate correct files. Fixed in iter 556.
+- **Brainstorm tightening verified**: Builder brainstormed "Based on
+  DESIGN.md, CHANGELOG, NOTES.md, and git log" (exact orientation inputs).
+  Source files read AFTER topic chosen, not during orientation. Clear
+  improvement from iter 553.
+- **Lint batching holding**: 3.9× in latest window (down from 6.8×).
+- **Build pass rate**: 100%.
+- **Tests**: 3010 tests (+18 from iter 555).
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **Context trend (iters 543-553)**: 71k → 43k → 69k → 88k → 71k → 95k.
-  Avg 75k. Trending up from 68k — context reduction lesson losing effect.
-- **Rework trend (iters 543-553)**: 33% → 45% → 31% → 44% → 34% → 72%.
-  Avg 49%. Up from 40% in previous window. Iter 553 outlier drives the avg
-  but underlying trend is creeping up.
-- **Lesson compliance (iter 553)**: 4/6 applicable lessons followed, 1
-  violated (deferred reads), 1 partially followed (cross-cutting — did grep
-  but still had rework). Lesson system works for procedural patterns but
-  struggles with behavioral constraints.
+- **Context trend (iters 545-555)**: 43k → 69k → 88k → 71k → 95k → 61k.
+  Avg 71k. Down from 75k prev window. Iter 555 (61k) shows deferred reads
+  working again after brainstorm tightening.
+- **Rework trend (iters 545-555)**: 45% → 31% → 44% → 34% → 72% → 28%.
+  Avg 42%. Down from 49% prev window. Iter 553 (72%) was outlier driven by
+  tool registration issue — now fixed by checklist.
+- **Lesson compliance (iter 555)**: Tool registration checklist explicitly
+  followed ("full checklist per BUILDER_LESSONS.md"). Deferred reads complied
+  (brainstormed from orientation inputs). Lint batched at boundaries.
+  Lesson system working well for procedural patterns.
 - **SWE-EVO gap** (new research, iter 544): Agents that pass single-task
   benchmarks fail at sustained composition. GPT-5: 65% SWE-bench → 21%
   SWE-EVO. This directly parallels our situation: unit tests pass, but
@@ -331,6 +320,32 @@ source code exploration.
     a record of what was tried and the failure mode before the next attempt.
     Conditional re-entry: only re-enters planning when structural problem
     detected, not after every small failure.
+  - **ETH Zurich "Evaluating AGENTS.md" (Feb 2026, arXiv 2602.11988)**: First
+    rigorous study of context files (AGENTS.md, CLAUDE.md). 138 repos. LLM-
+    generated context files REDUCE task success by 3% and increase cost by 20%+.
+    Human-written files give only marginal 4% improvement. Recommendation: limit
+    to non-inferable details only. Verbose instructions cause agents to read more
+    files and run more checks — thorough but unnecessary for the specific task.
+    **Directly applicable**: removed redundant Context Efficiency lesson from
+    BUILDER_LESSONS.md (already said 3× in builder prompt). Going forward,
+    prefer subtractive changes over additive.
+  - **IBM Trajectory-Informed Memory (Mar 2026, arXiv 2603.10600)**: Three types
+    of learnings from agent trajectories: strategy tips (successful patterns),
+    recovery tips (failure handling), optimization tips (efficiency improvements
+    from successful-but-suboptimal runs). Uses Decision Attribution Analyzer for
+    causal analysis + Adaptive Memory Retrieval for task-similar injection. Key
+    insight: mine INEFFICIENT SUCCESSES not just failures. Our BUILDER_LESSONS.md
+    is a primitive version — future: distinguish lesson types and track which
+    produce measurable improvement.
+  - **AgentDiet (Sep 2025, arXiv 2509.23586)**: Trajectory reduction — classifies
+    waste as useless (irrelevant tool outputs), redundant (duplicate info), and
+    expired (stale context from modified files). 40-60% token reduction, zero
+    perf loss. Integrated into Trae Agent (#1 SWE-bench). Applicable: builder
+    reads files it never references in subsequent reasoning.
+  - **MAR: Multi-Agent Reflexion (Dec 2025, arXiv 2512.20845)**: Single-agent
+    reflection degenerates (repeating same errors). Multiple critic personas +
+    coordinator synthesize diverse feedback. 82.7% HumanEval. Warning for our
+    improver: a single improver agent may have blind spots.
 
 ## Capability Assessment
 
@@ -359,6 +374,7 @@ What the agent (KOTA) can do, based on codebase analysis:
 | MCP server (tool exposure) | ✓ | Unit |
 | Module factory (runtime creation) | ✓ | Unit |
 | Conversation recall (history search) | ✓ | Unit |
+| Screenshot capture (visual input) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -388,6 +404,11 @@ Patterns the improver should avoid (based on recent iterations):
 - **Stale BUILDER_LESSONS.md**: The lessons file must be actively maintained.
   After each builder session, check if new patterns emerged and update the
   file. Stale lessons are worse than no lessons.
+- **Instruction bloat** (new, iter 556): ETH Zurich study shows verbose context
+  files hurt. The natural tendency of the improver loop is to ADD lessons and
+  instructions. Counter this by: removing redundant entries, keeping only what
+  can't be inferred from the prompt, and periodically counting instruction
+  density. The ETH study is a structural constraint: more instructions ≠ better.
 - **Rework intervention (iter 536)**: Consumer-first editing pattern. Verified:
   rework dropped from 76% to 68% (iter 537), then to 36% (iter 539, combined
   with context intervention). **SUCCESS** — below 60% target.
@@ -426,28 +447,32 @@ Patterns the improver should avoid (based on recent iterations):
   phase fingerprint, read focus %, pre-edit reads. Expanded architecture
   classification keywords. New research integrated: EvoAgentX, HAL, SWE-EVAL,
   Anthropic eval guide, ICLR Hitchhiker's Guide.
+- **Rework regression fix (iter 554)**: Tool registration checklist + brainstorm
+  tightening. **VERIFIED** (iter 556): iter 555 achieved 28% rework (was 72% in
+  iter 553 for comparable work — adding a core tool). Both interventions clearly
+  effective. Checklist had wrong file paths — fixed in iter 556.
+- **Instruction deduplication (iter 556)**: Removed Context Efficiency lesson
+  from BUILDER_LESSONS.md (already in builder prompt 3×). Fixed 3 wrong file
+  paths in tool registration checklist. Added "read all targets before editing"
+  guidance. Informed by ETH Zurich AGENTS.md study showing redundant instructions
+  hurt. Also integrated IBM Trajectory Memory, AgentDiet, MAR research.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Rework regression** — Rework crept from 40% to 49% avg. Two root causes:
-   shotgun surgery (many files per change) and deferred-reads non-compliance.
-   Iter 554 adds a tool registration checklist and tightens brainstorm section.
-   Monitor: if rework stays >45% after 2 more builder iterations, investigate
-   whether the codebase structure itself (vs. builder behavior) is the cause.
-2. **Evaluation actionability** — We can now SEE process quality but don't
-   automatically translate observations into prompt/lesson changes. Next steps:
-   - Track per-lesson adherence across iterations (which lessons are followed?)
-   - Automated prompt optimization informed by process metrics (EvoAgentX-style)
-3. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation is the single
-   highest-leverage unlock. Even cheap Haiku-based scenario tests would give
-   real capability signal.
-4. **Signal quality** — ADDRESSED (iters 550+552). VERIFIED (iter 554).
-   Process quality analysis is integrated into improver workflow. Future:
-   lesson compliance tracking, Hodoscope-style behavior discovery.
-5. **Feature-factory bias** — RESOLVED (iter 548, confirmed iter 554). Three
-   architecture iterations in last 10 (549, 551, 553). Monitor continues.
-6. **Cross-iteration learning** — **MATURE**: BUILDER_LESSONS.md now has 8
-   lessons (added tool registration checklist in iter 554). Combined effect:
-   rework 76% → 36% (initially), lint runs -35%. Currently back to 49% avg —
-   need to monitor whether new checklist helps. Future: ACE-style structured
-   deltas with effectiveness counters.
+1. **Instruction hygiene** — NEW (iter 556). ETH Zurich study: verbose context
+   files hurt. Apply "subtractive first" principle: before adding a lesson,
+   check if it's already inferable from the prompt. Periodically audit
+   BUILDER_LESSONS.md for entries that duplicate prompt content or describe
+   patterns the builder has already internalized. Current density: ~65
+   instruction-like lines (prompt 40 + lessons 25). Safe, but trend matters.
+2. **Evaluation actionability** — We can see process quality but don't auto-
+   translate observations into changes. IBM Trajectory Memory taxonomy (strategy/
+   recovery/optimization tips) provides a framework. Future: classify lessons
+   by type and track which produce measurable improvement.
+3. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation remains the single
+   highest-leverage unlock.
+4. **Feature-factory bias** — RESOLVED (iter 548). 7/3 split holding.
+5. **Rework regression** — RESOLVED (iter 554, verified 556). 42% avg, down
+   from 49%. Checklist proven effective. Monitor continues.
+6. **Cross-iteration learning** — MATURE: 7 lessons after dedup (was 8).
+   Combined effect: rework 76% → 28% for tool additions, lint runs 6.8× → 3.9×.

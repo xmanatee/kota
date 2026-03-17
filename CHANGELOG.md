@@ -1,5 +1,99 @@
 # KOTA Changelog
 
+## Iteration 556 — Checklist Accuracy and Instruction Deduplication
+
+Fixed 3 wrong file paths in tool registration checklist and removed redundant Context Efficiency lesson, informed by ETH Zurich AGENTS.md study showing verbose context files reduce success by 3%.
+
+### Verification of iter 554
+
+Both interventions **VERIFIED** against iter 555 data:
+
+- **Tool registration checklist**: Builder added a core tool (screenshot) with
+  28% rework and 1 fix cycle — vs 72% rework and 5 fix cycles in iter 553
+  (notify tool, comparable work). Builder explicitly referenced "full checklist
+  per BUILDER_LESSONS.md." Clear success.
+- **Brainstorm tightening**: Builder brainstormed "Based on DESIGN.md,
+  CHANGELOG, NOTES.md, and git log" — exact orientation inputs. Source files
+  read AFTER topic chosen, not during orientation. Deferred-reads compliance
+  restored.
+- **Overall metrics**: 80 calls, $3.80, 61k ctx — best in 10-iteration window
+  (avg: 101 calls, $5.14, 73k ctx).
+
+### Diagnosis
+
+Despite the strong results, iter 555 had 5 errors — 2 caused by wrong file
+paths in the checklist:
+- `src/tools/guardrails.ts` → actual: `src/guardrails.ts`
+- `src/tools/tool-groups.ts` → actual: `src/tool-groups.ts`
+- `BUILTIN_TOOL_NAMES` described as in `src/tools/index.ts` → actual:
+  `src/module-factory.ts`
+
+Builder followed the checklist, hit file-not-found errors, then used `find` to
+locate correct paths. Wasted ~3 calls on path discovery.
+
+Separately: web research (ETH Zurich arXiv 2602.11988) found that verbose
+context files reduce task success by 3% and increase cost by 20%+. The Context
+Efficiency section in BUILDER_LESSONS.md repeated what the builder prompt
+already says 3 times — pure duplication per the study's criteria.
+
+### Changes
+
+**BUILDER_LESSONS.md — fixed checklist paths**
+- `src/tools/guardrails.ts` → `src/guardrails.ts`
+- `src/tools/tool-groups.ts` → `src/tool-groups.ts`
+- Separated `BUILTIN_TOOL_NAMES` into its own item (#3) pointing to
+  `src/module-factory.ts`
+- Added "read ALL target files before editing" instruction to prevent
+  write-before-read errors
+- Added "read ONE recent tool as reference template" efficiency guidance
+
+**BUILDER_LESSONS.md — removed redundant Context Efficiency section**
+Removed 15 lines that duplicated the builder prompt's deferred-reads
+instruction (which appears 3 times). The rule is well-covered in the prompt;
+the lesson added no non-inferable information. Informed by ETH Zurich study:
+redundant instructions increase cost without improving outcomes.
+
+**Improvement thesis — updated with iter 556 analysis**
+- Verified both iter 554 interventions
+- Rework regression reclassified as RESOLVED (28% in iter 555)
+- New strategic priority: instruction hygiene (subtractive > additive)
+- New research: ETH Zurich AGENTS.md study, IBM Trajectory Memory (3 tip
+  types), AgentDiet (waste taxonomy), MAR (multi-agent reflexion)
+
+### Candidates considered
+
+1. **Checklist accuracy + instruction dedup** — CHOSEN. Directly fixes errors
+   observed in iter 555 (2 file-not-found from wrong paths). ETH Zurich study
+   provides research backing for removing redundant lessons. Combined: fixes
+   the concrete and applies a structural principle.
+2. **Builder prompt workflow consolidation** — Merge the three overlapping
+   workflow sections. Deferred: high risk of unintended side effects from major
+   prompt restructuring. The targeted checklist fix is safer.
+3. **IBM-style lesson taxonomy** — Classify BUILDER_LESSONS.md entries as
+   strategy/recovery/optimization tips with effectiveness tracking. Deferred:
+   interesting framework but premature — current lessons are working. Worth
+   revisiting when lesson count grows or effectiveness plateaus.
+4. **AgentDiet-style trajectory pruning** — Classify wasted reads in builder
+   sessions. Deferred: would require parse-log.py changes and the builder's
+   read focus is already improving (50% in iter 555 vs 50% in iter 553 —
+   stable, not getting worse).
+5. **Multi-perspective improver critique** — MAR-inspired diverse lenses for
+   improvement analysis. Deferred: interesting architectural change but the
+   current single-agent improver is producing measurable results.
+
+### Expected effects
+
+- **Fewer path-discovery errors**: Builder follows checklist → hits correct
+  files on first try. Target: 0 file-not-found errors from checklist paths.
+- **Fewer write-before-read errors**: "Read ALL target files before editing"
+  instruction prevents the tool error seen in iter 555.
+- **Marginally less context**: Removing 15 lines from BUILDER_LESSONS.md
+  reduces context by ~500 tokens per iteration. Small but in the right
+  direction (subtractive > additive).
+- **Principle established**: Future improver iterations should audit for
+  redundancy before adding instructions. The ETH Zurich finding is a
+  structural constraint on the improver's natural tendency to add.
+
 ## Iteration 555 — Screenshot Capture Tool
 
 Built a screenshot tool that captures the screen and returns it as an image for Claude to analyze, adding visual understanding as a new input modality for the agent.

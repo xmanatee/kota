@@ -25,22 +25,6 @@ Check these before starting new work:
   (currently ~12000 chars). Adding new sections to the prompt may exceed it.
   Check after any prompt-affecting changes.
 
-## Context Efficiency
-
-Every source file you read adds to your context window and degrades downstream
-reasoning quality. Research (Chroma "Context Rot" 2025) shows performance drops
-well before context limits — at ~25% of nominal capacity.
-
-**Rule**: Don't read source files during orientation. Decide what to build
-based on lightweight signals (DESIGN.md, CHANGELOG, NOTES.md, git log). Then
-read only the files relevant to your chosen work.
-
-**Why this matters**: In iter 537, 18 source files were read during orientation
-before the work topic was chosen. Most were irrelevant to the final
-implementation (module_factory). This drove context to 97k tokens/turn (+18%
-growth trend), increasing cost to $7.42 (vs $5.35 avg) and potentially
-degrading implementation quality.
-
 ## Research Strategy
 
 Web research is valuable but expensive — in iter 539, 24 web calls (19% of all
@@ -97,7 +81,7 @@ verification checks between auto-fix passes.
 
 ## Architecture as Capability
 
-The agent is feature-rich (24+ capabilities, 2968+ tests). Features have
+The agent is feature-rich (25+ capabilities, 3010+ tests). Features have
 diminishing returns when the architecture can't support them independently.
 
 Architecture work IS capability work when it enables something that wasn't
@@ -117,7 +101,7 @@ possible before:
   "swap the memory backend by replacing one module, touching zero other files."
 - **Tool registration coupling → zero-blast-radius tools**: Adding a core tool
   currently requires updating 8+ files (see "New Core Tool Registration"
-  checklist above). A centralized tool registry with self-descriptive metadata
+  checklist below). A centralized tool registry with self-descriptive metadata
   would reduce this to 1-2 files. Outcome: "add a new tool by writing one
   file — it registers itself, declares its risk level, and documents itself."
 
@@ -130,20 +114,26 @@ adds a new feature or strengthens an existing one.
 Adding a core tool touches many files. Plan the full scope before starting
 edits — discovering downstream files one at a time causes rework cycles.
 
-**Complete checklist** (grep each before editing to find the right location):
+**Complete checklist** — read ALL target files before editing any of them:
 
 1. `src/tools/<tool>.ts` — implement the tool
-2. `src/tools/index.ts` — register in `allTools` array AND add to
-   `BUILTIN_TOOL_NAMES` (prevents module_factory name conflicts)
-3. `src/tools/guardrails.ts` — add to `SAFE_TOOLS`, `MUTATING_TOOLS`, or
+2. `src/tools/index.ts` — import runner + add tool definition to `tools` array
+3. `src/module-factory.ts` — add to `BUILTIN_TOOL_NAMES` set (prevents
+   module_factory name conflicts)
+4. `src/guardrails.ts` — add to `SAFE_TOOLS`, `MUTATING_TOOLS`, or
    `DANGEROUS_TOOLS` based on risk level
-4. `src/tools/tool-groups.ts` — add to `CORE_TOOL_NAMES` (always available)
-   or the appropriate tool group
-5. `src/system-prompt.ts` — add to the relevant tool section in the prompt
-6. `src/tools/index.test.ts` — update expected tool count (search for `toBe(`
+5. `src/tool-groups.ts` — add to `CORE_TOOL_NAMES` (always available) or the
+   appropriate tool group
+6. `src/system-prompt.ts` — add to the relevant tool section in the prompt
+7. `src/tools/index.test.ts` — update expected tool count (search for `toBe(`
    near "registered tools"). There may be multiple count assertions.
-7. `src/tools/<tool>.test.ts` — write tests for the new tool
-8. `DESIGN.md` — document the tool
+8. `src/tools/<tool>.test.ts` — write tests for the new tool
+9. `DESIGN.md` — document the tool
+
+**How to explore efficiently**: Read ONE recent tool file (e.g., the last tool
+added per git log) as a reference template. Then read all checklist files above
+before starting edits. This avoids read-before-write errors and gives you the
+full picture before you touch anything.
 
 **Why this matters**: In iter 553, adding the `notify` tool required updating
 8+ files. The builder discovered these one at a time during verification,
