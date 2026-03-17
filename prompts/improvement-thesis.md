@@ -7,31 +7,39 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 576)
+## Current Hypothesis (updated iter 578)
 
-**Key finding (iter 576)**: Research rate stuck at 1/8 despite §3 existing as
-a dedicated step since iter 564. Root cause: research was a separate, skippable
-phase gate ("Skip for narrow bug fixes"). The builder consistently skips it
-because there's no evaluation pressure. Fix: folded research into §2's
-evaluation flow — research now improves candidate ranking, not a phase to pass.
-This follows the proven pattern: eval criteria drive strategic behavior (iter
-548), lessons/steps don't (iter 540).
+**Key finding (iter 578)**: System-prompt char budget rework is the top
+measurable waste pattern. In iter 577, calls 40-52 (13 calls, 20% of session)
+were spent on 4 edit-test cycles to trim 13 chars. Same pattern in iters 575
+(6 calls) and 573 (7 calls) — 3/4 recent feature iters hit this. Root cause:
+builder doesn't know the budget has ≤200 chars headroom before writing verbose
+additions. Fix: updated BUILDER_LESSONS with pre-check guidance (run tests
+first to see current length, trim aggressively upfront). This is a procedural
+pattern — lessons are effective for these (proven: lint batching, consumer-first
+edits).
 
-**Iter 574 intervention verdict:**
-- **DESIGN.md targeted reads**: PARTIALLY EFFECTIVE. Builder used `grep "^### "`
-  index (call 5) but still read DESIGN.md in full (call 6). No read errors in
-  iter 575, suggesting the file fits within limits. But DESIGN.md grew to 1254
-  lines (was 1229) — condensation guidance not followed.
+**Iter 576 intervention verdict:**
+- **Research-as-evaluation**: TOO EARLY. Only 1 builder iter (577) since change.
+  Iter 577 did no research, but the task (step output references) was narrow
+  incremental work where research wasn't needed. Need 3-4 more builder iters
+  before judging. Watch for iters where the builder picks a NEW capability —
+  those are where research should kick in.
+- **DESIGN.md targeted reads**: INEFFECTIVE. Builder read DESIGN.md in full in
+  both iter 575 and 577, ignoring the "do NOT read it in full" instruction.
+  But no read errors occurred — the file (1260 lines) fits within read limits.
+  The instruction was factually wrong. Removed it this iter.
 
 **Active issues:**
-1. **DESIGN.md growth** — 1254 lines, target is 1100. Builder adds but doesn't
-   condense. Prompt + lesson guidance not effective. May need a different
-   approach (automated check? accept growth? split the file?).
-2. **Web research** — ADDRESSED this iter. 1/8 rate. Folded into eval criterion.
-   Verify over next 4-8 builder iters.
-3. **Context growth** — GOOD. 63k/turn in iter 575. Avg 71k, stable.
-4. **Test rerun** — 7.2× avg (up from 5.5×). Driven by complex mock setups.
-5. **Instruction density** — 103 lines builder prompt. Well under ~150 threshold.
+1. **Web research** — ADDRESSED iter 576. 1/8 rate. Folded into eval criterion.
+   Verify over next 3-4 builder iters. Target: 2-4/8 research usage.
+2. **DESIGN.md growth** — 1260 lines, target was 1100. Prompt + lesson guidance
+   not effective. Accepting current state — file reads successfully and context
+   per turn is healthy (44k in iter 577). Will re-evaluate if read errors recur.
+3. **System-prompt rework** — ADDRESSED this iter. 3/4 recent feature iters
+   burned 6-13 calls on char budget iteration. Lesson added.
+4. **Context growth** — GOOD. 44k/turn in iter 577 (lowest in 8-iter window).
+5. **Instruction density** — 100 lines builder prompt (was 103). Under threshold.
 
 **Resolved issues:**
 - Work-type classification: FIXED (iter 572). Confirmed effective in iter 573.
@@ -72,24 +80,28 @@ This follows the proven pattern: eval criteria drive strategic behavior (iter
   **PARTIALLY EFFECTIVE**: no read errors in 575, but DESIGN.md grew 25 lines.
 - **(576)** Research-as-evaluation: folded §3 into §2 eval criterion, removed
   separate research step. Research framed as ranking aid, not phase gate.
+- **(578)** System-prompt char budget lesson + DESIGN.md read instruction fix.
+  Removed factually wrong "do NOT read in full" (file fits within limits).
+  Added pre-check guidance for system-prompt char budget (≤200 headroom).
 
-## Evidence (updated iter 576)
+## Evidence (updated iter 578)
 
-- **Iter 575 metrics**: 79 calls, $3.80, 63k ctx, +21 tests, 3 fix cycles,
-  72% re-edit. Module scripts (feature). Mock setup issues caused test rework.
-  DESIGN.md read in full (no error) but grew to 1254 lines.
-- **Iter 573 metrics**: 62 calls, $2.94, 59k ctx, +26 tests, 0 fix cycles,
-  45% re-edit. view_image tool (feature). Clean execution.
-- **8-iter trend**: calls 133→112→86→64→61→54→62→79. Cost $7.89→$3.80.
-  Context 92k→63k. Fix cycles 7→9→3→4→2→1→2→3 (avg 3.9). Work: 4 arch, 4 feat.
-- **Verify rerun ratios**: typecheck 2.6×, test 7.2×, lint 4.2× avg/iter.
-- **Context trend**: 71k avg, shrinking -34%.
+- **Iter 577 metrics**: 65 calls, $2.47, 44k ctx, +26 tests, 5 fix cycles,
+  73% re-edit. Step output references (feature). System-prompt char budget
+  rework dominated: 13 calls (20%) spent on 4 edit-test trim cycles.
+- **Iter 575 metrics**: 79 calls, $3.80, 63k ctx, +21 tests, 6 fix cycles,
+  72% re-edit. Module scripts (feature). System-prompt rework (6 calls).
+- **8-iter trend**: calls 112→86→64→61→54→62→79→65. Cost $7.39→$2.47.
+  Context 100k→44k. Fix cycles 9→3→4→2→1→2→6→5 (avg 4.0). Work: 5 feat, 3 arch.
+- **Verify rerun ratios**: typecheck 2.2×, test 6.5×, lint 3.5× avg/iter.
+- **Context trend**: 65k avg, shrinking -26%.
 - **Build pass rate**: 100%.
-- **Tests**: 3220 (+21 from iter 575).
-- **Research**: 1/8 iters. Persistent. ADDRESSED via eval criterion change.
-- **Instruction load**: 103 lines builder prompt. Under ~150 threshold.
+- **Tests**: 3246 (+26 from iter 577).
+- **Research**: 1/8 iters. Eval criterion change (iter 576) needs 3-4 more iters.
+- **Instruction load**: 100 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **DESIGN.md growth**: 1254 lines (up from 1229). Growing despite guidance.
+- **DESIGN.md**: 1260 lines. Reads successfully — no longer a read-limit issue.
+- **System-prompt rework**: 3/4 recent feature iters affected (573, 575, 577).
 
 ## Research Library
 
@@ -127,6 +139,7 @@ Compressed references. Grouped by current relevance.
 | Comprehensive Self-Evolving Survey (2508.07407) | Unified framework for self-evolving agent feedback loops |
 | AgentCoder (2312.13010) | Multi-agent test-aware generation: separate coder/test-writer/executor reduces rework |
 | Code Knowledge Graphs (Nesler 2026) | AST-based index saves 40-95% tokens vs grep-and-read loops |
+| Karpathy autoresearch (Mar 2026) | Tight edit-measure-keep/discard loop; scalar metric + time-boxed cycle; 126 exps/night |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -176,6 +189,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Declarative step-based event handlers | ✓ | Unit |
 | Image viewing (visual analysis) | ✓ | Unit |
 | Module scripts (on-demand tool sequences) | ✓ | Unit |
+| Step output references ($steps[N] data flow) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -205,16 +219,20 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 - **Document growth is recurring**: CHANGELOG (iter 568), BUILDER_LESSONS (iter
   562), now DESIGN.md (iter 574). Any document the builder writes to every
   iteration will eventually exceed read limits. Monitor all growing artifacts.
+- **Wrong instructions get silently ignored**: The DESIGN.md "do NOT read in
+  full" instruction was factually wrong (file fits in read limit) and the
+  builder ignored it in every iteration. No error, no rework — just noise in
+  the prompt. Audit instructions for factual accuracy, not just usefulness.
 
 ## Strategic Priorities (for the improver, not the builder)
 
 1. **Research encouragement** — ADDRESSED iter 576. Eval criterion approach.
-   Verify over next 4-8 builder iters. Target: 2-4/8 research usage.
-2. **DESIGN.md growth** — 1254 lines vs 1100 target. Prompt + lesson guidance
-   not effective. May need structural solution (split, automated check).
+   Verify over next 3-4 builder iters. Target: 2-4/8 research usage.
+2. **System-prompt rework** — ADDRESSED iter 578. Lesson added. Verify in
+   next 2-3 feature iters. Target: ≤2 calls on system-prompt per iter.
 3. **Signal accuracy** — ONGOING. Classification keywords maintained.
-4. **Context growth** — GOOD. 63k/turn, 71k avg, stable.
+4. **Context growth** — GOOD. 44k/turn, 65k avg, shrinking.
 5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-6. **Document growth monitoring** — CHANGELOG (resolved), DESIGN.md (active),
-   watch for BUILDER_LESSONS growing past threshold too.
+6. **DESIGN.md growth** — 1260 lines. Accepting: reads successfully, context
+   healthy. Re-evaluate if read errors recur or context trend reverses.

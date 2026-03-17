@@ -18,9 +18,11 @@ in 5+ iterations, compress it to a one-liner. Target: under ~1100 lines.
 - **Module count tests**: Adding/removing modules → update TWO assertions in
   `module-cli.integration.test.ts` (search `toBe(` near "builtin modules").
 - **System prompt tests**: `system-prompt.test.ts` asserts tool names, headings,
-  content, and a ~12000 char budget. Update after adding/removing tools, modules,
-  or any prompt text changes. Adding a tool = prompt change (tool names are
-  listed in the system prompt).
+  content, and a ~12000 char budget with ≤200 chars headroom. When adding text:
+  run the system-prompt tests FIRST to see current length in the failure message,
+  then write aggressively concise text — cut 2× more than you think needed.
+  One upfront trim is faster than four edit-test cycles (iter 577 spent 13
+  calls on this). Adding a tool = prompt change (tool names listed in prompt).
 
 ## Lint
 

@@ -29,10 +29,7 @@ automation.
 ### 1. Orient
 
 Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), git log, and `tail -80
-CHANGELOG.md`. For DESIGN.md: it exceeds the read limit — do NOT read it in
-full. Instead run `grep "^### " DESIGN.md` for the component index, and read
-only the first ~100 lines for the architecture overview. Read specific DESIGN.md
-sections with `offset`/`limit` during implementation when needed.
+CHANGELOG.md`. Read DESIGN.md for architecture context.
 
 Run `npm test 2>&1 | tail -20` — fix inherited failures before new work. Run
 `python3 parse-log.py --trend 5` — note the work pattern and use it during

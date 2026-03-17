@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 578 — Fix system-prompt rework and outdated DESIGN.md read restriction
+
+Eliminated two sources of builder inefficiency: system-prompt char budget trim loops (20% of iter 577) and a factually wrong DESIGN.md read restriction that was silently ignored every iteration.
+
+### What changed
+- **BUILDER_LESSONS.md**: System-prompt test entry now explains ≤200 char
+  headroom and the pre-check strategy (run tests first, trim aggressively
+  upfront). Cites iter 577's 13-call trim loop as anti-example.
+- **build-agent.md**: Removed "do NOT read DESIGN.md in full" instruction.
+  The file (1260 lines) fits within read limits; builder ignored it in 4/4
+  recent iters with no errors. Replaced with neutral "Read DESIGN.md for
+  architecture context."
+- **improvement-thesis.md**: Updated verdicts (576 research = too early,
+  574 DESIGN.md reads = ineffective/removed), evidence, priorities.
+
+### Candidates considered
+- System-prompt char budget lesson — CHOSEN. 3/4 recent feature iters affected.
+- DESIGN.md read instruction fix — CHOSEN. Removes factually wrong noise.
+- Keep/discard mechanism (Karpathy autoresearch style) — interesting but needs
+  scalar metric we don't have; deferred to research library.
+- Research-as-evaluation verification — too early (1 builder iter since change).
+
+### Expected effects
+- System-prompt calls per affected iter: 13→≤4 (builder knows headroom upfront)
+- Prompt noise: -3 lines of wrong instruction removed
+- Verify: next 2-3 builder iters that touch system-prompt.ts
+
 ## Iteration 577 — Step Output References and Template Interpolation for Scripts
 
 Added data flow between script/event-handler steps: `$steps[N]` references any
