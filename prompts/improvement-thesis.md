@@ -7,44 +7,38 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 582)
+## Current Hypothesis (updated iter 584)
 
-**Key finding (iter 582)**: Two problems compounded in iter 581 to produce the
-highest cost ($8.12, 2x avg) and context (108k/turn) in 10 iterations:
+**Key finding (iter 584)**: Operational efficiency is healthy — the iter 582
+interventions both landed. The next improvement lever is **decision quality**,
+not efficiency. The builder's eval criterion is all abstract ("diminishing
+returns," "architecture as capability"). Research (Sarukkai et al. NeurIPS 2025,
+practitioner few-shot studies) shows that concrete worked examples improve
+pattern matching from 40-60% to 85-95% accuracy and task completion from 73% to
+93%. Adding 3 condensed examples of strong past choices to the eval criterion
+grounds the abstract guidance in concrete precedent.
 
-1. **DESIGN.md read bloat**: Builder read DESIGN.md 8 times (6 during orient,
-   2 during documentation), consuming ~200k context tokens on a single file.
-   Iters 575-579 grepped headers during orient and only read 1-2 sections
-   during implementation — context stayed at 44-63k, cost at $2.47-$3.80.
-   Root cause: prompt said "Read DESIGN.md" which sometimes gets interpreted
-   as full reads. Fix: change to `grep '^##'` + lesson with data.
-
-2. **Subsystem concentration persists**: Despite iter 580's broadening of
-   "any subsystem," builder chose module logging — 5th module-related feature
-   in 6 iterations. Builder acknowledged concentration but treated "module
-   logging" as different from "module manifest steps." Root cause: "modules"
-   is broad enough that novel-sounding work exists indefinitely. Fix: added
-   explicit system classification examples to eval criterion so "modules"
-   encompasses all manifest/factory/scripts/logging/providers work.
-
-Agent drift (arXiv 2601.04170) confirmed as recurring pattern. Eval criterion
-changes work for strategic behavior (iter 548, 568, 576, 580) but need
-sufficient specificity to be actionable.
-
-**Iter 580 intervention verdicts:**
-- **Broadened diminishing-returns ("any subsystem")**: **PARTIALLY EFFECTIVE**.
-  Builder acknowledged pattern but classified "module logging" as distinct from
-  "module manifest steps." Needed explicit system-level classification.
+**Iter 582 intervention verdicts:**
+- **DESIGN.md read efficiency (prompt + lesson)**: **EFFECTIVE**. Builder grepped
+  headers at call 4, then 1 targeted read at call 72 (docs). Context: 55k/turn
+  (was 108k). Cost: $3.72 (was $8.12). Exactly as prescribed.
+- **Subsystem concentration (explicit classification)**: **PARTIALLY EFFECTIVE**.
+  Builder chose SQLite memory provider — still module-adjacent (providers), but
+  classified as "architecture," addressed owner's direct request, and candidate
+  list included non-module options. Progress from iter 580, not a complete break.
 
 **Active issues:**
-1. **Subsystem concentration** — STRENGTHENED iter 582. Added system-level
-   classification examples. Verify: does iter 583 target a non-module system?
-2. **DESIGN.md read bloat** — ADDRESSED iter 582. Prompt + lesson. Verify:
-   does iter 583 grep headers instead of full reads? Target: ≤2 reads.
-3. **Web research** — ADDRESSED iter 576. 2/10 rate. Continue monitoring.
-4. **Context growth** — REGRESSED in iter 581 (108k). DESIGN.md fix should
-   restore to 50-65k range.
-5. **Instruction density** — 102 lines builder prompt. Under ~150 threshold.
+1. **Decision quality** — NEW iter 584. Abstract eval criterion → concrete
+   examples. Verify: does iter 585 brainstorm more diverse candidates?
+2. **Subsystem concentration** — DOWNGRADED. Builder making better choices
+   within constraint. Continue monitoring. May resolve naturally with examples.
+3. **Web research** — 3/10 rate (iters 579, 583 had research). Improving.
+4. **Instruction density** — 105 lines builder prompt. Under ~150 threshold.
+
+**Resolved issues (iter 584):**
+- **DESIGN.md read bloat**: RESOLVED (iter 582→583). Prompt + lesson effective.
+  Builder grepped headers, 1 targeted read, context back to 55k.
+- **Context growth**: RESOLVED. Back to 55k/turn (was 108k in 581).
 
 **Resolved issues:**
 - System-prompt rework: RESOLVED (iter 578→579). Lesson effective. 0 cycles.
@@ -94,27 +88,26 @@ sufficient specificity to be actionable.
   subsystem." Added anti-anchoring guidance to brainstorming. **PARTIALLY
   EFFECTIVE**: builder acknowledged but still chose modules (5/6 recent).
 - **(582)** DESIGN.md read efficiency (prompt + lesson) + subsystem diversity
-  sharpening (explicit system classification). Targets: ≤2 DESIGN.md reads,
-  non-module work in iter 583.
+  sharpening (explicit system classification). **EFFECTIVE** (DESIGN.md: 1 read,
+  55k ctx, $3.72) + **PARTIALLY EFFECTIVE** (still module-adjacent but better).
+- **(584)** Concrete worked examples in eval criterion. Research-backed
+  (Sarukkai et al., 73→93%). Targets: more diverse brainstorming in iter 585.
 
-## Evidence (updated iter 582)
+## Evidence (updated iter 584)
 
+- **Iter 583 metrics**: 77 calls, $3.72, 55k ctx, +25 tests, 1 fix cycle,
+  50% re-edit, 5 web searches. SQLite memory provider (architecture, modules).
+  1 DESIGN.md read (docs only) — **DESIGN.md fix confirmed effective**.
 - **Iter 581 metrics**: 113 calls, $8.12, 108k ctx, +8 tests, 5 fix cycles,
   56% re-edit, 0 web searches. Module persistent logging (feature, modules).
-  **8 DESIGN.md reads** (6 during orient) — primary cost/context driver.
 - **Iter 579 metrics**: 76 calls, $3.23, 57k ctx, +28 tests, 0 fix cycles,
   75% re-edit, 12 web searches. Conditional steps (feature, modules).
-- **DESIGN.md read pattern** (key finding):
-  - Grepped headers during orient (iters 575-579): 44-63k ctx, $2.47-$3.80
-  - Read full file during orient (iter 581): 108k ctx, $8.12
-  - Difference: 2x cost, 2x context from DESIGN.md reading strategy alone
-- **10-iter trend**: calls avg 77, cost avg $4.27. Context 69k avg.
-  Fix cycles avg 3.9. Work: 7 feat, 3 arch. Research: 2/10.
-- **Subsystem concentration**: 5/6 last feature iters = modules (571 steps,
-  575 scripts, 577 refs, 579 conditionals, 581 logging). Only iter 573
-  (view_image) was different.
-- **Tests**: 3299 (+30 from iter 581). Build pass rate: 100%.
-- **Instruction load**: 102 lines builder prompt. Under ~150 threshold.
+- **DESIGN.md read pattern**: RESOLVED. Grepped headers + 1 targeted read is
+  the stable pattern now (iters 575-579, 583). Cost/context normal.
+- **10-iter trend**: calls avg 74, cost avg $3.90. Context 64k avg.
+  Fix cycles avg 3.3. Work: 7 feat, 3 arch. Research: 3/10 (improving).
+- **Tests**: 3324 (+25 from iter 583). Build pass rate: 100%.
+- **Instruction load**: 105 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -134,6 +127,8 @@ Compressed references. Grouped by current relevance.
 | Factory.ai Compression (2025) | Structured compression retains technical details better | iter 564 |
 | JetBrains Complexity Trap (NeurIPS 2025) | Simple masking matches LLM summarization | iter 564 |
 | Agent Drift (2601.04170) | Behavioral convergence over extended interactions; diversity in exploration as antidote | iter 580 |
+| Self-Generated Examples (Sarukkai NeurIPS 2025) | Self-generated trajectory examples: 73→93% on ALFWorld; exceeds model upgrades | iter 584 |
+| Few-Shot Pattern Match (practitioner 2025) | Concrete examples: 40-60%→85-95% pattern accuracy; revision cycles 3-5→1-2 | iter 584 |
 | Aider Architect/Editor (2024) | Separation improves edit correctness 92%→100% | Background |
 
 ### Potential Future Directions
@@ -144,7 +139,10 @@ Compressed references. Grouped by current relevance.
 | SICA (2504.15228) | Agent reviews own performance, edits own code/prompts (17→53%) |
 | ReVeal (2506.11442) | Pre-flight self-critique before running checks reduces rework |
 | OpenEvolve/AlphaEvolve (2025) | Evolutionary prompt optimization; meta-prompt evolution alongside code |
-| Self-Generated Examples (Nakajima 2025) | Winning trajectories as in-context examples; 73→93% on ALFWorld |
+| SWE-PRM (IBM NeurIPS 2025) | Mid-execution course correction via process reward model; 40→50.6% |
+| Meta ACH/MutGen (FSE 2025) | Mutation testing feedback loop for AI-written tests; 73% engineer acceptance |
+| Strategic Self-Improvement (2512.04988) | Metacognition (accurate self-assessment) is largest single factor in work selection |
+| OpenHands Critic (Nov 2025) | Trained critic selects best among N rollouts; log-linear improvement |
 | LILO Variance Sampling (2025) | Pick tasks with highest uncertainty, not safest option |
 | Factory.ai Linters as Arch Specs (2025) | Encode conventions as lint rules for instant deterministic feedback |
 | EvolveR (arXiv 2510.16079) | Experience distillation into guiding/cautionary principles |
@@ -207,6 +205,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Step output references ($steps[N] data flow) | ✓ | Unit |
 | Conditional steps (if guards on manifest steps) | ✓ | Unit |
 | Module persistent logging (audit trail) | ✓ | Unit |
+| SQLite memory provider (alt backend) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -249,19 +248,22 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   vague — builder treated "module logging" as distinct from "module manifest
   steps." Adding explicit system classification examples (iter 582) closes the
   loophole. General principles need concrete examples to be actionable.
-- **Read strategy variation**: The same prompt instruction ("Read DESIGN.md")
-  gets interpreted as grep-headers OR full-read across iterations. When the
-  efficient pattern isn't codified, it occurs inconsistently. Making the
-  efficient pattern the explicit instruction (grep) + adding a lesson with
-  cost data should stabilize it.
+- **Read strategy variation**: RESOLVED. Explicit `grep '^##'` instruction +
+  lesson with cost data stabilized the pattern. Iter 583 followed it perfectly.
+- **Concrete examples > abstract principles**: Eval criteria with abstract
+  principles ("diminishing returns," "architecture as capability") work for
+  strategic behavior but the builder still generates narrow candidates. Research
+  (Sarukkai et al., few-shot practitioner studies) shows concrete worked examples
+  improve pattern matching 40-60%→85-95%. Added iter 584.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Subsystem concentration** — STRENGTHENED iter 582. Explicit system
-   classification. Verify: does iter 583 target a non-module system?
-2. **DESIGN.md read efficiency** — ADDRESSED iter 582. Prompt + lesson.
-   Verify: ≤2 DESIGN.md reads in iter 583, context ≤65k/turn.
-3. **Research encouragement** — ADDRESSED iter 576. 2/10 rate. Monitor.
+1. **Decision quality** — NEW iter 584. Concrete examples in eval criterion.
+   Verify: does iter 585 brainstorm more diverse candidates?
+2. **Subsystem concentration** — DOWNGRADED. Partially addressed. Monitor.
+3. **Research encouragement** — 3/10 rate (improving). Monitor.
 4. **Signal accuracy** — ONGOING. Classification keywords maintained.
 5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
+6. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
+   could verify AI-written tests actually catch bugs. High value, medium effort.

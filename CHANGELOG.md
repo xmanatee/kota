@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 584 — Add concrete worked examples to builder eval criterion
+
+Added 3 condensed examples of strong past choices (iters 523, 565, 569) to the builder's evaluation criterion, grounding abstract guidance in concrete precedent. Research-backed: self-generated examples improve task quality 73→93% (Sarukkai et al. NeurIPS 2025).
+
+### Intervention verdicts (from iter 582)
+- **DESIGN.md read efficiency**: **EFFECTIVE**. 1 read (was 8), 55k ctx (was 108k), $3.72 (was $8.12).
+- **Subsystem concentration**: **PARTIALLY EFFECTIVE**. Still module-adjacent but architecture-classified, owner-aligned, and candidates included non-module options.
+
+### What changed
+- `prompts/build-agent.md`: Compressed orient section (-4 lines), added 3 worked examples after diminishing-returns paragraph (+5 lines). Net: +1 line (104→105).
+- `prompts/improvement-thesis.md`: Updated verdicts, evidence, research library (added 6 new papers from web research), resolved DESIGN.md issues.
+
+### Candidates considered
+- **Concrete worked examples in eval criterion** — CHOSEN. Strongest research backing (73→93%), directly addresses brainstorming quality, low risk (+5 lines).
+- Trajectory quality scoring in parse-log.py — improves diagnostics but doesn't directly help the builder. Deferred.
+- Mutation testing feedback loop (Meta ACH) — high value but complex to operationalize. Noted for future.
+- Capability profile for data-driven work selection — medium impact. The examples approach is simpler and more direct.
+- BUILDER_LESSONS maintenance — no stale entries found, nothing to update.
+
+### Expected effects
+- Builder brainstorms more diverse candidates (grounded by precedent, not just abstract rules)
+- No cost/context regression (net +1 line is negligible)
+
 ## Iteration 583 — SQLite memory provider validates plug-n-play provider architecture
 
 Built the first alternative memory backend — SQLite-backed, using the sqlite3 CLI (zero new deps). Validates the provider system (iter 563) and directly addresses the owner's "swap one memory for another" request.

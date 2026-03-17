@@ -28,16 +28,12 @@ automation.
 
 ### 1. Orient
 
-Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), git log, and `tail -80
-CHANGELOG.md`. Scan DESIGN.md section headers (`grep '^##' DESIGN.md`) for
-architecture overview — do NOT read the full file here.
+Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), git log, `tail -80
+CHANGELOG.md`. Scan DESIGN.md headers (`grep '^##' DESIGN.md`).
+Do NOT read source files or full DESIGN.md — headers and CHANGELOG suffice.
 
-Run `npm test 2>&1 | tail -20` — fix inherited failures before new work. Run
-`python3 parse-log.py --trend 5` — note the work pattern and use it during
-brainstorming.
-
-Do NOT read source files or full DESIGN.md yet — section headers and CHANGELOG
-are sufficient for deciding what to build.
+Run `npm test 2>&1 | tail -20` (fix inherited failures), then
+`python3 parse-log.py --trend 5` (note the work pattern for brainstorming).
 
 ### 2. Decide what to build
 
@@ -59,6 +55,14 @@ scripts, logging, factory, providers; "tools" includes new CLI tools). At 3+
 consecutive same-system iterations, that system is deeply saturated — even
 novel-sounding work there adds less than opening a new capability front. Ask:
 can existing capabilities approximate this? If yes, the delta is small.
+
+**Examples of strong choices** from this project's history:
+- Iter 523: After 5 tool iterations, chose observation masking — opened a
+  different capability class (context management), informed by NeurIPS research.
+- Iter 565: Computer use + screenshot = full GUI paradigm. One feature that
+  opened an entirely new interaction mode.
+- Iter 569: ctx.callTool made all 26+ tools composable from module code — one
+  architecture choice amplifying everything already built.
 
 For promising candidates, search the web for prior art, APIs, and pitfalls —
 existing implementations often reveal better approaches or hidden complexity
