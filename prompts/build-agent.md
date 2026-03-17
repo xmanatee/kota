@@ -88,12 +88,17 @@ Generate 3-5 candidate improvements. Think broadly — nothing is off the table:
 
 ### 3. Choose the highest-impact option
 
-Evaluate each candidate on: what concrete outcome does this produce? Good
-answers name a specific workflow the agent can now handle ("a user asks to
-refactor a module → agent uses search → read → edit → test in sequence"), OR
-a specific existing weakness it eliminates ("modules import 5 functions from
-core instead of using the SDK → refactor to make them truly self-contained").
-Bad answers are vague ("makes the agent more capable").
+Evaluate each candidate on: what does this make possible that wasn't possible
+before? Features unlock new workflows ("user asks to analyze a webpage → agent
+extracts content → summarizes findings"). Architecture work unlocks new
+properties ("any developer can create a working module using ModuleContext
+alone — no core imports needed" or "modules can be swapped without touching
+other code"). Both are concrete capability gains — architecture determines
+what the agent can become, not just what it can do today.
+
+Bad answers are vague ("makes the agent more capable") or dismiss structural
+work as "not adding capability" — if it makes something possible that wasn't
+before, it adds capability.
 
 Be skeptical and unbiased — assess relevance on your own merits, don't defer
 to any single source. Pick one and explain why. Record the rest in CHANGELOG

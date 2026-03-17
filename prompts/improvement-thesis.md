@@ -7,28 +7,33 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 546)
+## Current Hypothesis (updated iter 548)
 
-The loop's primary gap is now **work type diversity and architecture quality**:
+The loop's primary gap is the **feature-factory bias in the evaluation
+criterion**, now confirmed by two iterations of failed lesson-based
+interventions and validated by external research:
 
-1. **Feature factory partially broken, but structural bias remains** (evolved
-   from iter 544). The composition intervention worked — iter 545 builder chose
-   composition E2E tests. But the evaluation criterion still favors "enabling
-   workflows" over "fixing weaknesses." Iter 546 broadens the criterion to
-   value addressing existing weaknesses equally with new capabilities.
+1. **Evaluation criterion is the bottleneck** (evolved from iter 546). The
+   iter 546 intervention (broadened criterion + Quality Beyond Features lesson)
+   FAILED — iter 547 builder listed module isolation as candidate #1 but
+   dismissed it: "important but doesn't add capability." The builder evaluates
+   all candidates through a feature-shaped lens because the criterion asks
+   "what concrete outcome?" and features have more vivid outcomes. Iter 548
+   restructures the criterion to make architecture outcomes as concrete as
+   feature outcomes, validated by DGM research: "evaluation criteria determine
+   behavior."
 
 2. **Architecture quality untested**. The owner flagged that modules aren't
    truly self-contained (NOTES.md). 55+ source files, 8000+ lines, but no
    verification that the module system actually supports plug-and-play. This
    is the deeper quality dimension beyond composition testing.
 
-3. **Efficiency is mature**. All interventions landed and verified. Cost $1.79
-   in iter 545 (lowest ever). Further efficiency work is diminishing returns.
+3. **Efficiency is mature**. All interventions landed and verified. Cost trends
+   stable ($4.52 in iter 547). Further efficiency work is diminishing returns.
 
-4. **Prompt decay is a theoretical risk**. New research ("How Many Instructions
-   Can LLMs Follow at Once?", arXiv 2507.11538) shows threshold decay at ~150
-   instructions for reasoning models. Our builder loads 166-line prompt +
-   142-line lessons + AGENTS.md. Not yet critical, but monitor.
+4. **Prompt instruction density is safe**. Counted ~72 instruction-like lines
+   across builder prompt (40) + lessons (32). Well below the 150-instruction
+   threshold for reasoning models (arXiv 2507.11538). Room to add if needed.
 
 **Previously addressed gaps:**
 - Context growth: ADDRESSED (iter 538, verified iter 540). 97k → 63k (-35%).
@@ -51,24 +56,33 @@ The loop's primary gap is now **work type diversity and architecture quality**:
   7 tests covering code fix, error recovery, lint-gated edits, multi-turn,
   task+shell, parallel+sequential workflows. Clear success.
 - **(iter 546)** Broadened evaluation criterion + "Quality Beyond Features"
-  lesson. Verify in iter 548: does the builder choose quality/architecture
-  work over another standalone feature?
+  lesson. **FAILED** (iter 548): builder listed module isolation as #1 candidate
+  but chose web page extraction feature instead, explicitly stating quality
+  work "doesn't add capability." The lesson-based approach didn't change the
+  evaluation calculus — the builder's mental model of "capability" was the
+  bottleneck.
+- **(iter 548)** Restructured evaluation criterion in builder prompt to make
+  architecture outcomes as concrete as feature outcomes. Replaced "Quality
+  Beyond Features" lesson with "Architecture as Capability" — outcome-oriented
+  framing that links quality work to specific workflows it enables. Informed
+  by DGM research: evaluation criteria determine behavior. Verify in iter 550:
+  does the builder evaluate quality candidates as genuine capability work?
 
 ## Evidence
 
-- **Feature factory partially broken**: 8/8 recent iters classified as "feature"
-  in trend analysis, but iter 545 was composition E2E tests — qualitatively
-  different from standalone features. The evaluation criterion change (iter 546)
-  aims to further diversify by making quality/architecture work a legitimate
-  brainstorm choice.
-- **Iter 545 was the most efficient ever**: 40 calls, $1.79, 45% rework, 43k
-  context. 7 composition E2E tests built with 0 errors. This was composition
-  testing work, not a feature — demonstrating the evaluation criterion matters.
-- **Lint batching holding**: Lint reruns at 6.0× in latest window (down from
-  6.8× pre-intervention). Not as dramatic as hoped but steady improvement.
+- **Feature factory confirmed**: 8/8 recent iters classified as "feature."
+  Iter 547 explicitly dismissed quality work as "not adding capability" despite
+  it being the #1 brainstorm candidate. The evaluation criterion structurally
+  favors features — lessons alone cannot override this bias.
+- **Iter 547 was efficient but still a feature**: 89 calls, $4.52, 31% rework
+  (lowest ever), 0 errors, 35 new tests. Quality execution of a feature. The
+  builder is skilled at building features — the question is whether it can be
+  equally skilled at architecture work.
+- **Lint batching holding**: Lint reruns at 5.4× in latest window (down from
+  6.8× pre-intervention). Steady improvement.
 - **Build pass rate**: 100% — necessary but not sufficient.
-- **Tests**: Mostly unit-level. E2E tests (iter 533) test plumbing, not
-  capability composition. 2896 tests across 127 files.
+- **Tests**: 2938+ tests across the codebase. E2E composition tests (iter 545)
+  verify multi-step workflows.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 - **Context trend (iters 533-545)**: 72k → 79k → 97k → 63k → 72k → 71k → 43k.
   Avg 71k. Iter 545's 43k shows focused work (test writing) uses less context.
@@ -185,6 +199,29 @@ The loop's primary gap is now **work type diversity and architecture quality**:
     requirements (avg 233 days, 71 commits per task). Key insight: an agent
     that hard-codes a fix and one that writes clean code both pass the same
     test suite; the difference shows when the codebase must evolve.
+  - **DGM Evaluation Insight (Sakana AI, 2025)**: Darwin Godel Machine's
+    self-discovered improvements were primarily hardening (patch validation,
+    tool reliability, failure history), NOT new features — raising SWE-bench
+    from 20% to 50%. Key insight: **evaluation criteria determine behavior**.
+    When scored on end-to-end task success, agents naturally invest in
+    robustness over features. Directly validates our evaluation criterion
+    restructuring (iter 548).
+  - **CodeScene Quality Gates (2025)**: Embedding quantitative code health
+    scores as blocking constraints in the agent loop. Loveholidays case: 0→40%
+    AI-assisted code while maintaining quality. Approach: refactoring becomes
+    "ambitious" when it has a numerical score to beat. Future direction for
+    our loop if evaluation restructuring proves insufficient.
+  - **Addy Osmani "80% Problem" (2025)**: Agents amplify the properties of
+    the system they work in — better architecture → better agent output.
+    Architecture work is self-reinforcing. Frame quality as "what enables
+    the agent to produce better output."
+  - **RefAgent (2025)**: Multi-agent refactoring pipeline achieving 90% test
+    pass rate and 52.5% code smell reduction. Key: decompose refactoring into
+    plan-then-validate steps with the same structure as feature work.
+  - **Metacognitive Self-Improvement (arXiv 2506.05109)**: Truly self-improving
+    agents need intrinsic metacognitive learning — ability to evaluate own
+    capabilities and adapt strategy. Without it, agents default to repeating
+    what produced positive signals last time (features).
 
 ## Capability Assessment
 
@@ -228,6 +265,13 @@ Patterns the improver should avoid (based on recent iterations):
 - **Minor prompt tweaks**: Small wording changes to the builder prompt rarely
   produce measurable effects. Prefer changes that alter what the builder CAN
   do, not what it's TOLD to do.
+- **Lesson-only behavioral change**: Adding BUILDER_LESSONS.md entries that
+  say "consider doing X" doesn't override the builder's evaluation calculus.
+  The builder reads the lesson, acknowledges it, then evaluates candidates
+  using the prompt's criterion — which may structurally favor the opposite.
+  Lessons work for procedural patterns (lint batching, consumer-first edits)
+  but fail for strategic decisions (what to work on). For strategic change,
+  modify the evaluation criterion itself, not the lessons.
 - **Single-metric focus**: Rework %, cost, research frequency are signals, not
   goals. Don't optimize one at the expense of overall loop quality.
 - **Stale BUILDER_LESSONS.md**: The lessons file must be actively maintained.
@@ -251,28 +295,40 @@ Patterns the improver should avoid (based on recent iterations):
 - **Quality-focused evaluation criterion (iter 546)**: Broadened evaluation from
   "what workflow does this enable?" to also value "what weakness does this
   address?". Replaced "Composition Gap" lesson with "Quality Beyond Features"
-  in BUILDER_LESSONS.md. **Verify in iter 548**: does the builder choose
-  quality/architecture work?
+  in BUILDER_LESSONS.md. **FAILED** (iter 548): builder brainstormed module
+  isolation as #1 candidate but dismissed it as "doesn't add capability" and
+  chose a feature instead. Lesson-based approach insufficient — the evaluation
+  criterion itself frames all decisions through a feature lens.
+- **Evaluation criterion restructuring (iter 548)**: Changed the evaluation
+  question from "what concrete outcome?" (feature-biased) to "what does this
+  make possible that wasn't possible before?" (neutral). Made architecture
+  outcomes as concrete as feature outcomes with equal-quality examples. Replaced
+  "Quality Beyond Features" lesson with "Architecture as Capability" — links
+  quality work to specific workflows it enables. **Verify in iter 550**: does
+  the builder evaluate quality candidates as genuine capability work?
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation is the single
+1. **Break feature-factory bias** — IN PROGRESS (iter 548). Evaluation criterion
+   restructured. The lesson-based approach failed twice (iters 544, 546). The
+   criterion change targets the root cause: the builder's mental model of
+   "capability." If iter 549 still chooses a feature over quality work, consider
+   CodeScene-style quantitative quality gates as a blocking constraint.
+2. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation is the single
    highest-leverage unlock. Even cheap Haiku-based scenario tests would give
    real capability signal.
-2. **Strengthen evaluation per GVU theory** — The "Second Law" (arXiv
+3. **Strengthen evaluation per GVU theory** — The "Second Law" (arXiv
    2512.02731) says: when improvements plateau, strengthen the verifier. Our
-   evaluation is binary (tests pass/fail) + metrics (cost/rework). Multi-
-   dimensional evaluation (maintainability, architecture fitness, trajectory
-   quality) would give much better signal.
-3. **Monitor prompt instruction density** — Research (arXiv 2507.11538) shows
-   threshold decay at ~150 instructions. Our builder loads 166-line prompt +
-   142-line lessons. Not yet critical, but will degrade as lessons accumulate.
-   Consider EvolveR-style pruning: score lessons by effectiveness, retire those
-   that stop contributing.
+   evaluation is binary (tests pass/fail) + metrics (cost/rework). DGM research
+   confirms: evaluation criteria determine behavior. Multi-dimensional
+   evaluation (maintainability, architecture fitness) would give better signal.
 4. **Cross-iteration learning** — **MATURE**: BUILDER_LESSONS.md implements
-   Reflexion-style persistent knowledge. 7 lessons, all verified effective.
-   Combined effect: rework 76% → 36%, context 97k → 63k, lint runs -35%.
-   Next evolution: EvolveR-style effectiveness scoring and auto-pruning.
-5. **Diversify builder work types** — 8/8 recent iters classified as "feature."
-   The evaluation criterion broadening (iter 546) should help. Monitor whether
-   the builder actually chooses refactoring/hardening/architecture work.
+   Reflexion-style persistent knowledge. 7 lessons. Combined effect: rework
+   76% → 36%, context 97k → 63k, lint runs -35%. Instruction count (72)
+   is safely below the 150-instruction degradation threshold.
+5. **Escalation plan if criterion change fails**: If the builder still
+   systematically chooses features after iter 548's intervention, the next
+   move is quantitative quality scoring — embed a measurable architecture
+   metric (e.g., core import count, cross-module coupling) that the builder
+   can "beat," inspired by CodeScene's approach. Agents optimize what they
+   can measure.

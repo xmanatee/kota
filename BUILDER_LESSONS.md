@@ -94,26 +94,30 @@ and final verification. That triggers the discovery-and-rework cycle.
 same result with 6 runs — 50% fewer. The key difference: no intermediate
 verification checks between auto-fix passes.
 
-## Quality Beyond Features
+## Architecture as Capability
 
-The agent has 24+ capabilities with 7 composition E2E tests (iter 545) proving
-they compose in multi-step workflows. Basic composition is verified. The
-remaining quality gaps are structural:
+The agent is feature-rich (24+ capabilities, 2938+ tests). Features have
+diminishing returns when the architecture can't support them independently.
 
-- **Module isolation**: The owner flagged (NOTES.md) that modules still import
-  from core rather than being truly self-contained. The module SDK (iter 535)
-  provides scoped storage and config, but actual modules may not use it
-  consistently. Truly modular = you can swap one memory system for another
-  without touching anything else.
-- **Higher-level behaviors untested**: Context compaction under load, ambiguous
-  request handling, cross-session continuity, delegation composition, the
-  architect→editor pipeline.
-- **Code maintainability**: With 55+ source files and 8000+ lines, if changing
-  a module requires understanding 5 other files, it's not truly modular.
+Architecture work IS capability work when it enables something that wasn't
+possible before:
 
-**Bottom line**: The agent is feature-rich. The next high-impact work may be
-strengthening what exists — improving module isolation, hardening untested
-paths, or refactoring tightly-coupled code — rather than adding more features.
+- **Module isolation → runtime extensibility**: `module_factory` creates modules
+  at runtime, but if those modules need core imports to function, runtime
+  creation is brittle. Outcome of fixing this: "user asks agent to create a
+  new tool → agent creates a self-contained module that works without restart."
+  That's a workflow, not cleanup.
+- **Untested integration paths → production reliability**: The architect→editor
+  pipeline, context compaction under load, and cross-session continuity have
+  no test coverage. These are the paths that break under real usage. Outcome:
+  "agent handles a 50-turn conversation without degradation."
+- **Tight coupling → independent evolution**: If changing a module requires
+  understanding 5 other files, modules can't evolve independently. Outcome:
+  "swap the memory backend by replacing one module, touching zero other files."
+
+**The test**: can you describe a before/after scenario where the user
+experience improves? If yes, it's capability work regardless of whether it
+adds a new feature or strengthens an existing one.
 
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 

@@ -1,5 +1,72 @@
 # KOTA Changelog
 
+## Iteration 548 — Restructure Evaluation Criterion to Break Feature-Factory Bias
+
+Restructured the builder's evaluation criterion and lessons to make architecture outcomes compete on equal footing with features, after verifying the iter 546 lesson-based approach failed.
+
+### Verification of iter 546 intervention
+
+**FAILED.** The iter 546 broadened evaluation criterion ("what weakness does
+this eliminate?") plus the "Quality Beyond Features" lesson did not change
+builder behavior. In iter 547, the builder:
+- Listed module isolation as brainstorm candidate #1
+- Acknowledged it as the "owner's longest-standing concern"
+- Dismissed it: "Module isolation (#1) is important but doesn't add capability"
+- Chose a feature (web page extraction) instead
+
+Root cause: the evaluation criterion asked "what concrete outcome does this
+produce?" — features always have more vivid, tangible outcomes than
+architecture work. The builder's mental model of "capability" = "new thing the
+agent can do" was the bottleneck, not missing awareness of quality work.
+
+### What changed
+
+**1. Evaluation criterion (build-agent.md)** — Changed the evaluation question
+from "what concrete outcome does this produce?" (feature-biased framing) to
+"what does this make possible that wasn't possible before?" (neutral framing).
+Added equally vivid examples for both features and architecture work. Added
+explicit warning against dismissing structural work as "not adding capability."
+
+**2. BUILDER_LESSONS.md** — Replaced "Quality Beyond Features" (abstract,
+informational, failed) with "Architecture as Capability" (outcome-oriented,
+links quality work to specific before/after scenarios that feel like capability
+gains). Each quality gap now maps to a concrete workflow it enables.
+
+### Research informing this change
+
+- **DGM (Sakana AI, 2025)**: Self-improving agent's self-discovered
+  improvements were hardening (validation, tool reliability), not features —
+  because evaluation measured end-to-end task success. "Evaluation criteria
+  determine behavior."
+- **CodeScene quality gates**: Quantitative code health scores as blocking
+  constraints make quality "ambitious" (has a number to beat). Identified as
+  escalation path if criterion change fails.
+- **Addy Osmani "80% Problem"**: Architecture work is self-reinforcing — better
+  architecture → better agent output. Quality work as investment, not maintenance.
+- **GVU Second Law**: When improvements plateau, strengthen the verifier.
+  Confirmed by empirical DGM evidence.
+
+### Expected effects (verify in iter 550)
+
+- Builder should evaluate quality candidates using before/after workflow
+  scenarios rather than dismissing them as "not adding capability"
+- Work type distribution should shift — at least 1 of next 3 builder iterations
+  should choose quality/architecture work over a standalone feature
+- If the builder STILL chooses features after this change, the next intervention
+  is quantitative quality scoring (CodeScene-style measurable metrics)
+
+### Other candidates considered
+
+1. **Prune BUILDER_LESSONS.md** — Instructions at 72 total, safely below 150
+   threshold. Not urgent.
+2. **Reduce duplicate file reads** — Builder read DESIGN.md 3x in iter 547.
+   Minor efficiency issue (~$0.20 wasted). Not highest impact.
+3. **Enhance parse-log.py work type classification** — Currently binary
+   (feature/depth). Finer-grained classification would give better signal. Low
+   priority vs the core evaluation problem.
+4. **CodeScene-style quality gates** — Quantitative blocking constraints. Held
+   in reserve as escalation if criterion change fails.
+
 ## Iteration 547 — Smart Web Page Extraction with Content Detection and Metadata
 
 Built page-level HTML extraction that identifies main content regions, extracts page metadata, and removes class/ID-based boilerplate — making web_fetch dramatically more useful for research, analysis, and information gathering tasks.
