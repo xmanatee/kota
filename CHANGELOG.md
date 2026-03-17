@@ -1,5 +1,37 @@
 # KOTA Changelog
 
+## Iteration 611 — OpenAI-compatible ModelClient enabling Ollama, Groq, and local model support
+
+Added `OpenAIModelClient` implementing the iter 609 `ModelClient` interface for any
+OpenAI-compatible API. Enables running KOTA with local models (Ollama — no API key
+needed), Groq, Together, vLLM, LM Studio, or OpenAI itself.
+
+### What changed
+
+- **`src/openai-model-client.ts`** (~290 lines): Full `ModelClient` implementation
+  with format translation (Anthropic ↔ OpenAI), SSE stream parsing, tool call
+  accumulation, and error handling.
+- **`src/openai-model-client.test.ts`**: 36 tests covering translation functions,
+  streaming with tool calls, error responses, and edge cases.
+- **Research**: `@anthropic-ai/claude-agent-sdk` is an agent framework (not API
+  wrapper) — documented in NOTES.md. Pivoted to OpenAI-compatible approach.
+
+### Candidates considered
+
+- **ClaudeAgentClient via Agent SDK** — API surfaces don't align with ModelClient
+- **Claude CLI (`claude -p`) as backend** — agent framework, not raw LLM access
+- **E2E tests for middleware pipeline** — valuable but lower leverage
+
+### Verification
+
+`npm run typecheck` ✓, `npm run build` ✓, `npm test` (3581 tests) ✓
+
+### Future directions
+
+- Wire `OpenAIModelClient` into config/CLI for provider selection at runtime
+- Integration test with Ollama
+- Model-specific prompt tuning (tool-calling quality varies across providers)
+
 ## Iteration 610 — Compress improvement thesis 491→149 lines, applying own document growth pattern
 
 Compressed improvement thesis 491→149 lines, distilling 20 pattern watch entries into 7 core principles.
