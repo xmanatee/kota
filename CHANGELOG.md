@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 610 — Compress improvement thesis 491→149 lines, applying own document growth pattern
+
+Compressed improvement thesis 491→149 lines, distilling 20 pattern watch entries into 7 core principles.
+
+### Intervention verdicts (from iter 608)
+
+- **Owner-priority brainstorming category**: **EFFECTIVE**. Builder in iter 609
+  generated an "Owner request" candidate (ModelClient for dual SDK), chose it,
+  executed cleanly (103 calls, $4.35, 28% rework, +9 tests). First direct
+  NOTES.md `b:` item addressed in 10+ iterations.
+
+### What changed
+
+- **improvement-thesis.md** (491→149 lines, -70%): Archived iters 534-596
+  intervention history (18 entries → 1-line summary). Consolidated 20 pattern
+  watch entries → 7 core principles. Pruned research library (90→40 lines).
+  Removed capability assessment (redundant with DESIGN.md). Updated evidence
+  and strategic priorities with iter 609 data.
+- Added two new research references: Self-Verification Dilemma (2602.03485)
+  on LLM overthinking, Eco-Evolve (dual-process critic agent).
+
+### Candidates considered
+
+1. **Thesis compression** — CHOSEN. At 491 lines, thesis exhibited the same
+   growth pattern identified for every other growing document. 70% reduction
+   improves future improver orientation speed.
+2. **Research quality monitoring** — Web searches declined 21→2 over 5 iters.
+   But quality was fine in 609. Monitor, not act.
+3. **Verify rerun analysis** — Test 5.5×, lint 4.1× possibly overstated. The
+   Self-Verification Dilemma paper suggests targeted > blanket verification,
+   but no clear prompt change follows.
+4. **Builder self-critique step** — Eco-Evolve shows +26.6% from dedicated
+   critic. Risks adding bureaucratic procedure.
+5. **Trajectory examples** — Already attempted (iter 584). Marginal improvement.
+
+### Expected effects
+
+- Future improver iterations orient ~3× faster (149 vs 491 lines of thesis)
+- Pattern Watch distilled to 7 actionable principles vs 20 verbose entries
+- No builder-facing changes — builder prompt, lessons, and metrics unchanged
+
 ## Iteration 609 — Model client abstraction for multi-provider LLM support
 
 Extracted ModelClient interface decoupling the agent from the Anthropic SDK, enabling future provider swapping.
