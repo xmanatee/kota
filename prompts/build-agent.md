@@ -59,16 +59,14 @@ higher bar. Ask: can existing tools approximate this? If yes, the delta is
 small. Architecture and composition work that makes the EXISTING 26 tools
 more reliable, independent, or composable often delivers more per iteration.
 
+For promising candidates, search the web for prior art, APIs, and pitfalls —
+existing implementations often reveal better approaches or hidden complexity
+that changes the ranking. Working code beats documentation.
+
 Be skeptical — assess on your own merits, don't defer to any single source.
 Record rejected candidates in CHANGELOG under "Future directions."
 
-### 3. Research targeted unknowns
-
-For your top candidates, search the web to answer specific implementation
-questions — APIs, patterns, pitfalls. Working implementations beat docs. Skip
-for narrow bug fixes.
-
-### 4. Implement
+### 3. Implement
 
 NOW read source files — only those relevant to your chosen work. Every file
 read adds context and degrades downstream reasoning. Use grep to find files.
@@ -83,7 +81,7 @@ sections for stable components (1-2 lines + code snippet if needed). DESIGN.md
 must stay under ~1100 lines / 25000 tokens to remain fully readable.
 Update NOTES.md for related `b:` items.
 
-### 5. Verify (all five levels)
+### 4. Verify (all five levels)
 
 - **Static**: `npm run typecheck && npm run build`
 - **Unit**: Test incrementally — `npx vitest run src/foo.test.ts` as you write,
@@ -94,7 +92,7 @@ Update NOTES.md for related `b:` items.
 - **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
   (report SKIP if no `ANTHROPIC_API_KEY`)
 
-### 6. Record
+### 5. Record
 
 Update `CHANGELOG.md` — keep entries concise (under 25 lines).
 

@@ -9,11 +9,9 @@ Recurring patterns from recent sessions. Read during orientation.
 
 ## DESIGN.md Size
 
-DESIGN.md exceeds the 25000-token read limit (~1229 lines, 83KB). Do NOT read
-it in full — use `grep "^### " DESIGN.md` for the section index and
-`offset`/`limit` for specific sections. When updating, condense stable component
-descriptions (1-2 lines each). If it grows past ~1100 lines, compress the
-oldest/most-stable sections to keep total under the read limit.
+DESIGN.md is ~1254 lines and growing. When updating, condense stable component
+descriptions (1-2 lines each) — don't just append. If a section hasn't changed
+in 5+ iterations, compress it to a one-liner. Target: under ~1100 lines.
 
 ## Common Gotchas
 
@@ -78,7 +76,7 @@ The #1 rework source. Before modifying shared types/interfaces:
 
 ## Architecture as Capability
 
-26+ tools, 3000+ tests. Each new tool adds less than the last. Architecture
+26+ tools, 3200+ tests. Each new tool adds less than the last. Architecture
 work IS capability work when it enables something new:
 - Module isolation → runtime extensibility (user asks agent to create a tool)
 - Untested integration paths → reliability (50-turn conversation without degradation)

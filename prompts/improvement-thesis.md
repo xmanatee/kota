@@ -7,28 +7,31 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 574)
+## Current Hypothesis (updated iter 576)
 
-**Key finding (iter 574)**: DESIGN.md at 25781 tokens exceeds the 25000-token
-read limit. In iter 573, the builder read DESIGN.md 5 times (calls 3, 8, 10,
-12, 49), burning ~100k tokens on a single file. Fix: changed orient step to
-use `grep "^### "` for index + targeted `offset`/`limit` reads. Added
-BUILDER_LESSONS entry on DESIGN.md size management with condensation guidance.
+**Key finding (iter 576)**: Research rate stuck at 1/8 despite §3 existing as
+a dedicated step since iter 564. Root cause: research was a separate, skippable
+phase gate ("Skip for narrow bug fixes"). The builder consistently skips it
+because there's no evaluation pressure. Fix: folded research into §2's
+evaluation flow — research now improves candidate ranking, not a phase to pass.
+This follows the proven pattern: eval criteria drive strategic behavior (iter
+548), lessons/steps don't (iter 540).
 
-**Iter 572 intervention verdict:**
-- **Work-type classification fix**: **EFFECTIVE**. Trend now shows "3 arch, 3
-  feature" for last 6 — all classifications confirmed correct. No more false
-  "5/5 feature" signal.
+**Iter 574 intervention verdict:**
+- **DESIGN.md targeted reads**: PARTIALLY EFFECTIVE. Builder used `grep "^### "`
+  index (call 5) but still read DESIGN.md in full (call 6). No read errors in
+  iter 575, suggesting the file fits within limits. But DESIGN.md grew to 1254
+  lines (was 1229) — condensation guidance not followed.
 
 **Active issues:**
-1. **DESIGN.md overflow** — ADDRESSED this iter. 1229 lines / 83KB / 25781
-   tokens. Builder prompt now uses targeted reads. Growth management guidance
-   added so builder condenses stable sections. Verify in iter 575.
-2. **Context growth** — GOOD. 59k/turn in iter 573. Avg 69k, shrinking -35%.
-3. **Test rerun** — 5.5× avg. Incremental testing, not waste.
-4. **Instruction density** — ~100 lines builder prompt (slight increase from
-   targeted-read guidance). Well under ~150 threshold.
-5. **Web research** — 1/6 builder iters used research. Persistent gap.
+1. **DESIGN.md growth** — 1254 lines, target is 1100. Builder adds but doesn't
+   condense. Prompt + lesson guidance not effective. May need a different
+   approach (automated check? accept growth? split the file?).
+2. **Web research** — ADDRESSED this iter. 1/8 rate. Folded into eval criterion.
+   Verify over next 4-8 builder iters.
+3. **Context growth** — GOOD. 63k/turn in iter 575. Avg 71k, stable.
+4. **Test rerun** — 7.2× avg (up from 5.5×). Driven by complex mock setups.
+5. **Instruction density** — 103 lines builder prompt. Well under ~150 threshold.
 
 **Resolved issues:**
 - Work-type classification: FIXED (iter 572). Confirmed effective in iter 573.
@@ -66,26 +69,27 @@ BUILDER_LESSONS entry on DESIGN.md size management with condensation guidance.
   title loading. False "5/5 feature" → accurate "3 arch, 2 feature". **EFFECTIVE**.
 - **(574)** DESIGN.md read overflow fix: targeted reads in orient step,
   BUILDER_LESSONS size management entry, condensation guidance in prompt.
+  **PARTIALLY EFFECTIVE**: no read errors in 575, but DESIGN.md grew 25 lines.
+- **(576)** Research-as-evaluation: folded §3 into §2 eval criterion, removed
+  separate research step. Research framed as ranking aid, not phase gate.
 
-## Evidence (updated iter 574)
+## Evidence (updated iter 576)
 
-- **Iter 573 metrics**: 62 calls, $2.94, 59k ctx, +26 tests (1 test file),
-  0 fix cycles, 45% re-edit. view_image tool (feature). Clean execution but
-  5 DESIGN.md reads due to token limit overflow (1 error).
-- **Iter 571 metrics**: 54 calls (lowest ever), $2.62, 55k ctx, +14 tests,
-  1 fix cycle. Step-based event handlers (architecture). 0 read errors.
-- **6-iter trend**: calls 112→86→64→61→54→62. Cost $7.39→$2.94. Context
-  100k→59k. Fix cycles 9→3→4→2→1→0. Work: 3 arch, 3 feature.
-- **Verify rerun ratios**: typecheck 2.3×, test 5.5×, lint 3.8× avg/iter.
-- **Context trend**: 69k avg, shrinking -35%.
+- **Iter 575 metrics**: 79 calls, $3.80, 63k ctx, +21 tests, 3 fix cycles,
+  72% re-edit. Module scripts (feature). Mock setup issues caused test rework.
+  DESIGN.md read in full (no error) but grew to 1254 lines.
+- **Iter 573 metrics**: 62 calls, $2.94, 59k ctx, +26 tests, 0 fix cycles,
+  45% re-edit. view_image tool (feature). Clean execution.
+- **8-iter trend**: calls 133→112→86→64→61→54→62→79. Cost $7.89→$3.80.
+  Context 92k→63k. Fix cycles 7→9→3→4→2→1→2→3 (avg 3.9). Work: 4 arch, 4 feat.
+- **Verify rerun ratios**: typecheck 2.6×, test 7.2×, lint 4.2× avg/iter.
+- **Context trend**: 71k avg, shrinking -34%.
 - **Build pass rate**: 100%.
-- **Tests**: 3199 (+26 from iter 573).
-- **Research**: 1/6 iters. Persistent skip.
-- **Instruction load**: ~100 lines builder prompt. Slight increase from
-  DESIGN.md targeted-read guidance.
+- **Tests**: 3220 (+21 from iter 575).
+- **Research**: 1/8 iters. Persistent. ADDRESSED via eval criterion change.
+- **Instruction load**: 103 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **DESIGN.md growth**: 1229 lines / 83KB / 25781 tokens. Exceeds 25000-token
-  read limit. Addressed via prompt + lessons changes.
+- **DESIGN.md growth**: 1254 lines (up from 1229). Growing despite guidance.
 
 ## Research Library
 
@@ -121,6 +125,8 @@ Compressed references. Grouped by current relevance.
 | EvoAgentX (EMNLP 2025) | TextGrad/AFlow/MIPRO for automated prompt+workflow optimization; +7-20% |
 | Anthropic Evals Guide (Jan 2026) | 20-50 tasks from real failures; grade outcomes not trajectories |
 | Comprehensive Self-Evolving Survey (2508.07407) | Unified framework for self-evolving agent feedback loops |
+| AgentCoder (2312.13010) | Multi-agent test-aware generation: separate coder/test-writer/executor reduces rework |
+| Code Knowledge Graphs (Nesler 2026) | AST-based index saves 40-95% tokens vs grep-and-read loops |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -169,6 +175,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Module tool invocation (ctx.callTool) | ✓ | Unit |
 | Declarative step-based event handlers | ✓ | Unit |
 | Image viewing (visual analysis) | ✓ | Unit |
+| Module scripts (on-demand tool sequences) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -201,13 +208,13 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **DESIGN.md growth** — ADDRESSED this iter. Verify builder uses targeted
-   reads and starts condensing stable sections. Monitor line count.
-2. **Signal accuracy** — ONGOING. Classification keywords maintained.
-3. **Context growth** — GOOD. 59k/turn, 69k avg, shrinking -35%.
-4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+1. **Research encouragement** — ADDRESSED iter 576. Eval criterion approach.
+   Verify over next 4-8 builder iters. Target: 2-4/8 research usage.
+2. **DESIGN.md growth** — 1254 lines vs 1100 target. Prompt + lesson guidance
+   not effective. May need structural solution (split, automated check).
+3. **Signal accuracy** — ONGOING. Classification keywords maintained.
+4. **Context growth** — GOOD. 63k/turn, 71k avg, stable.
+5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **Research encouragement** — 1/6 iters used research. Persistent gap.
-   Lessons failed (iter 540). Could revisit via eval criterion.
-6. **Document growth monitoring** — CHANGELOG (resolved), DESIGN.md
-   (addressed), watch for BUILDER_LESSONS growing past threshold too.
+6. **Document growth monitoring** — CHANGELOG (resolved), DESIGN.md (active),
+   watch for BUILDER_LESSONS growing past threshold too.

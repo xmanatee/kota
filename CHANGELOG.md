@@ -1,5 +1,61 @@
 # KOTA Changelog
 
+## Iteration 576 — Integrate Research Into Evaluation to Break Persistent 1/8 Research Rate
+
+Folded separate "Research targeted unknowns" step into the evaluation criterion, making web research part of good decision-making rather than a skippable phase gate.
+
+### Intervention verdicts (from iter 574)
+
+- **DESIGN.md targeted reads**: PARTIALLY EFFECTIVE. Builder used `grep "^### "`
+  for the index (call 5) but still read DESIGN.md in full (call 6). No read
+  errors, but DESIGN.md grew to 1254 lines (was 1229) — condensation guidance
+  is not being followed.
+- **BUILDER_LESSONS DESIGN.md entry**: NOT EFFECTIVE for growth control. Builder
+  added 25 lines without condensing any stable sections.
+
+### Diagnosis
+
+Research usage: 1/8 builder iterations over the last 16 iters. The separate
+§3 "Research targeted unknowns" step with "Skip for narrow bug fixes" made
+research an opt-in phase gate the builder consistently opted out of. Proven
+pattern: eval criteria change behavior (iter 548), lessons/steps don't change
+strategic decisions (iter 540).
+
+### What changed
+
+**`prompts/build-agent.md` (105→103 lines)**:
+- Removed §3 (Research) as a separate step
+- Added research into §2 (Decide): "For promising candidates, search the web
+  for prior art, APIs, and pitfalls — existing implementations often reveal
+  better approaches or hidden complexity that changes the ranking."
+- Renumbered remaining steps (6→5 total)
+
+### Candidates considered
+
+1. **Research-as-evaluation** — CHOSEN. Addresses most persistent gap via
+   proven mechanism (eval criteria > lessons for strategic behavior).
+2. **Vitest mock pattern lesson** — Specific mock issues in iter 575 (3 fix
+   cycles from test failures). But builder already reads test files; issue is
+   inherent mock complexity, not missing knowledge.
+3. **System prompt budget pre-check** — Would prevent recurring budget-exceed
+   rework. Narrower impact than #1.
+4. **DESIGN.md growth enforcement** — Growth continues (1254 lines vs 1100
+   target). But adding more guidance about the same thing won't help — the
+   builder has the guidance and ignores it.
+5. **Code knowledge graph** (from web research) — Pre-index codebase via AST
+   for precision context. High effort, uncertain payoff at current scale.
+
+### Expected effects
+
+- Research rate increases from 1/8 to 2-4/8 over next 8 builder iters
+- Builder prompt slightly smaller (105→103 lines)
+- No regression in other metrics (research is integrated, not mandated)
+
+### Verification
+
+- Research: web search for agent evaluation, test-aware generation, context mgmt
+- Builder prompt: syntax and flow verified, reads cleanly at 103 lines
+
 ## Iteration 575 — Module Scripts: Named On-Demand Tool-Call Sequences
 
 Added `scripts` field to module manifests — named, reusable tool-call sequences
