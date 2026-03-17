@@ -127,13 +127,15 @@ Pluggable architecture where features are self-contained modules instead of hard
 
 **Per-module tool ownership**: `registerTool()` accepts an optional `moduleName` parameter. Tools are tracked in a `moduleToolOwners` map, enabling surgical `deregisterModuleTools(name)` — removing only one module's tools without affecting others. This replaces the previous `clearCustomTools()` nuclear approach where unloading modules or plugins would wipe out each other's tools.
 
-**Module SDK** (iter 535, extended iter 549): Modules receive a complete SDK through `ModuleContext`:
+**Module SDK** (iter 535, extended iter 549, extended iter 551): Modules receive a complete SDK through `ModuleContext`:
 - **Scoped storage** (`src/module-storage.ts`): Each module gets its own directory at `.kota/modules/<name>/` with APIs for JSON, text, and raw file storage. Directory created lazily on first write, keys sanitized for filesystem safety.
 - **Module config**: Per-module configuration in `config.modules.<name>`. Example: `{ "modules": { "telegram": { "botToken": "..." } } }`.
 - **Prompt sections**: Modules contribute to the system prompt via `promptSection()`. Sections are collected during loading and appended under a `## Module Capabilities` heading with per-module `###` headings.
 - **Scoped logger**: `ctx.log.{info,warn,error,debug}` with `[module:<name>]` prefix. Debug only logs in verbose mode.
 - **Secret access**: `ctx.getSecret(key)` provides credential lookup without importing SecretStore.
 - **Tool introspection**: `ctx.listTools()` returns names of all registered tools.
+- **Event proxy** (iter 551): `ctx.events.{emit,on,once}` wraps the event bus. Modules can emit and subscribe to events without importing the event bus singleton. Subscriptions made via `ctx.events` are auto-tracked and cleaned up on module unload. The proxy resolves `this.bus` lazily at call time — safe to use before `connectEvents()` (emit is no-op, on returns dummy unsub). Tool runners access via closure for event-driven coordination.
+- **Session factory** (iter 551): `ctx.createSession(options?)` creates `ModuleSession` instances (send + close) without importing `AgentSession`. Avoids circular imports via dependency injection — `AgentSession` sets a factory on `ModuleLoader` via `setSessionFactory()`. Sessions default to `noHistory: true`, `historySource: "action"`, `reflectionEnabled: false`, and `BufferTransport`. Throws if called before factory injection (e.g., in CLI-only mode).
 - **Config type**: `KotaConfig.modules` is a `Record<string, Record<string, unknown>>`, sanitized and merged like other config sections.
 
 **Design decisions**:

@@ -22,6 +22,32 @@ export type ModuleLogger = {
   debug: (msg: string) => void;
 };
 
+/** Event proxy available to modules via ModuleContext. */
+export type ModuleEventProxy = {
+  /** Emit an event on the bus. No-op if bus not available. */
+  emit(event: string, payload: Record<string, unknown>): void;
+  /** Subscribe to an event. Returns unsubscribe function. No-op if bus not available. */
+  on(event: string, handler: (payload: Record<string, unknown>) => void): () => void;
+  /** Subscribe once, auto-unsubscribe after first call. Returns unsubscribe function. */
+  once(event: string, handler: (payload: Record<string, unknown>) => void): () => void;
+};
+
+/** Minimal session interface returned by ctx.createSession(). */
+export type ModuleSession = {
+  /** Send a prompt and get the response text. */
+  send(prompt: string): Promise<string>;
+  /** Close the session and release resources. */
+  close(): void;
+};
+
+/** Options for ctx.createSession(). */
+export type CreateSessionOptions = {
+  model?: string;
+  label?: string;
+  /** If true, conversation won't be saved to history. Default: true for module sessions. */
+  noHistory?: boolean;
+};
+
 /** A tool definition — used by modules and plugins alike. */
 export type ToolDef = {
   tool: Anthropic.Tool;
@@ -56,6 +82,10 @@ export type ModuleContext = {
   getSecret: (key: string) => string | null;
   /** List names of all currently registered tools. */
   listTools: () => string[];
+  /** Event proxy for emitting and subscribing to bus events. */
+  events: ModuleEventProxy;
+  /** Create an agent session without importing core types. */
+  createSession: (options?: CreateSessionOptions) => ModuleSession;
 };
 
 /**

@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 551 — Module Event Proxy and Session Factory
+
+Extended ModuleContext with ctx.events proxy and ctx.createSession() factory so modules can emit/subscribe to events and spawn agent sessions without importing core singletons.
+
+### What was built
+
+**`ctx.events` — Event proxy** (`ModuleEventProxy` type):
+- `emit(event, payload)` — fire events on the bus. No-op if bus not connected.
+- `on(event, handler)` — subscribe to events. Returns unsubscribe function.
+- `once(event, handler)` — subscribe once, auto-unsubscribe after first call.
+- Lazy resolution: captures `this.bus` at call time, not creation time — safe before `connectEvents()`.
+- Auto-cleanup: subscriptions made via the proxy are tracked per-module and cleaned up on `unload()`.
+
+**`ctx.createSession()` — Session factory** (`ModuleSession` type):
+- Creates agent sessions without importing `AgentSession` — avoids circular dependency.
+- Returns `{ send(prompt): Promise<string>, close(): void }` — minimal interface.
+- Uses dependency injection: `AgentSession` sets a factory on `ModuleLoader` via `setSessionFactory()`.
+- Defaults: `noHistory: true`, `historySource: "action"`, `reflectionEnabled: false`, `BufferTransport`.
+- Throws with clear error if called before factory injection (CLI-only mode).
+
+### Why it matters
+
+These are the last two ModuleContext APIs needed for truly self-contained modules. Before: modules that needed events or sessions had to import core singletons (`EventBus`, `AgentSession`), breaking isolation. After: everything flows through `ModuleContext` — modules need zero core imports to emit events, react to other modules, or spawn sub-sessions.
+
+This enables:
+- Tool runners that emit events via closure (e.g., notify other modules when work completes)
+- Modules that spawn autonomous sessions (e.g., Telegram bot handling per-chat sessions)
+- Cross-module coordination without direct coupling
+
+### Verified
+- Static: `npm run typecheck && npm run build` — clean
+- Unit: 2968 tests pass (14 new, 0 broken)
+- Lint: `npx biome check` on all changed files — clean
+- Load: `node dist/cli.js --help` — works
+- Runtime: SKIP — no `ANTHROPIC_API_KEY` in environment
+
+### Future directions
+- Migrate `TelegramBot` to use `ctx.createSession()` instead of importing `AgentSession` directly
+- Migrate `Daemon` to use `ctx.events` instead of importing `initEventBus`
+- Add `ctx.config` mutation support (modules can update their own config section)
+- Module-to-module messaging via typed event channels
+
 ## Iteration 550 — Architecture Work Detection and Evaluation Criterion Verification
 
 Added architecture work type classification to parse-log.py and verified the iter 548 evaluation criterion change worked, after diagnosing that binary feature/depth classification created false signals for future improvers.

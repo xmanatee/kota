@@ -30,7 +30,7 @@ import { setDelegateConfig } from "./tools/delegate.js";
 import { getAllTools } from "./tools/index.js";
 import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory.js";
 import { cleanupProcesses } from "./tools/process.js";
-import { CliTransport, type Transport } from "./transport.js";
+import { BufferTransport, CliTransport, type Transport } from "./transport.js";
 import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
 
 
@@ -195,6 +195,21 @@ export class AgentSession {
     });
 
     this.moduleLoader = new ModuleLoader(options.config || {}, this.verbose);
+    this.moduleLoader.setSessionFactory((opts) => {
+      const session = new AgentSession({
+        model: opts.model || this.model,
+        config: options.config,
+        transport: new BufferTransport(),
+        label: opts.label,
+        noHistory: opts.noHistory ?? true,
+        historySource: "action",
+        reflectionEnabled: false,
+      });
+      return {
+        send: (prompt: string) => session.send(prompt),
+        close: () => session.close(),
+      };
+    });
 
     this.initPromise = this.initExtensions();
 

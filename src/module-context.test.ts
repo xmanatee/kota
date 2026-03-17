@@ -4,6 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { initEventBus, resetEventBus } from "./event-bus.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule, ModuleContext, ToolDef } from "./module-types.js";
 import { resolveModuleTools } from "./module-types.js";
@@ -16,6 +17,7 @@ beforeEach(() => {
   clearCustomGroups();
   resetGroups();
   resetSecretStore();
+  resetEventBus();
 });
 
 afterEach(() => {
@@ -23,6 +25,7 @@ afterEach(() => {
   clearCustomGroups();
   resetGroups();
   resetSecretStore();
+  resetEventBus();
 });
 
 // ── ctx.log ──────────────────────────────────────────────────────────────
@@ -305,6 +308,8 @@ describe("resolveModuleTools", () => {
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
+    events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+    createSession: () => ({ send: async () => "", close: () => {} }),
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {
@@ -328,5 +333,262 @@ describe("resolveModuleTools", () => {
   it("throws when factory tools have no context", () => {
     const mod: KotaModule = { name: "no-ctx", tools: () => [] };
     expect(() => resolveModuleTools(mod)).toThrow("no context provided");
+  });
+});
+
+// ── ctx.events ──────────────────────────────────────────────────────────
+
+describe("ModuleContext.events", () => {
+  it("provides emit/on/once methods", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "events-test", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    expect(typeof ctx.events.emit).toBe("function");
+    expect(typeof ctx.events.on).toBe("function");
+    expect(typeof ctx.events.once).toBe("function");
+  });
+
+  it("emit is no-op when bus is not connected", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "no-bus", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    // Should not throw
+    ctx.events.emit("test.event", { value: 1 });
+  });
+
+  it("on returns dummy unsub when bus is not connected", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "no-bus-on", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    const unsub = ctx.events.on("test.event", () => {});
+    expect(typeof unsub).toBe("function");
+    // Should not throw
+    unsub();
+  });
+
+  it("emits events to the bus after connectEvents", async () => {
+    const bus = initEventBus();
+    const received: unknown[] = [];
+    bus.on("custom.event", (payload) => received.push(payload));
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "emitter", onLoad });
+    loader.connectEvents(bus);
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    ctx.events.emit("custom.event", { key: "value" });
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ key: "value" });
+  });
+
+  it("subscribes to events via ctx.events.on", async () => {
+    const bus = initEventBus();
+    const received: unknown[] = [];
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "subscriber", onLoad });
+    loader.connectEvents(bus);
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    ctx.events.on("my.event", (payload) => received.push(payload));
+
+    bus.emit("my.event", { data: 42 });
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ data: 42 });
+  });
+
+  it("ctx.events.once auto-unsubscribes after first call", async () => {
+    const bus = initEventBus();
+    const received: unknown[] = [];
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "once-sub", onLoad });
+    loader.connectEvents(bus);
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    ctx.events.once("one-shot", (payload) => received.push(payload));
+
+    bus.emit("one-shot", { n: 1 });
+    bus.emit("one-shot", { n: 2 });
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ n: 1 });
+  });
+
+  it("unsubscribes via returned function", async () => {
+    const bus = initEventBus();
+    const received: unknown[] = [];
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "unsub-test", onLoad });
+    loader.connectEvents(bus);
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    const unsub = ctx.events.on("track.me", (p) => received.push(p));
+
+    bus.emit("track.me", { a: 1 });
+    expect(received).toHaveLength(1);
+
+    unsub();
+    bus.emit("track.me", { a: 2 });
+    expect(received).toHaveLength(1); // still 1 — unsubscribed
+  });
+
+  it("cleans up event subscriptions on module unload", async () => {
+    const bus = initEventBus();
+    const received: unknown[] = [];
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "cleanup-mod", onLoad });
+    loader.connectEvents(bus);
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    ctx.events.on("cleanup.test", (p) => received.push(p));
+
+    bus.emit("cleanup.test", { before: true });
+    expect(received).toHaveLength(1);
+
+    await loader.unload("cleanup-mod");
+    bus.emit("cleanup.test", { after: true });
+    expect(received).toHaveLength(1); // subscription was cleaned up
+  });
+
+  it("tool runner can use ctx.events via closure", async () => {
+    const bus = initEventBus();
+    const emitted: unknown[] = [];
+    bus.on("tool.ran", (p) => emitted.push(p));
+
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "event-tool-mod",
+      tools: (ctx) => [{
+        tool: {
+          name: "event_emitter_tool",
+          description: "Emits an event",
+          input_schema: { type: "object", properties: {} },
+        },
+        runner: async () => {
+          ctx.events.emit("tool.ran", { tool: "event_emitter_tool" });
+          return { content: "emitted" };
+        },
+      }],
+    });
+    loader.connectEvents(bus);
+
+    const result = await executeTool("event_emitter_tool", {});
+    expect(result.content).toBe("emitted");
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toEqual({ tool: "event_emitter_tool" });
+  });
+});
+
+// ── ctx.createSession ───────────────────────────────────────────────────
+
+describe("ModuleContext.createSession", () => {
+  it("throws when no session factory is set", async () => {
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "no-factory", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    expect(() => ctx.createSession()).toThrow("Session factory not available");
+  });
+
+  it("creates session when factory is set", async () => {
+    const mockSession = {
+      send: vi.fn(async () => "response from session"),
+      close: vi.fn(),
+    };
+    const factory = vi.fn(() => mockSession);
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    loader.setSessionFactory(factory);
+    await loader.load({ name: "with-factory", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    const session = ctx.createSession({ label: "test-session" });
+
+    expect(factory).toHaveBeenCalledWith({ label: "test-session" });
+    expect(session).toBe(mockSession);
+  });
+
+  it("passes default empty options when none provided", async () => {
+    const factory = vi.fn(() => ({
+      send: async () => "",
+      close: () => {},
+    }));
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    loader.setSessionFactory(factory);
+    await loader.load({ name: "default-opts", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    ctx.createSession();
+
+    expect(factory).toHaveBeenCalledWith({});
+  });
+
+  it("session send and close work through the proxy", async () => {
+    const sendFn = vi.fn(async (prompt: string) => `echo: ${prompt}`);
+    const closeFn = vi.fn();
+    const factory = vi.fn(() => ({ send: sendFn, close: closeFn }));
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    loader.setSessionFactory(factory);
+    await loader.load({ name: "session-proxy", onLoad });
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    const session = ctx.createSession();
+
+    const result = await session.send("hello");
+    expect(result).toBe("echo: hello");
+    expect(sendFn).toHaveBeenCalledWith("hello");
+
+    session.close();
+    expect(closeFn).toHaveBeenCalled();
+  });
+
+  it("tool runner can create sessions via closure", async () => {
+    const factory = vi.fn(() => ({
+      send: async () => "sub-agent says hi",
+      close: () => {},
+    }));
+
+    const loader = new ModuleLoader({});
+    loader.setSessionFactory(factory);
+    await loader.load({
+      name: "session-tool-mod",
+      tools: (ctx) => [{
+        tool: {
+          name: "spawn_session_tool",
+          description: "Spawns a sub-session",
+          input_schema: { type: "object", properties: {} },
+        },
+        runner: async () => {
+          const session = ctx.createSession({ label: "sub-task" });
+          const result = await session.send("do something");
+          session.close();
+          return { content: result };
+        },
+      }],
+    });
+
+    const result = await executeTool("spawn_session_tool", {});
+    expect(result.content).toBe("sub-agent says hi");
+    expect(factory).toHaveBeenCalledWith({ label: "sub-task" });
   });
 });

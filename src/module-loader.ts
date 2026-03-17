@@ -13,7 +13,7 @@ import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { ModuleStorage } from "./module-storage.js";
-import type { KotaModule, ModuleContext, ModuleLogger, RouteRegistration, ToolDef } from "./module-types.js";
+import type { CreateSessionOptions, KotaModule, ModuleContext, ModuleEventProxy, ModuleLogger, ModuleSession, RouteRegistration, ToolDef } from "./module-types.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { deregisterModuleTools, getRegisteredTools, registerTool } from "./tools/index.js";
@@ -45,12 +45,19 @@ export class ModuleLoader {
   /** Reentrancy guard for getRoutes() — prevents infinite recursion when
    *  a module's routes() callback calls ctx.getRoutes(). */
   private collectingRoutes = false;
+  /** Injected session factory — set by AgentSession to avoid circular imports. */
+  private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
 
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
     this.verbose = verbose;
     this.cwd = process.cwd();
     this.commandsOnly = options?.commandsOnly ?? false;
+  }
+
+  /** Inject a session factory. Called by AgentSession to avoid circular imports. */
+  setSessionFactory(factory: (opts: CreateSessionOptions) => ModuleSession): void {
+    this.sessionFactory = factory;
   }
 
   /** Create a module-specific context with scoped storage and config access. */
@@ -89,6 +96,13 @@ export class ModuleLoader {
       listTools: (): string[] => {
         return getRegisteredTools().map((t) => t.name);
       },
+      events: this.createEventProxy(modName),
+      createSession: (opts?: CreateSessionOptions): ModuleSession => {
+        if (!this.sessionFactory) {
+          throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");
+        }
+        return this.sessionFactory(opts ?? {});
+      },
     };
   }
 
@@ -100,6 +114,34 @@ export class ModuleLoader {
       this.moduleStorages.set(moduleName, storage);
     }
     return storage;
+  }
+
+  /** Create a scoped event proxy for a module. Lazy — resolves this.bus at call time. */
+  private createEventProxy(moduleName?: string): ModuleEventProxy {
+    const trackUnsub = (unsub: () => void) => {
+      if (!moduleName) return;
+      const existing = this.moduleEventUnsubs.get(moduleName) ?? [];
+      existing.push(unsub);
+      this.moduleEventUnsubs.set(moduleName, existing);
+    };
+
+    return {
+      emit: (event: string, payload: Record<string, unknown>) => {
+        this.bus?.emit(event, payload);
+      },
+      on: (event: string, handler: (payload: Record<string, unknown>) => void) => {
+        if (!this.bus) return () => {};
+        const unsub = this.bus.on(event, handler);
+        trackUnsub(unsub);
+        return unsub;
+      },
+      once: (event: string, handler: (payload: Record<string, unknown>) => void) => {
+        if (!this.bus) return () => {};
+        const unsub = this.bus.once(event, handler);
+        trackUnsub(unsub);
+        return unsub;
+      },
+    };
   }
 
   /** Register and initialize a single module. */

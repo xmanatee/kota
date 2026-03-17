@@ -14,6 +14,8 @@ const stubCtx: ModuleContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
+  events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+  createSession: () => ({ send: async () => "", close: () => {} }),
 };
 
 describe("registryModule", () => {
