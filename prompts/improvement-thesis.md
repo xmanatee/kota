@@ -7,30 +7,36 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 544)
+## Current Hypothesis (updated iter 546)
 
-The loop's primary gap is now **evaluation quality, not efficiency**:
+The loop's primary gap is now **work type diversity and architecture quality**:
 
-1. **Feature factory without composition testing** (evolved from "no capability
-   evaluation", iter 532). The builder consistently ships features (6/6 recent
-   iters), all pass unit tests, but no verification that capabilities compose
-   into working multi-step workflows. SWE-EVO (arXiv 2512.18470) confirms this
-   is a real risk: GPT-5 scores 65% on single-patch SWE-bench but only 21% on
-   multi-release evolution — composition is dramatically harder than individual
-   tasks. Iter 544 intervention adds composition to the builder's brainstorm
-   categories and evaluation criteria.
+1. **Feature factory partially broken, but structural bias remains** (evolved
+   from iter 544). The composition intervention worked — iter 545 builder chose
+   composition E2E tests. But the evaluation criterion still favors "enabling
+   workflows" over "fixing weaknesses." Iter 546 broadens the criterion to
+   value addressing existing weaknesses equally with new capabilities.
 
-2. **Efficiency is no longer the bottleneck**. All efficiency interventions have
-   landed: rework 33% (best in window), context 71k (stable), cost $3.88
-   (lowest in window), lint runs down ~35% post-batching lesson. Further
-   efficiency gains are diminishing returns.
+2. **Architecture quality untested**. The owner flagged that modules aren't
+   truly self-contained (NOTES.md). 55+ source files, 8000+ lines, but no
+   verification that the module system actually supports plug-and-play. This
+   is the deeper quality dimension beyond composition testing.
+
+3. **Efficiency is mature**. All interventions landed and verified. Cost $1.79
+   in iter 545 (lowest ever). Further efficiency work is diminishing returns.
+
+4. **Prompt decay is a theoretical risk**. New research ("How Many Instructions
+   Can LLMs Follow at Once?", arXiv 2507.11538) shows threshold decay at ~150
+   instructions for reasoning models. Our builder loads 166-line prompt +
+   142-line lessons + AGENTS.md. Not yet critical, but monitor.
 
 **Previously addressed gaps:**
 - Context growth: ADDRESSED (iter 538, verified iter 540). 97k → 63k (-35%).
 - Rework: ADDRESSED (iters 536+538, verified iter 540). 76% → 36%.
 - Web research waste: ADDRESSED (iter 540). No negative signal.
-- Lint rework: ADDRESSED (iter 542, verified iter 544). Lint runs dropped from
-  6.8× avg to ~4-5 in iter 543 (~35% reduction).
+- Lint rework: ADDRESSED (iter 542, verified iter 544). Lint runs down ~35%.
+- Composition testing: ADDRESSED (iter 544→545). 7 E2E tests covering
+  multi-step workflows. Basic capability composition verified.
 
 **Intervention history:**
 - **(iter 534)** BUILDER_LESSONS.md with pre-flight health checks. **EFFECTIVE**.
@@ -41,29 +47,33 @@ The loop's primary gap is now **evaluation quality, not efficiency**:
 - **(iter 542)** Lint batching lesson. **VERIFIED** (iter 544): lint runs dropped
   from 6.8× avg to ~4-5 in iter 543. Pattern followed: batch at boundaries.
 - **(iter 544)** Composition-aware brainstorming + "Composition Gap" lesson.
-  **Verify in iter 546**: did the builder choose composition/integration work
-  over another standalone feature?
+  **VERIFIED** (iter 546): builder chose composition E2E tests in iter 545.
+  7 tests covering code fix, error recovery, lint-gated edits, multi-turn,
+  task+shell, parallel+sequential workflows. Clear success.
+- **(iter 546)** Broadened evaluation criterion + "Quality Beyond Features"
+  lesson. Verify in iter 548: does the builder choose quality/architecture
+  work over another standalone feature?
 
 ## Evidence
 
-- **Feature factory pattern**: 6/6 recent builder iters are standalone features.
-  All pass unit tests. None verify capability composition. The builder's
-  brainstorm consistently produces infrastructure features because they're
-  individually testable — the evaluation signal (tests pass) rewards adding
-  capabilities, not proving they compose.
-- **Iter 543 was highly efficient**: 92 calls, $3.88, 33% rework, 71k context.
-  Best cost and rework in 6-iteration window. Efficiency interventions have
-  converged — further gains are diminishing returns.
-- **Lint batching verified**: Iter 543 had 4-5 lint calls vs 6.8× avg before
-  intervention. Builder followed the batching pattern without prompting.
+- **Feature factory partially broken**: 8/8 recent iters classified as "feature"
+  in trend analysis, but iter 545 was composition E2E tests — qualitatively
+  different from standalone features. The evaluation criterion change (iter 546)
+  aims to further diversify by making quality/architecture work a legitimate
+  brainstorm choice.
+- **Iter 545 was the most efficient ever**: 40 calls, $1.79, 45% rework, 43k
+  context. 7 composition E2E tests built with 0 errors. This was composition
+  testing work, not a feature — demonstrating the evaluation criterion matters.
+- **Lint batching holding**: Lint reruns at 6.0× in latest window (down from
+  6.8× pre-intervention). Not as dramatic as hoped but steady improvement.
 - **Build pass rate**: 100% — necessary but not sufficient.
 - **Tests**: Mostly unit-level. E2E tests (iter 533) test plumbing, not
   capability composition. 2896 tests across 127 files.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
-- **Context trend (iters 533-543)**: 72k → 79k → 97k → 63k → 72k → 71k.
-  Stable at ~74k avg post-deferred-read intervention.
-- **Rework trend (iters 533-543)**: 63% → 76% → 68% → 36% → 51% → 33%.
-  Trending down. Below 60% target in 3 of last 4.
+- **Context trend (iters 533-545)**: 72k → 79k → 97k → 63k → 72k → 71k → 43k.
+  Avg 71k. Iter 545's 43k shows focused work (test writing) uses less context.
+- **Rework trend (iters 533-545)**: 63% → 76% → 68% → 36% → 51% → 33% → 45%.
+  Avg 54%. Below 60% in 4 of last 5.
 - **SWE-EVO gap** (new research, iter 544): Agents that pass single-task
   benchmarks fail at sustained composition. GPT-5: 65% SWE-bench → 21%
   SWE-EVO. This directly parallels our situation: unit tests pass, but
@@ -151,6 +161,30 @@ The loop's primary gap is now **evaluation quality, not efficiency**:
   - **AgentPRM (Feb 2025, arXiv 2502.10325)**: Process Reward Models for LLM
     agents. Monte Carlo rollouts from each intermediate state estimate per-step
     value. Fine-grained quality signals without full task completion.
+  - **GVU "Second Law" (Dec 2025, arXiv 2512.02731)**: Derives a Variance
+    Inequality as a spectral condition for stable self-improvement. Core result:
+    **when improvements plateau, strengthen the verifier (evaluation), not the
+    generator (builder)**. Verification quality is the bottleneck. Applies to
+    STaR, SPIN, Reflexion, AlphaZero — all are GVU operator instances.
+  - **Prompt Instruction Limits (Feb 2026, arXiv 2507.11538)**: "How Many
+    Instructions Can LLMs Follow at Once?" Three degradation patterns: threshold
+    decay (~150 instructions for reasoning models), linear decay (claude-sonnet),
+    exponential decay (gpt-4o). Accumulated instructions in agent prompts
+    measurably degrade compliance. Monitor our prompt instruction density.
+  - **EvolveR (Oct 2025, arXiv 2510.16079)**: Offline self-distillation —
+    trajectories distilled into abstract principles, semantically deduplicated,
+    scored by effectiveness. Bad principles decay; good ones propagate.
+    Automated "prompt hygiene" for learned strategies. Directly applicable to
+    BUILDER_LESSONS.md maintenance.
+  - **AlphaEvolve (May 2025, arXiv 2506.13131)**: MAP-Elites + island-based
+    population models. Less-performant "ancestor" agents instrumental in later
+    breakthroughs — hill-climbing discards them prematurely. Self-evolves its
+    own prompts. Implies: don't discard "failed" experiments.
+  - **SWE-CI (Mar 2026, arXiv 2603.03823)**: First CI-loop benchmark —
+    evaluates whether agent-produced code stays maintainable across evolving
+    requirements (avg 233 days, 71 commits per task). Key insight: an agent
+    that hard-codes a fix and one that writes clean code both pass the same
+    test suite; the difference shows when the codebase must evolve.
 
 ## Capability Assessment
 
@@ -179,8 +213,8 @@ What the agent (KOTA) can do, based on codebase analysis:
 | MCP server (tool exposure) | ✓ | Unit |
 | Module factory (runtime creation) | ✓ | Unit |
 | Conversation recall (history search) | ✓ | Unit |
-| Multi-turn conversation | ✓ | **Not tested** |
-| Error recovery in agent loop | ✓ | **Not tested** |
+| Multi-turn conversation | ✓ | Composition E2E |
+| Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
 | Cross-session continuity | ✓ | **Not tested** |
 
@@ -212,35 +246,33 @@ Patterns the improver should avoid (based on recent iterations):
 - **Lint batching intervention (iter 542)**: Added lint efficiency lesson.
   **VERIFIED** (iter 544): lint runs dropped from 6.8× avg to ~4-5 in iter 543.
 - **Composition-aware brainstorming (iter 544)**: Added "Composition Gap" lesson
-  to BUILDER_LESSONS.md and capability-composition category to builder prompt's
-  brainstorm section. Sharpened evaluation criterion to require concrete
-  multi-step workflow impact. **Verify in iter 546**: did the builder choose
-  composition/integration work?
+  and evaluation criterion sharpening. **VERIFIED** (iter 546): builder chose
+  composition E2E tests in iter 545. 7 tests, 40 calls, $1.79. Clear success.
+- **Quality-focused evaluation criterion (iter 546)**: Broadened evaluation from
+  "what workflow does this enable?" to also value "what weakness does this
+  address?". Replaced "Composition Gap" lesson with "Quality Beyond Features"
+  in BUILDER_LESSONS.md. **Verify in iter 548**: does the builder choose
+  quality/architecture work?
 
 ## Strategic Priorities (for the improver, not the builder)
 
 1. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation is the single
    highest-leverage unlock. Even cheap Haiku-based scenario tests would give
    real capability signal.
-2. **Add scenario-level evaluation** — Tests that exercise the full agent loop
-   on representative tasks (file editing, multi-step reasoning, error recovery).
-   E2E tests with mock client (iter 533) are a foundation but test plumbing,
-   not capability.
-3. **Track capability dimensions** — Not just "N tests pass" but "which
-   categories of capability are covered and at what depth."
-4. **Cross-iteration learning** — **ADDRESSED (iters 534, 536, 538, 540)**:
-   `BUILDER_LESSONS.md` implements Reflexion-style persistent knowledge. Now
-   includes pre-flight health checks (534), cross-cutting change patterns (536),
-   context efficiency (538), and research strategy (540). Combined effect:
-   rework 76% → 36%, context 97k → 63k. The lessons file is proving to be the
-   highest-ROI intervention — the builder reads and follows it consistently.
-5. **SkillRL-inspired structured lessons** — Upgrade BUILDER_LESSONS.md from
-   flat prose to a structured skill bank with trigger conditions, actions, and
-   success/failure signals. SkillRL (arXiv 2602.08234) shows 41% improvement
-   over GPT-4o with hierarchical skills. Current lessons file is effective but
-   primitive — adding outcome tracking would enable skill refinement.
-6. **HGM-style metaproductivity tracking** — Evaluate iterations not just on
-   direct output but on whether they made subsequent iterations more productive.
-   Requires cross-iteration correlation analysis in parse-log.py trend mode.
-7. **Verify lint batching intervention** (iter 544) — Did lint reruns drop
-   below 5× per iteration after adding the batching lesson?
+2. **Strengthen evaluation per GVU theory** — The "Second Law" (arXiv
+   2512.02731) says: when improvements plateau, strengthen the verifier. Our
+   evaluation is binary (tests pass/fail) + metrics (cost/rework). Multi-
+   dimensional evaluation (maintainability, architecture fitness, trajectory
+   quality) would give much better signal.
+3. **Monitor prompt instruction density** — Research (arXiv 2507.11538) shows
+   threshold decay at ~150 instructions. Our builder loads 166-line prompt +
+   142-line lessons. Not yet critical, but will degrade as lessons accumulate.
+   Consider EvolveR-style pruning: score lessons by effectiveness, retire those
+   that stop contributing.
+4. **Cross-iteration learning** — **MATURE**: BUILDER_LESSONS.md implements
+   Reflexion-style persistent knowledge. 7 lessons, all verified effective.
+   Combined effect: rework 76% → 36%, context 97k → 63k, lint runs -35%.
+   Next evolution: EvolveR-style effectiveness scoring and auto-pruning.
+5. **Diversify builder work types** — 8/8 recent iters classified as "feature."
+   The evaluation criterion broadening (iter 546) should help. Monitor whether
+   the builder actually chooses refactoring/hardening/architecture work.

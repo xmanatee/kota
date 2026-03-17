@@ -94,31 +94,26 @@ and final verification. That triggers the discovery-and-rework cycle.
 same result with 6 runs — 50% fewer. The key difference: no intermediate
 verification checks between auto-fix passes.
 
-## Composition Gap
+## Quality Beyond Features
 
-The agent has 24+ individually tested capabilities (file I/O, shell, search,
-memory, modules, task routing, conversation recall, etc.). All pass unit tests.
-But the most important user-facing workflows are **untested end-to-end**:
+The agent has 24+ capabilities with 7 composition E2E tests (iter 545) proving
+they compose in multi-step workflows. Basic composition is verified. The
+remaining quality gaps are structural:
 
-- Multi-turn conversation with context management
-- Error recovery mid-task (tool fails → agent adapts → completes task)
-- Handling ambiguous or underspecified user requests
-- Cross-session continuity via memory/recall
+- **Module isolation**: The owner flagged (NOTES.md) that modules still import
+  from core rather than being truly self-contained. The module SDK (iter 535)
+  provides scoped storage and config, but actual modules may not use it
+  consistently. Truly modular = you can swap one memory system for another
+  without touching anything else.
+- **Higher-level behaviors untested**: Context compaction under load, ambiguous
+  request handling, cross-session continuity, delegation composition, the
+  architect→editor pipeline.
+- **Code maintainability**: With 55+ source files and 8000+ lines, if changing
+  a module requires understanding 5 other files, it's not truly modular.
 
-**Why this matters**: SWE-EVO (arXiv 2512.18470) shows that single-task
-evaluation dramatically overstates capability for sustained, compositional work
-— GPT-5 scores 65% on SWE-bench but only 21% on multi-release evolution tasks.
-Similarly, FeatureBench shows Claude 4.5 Opus drops from 74% to 11% when
-evaluated on full feature development vs individual patches.
-
-The mock-client E2E infrastructure (iter 533, `src/mock-client.ts` and
-`src/e2e.test.ts`) already exists for testing multi-step workflows without API
-calls. Extending it with scenarios that exercise capability composition
-(e.g., "user asks to refactor a module" → agent uses search + read + edit +
-test in sequence) would close this gap.
-
-**Bottom line**: Another new capability is less valuable than proving the
-existing capabilities compose into working workflows.
+**Bottom line**: The agent is feature-rich. The next high-impact work may be
+strengthening what exists — improving module isolation, hardening untested
+paths, or refactoring tightly-coupled code — rather than adding more features.
 
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 

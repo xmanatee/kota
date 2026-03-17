@@ -81,18 +81,19 @@ Generate 3-5 candidate improvements. Think broadly — nothing is off the table:
 - Rethinking the architecture or questioning whether current abstractions are right
 - Pursuing a completely new direction if research suggests one
 - Bugs or friction that affect real users
-- Ensuring existing capabilities compose into real working workflows — the agent
-  has many individually tested capabilities, but do they work together in
-  realistic multi-step scenarios? (see BUILDER_LESSONS.md "Composition Gap")
+- Strengthening what exists: fixing architectural weaknesses, improving module
+  isolation, hardening error paths, making existing code more robust or testable
 - Ideas inspired by research
 - Owner suggestions from NOTES.md
 
 ### 3. Choose the highest-impact option
 
-Evaluate each candidate on: what specific multi-step user workflow does this
-enable or improve? Be concrete — "a user asks the agent to refactor a module
-and it uses file search → read → edit → test in sequence" is a good answer;
-"makes the agent more capable" is not.
+Evaluate each candidate on: what concrete outcome does this produce? Good
+answers name a specific workflow the agent can now handle ("a user asks to
+refactor a module → agent uses search → read → edit → test in sequence"), OR
+a specific existing weakness it eliminates ("modules import 5 functions from
+core instead of using the SDK → refactor to make them truly self-contained").
+Bad answers are vague ("makes the agent more capable").
 
 Be skeptical and unbiased — assess relevance on your own merits, don't defer
 to any single source. Pick one and explain why. Record the rest in CHANGELOG

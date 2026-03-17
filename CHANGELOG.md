@@ -1,5 +1,77 @@
 # KOTA Changelog
 
+## Iteration 546 — Broaden Builder Evaluation from Features to Quality
+
+Broadened builder evaluation criterion and lessons to value architecture quality and code hardening alongside new features, guided by GVU "Second Law" research on strengthening evaluation over generation.
+
+### Verification of iter 544 intervention
+
+**Composition-aware brainstorming → SUCCESS.** The builder chose composition
+E2E tests in iter 545, directly responding to the "Composition Gap" lesson.
+7 tests built covering code fix, error recovery, lint-gated edits, multi-turn
+state, task+shell, and parallel+sequential workflows. Execution was the most
+efficient in the window: 40 calls, $1.79, 43k context, 0 errors.
+
+### Diagnosis
+
+The evaluation criterion ("what specific multi-step user workflow does this
+enable or improve?") inherently favors adding capabilities over strengthening
+what exists. The composition lesson worked as a one-shot redirect, but the
+structural bias toward features remains — 8/8 recent iters classified as
+"feature" in trend analysis.
+
+New research (GVU "Second Law", arXiv 2512.02731) provides theoretical
+grounding: **when improvements plateau, strengthen the verifier (evaluation
+criteria), not the generator (builder)**. Our evaluation signal rewards
+passing tests, not architecture quality or code maintainability.
+
+### Changes
+
+1. **Builder prompt (`prompts/build-agent.md`)**: Broadened the evaluation
+   criterion in section 3 from "what workflow does this enable?" to also value
+   "what existing weakness does it address?" — making refactoring, architecture
+   fixes, and hardening legitimate brainstorm choices. Updated brainstorm
+   categories to replace the now-addressed composition gap with "strengthening
+   what exists."
+
+2. **BUILDER_LESSONS.md**: Replaced "Composition Gap" (now partially closed by
+   iter 545's 7 tests) with "Quality Beyond Features" — surfaces the remaining
+   quality dimensions: module isolation (owner's concern from NOTES.md),
+   higher-level untested behaviors, code maintainability. Framed as information
+   for brainstorming, not a mandate.
+
+3. **Improvement thesis**: Updated hypothesis to reflect composition gap as
+   addressed, added 6 new research papers (GVU Variance Inequality, prompt
+   instruction limits, EvolveR, AlphaEvolve, SWE-CI), refreshed evidence and
+   strategic priorities. Key new insight: prompt instruction density is a
+   theoretical risk to monitor.
+
+### Expected effects
+
+- Builder iter 547 should consider quality/architecture work as a legitimate
+  option during brainstorming, not just new features
+- The "Quality Beyond Features" lesson surfaces concrete gaps (module isolation,
+  higher-level behaviors) without mandating specific work
+- If the builder still chooses a feature, that's fine — the criterion now allows
+  but doesn't force diversification
+
+### Candidates considered
+
+1. **Broaden evaluation criterion + quality lessons** ← CHOSEN. Highest leverage
+   — changes what the builder values, not what it does.
+2. **EvolveR-style lesson effectiveness scoring**: Add outcome tracking to
+   BUILDER_LESSONS.md entries. Deferred — current lessons are all recently
+   verified effective. Revisit when lessons accumulate enough to need pruning.
+3. **Prompt instruction density audit**: Count and reduce instructions across
+   builder prompt + lessons. Deferred — 308 total lines is within safe bounds
+   per research (threshold at ~150 *instructions*, not lines). Monitor.
+4. **parse-log.py multi-dimensional evaluation**: Track architecture quality
+   and maintainability metrics. Deferred — would require defining what those
+   metrics mean for session logs, which is non-trivial.
+5. **Strengthen improver prompt with GVU-informed evaluation structure**.
+   Deferred — the current prompt is working well. Self-modification should
+   wait until there's evidence of improver failure modes.
+
 ## Iteration 545 — Composition E2E Tests for Multi-Step Workflows
 
 Built 7 composition E2E tests that prove the agent's capabilities work together in realistic multi-step workflows, closing the composition gap identified by SWE-EVO research.
