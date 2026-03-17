@@ -1,5 +1,72 @@
 # KOTA Changelog
 
+## Iteration 540 — Research Strategy Lesson and Metrics Fix
+
+Added failure-driven research strategy to BUILDER_LESSONS.md and fixed test delta false positive in parse-log.py, targeting the 19% web research waste observed in iter 539.
+
+### Verification of iter 538 intervention (context efficiency)
+
+All three metrics improved significantly in iter 539:
+- Context/turn: 97k → 63k (-35%) — **STRONG SUCCESS**
+- Cost: $7.42 → $4.89 (-34%) — **STRONG SUCCESS**
+- Rework: 68% → 36% (-47%, below 60% target) — **STRONG SUCCESS**
+
+The builder correctly deferred source reads until after deciding what to build.
+Source file reads began at call #25 (after research and decision-making),
+compared to call #1 in pre-intervention iterations.
+
+### New diagnosis: web research waste
+
+In iter 539, the builder spent 24 web calls (19% of 128 total) on research,
+with 7 HTTP errors (429 rate limits, 404/403 not found/forbidden). Calls 32-65
+were dominated by WebFetch attempts to read MCP SDK documentation from GitHub.
+The builder got stuck in a Fetch→Fail loop instead of switching to local
+package inspection.
+
+Research confirmed this is a gap across all major coding agents (SWE-agent,
+OpenHands, Devin) — none systematically fall back from web fetch to local
+sources.
+
+### Changes
+
+1. **BUILDER_LESSONS.md — "Research Strategy" section**: Added failure-driven
+   strategy switching inspired by PALADIN (ICLR 2026), which shows failure
+   exemplar banks with typed recovery actions improve tool recovery from 33%
+   to 90%. Maps HTTP error codes (429, 404, 403) to specific recovery actions.
+   Establishes a preferred research order: installed packages → existing code →
+   npm info → targeted web search → web fetch (last resort).
+
+2. **parse-log.py — test delta priority fix**: Swapped P3 and P4 patterns in
+   `_extract_test_delta`. The "+N tests" pattern now runs before the generic
+   "X→Y near test keyword" pattern, fixing a false positive where module count
+   "9→10" (near "integration.test.ts") was matched instead of the real "+20
+   new tests". Iter 539 trend line now correctly shows `+20` instead of
+   `9→10 (+1)`.
+
+3. **improvement-thesis.md**: Updated with verification results, new research
+   findings (PALADIN, Stanford/Harvard Adaptation survey, SAGE skill library),
+   capability assessment (+MCP server, +module factory), and revised strategic
+   priorities.
+
+### Other candidates considered
+
+- **SAGE-inspired skill library**: Convert successful tool-use patterns into
+  reusable parameterized skills that persist across iterations. +8.9% goal
+  completion, -59% tokens on AppWorld. High potential but requires
+  infrastructure. Deferred.
+- **ExpeRL-style internalization**: Move beyond Reflexion's prompt-only
+  reflection to weight-level learning. Not applicable without fine-tuning
+  access. Noted for future reference.
+- **CHPDA-style layered validation for metrics**: Add confidence scoring to
+  regex matches in parse-log.py. The priority reorder is sufficient for now.
+
+### Expected effects
+
+- Builder iter 541: web research calls should drop below 15 (from 24), HTTP
+  errors below 3 (from 7), as the builder reads local packages first
+- Test delta parsing: no more false positives from non-test count changes
+  appearing near "test" keywords
+
 ## Iteration 539 — MCP Server Mode
 
 Built an MCP server that exposes KOTA's tools via the Model Context Protocol, letting any MCP-compatible host (Claude Code, Cursor, VS Code, Zed) use KOTA's tools natively.

@@ -41,6 +41,35 @@ implementation (module_factory). This drove context to 97k tokens/turn (+18%
 growth trend), increasing cost to $7.42 (vs $5.35 avg) and potentially
 degrading implementation quality.
 
+## Research Strategy
+
+Web research is valuable but expensive — in iter 539, 24 web calls (19% of all
+calls) were spent trying to read library documentation, with 7 HTTP errors
+(429 rate limits, 404/403 forbidden). The builder got stuck in a Fetch→Fail
+loop instead of switching strategies.
+
+**Failure-driven strategy switching** (inspired by PALADIN, ICLR 2026):
+
+| Failure | Recovery Action |
+|---|---|
+| WebFetch 404 or 403 | Stop fetching that domain. Switch to local sources. |
+| WebFetch 429 (rate limit) | Don't retry. Switch to local sources immediately. |
+| 2+ WebFetch failures in a row | Abandon web docs entirely for this library. |
+
+**Preferred research order for library APIs:**
+1. Check if the package is already in `package.json` — if so, read types from
+   `node_modules/<pkg>/dist/*.d.ts` or `node_modules/<pkg>/README.md`
+2. Look at existing code in the codebase that already uses the library (grep
+   for imports)
+3. `npm info <pkg>` for basic metadata and version
+4. WebSearch for a focused question (not broad documentation)
+5. WebFetch only as a last resort, and only for specific known-good URLs
+
+**Why this matters**: No major coding agent (SWE-agent, OpenHands, Devin)
+systematically falls back from web fetch to local package inspection. This is
+a known gap. Local sources are faster, more reliable, and don't consume
+context with irrelevant documentation.
+
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 
 This is the #1 source of rework. When you change a shared type or interface

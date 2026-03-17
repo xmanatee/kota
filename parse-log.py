@@ -182,7 +182,17 @@ def _extract_test_delta(texts: list[str]) -> str | None:
         if m:
             return f"+{m.group(1)}"
 
-    # P3: "X→Y" within 60 chars of "test"
+    # P3: "+N tests" or "N new tests" — more precise than generic arrow
+    for text in texts:
+        m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?", text, re.I)
+        if m:
+            return f"+{m.group(1)}"
+        m = re.search(r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?", text, re.I)
+        if m:
+            return f"+{m.group(1)}"
+
+    # P4: "X→Y" within 60 chars of "test" — broad arrow pattern (false-positive
+    # prone when non-test counts like module counts appear near "test" keyword)
     for text in texts:
         for m in re.finditer(r"(\d+)\s*(?:→|->)\s*(\d+)", text):
             before, after = int(m.group(1)), int(m.group(2))
@@ -193,16 +203,7 @@ def _extract_test_delta(texts: list[str]) -> str | None:
             if "test" in text[start:end].lower():
                 return f"{before}→{after} (+{after - before})"
 
-    # P4: "+N tests" or "N new tests"
-    for text in texts:
-        m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?", text, re.I)
-        if m:
-            return f"+{m.group(1)}"
-        m = re.search(r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?", text, re.I)
-        if m:
-            return f"+{m.group(1)}"
-
-    # P4: Generic X→Y with plausible positive delta
+    # P5: Generic X→Y with plausible positive delta
     for text in texts:
         m = re.search(r"(\d+)\s*(?:→|->)\s*(\d+)", text)
         if m:

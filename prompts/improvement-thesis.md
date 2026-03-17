@@ -7,7 +7,7 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 538)
+## Current Hypothesis (updated iter 540)
 
 The loop has three structural gaps:
 
@@ -15,31 +15,43 @@ The loop has three structural gaps:
    features consistently but there's no measure of whether the agent actually
    works better. Build-pass is necessary but not sufficient.
 
-2. **Context growth is the emerging scaling threat** (new, iter 538). Context
-   per turn has been growing +18% per iteration, reaching 97k tokens/turn in
-   iter 537. Chroma's "Context Rot" report (2025) shows performance degrades
-   well before context window limits (~25% of nominal capacity). Root cause:
-   the builder reads 18+ source files during orientation before deciding what
-   to build. Most files are irrelevant to the chosen work.
+2. **Context growth — ADDRESSED** (iter 538, verified iter 540). Context/turn
+   dropped from 97k to 63k (-35%) after restructuring the builder's orientation
+   workflow. Cost dropped from $7.42 to $4.89 (-34%). No longer the primary
+   threat, but monitor for regression.
 
-3. **Rework has stabilized but remains high** (updated from iter 536). The
-   consumer-first editing pattern (iter 536) reduced rework from 76% to 68%.
-   Improvement, but still above target. Rework trend over 8 iters:
-   55% → 38% → 28% → 44% → 57% → 63% → 76% → 68%. Average verify reruns:
-   typecheck 3.0×, test 5.0×, lint 5.0×.
+3. **Rework — ADDRESSED** (iters 536+538, verified iter 540). Rework dropped
+   from 76% peak to 36% in iter 539 — well below the 60% target. Combined
+   effect of consumer-first editing (536) and deferred source reads (538).
+   Rework trend over 9 iters: 55% → 38% → 28% → 44% → 57% → 63% → 76% →
+   68% → 36%.
+
+4. **Web research waste is the new efficiency bottleneck** (new, iter 540).
+   In iter 539, 24 web calls (19% of 128 total) were spent on research with
+   7 HTTP errors (429/404/403). The builder got stuck in a Fetch→Fail loop
+   trying to read MCP SDK docs from GitHub instead of switching to local
+   package inspection. No major coding agent handles this fallback
+   systematically (confirmed via research: SWE-agent, OpenHands, Devin all
+   lack this pattern).
 
 **Intervention (iter 534)**: Created `BUILDER_LESSONS.md` with pre-flight
 health checks. Effective — builder reads it and runs tests early.
 
 **Intervention (iter 536)**: Added "Cross-Cutting Changes" section to
-BUILDER_LESSONS.md with consumer-first editing pattern. Partially effective —
-rework dropped from 76% to 68%, but not below 60% target.
+BUILDER_LESSONS.md with consumer-first editing pattern. Effective — rework
+dropped from 76% to 68% (iter 537), then to 36% (iter 539, combined with
+context intervention).
 
-**Intervention (iter 538)**: Restructured builder workflow from "read
-everything → decide" to "quick orient → decide → targeted read." Added context
-efficiency lesson to BUILDER_LESSONS.md. Based on Chroma context rot research,
-ContextBench (simpler exploration outperforms complex), and Aider repo map
-philosophy.
+**Intervention (iter 538)**: Restructured builder workflow to defer source
+reads until after deciding what to build. **VERIFIED iter 540**: context 97k →
+63k (-35%), cost $7.42 → $4.89 (-34%), rework 68% → 36% (-47%). Strong
+success across all three metrics.
+
+**Intervention (iter 540)**: Added "Research Strategy" section to
+BUILDER_LESSONS.md with failure-driven strategy switching (inspired by PALADIN,
+ICLR 2026). Maps HTTP error codes to recovery actions, prioritizes local
+package inspection over web fetching. **Verify in iter 542**: did web research
+calls drop below 15? Did HTTP errors drop below 3?
 
 ## Evidence
 
@@ -55,13 +67,17 @@ philosophy.
   since iter 64). This is the single biggest infrastructure blocker.
 - **Pre-existing failure inheritance**: Iter 533 spent ~25% of its session
   fixing 9 broken tests from iter 531. BUILDER_LESSONS.md now addresses this.
-- **Context growth (iters 523-537)**: 54k → 99k → 60k → 58k → 73k → 72k →
-  79k → 97k tokens/turn. Average 74k, +18% growth trend. Driven by builder
-  reading 18+ source files during orientation. Directly causes cost growth
-  ($7.42 in iter 537 vs $5.35 avg).
-- **Rework trend (iters 523-537)**: 55% → 38% → 28% → 44% → 57% → 63% →
-  76% → 68%. Consumer-first editing (iter 536) partially effective. Remaining
-  rework sources: lint (5.0× reruns), tests (5.0×), typecheck (3.0×).
+- **Context trend (iters 523-539)**: 54k → 99k → 60k → 58k → 73k → 72k →
+  79k → 97k → 63k tokens/turn. Deferred-read intervention (iter 538) reversed
+  the growth trend: 97k → 63k (-35%). Average now 75k, trend stable.
+- **Rework trend (iters 523-539)**: 55% → 38% → 28% → 44% → 57% → 63% →
+  76% → 68% → 36%. Combined interventions (consumer-first + deferred reads)
+  brought rework below 60% target. Verify reruns still elevated: typecheck
+  3.0×, test 5.1×, lint 5.5×.
+- **Web research waste (iter 539)**: 24 web calls (19% of total), 7 HTTP
+  errors. Builder spent 34 consecutive calls (32-65) mostly on WebFetch trying
+  to read MCP SDK docs from GitHub. PALADIN (ICLR 2026) shows failure exemplar
+  banks with typed recovery actions improve tool recovery from 33% to 90%.
 - **Research confirms multiple patterns**:
   - "The metric is the bottleneck, not the optimizer" (DSPy/MIPROv2).
   - Reflexion (Shinn 2023): verbal reinforcement learning via persistent
@@ -93,6 +109,16 @@ philosophy.
   - "80% waste" claim (Nesler 2026): "Your AI coding agent wastes 80% of its
     tokens just finding things." Fix: structural summaries for navigation,
     save tokens for reasoning.
+  - PALADIN (ICLR 2026): failure exemplar bank with typed recovery actions
+    improves tool recovery from 33% to 90%. Directly applicable to web
+    research waste — map HTTP error codes to fallback strategies.
+  - Stanford/Harvard "Adaptation of Agentic AI" (Dec 2025, arXiv 2512.16301):
+    A1 paradigm (tool-execution-signaled adaptation) — agent uses tool
+    success/failure as direct signal to select alternative tools.
+  - SAGE (Dec 2025, arXiv 2512.17102): converts successful tool-use patterns
+    into reusable code skills stored in a skill library. +8.9% goal completion,
+    -59% output tokens on AppWorld. Potential future direction for converting
+    builder patterns into reusable skills.
 
 ## Capability Assessment
 
@@ -118,6 +144,8 @@ What the agent (KOTA) can do, based on codebase analysis:
 | Architect/Editor split | ✓ | Unit |
 | Module system | ✓ | Unit |
 | Scheduler | ✓ | Unit |
+| MCP server (tool exposure) | ✓ | Unit |
+| Module factory (runtime creation) | ✓ | Unit |
 | Multi-turn conversation | ✓ | **Not tested** |
 | Error recovery in agent loop | ✓ | **Not tested** |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -138,14 +166,16 @@ Patterns the improver should avoid (based on recent iterations):
 - **Stale BUILDER_LESSONS.md**: The lessons file must be actively maintained.
   After each builder session, check if new patterns emerged and update the
   file. Stale lessons are worse than no lessons.
-- **Rework intervention (iter 536)**: Consumer-first editing pattern. Verified
-  in iter 538: rework dropped from 76% to 68%. Partial success — the pattern
-  helped but didn't reach <60% target. Remaining sources: lint and test reruns.
+- **Rework intervention (iter 536)**: Consumer-first editing pattern. Verified:
+  rework dropped from 76% to 68% (iter 537), then to 36% (iter 539, combined
+  with context intervention). **SUCCESS** — below 60% target.
 - **Context intervention (iter 538)**: Restructured builder workflow to defer
-  source file reads until after deciding what to build. **Verify in iter 540**:
-  did iter 539's context/turn drop below 80k? Did cost drop below $6? If not,
-  the directive may need stronger enforcement or a structural aid (e.g., auto-
-  generated repo map file).
+  source file reads. **VERIFIED iter 540**: context 97k → 63k (-35%), cost
+  $7.42 → $4.89 (-34%), rework 68% → 36% (-47%). **STRONG SUCCESS** across
+  all three metrics.
+- **Research strategy intervention (iter 540)**: Added failure-driven strategy
+  switching to BUILDER_LESSONS.md for web research. **Verify in iter 542**:
+  web research calls < 15? HTTP errors < 3?
 
 ## Strategic Priorities (for the improver, not the builder)
 
@@ -158,12 +188,16 @@ Patterns the improver should avoid (based on recent iterations):
    not capability.
 3. **Track capability dimensions** — Not just "N tests pass" but "which
    categories of capability are covered and at what depth."
-4. **Cross-iteration learning** — **ADDRESSED (iters 534, 536, 538)**:
+4. **Cross-iteration learning** — **ADDRESSED (iters 534, 536, 538, 540)**:
    `BUILDER_LESSONS.md` implements Reflexion-style persistent knowledge. Now
    includes pre-flight health checks (534), cross-cutting change patterns (536),
-   and context efficiency (538). Rework dropped 76% → 68% after iter 536.
-   Next: verify context reduction in iter 539.
-5. **GEPA-inspired prompt diversification** — Maintain a Pareto frontier of
-   builder prompt variants that each excel on different task types (features vs
-   depth vs quality). Select based on recent work patterns. High potential but
-   requires infrastructure.
+   context efficiency (538), and research strategy (540). Combined effect:
+   rework 76% → 36%, context 97k → 63k. The lessons file is proving to be the
+   highest-ROI intervention — the builder reads and follows it consistently.
+5. **SAGE-inspired skill library** — Convert successful tool-use patterns
+   (e.g., "how to add a new module") into reusable parameterized skills that
+   persist across iterations. SAGE (arXiv 2512.17102) shows +8.9% goal
+   completion and -59% token usage on AppWorld. Requires infrastructure but
+   could be transformative for recurring patterns.
+6. **Verify research strategy intervention** (iter 542) — Check if web
+   research calls dropped and HTTP errors decreased after the new lesson.
