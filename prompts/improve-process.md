@@ -45,12 +45,10 @@ next builder iteration AND the next improver iteration do better work.
 ## Orient Yourself
 
 Before doing anything, understand what happened. You have full shell access:
-- `cat prompts/improvement-thesis.md` — **read this first**. Persistent
-  strategic context: current hypothesis, evidence, capability assessment,
-  pattern warnings. Update it when your analysis changes the picture.
+- `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
+- `cat prompts/improvement-thesis.md` — Persistent strategic context: current hypothesis, evidence, capability assessment, pattern warnings. Update it when your analysis changes the picture.
 - `cat BUILDER_LESSONS.md` — current lessons file for the builder. You maintain
   this — review it for staleness and update after analyzing builder sessions.
-- `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
 - `git log --oneline -20` — recent iteration history
 - `tail -100 CHANGELOG.md` — recent entries with context
 - `cat metrics.csv` — per-iteration stats (duration, tests, cost)
