@@ -666,6 +666,20 @@ def _quick_parse(path: str) -> dict:
         remaining = len(tc_list) - first_verify_after_impl - 1
         rework_pct = round(remaining / len(tc_list) * 100)
 
+    # Count verification command runs by type (how many times each check ran)
+    verify_runs = {"typecheck": 0, "test": 0, "lint": 0, "build": 0}
+    for name, s in tc_list:
+        if name != "Bash":
+            continue
+        if "typecheck" in s or "tsc" in s:
+            verify_runs["typecheck"] += 1
+        if any(kw in s for kw in ["npm test", "vitest", "run test"]):
+            verify_runs["test"] += 1
+        if "biome" in s:
+            verify_runs["lint"] += 1
+        if ("build" in s or "npm run build" in s) and "typecheck" not in s and "biome" not in s:
+            verify_runs["build"] += 1
+
     usage = result.get("usage", {})
     turns = result.get("num_turns", 0) or 0
     cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -686,6 +700,7 @@ def _quick_parse(path: str) -> dict:
         "research_calls": research_calls,
         "rework_pct": rework_pct,
         "fix_cycles": fix_cycles,
+        "verify_runs": verify_runs,
     }
 
 
@@ -869,6 +884,20 @@ def trend(n: int = 5) -> None:
         f"  Rework: {avg_rework:.0f}% avg post-verify overhead, "
         f"{total_fix} fix cycles total"
     )
+    # Verification breakdown: average runs per check type (>1 means reruns)
+    vr_keys = ["typecheck", "test", "lint", "build"]
+    vr_avgs = {}
+    for k in vr_keys:
+        vals = [e.get("verify_runs", {}).get(k, 0) for e in entries]
+        vr_avgs[k] = sum(vals) / ne if ne else 0
+    reruns = {k: v for k, v in vr_avgs.items() if v > 1.0}
+    if reruns:
+        parts = [f"{k} {v:.1f}×" for k, v in reruns.items()]
+        print(f"  Verify reruns: {', '.join(parts)} avg/iter (>1× = rework)")
+    else:
+        parts = [f"{k} {v:.1f}×" for k, v in vr_avgs.items() if v > 0]
+        if parts:
+            print(f"  Verify runs: {', '.join(parts)} avg/iter")
 
     # Context size trend (per-turn cache read)
     if len(cpt_values) >= 2:

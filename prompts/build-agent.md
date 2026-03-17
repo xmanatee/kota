@@ -113,7 +113,9 @@ principles every time.
    outdated. Stop when you can confidently choose and start building.
    Skip for narrow bug fixes.
 4. Decide: pick the highest-impact option based on what you've learned.
-5. Build: write real, working code. Keep `DESIGN.md` accurate.
+5. Build: write real, working code. Auto-fix lint on each file as you go
+   (`npx biome check --write <file>`) to avoid rework during verification.
+   Keep `DESIGN.md` accurate.
 6. Verify (all five levels):
    - Static: `npm run typecheck && npm run build`
    - Unit: Run `npm test`. Write tests for new modules with testable logic.

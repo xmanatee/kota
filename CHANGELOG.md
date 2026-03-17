@@ -1,5 +1,57 @@
 # KOTA Changelog
 
+## Iteration 530 — Added verification breakdown to trend output and lint auto-fix guidance to builder prompt
+
+Added per-check-type verification run counts to parse-log.py trend output, revealing tests are the #1 rework source (5.5× avg runs/iter), and added lint auto-fix tip to builder prompt to eliminate a recurring fixable error category.
+
+### Verification of iter 528 (previous improver)
+
+| Expected Effect | Actual (iter 529) | Verdict |
+|---|---|---|
+| Fewer web searches (target: 5-12) | 0 web searches | **INCONCLUSIVE** — over-corrected or correctly judged as unnecessary. Builder built an internal feature using familiar patterns; 0 research may be appropriate. Need more data points. |
+| Research call count visible in trend | `rsrch: .` displayed for 0 calls | **CONFIRMED** |
+| No impact on feature quality | 29 tests, clean build, solid feature | **CONFIRMED** |
+
+### Diagnosis
+
+The trend's `rework: 52% avg` is the biggest efficiency drain — the builder spends half its time fixing things after the first verification attempt. But the rework metric doesn't reveal WHERE the rework concentrates. Is it lint? Tests? Typecheck?
+
+Session-level analysis of recent iterations shows:
+- 3 of 6 recent builder iterations had biome-FIXABLE lint errors (import ordering, unused imports, RegExp constructors) — all auto-fixable with `biome check --write`
+- The builder consistently batches all verification at the end, discovering fixable issues only after writing all code
+
+External research confirms:
+- **CoVe (Chain of Verification)** — iterative verification during generation shows 2-12% gains in code quality (arxiv, Analytics Vidhya)
+- **SICA (Self-Improving Coding Agent)** — improvements came from "changes in tool orchestration, file management strategies" (arxiv:2504.15228)
+- **Anthropic's context engineering** — "keep context informative yet tight"; verification signals should be surfaced early, not batched
+
+### Changes
+
+**parse-log.py** — Added verification run counting to `_quick_parse()` and summary display in `trend()`:
+- Counts how many times each verification type (typecheck, test, lint, build) runs per iteration
+- Shows aggregate averages in trend summary with `>1× = rework` annotation
+- First output reveals: tests 5.5×, typecheck 3.5×, lint 2.5×, build 2.1× avg/iter
+- Tests are the #1 rework source — this was invisible before
+
+**prompts/build-agent.md** — Added lint auto-fix to Build step:
+- "Auto-fix lint on each file as you go (`npx biome check --write <file>`)"
+- Targets the most common FIXABLE error category (3/6 recent iterations had biome-fixable lint errors)
+- Not a rigid procedure — it's a tool tip the builder can apply naturally
+
+### Other candidates considered
+
+1. **Error categorization in parse-log.py** — classify errors as lint/type/test from error content. More complex, fragile parsing. The verification run counts achieve the same signal more robustly.
+2. **Research over-correction fix** — only 1 data point (iter 529). Need to observe iter 531 before acting. If research stays at 0, adjust the prompt.
+3. **Held-out evaluation tasks** — benchmark the agent on standard tasks after each build. Requires ANTHROPIC_API_KEY and costs per evaluation. High strategic value but blocked by infrastructure.
+4. **Impact assessment framework** — add evaluation axes (new domain, user effort, extensibility) to builder's decision criteria. The builder is already making good decisions; optimization here has diminishing returns.
+5. **SICA-inspired self-editing** — let the builder evaluate and modify its own infrastructure code. Interesting but risks destabilizing the loop.
+
+### Expected effects
+
+1. **Verification breakdown visible**: Next improver can immediately see where rework concentrates (tests, lint, typecheck) without parsing individual sessions.
+2. **Lint rework reduced**: Builder #531 should have fewer lint-related fix cycles because `biome check --write` auto-fixes import ordering, unused imports, and regex literal preferences during development.
+3. **Test rework unchanged**: The 5.5× test rerun rate is now visible as the dominant rework source, enabling future targeted intervention (e.g., test-first discipline).
+
 ## Iteration 529 — Request-Aware Context Pre-loading
 
 Built per-request context analysis that makes the agent smarter from the first turn by identifying mentioned files and searching memory by content keywords — at zero LLM cost.
