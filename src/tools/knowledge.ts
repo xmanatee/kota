@@ -1,0 +1,271 @@
+/**
+ * Knowledge tool — agent-facing interface to the file-based data layer.
+ *
+ * Provides CRUD + search over markdown files with YAML front matter.
+ * Entries live in .kota/data/ (project) or ~/.kota/data/ (global).
+ */
+
+import type Anthropic from "@anthropic-ai/sdk";
+import { getKnowledgeStore } from "../knowledge-store.js";
+import type { ToolResult } from "./index.js";
+
+export const knowledgeTool: Anthropic.Tool = {
+	name: "knowledge",
+	description:
+		"Structured knowledge base — store, search, and manage entries as markdown files with metadata. " +
+		"Use for research findings, project decisions, reference material, plans, contacts, bookmarks — " +
+		"anything that should persist across sessions and be human-readable. " +
+		"Entries support type, tags, status, and custom metadata fields.",
+	input_schema: {
+		type: "object" as const,
+		properties: {
+			action: {
+				type: "string",
+				enum: ["create", "read", "update", "delete", "search", "list"],
+				description: "Operation to perform",
+			},
+			title: {
+				type: "string",
+				description: "Entry title (for create)",
+			},
+			content: {
+				type: "string",
+				description:
+					"Markdown content body (for create/update)",
+			},
+			type: {
+				type: "string",
+				description:
+					'Entry type for categorization (e.g. "note", "decision", "research", "plan", "contact", "reference"). For create/search/list.',
+			},
+			tags: {
+				type: "array",
+				items: { type: "string" },
+				description:
+					"Tags for categorization and filtering (for create/update/search/list)",
+			},
+			status: {
+				type: "string",
+				description:
+					'Entry status (e.g. "active", "archived", "draft"). For create/update/search/list.',
+			},
+			id: {
+				type: "string",
+				description: "Entry ID (for read/update/delete)",
+			},
+			query: {
+				type: "string",
+				description: "Search terms (for search action)",
+			},
+			scope: {
+				type: "string",
+				enum: ["project", "global", "all"],
+				description:
+					"Storage scope — project (.kota/data/) or global (~/.kota/data/). Default: project.",
+			},
+			meta: {
+				type: "object",
+				description:
+					"Additional metadata fields as key-value pairs (for create/update)",
+			},
+			since: {
+				type: "string",
+				description:
+					"ISO date — only return entries created after this date (for search/list)",
+			},
+		},
+		required: ["action"],
+	},
+};
+
+function formatEntry(e: {
+	id: string;
+	title: string;
+	type: string;
+	tags: string[];
+	status: string;
+	updated: string;
+	content: string;
+}): string {
+	const date = e.updated.slice(0, 10);
+	const tags = e.tags.length > 0 ? ` [${e.tags.join(", ")}]` : "";
+	return `[${e.id}] ${date} (${e.type}/${e.status})${tags} ${e.title}`;
+}
+
+function formatEntryFull(e: {
+	id: string;
+	title: string;
+	type: string;
+	tags: string[];
+	status: string;
+	created: string;
+	updated: string;
+	content: string;
+	meta: Record<string, string>;
+}): string {
+	const parts = [
+		`ID: ${e.id}`,
+		`Title: ${e.title}`,
+		`Type: ${e.type}`,
+		`Status: ${e.status}`,
+		`Tags: ${e.tags.join(", ") || "(none)"}`,
+		`Created: ${e.created}`,
+		`Updated: ${e.updated}`,
+	];
+	const metaKeys = Object.keys(e.meta);
+	if (metaKeys.length > 0) {
+		for (const k of metaKeys) {
+			parts.push(`${k}: ${e.meta[k]}`);
+		}
+	}
+	parts.push("", e.content);
+	return parts.join("\n");
+}
+
+export async function runKnowledge(
+	input: Record<string, unknown>,
+): Promise<ToolResult> {
+	const action = input.action as string;
+	const store = getKnowledgeStore();
+
+	switch (action) {
+		case "create": {
+			const title = input.title as string;
+			if (!title) {
+				return {
+					content: "Error: title is required for create",
+					is_error: true,
+				};
+			}
+			const content = (input.content as string) || "";
+			const id = store.create({
+				title,
+				content,
+				type: (input.type as string) || "note",
+				tags: (input.tags as string[]) || [],
+				status: (input.status as string) || "active",
+				scope:
+					(input.scope as "project" | "global") || "project",
+				meta: (input.meta as Record<string, string>) || undefined,
+			});
+			return {
+				content: `Created entry ${id}: "${title}" (${(input.type as string) || "note"})`,
+			};
+		}
+
+		case "read": {
+			const id = input.id as string;
+			if (!id) {
+				return {
+					content: "Error: id is required for read",
+					is_error: true,
+				};
+			}
+			const entry = store.read(id);
+			if (!entry) {
+				return {
+					content: `Entry ${id} not found`,
+					is_error: true,
+				};
+			}
+			return { content: formatEntryFull(entry) };
+		}
+
+		case "update": {
+			const id = input.id as string;
+			if (!id) {
+				return {
+					content: "Error: id is required for update",
+					is_error: true,
+				};
+			}
+			const changes: Parameters<typeof store.update>[1] = {};
+			if (input.title !== undefined)
+				changes.title = input.title as string;
+			if (input.content !== undefined)
+				changes.content = input.content as string;
+			if (input.type !== undefined) changes.type = input.type as string;
+			if (input.tags !== undefined)
+				changes.tags = input.tags as string[];
+			if (input.status !== undefined)
+				changes.status = input.status as string;
+			if (input.meta !== undefined)
+				changes.meta = input.meta as Record<string, string>;
+
+			if (Object.keys(changes).length === 0) {
+				return {
+					content:
+						"Error: provide at least one field to update (title, content, type, tags, status, meta)",
+					is_error: true,
+				};
+			}
+			const ok = store.update(id, changes);
+			return ok
+				? { content: `Updated entry ${id}` }
+				: { content: `Entry ${id} not found`, is_error: true };
+		}
+
+		case "delete": {
+			const id = input.id as string;
+			if (!id) {
+				return {
+					content: "Error: id is required for delete",
+					is_error: true,
+				};
+			}
+			const ok = store.delete(id);
+			return ok
+				? { content: `Deleted entry ${id}` }
+				: { content: `Entry ${id} not found`, is_error: true };
+		}
+
+		case "search": {
+			const query = input.query as string;
+			if (!query) {
+				return {
+					content: "Error: query is required for search",
+					is_error: true,
+				};
+			}
+			const results = store.search(query, {
+				type: input.type as string | undefined,
+				tag: input.tag as string | undefined,
+				status: input.status as string | undefined,
+				since: input.since as string | undefined,
+				scope: input.scope as "project" | "global" | "all" | undefined,
+			});
+			if (results.length === 0) {
+				return { content: "No matching entries found." };
+			}
+			const lines = results.slice(0, 20).map(formatEntry);
+			return {
+				content: `${results.length} result(s):\n${lines.join("\n")}`,
+			};
+		}
+
+		case "list": {
+			const entries = store.list({
+				type: input.type as string | undefined,
+				tag: input.tag as string | undefined,
+				status: input.status as string | undefined,
+				since: input.since as string | undefined,
+				scope: input.scope as "project" | "global" | "all" | undefined,
+			});
+			if (entries.length === 0) {
+				return { content: "No entries found." };
+			}
+			const lines = entries.slice(0, 30).map(formatEntry);
+			const more =
+				entries.length > 30
+					? `\n(+${entries.length - 30} more)`
+					: "";
+			return { content: `${entries.length} entry/entries:\n${lines.join("\n")}${more}` };
+		}
+
+		default:
+			return {
+				content: `Error: unknown action '${action}'. Use create/read/update/delete/search/list.`,
+				is_error: true,
+			};
+	}
+}

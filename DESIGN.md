@@ -506,6 +506,33 @@ Transforms KOTA from a reactive tool into a proactive agent. Scheduled items can
 
 Cross-session memory in `~/.kota/memory.json`. Save/search/list/delete with keyword ranking. Auto-prune at 100 entries.
 
+### Knowledge Store (`src/knowledge-store.ts`)
+
+File-based structured data layer — each entry is a markdown file with YAML front matter. Replaces the limitations of flat JSON memory with human-readable, git-trackable knowledge management.
+
+**Format**: Each entry is a `.md` file in `.kota/data/` (project) or `~/.kota/data/` (global):
+```markdown
+---
+id: abc123
+title: API Design Decision
+type: decision
+tags: [api, architecture]
+status: active
+created: 2024-03-15T10:00:00Z
+updated: 2024-03-15T10:00:00Z
+---
+# API Design Decision
+Content in markdown...
+```
+
+**Core operations**: create, read, update, delete, search, list. Search combines keyword matching across title, content, tags, and type with optional filters (type, tag, status, since date, scope).
+
+**Dual scope**: Project-scoped entries (`.kota/data/`) for project-specific knowledge, global entries (`~/.kota/data/`) for cross-project information. Search/list can target either or both scopes.
+
+**Interop**: Files are standard markdown — readable and editable by humans and other tools. The agent can also use `file_read`/`file_edit` directly on knowledge files.
+
+**Integration**: Registered via the `knowledge` module in the `management` tool group. Session warmup (`init.ts`) recalls recent project knowledge entries at session start.
+
 ### Conversation History (`src/history.ts`)
 
 Automatic conversation persistence that lets KOTA resume previous conversations across sessions. Every `AgentSession` auto-saves to `~/.kota/history/` — the agent remembers what you were working on and can pick up where you left off.

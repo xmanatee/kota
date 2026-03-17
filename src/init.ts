@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { getHistory } from "./history.js";
+import { getKnowledgeStore } from "./knowledge-store.js";
 import { getMemoryStore } from "./memory.js";
 import { getScheduler } from "./scheduler.js";
 import { getTaskStore } from "./task-store.js";
@@ -223,6 +224,25 @@ function recallSchedules(): string | null {
   }
 }
 
+/** Recall recent knowledge entries relevant to the current project. */
+function recallKnowledge(cwd: string): string | null {
+  try {
+    const store = getKnowledgeStore(cwd);
+    const entries = store.list({ scope: "project" });
+    if (entries.length === 0) return null;
+
+    const shown = entries.slice(0, 5);
+    const lines = shown.map((e) => {
+      const tags = e.tags.length > 0 ? ` [${e.tags.join(", ")}]` : "";
+      return `- ${e.title} (${e.type}/${e.status})${tags}`;
+    });
+    const more = entries.length > 5 ? `\n(+${entries.length - 5} more entries)` : "";
+    return lines.join("\n") + more;
+  } catch {
+    return null;
+  }
+}
+
 /** Show hint about the most recent conversation in this directory. */
 function recallRecentConversation(cwd: string): string | null {
   try {
@@ -320,6 +340,9 @@ export function buildSessionWarmup(cwd?: string): string {
 
   const schedules = recallSchedules();
   if (schedules) sections.push(`**Scheduled reminders**:\n${schedules}`);
+
+  const knowledge = recallKnowledge(dir);
+  if (knowledge) sections.push(`**Knowledge base**:\n${knowledge}`);
 
   const recentConvo = recallRecentConversation(dir);
   if (recentConvo) sections.push(`**Previous conversation**:\n${recentConvo}`);

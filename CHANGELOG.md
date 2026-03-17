@@ -1,5 +1,65 @@
 # KOTA Changelog
 
+## Iteration 531 — File-based Knowledge Store
+
+Built a structured data layer using markdown files with YAML front matter, directly addressing the owner's request for a text-based storage system.
+
+### What was built
+
+**`src/knowledge-store.ts`** (~270 lines) — Core data layer:
+- Each entry stored as a markdown file with YAML front matter (id, title, type, tags, status, dates, custom metadata)
+- Dual-scope storage: project (`.kota/data/`) and global (`~/.kota/data/`)
+- CRUD operations: create, read, update, delete
+- Search by keyword (ranked by term matches) with filters: type, tag, status, date, scope
+- Minimal YAML front matter parser/serializer (no dependencies)
+- Slug-based file naming from titles
+
+**`src/tools/knowledge.ts`** (~170 lines) — Agent-facing tool:
+- Actions: create, read, update, delete, search, list
+- Rich metadata: type (note, decision, research, plan, reference, contact, etc.), tags, status (active, archived, draft), custom key-value fields
+- Formatted output for both single entries and search results
+
+**`src/modules/knowledge.ts`** — Module registration in `management` group
+
+**Integration**:
+- Session warmup (`init.ts`) recalls project knowledge entries at session start
+- System prompt updated to explain when to use knowledge vs memory
+- Tool group signal regex extended with knowledge-related terms
+- Registered in `modules/index.ts` as built-in module
+
+### Why it matters
+
+This is the first step toward the owner's vision of a text-based data layer (NOTES.md `b:` item). Key design choices:
+- **Human-readable**: Standard markdown files, editable by humans and other tools
+- **Git-trackable**: Unlike JSON blobs, diff-friendly and version-controllable
+- **Extensible metadata**: YAML front matter supports arbitrary key-value pairs
+- **Dual scope**: Project knowledge stays local, global knowledge follows the user
+- **Interoperable**: The agent can also use file_read/file_edit directly on knowledge files
+
+Compared to the existing `memory` tool (100-entry JSON, keyword search only), the knowledge store is designed for structured, longer-lived information — research findings, architectural decisions, reference material, plans.
+
+### Verified
+- TypeScript: `tsc --noEmit` clean
+- Build: `tsup` clean
+- Tests: 29 new tests, all passing (front matter parsing, slug generation, CRUD, search, filters, scopes, external file interop)
+- Lint: `biome check` clean on all changed files
+- Load: `node dist/cli.js --help` works
+- Runtime: SKIP (ANTHROPIC_API_KEY not set)
+
+### Candidates considered
+1. **Knowledge Store / data layer** (chosen) — directly addresses owner request, foundational for future module data
+2. **Parallel delegation** — launch multiple sub-agents simultaneously for research; medium impact
+3. **Enhanced error recovery** — smarter tool failure analysis; incremental improvement
+4. **Conversation branching** — fork conversations to explore alternatives; power-user feature
+5. **Dynamic system prompt adaptation** — detect task type, trim irrelevant prompt sections; optimization
+
+### Future directions
+- Add knowledge search to `request-analyzer.ts` for per-request recall (complement session warmup)
+- CLI commands (`kota knowledge list/search/show`) for managing entries outside the agent
+- Event-driven triggers: watch knowledge entries for status changes, trigger agent actions
+- Module data isolation: each module stores its own data as knowledge entries with a namespace prefix
+- Migration path from `memory.json` to knowledge store for entries that warrant structured storage
+
 ## Iteration 530 — Added verification breakdown to trend output and lint auto-fix guidance to builder prompt
 
 Added per-check-type verification run counts to parse-log.py trend output, revealing tests are the #1 rework source (5.5× avg runs/iter), and added lint auto-fix tip to builder prompt to eliminate a recurring fixable error category.
