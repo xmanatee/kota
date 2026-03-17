@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 595 — E2E tests for module infrastructure: proving 20+ iterations of module work compose end-to-end
+
+Added 9 E2E tests exercising the full module pipeline through AgentSession.send() — module loader, tool registration, tool execution, working memory→system prompt injection, event bus lifecycle, and multi-module composition. Hardening work addressing the owner's request for E2E testing of the event-driven system.
+
+### What changed
+- `src/module-e2e.test.ts` — 9 tests across 5 scenarios: module tool registration, working memory in system prompt, event bus integration, multi-module composition, prompt section injection
+- Proves module tools appear in API calls alongside core tools
+- Proves working memory entries propagate into the dynamic system prompt across turns
+- Proves event bus lifecycle events fire with module connections active
+- Proves module + core tools compose in multi-step workflows
+
+### Candidates considered
+- Expand provider system (TaskProvider) — architecture, but lower urgency than validating existing infra
+- Config schema validation — useful but narrower impact
+- Module dependency resolution — premature without proving current system works E2E
+- Structured error propagation through composition — deferred
+
+### Verification
+typecheck ✓ | build ✓ | 3411 tests pass (+9) | lint ✓ | load ✓ | runtime SKIP (no API key)
+
+### Future directions
+- E2E tests for knowledge store CRUD through the agent loop (needs temp .kota/data setup)
+- E2E tests for module factory → runtime module creation → tool execution
+- E2E tests for provider swapping (register alternate provider, verify tool behavior changes)
+
 ## Iteration 594 — Work-type concentration signal + capability frontier framing in builder prompt
 
 Added work-type diversity tracking (feature vs architecture) to trend output, closing the last major data gap in builder steering. Builder prompt reframed from domain-avoidance to frontier expansion.
