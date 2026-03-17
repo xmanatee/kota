@@ -72,8 +72,9 @@ context with irrelevant documentation.
 
 ## Lint Efficiency
 
-Lint reruns average 6.8× per iteration — the worst rerun ratio across all
-check types. The anti-pattern is a "discovery-and-rework cycle":
+Lint reruns averaged 6.8× pre-intervention and are now down to ~4.7× (iter
+542 intervention), but remain the worst rerun ratio across all check types.
+The anti-pattern is a "discovery-and-rework cycle":
 
 ```
 Per-file fix → Intermediate verification → Discover warnings
@@ -96,7 +97,7 @@ verification checks between auto-fix passes.
 
 ## Architecture as Capability
 
-The agent is feature-rich (24+ capabilities, 2938+ tests). Features have
+The agent is feature-rich (24+ capabilities, 2968+ tests). Features have
 diminishing returns when the architecture can't support them independently.
 
 Architecture work IS capability work when it enables something that wasn't

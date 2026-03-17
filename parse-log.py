@@ -246,6 +246,89 @@ def _detect_mutation_result(texts: list[str]) -> str | None:
     return None
 
 
+def _compute_phase_fingerprint(tool_calls: list[ToolCall]) -> str:
+    """Compute a phase sequence fingerprint from tool calls.
+
+    Maps each tool call to a phase letter and collapses consecutive duplicates:
+      O = Orientation (Read/Bash on doc files: BUILDER_LESSONS, CHANGELOG, etc.)
+      R = Research (WebSearch, WebFetch, Agent with research keywords)
+      E = Exploration (Read/Grep on source files)
+      I = Implementation (Edit/Write on source files)
+      V = Verification (Bash: typecheck, test, lint, build, cli.js)
+      D = Documentation (Edit on doc files)
+    """
+    _orient_files = {
+        "builder_lessons.md", "builder-lessons.md", "changelog.md",
+        "design.md", "notes.md", "depth-log.md",
+    }
+    _verify_kws = [
+        "typecheck", "tsc", "npm run build", "run build",
+        "npm test", "vitest", "run test", "biome check", "biome",
+        "cli.js",
+    ]
+    phases = []
+    for tc in tool_calls:
+        s = _searchable(tc)
+        fp_lower = (tc.file_path or tc.detail or "").lower().split("/")[-1]
+
+        # Research
+        if tc.name in ("WebSearch", "WebFetch"):
+            phases.append("R")
+            continue
+        if tc.name == "Agent":
+            phases.append("R")
+            continue
+
+        # Orientation: reading known doc/config files
+        if tc.name in ("Read", "Bash") and any(of in s for of in _orient_files):
+            phases.append("O")
+            continue
+        if tc.name == "Bash" and any(kw in s for kw in ["git log", "git diff", "npm test", "npm info"]):
+            # git log during orient, npm test health check
+            if not phases or phases[-1] in ("O", ""):
+                phases.append("O")
+                continue
+
+        # Verification
+        if tc.name == "Bash" and any(kw in s for kw in _verify_kws):
+            phases.append("V")
+            continue
+
+        # Documentation edits
+        if tc.name == "Edit" and _is_doc_edit(tc):
+            phases.append("D")
+            continue
+
+        # Implementation edits
+        if tc.name in ("Edit", "Write") and not _is_doc_edit(tc):
+            phases.append("I")
+            continue
+
+        # Exploration (Read/Grep on source)
+        if tc.name in ("Read", "Grep", "Glob"):
+            phases.append("E")
+            continue
+
+        # Bash exploration (ls, cat source, etc.) — not orient, verify, or research
+        if tc.name == "Bash":
+            phases.append("E")
+            continue
+
+        # TodoWrite, ToolSearch, and other meta-tools — skip
+        if tc.name in ("TodoWrite", "ToolSearch"):
+            continue
+        phases.append("?")
+
+    # Collapse consecutive duplicates
+    if not phases:
+        return ""
+    collapsed = [phases[0]]
+    for p in phases[1:]:
+        if p != collapsed[-1]:
+            collapsed.append(p)
+    return "→".join(collapsed)
+
+
 def _print_builder_analysis(
     tool_calls: list[ToolCall],
     text_blocks: list[str],
@@ -263,12 +346,115 @@ def _print_builder_analysis(
             kw in all_text
             for kw in ["stale", "neglected", "rotation", "gap matrix"]
         )
+
+    # --- Universal process quality analysis (all builder sessions) ---
+    print("=== Process Quality ===")
+
+    # 1. Phase fingerprint — structural view of the session
+    fingerprint = _compute_phase_fingerprint(tool_calls)
+    print(f"  Phases:       {fingerprint}")
+
+    # 2. Pre-edit investigation: reads before first implementation edit
+    first_impl_edit = None
+    source_reads = 0
+    test_reads = 0
+    for i, tc in enumerate(tool_calls):
+        if tc.name == "Edit" and not _is_doc_edit(tc):
+            first_impl_edit = i
+            break
+        if tc.name == "Read":
+            fp = (tc.file_path or tc.detail).lower()
+            if "test" in fp:
+                test_reads += 1
+            elif fp.endswith((".ts", ".js")):
+                source_reads += 1
+    total = source_reads + test_reads
+    print(f"  Pre-edit reads: {total} ({source_reads} source, {test_reads} test)")
+
+    # 3. Read focus: what fraction of Read calls target files that are edited?
+    read_files = set()
+    edited_files = set()
+    for tc in tool_calls:
+        fp = (tc.file_path or "").lower().split("/")[-1]
+        if not fp or fp in _DOC_FILES:
+            continue
+        if tc.name == "Read" and fp.endswith((".ts", ".js")):
+            read_files.add(fp)
+        if tc.name == "Edit" and fp.endswith((".ts", ".js")):
+            edited_files.add(fp)
+    if read_files:
+        focused = len(read_files & edited_files)
+        focus_pct = round(focused / len(read_files) * 100)
+        print(f"  Read focus:   {focus_pct}% ({focused}/{len(read_files)} read files were edited)")
+
+    # 4. Fix-verify cycles: edit -> test -> re-edit sequences
+    cycles = 0
+    saw_edit = False
+    saw_test_after_edit = False
+    for tc in tool_calls:
+        if _is_doc_edit(tc):
+            continue
+        is_edit = tc.name == "Edit"
+        s = _searchable(tc)
+        is_test = tc.name == "Bash" and any(
+            kw in s for kw in ["test", "vitest", "npm test"]
+        )
+        if saw_test_after_edit and is_edit:
+            cycles += 1
+        if is_edit:
+            saw_edit = True
+            saw_test_after_edit = False
+        elif is_test and saw_edit:
+            saw_test_after_edit = True
+            saw_edit = False
+        elif not is_test:
+            saw_edit = False
+
+    print(f"  Fix-verify:   {cycles} cycle(s)")
+
+    # 5. Verification levels — check both description and command
+    checks = {"typecheck": False, "build": False, "test": False, "load": False}
+    for tc in tool_calls:
+        if tc.name != "Bash":
+            continue
+        s = _searchable(tc)
+        if "typecheck" in s or "tsc" in s:
+            checks["typecheck"] = True
+        if ("build" in s or "npm run build" in s) and "typecheck" not in s:
+            checks["build"] = True
+        if any(kw in s for kw in ["npm test", "vitest", "run test"]):
+            checks["test"] = True
+        if "cli.js" in s:
+            checks["load"] = True
+    status = "  ".join(
+        f"{k} {'ok' if v else 'MISS'}" for k, v in checks.items()
+    )
+    print(f"  Verification: {status}")
+
+    # 6. Test delta — search full-length text + CHANGELOG edits
+    #    (truncated text_blocks miss deltas in long summary blocks)
+    search_texts = (full_text_blocks or text_blocks) + (changelog_edits or [])
+    test_delta = _extract_test_delta(search_texts)
+    print(f"  Test delta:   {test_delta or '?'}")
+
+    # 7. Source files edited (scope of changes)
+    edited = sorted(set(
+        (tc.file_path or tc.detail).split("/")[-1]
+        for tc in tool_calls
+        if tc.name == "Edit" and not _is_doc_edit(tc)
+    ))
+    if edited:
+        print(f"  Files edited: {', '.join(edited)}")
+
+    # --- Depth-specific analysis (only for depth iterations) ---
     if not is_depth:
+        print()
         return
 
-    print("=== Builder Execution Analysis (depth) ===")
+    print()
+    print("=== Depth Analysis ===")
 
-    # 1. Refresh check — search both description and command
+    # D1. Refresh check — search both description and command
     refresh_idx = None
     read_depth_idx = None
     for i, tc in enumerate(tool_calls):
@@ -288,7 +474,7 @@ def _print_builder_analysis(
     else:
         print("  Refresh:      NOT FOUND")
 
-    # 2. Target extraction — structured format first, then fallback patterns
+    # D2. Target extraction — structured format first, then fallback patterns
     target_module = None
     target_approach = None
 
@@ -301,8 +487,6 @@ def _print_builder_analysis(
         if m:
             target_module = m.group(1)
             raw_approach = m.group(2).lower()
-            # Match against canonical approach names (prefix match for
-            # variants like "audit connections" → "audit")
             for a in DEPTH_APPROACHES:
                 if raw_approach.startswith(a):
                     target_approach = a
@@ -339,55 +523,12 @@ def _print_builder_analysis(
                         break
     print(f"  Target:       {target_module or '?'} / {target_approach or '?'}")
 
-    # 3. Pre-edit investigation: reads before first implementation edit
-    first_impl_edit = None
-    source_reads = 0
-    test_reads = 0
-    for i, tc in enumerate(tool_calls):
-        if tc.name == "Edit" and not _is_doc_edit(tc):
-            first_impl_edit = i
-            break
-        if tc.name == "Read":
-            fp = (tc.file_path or tc.detail).lower()
-            if "test" in fp:
-                test_reads += 1
-            elif fp.endswith((".ts", ".js")):
-                source_reads += 1
-    total = source_reads + test_reads
-    print(f"  Pre-edit reads: {total} ({source_reads} source, {test_reads} test)")
-
-    # 4. Fix-verify cycles: edit -> test -> re-edit sequences
-    cycles = 0
-    saw_edit = False
-    saw_test_after_edit = False
-    for tc in tool_calls:
-        if _is_doc_edit(tc):
-            continue
-        is_edit = tc.name == "Edit"
-        s = _searchable(tc)
-        is_test = tc.name == "Bash" and any(
-            kw in s for kw in ["test", "vitest", "npm test"]
-        )
-        if saw_test_after_edit and is_edit:
-            cycles += 1
-        if is_edit:
-            saw_edit = True
-            saw_test_after_edit = False
-        elif is_test and saw_edit:
-            saw_test_after_edit = True
-            saw_edit = False
-        elif not is_test:
-            saw_edit = False
-
-    print(f"  Fix-verify:   {cycles} cycle(s)")
-
-    # 5. Sweep: total calls between mutation check and verification
+    # D3. Sweep: total calls between mutation check and verification
     post_greps = 0
     if first_impl_edit is not None:
         for tc in tool_calls[first_impl_edit + 1:]:
             if tc.name == "Grep":
                 post_greps += 1
-    # Total sweep cost: all calls between mutation end and verification start
     mutation_last = -1
     for i, tc in enumerate(tool_calls):
         s = _searchable(tc)
@@ -411,41 +552,7 @@ def _print_builder_analysis(
     else:
         print(f"  Sweep:        {post_greps} Grep call(s) after first impl Edit")
 
-    # 6. Verification levels — check both description and command
-    checks = {"typecheck": False, "build": False, "test": False, "load": False}
-    for tc in tool_calls:
-        if tc.name != "Bash":
-            continue
-        s = _searchable(tc)
-        if "typecheck" in s or "tsc" in s:
-            checks["typecheck"] = True
-        if ("build" in s or "npm run build" in s) and "typecheck" not in s:
-            checks["build"] = True
-        if any(kw in s for kw in ["npm test", "vitest", "run test"]):
-            checks["test"] = True
-        if "cli.js" in s:
-            checks["load"] = True
-    status = "  ".join(
-        f"{k} {'ok' if v else 'MISS'}" for k, v in checks.items()
-    )
-    print(f"  Verification: {status}")
-
-    # 7. Test delta — search full-length text + CHANGELOG edits
-    #    (truncated text_blocks miss deltas in long summary blocks)
-    search_texts = (full_text_blocks or text_blocks) + (changelog_edits or [])
-    test_delta = _extract_test_delta(search_texts)
-    print(f"  Test delta:   {test_delta or '?'}")
-
-    # 8. Source files edited (scope of changes)
-    edited = sorted(set(
-        (tc.file_path or tc.detail).split("/")[-1]
-        for tc in tool_calls
-        if tc.name == "Edit" and not _is_doc_edit(tc)
-    ))
-    if edited:
-        print(f"  Files edited: {', '.join(edited)}")
-
-    # 9. Mutation check — did the builder verify new tests catch the bug?
+    # D4. Mutation check — did the builder verify new tests catch the bug?
     mutation_calls = 0
     for tc in tool_calls:
         if tc.name != "Bash":
@@ -833,6 +940,9 @@ def trend(n: int = 5) -> None:
                     "refactor", "isolat", "self-contained", "decouple",
                     "module context", "modulecontext", "restructur",
                     "harden", "api boundary", "plug-and-play",
+                    "event proxy", "session factory", "dependency inject",
+                    "singleton", "module api", "module event",
+                    "module isolat", "core import", "context ext",
                 ]
                 if any(kw in title_low for kw in _title_arch_kws):
                     data["work_type"] = "architecture"

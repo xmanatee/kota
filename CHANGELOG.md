@@ -1,5 +1,94 @@
 # KOTA Changelog
 
+## Iteration 552 — Process Quality Analysis for All Builder Sessions
+
+Added universal process quality analysis to parse-log.py and fixed architecture classification, giving the improver structural process quality signals for every builder iteration instead of only depth iterations.
+
+### Verification of iter 550
+
+The classification fix from iter 550 was **PARTIALLY EFFECTIVE**. It caught
+iter 549 ("Extended ModuleContext" → "modulecontext" keyword match) but missed
+iter 551 ("Module Event Proxy and Session Factory" — no keyword match). The
+trend showed "9 feature, 1 architecture" when reality was "8 feature, 2
+architecture."
+
+**Verdict**: Keywords too narrow. Expanded with 9 additional terms (event proxy,
+session factory, dependency injection, singleton removal, module API, etc.).
+
+### What changed
+
+**1. Process quality analysis for all sessions (parse-log.py)**
+
+Previously, `_print_builder_analysis` only ran for "depth" sessions (flagged by
+depth-specific keywords in assistant text). Since 9/10 recent iterations are
+non-depth, the improver got NO process quality analysis for the vast majority of
+sessions — only raw metrics in the trend output.
+
+Restructured the function into two tiers:
+- **Universal analysis** (all builder sessions): phase fingerprint, pre-edit
+  reads, read focus %, fix-verify cycles, verification levels, test delta,
+  files edited
+- **Depth-specific analysis** (depth sessions only): refresh check, target
+  extraction, sweep, mutation check
+
+**2. Phase fingerprint**
+
+New metric that maps each tool call to a phase letter (O=orient, R=research,
+E=explore, I=implement, V=verify, D=document) and collapses consecutive
+duplicates. Gives a structural view of the session at a glance:
+- `O→E→I→V→D` = clean orient→explore→implement→verify→document
+- `O→E→I→V→I→V→I→V→D` = multiple fix-verify cycles (rework)
+- `O→R→E→I→V→D` = research phase present
+
+Inspired by SWE-EVAL trajectory analysis and HAL multi-dimensional evaluation.
+
+**3. Read focus metric**
+
+Measures what fraction of source files read during the session were eventually
+edited. Higher = more focused exploration (builder reads what it needs). Lower =
+over-exploration. Iter 551: 56% (good). Iter 549: 41% (expected — architecture
+work requires auditing many files that aren't edited).
+
+**4. Architecture classification expansion**
+
+Added 9 keywords to catch module isolation work patterns: event proxy, session
+factory, dependency injection, singleton, module API, module event, module
+isolation, core import, context extension. Iter 551 now correctly classified.
+
+### New research integrated
+
+- **EvoAgentX** (EMNLP 2025): TextGrad prompt refinement, AFlow workflow
+  optimization, MIPRO preference learning. 7-20% improvements.
+- **HAL** (Princeton, ICLR 2026): Multi-dimensional agent evaluation. Key
+  finding: higher reasoning effort can reduce accuracy.
+- **SWE-EVAL**: Trajectory failure analysis — extract last 20 turns, assign
+  failure labels. Stronger models fail on instruction following, not tool use.
+- **Anthropic eval guide** (Jan 2026): Multiple graders per task, transcript
+  analysis, layered evaluation approach.
+- **ICLR 2026 Hitchhiker's Guide**: Tool invocation evaluation via Node F1,
+  Edge F1, Edit Distance.
+
+### Other candidates considered
+
+1. **CodeScene MCP integration** — Deterministic code health scoring. Deferred:
+   requires builder-domain changes (adding tools to src/).
+2. **ACE-style lesson restructuring** — Structured deltas with effectiveness
+   counters for BUILDER_LESSONS.md. Deferred: current format is working well
+   (all lessons followed in iter 551).
+3. **Effort level optimization** — HAL research suggests `--effort high` may
+   not always be optimal. Deferred: can't A/B test with current harness.
+4. **EvoAgentX-style automated prompt optimization** — Treating prompt elements
+   as parameters optimized via feedback. Deferred: requires evaluation
+   infrastructure we don't have yet (ANTHROPIC_API_KEY blocker).
+
+### Expected effects
+
+- Future improvers get process quality data for EVERY builder session, enabling
+  evidence-based prompt changes instead of inference from raw metrics alone
+- Architecture classification accurate for module isolation work — prevents
+  false "feature dominant" signals
+- Phase fingerprint enables quick structural comparison across sessions
+
 ## Iteration 551 — Module Event Proxy and Session Factory
 
 Extended ModuleContext with ctx.events proxy and ctx.createSession() factory so modules can emit/subscribe to events and spawn agent sessions without importing core singletons.

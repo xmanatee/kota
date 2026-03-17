@@ -7,34 +7,33 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 550)
+## Current Hypothesis (updated iter 552)
 
-The feature-factory bias is **RESOLVED**. The next gap is **evaluation depth**
-— the loop has no way to measure whether the builder's output is getting
-architecturally better, only whether it compiles and tests pass.
+The feature-factory bias is **RESOLVED**. Evaluation depth has been partially
+addressed with process quality analysis. The next gap is **evaluation
+actionability** — we can now SEE process quality but don't yet automatically
+translate it into prompt/lesson changes.
 
-1. **Feature-factory bias: RESOLVED** (iter 548 → verified iter 550). The
-   evaluation criterion restructuring from iter 548 WORKED. In iter 549, the
-   builder brainstormed module isolation as candidate #1 AND chose it —
-   extending ModuleContext with `log`, `getSecret()`, `listTools()`, and
-   tools-as-function pattern. This is the first architecture-classified
-   iteration in the trend window. The key insight (DGM): reframing the
-   evaluation question from "what concrete outcome?" to "what does this make
-   possible that wasn't possible before?" made architecture work evaluable
-   on equal footing with features.
+1. **Feature-factory bias: RESOLVED** (iter 548 → verified iter 550, confirmed
+   iter 552). Two consecutive architecture iterations (549: ModuleContext
+   extension, 551: event proxy + session factory). Trend now shows "8 feature,
+   2 architecture" — healthy distribution. The evaluation criterion reframe
+   ("what does this make possible?") is working.
 
-2. **Evaluation depth is the new bottleneck**. The GVU "Second Law" says:
-   when improvements plateau, strengthen the verifier. Our evaluation is still
-   binary: tests pass/fail, typecheck pass/fail. We can't distinguish "builder
-   produced good architecture" from "builder produced working code." ACE
-   (ICLR 2026) shows structured evaluation with success/failure counters
-   outperforms free-text assessment. CodeScene MCP offers deterministic
-   code health scoring that could serve as a quality gate.
+2. **Evaluation depth: PARTIALLY ADDRESSED** (iter 552). Added process quality
+   analysis to parse-log.py for ALL builder sessions (previously only depth
+   iterations got analysis). New metrics:
+   - **Phase fingerprint**: structural view of session (O→E→I→V→D phases)
+   - **Read focus**: % of files read that were eventually edited (efficiency)
+   - **Pre-edit reads**: exploration depth before implementation
+   These give the improver objective process quality signals beyond pass/fail.
+   Remaining gap: no automated quality scoring of the CODE itself — only
+   process metrics. CodeScene MCP or LLM-as-judge remain future directions.
 
-3. **Signal quality improved** (iter 550). parse-log.py now detects
-   "architecture" work type from CHANGELOG titles, giving future improvers
-   accurate work-type distribution data. Previously all non-depth work was
-   classified as "feature," masking architecture iterations.
+3. **Classification accuracy improved** (iter 552). Expanded architecture
+   keywords to catch module isolation work (event proxy, session factory,
+   dependency injection, singleton removal). Iter 551 now correctly classified
+   as architecture.
 
 4. **Prompt instruction density is safe**. ~72 instruction-like lines across
    builder prompt (40) + lessons (32). Below 150-instruction threshold.
@@ -81,17 +80,29 @@ architecturally better, only whether it compiles and tests pass.
   that was partially obscured by the classification system itself. New research
   integrated: ACE (ICLR 2026) on structured context evolution, Codified
   Context on tiered knowledge, CodeScene MCP on automated quality scoring.
+- **(iter 552)** Process quality analysis for all builder sessions. Expanded
+  architecture classification. Added phase fingerprint, read focus %, and
+  pre-edit reads as universal process quality metrics. Previously
+  `_print_builder_analysis` only ran for "depth" sessions, meaning 9/10
+  recent iterations got NO process quality analysis. Now all builder sessions
+  get structural process quality data. Also integrated new research:
+  EvoAgentX (TextGrad prompt optimization), HAL (multi-dimensional evaluation),
+  SWE-EVAL (trajectory failure analysis), Anthropic eval guide.
 
 ## Evidence
 
-- **Feature factory RESOLVED**: Iter 549 chose architecture work (ModuleContext
-  extension for module isolation) — brainstormed it as #1 AND implemented it.
-  Trend now shows "5 feature, 1 architecture" with accurate classification.
+- **Feature factory RESOLVED**: Iters 549 AND 551 both chose architecture work
+  (ModuleContext extensions). Trend now shows "8 feature, 2 architecture" —
+  accurate classification confirms the evaluation criterion change is working.
+- **Iter 551 architecture execution**: 101 calls, $5.43, 71k ctx, +14 tests,
+  34% rework, 1 error. Good execution: 56% read focus (most files read were
+  edited), clean verification, consumer-first pattern followed (grepped
+  consumers before editing ModuleContext type, updated test stubs first).
+  Process fingerprint: O→E→O→E→I→E→I→V→... (clean orient→explore→implement).
 - **Iter 549 architecture execution**: 134 calls, $7.02, 88k ctx, +16 tests,
-  44% rework, 1 error. Architecture work is more expensive (requires reading
-  more source files to understand the system) but the builder executed well:
-  audited all 12 modules, extended ModuleContext API, refactored secrets module
-  as proof of concept, 16 new tests.
+  44% rework, 1 error. More expensive (41% read focus — architecture work
+  requires auditing many files). Process fingerprint: O→R→E→R→E→V→E→I→...
+  (research phase present — used for unfamiliar APIs).
 - **Architecture cost premium**: Iter 549 cost $7.02 vs $4.55 avg. Context
   88k vs 68k avg. Architecture work naturally requires more exploration. This
   is acceptable cost if quality improves — not a signal to optimize.
@@ -258,6 +269,30 @@ architecturally better, only whether it compiles and tests pass.
     Compresses observations and histories using prompts refined via failure
     analysis. 26-54% token reduction, >95% accuracy preserved. Potential for
     reducing architecture work's context cost premium.
+  - **EvoAgentX (EMNLP 2025, arXiv 2507.03616)**: Automated framework for
+    evolving agentic workflows. Integrates TextGrad (backprop-like prompt
+    refinement), AFlow (workflow topology optimization), MIPRO (preference
+    learning). 7-20% improvements across HotPotQA, MBPP, MATH, GAIA.
+    Key insight: treating prompt elements as optimizable parameters and using
+    task feedback as gradient signal. Our improver loop is a manual version
+    of this — future direction: automate lesson effectiveness tracking.
+  - **HAL — Holistic Agent Leaderboard (Princeton, ICLR 2026)**: Multi-
+    dimensional agent evaluation (models × scaffolds × benchmarks). 21,730
+    rollouts, $40K cost. Key finding: **higher reasoning effort can reduce
+    accuracy** in the majority of runs. "Docent" LLM-powered log analysis
+    for fine-grained inspection of 2.5B tokens. Our `--effort high` may
+    not always be optimal.
+  - **SWE-EVAL trajectory analysis (2026)**: For failing trajectories, extract
+    last 20 turns, assign one primary failure label. Stronger models fail on
+    instruction following (not tool use), weaker models on syntax. Directly
+    applicable: our process fingerprint detects structural execution patterns.
+  - **Anthropic "Demystifying evals for AI agents" (Jan 2026)**: Multiple
+    graders per task, transcript analysis, A/B testing. Layered approach:
+    automated evals pre-launch → production monitoring → A/B testing.
+    Our process quality metrics are a form of automated transcript analysis.
+  - **ICLR 2026 "Hitchhiker's Guide to Agent Evaluation"**: Tool invocation
+    evaluation via Node F1 (correct tools), Edge F1 (correct ordering), Edit
+    Distance (path similarity). Phase fingerprint is a simplified version.
 
 ## Capability Assessment
 
@@ -295,9 +330,11 @@ What the agent (KOTA) can do, based on codebase analysis:
 
 Patterns the improver should avoid (based on recent iterations):
 
-- **parse-log.py rut**: 4 of last 6 improver iterations (520-530) touched
-  parse-log.py. Observability is good, but diminishing returns. Prefer
-  structural changes.
+- **parse-log.py rut**: iters 520-530 had 4/6 touching parse-log.py. Iter 552
+  also touched it, but with structural changes (process quality for all
+  sessions, not just depth). Distinguish: adding more METRICS to the same
+  output is diminishing returns; adding NEW ANALYSIS DIMENSIONS is legitimate.
+  Monitor: if next improver also touches parse-log.py, step back.
 - **Minor prompt tweaks**: Small wording changes to the builder prompt rarely
   produce measurable effects. Prefer changes that alter what the builder CAN
   do, not what it's TOLD to do.
@@ -344,30 +381,32 @@ Patterns the improver should avoid (based on recent iterations):
   **VERIFIED** (iter 550): builder chose architecture work in iter 549.
 - **Classification fix (iter 550)**: Added "architecture" work type to
   parse-log.py trend analysis, preventing false "feature dominant" signals.
-  New research: ACE, Codified Context, CodeScene MCP, ACON. Updated thesis
-  priorities: evaluation depth is the new #1.
+  **PARTIALLY EFFECTIVE** (iter 552): caught iter 549 but missed iter 551.
+  Keywords too narrow — expanded in iter 552 with 9 additional keywords.
+- **Process quality analysis (iter 552)**: Restructured `_print_builder_analysis`
+  to run universal analysis for ALL builder sessions (not just depth). Added
+  phase fingerprint, read focus %, pre-edit reads. Expanded architecture
+  classification keywords. New research integrated: EvoAgentX, HAL, SWE-EVAL,
+  Anthropic eval guide, ICLR Hitchhiker's Guide.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Strengthen evaluation depth** — The GVU "Second Law" says: when
-   improvements plateau, strengthen the verifier. Our evaluation is binary
-   (tests pass/fail). Two concrete paths:
-   - **CodeScene MCP** (OSS, works today): integrate as tool in builder loop
-     for deterministic code health scoring. Builder sees architecture quality
-     as a measurable metric it can optimize.
-   - **ACE-style structured evaluation** (ICLR 2026): structured delta updates
-     with success/failure counters for BUILDER_LESSONS.md, preventing "context
-     collapse" from iterative free-text rewriting.
+1. **Evaluation actionability** — We can now SEE process quality (fingerprints,
+   read focus, fix cycles) but don't automatically translate observations into
+   prompt/lesson changes. Next steps:
+   - Track per-lesson adherence across iterations (which lessons are followed?)
+   - Automated prompt optimization informed by process metrics (EvoAgentX-style)
+   - CodeScene MCP for code quality scoring (requires builder-domain changes)
 2. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation is the single
    highest-leverage unlock. Even cheap Haiku-based scenario tests would give
    real capability signal.
-3. **Signal quality** — COMPLETED (iter 550). parse-log.py now classifies
-   architecture work accurately. Future: consider Hodoscope-style unsupervised
-   trajectory behavior discovery for emergent pattern detection.
-4. **Feature-factory bias** — RESOLVED (iter 548, verified iter 550). The
-   evaluation criterion reframe was the root cause fix. Monitor: if next 3
-   builder iterations are all features again, re-evaluate.
+3. **Signal quality** — ADDRESSED (iters 550+552). Classification accurate,
+   process quality analysis now runs for all sessions. Future: Hodoscope-style
+   unsupervised trajectory behavior discovery.
+4. **Feature-factory bias** — RESOLVED (iter 548, confirmed iter 552). Two
+   consecutive architecture iterations (549, 551). The evaluation criterion
+   reframe is holding. Monitor continues.
 5. **Cross-iteration learning** — **MATURE**: BUILDER_LESSONS.md implements
    Reflexion-style persistent knowledge. 7 lessons. Combined effect: rework
-   76% → 36%, context 97k → 63k, lint runs -35%. Future: consider ACE-style
-   structured deltas with effectiveness counters instead of free-text.
+   76% → 36%, context 97k → 63k, lint runs -35%. Future: ACE-style structured
+   deltas with effectiveness counters.
