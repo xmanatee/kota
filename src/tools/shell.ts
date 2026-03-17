@@ -143,3 +143,8 @@ export async function runShell(
     proc.stdin.end();
   });
 }
+export const registration = {
+	tool: shellTool,
+	runner: runShell,
+	risk: "moderate" as const,
+};

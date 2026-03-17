@@ -282,3 +282,9 @@ function stripTags(html: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+export const registration = {
+	tool: webSearchTool,
+	runner: runWebSearch,
+	risk: "safe" as const,
+	group: "web",
+};

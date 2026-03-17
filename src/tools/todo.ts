@@ -180,3 +180,9 @@ export function getTodoState(): string {
   const omittedLine = omitted > 0 ? `\n(${omitted} older completed task${omitted > 1 ? "s" : ""} archived)` : "";
   return `\n<current-tasks>\n${formatTodos(shown)}${omittedLine}\n</current-tasks>`;
 }
+export const registration = {
+	tool: todoTool,
+	runner: runTodo,
+	risk: "safe" as const,
+	group: "management",
+};

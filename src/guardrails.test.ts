@@ -8,6 +8,7 @@ import {
   resolvePolicy,
   sanitizeGuardrailsConfig,
 } from "./guardrails.js";
+import { getCoreRegistrations } from "./tools/index.js";
 
 describe("classifyRisk", () => {
   it("classifies read-only tools as safe", () => {
@@ -232,6 +233,28 @@ describe("sanitizeGuardrailsConfig", () => {
 
   it("returns null for non-object input", () => {
     expect(sanitizeGuardrailsConfig(null as never)).toBeNull();
+  });
+});
+
+describe("registry-derived risk", () => {
+  it("safe registrations are classified as safe by guardrails", () => {
+    const safeRegs = getCoreRegistrations().filter((r) => r.risk === "safe");
+    expect(safeRegs.length).toBeGreaterThan(0);
+    for (const reg of safeRegs) {
+      const { risk } = classifyRisk(reg.tool.name, {});
+      expect(risk).toBe("safe");
+    }
+  });
+
+  it("moderate registrations are classified as moderate by guardrails (with benign input)", () => {
+    const moderateRegs = getCoreRegistrations().filter((r) => r.risk === "moderate");
+    expect(moderateRegs.length).toBeGreaterThan(0);
+    for (const reg of moderateRegs) {
+      // Use benign input that won't trigger dangerous-content patterns
+      const { risk } = classifyRisk(reg.tool.name, { command: "echo hello", code: "print(1)", path: "./foo.ts", method: "GET" });
+      // shell/process/file ops may be "safe" for HTTP GET or "moderate" for benign commands
+      expect(["safe", "moderate"]).toContain(risk);
+    }
   });
 });
 

@@ -5,7 +5,13 @@
  * whether to allow, require confirmation, or deny the call. Configurable via
  * .kota/config.json. Non-interactive contexts (server, telegram, daemon) use
  * stricter defaults.
+ *
+ * Core tool risk levels are derived from the tool registry (each tool's
+ * `registration.risk` field). Module-registered tools that aren't in the
+ * core registry are listed below.
  */
+
+import { getCoreRegistrations } from "./tools/index.js";
 
 export type RiskLevel = "safe" | "moderate" | "dangerous";
 export type Policy = "allow" | "confirm" | "deny";
@@ -37,41 +43,39 @@ const DEFAULT_CONFIG: GuardrailsConfig = {
 };
 
 // ─── Tool classification ──────────────────────────────────────────────
+// Core tool risk levels are derived from the tool registry.
+// Module-registered tools (not in coreRegistrations) are listed manually.
+// Lazy to avoid issues when tests mock tools/index.js.
+
+let _safeTools: Set<string> | null = null;
+let _moderateTools: Set<string> | null = null;
 
 /** Tools that only read data or coordinate — never mutate state. */
-const SAFE_TOOLS = new Set([
-  "file_read",
-  "grep",
-  "glob",
-  "repo_map",
-  "todo",
-  "ask_user",
-  "enable_tools",
-  "files_overview",
-  "memory",
-  "conversation_recall",
-  "web_search",
-  "get_secret",
-  "notify",
-  "screenshot",
-  "read_document",
-  "clipboard",
-]);
+function safeTools(): Set<string> {
+  if (!_safeTools) {
+    _safeTools = new Set([
+      ...getCoreRegistrations().filter((r) => r.risk === "safe").map((r) => r.tool.name),
+      "enable_tools",
+      // Module-registered tools
+      "memory",
+      "conversation_recall",
+      "get_secret",
+    ]);
+  }
+  return _safeTools;
+}
 
 /** Tools that mutate local state in controlled ways. */
-const MODERATE_TOOLS = new Set([
-  "file_edit",
-  "file_write",
-  "multi_edit",
-  "find_replace",
-  "code_exec",
-  "notebook",
-  "web_fetch",
-  "delegate",
-  "schedule",
-  "custom_tool",
-  "module_factory",
-]);
+function moderateTools(): Set<string> {
+  if (!_moderateTools) {
+    _moderateTools = new Set([
+      ...getCoreRegistrations().filter((r) => r.risk === "moderate").map((r) => r.tool.name),
+      // Module-registered tools
+      "schedule",
+    ]);
+  }
+  return _moderateTools;
+}
 
 /** Patterns in shell/process commands that indicate destructive operations. */
 const DANGEROUS_COMMAND_PATTERNS = [
@@ -135,7 +139,7 @@ export function classifyRisk(
   input: Record<string, unknown>,
 ): { risk: RiskLevel; reason: string } {
   // Explicit safe tools
-  if (SAFE_TOOLS.has(name)) {
+  if (safeTools().has(name)) {
     return { risk: "safe", reason: "read-only tool" };
   }
 
@@ -183,7 +187,7 @@ export function classifyRisk(
   }
 
   // Known moderate tools
-  if (MODERATE_TOOLS.has(name)) {
+  if (moderateTools().has(name)) {
     return { risk: "moderate", reason: `${name} modifies state` };
   }
 

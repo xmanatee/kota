@@ -139,3 +139,8 @@ export async function runNotify(
 			`Fallback: console notification ${fallback.delivered ? "sent" : "failed"}.`,
 	};
 }
+export const registration = {
+	tool: notifyTool,
+	runner: runNotify,
+	risk: "safe" as const,
+};

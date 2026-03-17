@@ -71,3 +71,8 @@ export async function runGlob(
 
   return { content: result + suffix };
 }
+export const registration = {
+	tool: globTool,
+	runner: runGlob,
+	risk: "safe" as const,
+};

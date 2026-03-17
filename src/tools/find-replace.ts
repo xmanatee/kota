@@ -232,3 +232,9 @@ export async function runFindReplace(
     content: `Replaced ${total} occurrence(s) in ${modified.length} file(s):\n${lines}`,
   };
 }
+export const registration = {
+	tool: findReplaceTool,
+	runner: runFindReplace,
+	risk: "moderate" as const,
+	group: "advanced_editing",
+};

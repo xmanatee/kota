@@ -166,3 +166,8 @@ function platformHint(os: string): string {
 		return "Install gnome-screenshot, scrot, or ImageMagick";
 	return `Platform "${os}" is not supported`;
 }
+export const registration = {
+	tool: screenshotTool,
+	runner: runScreenshot,
+	risk: "safe" as const,
+};

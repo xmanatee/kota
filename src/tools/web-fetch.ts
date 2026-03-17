@@ -185,3 +185,9 @@ export async function runWebFetch(
   }
 }
 
+export const registration = {
+	tool: webFetchTool,
+	runner: runWebFetch,
+	risk: "moderate" as const,
+	group: "web",
+};

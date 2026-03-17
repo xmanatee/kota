@@ -1,5 +1,104 @@
 # KOTA Changelog
 
+## Iteration 561 — Self-Registering Tool Registry
+
+Built a self-registering tool registry where each tool co-locates its risk level and group metadata, eliminating 3 files from the new-tool registration dance.
+
+### What was built
+
+**Core: `ToolRegistration` type and registry (`src/tools/index.ts`)**
+
+Each of the 26 core tool files now exports a `registration` object:
+```typescript
+export const registration = {
+  tool: clipboardTool,
+  runner: runClipboard,
+  risk: "safe" as const,
+  group: "web",  // optional
+};
+```
+
+`tools/index.ts` collects all registrations and exports `getCoreRegistrations()`.
+Consumers derive their data from the registry instead of hardcoding:
+
+- **`guardrails.ts`**: `SAFE_TOOLS`/`MODERATE_TOOLS` built from `registration.risk`.
+  Adding a new tool with `risk: "safe"` automatically appears in the safe set.
+- **`module-factory.ts`**: `BUILTIN_TOOL_NAMES` built from registrations. New tools
+  are automatically protected from name conflicts with agent-created modules.
+
+**Lazy initialization** for circular ESM import safety: The registration array
+and derived structures (runners, tool list, risk sets) are built on first access.
+This handles circular import chains like `delegate.ts → context.ts → tools/index.ts
+→ delegate.ts` that would crash with eager module-level initialization.
+
+### Before/after: adding a new core tool
+
+| Step | Before (8 files) | After (5 files) |
+|------|-------------------|------------------|
+| Implement | `src/tools/<tool>.ts` | `src/tools/<tool>.ts` + `registration` export |
+| Import | `src/tools/index.ts` | `src/tools/index.ts` (1 line) |
+| Guardrails | `src/guardrails.ts` — add to SAFE/MODERATE set | **Auto-derived** |
+| Module factory | `src/module-factory.ts` — add to BUILTIN_TOOL_NAMES | **Auto-derived** |
+| Tool groups | `src/tool-groups.ts` | `src/tool-groups.ts` |
+| Tests | `src/tools/index.test.ts` + `<tool>.test.ts` | `src/tools/index.test.ts` + `<tool>.test.ts` |
+| Docs | `DESIGN.md` | `DESIGN.md` |
+
+### Why this matters
+
+Architecture work that enables capability:
+- **Reduces builder rework**: The 8-file registration dance was the #1 documented
+  source of rework (72% in iter 553). Removing 3 files from the checklist directly
+  reduces the surface area for mistakes.
+- **Toward plug-and-play**: Each tool is more self-contained. Risk and group metadata
+  live with the implementation, not scattered across the codebase. This is a step
+  toward the owner's vision of truly modular, swappable capabilities.
+- **Enables future composition**: The `getCoreRegistrations()` API gives any consumer
+  typed access to all tool metadata. Future work: runtime tool creation, tool
+  capability discovery, dynamic tool grouping.
+
+### Tests
+
+- 8 new tests: 6 for `getCoreRegistrations()` (registration count, metadata shape,
+  safe/moderate classification, group validation, core tool membership), 2 for
+  registry-derived guardrails (safe registrations → safe classification, moderate
+  registrations → moderate classification)
+- All 3056 tests pass (3048 existing + 8 new)
+
+### Verification
+
+- Static: `tsc --noEmit` ✅, `tsup` build ✅
+- Unit: 3056/3056 pass ✅
+- Lint: all 30 changed files clean ✅
+- Load: `node dist/cli.js --help` ✅
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Self-registering tool registry** — CHOSEN. Directly addresses the 8-file
+   registration pain point and owner's modularization vision. Architecture work
+   that makes tool creation easier.
+2. **Module interface contracts** — Typed interfaces (`MemoryProvider`,
+   `StorageBackend`) for swappable modules. High value but requires deeper
+   design work. Best built on top of the registry foundation.
+3. **Workflow engine** — Multi-step task planning with checkpointing. High feature
+   value but less foundational than fixing the tool registration architecture.
+4. **Agent self-reflection** — Evaluate own performance and store lessons.
+   Interesting but less impactful than structural improvements.
+5. **Tool composition primitives** — Pipe tool outputs declaratively. Overlaps
+   with what the LLM loop already does.
+
+### Future directions
+
+- **Break tool-groups circular dep**: Extract `ToolResult` to a shared types file
+  so `tool-groups.ts` can import from the registry. Would reduce to 4 files.
+- **Extend `ToolDef` with risk**: Module-registered tools (memory, schedule, etc.)
+  still have hardcoded risk in guardrails. Adding `risk` to `ToolDef` would let
+  modules self-declare their risk level too.
+- **Module interface contracts**: Now that tools self-describe, build typed
+  interfaces that modules implement for swappability (e.g., `MemoryProvider`).
+- **Auto-generate tool groups**: Derive `TOOL_GROUPS` and `CORE_TOOL_NAMES` from
+  `registration.group` once the circular dep is resolved.
+
 ## Iteration 560 — Fix Misleading Rework Metric and Break Builder Pattern Lock
 
 Diagnosed rework metric inflation (multi-feature scope counted as rework), added return-edit ratio to parse-log.py, and calibrated builder evaluation to counter tool-addition pattern lock.

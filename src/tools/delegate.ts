@@ -328,3 +328,8 @@ export async function runDelegate(
 
   return assembleDelegateResult(lastText, meta, modifiedFiles, collectedImages);
 }
+export const registration = {
+	tool: delegateTool,
+	runner: runDelegate,
+	risk: "moderate" as const,
+};

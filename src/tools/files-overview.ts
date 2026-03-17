@@ -189,3 +189,8 @@ export async function runFilesOverview(
 
   return { content: lines.join("\n") };
 }
+export const registration = {
+	tool: filesOverviewTool,
+	runner: runFilesOverview,
+	risk: "safe" as const,
+};

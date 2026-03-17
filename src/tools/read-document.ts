@@ -339,3 +339,8 @@ function installHint(ext: string): string {
 			return "Install pandoc for broad format support: brew install pandoc.";
 	}
 }
+export const registration = {
+	tool: readDocumentTool,
+	runner: runReadDocument,
+	risk: "safe" as const,
+};

@@ -172,3 +172,9 @@ export async function runNotebook(
     is_error: true,
   };
 }
+export const registration = {
+	tool: notebookTool,
+	runner: runNotebook,
+	risk: "moderate" as const,
+	group: "code",
+};

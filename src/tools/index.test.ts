@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getRegisteredTools, registerTool } from "./index.js";
+import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -39,6 +39,63 @@ describe("getAllTools", () => {
       "read_document", "clipboard",
     ]);
     expect(names).toEqual(expected);
+  });
+});
+
+describe("getCoreRegistrations", () => {
+  it("returns all 26 core tool registrations", () => {
+    const regs = getCoreRegistrations();
+    expect(regs).toHaveLength(26);
+  });
+
+  it("each registration has tool, runner, and risk", () => {
+    for (const reg of getCoreRegistrations()) {
+      expect(reg.tool).toBeDefined();
+      expect(typeof reg.tool.name).toBe("string");
+      expect(typeof reg.runner).toBe("function");
+      expect(["safe", "moderate", "dangerous"]).toContain(reg.risk);
+    }
+  });
+
+  it("registration names match getAllTools names", () => {
+    const regNames = new Set(getCoreRegistrations().map((r) => r.tool.name));
+    const toolNames = new Set(getAllTools().map((t) => t.name));
+    // getAllTools has all core registrations (may also include custom tools)
+    for (const name of regNames) {
+      expect(toolNames.has(name)).toBe(true);
+    }
+  });
+
+  it("safe tools have read-only or coordination semantics", () => {
+    const safeNames = getCoreRegistrations()
+      .filter((r) => r.risk === "safe")
+      .map((r) => r.tool.name)
+      .sort();
+    expect(safeNames).toContain("file_read");
+    expect(safeNames).toContain("grep");
+    expect(safeNames).toContain("glob");
+    expect(safeNames).toContain("ask_user");
+    expect(safeNames).not.toContain("shell");
+    expect(safeNames).not.toContain("file_write");
+  });
+
+  it("grouped tools have valid group names", () => {
+    const validGroups = new Set(["web", "code", "advanced_editing", "management"]);
+    for (const reg of getCoreRegistrations()) {
+      if (reg.group) {
+        expect(validGroups.has(reg.group)).toBe(true);
+      }
+    }
+  });
+
+  it("core tools (no group) include essential tools", () => {
+    const coreNames = getCoreRegistrations()
+      .filter((r) => !r.group)
+      .map((r) => r.tool.name);
+    expect(coreNames).toContain("shell");
+    expect(coreNames).toContain("file_read");
+    expect(coreNames).toContain("delegate");
+    expect(coreNames).toContain("ask_user");
   });
 });
 

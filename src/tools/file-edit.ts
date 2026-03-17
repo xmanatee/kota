@@ -283,3 +283,8 @@ export function buildNotFoundMessage(path: string, content: string, oldStr: stri
     `Re-read the file with file_read to get the exact content before editing.`
   );
 }
+export const registration = {
+	tool: fileEditTool,
+	runner: runFileEdit,
+	risk: "moderate" as const,
+};

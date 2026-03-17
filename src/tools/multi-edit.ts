@@ -135,3 +135,9 @@ function revertAll(originals: Map<string, string>): string[] {
   }
   return failures;
 }
+export const registration = {
+	tool: multiEditTool,
+	runner: runMultiEdit,
+	risk: "moderate" as const,
+	group: "advanced_editing",
+};

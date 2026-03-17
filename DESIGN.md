@@ -580,6 +580,33 @@ Each turn shows `context: N%`. Above 50%, budget warnings appear in the dynamic 
 
 Mid-stream failures retry up to 3 times with jittered exponential backoff. Auth/config errors fail fast; transient errors retry. Text streams to stdout, thinking to stderr.
 
+### Self-Registering Tool Registry (`src/tools/index.ts`)
+
+Each core tool file exports a `registration` object with co-located metadata:
+```typescript
+export const registration = {
+  tool: myTool,        // Anthropic.Tool definition
+  runner: runMyTool,   // execution function
+  risk: "safe",        // "safe" | "moderate" | "dangerous"
+  group: "web",        // optional: tool group for progressive disclosure
+};
+```
+
+`tools/index.ts` collects all registrations and exports `getCoreRegistrations()`. Consumers derive their data from the registry instead of hardcoding tool names:
+
+- **`guardrails.ts`**: `SAFE_TOOLS`/`MODERATE_TOOLS` built from `registration.risk` — no manual edit needed when adding a tool.
+- **`module-factory.ts`**: `BUILTIN_TOOL_NAMES` built from registrations — prevents name conflicts with agent-created modules automatically.
+- **`tool-groups.ts`**: Still reads from hardcoded sets (circular import with `tools/index.ts` prevents direct derivation). Future work.
+
+**Adding a new core tool** (reduced from 8 files to 5):
+1. `src/tools/<tool>.ts` — implement + export `registration` with risk/group
+2. `src/tools/index.ts` — import registration (1 line)
+3. `src/tool-groups.ts` — add to CORE_TOOL_NAMES or TOOL_GROUPS
+4. `src/tools/<tool>.test.ts` — write tests
+5. `DESIGN.md` — document
+
+**Lazy initialization**: Registration array and derived structures (runners, tool list) are built on first access, not at module level. This avoids crashes from circular ESM imports (e.g., `delegate.ts → context.ts → tools/index.ts → delegate.ts`).
+
 ### Tool Design Principles
 
 From Anthropic's "Writing Tools for Agents":

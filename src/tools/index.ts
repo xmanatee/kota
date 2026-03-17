@@ -1,31 +1,31 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runEnableTools } from "../tool-groups.js";
-import { askUserTool, runAskUser } from "./ask-user.js";
-import { checkpointTool, runCheckpoint } from "./checkpoint.js";
-import { clipboardTool, runClipboard } from "./clipboard.js";
-import { codeExecTool, runCodeExec } from "./code-exec.js";
-import { customToolTool, initCustomToolRegistry, runCustomTool } from "./custom-tool.js";
-import { delegateTool, runDelegate } from "./delegate.js";
-import { fileEditTool, runFileEdit } from "./file-edit.js";
-import { fileReadTool, runFileRead } from "./file-read.js";
-import { fileWriteTool, runFileWrite } from "./file-write.js";
-import { filesOverviewTool, runFilesOverview } from "./files-overview.js";
-import { findReplaceTool, runFindReplace } from "./find-replace.js";
-import { globTool, runGlob } from "./glob.js";
-import { grepTool, runGrep } from "./grep.js";
-import { httpRequestTool, runHttpRequest } from "./http-request.js";
-import { moduleFactoryTool, runModuleFactory } from "./module-factory.js";
-import { multiEditTool, runMultiEdit } from "./multi-edit.js";
-import { notebookTool, runNotebook } from "./notebook.js";
-import { notifyTool, runNotify } from "./notify.js";
-import { processTool, runProcess } from "./process.js";
-import { readDocumentTool, runReadDocument } from "./read-document.js";
-import { repoMapTool, runRepoMap } from "./repo-map.js";
-import { runScreenshot, screenshotTool } from "./screenshot.js";
-import { runShell, shellTool } from "./shell.js";
-import { getTodoState, runTodo, todoTool } from "./todo.js";
-import { runWebFetch, webFetchTool } from "./web-fetch.js";
-import { runWebSearch, webSearchTool } from "./web-search.js";
+import { registration as askUser } from "./ask-user.js";
+import { registration as checkpoint } from "./checkpoint.js";
+import { registration as clipboard } from "./clipboard.js";
+import { registration as codeExec } from "./code-exec.js";
+import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
+import { registration as delegate } from "./delegate.js";
+import { registration as fileEdit } from "./file-edit.js";
+import { registration as fileRead } from "./file-read.js";
+import { registration as fileWrite } from "./file-write.js";
+import { registration as filesOverview } from "./files-overview.js";
+import { registration as findReplace } from "./find-replace.js";
+import { registration as glob } from "./glob.js";
+import { registration as grep } from "./grep.js";
+import { registration as httpRequest } from "./http-request.js";
+import { registration as moduleFactory } from "./module-factory.js";
+import { registration as multiEdit } from "./multi-edit.js";
+import { registration as notebook } from "./notebook.js";
+import { registration as notify } from "./notify.js";
+import { registration as process_ } from "./process.js";
+import { registration as readDocument } from "./read-document.js";
+import { registration as repoMap } from "./repo-map.js";
+import { registration as screenshot } from "./screenshot.js";
+import { registration as shell } from "./shell.js";
+import { getTodoState, registration as todo } from "./todo.js";
+import { registration as webFetch } from "./web-fetch.js";
+import { registration as webSearch } from "./web-search.js";
 
 export type ToolResultBlock =
   | { type: "text"; text: string }
@@ -39,69 +39,83 @@ export type ToolResult = {
 
 type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
 
-const runners: Record<string, ToolRunner> = {
-  shell: runShell,
-  file_read: runFileRead,
-  file_write: runFileWrite,
-  file_edit: runFileEdit,
-  multi_edit: runMultiEdit,
-  grep: runGrep,
-  glob: runGlob,
-  todo: runTodo,
-  repo_map: runRepoMap,
-  delegate: runDelegate,
-  web_fetch: runWebFetch,
-  web_search: runWebSearch,
-  ask_user: runAskUser,
-  http_request: runHttpRequest,
-  process: runProcess,
-  code_exec: runCodeExec,
-  find_replace: runFindReplace,
-  notebook: runNotebook,
-  files_overview: runFilesOverview,
-  custom_tool: runCustomTool,
-  checkpoint: runCheckpoint,
-  module_factory: runModuleFactory,
-  notify: runNotify,
-  screenshot: runScreenshot,
-  read_document: runReadDocument,
-  clipboard: runClipboard,
-
-  enable_tools: runEnableTools,
+/** Co-located tool metadata. Each tool file exports one of these. */
+export type ToolRegistration = {
+  tool: Anthropic.Tool;
+  runner: ToolRunner;
+  /** Risk classification for guardrails. */
+  risk: "safe" | "moderate" | "dangerous";
+  /** Tool group for progressive disclosure. Undefined = core (always available). */
+  group?: string;
 };
 
-/** Internal mutable tool list — use getAllTools() externally. */
-const tools: Anthropic.Tool[] = [
-  shellTool,
-  fileReadTool,
-  fileWriteTool,
-  fileEditTool,
-  multiEditTool,
-  grepTool,
-  globTool,
-  todoTool,
-  repoMapTool,
-  delegateTool,
-  webFetchTool,
-  webSearchTool,
-  askUserTool,
-  httpRequestTool,
-  processTool,
-  codeExecTool,
-  findReplaceTool,
-  notebookTool,
-  filesOverviewTool,
-  customToolTool,
-  checkpointTool,
-  moduleFactoryTool,
-  notifyTool,
-  screenshotTool,
-  readDocumentTool,
-  clipboardTool,
+// ─── Core tool registrations ──────────────────────────────────────────
+// Adding a new tool? Export a `registration` from the tool file and add it here.
+// Risk and group metadata live in the tool file — no need to edit guardrails or module-factory.
+//
+// Lazy initialization: some tool files have circular import chains through
+// this module (e.g., delegate.ts → context.ts → tools/index.ts → delegate.ts).
+// Building the registry at module level would access uninitialized ESM bindings.
+// Instead, we build on first access when all modules have finished loading.
+
+const registrationImports = [
+  () => shell,
+  () => fileRead,
+  () => fileWrite,
+  () => fileEdit,
+  () => multiEdit,
+  () => grep,
+  () => glob,
+  () => todo,
+  () => repoMap,
+  () => delegate,
+  () => webFetch,
+  () => webSearch,
+  () => askUser,
+  () => httpRequest,
+  () => process_,
+  () => codeExec,
+  () => findReplace,
+  () => notebook,
+  () => filesOverview,
+  () => customTool,
+  () => checkpoint,
+  () => moduleFactory,
+  () => notify,
+  () => screenshot,
+  () => readDocument,
+  () => clipboard,
 ];
+
+let _coreRegistrations: ToolRegistration[] | null = null;
+let _initialized = false;
+
+/** Returns all core tool registrations with metadata. */
+export function getCoreRegistrations(): readonly ToolRegistration[] {
+  if (!_coreRegistrations) {
+    _coreRegistrations = registrationImports.map((fn) => fn());
+  }
+  return _coreRegistrations;
+}
+
+// ─── Build runners and tools from registrations (lazy) ───────────────
+
+const runners: Record<string, ToolRunner> = {};
+const tools: Anthropic.Tool[] = [];
+
+function ensureInit(): void {
+  if (_initialized) return;
+  _initialized = true;
+  runners.enable_tools = runEnableTools;
+  for (const reg of getCoreRegistrations()) {
+    runners[reg.tool.name] = reg.runner;
+    tools.push(reg.tool);
+  }
+}
 
 /** Returns the full tool list (core + module-registered). Read-only. */
 export function getAllTools(): readonly Anthropic.Tool[] {
+  ensureInit();
   return tools;
 }
 
@@ -109,6 +123,7 @@ export async function executeTool(
   name: string,
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
+  ensureInit();
   const runner = runners[name];
   if (!runner) {
     return { content: `Unknown tool: ${name}`, is_error: true };
@@ -132,6 +147,7 @@ export function registerTool(
   runner: ToolRunner,
   moduleName?: string,
 ): void {
+  ensureInit();
   if (runners[tool.name]) {
     throw new Error(`Tool already registered: ${tool.name}`);
   }
@@ -150,6 +166,7 @@ export function registerTool(
 
 /** Remove a single tool by name. Returns true if found and removed. */
 export function deregisterTool(name: string): boolean {
+  ensureInit();
   const idx = tools.findIndex((t) => t.name === name);
   if (idx < 0) return false;
   tools.splice(idx, 1);
@@ -166,6 +183,7 @@ export function deregisterTool(name: string): boolean {
 
 /** Remove all tools registered by a specific module. */
 export function deregisterModuleTools(moduleName: string): void {
+  ensureInit();
   const owned = moduleToolOwners.get(moduleName);
   if (!owned) return;
   for (const name of owned) {
@@ -178,10 +196,12 @@ export function deregisterModuleTools(moduleName: string): void {
 }
 
 export function getRegisteredTools(): Anthropic.Tool[] {
+  ensureInit();
   return tools.filter((t) => customToolNames.has(t.name));
 }
 
 export function clearCustomTools(): void {
+  ensureInit();
   for (const name of customToolNames) {
     const idx = tools.findIndex((t) => t.name === name);
     if (idx >= 0) tools.splice(idx, 1);

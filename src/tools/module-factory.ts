@@ -323,3 +323,8 @@ export function getLoadedManifestModuleCount(): number {
 export function resetModuleFactory(): void {
 	loadedManifestModules.clear();
 }
+export const registration = {
+	tool: moduleFactoryTool,
+	runner: runModuleFactory,
+	risk: "moderate" as const,
+};

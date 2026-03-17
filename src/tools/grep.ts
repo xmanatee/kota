@@ -138,3 +138,8 @@ export async function runGrep(
     return { content: `Search error: ${(err as Error).message}`, is_error: true };
   }
 }
+export const registration = {
+	tool: grepTool,
+	runner: runGrep,
+	risk: "safe" as const,
+};

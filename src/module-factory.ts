@@ -20,7 +20,7 @@ import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import type { KotaModule, ToolDef } from "./module-types.js";
 import type { Language } from "./repl-session.js";
 import { sessions } from "./repl-session.js";
-import type { ToolResult } from "./tools/index.js";
+import { getCoreRegistrations, type ToolResult } from "./tools/index.js";
 
 // ─── Manifest types ──────────────────────────────────────────────────
 
@@ -69,39 +69,25 @@ const BUILTIN_MODULE_NAMES = new Set([
 	"registry",
 ]);
 
-const BUILTIN_TOOL_NAMES = new Set([
-	"shell",
-	"file_read",
-	"file_write",
-	"file_edit",
-	"multi_edit",
-	"find_replace",
-	"grep",
-	"glob",
-	"todo",
-	"repo_map",
-	"delegate",
-	"web_fetch",
-	"web_search",
-	"ask_user",
-	"http_request",
-	"process",
-	"code_exec",
-	"notebook",
-	"files_overview",
-	"enable_tools",
-	"custom_tool",
-	"module_factory",
-	"memory",
-	"schedule",
-	"get_secret",
-	"knowledge",
-	"checkpoint",
-	"notify",
-	"screenshot",
-	"read_document",
-	"clipboard",
-]);
+// Derived from core tool registrations + known module tools.
+// Adding a new core tool? Just add a registration in the tool file — it's picked up automatically.
+// Lazy to avoid circular dependency (tools/module-factory.ts → here → tools/index.ts → tools/module-factory.ts).
+let _builtinToolNames: Set<string> | null = null;
+function getBuiltinToolNames(): Set<string> {
+	if (!_builtinToolNames) {
+		_builtinToolNames = new Set([
+			...getCoreRegistrations().map((r) => r.tool.name),
+			"enable_tools",
+			// Module-registered tools
+			"memory",
+			"schedule",
+			"get_secret",
+			"knowledge",
+			"conversation_recall",
+		]);
+	}
+	return _builtinToolNames;
+}
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,48}[a-z0-9]$/;
 
@@ -156,7 +142,7 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 						field: `${prefix}.name`,
 						message: "tool name must be snake_case, 3-50 chars",
 					});
-				} else if (BUILTIN_TOOL_NAMES.has(t.name as string)) {
+				} else if (getBuiltinToolNames().has(t.name as string)) {
 					errors.push({
 						field: `${prefix}.name`,
 						message: `"${t.name}" conflicts with a built-in tool`,

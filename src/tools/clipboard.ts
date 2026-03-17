@@ -143,3 +143,8 @@ export async function runClipboard(
 
 	return { content: `Error: unknown action "${action}". Use read or write.`, is_error: true };
 }
+export const registration = {
+	tool: clipboardTool,
+	runner: runClipboard,
+	risk: "safe" as const,
+};

@@ -93,3 +93,8 @@ function promptFromTerminal(question: string): Promise<string> {
     });
   });
 }
+export const registration = {
+	tool: askUserTool,
+	runner: runAskUser,
+	risk: "safe" as const,
+};

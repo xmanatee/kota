@@ -338,3 +338,9 @@ export function clearProcesses(): void {
   processes.clear();
   nextId = 1;
 }
+export const registration = {
+	tool: processTool,
+	runner: runProcess,
+	risk: "moderate" as const,
+	group: "management",
+};

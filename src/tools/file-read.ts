@@ -294,3 +294,8 @@ function readText(filePath: string, input: Record<string, unknown>, fileSize: nu
   recordRead(filePath);
   return { content: meta + numbered + info };
 }
+export const registration = {
+	tool: fileReadTool,
+	runner: runFileRead,
+	risk: "safe" as const,
+};

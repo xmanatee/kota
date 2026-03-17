@@ -129,3 +129,8 @@ function restoreAllFiles(tracker: ReturnType<typeof getChangeTracker> & object):
     is_error: result.errors.length > 0,
   };
 }
+export const registration = {
+	tool: checkpointTool,
+	runner: runCheckpoint,
+	risk: "safe" as const,
+};

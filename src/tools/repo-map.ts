@@ -120,3 +120,9 @@ export async function runRepoMap(
 
   return { content: output.join("\n") + suffix };
 }
+export const registration = {
+	tool: repoMapTool,
+	runner: runRepoMap,
+	risk: "safe" as const,
+	group: "advanced_editing",
+};

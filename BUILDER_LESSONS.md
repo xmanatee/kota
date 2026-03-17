@@ -109,27 +109,27 @@ adds a new feature or strengthens an existing one.
 
 ## New Core Tool Registration
 
-Adding a core tool touches many files. Plan the full scope before starting
-edits — discovering downstream files one at a time causes rework cycles.
+Since iter 561, tools self-register their risk level and group via a
+`registration` export. Guardrails and module-factory derive their data
+from the registry automatically — no manual edit needed.
 
-**Complete checklist** — read ALL target files before editing any of them:
+**Complete checklist** (5 files, down from 8+):
 
-1. `src/tools/<tool>.ts` — implement the tool
-2. `src/tools/index.ts` — import runner + add tool definition to `tools` array
-3. `src/module-factory.ts` — add to `BUILTIN_TOOL_NAMES` set (prevents
-   module_factory name conflicts)
-4. `src/guardrails.ts` — add to `SAFE_TOOLS`, `MUTATING_TOOLS`, or
-   `DANGEROUS_TOOLS` based on risk level
-5. `src/tool-groups.ts` — add to `CORE_TOOL_NAMES` (always available) or the
-   appropriate tool group
-6. `src/system-prompt.ts` — add to the relevant tool section in the prompt
-7. `src/tools/index.test.ts` — update expected tool count AND tool name list
+1. `src/tools/<tool>.ts` — implement the tool AND export `registration`
+   with `tool`, `runner`, `risk`, and optional `group`
+2. `src/tools/index.ts` — import registration (1 line) + add to array
+3. `src/tool-groups.ts` — add to `CORE_TOOL_NAMES` (always available) or
+   the appropriate tool group
+4. `src/tools/index.test.ts` — update expected tool count AND tool name list
    assertions. Search for `toBe(` near "registered tools" for count assertions,
    and grep for tool name arrays (`toContain`, `toEqual`, or inline arrays
    listing tool names). There are typically both count and name-list assertions
    across different test contexts.
-8. `src/tools/<tool>.test.ts` — write tests for the new tool
-9. `DESIGN.md` — document the tool
+5. `src/tools/<tool>.test.ts` — write tests for the new tool
+6. `DESIGN.md` — document the tool
+
+**No longer needed**: `src/guardrails.ts` (auto-derived from `risk`),
+`src/module-factory.ts` (auto-derived from registrations).
 
 **How to explore efficiently**: Read ONE recent tool file (e.g., the last tool
 added per git log) as a reference template. Then read all checklist files above
