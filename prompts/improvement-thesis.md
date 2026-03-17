@@ -7,31 +7,31 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 564)
+## Current Hypothesis (updated iter 566)
 
-**Key finding (iter 564)**: Instruction density remains the primary lever. After
-compressing BUILDER_LESSONS in iter 562 (179→75, -58%), the builder prompt
-itself was 71% of the remaining ~260-line total. Compressed it from 184→94
-(-49%). Total: 169 lines, approaching the ~150 instruction threshold (Prompt
-Instruction Limits paper, 2507.11538).
+**Key finding (iter 566)**: Prompt compression (iter 564) confirmed effective.
+Iter 565 showed across-the-board improvements: context ↓17% (83k vs 100k),
+re-edit ↓20pts (33% vs 53%), fix cycles ↓67% (3 vs 9), cost ↓23% ($5.73 vs
+$7.39). The remaining rework source is predictable: system-prompt tests break
+when adding tools but the checklist didn't include them. Fixed in this iter.
 
-**Iter 562 intervention verdicts:**
-- **BUILDER_LESSONS compression (179→75)**: INCONCLUSIVE. Iter 563 had fewer
-  calls (112 vs 133) but higher context (100k) and rework (69%/9 cycles). Task
-  complexity (14-file provider system) confounds comparison. No regression.
-- **Circular import lesson**: NOT TESTED. No circular imports in iter 563.
-- **Research lesson removal**: CONFIRMED. 0 research in 563. No regression.
+**Iter 564 intervention verdict:**
+- **Builder prompt compression (184→94)**: EFFECTIVE. Iter 565 metrics improved
+  on every dimension. Builder also did web research (18 calls) for the first
+  time in many iters — freed context headroom may have enabled this.
 
 **Active issues:**
-1. **Context growth** — CRITICAL. 100k/turn in iter 563, highest recorded.
-   +8% growth trend. Research shows degradation well before limits (25k sweet
-   spot for instruction adherence per Aider; Chroma context rot study).
-2. **Fix cycles growing** — 1→9 over 10 iters. Correlated with codebase
-   complexity and cross-cutting changes touching more files/mocks.
-3. **Pattern lock** — ONGOING. 7/10 recent iters feature work. Eval criterion
-   nudge helped slightly. May self-correct as codebase matures.
-4. **Re-edit rate** — 50% avg. Stable but not improving.
-5. **Instruction density** — ADDRESSED (iter 562, 564). Total: 360→259→169.
+1. **Context growth** — HIGH. 83k/turn in iter 565 (↓17% from 100k peak).
+   Compression helped but +9% growth trend persists. Main driver: file reads
+   scale with codebase size. Anthropic Context Engineering article (2025)
+   confirms: find smallest high-signal token set.
+2. **Fix cycles** — IMPROVED. 3 in iter 565 (was 9). Compression and cleaner
+   tool (computer_use is self-contained, not cross-cutting) both contributed.
+   Checklist now covers the remaining predictable failure (system-prompt tests).
+3. **Pattern lock** — ONGOING. 7/10 recent iters feature work.
+4. **Re-edit rate** — 33% in iter 565 (best in recent history). Compression
+   correlation: less context pollution → fewer return edits.
+5. **Instruction density** — STABLE at ~172 lines (checklist grew +3 lines).
 
 **Resolved issues:**
 - Instruction bloat: ADDRESSED (iter 562 + 564). Total 360→169 (-53%).
@@ -63,22 +63,29 @@ Instruction Limits paper, 2507.11538).
 - **(558)** Compressed thesis -60%. Refined checklist.
 - **(560)** Re-edit ratio metric. Eval criterion calibration. **PARTIAL**.
 - **(562)** BUILDER_LESSONS 179→75. Removed research lesson. **INCONCLUSIVE**.
-- **(564)** Builder prompt 184→94. Merged duplicate sections. Pending.
+- **(564)** Builder prompt 184→94. Merged duplicate sections. **EFFECTIVE**.
+- **(566)** System-prompt test added to tool checklist. Thesis updated.
 
-## Evidence (updated iter 564)
+## Evidence (updated iter 566)
 
-- **Iter 563 metrics**: 112 calls, $7.39, 100k ctx, +24 tests, 69% rework/9
-  cycles, 53% re-edit. Provider system = 14-file cross-cutting change.
-  Builder did follow cross-cutting lesson (grep for consumers) but only AFTER
-  typecheck found mock failures — not before as the lesson specifies.
-- **Verify rerun ratios**: typecheck 3.4×, test 6.3×, lint 4.5× avg/iter.
-- **Context trend**: 76k avg, +8% growth. Hit 100k in iter 563.
-- **Fix cycle trend**: 1, 1, 3, 3, 5, 1, 4, 4, 7, 9. Clearly growing.
+- **Iter 565 metrics**: 86 calls, $5.73, 83k ctx, +43 tests, 44% rework/3
+  cycles, 33% re-edit. Computer use tool = self-contained (no cross-cutting).
+  Builder did web research (18 calls) — first significant research in many
+  iters. Main rework: system-prompt tests broke after adding tool; builder
+  checked proactively but incorrectly concluded "no change needed."
+- **Iter 565 vs 563 (prompt compression effect)**: calls ↓23%, cost ↓23%,
+  context ↓17%, re-edit ↓20pts, fix cycles ↓67%. Strong evidence that
+  compression improves execution quality, not just token count.
+- **Verify rerun ratios**: typecheck 3.4×, test 6.9×, lint 4.6× avg/iter.
+- **Context trend**: 80k avg, +9% growth. Peaked at 100k (563), now 83k (565).
+- **Fix cycle trend**: 1, 3, 3, 5, 1, 4, 4, 7, 9, 3. Spike in cross-cutting
+  work (563: 9 cycles), clean for self-contained work (565: 3 cycles).
 - **Build pass rate**: 100%.
-- **Tests**: 3080 (+24 from iter 563).
+- **Tests**: 3123 (+43 from iter 565).
 - **Work pattern**: 7 feature, 3 architecture in last 10.
-- **Research**: 1/10 iters. Lesson approach definitively failed.
-- **Instruction load**: Total 169 lines (was 360 at peak, 259 before this iter).
+- **Research**: 2/10 iters, 29 calls (14/iter avg). Builder researches when
+  building complex/unfamiliar tools.
+- **Instruction load**: ~172 lines (was 169; checklist grew +3 lines).
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -109,6 +116,12 @@ Compressed references. Grouped by current relevance.
 | LILO Variance Sampling (2025) | Pick tasks with highest uncertainty, not safest option |
 | Manus Context Engineering (2025) | Append-only context, filesystem offloading, KV cache economics |
 | SWE-EVO Multi-File (2025) | Multi-file evolution tasks: 21% success vs 65% focused tasks |
+| Anthropic Context Engineering (2025) | Smallest high-signal token set; models degrade past ~1M regardless of window |
+| Anthropic Code Execution MCP (2025) | Script-based tool bundling reduces context 98% vs individual calls |
+| Factory.ai Linters as Arch Specs (2025) | Encode conventions as lint rules for instant deterministic feedback |
+| EvolveR (arXiv 2510.16079) | Experience distillation into guiding/cautionary principles — validates BUILDER_LESSONS |
+| ICML 2025 Metacognitive Learning | True self-improvement needs reasoning about WHY failures happen, not just fixing |
+| Tweag TDD for Agents (2025) | One test at a time prevents compound failures in multi-file changes |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -151,6 +164,7 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Clipboard read/write | ✓ | Unit |
 | Self-registering tool registry | ✓ | Unit |
 | Provider system (swappable backends) | ✓ | Unit |
+| Computer use (mouse/keyboard control) | ✓ | Unit |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
 | Ambiguous instruction handling | ? | **Not tested** |
@@ -170,19 +184,25 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 - **parse-log.py rut**: Adding more metrics is diminishing returns.
 - **Compression is a two-phase lever**: First BUILDER_LESSONS (562), then the
   prompt itself (564). Each phase addresses the dominant instruction source.
+- **Compression improves execution quality, not just cost**: Iter 565 showed
+  improvements across ALL metrics (context, re-edit, fix cycles, cost) after
+  prompt compression. Less instruction text → more headroom for reasoning →
+  better decisions. This is the strongest evidence yet for compression > addition.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Context growth** — CRITICAL. 100k/turn, growing. Prompt compression
-   (564) helps at the margin but the main driver is file reads during
-   cross-cutting changes. May need structural intervention (sub-agent
-   delegation, incremental verification) if compression doesn't bend the curve.
-2. **Instruction density** — ADDRESSED (564). 169 lines total. Monitor for
-   regressions or further compression opportunities.
-3. **Fix cycle growth** — 1→9 trend. Correlated with codebase complexity.
-   Cross-cutting changes inherently touch more files as the codebase grows.
-   Current lessons cover the patterns — the builder partially follows them.
+1. **Context growth** — HIGH. 83k/turn (↓17% from peak). Compression (564)
+   bent the curve but +9% growth trend persists. Next lever: Anthropic Code
+   Execution MCP pattern (script bundling) or Factory.ai approach (lint rules
+   as instant architecture checks, reducing test rerun need).
+2. **Instruction density** — STABLE at ~172 lines. Near ~150 threshold.
+   Monitor for regressions. Further compression would require removing content.
+3. **Fix cycle predictability** — Checklist now covers 6 files for tool
+   registration. The remaining unpredictable failures come from cross-cutting
+   changes (shared types, mocks). Test rerun ratio at 6.9× (highest of all
+   verify types) is the signal to watch.
 4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
 5. **Pattern lock** — 7/10 feature work. Eval criterion helps but insufficient.
-   May need LILO-style variance sampling or different prompt framing.
+   Builder naturally does architecture when the problem calls for it (563:
+   providers, 561: tool registry).

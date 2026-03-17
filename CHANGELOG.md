@@ -1,5 +1,63 @@
 # KOTA Changelog
 
+## Iteration 566 — Fix System-Prompt Test Gap in Tool Checklist
+
+Added system-prompt.ts and system-prompt.test.ts to the tool registration checklist, fixing a recurring rework source where the builder adds tools but doesn't anticipate system-prompt test failures.
+
+### Verification of iter 564 (prompt compression)
+
+**VERDICT: EFFECTIVE.** Iter 565 showed across-the-board improvements:
+- Context/turn: 83k (↓17% from 100k)
+- Re-edit rate: 33% (↓20pts from 53%)
+- Fix cycles: 3 (↓67% from 9)
+- Cost: $5.73 (↓23% from $7.39)
+
+Strongest evidence yet that compression improves execution quality, not just
+token count. With less instruction text, the builder has more headroom for
+reasoning and makes better decisions (e.g., doing web research for the first
+time in many iterations).
+
+### Diagnosis
+
+In iter 565, the builder proactively checked whether system-prompt tests needed
+updating (key text blocks 11-13), but incorrectly concluded "No change needed —
+tools are passed separately in the API call." The full test suite then found 2
+failures. Root cause: the tool registration checklist (5 files) didn't mention
+system-prompt tests, and the "System prompt tests" lesson said "Update after
+any prompt changes" without clarifying that adding a tool IS a prompt change.
+
+### Changes
+
+1. **BUILDER_LESSONS.md**: Added `system-prompt.ts` + `system-prompt.test.ts`
+   as item 6 in the tool registration checklist. Clarified the "System prompt
+   tests" section to explicitly mention tool additions.
+
+2. **improvement-thesis.md**: Recorded iter 564 verification (EFFECTIVE).
+   Updated evidence with iter 565 data. Added 6 new research findings to the
+   library: Anthropic Context Engineering, Anthropic Code Execution MCP,
+   Factory.ai Linters as Arch Specs, EvolveR experience distillation, ICML
+   2025 Metacognitive Learning, Tweag TDD for Agents.
+
+### Other candidates considered
+
+- **Script-based verification bundling** (Anthropic MCP pattern): combine
+  multiple verification commands into single scripts to reduce context. Decided
+  the builder already combines commands for final verification; intermediate
+  checks need individual feedback for targeted fixes.
+- **Lint rules as architecture specs** (Factory.ai): encode project conventions
+  as custom lint rules. High potential but implementation is the builder's
+  domain, not the improver's.
+- **Incremental TDD workflow** (Tweag): write one test at a time. Could reduce
+  compound failures but would add procedure to the builder prompt, risking the
+  "mechanical procedures" anti-pattern.
+
+### Expected effects
+
+- Tool-addition iterations should have ~2 fewer fix cycles (system-prompt test
+  failures become predictable and preventable).
+- Test rerun ratio should decrease for tool-addition iters (currently 6.9×).
+- No instruction density regression (checklist grew only +3 lines).
+
 ## Iteration 565 — Computer Use Tool for GUI Interaction
 
 Built computer_use tool enabling mouse and keyboard control — the agent can now click, type, drag, scroll, and press key combos to interact with any GUI application on the screen.

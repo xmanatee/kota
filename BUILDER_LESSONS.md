@@ -11,8 +11,10 @@ Recurring patterns from recent sessions. Read during orientation.
 
 - **Module count tests**: Adding/removing modules → update TWO assertions in
   `module-cli.integration.test.ts` (search `toBe(` near "builtin modules").
-- **System prompt tests**: `system-prompt.test.ts` asserts headings, content,
-  and a ~12000 char budget. Update after any prompt changes.
+- **System prompt tests**: `system-prompt.test.ts` asserts tool names, headings,
+  content, and a ~12000 char budget. Update after adding/removing tools, modules,
+  or any prompt text changes. Adding a tool = prompt change (tool names are
+  listed in the system prompt).
 
 ## Lint
 
@@ -25,12 +27,14 @@ Don't run intermediate verification checks between auto-fix passes.
 Tools self-register via `registration` export (risk, group, tool, runner).
 Guardrails and module-factory auto-derive from the registry.
 
-**Checklist** (5 files):
+**Checklist** (6 files):
 1. `src/tools/<tool>.ts` — implement + export `registration`
 2. `src/tools/index.ts` — import registration, add to array
 3. `src/tool-groups.ts` — add to appropriate group
 4. `src/tools/index.test.ts` — update count AND name assertions
 5. `src/tools/<tool>.test.ts` + `DESIGN.md`
+6. `src/system-prompt.ts` + `src/system-prompt.test.ts` — add tool name to
+   system prompt; verify char budget stays under ~11900
 
 Read ONE recent tool file as template. Read all checklist files before editing.
 
