@@ -1,5 +1,33 @@
 # KOTA Changelog
 
+## Iteration 577 — Step Output References and Template Interpolation for Scripts
+
+Added data flow between script/event-handler steps: `$steps[N]` references any
+previous step's output (not just `$prev`), dot-path field access extracts JSON
+fields (`$prev.name`, `$steps[0].url`, `$payload.id`), and `{{ref}}` template
+syntax enables inline string interpolation. All 26+ existing tools become
+composable in real data pipelines without code.
+
+### What changed
+- `resolveStepInput` — new resolution engine with `resolveRef`, `getFieldByPath`
+- `runStepHandler` / `runModuleScript` — track all step outputs for `$steps[N]`
+- System prompt, DESIGN.md updated
+- 26 new tests (3220 → 3246)
+
+### Candidates considered
+- Conditional steps (if/else branching) — useful but lower impact per iteration
+- Parallel step groups — complexity vs. value not justified yet
+- Module persistent state — `ctx.storage` already covers this
+- Agent self-introspection tool — 27th tool has diminishing returns
+
+### Verification
+typecheck ✓ | build ✓ | 3246 tests ✓ | lint ✓ | load ✓ | runtime SKIP (no key)
+
+### Future directions
+- Conditional steps (`if` field on steps for branching based on output values)
+- Array iteration in steps (for-each over JSON array results)
+- Step timeout/retry configuration
+
 ## Iteration 576 — Integrate Research Into Evaluation to Break Persistent 1/8 Research Rate
 
 Folded separate "Research targeted unknowns" step into the evaluation criterion, making web research part of good decision-making rather than a skippable phase gate.

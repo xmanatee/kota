@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	deleteManifest,
 	discoverManifestModules,
+	getFieldByPath,
 	listManifestModules,
 	loadManifest,
 	type ModuleManifest,
 	manifestToModule,
+	resolveRef,
 	resolveStepInput,
 	runModuleScript,
 	saveManifest,
@@ -581,6 +583,62 @@ describe("resolveStepInput", () => {
 		const result = resolveStepInput({ content: "$prev" }, "", {});
 		expect(result.content).toBe("");
 	});
+
+	it("resolves $steps[N] with allOutputs", () => {
+		const result = resolveStepInput(
+			{ first: "$steps[0]", second: "$steps[1]" },
+			"current",
+			{},
+			["step-0-out", "step-1-out"],
+		);
+		expect(result.first).toBe("step-0-out");
+		expect(result.second).toBe("step-1-out");
+	});
+
+	it("resolves $prev.field from JSON output", () => {
+		const result = resolveStepInput(
+			{ name: "$prev.user.name" },
+			'{"user":{"name":"Bob"}}',
+			{},
+		);
+		expect(result.name).toBe("Bob");
+	});
+
+	it("resolves $payload.field directly from payload object", () => {
+		const result = resolveStepInput(
+			{ url: "$payload.endpoint" },
+			"",
+			{ endpoint: "https://api.test", key: "abc" },
+		);
+		expect(result.url).toBe("https://api.test");
+	});
+
+	it("resolves template strings with {{ref}} markers", () => {
+		const result = resolveStepInput(
+			{ msg: "Hello {{$prev.name}}, you have {{$payload.count}} items" },
+			'{"name":"Alice"}',
+			{ count: 5 },
+		);
+		expect(result.msg).toBe("Hello Alice, you have 5 items");
+	});
+
+	it("leaves unrecognized {{ref}} markers unchanged", () => {
+		const result = resolveStepInput(
+			{ msg: "Value: {{$unknown}}" },
+			"prev",
+			{},
+		);
+		expect(result.msg).toBe("Value: {{$unknown}}");
+	});
+
+	it("handles undefined field access gracefully in templates", () => {
+		const result = resolveStepInput(
+			{ msg: "Value: {{$prev.missing}}" },
+			'{"name":"test"}',
+			{},
+		);
+		expect(result.msg).toBe("Value: ");
+	});
 });
 
 // ─── Persistence (save/load/delete/discover/list) ─────────────────────
@@ -777,5 +835,179 @@ describe("runModuleScript", () => {
 		});
 
 		expect(result.content).toBe("hello world");
+	});
+
+	it("supports $steps[N] to reference earlier step outputs", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: "first" })
+			.mockResolvedValueOnce({ content: "second" })
+			.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo first" } },
+				{ tool: "shell", input: { command: "echo second" } },
+				{ tool: "notify", input: { message: "$steps[0]" } },
+			],
+		});
+
+		expect(mockExecute).toHaveBeenNthCalledWith(3, "notify", { message: "first" });
+	});
+
+	it("supports $steps[N].field for JSON field extraction", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: '{"url":"https://example.com","title":"Test"}' })
+			.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "http_request", input: { url: "https://api.example.com" } },
+				{ tool: "web_fetch", input: { url: "$steps[0].url" } },
+			],
+		});
+
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "web_fetch", { url: "https://example.com" });
+	});
+
+	it("supports $prev.field for JSON field extraction from previous step", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: '{"name":"Alice","age":30}' })
+			.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo json" } },
+				{ tool: "notify", input: { message: "$prev.name" } },
+			],
+		});
+
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "notify", { message: "Alice" });
+	});
+
+	it("supports $payload.field for payload field extraction", async () => {
+		mockExecute.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript(
+			"test-mod",
+			{ steps: [{ tool: "web_fetch", input: { url: "$payload.target_url" } }] },
+			{ target_url: "https://example.com", format: "json" },
+		);
+
+		expect(mockExecute).toHaveBeenCalledWith("web_fetch", { url: "https://example.com" });
+	});
+
+	it("supports template interpolation with {{ref}}", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: '{"city":"Tokyo","temp":25}' })
+			.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript(
+			"test-mod",
+			{
+				steps: [
+					{ tool: "http_request", input: { url: "https://weather.api" } },
+					{ tool: "notify", input: { message: "Weather in {{$prev.city}}: {{$prev.temp}}°C" } },
+				],
+			},
+		);
+
+		expect(mockExecute).toHaveBeenNthCalledWith(2, "notify", {
+			message: "Weather in Tokyo: 25°C",
+		});
+	});
+
+	it("template interpolation with $steps[N] references", async () => {
+		mockExecute
+			.mockResolvedValueOnce({ content: '{"name":"Report"}' })
+			.mockResolvedValueOnce({ content: '{"status":"complete"}' })
+			.mockResolvedValueOnce({ content: "done" });
+
+		await runModuleScript("test-mod", {
+			steps: [
+				{ tool: "shell", input: { command: "echo name" } },
+				{ tool: "shell", input: { command: "echo status" } },
+				{ tool: "notify", input: { message: "{{$steps[0].name}} is {{$steps[1].status}}" } },
+			],
+		});
+
+		expect(mockExecute).toHaveBeenNthCalledWith(3, "notify", {
+			message: "Report is complete",
+		});
+	});
+});
+
+// ─── getFieldByPath ──────────────────────────────────────────────────
+
+describe("getFieldByPath", () => {
+	it("traverses nested objects", () => {
+		expect(getFieldByPath({ a: { b: { c: 42 } } }, "a.b.c")).toBe(42);
+	});
+
+	it("returns undefined for missing paths", () => {
+		expect(getFieldByPath({ a: 1 }, "b.c")).toBeUndefined();
+	});
+
+	it("handles null/undefined in chain", () => {
+		expect(getFieldByPath({ a: null }, "a.b")).toBeUndefined();
+	});
+
+	it("returns top-level values", () => {
+		expect(getFieldByPath({ name: "test" }, "name")).toBe("test");
+	});
+
+	it("handles non-object input", () => {
+		expect(getFieldByPath("string", "length")).toBeUndefined();
+	});
+});
+
+// ─── resolveRef ──────────────────────────────────────────────────────
+
+describe("resolveRef", () => {
+	const outputs = ["step0-out", '{"key":"val"}', "step2-out"];
+	const payload = { id: 123, nested: { x: "y" } };
+
+	it("resolves $prev", () => {
+		const r = resolveRef("$prev", "prev-content", payload, outputs);
+		expect(r).toEqual({ hit: true, value: "prev-content" });
+	});
+
+	it("resolves $prev.field from JSON", () => {
+		const r = resolveRef("$prev.key", '{"key":"val"}', {}, []);
+		expect(r).toEqual({ hit: true, value: "val" });
+	});
+
+	it("resolves $steps[N]", () => {
+		const r = resolveRef("$steps[1]", "", {}, outputs);
+		expect(r).toEqual({ hit: true, value: '{"key":"val"}' });
+	});
+
+	it("resolves $steps[N].field", () => {
+		const r = resolveRef("$steps[1].key", "", {}, outputs);
+		expect(r).toEqual({ hit: true, value: "val" });
+	});
+
+	it("resolves $payload", () => {
+		const r = resolveRef("$payload", "", payload, []);
+		expect(r).toEqual({ hit: true, value: JSON.stringify(payload) });
+	});
+
+	it("resolves $payload.field", () => {
+		const r = resolveRef("$payload.id", "", payload, []);
+		expect(r).toEqual({ hit: true, value: 123 });
+	});
+
+	it("resolves $payload.nested.field", () => {
+		const r = resolveRef("$payload.nested.x", "", payload, []);
+		expect(r).toEqual({ hit: true, value: "y" });
+	});
+
+	it("returns hit:false for non-references", () => {
+		const r = resolveRef("normal string", "", {}, []);
+		expect(r).toEqual({ hit: false });
+	});
+
+	it("handles out-of-bounds $steps[N]", () => {
+		const r = resolveRef("$steps[99]", "", {}, ["only-one"]);
+		expect(r).toEqual({ hit: true, value: "" });
 	});
 });

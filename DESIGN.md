@@ -426,20 +426,26 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 
 **Event handlers**: Manifest modules can subscribe to event bus events via `eventHandlers`. Two handler modes:
 - **Code-based** (`code` field): Runs code in a REPL session with `event_name` and `payload` variables. Good for custom logic, data processing, and calling external APIs.
-- **Step-based** (`steps` field): Executes a sequence of KOTA tool calls via `executeTool()`. Each step specifies a `tool` name and optional `input`. Steps run sequentially; the previous step's output is available as `"$prev"` in the next step's input, and the event payload as `"$payload"`. Stops on first error. Good for composing existing tools into workflows without writing code.
+- **Step-based** (`steps` field): Executes a sequence of KOTA tool calls via `executeTool()`. Each step specifies a `tool` name and optional `input`. Steps run sequentially with full data flow between steps. Stops on first error. Good for composing existing tools into workflows without writing code.
+
+**Step input references** (`resolveStepInput`): Step inputs support these reference patterns for data flow:
+- `$prev` / `$steps[N]` — whole-value: previous step or step N output string
+- `$payload` — whole-value: JSON-serialized event payload or script args
+- `$prev.field.path` / `$steps[N].field.path` — JSON field extraction via dot-path
+- `$payload.field.path` — direct field access on payload object
+- `"text {{$prev.field}} more {{$steps[0].name}}"` — inline template interpolation
 
 Code and steps are mutually exclusive per handler. Handlers run asynchronously; errors are logged but never crash the bus.
 
-**Scripts**: Named, on-demand tool-call sequences defined in the manifest's `scripts` field. Unlike event handlers (reactive, fire-and-forget), scripts are invoked explicitly via `module_factory(action:"run", name, script, args?)` and return the final step's result. Use the same step resolution (`$prev`, `$payload`) as event handler steps. `args` maps to `$payload` for parameter passing. Example manifest with scripts:
+**Scripts**: Named, on-demand tool-call sequences in the manifest's `scripts` field. Invoked via `module_factory(action:"run", name, script, args?)`, return final step result. Same data-flow references as event handler steps. `args` maps to `$payload`. Example:
 ```json
 {
   "name": "ops",
   "scripts": {
     "daily-check": {
-      "description": "Fetch status page and store result",
       "steps": [
-        { "tool": "web_fetch", "input": { "url": "https://status.example.com" } },
-        { "tool": "knowledge", "input": { "action": "create", "title": "Status check", "content": "$prev" } }
+        { "tool": "web_fetch", "input": { "url": "$payload.url" } },
+        { "tool": "knowledge", "input": { "action": "create", "title": "Status: {{$prev.title}}", "content": "$steps[0]" } }
       ]
     }
   }

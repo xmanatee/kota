@@ -37,7 +37,16 @@ export type ManifestToolDef = {
 export type ManifestStepDef = {
 	/** Tool name to invoke (must be a registered tool). */
 	tool: string;
-	/** Input to pass to the tool. String values "$prev" and "$payload" are replaced at runtime. */
+	/**
+	 * Input to pass to the tool. String values support references:
+	 * - "$prev" → previous step's output (whole value)
+	 * - "$payload" → serialized payload/args (whole value)
+	 * - "$steps[N]" → step N's output (whole value)
+	 * - "$prev.field.path" → JSON field from previous output
+	 * - "$steps[N].field.path" → JSON field from step N's output
+	 * - "$payload.field.path" → field from payload object
+	 * - "text {{$prev.field}} more" → inline template interpolation
+	 */
 	input?: Record<string, unknown>;
 };
 
@@ -452,27 +461,110 @@ function runEventHandler(
 
 // ─── Step-based event handlers ───────────────────────────────────────
 
+// ─── Step input resolution helpers ───────────────────────────────────
+
+/** Attempt to parse a string as JSON. Returns the string itself on failure. */
+function tryParseJson(str: string): unknown {
+	try {
+		return JSON.parse(str);
+	} catch {
+		return str;
+	}
+}
+
+/** Traverse an object by dot-separated path. Returns undefined if missing. */
+export function getFieldByPath(obj: unknown, path: string): unknown {
+	const parts = path.split(".");
+	let current: unknown = obj;
+	for (const part of parts) {
+		if (current === null || current === undefined) return undefined;
+		if (typeof current !== "object") return undefined;
+		current = (current as Record<string, unknown>)[part];
+	}
+	return current;
+}
+
+const STEPS_REF_RE = /^\$steps\[(\d+)\](?:\.(.+))?$/;
+
 /**
- * Resolve step input by replacing "$prev" and "$payload" string values.
- * - "$prev" → previous step's text output (empty string for first step)
- * - "$payload" → JSON-serialized event payload
- * Non-string values and other strings pass through unchanged.
+ * Resolve a single reference string to its value.
+ * Returns `{ hit: true, value }` for recognized references, `{ hit: false }` otherwise.
+ */
+export function resolveRef(
+	ref: string,
+	prevContent: string,
+	payload: Record<string, unknown>,
+	allOutputs: string[],
+): { hit: true; value: unknown } | { hit: false } {
+	// $prev or $prev.field.path
+	if (ref === "$prev") return { hit: true, value: prevContent };
+	if (ref.startsWith("$prev.")) {
+		const path = ref.slice(6);
+		return { hit: true, value: getFieldByPath(tryParseJson(prevContent), path) };
+	}
+
+	// $steps[N] or $steps[N].field.path
+	const m = STEPS_REF_RE.exec(ref);
+	if (m) {
+		const idx = Number.parseInt(m[1], 10);
+		const raw = idx < allOutputs.length ? allOutputs[idx] : "";
+		if (!m[2]) return { hit: true, value: raw };
+		return { hit: true, value: getFieldByPath(tryParseJson(raw), m[2]) };
+	}
+
+	// $payload or $payload.field.path
+	if (ref === "$payload") return { hit: true, value: JSON.stringify(payload) };
+	if (ref.startsWith("$payload.")) {
+		const path = ref.slice(9);
+		return { hit: true, value: getFieldByPath(payload, path) };
+	}
+
+	return { hit: false };
+}
+
+/**
+ * Resolve step input by replacing reference strings and template expressions.
+ *
+ * Whole-value substitution: "$prev", "$payload", "$steps[N]", "$prev.field",
+ * "$steps[N].field", "$payload.field".
+ *
+ * Inline templates: "prefix {{$prev.name}} suffix" — each {{ref}} is resolved
+ * and stringified inline.
+ *
+ * Non-string values pass through unchanged.
  */
 export function resolveStepInput(
 	input: Record<string, unknown> | undefined,
 	prevContent: string,
 	payload: Record<string, unknown>,
+	allOutputs: string[] = [],
 ): Record<string, unknown> {
 	if (!input) return {};
 	const resolved: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(input)) {
-		if (value === "$prev") {
-			resolved[key] = prevContent;
-		} else if (value === "$payload") {
-			resolved[key] = JSON.stringify(payload);
-		} else {
+		if (typeof value !== "string") {
 			resolved[key] = value;
+			continue;
 		}
+
+		// Whole-value reference
+		const ref = resolveRef(value, prevContent, payload, allOutputs);
+		if (ref.hit) {
+			resolved[key] = ref.value;
+			continue;
+		}
+
+		// Inline template interpolation
+		if (value.includes("{{") && value.includes("}}")) {
+			resolved[key] = value.replace(/\{\{([^}]+)\}\}/g, (_, expr: string) => {
+				const r = resolveRef(expr.trim(), prevContent, payload, allOutputs);
+				if (!r.hit) return `{{${expr}}}`;
+				return r.value === undefined ? "" : String(r.value);
+			});
+			continue;
+		}
+
+		resolved[key] = value;
 	}
 	return resolved;
 }
@@ -480,6 +572,7 @@ export function resolveStepInput(
 /**
  * Execute a step-based event handler — sequential tool invocations.
  * Each step's output feeds into the next via "$prev". Stops on first error.
+ * All step outputs are tracked for $steps[N] references.
  */
 function runStepHandler(
 	moduleName: string,
@@ -491,8 +584,9 @@ function runStepHandler(
 	const steps = handler.steps;
 	(async () => {
 		let prevContent = "";
+		const allOutputs: string[] = [];
 		for (const step of steps) {
-			const input = resolveStepInput(step.input, prevContent, payload);
+			const input = resolveStepInput(step.input, prevContent, payload, allOutputs);
 			try {
 				const result = await executeTool(step.tool, input);
 				if (result.is_error) {
@@ -502,6 +596,7 @@ function runStepHandler(
 					return;
 				}
 				prevContent = result.content;
+				allOutputs.push(result.content);
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				console.error(
@@ -519,6 +614,7 @@ function runStepHandler(
  * Execute a named module script — sequential tool invocations, awaitable.
  * Returns the final step's ToolResult, or an error result if any step fails.
  * `args` is passed as the payload for "$payload" substitution in step inputs.
+ * All step outputs are tracked for $steps[N] references.
  */
 export async function runModuleScript(
 	_moduleName: string,
@@ -531,9 +627,10 @@ export async function runModuleScript(
 	}
 
 	let prevContent = "";
+	const allOutputs: string[] = [];
 	for (let i = 0; i < steps.length; i++) {
 		const step = steps[i];
-		const input = resolveStepInput(step.input, prevContent, args);
+		const input = resolveStepInput(step.input, prevContent, args, allOutputs);
 		try {
 			const result = await executeTool(step.tool, input);
 			if (result.is_error) {
@@ -543,6 +640,7 @@ export async function runModuleScript(
 				};
 			}
 			prevContent = result.content;
+			allOutputs.push(result.content);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			return {
