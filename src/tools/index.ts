@@ -19,6 +19,7 @@ import { notebookTool, runNotebook } from "./notebook.js";
 import { notifyTool, runNotify } from "./notify.js";
 import { processTool, runProcess } from "./process.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
+import { runScreenshot, screenshotTool } from "./screenshot.js";
 import { runShell, shellTool } from "./shell.js";
 import { getTodoState, runTodo, todoTool } from "./todo.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
@@ -60,6 +61,7 @@ const runners: Record<string, ToolRunner> = {
   checkpoint: runCheckpoint,
   module_factory: runModuleFactory,
   notify: runNotify,
+  screenshot: runScreenshot,
 
   enable_tools: runEnableTools,
 };
@@ -89,6 +91,7 @@ const tools: Anthropic.Tool[] = [
   checkpointTool,
   moduleFactoryTool,
   notifyTool,
+  screenshotTool,
 ];
 
 /** Returns the full tool list (core + module-registered). Read-only. */

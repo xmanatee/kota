@@ -53,6 +53,7 @@ const SAFE_TOOLS = new Set([
   "web_search",
   "get_secret",
   "notify",
+  "screenshot",
 ]);
 
 /** Tools that mutate local state in controlled ways. */

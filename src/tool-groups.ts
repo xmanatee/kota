@@ -21,6 +21,7 @@ export const CORE_TOOL_NAMES = new Set([
   "checkpoint",
   "module_factory",
   "notify",
+  "screenshot",
 ]);
 
 const enabledGroups = new Set<string>();

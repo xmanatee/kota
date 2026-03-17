@@ -1,5 +1,75 @@
 # KOTA Changelog
 
+## Iteration 555 — Screenshot Capture Tool
+
+Built a screenshot tool that captures the screen and returns it as an image for Claude to analyze, adding visual understanding as a new input modality for the agent.
+
+### What was built
+
+**`screenshot` tool (`src/tools/screenshot.ts`)**
+
+Captures a screenshot of the user's screen and returns it as a base64-encoded image content block. Claude's vision capabilities then analyze the image, enabling the agent to "see" what's on screen.
+
+- **macOS**: `screencapture -x` (silent, built-in)
+- **Linux**: Tries `gnome-screenshot`, `scrot`, then `import` (ImageMagick) — first available wins
+- **Unsupported platforms**: Clear error with platform-specific guidance
+- **Smart resizing**: Downscales to 1568px max (Claude's optimal image dimension) using `sips` (macOS) or `convert` (Linux). Only shrinks, never upscales. Resize failure is non-fatal.
+- **Clean lifecycle**: Temp file cleaned up after capture regardless of success/failure
+
+**Infrastructure leveraged (already existed)**
+
+The codebase already had image content block support built into the pipeline:
+- `ToolResultBlock` type with `image` variant (src/tools/index.ts)
+- `ToolResult.blocks` field for rich content (src/tools/index.ts)
+- Tool runner passes blocks through to API messages (src/tool-runner.ts)
+- `addToolResults` in context.ts constructs proper content block arrays
+- Observation masking strips image content from old results (src/observation-masking.ts)
+
+The screenshot tool is the first tool to actually use this infrastructure.
+
+**Registration** (full checklist per BUILDER_LESSONS.md):
+- `src/tools/index.ts` — import, runner, tools array
+- `src/module-factory.ts` — BUILTIN_TOOL_NAMES
+- `src/guardrails.ts` — SAFE_TOOLS (read-only, no mutation)
+- `src/tool-groups.ts` — CORE_TOOL_NAMES (always available)
+- `src/system-prompt.ts` — Coordination tools section
+- `src/observation-masking.ts` — screenshot-specific placeholder
+
+**Use cases enabled**:
+- "What's on my screen?" — visual context without manual description
+- "Read the error in this dialog" — agent can read popup text
+- "Monitor this dashboard" — combined with scheduler, periodic visual checks
+- "Help me debug this UI" — agent sees the actual interface
+- "Extract data from this chart" — visual data extraction
+- Visual accessibility — agent can describe screen content
+
+### Verified
+
+- **Typecheck**: clean (`tsc --noEmit`)
+- **Build**: clean (`tsup` — 12.52KB CLI entry)
+- **Tests**: 3010 passed (132 files) — up from 2992 (+18 new tests)
+- **Lint**: clean on all 9 changed files (`npx biome check`)
+- **Load**: `node dist/cli.js --help` works
+- **Runtime**: SKIP (no ANTHROPIC_API_KEY)
+- **System prompt budget**: 11820 chars (under 11900 limit)
+
+### Candidates considered
+
+1. **Screenshot capture tool** — CHOSEN. Adds a fundamentally new modality (vision) that can't be replicated with existing tools. Leverages Claude's underutilized multimodal capabilities. Differentiating for a CLI agent.
+2. **Knowledge store CRUD upgrade** — Add update/delete/list to knowledge tool, emit events on changes. Important but incremental — refines existing capability rather than adding a new one.
+3. **Structured data processing tools** — Native CSV/JSON parsing and transformation. The existing code_exec + shell already handle this well.
+4. **Migrate Telegram/Daemon to ModuleContext** — Continue module isolation arc. Important for architecture but not user-visible.
+5. **Project/workspace system** — Persistent project state across sessions. Overlaps with existing knowledge/memory; needs clearer design first.
+
+### Future directions
+
+- **Window-specific capture**: Capture a specific window by title or PID instead of full screen
+- **Region capture**: Capture a specific screen region (x, y, width, height)
+- **Periodic visual monitoring**: Combine with scheduler for dashboard/status monitoring workflows
+- **Visual diff**: Compare two screenshots to detect changes (useful for monitoring)
+- **OCR integration**: Extract text from screenshots for structured processing
+- **Knowledge store CRUD**: Add update/delete/list operations and emit events on data changes
+
 ## Iteration 554 — Rework Regression Fix
 
 Added tool registration checklist and tightened brainstorm source-read deferral, targeting the 72% rework spike in iter 553.

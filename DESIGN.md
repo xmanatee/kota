@@ -159,6 +159,23 @@ Sends desktop notifications to the user via the OS notification system. Enables 
 - Sound enabled by default, can be disabled with `sound: false`.
 - AppleScript string escaping for quotes and backslashes in messages.
 
+### Screenshot Capture (`src/tools/screenshot.ts`)
+
+Captures a screenshot of the screen and returns it as an image content block for Claude to analyze. Adds visual understanding — a fundamentally new input modality for the agent.
+
+**Platform support**:
+- **macOS**: `screencapture -x` (silent, built-in). Resizes with `sips` if image exceeds 1568px.
+- **Linux**: Tries `gnome-screenshot`, `scrot`, then `import` (ImageMagick). Resizes with `convert`.
+- **Unsupported**: Returns an error with platform-specific guidance.
+
+**Design decisions**:
+- Core tool (always available) — visual context is useful across all domains.
+- Classified as `safe` in guardrails — read-only, no mutation.
+- Resize to 1568px max (Claude's optimal image dimension) to minimize token cost.
+- Only downscales, never upscales — resize failures are non-fatal.
+- Returns `ToolResult.blocks` with image content block — the existing pipeline handles image blocks in tool results, observation masking, and context management.
+- Temp file cleaned up after capture regardless of success/failure.
+
 ### Custom Tool Builder (`src/tools/custom-tool.ts`)
 
 Lets the agent dynamically create new tools at runtime from Python/Node.js code. Transforms the agent from a fixed-tool system into a self-extending one.

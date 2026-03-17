@@ -139,6 +139,8 @@ export function generatePlaceholder(
       return `${MASKED_PREFIX} got secret${status}]`;
     case "custom_tool":
       return `${MASKED_PREFIX} custom tool${status}]`;
+    case "screenshot":
+      return `${MASKED_PREFIX} screenshot${status}]`;
     default:
       return `${MASKED_PREFIX} ${toolName}${status}]`;
   }

@@ -9,7 +9,7 @@ const makeTool = (name: string) => ({
 
 describe("getAllTools", () => {
   it("contains 22 built-in tool definitions (memory + schedule moved to modules)", () => {
-    expect(getAllTools()).toHaveLength(23);
+    expect(getAllTools()).toHaveLength(24);
   });
 
   it("has unique names", () => {
@@ -35,7 +35,7 @@ describe("getAllTools", () => {
       "grep", "glob", "todo", "repo_map", "delegate", "web_fetch",
       "web_search", "ask_user", "http_request", "process",
       "code_exec", "find_replace", "notebook", "files_overview",
-      "custom_tool", "checkpoint", "module_factory", "notify",
+      "custom_tool", "checkpoint", "module_factory", "notify", "screenshot",
     ]);
     expect(names).toEqual(expected);
   });
@@ -90,7 +90,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(23);
+    expect(getAllTools()).toHaveLength(24);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 
