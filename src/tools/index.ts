@@ -20,6 +20,7 @@ import { registration as moduleFactory } from "./module-factory.js";
 import { registration as multiEdit } from "./multi-edit.js";
 import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
+import { registration as pipe } from "./pipe.js";
 import { registration as process_ } from "./process.js";
 import { registration as readDocument } from "./read-document.js";
 import { registration as repoMap } from "./repo-map.js";
@@ -93,6 +94,7 @@ const registrationImports = [
   () => sqlite,
   () => viewImage,
   () => batch,
+  () => pipe,
 ];
 
 let _coreRegistrations: ToolRegistration[] | null = null;

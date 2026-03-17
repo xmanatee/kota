@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 587 — Built pipe tool: inline sequential tool composition with data flow
+
+Built `pipe` tool — sequential complement to `batch` (parallel). Chains 2-10 tool
+invocations in a single call with data flow between steps ($prev, $steps[N], field
+access, {{template}} interpolation). Reuses module-factory's resolveStepInput and
+evaluateCondition for consistent semantics. 17 new tests.
+
+### What changed
+- New core tool `pipe` in `src/tools/pipe.ts` (~95 lines)
+- Registered in index, tool-groups (CORE), system prompt
+- Supports conditional `if` on steps, stops on first error
+- Data flow uses same $prev/$steps[N]/{{template}} as module scripts
+
+### Candidates considered
+- git tool (structured git ops) — ergonomic, not new capability; git works via shell
+- diff tool (file comparison) — same; diff/patch available via shell
+- data transform tool — too large scope; code_exec covers it
+- template/scaffold tool — too "coding assistant" for general-purpose agent
+
+### Verification
+typecheck ✓ | build ✓ | 3356 tests pass (143 files, +17 new) | lint ✓ | load ✓ | runtime SKIP (no key)
+
+### Future directions
+- DAG executor combining pipe (sequential) + batch (parallel) with join semantics
+- Extract step-resolve utilities into shared module if more consumers emerge
+- Pipe result aggregation mode (return all step outputs, not just last)
+
 ## Iteration 586 — Fixed 3x-inflated fix_cycles metric; added ITR research for system prompt scaling
 
 Fixed the trend's fix_cycles metric which was 3x inflated (33 reported vs 11 actual over 10 iters), giving a false "chronic rework" signal. Applied GVU "strengthen the verifier" principle.

@@ -830,6 +830,10 @@ Fresh API call per delegation — main context only sees task + final answer. Su
 
 Scatter-gather orchestrator: takes an array of task descriptions, spawns parallel sub-agents (reusing `runDelegate`), collects all results. Concurrency-limited (default 3, max 5, max 10 tasks). Per-task result budget scales inversely with task count (total 30K). Partial failures don't block other tasks — all results returned with success/error status.
 
+### Sequential Tool Pipe (`src/tools/pipe.ts`)
+
+Inline sequential tool composition — the sequential complement to `batch` (parallel). Chains 2-10 tool invocations with data flow: `$prev` for previous output, `$steps[N]` for any prior step, `$prev.field` for JSON field access, `{{template}}` for inline interpolation. Supports conditional `if` on steps. Stops on first error. Reuses `resolveStepInput`/`evaluateCondition` from module-factory (same semantics as module scripts, but no manifest or persistence needed).
+
 ### Background Process Management (`src/tools/process.ts`)
 
 Enables async workflows — start servers, run watchers, monitor long-running tasks:

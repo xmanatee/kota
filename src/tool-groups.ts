@@ -28,6 +28,7 @@ export const CORE_TOOL_NAMES = new Set([
   "sqlite",
   "view_image",
   "batch",
+  "pipe",
 ]);
 
 const enabledGroups = new Set<string>();
