@@ -4,35 +4,32 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 610)
+## Current Hypothesis (updated iter 612)
 
-**Owner-priority alignment: VERIFIED EFFECTIVE (iter 609)**. The "Owner
-request" brainstorming category (iter 608) worked — builder generated an owner
-request candidate and chose it (ModelClient abstraction for dual SDK support).
-This was the first time in 10+ iterations the builder directly addressed a
-NOTES.md `b:` item. Continue monitoring in 611-613.
+**Research is self-calibrating**: Iter 611 did 36 web searches (vs 2 in iter
+609). The swing looked alarming but was actually adaptive — unfamiliar territory
+(claude-agent-sdk, OpenAI format translation) warranted heavy research; familiar
+refactoring (iter 609) warranted light research. No intervention needed.
 
 **Active issues:**
-1. **Research usage declining** — Web searches: 21→23→19→5→2 over iters 601-609.
-   The Phase 2 instruction works but builder does the minimum (2 searches for
-   2 candidates). Quality was fine in 609 (targeted SDK search) but the trend
-   suggests research is becoming a checkbox. Monitor.
-2. **Implementation efficiency** — Verify reruns still elevated: test 5.5×,
-   lint 4.1× avg. But re-edit dropped to 67% with only 28% rework in 609,
-   suggesting the high re-edit was planned cross-cutting work, not failed edits.
-   The metric may overstate the problem.
+1. **Depth coverage gap** — 31/44 large modules stale or never depth-reviewed.
+   The builder hasn't done depth work since iter 463 (~74 iterations ago). Trend
+   now surfaces top-5 neglected modules to make "Deepen existing" brainstorming
+   more concrete. Monitor whether builder picks up the signal.
+2. **Implementation efficiency** — Test reruns 6.0× avg (highest metric). Some
+   is healthy incremental testing, but flaky `process.test.ts` wastes 2-4 calls
+   per encounter. Added to BUILDER_LESSONS to reduce future investigation cost.
 3. **Composition verification** — No E2E for batch/pipe/map. Still a gap.
-4. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
+4. **System prompt scaling** — 32 tools, ~200 chars headroom. Nearly full.
 
 **Resolved issues:**
-- Owner-priority alignment: EFFECTIVE (iter 608→609).
+- Owner-priority alignment: EFFECTIVE (iter 608→609→611).
+- Research usage: SELF-CALIBRATING (iter 612 analysis). 2→36 swing is adaptive.
 - Domain concentration: ACCEPTED as partially tractable (iters 588→608).
-- Brainstorming quality: RESOLVED (iters 598→602).
-- Web research drought: RESOLVED (iter 600).
-- Signal accuracy: RESOLVED (iters 586→606).
-- Feature concentration: RESOLVED (iters 594→602).
-- DESIGN.md growth: RESOLVED (iter 596). Currently 904 lines (healthy).
-- Instruction bloat: RESOLVED (builder prompt 184→94→98 lines).
+- Signal accuracy: ONGOING — classification drift fixed in iter 612 (model
+  client → modules/provider). Keyword classifiers need periodic refresh.
+- Brainstorming quality, web research drought, feature concentration, DESIGN.md
+  growth, instruction bloat: all RESOLVED (see iter 610 thesis for details).
 
 ## Intervention History
 
@@ -42,27 +39,26 @@ tool registration checklist (554, rework 72→28%), CHANGELOG archive (568),
 diverge/converge brainstorming (598). Key failures: quality lesson (546),
 research strategy lesson (540). See CHANGELOG archive for details.
 
-**Recent (iters 598-608):**
-- **(598)** Diverge/converge brainstorming. **STRUCTURALLY EFFECTIVE** but
-  substantively hollow — builder pre-decided, wrote post-hoc labels.
+**Recent (iters 598-612):**
+- **(598)** Diverge/converge brainstorming. **STRUCTURALLY EFFECTIVE**.
 - **(600)** Research-before-convergence. **VERY EFFECTIVE**: 0→21 web searches.
-  Tool-call barrier between diverge and converge blocks thinking-block bypass.
 - **(602)** Work-type classification fix + Shannon entropy. **EFFECTIVE**.
 - **(604)** Implementation analytics + build MISS fix. **EFFECTIVE**.
 - **(606)** Domain signal fix + fix cycle detection fix. Domain: **INEFFECTIVE**.
-  Fix cycles: **CONFIRMED**.
-- **(608)** Owner-priority brainstorming category. **EFFECTIVE** (verified 609):
-  builder generated owner-request candidate, chose it, built ModelClient.
+- **(608)** Owner-priority brainstorming category. **EFFECTIVE** (verified 609).
+- **(610)** Thesis compression 491→149 lines. **NEUTRAL** (expected).
+- **(612)** Top-neglected modules in trend + classifier fix. Pending verification.
 
-## Evidence (updated iter 610)
+## Evidence (updated iter 612)
 
-- **Iter 609 metrics**: 103 calls, $4.35, 53k ctx/turn, +9 tests, 1 fix cycle,
-  28% rework, 67% re-edit, 2 web searches. Clean ModelClient refactor touching
-  12 files. Builder followed cross-cutting discipline (grep consumers first).
-- **8-iter trend (595-609)**: calls avg 88, cost avg $3.96, +17.9 tests/iter.
-  Context 56k avg (shrinking -3%). Re-edit 58% avg, 2.6 edits/file avg.
-  Domains: 5/8 tools CONCENTRATED. Work pattern: 6 arch, 1 hardening, 1 feature
-  — diversity 67% (healthy).
+- **Iter 611 metrics**: 96 calls, $5.11, 59k ctx/turn, +36 tests, 0 fix cycles,
+  30% rework, 33% re-edit, 36 web searches. Built OpenAIModelClient with
+  extensive research (3 Agent subprocesses). Research was productive: discovered
+  claude-agent-sdk is incompatible, pivoted to OpenAI-compatible approach.
+- **8-iter trend (597-611)**: calls avg 94, cost avg $4.34, +21.2 tests/iter.
+  Context 58k avg (growing +4%). Re-edit 54% avg, 2.4 edits/file avg.
+  Domains: 4 tools, 3 modules, 1 other. Work pattern: 6 arch, 2 feature
+  — diversity 51% (moderately concentrated).
 
 ## Research Library
 
@@ -81,11 +77,13 @@ research strategy lesson (540). See CHANGELOG archive for details.
 ### Potential Future Directions
 | Paper | Opportunity |
 |---|---|
+| Live-SWE-agent (2511.13646) | Agent evolves own scaffolding at runtime; 77.4% SWE-bench Verified — outperforms all manually crafted agents |
+| Meta ACH / Mutation-Guided Testing (FSE 2025) | LLM-generated mutants + test generation; 73% acceptance rate at Meta scale |
+| SSR Self-play SWE-RL (2512.18552) | Bug injection → resolution self-play; +10.4 on SWE-bench Verified without human labels |
+| Self-Challenging Agents (NeurIPS 2025) | Challenger creates tasks, executor solves them; doubles tool-use benchmark performance |
+| RISE Recursive Introspection (NeurIPS 2024) | Multi-turn self-correction; 17-24% improvement over 5 introspection turns |
 | ITR (2602.17046) | Per-step retrieval of prompt fragments + tools; 95% context reduction |
 | SICA (2504.15228) | Agent reviews own performance, edits own code/prompts (17→53%) |
-| OpenEvolve/AlphaEvolve | Evolutionary prompt optimization; meta-prompt evolution alongside code |
-| Self-Challenging Agents (NeurIPS 2025) | Challenger creates tasks, executor solves them; doubles tool-use benchmark performance |
-| Factory.ai Linters as Arch Specs | Encode conventions as lint rules for instant deterministic feedback |
 
 ### Background (validated, no current action needed)
 DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
@@ -135,15 +133,16 @@ Core principles distilled from 38 interventions across 76 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Research quality maintenance** — Usage declining (21→2). Monitor whether
-   this affects work selection quality. If builder starts making uninformed
-   choices, strengthen the Phase 2 research requirement.
-2. **Implementation efficiency** — Verify reruns elevated but may be overstated.
-   Self-Verification Dilemma research suggests targeted verification > blanket
-   reruns. Low priority unless rework% increases.
-3. **Composition verification** — No E2E for batch/pipe/map. Gap exists but
-   builder may address organically.
-4. **System prompt scaling** — ~118 chars headroom at 32 tools. Will become
+1. **Depth coverage gap** — 31 stale modules, no depth work since iter 463.
+   Iter 612 surfaced top-neglected modules in trend. Monitor whether builder
+   picks up the signal in iter 613+. If not after 2-3 iters, consider
+   strengthening the "Deepen existing" category guidance.
+2. **Implementation efficiency** — Test reruns 6.0× avg. Flaky test lesson
+   added (iter 612). Monitor for reduction. Self-Verification Dilemma research
+   suggests targeted verification > blanket reruns.
+3. **Composition verification** — No E2E for batch/pipe/map. Gap persists.
+4. **System prompt scaling** — ~200 chars headroom at 32 tools. Will become
    blocking if builder adds more tools.
-5. **Thesis/document hygiene** — This compression (491→~160 lines) is the
-   first application of Pattern Watch #6 to the thesis itself.
+5. **Classifier drift** — Keyword-based subsystem classifier needs periodic
+   refresh as new work types emerge (Pattern Watch #5). Fixed in iter 612
+   for model-client work.

@@ -36,6 +36,8 @@ is not set in the shell environment. Claude Code uses its own stored
 credentials, but KOTA needs the env var directly. Set
 `export ANTHROPIC_API_KEY=...` in the shell that runs `loop.sh` to enable the
 smoke test. Cost is ~$0.005 per builder iteration.
+b: improve the source structure... it should be really well structured with core, modules, features, e.t.c. think of the right grouping and structure and organisation and implement it.
+i: introduce rght mechanisms for things TODO, progress tracking, owner NOTES e.t.c. everything must be convenient and efficient... but at the same time it shouldn't be restrictive on agents! Agents shouldn't be just injected some "important" stuff ... they must be trusted, but they must be directed to look in the the right places and things....
 
 ---
 Completed:

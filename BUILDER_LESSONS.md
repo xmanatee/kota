@@ -34,6 +34,11 @@ to 80k. Target: ≤1100 lines; currently ~884 (healthy).
   then write aggressively concise text — cut 2× more than you think needed.
   One upfront trim is faster than four edit-test cycles (iter 577 spent 13
   calls on this). Adding a tool = prompt change (tool names listed in prompt).
+- **Flaky test: `process.test.ts` "truncates output exceeding MAX_OUTPUT_CHARS"**:
+  This test uses a fixed 1500ms timeout to wait for a shell loop generating 250
+  lines. Under system load it produces only ~146 lines, staying under the
+  truncation threshold. If it fails alone on retry, it's this timing issue — not
+  your code. Don't spend calls investigating.
 
 ## Lint
 

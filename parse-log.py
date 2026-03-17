@@ -989,6 +989,21 @@ def _depth_health(rows: list[dict]) -> dict:
     log_approaches = set(r["approach"] for r in rows)
     known_set = set(DEPTH_APPROACHES)
     unknown = log_approaches - known_set
+
+    # Top neglected modules: never-covered first, then most stale
+    neglected: list[tuple[str, int | None, int]] = []  # (path, last_iter|None, lines)
+    for path in big_modules:
+        lines = source_files.get(path, 0)
+        if path not in covered:
+            neglected.append((path, None, lines))
+        else:
+            last_iter = max(i for i, _ in covered[path])
+            builder_iters_ago = (max_iter - last_iter) // 2
+            if builder_iters_ago >= 10:
+                neglected.append((path, last_iter, lines))
+    # Sort: never-covered first (None → -inf), then oldest last_iter, then largest files
+    neglected.sort(key=lambda x: (x[1] if x[1] is not None else -1, -x[2]))
+
     return {
         "total_iters": len(rows),
         "distinct_modules": distinct_modules,
@@ -997,6 +1012,7 @@ def _depth_health(rows: list[dict]) -> dict:
         "untried": total_combos - tried_combos,
         "total_combos": total_combos,
         "unknown_approaches": unknown,
+        "top_neglected": neglected[:5],
     }
 
 
@@ -1014,7 +1030,7 @@ def _classify_subsystem(title: str) -> str:
         return "modules/manifest"
     if any(kw in t for kw in ["modulecontext", "module context", "ctx.", "event proxy", "session factory", "dependency inject"]):
         return "modules/ctx"
-    if any(kw in t for kw in ["provider", "sqlite", "memory backend", "alternative backend"]):
+    if any(kw in t for kw in ["provider", "sqlite", "memory backend", "alternative backend", "model client", "modelclient", "openai-compatible"]):
         return "modules/provider"
     if any(kw in t for kw in ["log storage", "persistent log", "audit trail", "module log"]):
         return "modules/logging"
@@ -1329,6 +1345,14 @@ def trend(n: int = 5) -> None:
             f"{h['stale']} stale, "
             f"{h['untried']}/{h['total_combos']} approach combos untried"
         )
+        if h.get("top_neglected"):
+            parts = []
+            for path, last_iter, lines in h["top_neglected"]:
+                if last_iter is None:
+                    parts.append(f"{path} (NEVER, {lines}L)")
+                else:
+                    parts.append(f"{path} (iter {last_iter}, {lines}L)")
+            print(f"  Top neglected: {', '.join(parts)}")
         if h["unknown_approaches"]:
             print(
                 f"  WARNING: depth-log has approaches not in parse-log.py: "

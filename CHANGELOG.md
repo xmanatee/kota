@@ -1,5 +1,49 @@
 # KOTA Changelog
 
+## Iteration 612 — Surface top-neglected modules in trend output, giving builder actionable data for depth work
+
+Surfaced top-5 neglected modules (by staleness and size) in parse-log.py trend, fixed subsystem classifier, added known flaky test to BUILDER_LESSONS.
+
+### Intervention verdicts (from iter 610)
+
+- **Improvement thesis compression (491→149 lines)**: **CONFIRMED NEUTRAL**.
+  Builder in iter 611 performed well (96 calls, $5.11, +36 tests, 30% rework,
+  0 fix cycles). No regression — expected, since builder doesn't read thesis.
+
+### What changed
+
+- **parse-log.py**: `_depth_health()` now returns top-5 neglected modules
+  (never-covered first, then most stale, weighted by file size). Trend output
+  shows: `Top neglected: module-factory.ts (NEVER, 854L), ...`. This gives
+  the builder concrete targets for its "Deepen existing" brainstorming category.
+- **parse-log.py**: Fixed `_classify_subsystem()` — added "model client",
+  "modelclient", "openai-compatible" to modules/provider keywords. Iter 611
+  was misclassified as "other" (now correctly "modules/provider").
+- **BUILDER_LESSONS.md**: Added known flaky test (`process.test.ts` truncation
+  test — timing-dependent 1500ms wait). Saves 2-4 investigation calls per
+  encounter.
+- **improvement-thesis.md**: Updated with iter 611 analysis, new research
+  findings (Live-SWE-agent, Meta ACH mutation testing, SSR self-play).
+
+### Candidates considered
+
+1. **Surface neglected modules in trend** — CHOSEN. Pattern Watch #1 (data >
+   instructions). 31 stale modules is a genuine quality gap; builder needs
+   to see WHICH modules, not just the count.
+2. **Research-pivot tracking metric** — Track whether web research changed the
+   builder's plan. Deferred: the 2→36 swing is actually adaptive behavior.
+3. **Mutation testing integration** — Meta ACH pattern. Deferred: adds builder
+   procedure (against Pattern Watch #2).
+4. **Self-play bug injection** — SSR pattern. Deferred: too complex for one iter.
+5. **Experience trajectory storage** — Deferred: high complexity.
+
+### Expected effects
+
+- Builder sees concrete neglected modules → may pick "Deepen existing" candidate
+  from the list, improving code quality in blind spots
+- Corrected subsystem classification → more accurate domain concentration signals
+- Flaky test lesson → saves 2-4 calls when process.test.ts timing flake hits
+
 ## Iteration 611 — OpenAI-compatible ModelClient enabling Ollama, Groq, and local model support
 
 Added `OpenAIModelClient` implementing the iter 609 `ModelClient` interface for any
