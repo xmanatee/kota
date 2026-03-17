@@ -66,10 +66,11 @@ Be skeptical. Record rejected candidates in CHANGELOG under "Future directions."
 NOW read source files — only those relevant to your chosen work. Every file
 read adds context and degrades downstream reasoning. Use grep to find files.
 
-Write real, working code. Auto-fix lint per file (`npx biome check --write
-<file>`). For cross-cutting changes: grep all consumers first, fix consumers
-before changing the shared type, run `npm run typecheck` immediately after. See
-BUILDER_LESSONS.md for details.
+Write real, working code. For each file, outline all planned edits before
+making the first one — re-visits cost context. Auto-fix lint per file (`npx
+biome check --write <file>`). For cross-cutting changes: grep all consumers
+first, fix consumers before changing the shared type, run `npm run typecheck`
+immediately after. See BUILDER_LESSONS.md for details.
 
 Keep `DESIGN.md` accurate — but concise. When updating, condense verbose
 sections for stable components (1-2 lines + code snippet if needed). DESIGN.md

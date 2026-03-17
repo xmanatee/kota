@@ -75,9 +75,10 @@ for `vi.mock(.*<module>)` to find all mock sites before adding exports.
 
 ## Batch Edits
 
-Plan ALL changes to a file before starting. Batch into fewer Edit calls.
-Re-editing costs context and risks conflicts. If `index.test.ts` needs both
-a count and name-list update, do them in one Edit.
+Before touching a file, list every change you'll make to it, then execute in
+1-3 Edit calls. Iter 603: 7 edits to `working-memory.ts` (could have been 2-3
+with upfront planning). Each re-edit costs ~500 tokens of context. The trend
+tracks `edits/file avg` — aim for ≤3.
 
 ## Cross-Cutting Changes
 
@@ -89,7 +90,7 @@ The #1 rework source. Before modifying shared types/interfaces:
 
 ## Architecture as Capability
 
-32+ tools, 3480+ tests. Each new tool adds less than the last. Architecture
+32+ tools, 3499+ tests. Each new tool adds less than the last. Architecture
 work IS capability work when it enables something new:
 - Module isolation → runtime extensibility (user asks agent to create a tool)
 - Untested integration paths → reliability (50-turn conversation without degradation)

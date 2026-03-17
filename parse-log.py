@@ -420,7 +420,9 @@ def _print_builder_analysis(
         s = _searchable(tc)
         if "typecheck" in s or "tsc" in s:
             checks["typecheck"] = True
-        if ("build" in s or "npm run build" in s) and "typecheck" not in s:
+        if "npm run build" in s or "run build" in s or (
+            "build" in s and "typecheck" not in s
+        ):
             checks["build"] = True
         if any(kw in s for kw in ["npm test", "vitest", "run test"]):
             checks["test"] = True
@@ -789,6 +791,10 @@ def _quick_parse(path: str) -> dict:
         round(_return_edits / _total_impl_calls * 100)
         if _total_impl_calls > 0 else 0
     )
+    edits_per_file = (
+        round(_total_impl_calls / len(_edited_files), 1)
+        if _edited_files else 0
+    )
 
     # Post-implementation rework analysis: what fraction of calls come after
     # the first verification attempt following implementation?
@@ -848,7 +854,9 @@ def _quick_parse(path: str) -> dict:
             verify_runs["test"] += 1
         if "biome" in s:
             verify_runs["lint"] += 1
-        if ("build" in s or "npm run build" in s) and "typecheck" not in s and "biome" not in s:
+        if "npm run build" in s or "run build" in s or (
+            "build" in s and "typecheck" not in s and "biome" not in s
+        ):
             verify_runs["build"] += 1
 
     usage = result.get("usage", {})
@@ -873,6 +881,8 @@ def _quick_parse(path: str) -> dict:
         "fix_cycles": fix_cycles,
         "verify_runs": verify_runs,
         "return_edit_pct": return_edit_ratio,
+        "edits_per_file": edits_per_file,
+        "edited_file_count": len(_edited_files),
     }
 
 
@@ -1141,13 +1151,32 @@ def trend(n: int = 5) -> None:
     avg_rework = sum(rework_vals) / len(rework_vals) if rework_vals else 0
     re_vals = [e.get("return_edit_pct", 0) for e in entries]
     avg_re = sum(re_vals) / len(re_vals) if re_vals else 0
+    # Consecutive zero-fix-cycle streak from end
+    zero_streak = 0
+    for e in reversed(entries):
+        if e.get("fix_cycles", 0) == 0:
+            zero_streak += 1
+        else:
+            break
+    fix_note = ""
+    if zero_streak >= ne and ne >= 5:
+        fix_note = f" — 0 fix cycles in ALL {ne} iters (tests may not challenge impl)"
+    elif zero_streak >= 5:
+        fix_note = f" — 0 fix cycles last {zero_streak} iters"
     print(
         f"  Rework: {avg_rework:.0f}% post-verify overhead, "
-        f"{total_fix} fix cycles total"
+        f"{total_fix} fix cycles total{fix_note}"
     )
+    epf_vals = [e.get("edits_per_file", 0) for e in entries if e.get("edits_per_file", 0) > 0]
+    avg_epf = sum(epf_vals) / len(epf_vals) if epf_vals else 0
+    epf_warn = ""
+    if avg_epf > 4:
+        epf_warn = " — plan all changes per file before editing (see BUILDER_LESSONS)"
+    elif avg_epf > 3:
+        epf_warn = " — consider batching edits"
     print(
-        f"  Re-edit: {avg_re:.0f}% avg (edits to already-edited files — "
-        f"lower = fewer return visits)"
+        f"  Re-edit: {avg_re:.0f}% avg, {avg_epf:.1f} edits/file avg"
+        f"{epf_warn}"
     )
     # Verification breakdown: average runs per check type (>1 means reruns)
     vr_keys = ["typecheck", "test", "lint", "build"]

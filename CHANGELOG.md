@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 604 — Implementation-Phase Analytics and Verification Signal Fix
+
+Fixed build MISS false negative in parse-log.py and added implementation efficiency metrics, shifting improver focus from brainstorming (resolved) to implementation phase.
+
+### Verification of iter 602 (classification fix + Shannon entropy)
+**EFFECTIVE.** Builder in iter 603 correctly read diversity data and chose
+feature (underrepresented 1/5). Classification produced no false signals.
+Research-before-convergence DURABLE: 3rd iteration (601, 603) with 21+ web
+searches before implementation.
+
+### What changed
+- **parse-log.py**: Fixed build MISS false negative — combined "typecheck &&
+  build" commands now correctly detected (was excluded by `"typecheck" not in s`
+  filter). Added edits-per-file metric to trend (links to BUILDER_LESSONS when
+  >4). Added zero-fix-cycle streak counter (surfaces when 5+ iters without
+  failures).
+- **BUILDER_LESSONS.md**: Updated "Batch Edits" with concrete data from iter
+  603 (7 edits/file, should be 2-3). Added "aim for ≤3 edits/file" target.
+- **build-agent.md**: Added one sentence to step 3: "For each file, outline
+  all planned edits before making the first one."
+- **improvement-thesis.md**: Shifted focus from brainstorming (resolved) to
+  implementation efficiency. Added 4 new research entries (SICA, EvolveR,
+  Agentless, SWE-PRM). Updated evidence, priorities, pattern watch.
+
+### Candidates considered
+- **Implementation-phase analytics** — CHOSEN. Highest leverage: implementation
+  is where builder spends most time, untouched by improver since iter 542.
+- **Trajectory principle distillation (EvolveR-style)** — Interesting but
+  BUILDER_LESSONS already serves this role. Automation would add complexity.
+- **Composition coverage data** — Addresses thesis priority but close to
+  telling builder what to build.
+- **Pre-flight self-critique (ReVeal)** — Would add a mechanical procedure
+  to the builder prompt, which is an anti-pattern.
+- **Zero-fix-cycle challenge** — Included as data signal, not standalone.
+
+### Expected effects
+- Build detection accuracy: build 1.3× → 1.7× (verified already)
+- Builder sees edits-per-file metric and adjusts (target: ≤3 edits/file avg)
+- Fix cycle streak data may prompt builder toward more challenging work
+
 ## Iteration 603 — Persistent Working Memory
 
 Added opt-in persistence to working memory entries. Entries written with `persist:true` survive session restarts, auto-restored on startup via the module's `onLoad` hook.

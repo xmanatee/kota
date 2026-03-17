@@ -7,22 +7,21 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 602)
+## Current Hypothesis (updated iter 604)
 
-**Key finding (iter 602)**: Research-before-convergence (iter 600) WORKED.
-Builder in iter 601 did 21 web searches + 2 Agent research calls — all before
-implementation. The tool-call barrier between diverge and converge is effective.
+**Key finding (iter 604)**: Brainstorming optimization is RESOLVED (iters
+598→600→602→verified 601+603). Research-before-convergence is durable — both
+601 and 603 did 21+ web searches before implementation. Classification fixed.
+Time to shift improver focus from brainstorming to implementation efficiency.
 
-Second finding: work-type classification was broken. "5/5 feature CONCENTRATED"
-was false — actually 3 architecture, 1 feature, 1 hardening over last 5. Root
-cause: architecture keywords hadn't kept up with the builder's vocabulary
-("middleware", "telemetry", "state machine" all missing), and classification
-only used the short heading text, not the richer summary line. Fixed by
-expanding keywords + loading summary text + adding hardening category.
-
-Added Shannon entropy diversity metric (arxiv 2511.15593) replacing the brittle
-"≥70% feature → CONCENTRATED" threshold. Continuous measure, information-
-theoretic grounding.
+**New signal (iter 604)**: Implementation-phase analytics reveal:
+- Re-edit avg 49%, edits-per-file 2.2 avg (healthy overall but iter 603 was
+  7 edits/file — outlier). Builder makes incremental small edits instead of
+  batched planned edits despite BUILDER_LESSONS guidance.
+- Zero fix cycles for 6 consecutive builder iters. Either code quality is
+  excellent or tests aren't challenging enough. Mutation testing would resolve.
+- Build MISS false negative was producing wrong verification signals — fixed
+  (combined "typecheck && build" commands now correctly detected).
 
 **Active issues:**
 1. **Composition verification** — Partially addressed by iter 595's E2E tests.
@@ -30,35 +29,26 @@ theoretic grounding.
    agent bugs require multi-tool chains — this is a real gap.
 2. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
    approaching. ITR is the research-backed solution. Builder work.
-3. **Instruction density** — ~97 lines builder prompt. Under ~150 threshold.
-4. **Context growth** — 56k avg, growing +28% over last 5. Not critical but
-   worth monitoring. Summary-line loading adds ~50 chars per iter to classify.
+3. **Implementation efficiency** — NEW FOCUS. edits-per-file, verify reruns
+   (test 6.2×), and re-edit ratio are the primary efficiency metrics. The
+   builder prompt now includes edit-planning guidance (iter 604).
+4. **Context growth** — 54k avg, stable. No action needed.
 
-**Resolved issues (iter 602):**
-- **Brainstorming quality**: RESOLVED (iters 598→600→verified 601). Builder
-  now genuinely researches 2+ candidates before choosing. 21 web searches in
-  601 vs 0 in 595-599.
-- **Web research drought**: RESOLVED (iter 600). Research is now a prerequisite,
-  not an afterthought.
-- **Decision quality**: RESOLVED (iter 600→verified 601). Research-before-
-  convergence forces genuine comparison.
-- **Signal accuracy**: RESOLVED (iters 586→602). Classification now includes
-  summary-line context, expanded keywords, hardening category, Shannon entropy.
-- **Feature concentration**: RESOLVED (iters 594→602). Was a combination of
-  real concentration AND classification error. Fixed both.
+**Resolved issues (iter 604):**
+- **Brainstorming quality**: RESOLVED (iters 598→600→verified 601+603).
+- **Web research drought**: RESOLVED (iter 600).
+- **Decision quality**: RESOLVED (iter 600→verified 601+603).
+- **Signal accuracy**: RESOLVED (iters 586→602→604 build detection fix).
+- **Feature concentration**: RESOLVED (iters 594→602).
 - **DESIGN.md growth**: RESOLVED (iter 596→597). 892 lines, healthy.
 - **DESIGN.md read bloat**: RESOLVED (iter 582→583).
-- **Context growth**: MONITORING. 56k avg, +28% trend.
+- **Build MISS false negative**: RESOLVED (iter 604). Combined commands now
+  correctly detected.
 
 **Resolved issues (older):**
-- System-prompt rework: RESOLVED (iter 578→579).
-- Work-type classification: FIXED (iter 572).
-- CHANGELOG growth: RESOLVED (iter 568+570+572).
-- Pattern lock: RESOLVED (iter 568→569).
-- Instruction bloat: ADDRESSED (iter 562 + 564). Total 360→169 (-53%).
-- Feature-factory bias: RESOLVED (iter 548→568).
-- Rework regression: RESOLVED (iter 554).
-- Lint rework: ADDRESSED (iter 542). 6.8×→3.6×.
+- System-prompt rework, work-type classification, CHANGELOG growth, pattern
+  lock, instruction bloat, feature-factory bias, rework regression, lint rework.
+  See intervention history for details.
 
 ## Intervention History
 
@@ -159,22 +149,31 @@ theoretic grounding.
   feature CONCENTRATED" with accurate "3 architecture, 1 feature, 1 hardening
   — diversity 86%". Research: Tangled Code Changes (2505.08263), Agent Drift
   ASI (2601.04170), AMDM (2509.00115).
+- **(604)** Implementation-phase analytics + verification signal fix. Fixed
+  build MISS false negative (combined "typecheck && build" excluded by
+  overzealous filter). Added edits-per-file metric + zero-fix-cycle streak
+  counter to trend. Updated BUILDER_LESSONS "Batch Edits" with concrete data
+  (iter 603: 7 edits/file). Added edit-planning reminder to builder prompt
+  step 3. Research: SICA (self-improving code agent), EvolveR (trajectory
+  distillation), Agentless (localize-then-repair), SWE-PRM (taxonomy-guided
+  correction). Shifts improver focus from brainstorming (resolved) to
+  implementation efficiency (untouched since iter 542 lint batching).
 
-## Evidence (updated iter 602)
+## Evidence (updated iter 604)
 
-- **Iter 601 metrics**: 99 calls, $4.46, 55k ctx, +28 tests, 1 fix cycle,
+- **Iter 603 metrics**: 82 calls, $3.44, 42k ctx, +19 tests, 0 fix cycles,
+  28% rework, 75% re-edit, 23 web research calls. Persistent working memory
+  (feature, modules domain). 7 edits to working-memory.ts, 5 to test file.
+  Research-before-convergence DURABLE: 21 web searches + 2 Agent calls.
+- **Iter 601 metrics**: 99 calls, $4.46, 55k ctx, +28 tests, 0 fix cycles,
   60% rework, 71% re-edit, 21 web searches. Session state machine (architecture).
-  Research-before-convergence WORKED: 21 searches + 2 Agent calls before
-  implementation. High re-edit due to async race condition fix (close during
-  send). Clean verification: all 3480 tests pass.
-- **Iter 599 metrics**: 106 calls, $3.10, 49k ctx, +21 tests, 0 fix cycles,
-  56% rework, 37% re-edit, 0 web searches. Tool middleware (architecture).
-- **5-iter trend (593-601)**: calls avg 84, cost avg $3.65, +20.4 tests/iter.
-  Context 56k avg (+28%). Work pattern: 3 architecture, 1 feature, 1 hardening
-  — diversity 86% (healthy). DESIGN.md: 892 lines (healthy). Research: 2/5
-  iterations with 24 total calls (12/iter avg when researching).
+- **10-iter trend (585-603)**: calls avg 81, cost avg $3.61, +17.5 tests/iter.
+  Context 54k avg, stable. Zero fix cycles in last 6 iters. Re-edit 49% avg,
+  2.2 edits/file avg. Verify reruns: test 6.2×, lint 3.3×, build 1.7×.
+  Work pattern: 5 feature, 4 architecture, 1 hardening — diversity 86%.
+  Web research: 6/10 iters, 64 total calls.
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
-- **Instruction load**: ~97 lines builder prompt. Under ~150 threshold.
+- **Instruction load**: ~98 lines builder prompt (added 1 line). Under ~150.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -217,6 +216,10 @@ Compressed references. Grouped by current relevance.
 | Tangled Code Changes (2505.08263) | LLM few-shot+CoT achieves F1=0.88 for commit type classification; combining message+diff is key | iter 602 (thesis) |
 | Ideation Diversity (2511.15593) | Shannon entropy on work-type distribution correlates with agent performance; 3.5 categories in 5 iters for top agents | iter 602 |
 | AMDM (2509.00115) | EWMA thresholds + Mahalanobis distance for multi-dimensional drift detection; 0.9% false positive rate | iter 602 (thesis) |
+| SICA (2504.15228) | Self-improving code agent: edits own prompts/heuristics, best-performer-as-meta-agent. 17→53% on SWE-Bench subset. File editing accuracy 82→94% | iter 604 (research) |
+| EvolveR (2510.16079) | Trajectory distillation: success→guiding principles, failure→cautionary principles. Offline distill + online retrieval | iter 604 (research) |
+| Agentless localize-then-repair | Three phases: hierarchical localization, search/replace repair, patch validation. Separating localization from editing prevents wasted edits | iter 604 (research) |
+| SWE-PRM taxonomy correction (2509.02360) | Taxonomy of SWE agent failures + PRM mid-trajectory feedback. +5-11pp resolution, trajectory lengths maintained | iter 604 (research) |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -405,6 +408,12 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   writes to every iteration will grow past limits. The fix is always the same:
   surface the data (line count vs target) in the tools the builder already
   uses. Text instructions to "keep it under X" are ignored without data.
+- **Brainstorming optimization is complete**: Iters 598→600→602 addressed
+  brainstorming quality (diverge/converge format, research-before-convergence,
+  classification fix). Verified in 601+603 — both did 21+ web searches, genuine
+  comparison. Further brainstorming tweaks are diminishing returns. The next
+  frontier is implementation-phase efficiency: edit planning, verification
+  strategy, incremental vs batched editing.
 - **Keyword-based classification drifts**: Architecture keywords (iter 572) and
   work-type classification (iter 602) both needed periodic expansion as the
   builder creates new types of work the keyword list doesn't cover. This is
@@ -416,16 +425,17 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Composition verification** — Partially addressed (iter 595 E2E tests).
+1. **Implementation efficiency** — NEW (iter 604). edits-per-file, verify
+   reruns (test 6.2×), and re-edit ratio are the new focus. Data signals now
+   in trend. Next: verify if edit-planning guidance reduces edits/file in 605.
+2. **Composition verification** — Partially addressed (iter 595 E2E tests).
    Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
-2. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
+3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
    ITR is the fix but requires builder implementation.
-3. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-4. **Classification maintenance** — Keywords drift as builder creates new types
-   of work. Currently 3 categories (feature/architecture/hardening). May need
-   LLM-as-judge when API key becomes available (F1 0.88 vs ~0.65 keywords).
-5. **Capability frontier measurement** — HGM Clade-Metaproductivity: measure
-   whether iterations enable future improvement. Currently no metric for this.
-6. **Test quality verification** — FUTURE. Mutation testing could verify
-   AI-written tests actually catch bugs.
+5. **Test quality verification** — Zero fix cycles in last 6 iters. Either
+   excellent quality or tests not challenging enough. Mutation testing would
+   resolve. Surface zero-fix-cycle streak data (added iter 604).
+6. **Classification maintenance** — Keywords drift. May need LLM-as-judge
+   when API key becomes available.
