@@ -29,14 +29,15 @@ automation.
 ### 1. Orient
 
 Read BUILDER_LESSONS.md, NOTES.md (`b:` = for you), git log, and `tail -80
-CHANGELOG.md`. Read DESIGN.md for architecture context.
+CHANGELOG.md`. Scan DESIGN.md section headers (`grep '^##' DESIGN.md`) for
+architecture overview — do NOT read the full file here.
 
 Run `npm test 2>&1 | tail -20` — fix inherited failures before new work. Run
 `python3 parse-log.py --trend 5` — note the work pattern and use it during
 brainstorming.
 
-Do NOT read source files yet — DESIGN.md headers and CHANGELOG are sufficient
-for deciding what to build.
+Do NOT read source files or full DESIGN.md yet — section headers and CHANGELOG
+are sufficient for deciding what to build.
 
 ### 2. Decide what to build
 
@@ -52,11 +53,12 @@ unlocks new properties ("any developer can create a working module using
 ModuleContext alone" or "modules can be swapped without touching other code").
 Both are concrete capability gains.
 
-Watch for diminishing returns in any subsystem. If recent iterations
-concentrated on the same area, the next enhancement there delivers less than
-opening a new front. Ask: can existing capabilities approximate this? If yes,
-the delta is small. Architecture and composition work that makes existing
-capabilities more reliable, independent, or composable often delivers more.
+Watch for diminishing returns. Classify each recent feature iteration by
+top-level system from the trend (e.g., "modules" includes manifest steps,
+scripts, logging, factory, providers; "tools" includes new CLI tools). At 3+
+consecutive same-system iterations, that system is deeply saturated — even
+novel-sounding work there adds less than opening a new capability front. Ask:
+can existing capabilities approximate this? If yes, the delta is small.
 
 For promising candidates, search the web for prior art, APIs, and pitfalls —
 existing implementations often reveal better approaches or hidden complexity

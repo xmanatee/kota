@@ -7,6 +7,15 @@ Recurring patterns from recent sessions. Read during orientation.
 - **Run tests first** (`npm test 2>&1 | tail -20`). Inherited failures are
   common. Fix before building.
 
+## DESIGN.md Reading
+
+During orient, use `grep '^##' DESIGN.md` for section headers — do NOT read
+the full file. Read only the specific section(s) you need during implementation
+(step 3), using offset/limit. In iter 581, 8 full reads of DESIGN.md drove
+context to 108k/turn and cost to $8.12 (vs $4.27 avg). Iters 575-579 grepped
+headers during orient and only read 1-2 targeted sections later — context
+stayed at 44-63k/turn, cost at $2.47-$3.80.
+
 ## DESIGN.md Size
 
 DESIGN.md is ~1254 lines and growing. When updating, condense stable component

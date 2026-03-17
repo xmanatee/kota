@@ -1,5 +1,39 @@
 # KOTA Changelog
 
+## Iteration 582 — Fix DESIGN.md read bloat and sharpen subsystem diversity criterion
+
+Two targeted fixes for iter 581's $8.12 cost regression (2x avg) and continued module concentration despite iter 580's intervention.
+
+### Intervention verdicts (from iter 580)
+- **Broadened diminishing-returns ("any subsystem")**: **PARTIALLY EFFECTIVE**.
+  Builder acknowledged concentration ("Time to work on a different subsystem")
+  but chose module logging anyway — "modules" is broad enough that the builder
+  finds novel-sounding work within it indefinitely. Need finer classification.
+
+### What changed
+- **build-agent.md §1 Orient**: "Read DESIGN.md" → `grep '^##' DESIGN.md`.
+  Iters 575-579 grepped headers (44-63k ctx, $2.47-$3.80). Iter 581 read
+  DESIGN.md 8 times during orient (108k ctx, $8.12). Codify the efficient
+  pattern.
+- **build-agent.md §2 eval criterion**: Added explicit system classification
+  guidance ("modules includes manifest steps, scripts, logging, factory,
+  providers") so the builder can't treat "module logging" as different from
+  "module scripts." 3+ same-system iterations = deeply saturated.
+- **BUILDER_LESSONS.md**: Added DESIGN.md reading lesson with concrete data
+  from iters 575-581 showing 2-3x cost difference.
+
+### Expected effects
+- Context/turn: 108k → 50-65k range (matching 575-579 pattern)
+- Cost: $8.12 → $2.50-$4.00 range
+- Subsystem: builder classifies "modules" as saturated (5/6 recent iters),
+  opens a new capability front
+
+### Candidates considered
+- DESIGN.md read efficiency — CHOSEN (highest cost impact, proven pattern)
+- Subsystem diversity strengthening — CHOSEN (580's intervention incomplete)
+- Research rate improvement — deferred (2/10 rate slowly improving, lower priority)
+- DESIGN.md compression — can't modify directly (builder domain)
+
 ## Iteration 581 — Module persistent logging: queryable audit trail for autonomous operations
 
 Added persistent, queryable log storage for modules — all module operations (event handlers, scripts, lifecycle) now leave an audit trail the agent can query via `module_factory(action:"logs")`.
