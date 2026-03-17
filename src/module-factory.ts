@@ -17,6 +17,7 @@ import {
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
+import { getModuleLogStore } from "./module-log.js";
 import type { KotaModule, ToolDef } from "./module-types.js";
 import type { Language } from "./repl-session.js";
 import { sessions } from "./repl-session.js";
@@ -461,13 +462,16 @@ function runEventHandler(
 		({ output, isError }) => {
 			if (isError) {
 				console.error(`[module:${moduleName}] Event handler error (${handler.event}): ${output}`);
+				getModuleLogStore()?.append(moduleName, "error", `Event handler (${handler.event}): ${output}`);
 			} else if (output.trim()) {
 				console.error(`[module:${moduleName}] Event handler (${handler.event}): ${output.trim()}`);
+				getModuleLogStore()?.append(moduleName, "info", `Event handler (${handler.event}): ${output.trim()}`);
 			}
 		},
 		(err) => {
 			const msg = err instanceof Error ? err.message : String(err);
 			console.error(`[module:${moduleName}] Event handler failed (${handler.event}): ${msg}`);
+			getModuleLogStore()?.append(moduleName, "error", `Event handler failed (${handler.event}): ${msg}`);
 		},
 	);
 }
@@ -659,11 +663,15 @@ function runStepHandler(
 
 	const steps = handler.steps;
 	(async () => {
+		const logStore = getModuleLogStore();
+		logStore?.append(moduleName, "info", `Event handler started (${handler.event}, ${steps.length} steps)`);
 		let prevContent = "";
 		const allOutputs: string[] = [];
-		for (const step of steps) {
+		for (let i = 0; i < steps.length; i++) {
+			const step = steps[i];
 			if (step.if && !evaluateCondition(step.if, prevContent, payload, allOutputs)) {
 				allOutputs.push("");
+				logStore?.append(moduleName, "debug", `Step ${i + 1} "${step.tool}" skipped (condition false)`);
 				continue;
 			}
 			const input = resolveStepInput(step.input, prevContent, payload, allOutputs);
@@ -673,6 +681,7 @@ function runStepHandler(
 					console.error(
 						`[module:${moduleName}] Step "${step.tool}" failed: ${result.content}`,
 					);
+					logStore?.append(moduleName, "error", `Step ${i + 1} "${step.tool}" failed: ${result.content}`);
 					return;
 				}
 				prevContent = result.content;
@@ -682,9 +691,11 @@ function runStepHandler(
 				console.error(
 					`[module:${moduleName}] Step "${step.tool}" threw: ${msg}`,
 				);
+				logStore?.append(moduleName, "error", `Step ${i + 1} "${step.tool}" threw: ${msg}`);
 				return;
 			}
 		}
+		logStore?.append(moduleName, "info", `Event handler completed (${handler.event}, ${steps.length} steps)`);
 	})();
 }
 
@@ -697,7 +708,7 @@ function runStepHandler(
  * All step outputs are tracked for $steps[N] references.
  */
 export async function runModuleScript(
-	_moduleName: string,
+	moduleName: string,
 	script: ManifestScriptDef,
 	args: Record<string, unknown> = {},
 ): Promise<ToolResult> {
@@ -706,18 +717,22 @@ export async function runModuleScript(
 		return { content: "Script has no steps", is_error: true };
 	}
 
+	const logStore = getModuleLogStore();
+	logStore?.append(moduleName, "info", `Script started (${steps.length} steps)`);
 	let prevContent = "";
 	const allOutputs: string[] = [];
 	for (let i = 0; i < steps.length; i++) {
 		const step = steps[i];
 		if (step.if && !evaluateCondition(step.if, prevContent, args, allOutputs)) {
 			allOutputs.push("");
+			logStore?.append(moduleName, "debug", `Script step ${i + 1} "${step.tool}" skipped (condition false)`);
 			continue;
 		}
 		const input = resolveStepInput(step.input, prevContent, args, allOutputs);
 		try {
 			const result = await executeTool(step.tool, input);
 			if (result.is_error) {
+				logStore?.append(moduleName, "error", `Script step ${i + 1} "${step.tool}" failed: ${result.content}`);
 				return {
 					content: `Step ${i + 1}/${steps.length} ("${step.tool}") failed: ${result.content}`,
 					is_error: true,
@@ -727,6 +742,7 @@ export async function runModuleScript(
 			allOutputs.push(result.content);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
+			logStore?.append(moduleName, "error", `Script step ${i + 1} "${step.tool}" threw: ${msg}`);
 			return {
 				content: `Step ${i + 1}/${steps.length} ("${step.tool}") threw: ${msg}`,
 				is_error: true,
@@ -734,6 +750,7 @@ export async function runModuleScript(
 		}
 	}
 
+	logStore?.append(moduleName, "info", `Script completed (${steps.length} steps)`);
 	return { content: prevContent };
 }
 

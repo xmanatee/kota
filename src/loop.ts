@@ -12,6 +12,7 @@ import { buildSessionWarmup } from "./init.js";
 import { McpManager } from "./mcp-manager.js";
 import { listManifestModules } from "./module-factory.js";
 import { ModuleLoader } from "./module-loader.js";
+import { initModuleLogStore } from "./module-log.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
@@ -126,6 +127,7 @@ export class AgentSession {
     // Initialize persistent stores for this project
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
+    initModuleLogStore(process.cwd());
     initChangeTracker();
     initProviderRegistry();
     registerDefaultProviders();

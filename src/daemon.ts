@@ -14,6 +14,7 @@ import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import type { KotaConfig } from "./config.js";
 import { type EventBus, initEventBus } from "./event-bus.js";
 import { AgentSession } from "./loop.js";
+import { initModuleLogStore } from "./module-log.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
 import { CliTransport, type Transport } from "./transport.js";
@@ -85,6 +86,7 @@ export class Daemon {
     this.bus = initEventBus();
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
+    initModuleLogStore(process.cwd());
 
     this.executor = new ActionExecutor({
       sessionOptions: {

@@ -16,6 +16,8 @@ import { loadConfig } from "./config.js";
 import { type EventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { getHistory } from "./history.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
+import { initModuleLogStore } from "./module-log.js";
+import type { RouteRegistration } from "./module-types.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 import { NotificationHub } from "./server-notifications.js";
 import {
@@ -27,7 +29,6 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
-import type { RouteRegistration } from "./module-types.js";
 import { NullTransport, type Transport } from "./transport.js";
 import { getWebUI } from "./web-ui.js";
 
@@ -71,6 +72,7 @@ export function startServer(options: ServerOptions = {}): Server {
 
   const bus = initEventBus();
   initScheduler(process.cwd());
+  initModuleLogStore(process.cwd());
   const scheduler = getScheduler();
 
   const hub = new NotificationHub();

@@ -12,6 +12,7 @@
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
+import { getModuleLogStore } from "./module-log.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { CreateSessionOptions, KotaModule, ModuleContext, ModuleEventProxy, ModuleLogger, ModuleSession, RouteRegistration, ToolDef } from "./module-types.js";
 import { getProviderRegistry } from "./providers.js";
@@ -72,11 +73,21 @@ export class ModuleLoader {
     const modName = moduleName;
     const prefix = modName ? `[module:${modName}]` : "[module]";
     const log: ModuleLogger = {
-      info: (msg: string) => console.error(`${prefix} ${msg}`),
-      warn: (msg: string) => console.error(`${prefix} WARN: ${msg}`),
-      error: (msg: string) => console.error(`${prefix} ERROR: ${msg}`),
-      debug: (msg: string) => {
+      info: (msg: string, data?: unknown) => {
+        console.error(`${prefix} ${msg}`);
+        getModuleLogStore()?.append(modName ?? "_default", "info", msg, data);
+      },
+      warn: (msg: string, data?: unknown) => {
+        console.error(`${prefix} WARN: ${msg}`);
+        getModuleLogStore()?.append(modName ?? "_default", "warn", msg, data);
+      },
+      error: (msg: string, data?: unknown) => {
+        console.error(`${prefix} ERROR: ${msg}`);
+        getModuleLogStore()?.append(modName ?? "_default", "error", msg, data);
+      },
+      debug: (msg: string, data?: unknown) => {
         if (this.verbose) console.error(`${prefix} DEBUG: ${msg}`);
+        getModuleLogStore()?.append(modName ?? "_default", "debug", msg, data);
       },
     };
     return {

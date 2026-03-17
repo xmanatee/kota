@@ -146,6 +146,17 @@ Pluggable architecture where features are self-contained modules instead of hard
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
 - Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
 
+### Module Log Store (`src/module-log.ts`)
+
+Persistent, queryable log storage for modules. Each module gets a JSONL file at `.kota/modules/<name>/logs.jsonl`. Enables observability of autonomous operations (scheduled actions, event handlers, scripts).
+
+**Integration**:
+- `ctx.log.{info,warn,error,debug}(msg, data?)` persists to log store (in addition to console)
+- Step handlers and scripts in `module-factory.ts` auto-log start/complete/error/skip
+- Agent queries logs via `module_factory(action:"logs", name?, level?, keyword?, limit?)`
+
+**API**: `append(module, level, msg, data?)`, `query({module?, level?, since?, keyword?, limit?})`, `tail(module, n)`, `modules()`, `clear(module)`. Auto-prunes at 1000 entries (keeps 750).
+
 ### Provider System (`src/providers.ts`)
 
 Typed interfaces for swappable core services. Modules can register alternative implementations — swap memory from JSON to SQLite, vector DB, or cloud storage by implementing an interface and setting config.
@@ -419,7 +430,7 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 }
 ```
 
-**Actions**: `create` (define module from manifest), `list` (show custom modules), `remove` (unload and delete), `info` (show details), `run` (execute a named script).
+**Actions**: `create` (define module from manifest), `list` (show custom modules), `remove` (unload and delete), `info` (show details), `run` (execute a named script), `logs` (query persistent module operation logs).
 
 **Persistence**: Manifests are saved to `.kota/modules/<name>/manifest.json`. This is the same directory used by `ModuleStorage`, so module definition and module data live together. Manifests are auto-discovered on startup via `discoverManifestModules()` in `plugin-loader.ts`.
 

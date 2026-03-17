@@ -20,6 +20,8 @@ import {
 	saveManifest,
 	validateManifest,
 } from "../module-factory.js";
+import type { LogLevel } from "../module-log.js";
+import { getModuleLogStore } from "../module-log.js";
 import { resolveModuleTools } from "../module-types.js";
 import type { ToolResult } from "./index.js";
 import { deregisterModuleTools, registerTool } from "./index.js";
@@ -36,19 +38,20 @@ const MAX_MANIFEST_MODULES = 10;
 export const moduleFactoryTool: Anthropic.Tool = {
 	name: "module_factory",
 	description:
-		"Create, list, remove, inspect, or run scripts from custom modules. " +
+		"Create, list, remove, inspect, run scripts, or query logs from custom modules. " +
 		"Modules bundle related tools, prompt sections, scripts, and metadata. " +
-		"Scripts are named tool-call sequences defined in the manifest.",
+		"Logs capture module operations (events, scripts, lifecycle) for observability.",
 	input_schema: {
 		type: "object" as const,
 		properties: {
 			action: {
 				type: "string",
-				enum: ["create", "list", "remove", "info", "run"],
+				enum: ["create", "list", "remove", "info", "run", "logs"],
 				description:
 					"create: define a new module. list: show all custom modules. " +
 					"remove: unload and delete. info: show details of one module. " +
-					"run: execute a named script from a module.",
+					"run: execute a named script. " +
+					"logs: query persistent module operation logs.",
 			},
 			manifest: {
 				type: "object",
@@ -59,7 +62,7 @@ export const moduleFactoryTool: Anthropic.Tool = {
 			},
 			name: {
 				type: "string",
-				description: "Module name (for remove/info/run actions)",
+				description: "Module name (for remove/info/run/logs actions)",
 			},
 			script: {
 				type: "string",
@@ -68,6 +71,19 @@ export const moduleFactoryTool: Anthropic.Tool = {
 			args: {
 				type: "object",
 				description: 'Arguments passed to the script. Available in step inputs via "$payload".',
+			},
+			level: {
+				type: "string",
+				enum: ["info", "warn", "error", "debug"],
+				description: "Filter logs by level (for logs action)",
+			},
+			keyword: {
+				type: "string",
+				description: "Search keyword for log messages (for logs action)",
+			},
+			limit: {
+				type: "number",
+				description: "Max log entries to return (default 30, for logs action)",
 			},
 		},
 		required: ["action"],
@@ -95,9 +111,11 @@ export async function runModuleFactory(
 				input.script as string,
 				(input.args as Record<string, unknown>) || {},
 			);
+		case "logs":
+			return handleLogs(input);
 		default:
 			return {
-				content: `Unknown action: "${action}". Use create, list, remove, info, or run.`,
+				content: `Unknown action: "${action}". Use create, list, remove, info, run, or logs.`,
 				is_error: true,
 			};
 	}
@@ -366,6 +384,52 @@ async function handleRun(
 	}
 
 	return runModuleScript(name, script, args);
+}
+
+// ─── Logs ─────────────────────────────────────────────────────────────
+
+function handleLogs(input: Record<string, unknown>): ToolResult {
+	const store = getModuleLogStore();
+	if (!store) {
+		return { content: "Module log store not initialized", is_error: true };
+	}
+
+	const moduleName = input.name as string | undefined;
+	const level = input.level as LogLevel | undefined;
+	const keyword = input.keyword as string | undefined;
+	const limit = (input.limit as number) ?? 30;
+
+	// If no module specified, show summary of all modules with logs
+	if (!moduleName) {
+		const modules = store.modules();
+		if (modules.length === 0) {
+			return { content: "No module logs found." };
+		}
+		const lines = modules.map((mod) => {
+			const recent = store.tail(mod, 1);
+			const last = recent[0];
+			const lastMsg = last ? ` — last: [${last.level}] ${last.msg.slice(0, 80)}` : "";
+			const count = store.query({ module: mod, limit: 10000 }).length;
+			return `- ${mod}: ${count} entries${lastMsg}`;
+		});
+		return { content: `Modules with logs (${modules.length}):\n${lines.join("\n")}` };
+	}
+
+	const entries = store.query({ module: moduleName, level, keyword, limit });
+	if (entries.length === 0) {
+		const filters = [level && `level=${level}`, keyword && `keyword="${keyword}"`].filter(Boolean).join(", ");
+		return { content: `No log entries for "${moduleName}"${filters ? ` (filters: ${filters})` : ""}.` };
+	}
+
+	// Entries are newest-first from query; reverse for chronological display
+	const reversed = [...entries].reverse();
+	const lines = reversed.map((e) => {
+		const time = e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z");
+		const dataStr = e.data !== undefined ? ` | ${JSON.stringify(e.data)}` : "";
+		return `[${time}] [${e.level}] ${e.msg}${dataStr}`;
+	});
+
+	return { content: `Logs for "${moduleName}" (${entries.length} entries, newest last):\n${lines.join("\n")}` };
 }
 
 // ─── Session lifecycle ───────────────────────────────────────────────

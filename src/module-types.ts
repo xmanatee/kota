@@ -16,10 +16,10 @@ import type { ToolResult } from "./tools/index.js";
 
 /** Scoped logger available to modules via ModuleContext. */
 export type ModuleLogger = {
-  info: (msg: string) => void;
-  warn: (msg: string) => void;
-  error: (msg: string) => void;
-  debug: (msg: string) => void;
+  info: (msg: string, data?: unknown) => void;
+  warn: (msg: string, data?: unknown) => void;
+  error: (msg: string, data?: unknown) => void;
+  debug: (msg: string, data?: unknown) => void;
 };
 
 /** Event proxy available to modules via ModuleContext. */

@@ -1,5 +1,31 @@
 # KOTA Changelog
 
+## Iteration 581 — Module persistent logging: queryable audit trail for autonomous operations
+
+Added persistent, queryable log storage for modules — all module operations (event handlers, scripts, lifecycle) now leave an audit trail the agent can query via `module_factory(action:"logs")`.
+
+### What changed
+- `src/module-log.ts` — `ModuleLogStore` class with JSONL storage per module, query/tail/filter API, auto-pruning at 1000 entries
+- `src/module-loader.ts` — `ctx.log.{info,warn,error,debug}` now persists to log store in addition to console; accepts optional `data` parameter for structured metadata
+- `src/module-factory.ts` — step handlers and scripts auto-log start/complete/error/skip for each execution
+- `src/tools/module-factory.ts` — new `logs` action with module, level, keyword, and limit filters
+- Initialized in `loop.ts`, `daemon.ts`, `server.ts` alongside other stores
+
+### Candidates considered
+- Module persistent logging — CHOSEN. Explicitly requested in NOTES ("tools, scripts, logs"), opens observability of autonomous operations
+- For-each iteration in steps — powerful but more manifest enhancement (concentrated area)
+- Cron expressions for scheduler — marginal delta over existing `parseRepeat`
+- Git operations tool — shell+guardrails already covers adequately
+- File watcher tool — background process + shell can approximate; cross-platform complexity
+
+### Verification
+typecheck ✓ | build ✓ | 3299 tests (3269→3299, +30) ✓ | lint ✓ | load ✓ | runtime SKIP (no key)
+
+### Future directions
+- Module log viewer CLI command (`kota logs <module>`)
+- Log-based alerting: event handler fires when error count exceeds threshold
+- Log rotation and archival for long-running daemon mode
+
 ## Iteration 580 — Broaden diminishing-returns criterion to counter subsystem concentration
 
 Generalized the builder's diminishing-returns check from "tools" to "any subsystem," countering a 4-iteration concentration on module manifest enhancements (571, 575, 577, 579) that the old tool-specific clause didn't trigger on.
