@@ -1,5 +1,85 @@
 # KOTA Changelog
 
+## Iteration 567 — SQLite Tool for Database Queries
+
+Built sqlite tool enabling the agent to query SQLite databases via the sqlite3 CLI, adding structured data access as a new capability class.
+
+### What was built
+
+**Core: `src/tools/sqlite.ts`**
+
+3 actions: `tables`, `schema`, `query`.
+
+- `tables` — lists all user tables in the database
+- `schema` — shows column definitions (type, constraints, defaults), row count, and DDL
+- `query` — executes arbitrary SQL, returns results as formatted markdown tables
+
+Implementation details:
+- Uses `sqlite3 -json` for structured output parsing. Results formatted as aligned markdown tables.
+- Mutations (INSERT/UPDATE/DELETE/REPLACE/CREATE/ALTER/DROP) append `SELECT changes()` in the same sqlite3 session to report affected row counts.
+- Table name validation via regex (`/^[\w.]+$/`) prevents injection in PRAGMA/schema queries.
+- Input validation runs before I/O: action-specific params (sql, table) checked first, then file existence.
+- Max 100 rows displayed, 50K char output cap. 30s timeout, 10MB buffer.
+- `tables` and `schema` require the database file to exist. `query` allows creating new databases (sqlite3 auto-creates on write).
+
+**Registration**: Core tool (always available). Added to `CORE_TOOL_NAMES` in `tool-groups.ts`, `tools/index.ts`, system prompt, and `DESIGN.md`. Risk: `moderate`.
+
+**Platform support**:
+- macOS: `sqlite3` pre-installed (part of macOS)
+- Linux: `apt install sqlite3` or equivalent
+
+### Before/after
+
+- Before: Agent must write and execute raw Python/Node code to interact with databases. Requires `code` group enabled, language boilerplate, library imports. Results come back as raw text.
+- After: First-class SQL support with `sqlite(query, "SELECT * FROM users")`. Markdown table output. Schema inspection. Mutation tracking. Always available — no group enablement needed.
+
+### Why this matters
+
+Databases are ubiquitous — nearly every non-trivial application uses one, and SQLite is the most deployed database engine in the world. A general-purpose agent that can't query databases is significantly limited for data analysis, application debugging, structured storage, and inspection tasks.
+
+Use cases unlocked:
+- Analyze application databases (inspect tables, run queries, check data integrity)
+- Query browser history, mobile app databases, analytics stores
+- Use SQLite as structured cache/store for agent workflows
+- Debug data issues with schema inspection and targeted queries
+- Quick data analysis without Python/notebook boilerplate
+
+### Tests
+
+28 new tests covering:
+- Tool definition (name, required fields, action enum)
+- Input validation (missing database, unknown action, missing sql/table, invalid table names)
+- File existence checks (tables/schema require file, query doesn't)
+- Integration tests (tables listing, empty database, schema with columns/rows/DDL, nonexistent table)
+- Query tests (SELECT with markdown table output, NULL handling, empty results, JOINs, aggregates, PRAGMA, SQL errors, syntax errors)
+- Mutation tests (INSERT/UPDATE/DELETE with affected row counts, CREATE TABLE, new database creation)
+
+All 3151 tests pass (3123 existing + 28 new).
+
+### Verification
+
+- Static: `tsc --noEmit` ✅, `tsup` build ✅
+- Unit: 3151/3151 pass ✅
+- Lint: all 7 changed files clean ✅
+- Load: `node dist/cli.js --help` ✅
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **SQLite tool** — CHOSEN. Adds fundamentally new capability: structured database queries. Zero npm deps (sqlite3 CLI). Enables entire categories of work: data analysis, app debugging, structured storage. The most deployed database engine in the world, pre-installed on macOS.
+2. **Approval queue for daemon mode** — Queue dangerous operations for async human review instead of denying. Interesting but changes daemon workflow significantly and needs careful UX design.
+3. **More provider types (TaskProvider, SchedulerProvider)** — Extend iter 563's pattern. Current backends work fine and nobody is requesting swaps yet. Premature.
+4. **Module scripts/logging** — Modules define executable scripts and structured logs. No external modules being actively created. Premature.
+5. **Browser automation (Playwright)** — Programmatic web interaction. Heavy npm dependency, violates minimal deps principle.
+
+### Future directions
+
+- **PostgreSQL/MySQL support**: Extend with `psql` and `mysql` CLI backends. Same tool, different `database` URI schemes (`postgres://...`, `mysql://...`).
+- **Query history**: Track recent queries per database for reuse and audit.
+- **Schema diff**: Compare schemas between databases or across time.
+- **Data export**: Export query results to CSV/JSON files for downstream processing.
+- **Read-only mode**: Add a `readonly` flag that opens the database in read-only mode (sqlite3 URI `?mode=ro`).
+
 ## Iteration 566 — Fix System-Prompt Test Gap in Tool Checklist
 
 Added system-prompt.ts and system-prompt.test.ts to the tool registration checklist, fixing a recurring rework source where the builder adds tools but doesn't anticipate system-prompt test failures.

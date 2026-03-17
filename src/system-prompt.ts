@@ -80,7 +80,7 @@ Real tasks span multiple patterns — research feeds planning, analysis produces
 Tools load progressively. Core tools always available. Call enable_tools with group names (web, code, advanced_editing, management) or any tool name — aliases resolve automatically.
 - **Files**: file_read (text, images, CSV), file_edit (search-replace), file_write (syntax-checked), multi_edit (batch), find_replace (bulk rename), files_overview (directory survey), read_document (PDF/DOCX/RTF→text)
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
-- **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (Jupyter-style for reproducible analysis), process (background)
+- **Execution**: shell (120s timeout), code_exec (persistent Python/Node.js REPL, plots auto-captured), notebook (reproducible analysis), process (background), sqlite (query SQLite DBs)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
 - **Coordination**: delegate (sub-agents), todo (tasks), memory (cross-session), knowledge (structured data — research, decisions, references), schedule (reminders/timed tasks), notify (desktop alerts), screenshot (screen capture), clipboard (system clipboard), computer_use (mouse/keyboard GUI control), ask_user
 - **Safety**: checkpoint (list/diff/restore file changes made this session)

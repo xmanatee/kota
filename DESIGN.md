@@ -298,6 +298,32 @@ Control mouse and keyboard to interact with the computer's GUI. Combined with th
 - Tool detection (`cliclick`, `xdotool`) is cached per-session with `resetComputerUseState()` for testing.
 - Accessibility permission errors are detected and surfaced with setup instructions.
 
+### SQLite Queries (`src/tools/sqlite.ts`)
+
+Query SQLite databases via the `sqlite3` CLI. Enables data analysis, application debugging, structured queries, and database inspection — a fundamental capability for a general-purpose agent.
+
+**Actions**:
+- `tables` — list all user tables in the database
+- `schema` — show column definitions, row count, and DDL for a table
+- `query` — run arbitrary SQL and return results as markdown tables
+
+**Implementation**:
+- Uses `sqlite3 -json` for structured output parsing. Results formatted as markdown tables with column alignment.
+- Mutations (INSERT/UPDATE/DELETE) append `SELECT changes()` in the same session to report affected rows.
+- Table name validation via regex to prevent injection in PRAGMA/schema queries.
+- Max 100 rows displayed, 50K char output cap. 30s timeout, 10MB buffer.
+
+**Platform support**:
+- **macOS**: `sqlite3` pre-installed (part of macOS).
+- **Linux**: `apt install sqlite3` or equivalent.
+
+**Design decisions**:
+- Core tool (always available) — database queries are broadly useful across domains.
+- Classified as `moderate` in guardrails — SQL can mutate data but is confined to local files.
+- Zero npm dependencies — uses only the `sqlite3` CLI.
+- `tables` and `schema` require the database file to exist. `query` allows creating new databases (sqlite3 creates on first write).
+- Complements `code_exec` (Python/Node can also query SQLite, but this tool is faster and produces cleaner output for common queries).
+
 ### Knowledge Store Events
 
 Knowledge CRUD operations emit typed events on the event bus, enabling reactive data-driven workflows:

@@ -74,7 +74,7 @@ describe("SYSTEM_PROMPT", () => {
       "grep", "glob", "todo", "repo_map", "delegate",
       "web_fetch", "memory", "web_search", "ask_user",
       "http_request", "process", "code_exec", "find_replace",
-      "notebook",
+      "notebook", "sqlite",
     ];
     for (const name of toolNames) {
       expect(SYSTEM_PROMPT).toContain(name);

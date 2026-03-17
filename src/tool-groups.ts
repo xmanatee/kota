@@ -25,6 +25,7 @@ export const CORE_TOOL_NAMES = new Set([
   "read_document",
   "clipboard",
   "computer_use",
+  "sqlite",
 ]);
 
 const enabledGroups = new Set<string>();

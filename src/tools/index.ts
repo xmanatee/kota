@@ -24,6 +24,7 @@ import { registration as readDocument } from "./read-document.js";
 import { registration as repoMap } from "./repo-map.js";
 import { registration as screenshot } from "./screenshot.js";
 import { registration as shell } from "./shell.js";
+import { registration as sqlite } from "./sqlite.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import { registration as webFetch } from "./web-fetch.js";
 import { registration as webSearch } from "./web-search.js";
@@ -87,6 +88,7 @@ const registrationImports = [
   () => readDocument,
   () => clipboard,
   () => computerUse,
+  () => sqlite,
 ];
 
 let _coreRegistrations: ToolRegistration[] | null = null;
