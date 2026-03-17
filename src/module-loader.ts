@@ -14,6 +14,7 @@ import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { CreateSessionOptions, KotaModule, ModuleContext, ModuleEventProxy, ModuleLogger, ModuleSession, RouteRegistration, ToolDef } from "./module-types.js";
+import { getProviderRegistry } from "./providers.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { deregisterModuleTools, getRegisteredTools, registerTool } from "./tools/index.js";
@@ -102,6 +103,23 @@ export class ModuleLoader {
           throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");
         }
         return this.sessionFactory(opts ?? {});
+      },
+      registerProvider: (type: string, provider: unknown): void => {
+        const reg = getProviderRegistry();
+        if (!reg) {
+          log.warn(`Cannot register provider for "${type}" — registry not initialized`);
+          return;
+        }
+        if (!modName) {
+          log.warn(`Cannot register provider without a module name`);
+          return;
+        }
+        reg.register(type, modName, provider);
+        log.info(`Registered as provider for "${type}"`);
+      },
+      getProvider: <T>(type: string): T | null => {
+        const reg = getProviderRegistry();
+        return reg?.get<T>(type) ?? null;
       },
     };
   }
@@ -211,6 +229,9 @@ export class ModuleLoader {
         console.error(`[kota] Module "${mod.name}" failed to load: ${msg}`);
       }
     }
+
+    // Activate configured providers after all modules have loaded
+    this.activateConfiguredProviders();
 
     if (this.modules.length > 0 && this.verbose) {
       console.error(
@@ -410,6 +431,28 @@ export class ModuleLoader {
     this.moduleToolCounts.clear();
     this.promptSections.clear();
     this.bus = null;
+
+    // Clear provider registry
+    const reg = getProviderRegistry();
+    if (reg) reg.clear();
+  }
+
+  /** Activate providers specified in config.providers after all modules are loaded. */
+  private activateConfiguredProviders(): void {
+    const providers = this.config.providers;
+    if (!providers) return;
+    const reg = getProviderRegistry();
+    if (!reg) return;
+
+    for (const [type, name] of Object.entries(providers)) {
+      if (!reg.setActive(type, name)) {
+        console.error(
+          `[kota] Provider "${name}" for "${type}" not found. Available: ${reg.list(type).join(", ") || "(none)"}`,
+        );
+      } else if (this.verbose) {
+        console.error(`[kota] Provider for "${type}" set to "${name}"`);
+      }
+    }
   }
 
   getLoadedModules(): string[] {

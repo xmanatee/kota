@@ -310,6 +310,8 @@ describe("resolveModuleTools", () => {
     listTools: () => [],
     events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
     createSession: () => ({ send: async () => "", close: () => {} }),
+    registerProvider: () => {},
+    getProvider: () => null,
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

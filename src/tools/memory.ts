@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getMemoryStore } from "../memory.js";
+import { getMemoryProvider } from "../providers.js";
 import type { ToolResult } from "./index.js";
 
 export const memoryTool: Anthropic.Tool = {
@@ -56,7 +56,7 @@ export async function runMemory(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
   const action = input.action as string;
-  const store = getMemoryStore();
+  const store = getMemoryProvider();
 
   switch (action) {
     case "save": {

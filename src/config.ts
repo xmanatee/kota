@@ -38,6 +38,9 @@ export type KotaConfig = {
 
   /** Per-module configuration. Keys are module names, values are module-specific settings. */
   modules?: Record<string, Record<string, unknown>>;
+
+  /** Provider overrides. Keys are service types (e.g. "memory", "knowledge"), values are provider names. */
+  providers?: Record<string, string>;
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -106,6 +109,14 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(modules).length > 0) out.modules = modules;
   }
 
+  if (typeof raw.providers === "object" && raw.providers !== null && !Array.isArray(raw.providers)) {
+    const providers: Record<string, string> = {};
+    for (const [type, name] of Object.entries(raw.providers)) {
+      if (typeof name === "string" && name) providers[type] = name;
+    }
+    if (Object.keys(providers).length > 0) out.providers = providers;
+  }
+
   return out;
 }
 
@@ -131,6 +142,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       };
     } else if (key === "modules" && typeof val === "object") {
       merged.modules = { ...a.modules, ...(val as Record<string, Record<string, unknown>>) };
+    } else if (key === "providers" && typeof val === "object") {
+      merged.providers = { ...a.providers, ...(val as Record<string, string>) };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];

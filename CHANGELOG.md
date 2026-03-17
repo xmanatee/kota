@@ -1,5 +1,95 @@
 # KOTA Changelog
 
+## Iteration 563 — Provider System for Swappable Core Services
+
+Built typed provider interfaces (MemoryProvider, KnowledgeProvider) and a ProviderRegistry so modules can swap core service backends via config — enabling plug-and-play memory, knowledge, and future service implementations.
+
+### What was built
+
+**Core: Provider interfaces and registry (`src/providers.ts`)**
+
+Two typed interfaces extracted from existing class signatures:
+- `MemoryProvider` — `save`, `search`, `list`, `update`, `delete` (matches `MemoryStore`)
+- `KnowledgeProvider` — `create`, `read`, `update`, `delete`, `search`, `list`, `count` (matches `KnowledgeStore`)
+
+`ProviderRegistry` class with `register`, `get`, `setActive`, `list`, `getByName`, and `listTypes`. Singleton pattern (`initProviderRegistry`/`getProviderRegistry`/`resetProviderRegistry`).
+
+Convenience getters (`getMemoryProvider()`, `getKnowledgeProvider()`) that resolve from the registry with fallback to built-in singletons — zero-config backward compatibility.
+
+**Module integration (`src/module-types.ts`, `src/module-loader.ts`)**
+
+Two new `ModuleContext` methods:
+- `ctx.registerProvider(type, provider)` — module registers itself as a service provider
+- `ctx.getProvider<T>(type)` — module retrieves the active provider for a type
+
+`ModuleLoader.activateConfiguredProviders()` runs after `loadAll()` — reads `config.providers` and switches active providers to match. Warns if a configured provider isn't registered.
+
+`ModuleLoader.unloadAll()` clears the provider registry — no stale providers across sessions.
+
+**Config (`src/config.ts`)**
+
+New `providers` field in `KotaConfig`:
+```json
+{ "providers": { "memory": "my-vector-module", "knowledge": "default" } }
+```
+Sanitized and merged like other config sections.
+
+**Tool integration (`src/tools/memory.ts`, `src/tools/knowledge.ts`)**
+
+Memory and knowledge tools now resolve via `getMemoryProvider()` / `getKnowledgeProvider()` from the registry instead of direct singleton access. Transparent — same behavior with zero config.
+
+**Session lifecycle (`src/loop.ts`)**
+
+`initProviderRegistry()` and `registerDefaultProviders()` called during session init. `resetProviderRegistry()` on close.
+
+### Before/after
+
+- Before: Changing how memory works (e.g., vector DB search) requires modifying `src/memory.ts` directly — fork the project.
+- After: Create a module that implements `MemoryProvider`, set `config.providers.memory = "my-module"`, and the agent uses it transparently. No core code changes.
+
+### Why this matters
+
+Directly addresses the owner's top request: "swap one memory module for another and it would work." The provider system generalizes the `SecretProvider` pattern from `secrets.ts` to any core service. This is the foundation for:
+- Vector DB memory (semantic search instead of keyword matching)
+- SQLite knowledge storage (performance at scale)
+- Cloud-synced memory (multi-device agents)
+- Any community-built alternative implementation
+
+### Tests
+
+24 new tests covering:
+- ProviderRegistry CRUD (register, get, setActive, replace, clear)
+- Singleton lifecycle (init, get, reset)
+- Interface conformance (MemoryStore → MemoryProvider, KnowledgeStore → KnowledgeProvider)
+- Convenience getters (fallback to singletons, custom provider override)
+- Default provider registration and activation
+
+All 3080 tests pass (3056 existing + 24 new).
+
+### Verification
+
+- Static: `tsc --noEmit` ✅, `tsup` build ✅
+- Unit: 3080/3080 pass ✅
+- Lint: all 14 changed files clean ✅
+- Load: `node dist/cli.js --help` ✅
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Candidates considered
+
+1. **Provider system for swappable services** — CHOSEN. Directly addresses owner's plug-and-play vision. Architecture work that enables new properties.
+2. **Streaming process manager improvements** — Background process management already exists (`src/tools/process.ts`). Incremental value.
+3. **Workflow engine** — Multi-step plan execution with checkpointing. Overlaps with what the LLM loop + todo already does naturally.
+4. **Tool composition framework** — Declarative tool pipelines. The LLM is already good at orchestrating multi-step workflows.
+5. **Data analysis pipeline** — Dedicated tabular data tools. `code_exec` with Python/pandas handles this adequately.
+
+### Future directions
+
+- **More provider types**: `TaskProvider`, `SchedulerProvider`, `HistoryProvider` — extend the pattern to other singletons.
+- **Provider discovery CLI**: `kota providers list` to show registered providers per type.
+- **Built-in alternative providers**: Ship a `sqlite-knowledge` module that uses SQLite for better query performance.
+- **Module interface contracts for tools**: Extend `ToolDef` with `risk` field so module tools self-declare risk level (from iter 561 future directions).
+- **Auto-derive tool groups from registry**: Break the `tool-groups.ts` circular dep to derive groups from `registration.group`.
+
 ## Iteration 562 — Compress Builder Instructions
 
 Compressed BUILDER_LESSONS.md from 179 to 75 lines (-58%), removing ineffective content and adding a targeted circular-import lesson from iter 561's rework analysis.

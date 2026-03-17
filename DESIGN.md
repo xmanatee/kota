@@ -137,12 +137,60 @@ Pluggable architecture where features are self-contained modules instead of hard
 - **Event proxy** (iter 551): `ctx.events.{emit,on,once}` wraps the event bus. Modules can emit and subscribe to events without importing the event bus singleton. Subscriptions made via `ctx.events` are auto-tracked and cleaned up on module unload. The proxy resolves `this.bus` lazily at call time — safe to use before `connectEvents()` (emit is no-op, on returns dummy unsub). Tool runners access via closure for event-driven coordination.
 - **Session factory** (iter 551): `ctx.createSession(options?)` creates `ModuleSession` instances (send + close) without importing `AgentSession`. Avoids circular imports via dependency injection — `AgentSession` sets a factory on `ModuleLoader` via `setSessionFactory()`. Sessions default to `noHistory: true`, `historySource: "action"`, `reflectionEnabled: false`, and `BufferTransport`. Throws if called before factory injection (e.g., in CLI-only mode).
 - **Config type**: `KotaConfig.modules` is a `Record<string, Record<string, unknown>>`, sanitized and merged like other config sections.
+- **Provider registration** (iter 563): `ctx.registerProvider(type, provider)` registers the module as a provider for a service type (e.g., "memory", "knowledge"). `ctx.getProvider<T>(type)` retrieves the active provider. See Provider System below.
 
 **Design decisions**:
 - Dependency ordering via topological sort — a module can declare dependencies on other modules.
 - The core without modules loaded still functions as a basic agent (requirement #8 from the plan).
 - Tool registration via the existing `registerTool()` mechanism — modules don't need special plumbing.
 - Single loading path: both CLI and agent sessions use `ModuleLoader` — no ad-hoc module iteration.
+
+### Provider System (`src/providers.ts`)
+
+Typed interfaces for swappable core services. Modules can register alternative implementations — swap memory from JSON to SQLite, vector DB, or cloud storage by implementing an interface and setting config.
+
+**Interfaces**:
+- `MemoryProvider` — `save`, `search`, `list`, `update`, `delete`. The built-in `MemoryStore` structurally satisfies this.
+- `KnowledgeProvider` — `create`, `read`, `update`, `delete`, `search`, `list`, `count`. The built-in `KnowledgeStore` structurally satisfies this.
+
+**ProviderRegistry**:
+- `register(type, name, provider)` — register a named provider for a service type
+- `get<T>(type)` — get the active provider (typed)
+- `setActive(type, name)` — switch the active provider
+- `list(type)` — list registered providers for a type
+
+**Config** (`.kota/config.json`):
+```json
+{
+  "providers": {
+    "memory": "my-vector-memory",
+    "knowledge": "default"
+  }
+}
+```
+
+**Module integration**: Modules register as providers via `ctx.registerProvider(type, provider)` in `onLoad`. After all modules are loaded, `ModuleLoader.activateConfiguredProviders()` activates the providers specified in config.
+
+**Fallback**: If no provider is registered for a type, the convenience getters (`getMemoryProvider()`, `getKnowledgeProvider()`) fall back to the built-in singletons. This means the agent works identically with zero config.
+
+**How to swap memory backend (example)**:
+```typescript
+const vectorMemoryModule: KotaModule = {
+  name: "vector-memory",
+  description: "Vector DB backed memory with semantic search",
+  onLoad: (ctx) => {
+    const provider = new VectorMemoryProvider(ctx);
+    ctx.registerProvider("memory", provider);
+  },
+};
+```
+Then in config: `{ "providers": { "memory": "vector-memory" } }`
+
+**Design decisions**:
+- Structural typing — existing classes don't need `implements MemoryProvider`. TypeScript duck typing ensures conformance automatically.
+- Follows the `SecretProvider` pattern from `secrets.ts` but generalized to any service type.
+- Default providers registered during init, before modules load. Modules can override.
+- Registry cleared on `ModuleLoader.unloadAll()` — no stale providers across sessions.
 
 ### Desktop Notifications (`src/tools/notify.ts`)
 

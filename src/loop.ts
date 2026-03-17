@@ -15,6 +15,7 @@ import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
+import { initProviderRegistry, registerDefaultProviders, resetProviderRegistry } from "./providers.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 import { initScheduler } from "./scheduler.js";
@@ -126,6 +127,8 @@ export class AgentSession {
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
     initChangeTracker();
+    initProviderRegistry();
+    registerDefaultProviders();
 
     this.projectContext = loadProjectContext();
     const projectContext = this.projectContext;
@@ -484,6 +487,7 @@ export class AgentSession {
     resetModuleFactory();
     resetChangeTracker();
     resetGroups();
+    resetProviderRegistry();
     this.moduleLoader.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     if (this.sessionStartTime > 0) {

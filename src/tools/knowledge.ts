@@ -7,7 +7,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { tryEmit } from "../event-bus.js";
-import { getKnowledgeStore } from "../knowledge-store.js";
+import { getKnowledgeProvider } from "../providers.js";
 import type { ToolResult } from "./index.js";
 
 export const knowledgeTool: Anthropic.Tool = {
@@ -127,7 +127,7 @@ export async function runKnowledge(
 	input: Record<string, unknown>,
 ): Promise<ToolResult> {
 	const action = input.action as string;
-	const store = getKnowledgeStore();
+	const store = getKnowledgeProvider();
 
 	switch (action) {
 		case "create": {

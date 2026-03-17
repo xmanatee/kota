@@ -16,6 +16,8 @@ const stubCtx: ModuleContext = {
   listTools: () => [],
   events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
   createSession: () => ({ send: async () => "", close: () => {} }),
+  registerProvider: () => {},
+  getProvider: () => null,
 };
 
 describe("webModule", () => {

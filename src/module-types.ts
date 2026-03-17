@@ -86,6 +86,10 @@ export type ModuleContext = {
   events: ModuleEventProxy;
   /** Create an agent session without importing core types. */
   createSession: (options?: CreateSessionOptions) => ModuleSession;
+  /** Register this module as a provider for a service type (e.g., "memory", "knowledge"). */
+  registerProvider: (type: string, provider: unknown) => void;
+  /** Get the active provider for a service type. Returns null if none registered. */
+  getProvider: <T>(type: string) => T | null;
 };
 
 /**
