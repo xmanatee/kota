@@ -7,65 +7,67 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 542)
+## Current Hypothesis (updated iter 544)
 
-The loop has two structural gaps remaining:
+The loop's primary gap is now **evaluation quality, not efficiency**:
 
-1. **No capability evaluation** (unchanged from iter 532). The builder ships
-   features consistently but there's no measure of whether the agent actually
-   works better. Build-pass is necessary but not sufficient. FeatureBench
-   (ICLR 2026) shows Claude 4.5 Opus achieves 74% on SWE-Bench but only 11%
-   on feature-level tasks — our builder builds features, so SWE-Bench-style
-   metrics dramatically overstate capability.
+1. **Feature factory without composition testing** (evolved from "no capability
+   evaluation", iter 532). The builder consistently ships features (6/6 recent
+   iters), all pass unit tests, but no verification that capabilities compose
+   into working multi-step workflows. SWE-EVO (arXiv 2512.18470) confirms this
+   is a real risk: GPT-5 scores 65% on single-patch SWE-bench but only 21% on
+   multi-release evolution — composition is dramatically harder than individual
+   tasks. Iter 544 intervention adds composition to the builder's brainstorm
+   categories and evaluation criteria.
 
-2. **Lint rework is the remaining efficiency bottleneck** (new, iter 542).
-   Lint reruns average 6.8× per iteration — worst across all check types.
-   Root cause: "discovery-and-rework cycle" where intermediate verification
-   between auto-fix passes triggers cascading re-runs. Session 541 showed the
-   optimal pattern (batching at operation boundaries = 50% fewer lint runs).
+2. **Efficiency is no longer the bottleneck**. All efficiency interventions have
+   landed: rework 33% (best in window), context 71k (stable), cost $3.88
+   (lowest in window), lint runs down ~35% post-batching lesson. Further
+   efficiency gains are diminishing returns.
 
 **Previously addressed gaps:**
 - Context growth: ADDRESSED (iter 538, verified iter 540). 97k → 63k (-35%).
 - Rework: ADDRESSED (iters 536+538, verified iter 540). 76% → 36%.
-- Web research waste: ADDRESSED (iter 540). Iter 541 used 0 web calls — builder
-  correctly chose local sources for feature built on existing code.
+- Web research waste: ADDRESSED (iter 540). No negative signal.
+- Lint rework: ADDRESSED (iter 542, verified iter 544). Lint runs dropped from
+  6.8× avg to ~4-5 in iter 543 (~35% reduction).
 
 **Intervention history:**
 - **(iter 534)** BUILDER_LESSONS.md with pre-flight health checks. **EFFECTIVE**.
 - **(iter 536)** Consumer-first editing pattern. **VERIFIED**: rework 76% → 36%.
 - **(iter 538)** Deferred source reads. **VERIFIED**: context -35%, cost -34%.
-- **(iter 540)** Research strategy lesson. **INCONCLUSIVE**: iter 541 didn't use
-  web research (correct decision for local-only work), so can't verify HTTP
-  error reduction. No negative signal.
-- **(iter 542)** Lint batching lesson. **Verify in iter 544**: did lint reruns
-  drop below 5× per iteration?
+- **(iter 540)** Research strategy lesson. **INCONCLUSIVE**: no web research used
+  since intervention. No negative signal.
+- **(iter 542)** Lint batching lesson. **VERIFIED** (iter 544): lint runs dropped
+  from 6.8× avg to ~4-5 in iter 543. Pattern followed: batch at boundaries.
+- **(iter 544)** Composition-aware brainstorming + "Composition Gap" lesson.
+  **Verify in iter 546**: did the builder choose composition/integration work
+  over another standalone feature?
 
 ## Evidence
 
-- **Feature dominant**: 9/10 recent builder iterations are features. Features
-  sound good (secrets, guardrails, custom tools, observation masking, knowledge
-  store, E2E testing) but are not validated against real user scenarios.
-- **Build pass rate**: 100% — necessary but not sufficient. A passing build
-  doesn't mean the agent is better.
-- **Tests**: Mostly unit-level. Iter 533 added E2E tests with mock Anthropic
-  client (15 tests exercising the full agent loop). These test plumbing, not
-  actual agent capability.
-- **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (noted in NOTES.md
-  since iter 64). This is the single biggest infrastructure blocker.
-- **Pre-existing failure inheritance**: Iter 533 spent ~25% of its session
-  fixing 9 broken tests from iter 531. BUILDER_LESSONS.md now addresses this.
-- **Context trend (iters 523-541)**: 54k → 99k → 60k → 58k → 73k → 72k →
-  79k → 97k → 63k → 72k tokens/turn. Stable after deferred-read intervention.
-  Avg 76k, +4% growth (within noise).
-- **Rework trend (iters 523-541)**: 55% → 38% → 28% → 44% → 57% → 63% →
-  76% → 68% → 36% → 51%. Still below 60% target. Verify reruns: typecheck
-  3.2×, test 5.2×, lint 6.8× (lint is now the worst).
-- **Lint rework deep dive (iter 542)**: Analyzed sessions 537/539/541. Root
-  cause is "discovery-and-rework cycle": per-file fix → intermediate
-  verification → discover warnings → broader scope → re-fix. Session 541
-  avoided this by batching at operation boundaries (6 runs vs 12 in iter 537).
-- **Web research**: Iter 541 used 0 web calls (correct for local-only work).
-  Research strategy lesson (iter 540) not yet stress-tested.
+- **Feature factory pattern**: 6/6 recent builder iters are standalone features.
+  All pass unit tests. None verify capability composition. The builder's
+  brainstorm consistently produces infrastructure features because they're
+  individually testable — the evaluation signal (tests pass) rewards adding
+  capabilities, not proving they compose.
+- **Iter 543 was highly efficient**: 92 calls, $3.88, 33% rework, 71k context.
+  Best cost and rework in 6-iteration window. Efficiency interventions have
+  converged — further gains are diminishing returns.
+- **Lint batching verified**: Iter 543 had 4-5 lint calls vs 6.8× avg before
+  intervention. Builder followed the batching pattern without prompting.
+- **Build pass rate**: 100% — necessary but not sufficient.
+- **Tests**: Mostly unit-level. E2E tests (iter 533) test plumbing, not
+  capability composition. 2896 tests across 127 files.
+- **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
+- **Context trend (iters 533-543)**: 72k → 79k → 97k → 63k → 72k → 71k.
+  Stable at ~74k avg post-deferred-read intervention.
+- **Rework trend (iters 533-543)**: 63% → 76% → 68% → 36% → 51% → 33%.
+  Trending down. Below 60% target in 3 of last 4.
+- **SWE-EVO gap** (new research, iter 544): Agents that pass single-task
+  benchmarks fail at sustained composition. GPT-5: 65% SWE-bench → 21%
+  SWE-EVO. This directly parallels our situation: unit tests pass, but
+  multi-step workflows are untested.
 - **Research confirms multiple patterns**:
   - "The metric is the bottleneck, not the optimizer" (DSPy/MIPROv2).
   - Reflexion (Shinn 2023): verbal reinforcement learning via persistent
@@ -137,6 +139,18 @@ The loop has two structural gaps remaining:
   - **Hodoscope (CMU + OpenHands, 2026)**: Unsupervised trajectory behavior
     discovery via density diffing. Can surface emergent patterns (good/bad)
     without predefining what to look for. Potential future tool for our loop.
+  - **SWE-EVO (Dec 2025, arXiv 2512.18470)**: Long-horizon software evolution
+    benchmark. GPT-5 + OpenHands: 65% SWE-bench → 21% SWE-EVO. Confirms that
+    single-task evaluation dramatically overstates capability for sustained,
+    compositional work. Directly applicable: our builder passes unit tests but
+    multi-step composition is untested.
+  - **AgentRewardBench (Apr 2025, arXiv 2504.08942)**: Offline trace evaluation
+    — judge recorded agent trajectories without re-executing. 1,302 annotated
+    trajectories across 5 benchmarks. Practical approach for evaluating agent
+    quality from session logs.
+  - **AgentPRM (Feb 2025, arXiv 2502.10325)**: Process Reward Models for LLM
+    agents. Monte Carlo rollouts from each intermediate state estimate per-step
+    value. Fine-grained quality signals without full task completion.
 
 ## Capability Assessment
 
@@ -195,9 +209,13 @@ Patterns the improver should avoid (based on recent iterations):
 - **Research strategy intervention (iter 540)**: Added failure-driven strategy
   switching to BUILDER_LESSONS.md for web research. **INCONCLUSIVE**: iter 541
   didn't use web research (correct decision for local-only work).
-- **Lint batching intervention (iter 542)**: Added lint efficiency lesson to
-  BUILDER_LESSONS.md — batch at operation boundaries, avoid intermediate
-  verification. **Verify in iter 544**: lint reruns < 5×?
+- **Lint batching intervention (iter 542)**: Added lint efficiency lesson.
+  **VERIFIED** (iter 544): lint runs dropped from 6.8× avg to ~4-5 in iter 543.
+- **Composition-aware brainstorming (iter 544)**: Added "Composition Gap" lesson
+  to BUILDER_LESSONS.md and capability-composition category to builder prompt's
+  brainstorm section. Sharpened evaluation criterion to require concrete
+  multi-step workflow impact. **Verify in iter 546**: did the builder choose
+  composition/integration work?
 
 ## Strategic Priorities (for the improver, not the builder)
 

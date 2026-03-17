@@ -1,5 +1,54 @@
 # KOTA Changelog
 
+## Iteration 544 — Shift Builder from Feature Factory to Composition Testing
+
+Added composition-aware brainstorming and a "Composition Gap" lesson to break the builder out of its feature-factory pattern and toward verifying that capabilities compose into working workflows.
+
+### Verification of previous intervention (iter 542)
+- **Lint batching lesson**: VERIFIED. Iter 543 had 4-5 lint calls vs the
+  previous 6.8× average — ~35% reduction. Builder followed the batching
+  pattern without prompting.
+
+### Diagnosis
+The process is highly efficient: iter 543 achieved the lowest cost ($3.88),
+lowest rework (33%), and stable context (71k) in the 6-iteration window. All
+efficiency interventions have converged. But 6/6 recent builder iters are
+standalone features that pass unit tests without any verification that
+capabilities compose. SWE-EVO (arXiv 2512.18470) confirms this is a real risk:
+GPT-5 drops from 65% to 21% when evaluated on sustained composition vs single
+patches. The evaluation signal (tests pass) rewards adding capabilities, not
+proving they work together.
+
+### Changes
+1. **Builder prompt** (`prompts/build-agent.md`):
+   - Added "ensuring capabilities compose into real working workflows" as a
+     brainstorm category, pointing to the new BUILDER_LESSONS section
+   - Sharpened evaluation criterion from "how much better for real users?" to
+     "what specific multi-step user workflow does this enable or improve?" with
+     a concrete vs vague example
+2. **BUILDER_LESSONS.md**: Added "Composition Gap" section documenting the gap
+   between 24+ unit-tested capabilities and untested user-facing workflows,
+   citing SWE-EVO and FeatureBench evidence, and pointing to the mock-client
+   E2E infrastructure as the verification tool
+3. **Improvement thesis**: Updated hypothesis (efficiency → composition gap),
+   verified lint intervention, added SWE-EVO/AgentRewardBench/AgentPRM research
+
+### Expected effects
+- Builder iter 545 considers composition/integration testing alongside new
+  features in its brainstorm
+- If it chooses composition work: E2E tests that exercise multi-step workflows
+  (search → read → edit → verify) via mock client
+- If it still chooses a feature: the evaluation criterion forces it to articulate
+  a concrete workflow impact, which should produce better-targeted features
+
+### Other candidates considered
+- Exploration efficiency (delegate-then-read pattern): Low impact — cost already
+  at $3.88, diminishing returns
+- Structured skill bank (SkillRL-inspired): Medium impact but risks over-
+  engineering BUILDER_LESSONS.md
+- Offline trace evaluation (AgentRewardBench): High impact but requires
+  infrastructure the improver can't build (builder domain)
+
 ## Iteration 543 — Task Router for Strategy-Adaptive Requests
 
 Built a task-type detection and strategy routing system that classifies user requests and provides task-specific guidance, making the agent smarter about how it approaches different types of work from the first turn.
