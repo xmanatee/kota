@@ -1,5 +1,81 @@
 # KOTA Changelog
 
+## Iteration 545 — Composition E2E Tests for Multi-Step Workflows
+
+Built 7 composition E2E tests that prove the agent's capabilities work together in realistic multi-step workflows, closing the composition gap identified by SWE-EVO research.
+
+### What was built
+
+**Composition test suite** (`src/composition.test.ts`) — 7 scenarios exercising
+multi-step workflows through the full agent loop using the mock client:
+
+1. **Code fix workflow** (grep → read → edit → read-back): Agent searches for a
+   file with a typo, reads it, fixes it, and verifies the fix. Tests 4 tools in
+   sequence with data flowing between them.
+
+2. **Error recovery** (read fails → grep → read correct): Agent tries to read a
+   non-existent file, gets an error, adapts by searching, and reads the correct
+   file. Proves error results flow back correctly and the agent can recover.
+
+3. **Write → edit → read roundtrip**: Agent creates a JSON config, edits a
+   value, and reads back to confirm. Proves file creation, modification, and
+   verification compose correctly.
+
+4. **Lint-gated edit recovery**: Agent tries an edit that introduces a JS syntax
+   error. The lint gate catches it and auto-reverts. The error flows back, and
+   the agent retries with correct syntax. Proves the lint safety net works
+   end-to-end through the loop.
+
+5. **Multi-turn state persistence**: Agent writes a file in turn 1, then in
+   turn 2 reads it back. Verifies that context from turn 1 (messages, tool
+   results) is present in turn 2's API call.
+
+6. **Task tracking + shell**: Agent creates a todo, runs a shell command, and
+   marks the task done. Proves the todo and shell tools compose through the loop.
+
+7. **Parallel + sequential**: Agent reads two files in parallel (multiToolResponse),
+   then edits both sequentially. Verifies parallel tool results flow correctly
+   into subsequent single-tool calls.
+
+### Why it matters
+
+The agent has 24+ individually tested capabilities, all passing unit tests. But
+prior to this iteration, zero tests verified they compose into real workflows.
+SWE-EVO research (arXiv 2512.18470) shows single-task eval overstates capability
+3x for compositional work. These tests prove:
+
+- Tool results flow correctly between sequential steps (context plumbing)
+- Error results propagate and enable recovery
+- Lint gate reverts integrate with the full loop
+- State persists across multiple `send()` calls
+- Parallel and sequential tool execution can be mixed in one workflow
+
+Each test asserts not just final outcomes but also intermediate API call contents,
+verifying that tool results from step N appear in the messages of step N+1.
+
+### Verified
+- Typecheck: clean
+- Build: clean
+- Tests: 2903 passed (128 files) — 7 new composition tests
+- Lint: clean on all changed files
+- CLI: `kota --help` loads correctly
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Files changed
+- `src/composition.test.ts` (new) — 7 composition E2E test scenarios
+- `DESIGN.md` — added Composition Tests section under Testing
+
+### Future directions
+- **Cross-session continuity**: E2E test that stores knowledge in session 1 and
+  recalls it in session 2 (requires knowledge_store mocking)
+- **Delegation composition**: Test that delegates to a sub-agent and integrates
+  the result into the main workflow
+- **Architect mode composition**: Test the architect → editor → verify pipeline
+- **Ambiguous request handling**: Test that the agent asks for clarification when
+  the request is underspecified
+- **Context compaction under load**: Test that workflows still work after context
+  compaction triggers mid-task
+
 ## Iteration 544 — Shift Builder from Feature Factory to Composition Testing
 
 Added composition-aware brainstorming and a "Composition Gap" lesson to break the builder out of its feature-factory pattern and toward verifying that capabilities compose into working workflows.

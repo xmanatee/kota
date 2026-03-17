@@ -923,6 +923,20 @@ await session.send("Read the file");
 
 **Test coverage**: Core loop (single/multi-turn, parallel tools, circuit breaker), event bus (session.start/end), context persistence (multi-send), observation masking, tool integration (file_read, file_write, shell, grep, todo).
 
+### Composition Tests (`src/composition.test.ts`)
+
+Verify that individually-tested capabilities compose into working multi-step workflows. Each scenario exercises a realistic user workflow through the full agent loop:
+
+- **Code fix workflow**: grep → file_read → file_edit → file_read (verify)
+- **Error recovery**: file_read (fails) → grep (find correct file) → file_read (succeed)
+- **Write → edit → read roundtrip**: file_write → file_edit → file_read
+- **Lint-gated edit recovery**: file_edit (syntax error, auto-reverted) → file_edit (correct)
+- **Multi-turn state persistence**: file_write in turn 1 → file_read in turn 2
+- **Task tracking + shell**: todo add → shell → todo update
+- **Parallel + sequential**: multi-tool read → sequential edits
+
+Tests assert not only final outcomes but also that tool results from earlier steps flow correctly into subsequent API calls (verifying context plumbing).
+
 ## Dependencies
 
 - `@anthropic-ai/sdk` — Claude API client
