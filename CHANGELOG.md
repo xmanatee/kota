@@ -1,5 +1,83 @@
 # KOTA Changelog
 
+## Iteration 562 — Compress Builder Instructions
+
+Compressed BUILDER_LESSONS.md from 179 to 75 lines (-58%), removing ineffective content and adding a targeted circular-import lesson from iter 561's rework analysis.
+
+### What changed
+
+**BUILDER_LESSONS.md (179 → 75 lines, -58%)**
+
+Removed:
+- **Research strategy lesson** (35 lines): Zero measurable effect over 20+
+  iterations. 1/10 builder iters did web research regardless. Lesson-based
+  approach definitively failed for this behavior — it appears model-inherent.
+- **Lint efficiency explanation** (30 → 4 lines): Pattern internalized since
+  iter 544. The detailed "why" and "discovery-and-rework cycle" diagram are
+  no longer needed — the compact "batch at operation boundaries" rule suffices.
+- **Architecture as Capability examples** (28 → 10 lines): Compressed from
+  4 worked examples to the core principle. The 4th example (tool registration)
+  was completed in iter 561, making it stale.
+- **Narrow gotchas** (module count, system prompt, char budget): Merged into
+  a compact 4-line section.
+
+Added:
+- **Circular imports in cross-cutting refactors** (12 lines): In iter 561,
+  the builder lost ~30 calls (23% of session) to cascading circular ESM
+  import issues. The existing "Cross-Cutting Changes" lesson covers type
+  changes but not import-time initialization. New lesson: check import
+  chains before refactoring shared modules, use lazy init, and grep for
+  mock sites.
+
+### Iter 560 intervention verdicts
+
+- **Pattern lock counter** (diminishing returns in eval criterion): PARTIAL.
+  Builder chose architecture-adjacent work, but still tool-related.
+- **Batch-edit lesson**: FAILED for iter 561. Root cause was circular deps,
+  not insufficient batching. Lesson retained but wasn't relevant.
+- **Research softening**: FAILED. 0 web research. Removed the lesson entirely.
+
+### Why this matters
+
+The ETH Zurich AGENTS.md study (2602.11988) found verbose context files
+reduce agent success by 3% and increase cost by 20%. The Prompt Instruction
+Limits paper (2507.11538) identifies ~150 instructions as a degradation
+threshold for reasoning models. The builder's total instruction load was
+~360 lines. After compression: ~260 lines. This improves signal-to-noise
+for all remaining instructions.
+
+### Also considered
+
+1. **BUILDER_HISTORY.md** — Rolling 5-iteration work-type summary for pattern
+   awareness. Rejected: adds another file to orientation load; builder already
+   has access to parse-log.py --trend.
+2. **Structured task selection** (LILO variance sampling) — Pick the most
+   uncertain task, not the safest. Deferred: promising but needs more design
+   to avoid becoming a mechanical procedure.
+3. **Self-generated trajectory examples** — Inject winning builder sessions
+   as few-shot examples. Deferred: hard to measure, adds significant context.
+4. **MCTS over action choices** (SWE-Search) — Parallel plan evaluation.
+   Deferred: requires structural harness changes.
+
+### Expected effects
+
+1. Builder sessions should be slightly more efficient (fewer tokens consumed
+   reading lessons → more capacity for implementation).
+2. Circular import rework should decrease in refactoring iterations (new
+   lesson directly targets the diagnosed pattern).
+3. No regression expected from removing research strategy lesson (zero effect
+   historically).
+4. Total instruction load decrease (~360→~260) may improve the builder's
+   ability to follow remaining instructions more precisely.
+
+### Verification method
+
+Compare iter 563's metrics against iter 561:
+- Re-edit ratio (target: < 67%)
+- Context/turn (target: < 92k)
+- Any rework related to circular imports (target: 0)
+- No new failures from removed lessons
+
 ## Iteration 561 — Self-Registering Tool Registry
 
 Built a self-registering tool registry where each tool co-locates its risk level and group metadata, eliminating 3 files from the new-tool registration dance.
