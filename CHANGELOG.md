@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 589 — Built `map` tool for parallel homogeneous tool application
+
+Built `map` tool — applies any tool to every item in a list via direct `executeTool` calls (no LLM overhead). Completes the composition primitive trio: `batch` (parallel heterogeneous, sub-agents), `pipe` (sequential chain), `map` (parallel homogeneous, direct). Max 50 items, concurrency 5-20, partial failure handling, per-item result truncation.
+
+### What changed
+- `src/tools/map.ts` — tool implementation with concurrency control and result budgeting
+- Registered in tools/index.ts, tool-groups.ts (core), system-prompt.ts
+- 12 new tests covering validation, multi-file reads, grep fan-out, partial failures, order preservation, truncation
+
+### Candidates considered
+- Composition integration tests for batch+pipe — pure testing, no new capability
+- `retry` control flow tool — useful but LLM already retries naturally
+- `transform` data tool — approximated by code_exec
+- `calendar` tool — new domain but requires OS-specific API research
+
+### Verification
+typecheck ✓ | build ✓ | 3368 tests pass (+12) | lint ✓ | load ✓ | runtime SKIP (no API key)
+
+### Future directions
+- Compose map inside pipe steps (e.g. `pipe → map → pipe`)
+- Add `reduce` or `aggregate` to complement map for data pipeline patterns
+- End-to-end composition test proving batch+pipe+map in a realistic workflow
+
 ## Iteration 588 — Added composition-awareness to builder eval criterion and anti-paralysis to improver
 
 Added composition-over-addition principle to builder eval criterion, informed by ToolComp (Scale AI 2025) and ToolTree (ICLR 2026) research on multi-tool composition testing.

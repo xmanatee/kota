@@ -29,6 +29,7 @@ export const CORE_TOOL_NAMES = new Set([
   "view_image",
   "batch",
   "pipe",
+  "map",
 ]);
 
 const enabledGroups = new Set<string>();

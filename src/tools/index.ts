@@ -16,6 +16,7 @@ import { registration as findReplace } from "./find-replace.js";
 import { registration as glob } from "./glob.js";
 import { registration as grep } from "./grep.js";
 import { registration as httpRequest } from "./http-request.js";
+import { registration as map } from "./map.js";
 import { registration as moduleFactory } from "./module-factory.js";
 import { registration as multiEdit } from "./multi-edit.js";
 import { registration as notebook } from "./notebook.js";
@@ -95,6 +96,7 @@ const registrationImports = [
   () => viewImage,
   () => batch,
   () => pipe,
+  () => map,
 ];
 
 let _coreRegistrations: ToolRegistration[] | null = null;

@@ -834,6 +834,10 @@ Scatter-gather orchestrator: takes an array of task descriptions, spawns paralle
 
 Inline sequential tool composition — the sequential complement to `batch` (parallel). Chains 2-10 tool invocations with data flow: `$prev` for previous output, `$steps[N]` for any prior step, `$prev.field` for JSON field access, `{{template}}` for inline interpolation. Supports conditional `if` on steps. Stops on first error. Reuses `resolveStepInput`/`evaluateCondition` from module-factory (same semantics as module scripts, but no manifest or persistence needed).
 
+### Parallel Map (`src/tools/map.ts`)
+
+Homogeneous parallel apply — calls `executeTool` directly for each item (no LLM overhead). Complements `batch` (heterogeneous, LLM-powered sub-agents) and `pipe` (sequential chain). Max 50 items, concurrency 5-20. Per-item result budget scales inversely with count (total 30K). Partial failures don't stop other items.
+
 ### Background Process Management (`src/tools/process.ts`)
 
 Enables async workflows — start servers, run watchers, monitor long-running tasks:
