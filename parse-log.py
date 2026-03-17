@@ -387,7 +387,8 @@ def _print_builder_analysis(
         focus_pct = round(focused / len(read_files) * 100)
         print(f"  Read focus:   {focus_pct}% ({focused}/{len(read_files)} read files were edited)")
 
-    # 4. Fix-verify cycles: edit -> test -> re-edit sequences
+    # 4. Fix-verify cycles: edit -> [verify/diagnostic] -> test -> [diagnostic] -> re-edit
+    # Only Write (new file) and Agent (delegation) break the chain.
     cycles = 0
     saw_edit = False
     saw_test_after_edit = False
@@ -399,6 +400,10 @@ def _print_builder_analysis(
         is_test = tc.name == "Bash" and any(
             kw in s for kw in ["test", "vitest", "npm test"]
         )
+        is_new_phase = (
+            (tc.name == "Write" and not _is_doc_edit(tc))
+            or tc.name == "Agent"
+        )
         if saw_test_after_edit and is_edit:
             cycles += 1
         if is_edit:
@@ -407,8 +412,9 @@ def _print_builder_analysis(
         elif is_test and saw_edit:
             saw_test_after_edit = True
             saw_edit = False
-        elif not is_test:
+        elif is_new_phase:
             saw_edit = False
+            saw_test_after_edit = False
 
     print(f"  Fix-verify:   {cycles} cycle(s)")
 
@@ -806,11 +812,13 @@ def _quick_parse(path: str) -> dict:
     first_impl = None
     first_verify_after_impl = None
     fix_cycles = 0
-    # Fix-cycle detection: matches the session-detail algorithm.
-    # Only Edit (not Write) triggers fix tracking — creating new files is
-    # normal development.  Non-edit, non-test calls reset state so that
-    # multi-phase development (edit A → reads → edit B → test) doesn't
-    # inflate the count.
+    # Fix-cycle detection: edit → [verify/diagnostic chain] → test → [diagnostic
+    # chain] → re-edit.  Only Write (new file = new phase) and Agent (delegation)
+    # break the chain.  Read, Grep, Bash(verify/diagnostic), TodoWrite are part
+    # of the verify→diagnose→fix flow.  Previous algorithm (iter 586) was too
+    # strict: any non-edit/non-test call reset _saw_edit, missing fix cycles
+    # where typecheck/build calls separated edit from test (iter 601: 2 real
+    # fix cycles reported as 0; iter 605: 1 real fix cycle reported as 0).
     _saw_edit = False
     _saw_test_after_edit = False
     _test_kws = ["npm test", "vitest", "run test"]
@@ -822,12 +830,16 @@ def _quick_parse(path: str) -> dict:
         is_edit = name == "Edit" and not any(d in s for d in _doc_files)
         is_test = name == "Bash" and any(kw in s for kw in _test_kws)
         is_verify = name == "Bash" and any(kw in s for kw in _verify_kws)
+        is_new_phase = (
+            (name == "Write" and not any(d in s for d in _doc_files))
+            or name == "Agent"
+        )
         if first_impl is None and is_impl:
             first_impl = i
         if first_impl is not None and first_verify_after_impl is None and is_verify:
             first_verify_after_impl = i
-        # Fix cycle = edit → test → re-edit (tight sequence, broken by
-        # intervening non-edit/non-test calls like reads or greps)
+        # Fix cycle = edit → test → re-edit (with verify/diagnostic allowed
+        # between edit→test and diagnostic allowed between test→edit)
         if _saw_test_after_edit and is_edit:
             fix_cycles += 1
         if is_edit:
@@ -836,8 +848,9 @@ def _quick_parse(path: str) -> dict:
         elif is_test and _saw_edit:
             _saw_test_after_edit = True
             _saw_edit = False
-        elif not is_test:
+        elif is_new_phase:
             _saw_edit = False
+            _saw_test_after_edit = False
     rework_pct = 0
     if first_verify_after_impl is not None and tc_list:
         remaining = len(tc_list) - first_verify_after_impl - 1

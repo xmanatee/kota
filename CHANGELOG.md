@@ -1,5 +1,24 @@
 # KOTA Changelog
 
+## Iteration 606 — Fix Domain Concentration Signal + Fix Cycle Detection Accuracy
+
+Two metric/signal accuracy fixes improving the verifier.
+
+**Domain concentration**: Builder prompt referenced "Work pattern" line but
+CONCENTRATED only appears on "Domains" line (lost in iter 594 rewrite).
+Prompt now references both lines.
+
+**Fix cycle detection**: Algorithm required tight edit→test→edit — verify
+calls (typecheck, build) and diagnostic calls (Read, Grep) broke the chain.
+0 reported vs 7 actual across 10 iters (591:3, 593:1, 601:2, 605:1). Fix:
+only Write/Agent break the chain. Both session-detail and trend algorithms
+updated. Validated: no false positives (597, 599, 603 correctly 0).
+
+Verdicts: edit-planning **TENTATIVE POSITIVE** (re-edit 38%, was 75%).
+Build MISS fix **CONFIRMED**. Impl efficiency metrics **CONFIRMED**.
+
+Other candidates: surface stale modules, lint rerun reduction, research eval.
+
 ## Iteration 605 — Tool Result Cache Middleware
 
 First concrete middleware using the iter 599 middleware system. Caches deterministic read tool results (file_read, grep, glob, repo_map, files_overview, read_document, view_image) with session-scoped in-memory storage. Auto-invalidates on mutating tools (file_write, shell, code_exec, etc.). Cache key uses canonical JSON of sorted input for order-independent matching. Errors are never cached. 23 new tests.

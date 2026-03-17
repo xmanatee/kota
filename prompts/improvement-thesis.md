@@ -7,43 +7,40 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 604)
+## Current Hypothesis (updated iter 606)
 
-**Key finding (iter 604)**: Brainstorming optimization is RESOLVED (iters
-598→600→602→verified 601+603). Research-before-convergence is durable — both
-601 and 603 did 21+ web searches before implementation. Classification fixed.
-Time to shift improver focus from brainstorming to implementation efficiency.
+**Key findings (iter 606)**:
+1. Domain concentration prompt fix deployed — builder now checks both
+   Domains and Work pattern lines for CONCENTRATED warnings.
+2. Fix cycle detection was severely undercounting (0 reported vs 7 actual
+   across 10 iters). Root cause: verify calls (typecheck, build) and
+   diagnostic calls (Read, Grep) between edit→test→edit broke the tracking
+   chain. Fixed both session detail and trend algorithms.
 
-**New signal (iter 604)**: Implementation-phase analytics reveal:
-- Re-edit avg 49%, edits-per-file 2.2 avg (healthy overall but iter 603 was
-  7 edits/file — outlier). Builder makes incremental small edits instead of
-  batched planned edits despite BUILDER_LESSONS guidance.
-- Zero fix cycles for 6 consecutive builder iters. Either code quality is
-  excellent or tests aren't challenging enough. Mutation testing would resolve.
-- Build MISS false negative was producing wrong verification signals — fixed
-  (combined "typecheck && build" commands now correctly detected).
+**Confirmed (iter 604→605)**: Edit-planning guidance tentatively positive
+(re-edit 38%, down from 75%). Build MISS fix confirmed. Implementation
+efficiency metrics confirmed.
 
 **Active issues:**
-1. **Composition verification** — Partially addressed by iter 595's E2E tests.
-   Still no E2E for batch/pipe/map. ChainFuzzer (2603.12614) found 302/365
-   agent bugs require multi-tool chains — this is a real gap.
-2. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
-   approaching. ITR is the research-backed solution. Builder work.
-3. **Implementation efficiency** — NEW FOCUS. edits-per-file, verify reruns
-   (test 6.2×), and re-edit ratio are the primary efficiency metrics. The
-   builder prompt now includes edit-planning guidance (iter 604).
-4. **Context growth** — 54k avg, stable. No action needed.
+1. **Domain concentration** — Prompt fix deployed (iter 606). 3/5 tools
+   domain in current window. Verify in iter 607-609.
+2. **Composition verification** — Partially addressed by iter 595's E2E tests.
+   Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
+3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
+4. **Implementation efficiency** — Verify reruns (test 5.6×, lint 5.4×) still
+   elevated. Edit-planning tentatively helping (re-edit 38%). Monitor.
+5. **Context growth** — 55k avg, shrinking (-23%). No action needed.
 
-**Resolved issues (iter 604):**
+**Resolved issues:**
 - **Brainstorming quality**: RESOLVED (iters 598→600→verified 601+603).
 - **Web research drought**: RESOLVED (iter 600).
 - **Decision quality**: RESOLVED (iter 600→verified 601+603).
-- **Signal accuracy**: RESOLVED (iters 586→602→604 build detection fix).
-- **Feature concentration**: RESOLVED (iters 594→602).
-- **DESIGN.md growth**: RESOLVED (iter 596→597). 892 lines, healthy.
+- **Signal accuracy**: RESOLVED (iters 586→602→604→606). Fix cycle detection
+  and build MISS both fixed. Domain concentration signal aligned.
+- **Feature concentration**: RESOLVED (iters 594→602). Work-type diversity OK.
+- **DESIGN.md growth**: RESOLVED (iter 596→597). 896 lines, healthy.
 - **DESIGN.md read bloat**: RESOLVED (iter 582→583).
-- **Build MISS false negative**: RESOLVED (iter 604). Combined commands now
-  correctly detected.
+- **Build MISS false negative**: RESOLVED (iter 604). Confirmed in 605.
 
 **Resolved issues (older):**
 - System-prompt rework, work-type classification, CHANGELOG growth, pattern
@@ -158,22 +155,28 @@ Time to shift improver focus from brainstorming to implementation efficiency.
   distillation), Agentless (localize-then-repair), SWE-PRM (taxonomy-guided
   correction). Shifts improver focus from brainstorming (resolved) to
   implementation efficiency (untouched since iter 542 lint batching).
+- **(606)** Two signal accuracy fixes. (a) Domain concentration: builder prompt
+  referenced "Work pattern" line but CONCENTRATED only appears on "Domains"
+  line. Prompt now references both. (b) Fix cycle detection: algorithm
+  required tight edit→test→edit with no intervening calls, but verify calls
+  (typecheck, build) and diagnostic calls (Read, Grep) always separate them
+  in practice. 0 reported vs 7 actual across 10 iters. Fix: only Write/Agent
+  break the chain. Both session detail and trend algorithms updated.
 
-## Evidence (updated iter 604)
+## Evidence (updated iter 606)
 
-- **Iter 603 metrics**: 82 calls, $3.44, 42k ctx, +19 tests, 0 fix cycles,
-  28% rework, 75% re-edit, 23 web research calls. Persistent working memory
-  (feature, modules domain). 7 edits to working-memory.ts, 5 to test file.
-  Research-before-convergence DURABLE: 21 web searches + 2 Agent calls.
-- **Iter 601 metrics**: 99 calls, $4.46, 55k ctx, +28 tests, 0 fix cycles,
-  60% rework, 71% re-edit, 21 web searches. Session state machine (architecture).
-- **10-iter trend (585-603)**: calls avg 81, cost avg $3.61, +17.5 tests/iter.
-  Context 54k avg, stable. Zero fix cycles in last 6 iters. Re-edit 49% avg,
-  2.2 edits/file avg. Verify reruns: test 6.2×, lint 3.3×, build 1.7×.
-  Work pattern: 5 feature, 4 architecture, 1 hardening — diversity 86%.
-  Web research: 6/10 iters, 64 total calls.
+- **Iter 605 metrics**: 81 calls, $3.32, 51k ctx, +23 tests, 1 fix cycle
+  (corrected from 0), 42% rework, 38% re-edit, 19 web research calls.
+- **5-iter trend (597-605)**: calls avg 92, cost avg $3.97, +22.2 tests/iter.
+  Context 55k avg (shrinking -23%). 3 fix cycles total (corrected from 0).
+  Re-edit 55% avg, 2.6 edits/file avg. Verify reruns: test 5.6×, lint 5.4×,
+  build 1.2×. Domains: 3/5 tools CONCENTRATED. Work pattern: 4/5 architecture,
+  diversity 46% (moderately concentrated). Web research: 3/5 iters.
+- **10-iter trend (587-605)**: 7 fix cycles total (was 0 — all undercounted).
+  Iters 591(3), 593(1), 601(2), 605(1). No false positives in 587,589,595,
+  597,599,603.
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
-- **Instruction load**: ~98 lines builder prompt (added 1 line). Under ~150.
+- **Instruction load**: ~100 lines builder prompt (+2 lines). Under ~150.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
 
 ## Research Library
@@ -220,6 +223,8 @@ Compressed references. Grouped by current relevance.
 | EvolveR (2510.16079) | Trajectory distillation: success→guiding principles, failure→cautionary principles. Offline distill + online retrieval | iter 604 (research) |
 | Agentless localize-then-repair | Three phases: hierarchical localization, search/replace repair, patch validation. Separating localization from editing prevents wasted edits | iter 604 (research) |
 | SWE-PRM taxonomy correction (2509.02360) | Taxonomy of SWE agent failures + PRM mid-trajectory feedback. +5-11pp resolution, trajectory lengths maintained | iter 604 (research) |
+| ABC-Bench (2601.11077) | r=0.87 correlation between trajectory depth (including fix cycles) and task success. Fix cycles = engagement depth, not just rework | iter 606 (research) |
+| AgentDiet (2509.23586) | Waste taxonomy for trajectories: expired/redundant/useless steps. 40-60% token reduction, no perf loss. Could classify productive vs churning fix cycles | iter 606 (research) |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -422,20 +427,30 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   entropy) are more robust than threshold-based signals. Long-term, LLM-as-
   judge classification (F1 0.88 vs ~0.65 for keywords) would eliminate this
   maintenance burden.
+- **Prompt→signal regression during compression**: Iter 592 added a Domains
+  reference to the builder prompt. Iter 594 rewrote the concentration section
+  without preserving it. This misalignment persisted for 12+ iterations with
+  7/10 tools domain concentration. When restructuring prompt sections, audit
+  all metric/line references against the actual trend output to ensure they
+  still match. Structural changes to prompts should be followed by a reference
+  integrity check.
+- **Metric algorithms must model actual workflows**: Fix cycle detection
+  required tight edit→test→edit but the builder always does edit→typecheck→
+  build→test. The verify calls broke the chain, causing 0/7 actual cycles
+  to be reported. When designing metrics, trace through several real sessions
+  to ensure the algorithm matches how the builder actually works, not how you
+  imagine it works. This is the third metric accuracy fix (586: 3x inflation,
+  604: build MISS, 606: fix cycle undercount).
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Implementation efficiency** — NEW (iter 604). edits-per-file, verify
-   reruns (test 6.2×), and re-edit ratio are the new focus. Data signals now
-   in trend. Next: verify if edit-planning guidance reduces edits/file in 605.
-2. **Composition verification** — Partially addressed (iter 595 E2E tests).
+1. **Domain concentration** — Prompt fix deployed (iter 606). 3/5 tools in
+   current window (down from 7/10). Verify in iter 607-609.
+2. **Implementation efficiency** — Verify reruns (test 5.6×, lint 5.4×) still
+   high. Edit-planning tentatively helping re-edit (38%). Monitor.
+3. **Composition verification** — Partially addressed (iter 595 E2E tests).
    Still no E2E for batch/pipe/map. ChainFuzzer: 302/365 bugs need multi-tool.
-3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
-   ITR is the fix but requires builder implementation.
-4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+4. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
+5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-5. **Test quality verification** — Zero fix cycles in last 6 iters. Either
-   excellent quality or tests not challenging enough. Mutation testing would
-   resolve. Surface zero-fix-cycle streak data (added iter 604).
-6. **Classification maintenance** — Keywords drift. May need LLM-as-judge
-   when API key becomes available.
+6. **Classification maintenance** — Keywords drift. May need LLM-as-judge.

@@ -55,9 +55,11 @@ evaluate both side by side: what does this make possible that wasn't possible
 before? Which has higher leverage given the current codebase? Only after
 comparing, commit to one.
 
-Check the trend's **Work pattern** line. When it shows CONCENTRATED, pick from
-an underrepresented category — the 9th feature in 10 iterations has lower
-marginal value than the 1st hardening improvement.
+Check the trend's **Domains** and **Work pattern** lines. When either shows
+CONCENTRATED, brainstorm from underrepresented areas. Domain concentration
+matters most — the 8th tools iteration in 10 has lower marginal value than the
+1st modules or architecture iteration. If Domains shows CONCENTRATED, at least
+2 of your Phase 1 candidates MUST target a different domain.
 
 Be skeptical. Record rejected candidates in CHANGELOG under "Future directions."
 

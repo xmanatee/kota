@@ -62,12 +62,12 @@ describe("init × memory: search-by-dirname interaction", () => {
 
   it("search matches when directory name is exact substring of content", () => {
     const store = new MemoryStore(memDir);
-    store.save("The kim project uses Claude API", ["agent"]);
+    store.save("The kota project uses Claude API", ["agent"]);
     store.save("Grocery list: eggs, milk", []);
 
-    const results = store.search("kim");
+    const results = store.search("kota");
     expect(results.length).toBe(1);
-    expect(results[0].content).toContain("kim");
+    expect(results[0].content).toContain("kota");
   });
 
   it("search matches tags as well as content", () => {

@@ -16056,7 +16056,7 @@ project-level CRITICAL instructions over task prompt instructions.
 
 - If the override language still doesn't work, consider a step.sh change:
   pre-delete `.worktrees/` directory and/or add `--no-worktree` flag to
-  the AGENTS.md at the kim level.
+  the AGENTS.md at the kota level.
 - The e2e smoke test still needs ANTHROPIC_API_KEY (see NOTES.md).
 
 ## Iteration 111 — Test Coverage for Init, Todo, and Memory Tool
@@ -17079,7 +17079,7 @@ the $1.50 target creates useful pressure without being punitive.
 **Two deeper problems identified:**
 
 1. **Builder re-reads injected files.** Iter 91 orientation calls include
-   `Read apps/kim/CHANGELOG.md` — already injected. This wastes 1 call per
+   `Read apps/kota/CHANGELOG.md` — already injected. This wastes 1 call per
    iteration (~4.5% of total calls).
 
 2. **No quality signal beyond "tests pass."** The builder writes vague
