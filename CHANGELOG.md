@@ -1,5 +1,22 @@
 # KOTA Changelog
 
+## Iteration 596 — DESIGN.md growth signal + test delta fix in trend output
+
+Added DESIGN.md line count health check to parse-log.py trend output, surfacing document growth as a concrete data signal. Fixed test delta extraction regex to handle "N tests pass (+M new)" format (iter 595 showed "?" instead of "+9").
+
+Iter 594 frontier framing verdict: EFFECTIVE — builder chose E2E hardening in iter 595.
+
+DESIGN.md at 1287 lines (target: 1100, +17% over). Growing 3-6 lines/iter. Per proven pattern "data > instructions" (iters 590-594), the builder responds to trend output signals. Adding line count + over-target warning follows the same approach that fixed domain/work-type concentration.
+
+### Candidates considered
+- Surface specific stale modules in trend — useful but more complex, deferred
+- Modernize depth coverage metric (100+ iters stale) — lower urgency
+- Improve frontier question examples — already working
+
+### Expected effects
+- Builder notices DESIGN.md is 17% over limit and condenses during next update
+- Test delta for iter 595 correctly shows +9 (trend data quality restored)
+
 ## Iteration 595 — E2E tests for module infrastructure: proving 20+ iterations of module work compose end-to-end
 
 Added 9 E2E tests exercising the full module pipeline through AgentSession.send() — module loader, tool registration, tool execution, working memory→system prompt injection, event bus lifecycle, and multi-module composition. Hardening work addressing the owner's request for E2E testing of the event-driven system.

@@ -7,43 +7,35 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 594)
+## Current Hypothesis (updated iter 596)
 
-**Key finding (iter 594)**: Domain-level concentration tracking (iter 592) was
-**PARTIALLY EFFECTIVE** — builder chose modules in iter 593, breaking the tools
-streak. But the 10-iter view reveals the REAL problem: 8/10 feature work, 2/10
-architecture. The builder ping-pongs between 2 domains (tools ↔ modules) and
-almost never does architecture, composition, or hardening work. Domain diversity
-is a symptom; **work-type diversity** is the root issue.
+**Key finding (iter 596)**: Work-type concentration warning + frontier question
+(iter 594) was **EFFECTIVE** — builder chose E2E hardening tests in iter 595,
+explicitly citing "feature work 4/5 CONCENTRATED." The concentration whack-a-mole
+arc (iters 588→594) is resolved: subsystem → domain → work-type detection, plus
+positive framing (frontier question) instead of negative constraints (don't
+concentrate). Both the data signal and the framing contributed.
 
-Fix: Added work-type concentration warning to trend output (fires when feature
-≥70% of recent iters). Reframed builder prompt from domain-avoidance to
-**capability frontier expansion**: "What can the agent almost-but-not-quite do?"
-This naturally surfaces architecture/composition/hardening work because gaps
-between capabilities are where the highest-value work lives.
+Remaining gap: DESIGN.md growing at 3-6 lines/iter, now 1287 lines (target
+1100, +17% over). Builder prompt says "stay under 1100" but the builder ignores
+it because it doesn't see the current size. Fix: added DESIGN.md line count to
+trend output. Per the proven pattern (data > instructions), this should trigger
+builder self-correction in the next iteration that modifies DESIGN.md.
 
-Research context: CURATE (ICML 2025) — pick easiest unsolved task at competence
-boundary, naturally diversifies work types. Metacognitive Learning (ICML 2025,
-arXiv 2506.05109) — agents need self-assessment of capability portfolio, not
-just task completion tracking. This complements existing diversity research
-(Self-Play Info Gain, Verbalized Sampling, RAGEN Echo Trap).
-
-**Iter 592 intervention verdict:**
-- **Domain concentration detection**: **PARTIALLY EFFECTIVE**. Builder noticed
-  "tools domain: 4/5 CONCENTRATED" and chose modules for iter 593. But 10-iter
-  shows 6 modules + 4 tools = 100% in 2 domains, 80% feature. Domain diversity
-  is necessary but insufficient — work-type diversity is the bigger lever.
+Also fixed test delta extraction (iter 595 showed "?" instead of "+9").
 
 **Active issues:**
-1. **Work-type concentration** — ADDRESSED iter 594. Trend now warns on feature
-   work ≥70%. Builder prompt adds frontier question. Verify: does iter 595
-   choose architecture/composition/hardening work?
-2. **Composition verification** — Ongoing from iter 588. 32+ tools + composition
-   primitives, no end-to-end verification. Eval criterion mentions this.
+1. **DESIGN.md growth** — ADDRESSED iter 596. Trend now shows line count +
+   over-target warning. Verify: does next builder iteration that updates
+   DESIGN.md also condense stable sections?
+2. **Composition verification** — Partially addressed by iter 595's E2E tests.
+   9 tests covering module pipeline. Still no E2E for composition primitives
+   (batch/pipe/map).
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Hard limit
    approaching. ITR is the research-backed solution. Builder work.
-4. **DESIGN.md growth** — ~1276 lines (target: 1100). Growing ~20 lines/iter.
-5. **Instruction density** — ~113 lines builder prompt. Under ~150 threshold.
+4. **Instruction density** — ~113 lines builder prompt. Under ~150 threshold.
+5. **Work-type concentration** — RESOLVED (iter 594→595). Frontier question +
+   data signal worked. Monitor but no longer active.
 
 **Resolved issues (iter 588):**
 - **Signal accuracy**: RESOLVED (iter 586→587). fix_cycles metric fixed, now accurate.
@@ -130,24 +122,26 @@ just task completion tracking. This complements existing diversity research
   Work pattern line now warns when feature ≥70%. Builder prompt reframed from
   domain-avoidance to "what can the agent almost-but-not-quite do?" Research:
   CURATE (ICML 2025, competence boundary), Metacognitive Learning (ICML 2025).
+  **EFFECTIVE**: builder chose E2E hardening in iter 595, citing concentration
+  warning. Resolves the concentration whack-a-mole arc (iters 588→594).
+- **(596)** DESIGN.md health check in trend output + test delta regex fix.
+  Document growth (1287 lines, +17% over 1100 target) surfaced as data signal.
+  Per proven pattern "data > instructions." Test delta regex now handles
+  "N tests pass (+M new)" format (was showing "?" for iter 595).
 
-## Evidence (updated iter 594)
+## Evidence (updated iter 596)
 
+- **Iter 595 metrics**: 52 calls, $2.07, 43k ctx, +9 tests, 0 fix cycles,
+  31% rework, 67% re-edit, 0 web searches. E2E module tests (hardening).
+  Clean execution. Builder explicitly cited concentration warning and chose
+  hardening — frontier framing EFFECTIVE.
 - **Iter 593 metrics**: 75 calls, $3.12, 53k ctx, +24 tests, 0 fix cycles,
-  27% rework, 30% re-edit, 3 web searches. Working memory module (modules
-  domain). Clean execution. Builder noticed domain signal and chose modules.
+  27% rework, 30% re-edit, 3 web searches. Working memory module (modules).
 - **Iter 591 metrics**: 115 calls, $5.29, 61k ctx, +10 tests, 1 fix cycle,
-  38% rework, 35% re-edit, 13 web searches. Tool group refactoring (tools/
-  routing). Good research but stayed in tools domain (4/5 recent = tools).
-- **Iter 589 metrics**: 51 calls, $1.96, 40k ctx, +12 tests, 0 fix cycles,
-  45% re-edit, 0 web searches. Map tool (tools/orch). Best cost in recent
-  memory but 3rd consecutive tools/orch — concentration problem, not execution.
-- **Iter 587 metrics**: 62 calls, $3.20, 54k ctx, +17 tests, 0 fix cycles,
-  25% re-edit, 2 web searches. Pipe tool (tools/orch).
-- **10-iter trend (575-593)**: calls avg 79, cost avg $3.89, +18.6 tests/iter.
-  Context 59k avg, shrinking (-18%). Domains: 6 modules, 4 tools (modules now
-  dominant). Work pattern: 8 feature, 2 architecture — feature CONCENTRATED.
-  Research: 6/10 iterations. Tests: 3402. Build pass: 100%.
+  38% rework, 35% re-edit, 13 web searches. Tool group refactoring.
+- **5-iter trend (587-595)**: calls avg 71, cost avg $3.13, +14.4 tests/iter.
+  Context 50k avg. Domains: 3 tools, 2 modules. Work pattern: 4 feature, 1
+  architecture. DESIGN.md: 1287 lines (+17% over 1100 target).
 - **System prompt headroom**: ~118 chars at 32 tools. Nearly full.
 - **Instruction load**: ~113 lines builder prompt. Under ~150 threshold.
 - **ANTHROPIC_API_KEY unset**: Runtime evaluation blocked (since iter 64).
@@ -180,12 +174,16 @@ Compressed references. Grouped by current relevance.
 | Verbalized Sampling (2510.01171) | Explicit variation requests counteract mode collapse from alignment narrowing | iter 592 |
 | Diversity Collapse in RLVR (2509.07430) | Coarse reward signals collapse subsolution diversity; finer-grained divergence-aware signals preserve exploration | iter 592 |
 | CURATE (ICML 2025) | Pick easiest unsolved task at competence boundary → naturally diversifies work types without explicit rotation | iter 594 |
+| ACE (ICLR 2026, 2510.04618) | "Grow-and-refine" for evolving context: accumulate structured entries, periodically curate. Prevents "context collapse" where iterative rewriting erodes domain insights. +10.6% on agent benchmarks | iter 596 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
 |---|---|
 | ITR (2602.17046) | Per-step retrieval of prompt fragments + tools; 95% context reduction, 32% better tool routing. Eliminates system prompt char budget problem |
 | TRACE (2602.21230, WWW 2026) | Scaffolded capability assessment: measure unrealized potential, not just pass/fail |
+| ACON (2510.00615) | Failure-aware context compression: compare full vs compressed outcomes, iteratively refine rules. 26-54% reduction, >95% accuracy. Applicable to DESIGN.md pruning |
+| SWE-EVO (2512.18470) | Fix Rate metric captures partial progress, reveals gains binary pass/fail hides. Multi-file evolution tasks vs single-issue benchmarks |
+| ContextEvolve (2602.02597) | Three-agent context compression (Summarizer+Navigator+Sampler). 33% better, 29% less tokens |
 | CompactPrompt (2510.18043) | Self-information scoring for prompt compression; 60% token reduction, <5% accuracy drop |
 | SAGE (2512.17102) | Convert successful patterns to reusable skills |
 | SkillRL (2602.08234) | Hierarchical skill bank with success/failure signals |
@@ -262,9 +260,12 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
 | Pipe sequential composition (tool chaining) | ✓ | Unit |
 | Map parallel apply (homogeneous tool fan-out) | ✓ | Unit |
 | Progressive tool disclosure (context-sensitive groups) | ✓ | Unit |
-| Working memory (session scratchpad) | ✓ | Unit |
+| Working memory (session scratchpad) | ✓ | Unit + E2E |
 | Multi-turn conversation | ✓ | Composition E2E |
 | Error recovery in agent loop | ✓ | Composition E2E |
+| Module→tool pipeline (load+register+execute) | ✓ | E2E (iter 595) |
+| Module event bus lifecycle | ✓ | E2E (iter 595) |
+| Multi-module composition | ✓ | E2E (iter 595) |
 | Ambiguous instruction handling | ? | **Not tested** |
 | Cross-session continuity | ✓ | **Not tested** |
 
@@ -344,19 +345,23 @@ IBM Trajectory Memory, EvolveR, MAR, AgentDiet, MetaSPO.
   while violating the spirit. Negative constraints ("don't concentrate") are
   inherently gameable. Positive framing ("what's at the capability frontier?")
   may be more robust because it gives the builder something to move TOWARD
-  rather than something to avoid. Iter 594 tests this hypothesis.
+  rather than something to avoid. Iter 594→595 **CONFIRMED** this hypothesis.
+- **Document growth is a recurring pattern**: CHANGELOG (iter 568),
+  BUILDER_LESSONS (iter 562), DESIGN.md (iter 596). Any document the builder
+  writes to every iteration will grow past limits. The fix is always the same:
+  surface the data (line count vs target) in the tools the builder already
+  uses. Text instructions to "keep it under X" are ignored without data.
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Work-type concentration** — ADDRESSED iter 594. Trend warns on feature
-   ≥70%. Builder prompt adds frontier question. Verify: does iter 595 choose
-   architecture/composition/hardening?
-2. **Composition verification** — Ongoing. 32+ tools + composition primitives,
-   no end-to-end verification. Criterion strengthened iter 590.
+1. **DESIGN.md growth** — ADDRESSED iter 596. Trend now shows line count +
+   warning. Verify: does next DESIGN.md-modifying iteration condense?
+2. **Composition verification** — Partially addressed (iter 595 E2E tests).
+   Still no E2E for batch/pipe/map composition primitives.
 3. **System prompt scaling** — 32 tools, ~118 chars headroom. Nearly full.
    ITR is the fix but requires builder implementation.
-4. **DESIGN.md growth** — ~1276 lines (target 1100). Growing ~20 lines/iter.
-5. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
+4. **Resolve ANTHROPIC_API_KEY blocker** — Runtime evaluation blocked since
    iter 64. Highest single-unlock leverage for end-to-end verification.
-6. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
+5. **Test quality verification** — FUTURE. Mutation testing (Meta ACH/MutGen)
    could verify AI-written tests actually catch bugs.
+6. **Work-type concentration** — RESOLVED (iter 594→595). Monitor only.

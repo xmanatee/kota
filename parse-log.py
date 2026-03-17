@@ -176,9 +176,9 @@ def _extract_test_delta(texts: list[str]) -> str | None:
         if m:
             return f"{m.group(2)}→{m.group(3)} (+{m.group(1)})"
 
-    # P2: "X passed (N new" — feature iteration format
+    # P2: "X tests pass/passed (+N new)" — feature iteration format
     for text in texts:
-        m = re.search(r"\d+\s+passed\s+\((\d+)\s+new", text, re.I)
+        m = re.search(r"\d+\s+(?:tests?\s+)?pass(?:ed)?\s+\(\+?(\d+)\s+new", text, re.I)
         if m:
             return f"+{m.group(1)}"
 
@@ -1227,6 +1227,21 @@ def trend(n: int = 5) -> None:
         f"  Web research: {web_iters}/{ne} iterations, "
         f"{total_research} calls ({avg_rc:.0f}/iter avg)"
     )
+
+    # DESIGN.md health check
+    from pathlib import Path
+    design_path = Path(__file__).parent / "DESIGN.md"
+    if design_path.exists():
+        design_lines = sum(1 for _ in design_path.open())
+        design_limit = 1100
+        if design_lines > design_limit:
+            pct_over = (design_lines - design_limit) * 100 // design_limit
+            print(
+                f"  DESIGN.md: {design_lines} lines "
+                f"(limit: {design_limit}, +{pct_over}% over — condense stable sections)"
+            )
+        else:
+            print(f"  DESIGN.md: {design_lines} lines (limit: {design_limit}, ok)")
 
     # Depth phase health (from depth-log.md)
     health = _depth_health(depth_rows)

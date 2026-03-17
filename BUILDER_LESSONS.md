@@ -18,9 +18,10 @@ stayed at 44-63k/turn, cost at $2.47-$3.80.
 
 ## DESIGN.md Size
 
-DESIGN.md is ~1276 lines and growing. When updating, condense stable component
-descriptions (1-2 lines each) — don't just append. If a section hasn't changed
-in 5+ iterations, compress it to a one-liner. Target: under ~1100 lines.
+DESIGN.md is ~1287 lines and growing (+17% over target). The trend output shows
+the current count — check it during orient. When updating, condense stable
+component descriptions (1-2 lines each) — don't just append. If a section
+hasn't changed in 5+ iterations, compress it to a one-liner. Target: ≤1100 lines.
 
 ## Common Gotchas
 
@@ -87,7 +88,7 @@ The #1 rework source. Before modifying shared types/interfaces:
 
 ## Architecture as Capability
 
-32+ tools, 3400+ tests. Each new tool adds less than the last. Architecture
+32+ tools, 3411+ tests. Each new tool adds less than the last. Architecture
 work IS capability work when it enables something new:
 - Module isolation → runtime extensibility (user asks agent to create a tool)
 - Untested integration paths → reliability (50-turn conversation without degradation)
