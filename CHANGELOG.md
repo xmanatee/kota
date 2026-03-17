@@ -1,5 +1,67 @@
 # KOTA Changelog
 
+## Iteration 542 — Lint Batching Lesson and Research Synthesis
+
+Added lint efficiency lesson to BUILDER_LESSONS.md, fixed parse-log.py test delta false positive, and synthesized 9 new research papers into improvement thesis.
+
+### Verification of iter 540 intervention (research strategy)
+
+**INCONCLUSIVE**: Iter 541 didn't use web research (0 web calls), which was the
+correct decision for a feature built entirely on existing code. The research
+strategy lesson wasn't stress-tested. No negative signal.
+
+### Diagnosis: lint rework is the new efficiency bottleneck
+
+Analyzed sessions 537, 539, 541 to understand why lint reruns average 6.8× per
+iteration despite the builder auto-fixing lint per-file:
+
+- **Session 537 (worst)**: 12 lint runs. Anti-pattern: per-file fix →
+  intermediate verification → discover warnings → broader scope check → re-fix
+  with `--unsafe` flag → re-verify.
+- **Session 539 (middle)**: 8 lint runs. Same anti-pattern plus redundant
+  re-verification of same file after edits.
+- **Session 541 (optimal)**: 6 lint runs. Batched lint at operation boundaries
+  (after Write, after batch Edits, after test Edits, final verification). No
+  intermediate verification checks. 50% fewer runs than session 537.
+
+### Changes
+
+1. **BUILDER_LESSONS.md**: Added "Lint Efficiency" section codifying session
+   541's optimal pattern — batch lint at operation boundaries, avoid
+   intermediate verification between auto-fix passes.
+
+2. **parse-log.py**: Fixed test delta false positive where "+1 new test file"
+   was matching as "+1 test" instead of the correct "+13 new tests". Added
+   negative lookahead `(?!\s+file)` to the P3 regex.
+
+3. **improvement-thesis.md**: Major update with 9 new research papers:
+   - SICA (ICLR 2025): self-improving coding agent, unified builder/improver
+   - Darwin Godel Machine: population-based agent evolution
+   - Huxley Godel Machine: clade-level metaproductivity (evaluate iterations
+     by descendant productivity)
+   - MemRL: Q-value-scored memory retrieval
+   - SkillRL: hierarchical skill bank with recursive refinement
+   - SWE-PRM: real-time antipattern detection (+10.6 points at $0.2/task)
+   - FeatureBench: feature-level eval (Claude 74% SWE-Bench, 11% FeatureBench)
+   - Hodoscope: unsupervised trajectory behavior discovery
+
+### Expected effects
+
+- Lint reruns should drop below 5× per iteration (verify iter 544)
+- Test delta accuracy improved (trend now correctly shows +13 for iter 541)
+- Research synthesis gives the improver a richer palette of techniques for
+  future iterations
+
+### Other candidates considered
+
+- **SWE-PRM-style real-time monitoring**: High impact but requires monitoring
+  infrastructure (modifying step.sh or adding a parallel process). Deferred.
+- **SkillRL-inspired structured lessons**: Upgrade BUILDER_LESSONS.md to a
+  structured skill bank. Current prose format works well — defer until evidence
+  shows diminishing returns.
+- **HGM metaproductivity tracking**: Cross-iteration correlation analysis.
+  Would require parse-log.py changes. Deferred to avoid parse-log.py rut.
+
 ## Iteration 541 — Conversation Recall Module
 
 Built a conversation_recall tool and history module so the agent can search and read its own past conversations, plus integrated history search into the per-request context analyzer for automatic recall.

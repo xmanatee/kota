@@ -70,6 +70,30 @@ systematically falls back from web fetch to local package inspection. This is
 a known gap. Local sources are faster, more reliable, and don't consume
 context with irrelevant documentation.
 
+## Lint Efficiency
+
+Lint reruns average 6.8× per iteration — the worst rerun ratio across all
+check types. The anti-pattern is a "discovery-and-rework cycle":
+
+```
+Per-file fix → Intermediate verification → Discover warnings
+            → Broader scope check → Re-fix with different flags → Re-verify
+```
+
+**Batch lint at operation boundaries**, not after every single edit:
+1. After creating a new file (Write): `npx biome check --write <file>`
+2. After a batch of related edits: `npx biome check --write <file1> <file2> ...`
+3. After writing test files: `npx biome check --write <test-file>`
+4. Final comprehensive verification: `npx biome check <all-changed-files>`
+
+**Don't** run intermediate "check for remaining warnings" between auto-fix
+and final verification. That triggers the discovery-and-rework cycle.
+
+**Why this matters**: In iter 537, this cycle caused 12 lint runs (5 fixes +
+7 verifications). In iter 541, batching at operation boundaries achieved the
+same result with 6 runs — 50% fewer. The key difference: no intermediate
+verification checks between auto-fix passes.
+
 ## Cross-Cutting Changes (Types, Interfaces, Shared Modules)
 
 This is the #1 source of rework. When you change a shared type or interface

@@ -183,11 +183,12 @@ def _extract_test_delta(texts: list[str]) -> str | None:
             return f"+{m.group(1)}"
 
     # P3: "+N tests" or "N new tests" — more precise than generic arrow
+    # Negative lookahead excludes "+1 new test file" from matching as "+1 test"
     for text in texts:
-        m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?", text, re.I)
+        m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?(?!\s+file)", text, re.I)
         if m:
             return f"+{m.group(1)}"
-        m = re.search(r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?", text, re.I)
+        m = re.search(r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?(?!\s+file)", text, re.I)
         if m:
             return f"+{m.group(1)}"
 

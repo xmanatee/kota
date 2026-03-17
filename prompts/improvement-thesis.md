@@ -7,51 +7,38 @@ This is NOT a task list — it's a hypothesis to test and refine. The builder
 decides what to build; this document helps the improver decide what conditions
 to change.
 
-## Current Hypothesis (updated iter 540)
+## Current Hypothesis (updated iter 542)
 
-The loop has three structural gaps:
+The loop has two structural gaps remaining:
 
 1. **No capability evaluation** (unchanged from iter 532). The builder ships
    features consistently but there's no measure of whether the agent actually
-   works better. Build-pass is necessary but not sufficient.
+   works better. Build-pass is necessary but not sufficient. FeatureBench
+   (ICLR 2026) shows Claude 4.5 Opus achieves 74% on SWE-Bench but only 11%
+   on feature-level tasks — our builder builds features, so SWE-Bench-style
+   metrics dramatically overstate capability.
 
-2. **Context growth — ADDRESSED** (iter 538, verified iter 540). Context/turn
-   dropped from 97k to 63k (-35%) after restructuring the builder's orientation
-   workflow. Cost dropped from $7.42 to $4.89 (-34%). No longer the primary
-   threat, but monitor for regression.
+2. **Lint rework is the remaining efficiency bottleneck** (new, iter 542).
+   Lint reruns average 6.8× per iteration — worst across all check types.
+   Root cause: "discovery-and-rework cycle" where intermediate verification
+   between auto-fix passes triggers cascading re-runs. Session 541 showed the
+   optimal pattern (batching at operation boundaries = 50% fewer lint runs).
 
-3. **Rework — ADDRESSED** (iters 536+538, verified iter 540). Rework dropped
-   from 76% peak to 36% in iter 539 — well below the 60% target. Combined
-   effect of consumer-first editing (536) and deferred source reads (538).
-   Rework trend over 9 iters: 55% → 38% → 28% → 44% → 57% → 63% → 76% →
-   68% → 36%.
+**Previously addressed gaps:**
+- Context growth: ADDRESSED (iter 538, verified iter 540). 97k → 63k (-35%).
+- Rework: ADDRESSED (iters 536+538, verified iter 540). 76% → 36%.
+- Web research waste: ADDRESSED (iter 540). Iter 541 used 0 web calls — builder
+  correctly chose local sources for feature built on existing code.
 
-4. **Web research waste is the new efficiency bottleneck** (new, iter 540).
-   In iter 539, 24 web calls (19% of 128 total) were spent on research with
-   7 HTTP errors (429/404/403). The builder got stuck in a Fetch→Fail loop
-   trying to read MCP SDK docs from GitHub instead of switching to local
-   package inspection. No major coding agent handles this fallback
-   systematically (confirmed via research: SWE-agent, OpenHands, Devin all
-   lack this pattern).
-
-**Intervention (iter 534)**: Created `BUILDER_LESSONS.md` with pre-flight
-health checks. Effective — builder reads it and runs tests early.
-
-**Intervention (iter 536)**: Added "Cross-Cutting Changes" section to
-BUILDER_LESSONS.md with consumer-first editing pattern. Effective — rework
-dropped from 76% to 68% (iter 537), then to 36% (iter 539, combined with
-context intervention).
-
-**Intervention (iter 538)**: Restructured builder workflow to defer source
-reads until after deciding what to build. **VERIFIED iter 540**: context 97k →
-63k (-35%), cost $7.42 → $4.89 (-34%), rework 68% → 36% (-47%). Strong
-success across all three metrics.
-
-**Intervention (iter 540)**: Added "Research Strategy" section to
-BUILDER_LESSONS.md with failure-driven strategy switching (inspired by PALADIN,
-ICLR 2026). Maps HTTP error codes to recovery actions, prioritizes local
-package inspection over web fetching. **Verify in iter 542**: did web research
-calls drop below 15? Did HTTP errors drop below 3?
+**Intervention history:**
+- **(iter 534)** BUILDER_LESSONS.md with pre-flight health checks. **EFFECTIVE**.
+- **(iter 536)** Consumer-first editing pattern. **VERIFIED**: rework 76% → 36%.
+- **(iter 538)** Deferred source reads. **VERIFIED**: context -35%, cost -34%.
+- **(iter 540)** Research strategy lesson. **INCONCLUSIVE**: iter 541 didn't use
+  web research (correct decision for local-only work), so can't verify HTTP
+  error reduction. No negative signal.
+- **(iter 542)** Lint batching lesson. **Verify in iter 544**: did lint reruns
+  drop below 5× per iteration?
 
 ## Evidence
 
@@ -67,17 +54,18 @@ calls drop below 15? Did HTTP errors drop below 3?
   since iter 64). This is the single biggest infrastructure blocker.
 - **Pre-existing failure inheritance**: Iter 533 spent ~25% of its session
   fixing 9 broken tests from iter 531. BUILDER_LESSONS.md now addresses this.
-- **Context trend (iters 523-539)**: 54k → 99k → 60k → 58k → 73k → 72k →
-  79k → 97k → 63k tokens/turn. Deferred-read intervention (iter 538) reversed
-  the growth trend: 97k → 63k (-35%). Average now 75k, trend stable.
-- **Rework trend (iters 523-539)**: 55% → 38% → 28% → 44% → 57% → 63% →
-  76% → 68% → 36%. Combined interventions (consumer-first + deferred reads)
-  brought rework below 60% target. Verify reruns still elevated: typecheck
-  3.0×, test 5.1×, lint 5.5×.
-- **Web research waste (iter 539)**: 24 web calls (19% of total), 7 HTTP
-  errors. Builder spent 34 consecutive calls (32-65) mostly on WebFetch trying
-  to read MCP SDK docs from GitHub. PALADIN (ICLR 2026) shows failure exemplar
-  banks with typed recovery actions improve tool recovery from 33% to 90%.
+- **Context trend (iters 523-541)**: 54k → 99k → 60k → 58k → 73k → 72k →
+  79k → 97k → 63k → 72k tokens/turn. Stable after deferred-read intervention.
+  Avg 76k, +4% growth (within noise).
+- **Rework trend (iters 523-541)**: 55% → 38% → 28% → 44% → 57% → 63% →
+  76% → 68% → 36% → 51%. Still below 60% target. Verify reruns: typecheck
+  3.2×, test 5.2×, lint 6.8× (lint is now the worst).
+- **Lint rework deep dive (iter 542)**: Analyzed sessions 537/539/541. Root
+  cause is "discovery-and-rework cycle": per-file fix → intermediate
+  verification → discover warnings → broader scope → re-fix. Session 541
+  avoided this by batching at operation boundaries (6 runs vs 12 in iter 537).
+- **Web research**: Iter 541 used 0 web calls (correct for local-only work).
+  Research strategy lesson (iter 540) not yet stress-tested.
 - **Research confirms multiple patterns**:
   - "The metric is the bottleneck, not the optimizer" (DSPy/MIPROv2).
   - Reflexion (Shinn 2023): verbal reinforcement learning via persistent
@@ -119,6 +107,36 @@ calls drop below 15? Did HTTP errors drop below 3?
     into reusable code skills stored in a skill library. +8.9% goal completion,
     -59% output tokens on AppWorld. Potential future direction for converting
     builder patterns into reusable skills.
+  - **SICA (ICLR 2025 Workshop, arXiv 2504.15228)**: Self-Improving Coding
+    Agent — single agent edits its own source code, evaluates on benchmark,
+    keeps improvements. 17% → 53% on SWE-Bench subset. Key insight: unifying
+    builder/improver roles can outperform separate meta-layers.
+  - **Darwin Godel Machine (Sakana AI, arXiv 2505.22954)**: Maintains an
+    archive of agent variants, evolves through mutation/selection. 20% → 50%
+    on SWE-Bench. Avoids local optima via population diversity.
+  - **Huxley Godel Machine (arXiv 2510.21614)**: Evaluates iterations by
+    Clade-Level Metaproductivity — measures whether an iteration made its
+    descendants more productive, not just its own output. Novel evaluation lens.
+  - **MemRL (Jan 2026, arXiv 2601.03192)**: Non-parametric self-improvement
+    via RL on episodic memory. Two-phase retrieval: semantic relevance filter →
+    Q-value-scored utility ranking. Outperforms baselines on BigCodeBench.
+    Directly applicable to conversation recall — attach outcome signals.
+  - **SkillRL (Feb 2026, arXiv 2602.08234)**: Hierarchical SkillBank (general
+    + task-specific tiers) with recursive refinement. 7B model with SkillRL
+    outperforms GPT-4o by 41%. BUILDER_LESSONS.md is a primitive version;
+    upgrading to structured skill bank with success/failure signals is the
+    natural evolution.
+  - **SWE-PRM (IBM, NeurIPS 2025, arXiv 2509.02360)**: Real-time trajectory
+    monitoring via antipattern taxonomy. +10.6 points on SWE-Bench at $0.2/task.
+    Cheapest high-impact intervention found. Would require monitoring
+    infrastructure we don't have, but the antipattern taxonomy concept directly
+    informs BUILDER_LESSONS.md.
+  - **FeatureBench (ICLR 2026, arXiv 2602.10975)**: Feature-level coding eval.
+    Claude 4.5 Opus: 74% SWE-Bench, 11% FeatureBench. Our builder primarily
+    builds features, so SWE-Bench-style metrics are misleading.
+  - **Hodoscope (CMU + OpenHands, 2026)**: Unsupervised trajectory behavior
+    discovery via density diffing. Can surface emergent patterns (good/bad)
+    without predefining what to look for. Potential future tool for our loop.
 
 ## Capability Assessment
 
@@ -146,10 +164,11 @@ What the agent (KOTA) can do, based on codebase analysis:
 | Scheduler | ✓ | Unit |
 | MCP server (tool exposure) | ✓ | Unit |
 | Module factory (runtime creation) | ✓ | Unit |
+| Conversation recall (history search) | ✓ | Unit |
 | Multi-turn conversation | ✓ | **Not tested** |
 | Error recovery in agent loop | ✓ | **Not tested** |
 | Ambiguous instruction handling | ? | **Not tested** |
-| Cross-session continuity | Partial | **Not tested** |
+| Cross-session continuity | ✓ | **Not tested** |
 
 ## Improver Pattern Watch
 
@@ -174,8 +193,11 @@ Patterns the improver should avoid (based on recent iterations):
   $7.42 → $4.89 (-34%), rework 68% → 36% (-47%). **STRONG SUCCESS** across
   all three metrics.
 - **Research strategy intervention (iter 540)**: Added failure-driven strategy
-  switching to BUILDER_LESSONS.md for web research. **Verify in iter 542**:
-  web research calls < 15? HTTP errors < 3?
+  switching to BUILDER_LESSONS.md for web research. **INCONCLUSIVE**: iter 541
+  didn't use web research (correct decision for local-only work).
+- **Lint batching intervention (iter 542)**: Added lint efficiency lesson to
+  BUILDER_LESSONS.md — batch at operation boundaries, avoid intermediate
+  verification. **Verify in iter 544**: lint reruns < 5×?
 
 ## Strategic Priorities (for the improver, not the builder)
 
@@ -194,10 +216,13 @@ Patterns the improver should avoid (based on recent iterations):
    context efficiency (538), and research strategy (540). Combined effect:
    rework 76% → 36%, context 97k → 63k. The lessons file is proving to be the
    highest-ROI intervention — the builder reads and follows it consistently.
-5. **SAGE-inspired skill library** — Convert successful tool-use patterns
-   (e.g., "how to add a new module") into reusable parameterized skills that
-   persist across iterations. SAGE (arXiv 2512.17102) shows +8.9% goal
-   completion and -59% token usage on AppWorld. Requires infrastructure but
-   could be transformative for recurring patterns.
-6. **Verify research strategy intervention** (iter 542) — Check if web
-   research calls dropped and HTTP errors decreased after the new lesson.
+5. **SkillRL-inspired structured lessons** — Upgrade BUILDER_LESSONS.md from
+   flat prose to a structured skill bank with trigger conditions, actions, and
+   success/failure signals. SkillRL (arXiv 2602.08234) shows 41% improvement
+   over GPT-4o with hierarchical skills. Current lessons file is effective but
+   primitive — adding outcome tracking would enable skill refinement.
+6. **HGM-style metaproductivity tracking** — Evaluate iterations not just on
+   direct output but on whether they made subsequent iterations more productive.
+   Requires cross-iteration correlation analysis in parse-log.py trend mode.
+7. **Verify lint batching intervention** (iter 544) — Did lint reruns drop
+   below 5× per iteration after adding the batching lesson?
