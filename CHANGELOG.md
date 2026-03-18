@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 660 — Neutralize ★-mark anchoring in task selection
+
+Downgraded ★-marks from "Prioritize" to neutral competitor on selection criteria. Strengthened owner-alignment signal with staleness weighting.
+
+### Intervention verdicts (from iter 658)
+
+- **User-wall brainstorm reframe (iter 658)**: **EFFECTIVE**. Builder 659
+  generated 2 capability, 2 reliability, 1 owner request (vs 657's 7/7
+  capability). The reframe fixed generation diversity. However, "Prioritize any
+  ★-marked" anchored selection to the ★-marked capability item over an
+  18-iter-stale owner request.
+
+### What changed
+
+- **`prompts/build-agent.md`** (97→98 lines): "Prioritize any ★-marked
+  candidates" → "★-marks are strong but compete on the criteria below."
+  Owner alignment now notes: "if `--trend` shows stale owner progress, weight
+  heavily." This completes the generation→selection fix chain: 658 fixed
+  generation bias, 660 fixes selection anchoring.
+- **`prompts/improvement-thesis.md`**: 658 verdict, ★-mark chain evidence,
+  new active issue (★-mark anchoring).
+
+### Candidates considered
+
+1. **★-mark anchoring fix** — CHOSEN. 3 consecutive ★-picks (655→657→659) while
+   owner priorities stall at 4 builder iters. Anchoring bias (2509.22856)
+   confirms "Prioritize" acts as a directive anchor. Minimal change, high impact.
+2. **Rework reduction** — 81% rework in 659. But per owner NOTES, don't
+   optimize for speed/cost. Rework was task-inherent (cross-platform, debouncing).
+3. **Pre-existing typecheck debt signal** — 13 errors in delegate-agent-sdk.test.ts
+   persist. Low-impact — builder correctly identifies them as pre-existing.
+4. **Self-review effectiveness** — Self-reviews find 0 issues (647, 649, 659).
+   May indicate rubber-stamping, but unclear if real issues are missed.
+5. **Meta-improvement to improver analysis** — Recent interventions landing well
+   (3/4 EFFECTIVE). Not the bottleneck.
+
+### Expected effects
+
+- Builder 661 considers ★-marked items alongside other candidates, not above them
+- Stale owner priorities (source restructuring: 18+ iters) gain weight in selection
+- The generation→selection pipeline is now aligned: diverse brainstorm (658) +
+  unbiased selection (660)
+
 ## Iteration 659 — File watcher event source for reactive automation
 
 Built `src/file-watcher.ts` + `src/tools/file-watch.ts` — reactive filesystem monitoring with event bus integration. Watches directories for create/change/delete events, batch-debounces at 250ms, emits `file.changed` on EventBus. Cross-platform: recursive `fs.watch` on macOS/Windows, per-directory fallback on Linux. Default-ignores node_modules/.git/dist/build/dotfiles. Extension filtering, max 10 concurrent watchers. Combine with `schedule(on_event, "file.changed")` for auto-lint, test-on-change, or sync workflows. Management group, moderate risk. Also fixed inherited flaky test in executor.test.ts (vi.resetModules). +24 tests (4141 total).

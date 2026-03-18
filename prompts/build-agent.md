@@ -44,7 +44,7 @@ Ask per axis: "Where would a real user hit a wall with this agent?"
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
 After brainstorming, scan "Future directions" in recent CHANGELOG — supplement,
-don't anchor. Prioritize any ★-marked candidates from prior self-reviews.
+don't anchor. ★-marks from self-reviews are strong but compete on the criteria below.
 Include ≥1 from an untouched area (5+ iters, check trend).
 If 2+ recent iters had zero test delta, include ≥2 capability candidates.
 
@@ -57,8 +57,9 @@ describe a concrete demo and make the strongest case for each. Then argue the
 *other* finalist's case — why would it have been the better choice? If
 compelling, ★-mark the runner-up in "Future directions." Select on: novelty
 (if `--trend` shows 2+ recent iters in same subsystem, score near-zero),
-owner alignment (advances a `b:` request), and impact (does this change what
-a user can accomplish with the agent?).
+owner alignment (advances a `b:` request — if `--trend` shows stale owner
+progress, weight heavily), and impact (does this change what a user can
+accomplish, or unblock the owner?).
 
 Record rejects in CHANGELOG under "Future directions."
 

@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 658)
+## Current Hypothesis (updated iter 660)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -10,16 +10,17 @@ Strategic context for the improver. Read at start; update when evidence changes.
 vision (640), maintenance convergence (642), backlog anchoring (644),
 perfunctory self-review (646), misleading top-neglected signal (646),
 redundant research on existing features (648), parse-log STALE metric (650),
-tools concentration (653), post-hoc steelman (654 — moved to pre-commitment).
+tools concentration (653), post-hoc steelman (654), brainstorm axis collapse
+(658 — user-wall reframe restored 3-axis diversity).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Brainstorm axis collapse**: Despite three axes (capability/reliability/owner),
-   builder 657 generated 7/7 capability candidates. Root cause: framing question
-   "What can this agent almost-but-not-quite do?" drives tool-thinking. Impact
-   criterion (656) works at selection but not at generation. Intervention (658):
-   reframe to "Where would a real user hit a wall?" — user-wall framing naturally
-   spans all three axes.
+2. **★-mark anchoring in selection**: Iter 658 fixed generation (3-axis
+   diversity restored), but "Prioritize any ★-marked" anchors selection to
+   capability items. Builder 659 brainstormed across all axes but chose the
+   ★-marked capability item over an 18-iter-stale owner request. Intervention
+   (660): downgrade ★ from "Prioritize" to neutral competitor on same criteria;
+   strengthen owner-alignment signal with staleness weighting.
 
 ## Intervention History
 
@@ -46,15 +47,19 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 - **(652)** Post-hoc steelman in step 5. **NOT FOLLOWED**: builder 653 skipped.
 - **(654)** Move counterfactual to Phase 2. **EFFECTIVE**: builder 655
   steelmanned runner-up, ★-marked it, made explicit for/against case.
-- **(656)** Impact criterion replacing research depth. **PARTIAL**: builder 657
-  used impact in selection but brainstormed 7/7 capability candidates — impact
-  at selection doesn't fix generation bias.
+- **(656)** Impact criterion replacing research depth. **PARTIAL**: fixed
+  selection, not generation.
+- **(658)** User-wall brainstorm reframe. **EFFECTIVE**: builder 659 generated
+  2 capability, 2 reliability, 1 owner (vs 657's 7/7 capability). But ★-mark
+  "Prioritize" anchored final selection to capability item anyway.
 
 ## Evidence
 
-- **15-iter trend**: +15.6 tests/iter, 35% rework. Diversity 78% (healthy).
+- **15-iter trend**: +15.2 tests/iter, 36% rework. Diversity 78% (healthy).
   Research: 15/15 iters (saturated). Work: 9 feature, 5 architecture, 1 harden.
-  Owner priorities: 7 pending, last progress 3 builder iters ago.
+  Owner priorities: 9 pending, last progress 4 builder iters ago.
+- **★-mark chain**: 655→657→659 all chose ★-marked capability items. 3
+  consecutive ★-picks while owner priorities stall.
 
 ## Research Library
 
