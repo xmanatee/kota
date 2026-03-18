@@ -53,11 +53,11 @@ don't already exist — check `src/tools/`, `src/`, module files. Drop any that
 exist and promote the next candidate. Then for top 2-3, do 2+ targeted web
 searches each — prior art, common pitfalls, how top agents solve this. Let
 research reshape your ranking, not just confirm your favorite. For the final 2,
-describe a concrete demo and make
-the strongest case for each. Select on three axes: novelty (genuinely new
-capability — if `--trend` shows 2+ recent iters in same subsystem or 2+ with
-zero test delta, score near-zero), owner alignment (advances a `b:` request),
-and research depth (non-obvious insights from web research).
+describe a concrete demo and make the strongest case for each. Then argue the
+*other* finalist's case — why would it have been the better choice? If
+compelling, ★-mark the runner-up in "Future directions." Select on: novelty
+(if `--trend` shows 2+ recent iters in same subsystem, score near-zero),
+owner alignment (advances a `b:` request), and research depth.
 
 Record rejects in CHANGELOG under "Future directions."
 
@@ -84,9 +84,6 @@ Keep `DESIGN.md` accurate but concise (≤1100 lines).
 Review your diff as a senior engineer. Check: (1) Does this integrate cleanly
 with existing modules, or introduce new coupling? (2) Are error and edge-case
 paths tested? (3) Would a caller find the API intuitive? Fix issues.
-
-Then review task selection: steelman the strongest rejected candidate — argue
-why it would have been better. If compelling, mark it ★ in "Future directions."
 
 ### 6. Record
 

@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 652)
+## Current Hypothesis (updated iter 654)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -10,15 +10,15 @@ Strategic context for the improver. Read at start; update when evidence changes.
 vision (640), maintenance convergence (642), backlog anchoring (644),
 perfunctory self-review (646), misleading top-neglected signal (646),
 redundant research on existing features (648 — grep-first in Phase 2),
-parse-log STALE metric miscalculation (650 — count actual entries, not iter arithmetic).
+parse-log STALE metric miscalculation (650 — count actual entries, not iter
+arithmetic), tools concentration (diversity recovered to 78% by iter 653).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Self-review rubber-stamps + tools concentration**: Builder found 0 issues
-   in 3 consecutive self-reviews (647, 649, 651). Tools domain 9/15 concentrated
-   despite 6+ improver iterations of text-level fixes. Root cause: self-review
-   only evaluates implementation quality, never questions task selection.
-   Intervention (652): anti-conformity steelman of rejected candidates.
+2. **Post-hoc steelman skipped**: Builder 653 ignored post-implementation
+   steelman (step 5, lines 88-89). Research: pre-action reflection is 45% more
+   effective than post-action review (Devil's Advocate, EMNLP 2024).
+   Intervention (654): move counterfactual comparison to Phase 2 decision point.
 
 ## Intervention History
 
@@ -42,14 +42,15 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
   grepped for candidates before web research, zero wasted research.
 - **(650)** Fix parse-log STALE metric. **EFFECTIVE**: trend shows correct
   "4 builder iters ago" (not 177). No false STALE pressure.
-- **(652)** Anti-conformity self-review: builder steelmans rejected candidate
-  after implementation. ★-marked candidates prioritized in next Phase 1.
+- **(652)** Post-hoc steelman in step 5. **NOT FOLLOWED**: builder 653 did
+  quality review (found real mock issue) but skipped steelman entirely.
+- **(654)** Move counterfactual to Phase 2 (pre-commitment). Remove dead
+  post-hoc steelman from step 5.
 
 ## Evidence
 
-- **15-iter trend**: +19.1 tests/iter, 35% rework. Diversity 73%.
-  Research: 15/15 iters (16/iter avg). 11 consecutive EFFECTIVE interventions.
-  Tools domain: 9/15 CONCENTRATED.
+- **15-iter trend**: +17.7 tests/iter, 36% rework. Diversity 78% (healthy).
+  Research: 15/15 iters (15/iter avg). Tools concentration resolving (3/6 recent).
 
 ## Research Library
 
@@ -81,6 +82,8 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | SeekBench (2509.22391) | Agents fail to verify assumptions against local state before external research | iter 648 |
 | Variance Inequality (2512.02731) | When improvement stalls, strengthen the verifier, not the generator | iter 652 |
 | Free-MAD (2509.11035) | Anti-conformity mode + steelman opposition breaks silent agreement/rubber-stamps | iter 652 |
+| Devil's Advocate (EMNLP 2024) | Pre-action reflection 45% more effective than post-action review | iter 654 |
+| PAE: Corrupt Success (2603.03116) | Agents skip procedural steps while achieving correct outcomes | iter 654 |
 
 ## Improver Principles
 

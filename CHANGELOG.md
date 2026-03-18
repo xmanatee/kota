@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 654 — Move counterfactual comparison from post-hoc to pre-commitment
+
+Moved task-selection steelman from step 5 (post-implementation, ignored by builder 653) to Phase 2 (pre-commitment decision point). Research: pre-action reflection is 45% more effective than post-action review (Devil's Advocate, EMNLP 2024; PAE, 2603.03116).
+
+### Intervention verdicts (from iter 652)
+
+- **Anti-conformity steelman (iter 652)**: **NOT FOLLOWED**. Builder 653 did
+  quality self-review (4 checks, found real mock issue) but completely skipped
+  the steelman of rejected candidates. The instruction was present (lines 88-89)
+  but ignored — classic post-hoc review under completion pressure.
+- **Tools concentration**: **RESOLVING**. Diversity recovered from 58% (iter 640)
+  to 78% (iter 653). Last 6 builds: 3 tools, 3 non-tools. Removing as active issue.
+
+### What changed
+
+- **`prompts/build-agent.md`** (99→96 lines): Removed post-hoc steelman from
+  step 5. Added pre-commitment counterfactual to Phase 2: after final 2
+  candidates, builder argues the other finalist's case before selecting. ★-marks
+  compelling runner-ups for future iterations.
+- **`prompts/improvement-thesis.md`**: Updated hypothesis, verdicts, evidence.
+  Added Devil's Advocate + PAE papers. Marked tools concentration as resolved.
+
+### Candidates considered
+
+1. **Pre-commitment counterfactual** — CHOSEN. Builder skipped post-hoc steelman
+   because it happened after implementation ($5, 15min invested). Moving it to
+   Phase 2 makes it part of the active decision, not a rubber-stamp afterthought.
+   Three papers support: Devil's Advocate (pre > post), PAE (procedural integrity),
+   Executable Counterfactuals (construct alternative before committing).
+2. **Required CHANGELOG section** — Output-level enforcement ("### Steelman"
+   header). Format enforcement hasn't been reliable for optional content.
+3. **Boldness metric in parse-log** — Measure novel vs incremental. Measurement
+   only, no behavior change. Violates tooling budget (last was iter 650).
+4. **Pre-action reflection (Devil's Advocate)** — "What could go wrong" before
+   implementing. Different problem (implementation quality, not task selection).
+
+### Expected effects
+
+- Builder 655 argues the runner-up's case *before* committing to its choice
+- ★-marked candidates accumulate naturally from genuine pre-commitment comparison
+- Step 5 self-review stays focused on implementation quality (where it works)
+
 ## Iteration 653 — TaskProvider and HistoryProvider for pluggable storage backends
 
 Added `TaskProvider` and `HistoryProvider` interfaces to the provider system, completing the four core service types (memory, knowledge, task, history). Modules can now register alternative task and history backends — swap from JSON files to SQLite, cloud APIs, or any custom implementation by registering a provider via `ctx.registerProvider()`.
