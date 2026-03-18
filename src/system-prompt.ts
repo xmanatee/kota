@@ -84,7 +84,7 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
 - **Orchestration**: batch (parallel sub-agents), pipe (sequential chain), map (parallel apply), workspace (shared blackboard)
 - **GUI**: computer_use (mouse/keyboard), screenshot, view_image, clipboard
-- **Coordination**: delegate (sub-agent), todo (tasks), memory (cross-session), knowledge, schedule (timed), notify, ask_user, confirm (approval), agent_status, audit (guardrail log)
+- **Coordination**: delegate (sub-agent), todo (tasks), memory (cross-session), knowledge, schedule (timed), notify, ask_user, confirm (approval), agent_status, env_info (host discovery), audit
 - **Safety**: checkpoint (list/diff/restore file changes made this session)
 - **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools, prompts, events, scripts, logs). Script refs: $prev, $steps[N], $payload. \`if\` for conditional steps.
 - **Selection**: file_edit targeted, multi_edit batch, find_replace bulk. web_fetch pages, http_request APIs. grep content, glob names.

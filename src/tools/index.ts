@@ -11,6 +11,7 @@ import { registration as computerUse } from "./computer-use.js";
 import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
+import { registration as envInfo } from "./env-info.js";
 import { registration as fileEdit } from "./file-edit.js";
 import { registration as fileRead } from "./file-read.js";
 import { registration as fileWrite } from "./file-write.js";
@@ -82,6 +83,7 @@ const registrationImports = [
   () => todo,
   () => repoMap,
   () => delegate,
+  () => envInfo,
   () => webFetch,
   () => webSearch,
   () => askUser,

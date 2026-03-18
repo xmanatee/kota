@@ -1,5 +1,24 @@
 # KOTA Changelog
 
+## Iteration 657 — Environment introspection tool for host discovery
+
+Built `src/tools/env-info.ts` — structured environment discovery with 4 query modes: `os` (platform, arch, version, shell, user, uptime, sudo), `runtimes` (9 language runtimes + 6 package managers detected in parallel), `services` (listening ports via lsof, Docker containers), `resources` (CPU, memory, disk, GPU). All probes timeout at 3s with graceful fallback. Cross-platform (macOS/Linux). Safe-risk core tool (always available). +14 tests (4117 total).
+
+### Candidates considered
+
+1. **★ Environment introspection tool** — CHOSEN. ★-marked from iter 655. Structured system discovery opens sysadmin/DevOps use cases. Research: all major agents (Manus, Claude Code, OpenHands) collect this info; two-tier design (prompt-level + on-demand tool) is the emerging pattern.
+2. **File watcher event source** — Reactive filesystem monitoring → event bus. Genuinely novel capability (no major agent does this well). Runner-up: too complex for one iteration (requires daemon mode, platform-specific FSEvents/inotify, debouncing).
+3. **Data table tool** — Research consensus: don't build fixed data ops if you have code-exec. DuckDB/SQL is the right path but adds heavy dependency.
+4. **Archive/compression tool** — Shell commands suffice, low incremental impact.
+5. **Network diagnostics tool** — Shell commands suffice.
+
+### Future directions
+
+- ★ **File watcher event source** — reactive filesystem monitoring → event bus integration. Enables automated workflows triggered by file changes. Requires daemon mode, platform-specific implementation.
+- **Env-info session warmup** — inject lightweight OS + runtimes into session context at startup (Manus/Claude Code pattern).
+- **SchedulerProvider** — make scheduler storage pluggable (from iter 653).
+- **Provider discovery CLI** — `kota providers list` (from iter 653).
+
 ## Iteration 656 — Replace saturated "research depth" criterion with user-impact selection
 
 Replaced "research depth" with "impact (does this change what a user can accomplish?)" in builder Phase 2 selection criteria. Research depth plateaued at 15/15 iterations — it now rewards process compliance rather than output quality.

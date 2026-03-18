@@ -602,6 +602,10 @@ Homogeneous parallel apply — calls `executeTool` directly for each item (no LL
 
 In-memory shared key-value store for multi-agent coordination. Parent creates a workspace, delegates tasks — sub-agents read/write entries directly without routing through the parent. Actions: `create`, `write`, `read`, `list`, `delete`. Entries have key, value, optional author, timestamp. Available to both explore and execute sub-agents. Part of the `orchestration` tool group.
 
+### Environment Introspection (`src/tools/env-info.ts`)
+
+Structured host environment discovery tool. Queries: `os` (platform, arch, version, shell, hostname, user, uptime, sudo), `runtimes` (installed languages — node, python, go, rust, java, ruby, deno, bun — and package managers), `services` (listening ports via lsof, Docker containers), `resources` (CPU model/cores, memory used/total/free, disk, GPU via nvidia-smi), `all`. All probes use 3-second timeouts and graceful fallback ("not available" on failure). Cross-platform: macOS-specific checks (sw_vers, sysctl), Linux (os-release), with general fallbacks. Safe-risk core tool. No environment variable exposure — avoids secret leakage.
+
 ### Agent Status Introspection (`src/tools/agent-status.ts`)
 
 Runtime self-inspection tool — lets the agent query its own capabilities and configuration. Queries: `tools` (core + module-registered, with risk/group), `modules` (loaded modules + tool counts), `providers` (registered service providers + active selection), `groups` (tool groups + enabled/disabled status), `config` (current settings, apiKey redacted), `all`. Optional `filter` parameter for text search across results. Safe-risk core tool (always available). Module and config info injected by `loop.ts` via setter pattern to avoid circular imports.

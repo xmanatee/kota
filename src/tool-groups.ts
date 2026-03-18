@@ -21,6 +21,7 @@ export const CORE_TOOL_NAMES = new Set([
   "ask_user",
   "delegate",
   "enable_tools",
+  "env_info",
   "custom_tool",
   "checkpoint",
   "module_factory",
