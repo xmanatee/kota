@@ -30,6 +30,7 @@ import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
+import { resetAgentStatusProviders, setConfigProvider, setModuleInfoProvider } from "./tools/agent-status.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
@@ -208,6 +209,24 @@ export class AgentSession {
     });
 
     this.moduleLoader = new ModuleLoader(options.config || {}, this.verbose);
+    setModuleInfoProvider(() =>
+      this.moduleLoader.getLoadedModules().map((name) => ({
+        name,
+        toolCount: 0, // per-module count not exposed; total via getToolCount()
+      })),
+    );
+    if (options.config) {
+      const cfg = options.config;
+      setConfigProvider(() => {
+        const { modelProvider, ...safe } = cfg;
+        return {
+          ...safe,
+          modelProvider: modelProvider
+            ? { type: modelProvider.type, baseUrl: modelProvider.baseUrl }
+            : undefined,
+        };
+      });
+    }
     this.moduleLoader.setSessionFactory((opts) => {
       const session = new AgentSession({
         model: opts.model || this.model,
@@ -536,6 +555,7 @@ export class AgentSession {
     resetGroups();
     resetProviderRegistry();
     resetToolTelemetry();
+    resetAgentStatusProviders();
     this.moduleLoader.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});
     if (this.sessionStartTime > 0) {

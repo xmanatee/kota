@@ -588,6 +588,10 @@ Homogeneous parallel apply — calls `executeTool` directly for each item (no LL
 
 In-memory shared key-value store for multi-agent coordination. Parent creates a workspace, delegates tasks — sub-agents read/write entries directly without routing through the parent. Actions: `create`, `write`, `read`, `list`, `delete`. Entries have key, value, optional author, timestamp. Available to both explore and execute sub-agents. Part of the `orchestration` tool group.
 
+### Agent Status Introspection (`src/tools/agent-status.ts`)
+
+Runtime self-inspection tool — lets the agent query its own capabilities and configuration. Queries: `tools` (core + module-registered, with risk/group), `modules` (loaded modules + tool counts), `providers` (registered service providers + active selection), `groups` (tool groups + enabled/disabled status), `config` (current settings, apiKey redacted), `all`. Optional `filter` parameter for text search across results. Safe-risk core tool (always available). Module and config info injected by `loop.ts` via setter pattern to avoid circular imports.
+
 ### Background Process Management (`src/tools/process.ts`)
 
 Enables async workflows — start servers, run watchers, monitor long-running tasks:

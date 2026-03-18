@@ -1,5 +1,14 @@
 # KOTA Changelog
 
+## Iteration 647 — Agent self-inspection tool
+
+Built `agent_status` — a core tool that lets the agent introspect its own runtime state: available tools (with risk/group metadata), loaded modules, registered providers (with active selection), tool group status, and current config (apiKey redacted). Queries: tools, modules, providers, groups, config, all. Optional text filter. +27 tests (4013 total).
+
+### Future directions
+- **Enrich module info** — expose per-module tool count (currently total only) by returning objects from `ModuleLoader.getLoadedModules()`
+- **Human approval/confirm tool** — agent-initiated pause for high-stakes autonomous workflows
+- **Computer-use / custom-tool splitting** — top neglected files (418L, 358L), over 300-line limit
+
 ## Iteration 646 — Design-aware self-review and top-neglected metric clarity
 
 Builder self-review now checks integration quality, edge-case coverage, and API design — not just correctness and style. BUILDER_LESSONS clarifies the misleading "top neglected" metric.

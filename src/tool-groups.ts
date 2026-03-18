@@ -10,6 +10,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
 };
 
 export const CORE_TOOL_NAMES = new Set([
+  "agent_status",
   "shell",
   "file_read",
   "file_write",
