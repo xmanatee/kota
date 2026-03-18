@@ -2,26 +2,19 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 666)
+## Current Hypothesis (updated iter 668)
 
-**Resolved systemic issues**: Metric obsession (632), prompt overspecification
-(632), legacy facades (632), prompt size enforcement (632), research declining
-(634), formulaic candidates (634), no self-assessment (638), subsystem tunnel
-vision (640), maintenance convergence (642), backlog anchoring (644),
-perfunctory self-review (646), misleading top-neglected signal (646),
-redundant research on existing features (648), parse-log STALE metric (650),
-tools concentration (653), post-hoc steelman (654), brainstorm axis collapse
-(658), ★-mark anchoring (660), addition bias (662), confirmation bias (664).
+**Resolved**: 20 issues (iters 632-666). Key: metric obsession, prompt
+overspecification, formulaic candidates, backlog anchoring, ★-mark anchoring,
+confirmation bias, research→implementation gap (Bridge step, 666 — EFFECTIVE).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Research→implementation gap**: Builder's research informs task selection
-   but not implementation design. In iter 665, research finding ("all major
-   frameworks support template prompts") validated the choice but didn't shape
-   how the builder implemented it. Zero evidence of "changed design because
-   of research." Intervention (666): "Bridge" step between Select and
-   Implement — builder must name a specific technique/pitfall from research
-   that shapes implementation.
+2. **Rubber-stamp self-review**: Self-review consistently finds "no issues"
+   across 3+ iterations (663: 52% rework/3 fix cycles, 665: 50%/2, 667: 46%/0
+   — all self-reviewed as "looks clean"). Pass/fail questions let builder affirm
+   quality without generating findings. Intervention (668): restructured
+   questions to demand specific findings, not pass/fail verdicts.
 
 ## Intervention History
 
@@ -35,21 +28,20 @@ steelman (652, not followed). Partial: self-review structure (646), impact
 criterion (656).
 
 **Recent:**
-- **(660)** Neutralize ★-mark anchoring. **EFFECTIVE**: broke ★-chain.
-- **(662)** Composition-first brainstorming. **EFFECTIVE**: builders 663, 665
-  both composed existing subsystems. Confirmed across 2 iterations.
-- **(664)** Split research from selection. **EFFECTIVE**: builder 665 did 5 web
-  searches across 3 candidates before selecting. Findings table per candidate.
-  Steelman comparison. Fixed 100% single-candidate search pattern.
+- **(662)** Composition-first brainstorming. **EFFECTIVE** (confirmed 2 iters).
+- **(664)** Split research from selection. **EFFECTIVE** (confirmed 1 iter).
+- **(666)** Bridge step (research→implementation). **EFFECTIVE**: builder 667
+  named "explicit named re-exports" from research; directly shaped implementation.
 
 ## Evidence
 
-- **15-iter trend**: +18.1 tests/iter, 41% rework. Diversity 73% (healthy).
-  Research: 15/15 (saturated). Work: 10 feature, 4 architecture, 1 harden.
-  Owner priorities: 10 pending, last progress iter 665 (1 builder iter ago).
-- **Research→implementation gap**: Iter 665 research validated choice but
-  didn't change implementation. Builder implements from first principles
-  without carrying research insights into design decisions.
+- **15-iter trend**: +17.3 tests/iter, 44% rework. Diversity 66% (healthy).
+  Research: 15/15 (saturated). Work: 11 feature, 3 architecture, 1 harden.
+  Owner priorities: 11 pending, last progress iter 667 (current).
+  Tools domain: 9/15 CONCENTRATED.
+- **Rubber-stamp self-review**: Iters 663, 665, 667 all produced "no issues"
+  self-reviews despite significant rework during implementation. Pass/fail
+  questions are structurally incapable of generating findings.
 
 ## Research Library
 
@@ -70,6 +62,8 @@ diversity pressure (QDAIF, DGM), pre-action > post-action reflection (Devil's Ad
 | Curriculum Collapse (Agent0, 2511.16043) | Self-improving loops stagnate without external signal | reference |
 | Self-Play Info Gain (2603.02218) | Evolution stalls when info gain → zero; sync roles | reference |
 | HGM (Sakana, ICLR 2026 Oral) | Short-term optimization can kill long-term potential | reference |
+| MAR (2512.20845) | Diverse reasoning personas reduce shared blind spots in self-review | iter 668 |
+| ASL (2510.14253, ICLR 2026) | Three-role loop (generate/solve/evaluate) avoids stagnation | reference |
 
 ## Improver Principles
 

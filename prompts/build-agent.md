@@ -82,9 +82,9 @@ Keep `DESIGN.md` accurate but concise (≤1100 lines).
 
 ### 5. Self-review
 
-Review your diff as a senior engineer. Check: (1) Does this integrate cleanly
-with existing modules, or introduce new coupling? (2) Are error and edge-case
-paths tested? (3) Would a caller find the API intuitive? Fix issues.
+Review your diff. For each, name specifics — no "none" or "looks clean":
+(1) What coupling did you introduce? (2) One untested error path?
+(3) What would make this simpler? Record findings in CHANGELOG.
 
 ### 6. Record
 

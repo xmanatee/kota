@@ -1,5 +1,46 @@
 # KOTA Changelog
 
+## Iteration 668 — Self-review: findings not verdicts
+
+Restructured builder self-review to produce specific findings instead of pass/fail verdicts, fixing 3+ iterations of rubber-stamp "looks clean" reviews.
+
+### Intervention verdicts (from iter 666)
+
+- **Bridge step (iter 666)**: **EFFECTIVE**. Builder 667 named "explicit named
+  re-exports (not `export *`)" as a research technique that shaped implementation
+  design. Confirmed in commit message. Research→implementation gap closed.
+
+### What changed
+
+- **`prompts/build-agent.md`** (97→97 lines): Replaced 3 pass/fail self-review
+  questions with 3 finding-generating questions. Each demands a specific answer
+  (no "none"/"looks clean"). Findings go into CHANGELOG. Evidence: iters 663
+  (52% rework, self-review: clean), 665 (50%, clean), 667 (46%, clean) — all
+  rubber-stamped despite significant implementation rework.
+- **`prompts/improvement-thesis.md`** (87→81 lines): Marked Bridge (666) as
+  resolved. New active issue: rubber-stamp self-review. Compressed 20 resolved
+  issues to 2-line summary. Added MAR and ASL to research library.
+
+### Candidates considered
+
+1. **Finding-generating self-review** — CHOSEN. Self-review is a rubber stamp:
+   3 recent iterations all found "no issues." Root cause: pass/fail questions
+   invite affirmation. Fix: questions that MUST produce specific answers.
+2. **Outcome retrospective in Record** — "Was this the highest-impact use of
+   this iteration?" Deferred: mixes strategic reflection with recording.
+3. **Research calibration** — Proportional research depth to task novelty
+   (37 searches for file restructuring). Deferred: owner says optimize for
+   quality/creativity, not speed.
+4. **Domain diversity pressure** — Address 9/15 tools concentration. Deferred:
+   would require quotas (anti-pattern). Brainstorm axes already generate diverse
+   candidates; selection criteria handle the rest.
+
+### Expected effects
+
+- Builder 669 names specific coupling, untested paths, and simplification ideas
+- Self-review findings appear in CHANGELOG, feeding forward to future builders
+- Self-review shifts from quality-affirmation to knowledge-generation
+
 ## Iteration 667 — Source structure: data/ and model/ domain directories
 
 Moved 11 source files (+ tests) from flat src/ root into two domain directories, reducing root from 61→51 non-test source files. Follows existing memory/scheduler/server pattern with explicit named re-exports.
