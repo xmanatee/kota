@@ -910,6 +910,19 @@ await session.send("Read the file");
 
 **Test coverage**: Core loop (single/multi-turn, parallel tools, circuit breaker), event bus (session.start/end), context persistence (multi-send), observation masking, tool integration (file_read, file_write, shell, grep, todo).
 
+### Event-Driven Pipeline E2E Tests (`src/e2e-events.test.ts`)
+
+Tests the full event → module handler → tool execution chain without mocking the LLM (no agent loop involved — tests the step-handler pipeline directly):
+
+- **Step handler execution**: custom event → file_write tool produces file on disk
+- **$prev chaining**: file_read → file_write with output flowing between steps
+- **Conditional steps**: `if` guards that evaluate `$prev contains X`
+- **Error isolation**: failed step stops pipeline but doesn't crash the event bus
+- **Typed events**: `schedule.fire` and `knowledge.create` trigger handlers with `$payload` template interpolation and field access
+- **Multi-handler**: multiple modules on same event all execute independently
+- **Lifecycle**: unsubscribed handler does not fire; `$steps[N]` back-references
+- **Full pipeline**: Scheduler getDue → markFired → bus emit → handler → tool; multiple due items produce separate files
+
 ### Composition Tests (`src/composition.test.ts`)
 
 Verify that individually-tested capabilities compose into working multi-step workflows. Each scenario exercises a realistic user workflow through the full agent loop:

@@ -1,5 +1,34 @@
 # KOTA Changelog
 
+## Iteration 645 — Event-driven pipeline E2E tests
+
+Added 13 E2E tests (`src/e2e-events.test.ts`) covering the full event → module handler → tool execution chain. Tests exercise step-based event handlers from manifest modules through real tool execution with observable side effects (files on disk). +13 tests (3986 total).
+
+### What changed
+
+- **`src/e2e-events.test.ts`** (new, 589 lines): 13 tests across 4 describe blocks:
+  - Step handler basics (write, $prev chain, conditional true/false, error isolation)
+  - Typed events (schedule.fire with $payload template, knowledge.create, $payload.field resolution)
+  - Multi-handler/lifecycle (multiple handlers, unsubscribe, $steps[N] back-refs)
+  - Full pipeline (Scheduler getDue → markFired → emit → handler → file; multiple due items)
+- **`DESIGN.md`**: Added "Event-Driven Pipeline E2E Tests" section documenting the test file.
+
+### Candidates considered
+
+1. **Event-driven pipeline E2E tests** — CHOSEN. Owner-aligned (testing priority, STALE since iter 625). Fills the last major E2E gap: event→handler→tool chain had zero integration coverage. Research confirmed Block Engineering testing pyramid pattern.
+2. **Self-inspect / agent status tool** — New capability for runtime introspection. Research showed dominant pattern is context-window injection (already done). Deferred.
+3. **Conditional control-flow tool** — LangGraph-style branching. Research flagged over-orchestration risk; LLM already handles branching via ReAct loop. Deferred.
+4. **Computer-use / custom-tool hardening** — Top neglected files by builder history, but already have 43/35 tests respectively (created before builder loop). File splitting deferred.
+5. **File watcher / filesystem events** — New automation capability. Deferred.
+
+### Future directions
+
+- **Self-inspect / status tool** — Let agent query loaded modules, providers, active tools, config at runtime. Useful when capabilities are dynamic.
+- **Code-based event handler E2E** — Test `runEventHandler` (REPL-based) path, not just step-based handlers.
+- **Computer-use file splitting** — 418 lines, should be split to ≤300 per code standards.
+- **Human approval / confirm tool** — Pause execution for human sign-off in autonomous workflows.
+- **Conditional control-flow tool** — Branching/conditions in tool chains for complex automation.
+
 ## Iteration 644 — Brainstorm-before-backlog reduces candidate anchoring
 
 Restructured builder Phase 1 to brainstorm fresh candidates BEFORE scanning Future directions backlog.

@@ -39,6 +39,7 @@ b: having implemented events and tasks e.t.c. let's implement some kind storage/
 b: it should also be properly tested somehow... maybe with e2e tests... we could mock some stuff like llms with responces but should check that event based system works as expected... maybe reserch whether it's possible to mock claude code stuff when using anthropic-sdk.
   → Progress (iter 533): Built mock Anthropic client (`src/mock-client.ts`) and 15 E2E tests (`src/e2e.test.ts`) covering the full agent loop, tool execution, event bus, observation masking, and circuit breaker — all without a real API key.
   → Progress (iter 625): Added 11 advanced E2E tests (`src/e2e-advanced.test.ts`): 4 delegate tests (explore/execute/error paths), 2 architect mode tests (single+multi-file plan-execute), 5 scheduled action tests (ActionExecutor pipeline, concurrency, Scheduler integration). Next: event-triggered schedule E2E tests, module event handler E2E tests.
+  → Progress (iter 645): Added 13 event-driven pipeline E2E tests (`src/e2e-events.test.ts`): step handler execution, $prev/$payload/$steps[N] resolution, conditional steps, error isolation, schedule.fire + knowledge.create typed events, multi-handler, full Scheduler→event→handler pipeline. Next: code-based event handler E2E tests (REPL path).
 i: check everything if changing main execution loop. be thorough to make sure changes aren't going to break future executions
 i: The e2e smoke test (added iter 64) has never run because `ANTHROPIC_API_KEY`
 is not set in the shell environment. Claude Code uses its own stored
