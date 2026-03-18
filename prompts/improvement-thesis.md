@@ -4,35 +4,39 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 630)
+## Current Hypothesis (updated iter 632)
 
-**Creativity is anchored on internal knowledge.** The builder generates
-candidates only from what it already knows (codebase + NOTES.md). Research
-happens after commitment, which means ideation never benefits from external
-inspiration. Iter 628 fixed research-implementation alignment (confirmed: iter
-629 researched replanning, not eliminated candidates). Next frontier:
-research-ideation alignment — explore the landscape BEFORE generating candidates.
+**Implementation quality is the next frontier.** Inspiration scan (iter 630)
+partially works — iter 631 found a genuinely novel idea (blackboard) from web
+research. But research depth dropped to 4 searches (lowest in 8 iters), and
+the builder had no quality target beyond "tests pass." The gap has shifted from
+"what to build" to "how well to build it."
 
-**Key insight (iter 630)**: Research serves three purposes — **inspiration**
-(what could I build?), **evaluation** (should I build this?), and
-**implementation** (how should I build this?). Iters 600+628 addressed
-evaluation and implementation. Deep Ideation (arXiv:2511.02238) shows that
-exploration before ideation produces 10.67% quality improvement. Added
-inspiration scan to Phase 1.
+**Key insight (iter 632)**: The brainstorming pipeline now has three research
+stages — inspiration (Phase 1), evaluation (Phase 2.2), and implementation
+(Phase 2.3). Inspiration works. Evaluation works (demo + case-making). But
+implementation research is shallow when the builder feels confident. Adding
+self-defined excellence criteria (AutoHarness pattern) and comparative research
+(2+ approaches) to Phase 2 to raise the quality bar.
 
 **Active issues:**
-1. **Brainstorming creativity** — Builder explores before generating candidates
-   (new Phase 1). Verify: does iter 631 discover novel ideas from web research
-   that it wouldn't have generated from codebase knowledge alone?
-2. **Composition verification** — No E2E for batch/pipe/map.
-3. **System prompt scaling** — 32 tools, ~200 chars headroom.
+1. **Implementation quality** — Builder defines excellence criteria before
+   coding + compares 2+ approaches. Verify iter 633: does the builder write
+   explicit quality criteria? Does it compare trade-offs in research?
+2. **Prompt-only plateau risk** — ICLR 2026 RSI: agents modifying only prompts
+   plateau. Last 10 interventions have all been prompt changes. If quality
+   criteria don't land, pivot to tool/scaffold expansion (parse-log.py quality
+   signals, quality-review utility).
+3. **Composition verification** — No E2E for batch/pipe/map.
+4. **System prompt scaling** — 33 tools, ~200 chars headroom.
 
 **Resolved issues:**
-- Owner priority drift: per-item next-steps (624) fixed it. Iter 625 chose
-  E2E tests (owner request). 0 builder iters since last progress.
-- Depth coverage, suite_totals, test delta, subsystem classification, depth
-  tracking, signal accuracy, research usage, domain concentration,
-  brainstorming quality, DESIGN.md growth, instruction bloat: all RESOLVED.
+- Brainstorming creativity: inspiration scan partially effective (iter 631
+  found novel blackboard idea from research). Still active but progressing.
+- Owner priority drift, depth coverage, suite_totals, test delta, subsystem
+  classification, depth tracking, signal accuracy, research usage, domain
+  concentration, brainstorming quality, DESIGN.md growth, instruction bloat:
+  all RESOLVED.
 
 ## Intervention History
 
@@ -67,20 +71,25 @@ research strategy lesson (540). See CHANGELOG archive for details.
   EFFECTIVE**: iter 629 did 12 web searches ALL on replanning (built), 0 on
   eliminated candidates. Compare iter 627: 8 on HTTP (eliminated), 0 on built.
 - **(630)** Inspiration-first brainstorming + composition category + demo
-  evaluation. Pending.
+  evaluation. **PARTIALLY EFFECTIVE**: iter 631 found novel blackboard idea from
+  web research (3 inspiration searches). But only 4 total searches (lowest in
+  8 iters). Owner-request and composition categories not genuinely engaged.
+- **(632)** Quality criteria + comparative research + registration checklist
+  expansion. Pending.
 
-## Evidence (updated iter 628)
+## Evidence (updated iter 632)
 
-- **Iter 629 metrics**: 64 calls, $3.49, 52k ctx/turn, +45 tests, 1 fix cycle,
-  38% rework, 50% re-edit. Built adaptive replanning for architect mode. 12 web
-  searches — ALL on replanning (built). Research-implementation alignment CONFIRMED.
-- **8-iter trend (615-629)**: calls avg 69, cost avg $3.12, +32.4 tests/iter.
-  Context 50k avg (shrinking -6%). Re-edit 38% avg, 2.1 edits/file avg.
+- **Iter 631 metrics**: 70 calls, $3.73, 63k ctx/turn, +36 tests, 1 fix cycle,
+  57% rework (highest in 8 iters), 33% re-edit. Built shared workspace tool.
+  4 web searches — 3 inspiration (found blackboard), 1 implementation (shallow).
+  Externally-inspired idea confirms inspiration scan works, but research depth
+  dropped significantly.
+- **8-iter trend (617-631)**: calls avg 69, cost avg $3.16, +33.9 tests/iter.
+  Context 51k avg (growing +9%). Re-edit 42% avg, 2.2 edits/file avg.
   Work pattern: 4 feature, 3 hardening, 1 architecture (89% diversity, healthy).
-- **Creativity concern**: Builder generates candidates from internal knowledge
-  only. All 4 Phase 1 candidates in iter 629 were predictable extensions of
-  existing features. Adding inspiration scan before brainstorming to inject
-  external ideas into the ideation phase.
+- **Quality gap identified**: Builder has no quality target beyond verification
+  checks. Implementations are functional but could be deeper with explicit
+  criteria. Registration rework (57%) partly due to incomplete checklist.
 
 ## Research Library
 
@@ -100,7 +109,7 @@ research strategy lesson (540). See CHANGELOG archive for details.
 | JetBrains Complexity Trap (NeurIPS 2025) | Observation masking matches LLM summarization at lower cost; hybrid gives 7-11% extra cost reduction | applied iter 523 |
 | Choice-Supportive Bias (AAAI 2025) | LLMs inflate positive assessments of their initial pick; force explicit comparison with evidence before committing | iter 626 (Phase 2 restructuring) |
 | DReaMAD (2503.16814) | Assigning different evaluation stances breaks conservative convergence in LLM debate/evaluation | iter 626 (adversarial case-making) |
-| AutoHarness (ICLR 2026 RSI) | Agent writes own verification criteria before executing; prompt-level technique | potential |
+| AutoHarness (ICLR 2026 RSI) | Agent writes own verification criteria before executing; prompt-level technique | iter 632 (quality criteria) |
 | Deep Ideation (2511.02238) | Explore-expand-evolve with concept network before ideation; 10.67% quality lift over other methods | iter 630 (inspiration scan) |
 | Chain of Ideas (2410.13185) | Literature chain tracing progressive development grounds better ideation than raw brainstorming | iter 630 (exploration before candidates) |
 | DGM (2505.22954, Sakana) | Open-ended self-improvement via evolutionary code rewriting; growing archive of variants. Warning: objective hacking discovered | reference |
@@ -181,10 +190,11 @@ Core principles distilled from 40 interventions across 80 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Brainstorming creativity** — Iter 630 added inspiration scan (web research
-   before candidates) and composition category. Verify iter 631: does the builder
-   discover novel ideas from exploration that differ from codebase-anchored ones?
-2. **Context engineering** — If inspiration alone isn't enough, inject a "best
-   recent iteration" example into brainstorming context (SGICE pattern).
+1. **Implementation quality** — Quality criteria (iter 632) + comparative
+   research. Verify iter 633: explicit criteria in output, 2+ approaches
+   researched. If this doesn't land, try tool/scaffold expansion next.
+2. **Prompt-only plateau** — 10 consecutive prompt-only interventions. ICLR
+   2026 RSI says this plateaus. Next non-prompt candidate: parse-log.py
+   quality signals or quality-review utility for the builder.
 3. **Composition verification** — No E2E for batch/pipe/map.
-4. **System prompt scaling** — ~200 chars headroom at 32 tools.
+4. **System prompt scaling** — 33 tools, ~200 chars headroom.

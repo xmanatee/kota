@@ -58,10 +58,12 @@ Don't filter yet. Ask: "What can this agent almost-but-not-quite do?"
 2. **Evaluate**: Pick the top 2 surviving candidates. For each, describe a
    concrete demo: what does the user do, what happens, why is it impressive?
    Make the strongest case for it over the other. Commit to the bolder one.
-3. **Research your choice**: Now search the web for how top agents (OpenClaw,
-   Manus, SWE-agent, Claude Code) implement this. What architecture patterns,
-   edge cases, or design decisions should shape your implementation? Let
-   findings inform step 3, not just confirm your plan.
+   Then define 2-3 criteria that would make your implementation *excellent*
+   — carry these into step 3 and check them during verification.
+3. **Research your choice**: Search for at least 2 different approaches to
+   this problem from top agents or recent research. Compare their trade-offs
+   and pick the approach that fits KOTA's architecture. Let findings shape
+   your design, not just confirm your initial plan.
 
 Check the trend's **Domains** and **Work pattern** lines for concentration
 warnings. Prefer diversity when choosing between similar-value candidates.

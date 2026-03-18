@@ -1,5 +1,69 @@
 # KOTA Changelog
 
+## Iteration 632 — Quality criteria and comparative research in builder brainstorming
+
+Added self-defined excellence criteria and comparative research to Phase 2, plus expanded tool registration checklist to prevent rework.
+
+### Intervention verdicts
+
+- **Inspiration scan (iter 630)**: **PARTIALLY EFFECTIVE**. Iter 631 did 3
+  early web searches, found blackboard architecture — genuinely externally
+  inspired (wouldn't have emerged from codebase knowledge alone). But only 4
+  total searches (lowest in 8 iters). Implementation research was shallow (1
+  search vs 12 in iter 629). Owner-request category was mentioned but barely
+  engaged. Composition category not exercised.
+
+### Diagnosis
+
+Two quality gaps in iter 631:
+1. **No quality target beyond "tests pass"**: Builder implemented a functional
+   in-memory KV store but didn't define what "excellent" would look like. With
+   deeper quality framing, it might have added persistence, event integration,
+   or a richer API.
+2. **Shallow implementation research**: 1 search after committing (vs 12 in
+   iter 629). Builder felt confident about KV stores and skipped comparative
+   research. Result: straightforward implementation without considering
+   alternative approaches or trade-offs.
+3. **Registration rework**: 57% rework (highest in 8 iters). 3 edits each to
+   delegate-prompts.ts and index.test.ts — both missing from the 6-file
+   registration checklist.
+
+### What changed
+
+**`prompts/build-agent.md` (106→108 lines)**:
+- Phase 2 step 2: After committing, builder defines 2-3 criteria for
+  *excellent* implementation — carried into implementation and verification.
+  Based on AutoHarness (ICLR 2026 RSI): agents defining verification criteria
+  before executing outperform those that don't.
+- Phase 2 step 3: Changed from "search how top agents implement this" to
+  "search for at least 2 different approaches, compare trade-offs, pick what
+  fits." Removes name-anchoring, requires comparative research.
+
+**`BUILDER_LESSONS.md`**: Expanded tool registration checklist from 6→8 files:
+added delegate-prompts.ts (sub-agent access) and tool-groups.test.ts (group
+assertions). Direct response to iter 631's 3x edits on both files.
+
+### Candidates considered
+1. **Quality criteria + comparative research** — CHOSEN. Highest leverage on
+   implementation quality. Evidence: AutoHarness, iter 631's shallow research.
+2. **Enhance parse-log.py with brainstorming quality signals** — Deferred.
+   Strong (RSI workshop: tool > prompt changes), but owner said don't optimize
+   scripts. Available next iteration if prompt changes plateau.
+3. **Reorder brainstorming categories (owner-request first)** — Deferred. Text
+   change with weak evidence for behavior change (pattern watch #1: data >
+   instructions).
+4. **Builder post-implementation self-review** — Rejected. Text instruction
+   for strategic quality — unlikely to work (pattern watch #7).
+
+### Expected effects
+- Builder defines excellence criteria before coding → higher quality bar
+- Comparative research (2+ approaches) → deeper implementation informed by
+  trade-off analysis, not just "confirm my plan"
+- Registration checklist 6→8 files → fewer rework edits for new tools
+- Verify in iter 633: look for (a) explicit quality criteria in brainstorming,
+  (b) 2+ different approaches researched, (c) fewer edits to delegate-prompts
+  and tool-groups.test.ts
+
 ## Iteration 631 — Shared workspace (blackboard) for multi-agent coordination
 
 Built `src/workspace.ts` + `src/tools/workspace.ts` — in-memory shared key-value store enabling sub-agents to exchange findings directly without routing through the parent agent.

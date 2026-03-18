@@ -53,7 +53,7 @@ Don't run intermediate verification checks between auto-fix passes.
 Tools self-register via `registration` export (risk, group, tool, runner).
 Guardrails and module-factory auto-derive from the registry.
 
-**Checklist** (6 files):
+**Checklist** (8 files):
 1. `src/tools/<tool>.ts` — implement + export `registration`
 2. `src/tools/index.ts` — import registration, add to array
 3. `src/tool-groups.ts` — add to appropriate group
@@ -61,6 +61,8 @@ Guardrails and module-factory auto-derive from the registry.
 5. `src/tools/<tool>.test.ts` + `DESIGN.md`
 6. `src/system-prompt.ts` + `src/system-prompt.test.ts` — add tool name to
    system prompt; verify char budget stays under ~11900
+7. `src/delegate-prompts.ts` — if sub-agents should have access to the tool
+8. `src/tools/tool-groups.test.ts` — if adding to a group, update group test
 
 Read ONE recent tool file as template. Read all checklist files before editing.
 
