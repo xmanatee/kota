@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { McpClient } from "./mcp-client.js";
+import { McpClient } from "./client.js";
 
 /**
  * Inline Node.js script that acts as a minimal MCP server.

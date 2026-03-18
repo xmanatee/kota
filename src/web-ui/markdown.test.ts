@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeHtml, renderMarkdown } from "./web-ui-markdown.js";
+import { escapeHtml, renderMarkdown } from "./markdown.js";
 
 describe("escapeHtml", () => {
   it("escapes ampersands", () => {

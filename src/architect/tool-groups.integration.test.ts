@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { EDITOR_TOOL_SET } from "./architect.js";
 import {
   CORE_TOOL_NAMES,
   enableGroup,
   filterTools,
   resetGroups,
   TOOL_GROUPS,
-} from "./tool-groups.js";
-import { getAllTools } from "./tools/index.js";
+} from "../tool-groups.js";
+import { getAllTools } from "../tools/index.js";
+import { EDITOR_TOOL_SET } from "./architect.js";
 
 /**
  * Cross-module integration tests: tool-groups × architect

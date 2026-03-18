@@ -13,7 +13,7 @@ vi.mock("./architect.js", () => ({
 import {
   type ArchitectStepConfig,
   runArchitectStep,
-} from "./architect-runner.js";
+} from "./runner.js";
 
 function makeConfig(
   overrides: Partial<ArchitectStepConfig> = {},

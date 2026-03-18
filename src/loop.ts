@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { runArchitectStep } from "./architect-runner.js";
+import { runArchitectStep } from "./architect/runner.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
 import { CONTEXT_WINDOW, Context } from "./context.js";
 import { CostTracker } from "./cost.js";
@@ -10,7 +10,7 @@ import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from 
 import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { listManifestModules } from "./manifest/index.js";
-import { McpManager } from "./mcp-manager.js";
+import { McpManager } from "./mcp/manager.js";
 import { AnthropicModelClient, type ModelClient } from "./model-client.js";
 import { ModuleLoader } from "./module-loader.js";
 import { initModuleLogStore } from "./module-log.js";

@@ -3,8 +3,8 @@
  * No build step, no external files. Assembles HTML from separated CSS and JS modules.
  */
 
-import { WEB_UI_JS } from "./web-ui-client.js";
-import { WEB_UI_CSS } from "./web-ui-styles.js";
+import { WEB_UI_JS } from "./client.js";
+import { WEB_UI_CSS } from "./styles.js";
 
 export function getWebUI(): string {
   return `<!DOCTYPE html>

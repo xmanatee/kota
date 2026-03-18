@@ -1,6 +1,6 @@
 import { truncateToolResult } from "./context.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
-import type { McpManager } from "./mcp-manager.js";
+import type { McpManager } from "./mcp/manager.js";
 import { getSecretStore } from "./secrets.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { getToolTelemetry } from "./tool-telemetry.js";

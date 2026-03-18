@@ -349,7 +349,7 @@ Code and steps are mutually exclusive per handler. Handlers run asynchronously; 
 - Modules are tracked per-session (`loadedManifestModules` set) for status display.
 - `deleteManifest()` removes only the manifest file, preserving module storage data.
 
-### MCP Server (`src/mcp-server.ts`, `src/modules/mcp-server.ts`)
+### MCP Server (`src/mcp/server.ts`, `src/modules/mcp-server.ts`)
 
 Exposes all KOTA tools via MCP (JSON-RPC 2.0 over stdio). Any MCP-compatible host (Claude Code, Cursor, VS Code) can use KOTA tools natively. Custom implementation (no SDK dep). `--tools` flag to filter. No guardrails in MCP mode — host handles safety. Usage: `kota mcp-server`.
 
@@ -468,7 +468,7 @@ Gives the agent access to its own conversation history — search, list, and rea
 
 Pure `node:http` server exposing KOTA via REST + SSE. Key endpoints: `POST /api/chat` (SSE stream), sessions CRUD, schedules, notifications, events webhook, health. ProxyTransport pattern swaps SSE target per-request. SessionPool with TTL cleanup (30min) and LRU eviction (max 10). Usage: `kota serve --port 3000`.
 
-### Web UI (`src/web-ui.ts`, `src/web-ui-styles.ts`, `src/web-ui-client.ts`, `src/web-ui-markdown.ts`)
+### Web UI (`src/web-ui/`)
 
 Embedded browser chat at `GET /`. Zero-dependency HTML/CSS/JS assembled from 4 modules. SSE streaming, session management, markdown rendering, XSS protection, responsive design. Testable rendering via `web-ui-markdown.ts`.
 
@@ -596,14 +596,14 @@ Enables async workflows — start servers, run watchers, monitor long-running ta
 
 Max 5 concurrent processes. All auto-terminated on session close. Same dangerous-command detection as shell tool.
 
-### Architect/Editor Split (`src/architect.ts`)
+### Architect/Editor Split (`src/architect/`)
 
 From Aider's research (+3-8% on benchmarks):
 1. **Architect pass**: LLM without tools produces a step-by-step plan.
 2. **Editor pass**: Fresh conversation with only file tools executes the plan (up to 30 turns).
 3. **Main loop** continues with all tools for verification.
 
-**Adaptive replanning** (`src/architect-replan.ts`): The editor loop monitors tool execution for failure patterns. When 3+ consecutive errors or stagnation (same tool+error repeating) is detected, a replanner LLM call evaluates the situation and decides: continue, revise the remaining plan, or abort. Max 2 replans per execution. Based on AdaPlanner's dual-mode refinement.
+**Adaptive replanning** (`src/architect/replan.ts`): The editor loop monitors tool execution for failure patterns. When 3+ consecutive errors or stagnation (same tool+error repeating) is detected, a replanner LLM call evaluates the situation and decides: continue, revise the remaining plan, or abort. Max 2 replans per execution. Based on AdaPlanner's dual-mode refinement.
 
 ### Prompt Caching
 
@@ -858,7 +858,7 @@ Layered configuration system with three levels of precedence:
 
 **Merging**: Scalar fields use last-wins. `user` and `aliases` shallow-merge (project extends global). `autoEnable` replaces (project knows best which groups it needs). Invalid values are silently dropped.
 
-### MCP Support (`src/mcp-client.ts`, `src/mcp-manager.ts`)
+### MCP Support (`src/mcp/`)
 
 External tool servers via Model Context Protocol. Configure in `.kota/mcp.json`. Tools namespaced as `mcp__<server>__<tool>`. Stdio transport, graceful degradation.
 

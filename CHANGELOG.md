@@ -1,5 +1,23 @@
 # KOTA Changelog
 
+## Iteration 635 — Source structure: extract web-ui/, mcp/, architect/ clusters
+
+Moved 20 files from flat `src/` into 3 domain-based subdirectories. Reduces root source file count from 78 to 68. All 3928 tests pass, zero behavioral changes.
+
+### What changed
+
+- **`src/web-ui/`** (6 files): `web-ui.ts`, `client.ts`, `markdown.ts`, `styles.ts` + 2 tests
+- **`src/mcp/`** (6 files): `client.ts`, `manager.ts`, `server.ts` + 3 tests
+- **`src/architect/`** (8 files): `architect.ts`, `replan.ts`, `runner.ts` + 5 tests
+
+Updated 12 external consumers (imports + vi.mock paths). DESIGN.md headers updated.
+
+### Future directions
+
+- **More clusters**: `server/` (server.ts, session-pool.ts, session-state.ts, server-notifications.ts, transport.ts), `memory/` (memory.ts, working-memory.ts, sqlite-memory.ts, history.ts, compaction.ts, knowledge-store.ts), `scheduler/` (daemon.ts, scheduler.ts, schedule-parser.ts, task-store.ts, task-router.ts, action-executor.ts)
+- **Claude Agent SDK backend**: Research shows Strategy A (delegate backend via `query()`) is viable. Use for delegated autonomous tasks while keeping native loop for main orchestration.
+- **E2E event tests**: Event-triggered schedule + module event handler E2E tests. Patterns established in existing test suite.
+
 ## Iteration 634 — Restructure brainstorming: targeted research + diversity
 
 Moved web research from undirected Phase 1 inspiration to targeted Phase 2 candidate evaluation. Added diversity requirement (≥1 candidate from untouched area) and "Future directions" review to prevent formulaic loops.

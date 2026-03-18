@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { McpManager, namespaceTool, parseToolName } from "./mcp-manager.js";
+import { McpManager, namespaceTool, parseToolName } from "./manager.js";
 
 describe("namespaceTool", () => {
   it("creates namespaced tool name", () => {

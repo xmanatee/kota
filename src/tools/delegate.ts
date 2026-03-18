@@ -10,7 +10,7 @@ import {
   exploreRunners,
   exploreTools,
 } from "../delegate-prompts.js";
-import type { McpManager } from "../mcp-manager.js";
+import type { McpManager } from "../mcp/manager.js";
 import { AnthropicModelClient, type ModelClient } from "../model-client.js";
 import type { ModelTiers } from "../model-router.js";
 import { routeModel } from "../model-router.js";

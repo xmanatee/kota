@@ -57,7 +57,7 @@ vi.mock("./tools/code-exec.js", () => ({
 vi.mock("./task-store.js", () => ({
   initTaskStore: vi.fn(),
 }));
-vi.mock("./mcp-manager.js", () => ({
+vi.mock("./mcp/manager.js", () => ({
   McpManager: class MockMcpManager {
     static loadConfig() { return null; }
   },
@@ -75,7 +75,7 @@ vi.mock("./verify-tracker.js", async (importOriginal) => {
     detectVerifyCommands: vi.fn(() => []),
   };
 });
-vi.mock("./architect.js", () => ({
+vi.mock("./architect/architect.js", () => ({
   runArchitectPass: mockArchitectPass,
   runEditorLoop: mockEditorLoop,
 }));

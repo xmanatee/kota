@@ -1,18 +1,15 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
+import type { ModelClient } from "../model-client.js";
 import {
 	buildExecutionSummary,
 	buildReplanPrompt,
 	createFailureTracker,
 	detectReplanTrigger,
-	type ExecutionStep,
-	type FailureTracker,
 	invokeReplanner,
 	parseReplanDecision,
-	type ReplanDecision,
 	recordStep,
-} from "./architect-replan.js";
-import type { ModelClient } from "./model-client.js";
+} from "./replan.js";
 
 // --- createFailureTracker ---
 
@@ -343,7 +340,7 @@ describe("invokeReplanner", () => {
 			originalPlan: "plan",
 			messages: [],
 			trigger: "consecutive-errors",
-			costTracker: costTracker as unknown as import("./cost.js").CostTracker,
+			costTracker: costTracker as unknown as import("../cost.js").CostTracker,
 		});
 		expect(costTracker.addUsage).toHaveBeenCalledWith("test-model", expect.objectContaining({
 			input_tokens: 100,

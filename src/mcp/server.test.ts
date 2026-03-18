@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { anthropicToMcp, McpServer, toolResultToMcp } from "./mcp-server.js";
+import { anthropicToMcp, McpServer, toolResultToMcp } from "./server.js";
 
 // --- Helper: send a JSON-RPC request and read the response ---
 

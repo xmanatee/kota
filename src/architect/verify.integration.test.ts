@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { VerifyTracker } from "../verify-tracker.js";
 import type { EditorResult } from "./architect.js";
-import type { ArchitectStepResult } from "./architect-runner.js";
-import { VerifyTracker } from "./verify-tracker.js";
+import type { ArchitectStepResult } from "./runner.js";
 
 describe("architect × verify-tracker integration", () => {
   it("EditorResult includes modifiedFiles for consumption by ArchitectStepResult", () => {

@@ -8,7 +8,7 @@
 
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
-import { executeTool, getAllTools, type ToolResult } from "./tools/index.js";
+import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
 
 type JsonRpcRequest = {
 	jsonrpc: "2.0";

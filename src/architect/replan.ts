@@ -7,8 +7,8 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { CostTracker } from "./cost.js";
-import type { ModelClient } from "./model-client.js";
+import type { CostTracker } from "../cost.js";
+import type { ModelClient } from "../model-client.js";
 
 export type ReplanTrigger = "consecutive-errors" | "stagnation";
 

@@ -8,13 +8,13 @@
  * 3. Built-in tools still work alongside MCP tools
  * 4. Delegates without MCP work unchanged
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { McpManager } from "./mcp-manager.js";
-import { setDelegateConfig, type DelegateConfig } from "./tools/delegate.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  exploreTools,
   executeTools,
+  exploreTools,
 } from "./delegate-prompts.js";
+import type { McpManager } from "./mcp/manager.js";
+import { type DelegateConfig, setDelegateConfig } from "./tools/delegate.js";
 
 /** Create a mock McpManager that returns controlled tools and results. */
 function createMockMcpManager(

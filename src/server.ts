@@ -21,7 +21,6 @@ import type { RouteRegistration } from "./module-types.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 import { NotificationHub } from "./server-notifications.js";
 import {
-  CORS_HEADERS,
   jsonResponse,
   type ManagedSession,
   readBody,
@@ -30,7 +29,7 @@ import {
   setCors,
 } from "./session-pool.js";
 import { NullTransport, type Transport } from "./transport.js";
-import { getWebUI } from "./web-ui.js";
+import { getWebUI } from "./web-ui/web-ui.js";
 
 
 export type ServerOptions = {
