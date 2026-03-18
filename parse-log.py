@@ -30,6 +30,30 @@ class ToolCall:
     file_path: str  # raw file_path (Read/Edit only)
 
 
+def _is_targeted_test(cmd: str) -> bool:
+    """True if cmd is a targeted test run (not full suite).
+
+    Targeted runs (--changed, specific files/dirs) produce subset counts
+    that corrupt suite_totals when compared against full-suite counts.
+    """
+    if not cmd:
+        return False
+    # Only check test-related commands
+    if not any(kw in cmd for kw in ["vitest", "test"]):
+        return False
+    # --changed runs a subset of the suite
+    if "--changed" in cmd:
+        return True
+    # Specific file/dir targeting: vitest run src/foo.test.ts
+    # Full suite: npm test, npx vitest run (no path args)
+    if "vitest" in cmd:
+        # After "vitest run", if there's a path arg (src/, .test.ts), it's targeted
+        m = re.search(r"vitest\s+run\s+(\S+)", cmd)
+        if m and (m.group(1).startswith("src") or ".test." in m.group(1)):
+            return True
+    return False
+
+
 def parse(path: str) -> None:
     with open(path) as f:
         messages = [json.loads(line) for line in f if line.strip()]
@@ -53,6 +77,8 @@ def parse(path: str) -> None:
     full_text_blocks: list[str] = []  # untruncated for analysis
     changelog_edits: list[str] = []   # CHANGELOG Edit new_strings
     suite_totals: list[int] = []      # full-suite test totals from Bash output
+    # Map tool_use_id → Bash command for correlating results with commands
+    _bash_cmds: dict[str, str] = {}
 
     for msg in messages:
         if msg.get("type") == "assistant":
@@ -73,6 +99,9 @@ def parse(path: str) -> None:
                             detail = inp["prompt"][:80]
                     tool_calls.append(ToolCall(name, detail, command, file_path))
                     tool_counts[name] += 1
+                    # Track Bash commands for suite_totals filtering
+                    if name == "Bash" and command:
+                        _bash_cmds[block.get("id", "")] = command.lower()
                     # Collect CHANGELOG edit content for test delta fallback
                     if name == "Edit" and file_path.lower().endswith("changelog.md"):
                         ns = inp.get("new_string", "")
@@ -104,6 +133,11 @@ def parse(path: str) -> None:
                     if err_content:
                         errors.append(err_content)
                 elif block.get("type") == "tool_result":
+                    # Skip targeted test runs (--changed, specific files)
+                    _tid = block.get("tool_use_id", "")
+                    _cmd = _bash_cmds.get(_tid, "")
+                    if _is_targeted_test(_cmd):
+                        continue
                     _raw = json.dumps(block.get("content", ""))
                     _clean = re.sub(
                         r"\x1b\[[0-9;]*m|\\u001b\[[0-9;]*m|\[[0-9;]*m",
@@ -688,6 +722,8 @@ def _quick_parse(path: str) -> dict:
     # Track full-suite test totals for reliable delta computation
     _suite_totals: list[int] = []
     _ansi_re = re.compile(r"\x1b\[[0-9;]*m|\\u001b\[[0-9;]*m|\[[0-9;]*m")
+    # Map tool_use_id → Bash command for filtering targeted test runs
+    _bash_cmds: dict[str, str] = {}
 
     for msg in messages:
         if msg.get("type") == "user":
@@ -699,6 +735,11 @@ def _quick_parse(path: str) -> dict:
                     if block.get("type") == "tool_result" and block.get("is_error"):
                         error_count += 1
                     elif block.get("type") == "tool_result":
+                        # Skip targeted test runs (--changed, specific files)
+                        _tid = block.get("tool_use_id", "")
+                        _cmd = _bash_cmds.get(_tid, "")
+                        if _is_targeted_test(_cmd):
+                            continue
                         _raw = json.dumps(block.get("content", ""))
                         _clean = _ansi_re.sub("", _raw)
                         for _m in re.finditer(
@@ -727,6 +768,8 @@ def _quick_parse(path: str) -> dict:
                         web_research = True
                         research_calls += 1
                 if block["name"] == "Bash":
+                    # Track Bash commands for suite_totals filtering
+                    _bash_cmds[block.get("id", "")] = _cmd
                     desc = (inp.get("description", "") or "").lower()
                     cmd = (inp.get("command", "") or "").lower()
                     s = f"{desc} {cmd}"

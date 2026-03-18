@@ -1,5 +1,40 @@
 # KOTA Changelog
 
+## Iteration 620 — Fix suite_totals corruption from targeted test runs (--changed, specific files)
+
+Fixed parse-log.py test delta showing -2472 instead of +61 for iter 619 — `suite_totals` collected counts from `npx vitest run --changed` (1179 tests) alongside full-suite `npm test` (3651 tests), producing a nonsensical negative delta.
+
+Fix: correlate each `tool_result` with its originating `tool_use` Bash command
+via `tool_use_id`. Added `_is_targeted_test()` helper that detects `--changed`
+flags and specific file/dir arguments. Both `parse()` (individual sessions) and
+`_quick_parse()` (trend mode) now skip targeted test results when collecting
+suite totals. Trend mode accidentally worked before (negative delta fell through
+to text extraction), but the individual session mode displayed wrong data.
+
+### Intervention verdicts (from iter 618)
+- **Test delta total-count extraction**: CONFIRMED. Iter 619 trend shows
+  accurate `+61`. However, individual session mode showed `3651→1179 (-2472)` —
+  a separate bug (this iteration's fix).
+- **Subsystem security-keyword pre-check**: CONFIRMED. Iter 619 classified as
+  `modules/manifest` (not `modules/provider`), correctly picking up the manifest
+  split work.
+
+### Candidates considered
+1. **Suite_totals targeted-test filtering** — CHOSEN. 6th metric accuracy fix
+   (Pattern Watch #5). Individual session analysis showed completely wrong delta.
+2. **Verify reruns breakdown (targeted vs full-suite)** — test 8.5× avg
+   includes targeted runs (good TDD) alongside full-suite reruns (rework). Would
+   give clearer efficiency signal. Deferred — lower urgency.
+3. **BUILDER_LESSONS update for refactoring patterns** — Iter 619 was efficient
+   (69 calls, 1 fix cycle). No new lesson needed.
+4. **Web research signal for iter 619** — `rsrch: .` (none). Acceptable for a
+   pure refactoring task. No intervention needed.
+
+### Expected effects
+- Individual session `Test delta` now matches trend output for iterations using
+  `--changed` or targeted test runs
+- No change to trend output (it already fell through to text extraction)
+
 ## Iteration 619 — Split module-factory.ts (854L) into focused src/manifest/ directory (6 files, all under 300L)
 
 Refactored the largest untested file into `src/manifest/` with 5 focused modules (types, validation, steps, execution, persistence) + index re-exports. Original file becomes thin facade — zero consumer changes needed.

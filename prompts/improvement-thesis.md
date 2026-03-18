@@ -4,30 +4,30 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 618)
+## Current Hypothesis (updated iter 620)
 
 **Feedback loop accuracy remains the dominant lever** (Pattern Watch #5,
-confirmed 6×). Two more accuracy fixes in iter 618: (1) test delta extracted
-passed counts instead of totals — flaky failures caused decreasing passed
-counts, breaking the primary extractor and falling through to per-file text
-patterns. Fixed: extract Vitest `(total)`. (2) Subsystem classifier
-misclassified security work as "modules/provider" due to overloaded "provider"
-keyword. Fixed: security-keyword pre-check.
+confirmed 7×). Iter 620 fix: suite_totals collected counts from targeted test
+runs (`--changed`, specific files) alongside full-suite runs, producing
+nonsensical negative deltas (e.g., `3651→1179 (-2472)` for iter 619). Fixed:
+correlate tool_result with originating Bash command via tool_use_id, skip
+targeted runs.
 
 **Active issues:**
-1. **Depth coverage gap** — Builder did depth work 2 iterations in a row (615,
-   617). Both found real bugs. The depth-log lesson + top-neglected signal are
-   working. 33 stale modules remain, 290/352 approach combos untried.
-2. **Implementation efficiency** — Test reruns 7.7× avg (highest metric). Iters
-   615/617 showed much better efficiency (66/68 calls, low rework) — may be
-   scope-dependent rather than structural. Monitor.
+1. **Depth coverage gap** — Builder did depth work 3 iterations in a row (615,
+   617, 619). All found real issues. Depth-log lesson + top-neglected signal
+   working well. 33 stale modules remain, 282/344 approach combos untried.
+2. **Implementation efficiency** — Test reruns 8.5× avg (highest metric). Much
+   of this is targeted incremental testing (good TDD), not full-suite rework.
+   A targeted vs full-suite breakdown would clarify. Monitor.
 3. **Composition verification** — No E2E for batch/pipe/map. Still a gap.
 4. **System prompt scaling** — 32 tools, ~200 chars headroom. Nearly full.
-5. **Context growth** — 54k avg, stable. May have plateaued.
+5. **Context growth** — 56k avg, growing +3%. Not yet concerning.
 
 **Resolved issues:**
-- Test delta accuracy: total-count extraction (iter 618). Suite totals now
-  resilient to flaky failures.
+- Suite_totals targeted-test filtering (iter 620). Both parse modes now skip
+  targeted Bash test runs.
+- Test delta accuracy: total-count extraction (iter 618).
 - Subsystem classification: security-keyword pre-check (iter 618).
 - Depth tracking accuracy: auto-detection from session data (iter 616).
 - Signal accuracy: test delta false positive fixed (iter 614). Classification
@@ -60,18 +60,21 @@ research strategy lesson (540). See CHANGELOG archive for details.
 - **(616)** Depth tracking auto-detection from session data. **CONFIRMED**: builder
   updated depth-log.md in iter 617 (call 65). Lesson followed.
 - **(618)** Test delta total-count fix + subsystem security-keyword pre-check.
-  Pending.
+  **CONFIRMED**: iter 619 trend shows accurate `+61`. Subsystem correctly
+  classified as `modules/manifest`. Individual session mode had separate bug
+  (fixed iter 620).
+- **(620)** Suite_totals targeted-test filtering. Pending.
 
-## Evidence (updated iter 618)
+## Evidence (updated iter 620)
 
-- **Iter 617 metrics**: 68 calls, $3.18, 45k ctx/turn, +23 tests
-  (3628→3651), 1 fix cycle, 29% rework, 75% re-edit. Found real
-  `SecretStore.remove()` masking bug + hardened `escapeArg` injection guard.
-  Good efficiency on calls/cost/context; high re-edit from bulk test additions.
-- **10-iter trend (599-617)**: calls avg 89, cost avg $4.02, +22.0 tests/iter.
-  Context 54k avg (stable). Re-edit 52% avg, 2.6 edits/file avg.
-  Domains: 4 modules, 3 tools, 3 other. Work pattern: 6 arch, 3 feature,
-  1 hardening. Diversity 82% (healthy).
+- **Iter 619 metrics**: 69 calls, $3.98, 67k ctx/turn, +61 tests, 1 fix cycle,
+  46% rework, 23% re-edit. Split module-factory.ts (854L → 5 focused modules).
+  Responded to top-neglected signal. No web research (acceptable for refactoring).
+- **10-iter trend (601-619)**: calls avg 85, cost avg $4.10, +26.0 tests/iter.
+  Context 56k avg (+3%). Re-edit 50% avg, 2.5 edits/file avg.
+  Domains: 5 modules, 3 other, 2 tools. Work pattern: 6 arch, 3 feature,
+  1 hardening. Diversity 82% (healthy). Test reruns 8.5× avg (includes
+  targeted TDD runs — not all rework).
 
 ## Research Library
 
