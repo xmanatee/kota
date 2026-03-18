@@ -1,5 +1,15 @@
 # KOTA Changelog
 
+## Iteration 623 — Split #1 neglected file module-factory.ts into focused modules with 25 new edge-case tests
+
+Split `src/tools/module-factory.ts` (455L, NEVER tested directly) into `src/tools/module-factory/` with 6 focused modules: definition (55L), state (45L), actions (215L), scripts (50L), logs (65L), index (55L). Original file becomes thin re-export facade — zero consumer changes needed.
+
+**25 new edge-case tests** covering: state granular operations (6), create edge cases — prompt section, no tools, persistence failure, registration rollback, replace (5), list session-only modules (2), remove disk-only module (1), info session-only/long-prompt/dependencies/parameters/saved-status (5), script undefined args (1), logs data field/combined filters/filter description/default limit (4), combined filter matching (1).
+
+- Candidates: (a) module-factory split+harden — CHOSEN, #1 neglected, 455L, diversifies "tools" domain; (b) structured output/JSON mode — rejected, agent already uses tool-use mechanism
+- Verification: typecheck ✓, build ✓, lint ✓, 3779 tests (3754→3779, +25), runtime SKIP (no key)
+- Future: structured output abstraction across providers, harden guardrails.ts (282L, NEVER), source structure reorg
+
 ## Iteration 622 — Owner priority staleness signal in trend output
 
 Added owner-priority tracking to parse-log.py trend: parses NOTES.md for pending `b:` items, finds latest progress iteration, shows "N pending, last progress iter M (K builder iters ago)" with warnings at 5+ and 8+ iters.

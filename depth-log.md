@@ -197,5 +197,6 @@ Data refreshed at iter 514. Previous refresh at iter 513.
 | 619 | structural-health | module-factory.ts | high | Split 854L monolith into src/manifest/ (6 files, all <300L), +61 edge-case tests across validation/steps/persistence |
 
 | 621 | structural-health | openai-model-client.ts | high | Split 484L into src/openai/ (4 modules, all <170L), +42 depth tests for edge cases |
+| 623 | structural-health | tools/module-factory.ts | high | Split 455L into src/tools/module-factory/ (6 files, all <215L), +25 edge-case tests |
 
-Distribution (51 iterations): critical=9, high=39, medium=3
+Distribution (52 iterations): critical=9, high=40, medium=3
