@@ -41,16 +41,13 @@ export type NotifyResult = {
  * macOS: osascript (display notification)
  * Linux: notify-send
  * Fallback: console output
- *
- * @param _platform — override for testing (defaults to os.platform())
  */
 export function sendDesktopNotification(
 	message: string,
 	title = "KOTA",
 	sound = true,
-	_platform?: string,
 ): NotifyResult {
-	const os = _platform ?? platform();
+	const os = platform();
 
 	if (os === "darwin") {
 		return sendMacNotification(message, title, sound);

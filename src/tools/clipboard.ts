@@ -32,11 +32,9 @@ const MAX_READ_LENGTH = 50_000;
  * Read text from the system clipboard.
  * macOS: pbpaste
  * Linux: xclip -selection clipboard -o
- *
- * @param _platform — override for testing
  */
-export function readClipboard(_platform?: string): { text: string; error?: string } {
-	const os = _platform ?? platform();
+export function readClipboard(): { text: string; error?: string } {
+	const os = platform();
 
 	if (os === "darwin") {
 		return execClipboard("pbpaste", [], "read");
@@ -51,11 +49,9 @@ export function readClipboard(_platform?: string): { text: string; error?: strin
  * Write text to the system clipboard.
  * macOS: pbcopy
  * Linux: xclip -selection clipboard
- *
- * @param _platform — override for testing
  */
-export function writeClipboard(text: string, _platform?: string): { ok: boolean; error?: string } {
-	const os = _platform ?? platform();
+export function writeClipboard(text: string): { ok: boolean; error?: string } {
+	const os = platform();
 
 	if (os === "darwin") {
 		return execClipboardWrite("pbcopy", [], text);

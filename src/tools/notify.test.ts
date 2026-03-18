@@ -1,16 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runNotify, sendDesktopNotification } from "./notify.js";
 
-// Mock child_process to prevent actual notifications
 vi.mock("node:child_process", () => ({
 	execFileSync: vi.fn(),
 }));
 
+vi.mock("node:os", () => ({
+	platform: vi.fn(),
+}));
+
 const { execFileSync } = await import("node:child_process");
+const { platform } = await import("node:os");
 const mockExec = vi.mocked(execFileSync);
+const mockPlatform = vi.mocked(platform);
+
+const { runNotify, sendDesktopNotification } = await import("./notify.js");
 
 beforeEach(() => {
 	mockExec.mockReset();
+	mockPlatform.mockReset();
+	mockPlatform.mockReturnValue("darwin");
 });
 
 afterEach(() => {
@@ -62,7 +70,8 @@ describe("notify tool", () => {
 
 	describe("sendDesktopNotification", () => {
 		it("uses macOS osascript on darwin", () => {
-			const result = sendDesktopNotification("hello", "KOTA", true, "darwin");
+			mockPlatform.mockReturnValue("darwin");
+			const result = sendDesktopNotification("hello", "KOTA", true);
 			expect(result.channel).toBe("desktop");
 			expect(result.delivered).toBe(true);
 			expect(mockExec).toHaveBeenCalledWith(
@@ -73,35 +82,40 @@ describe("notify tool", () => {
 		});
 
 		it("includes sound clause by default on macOS", () => {
-			sendDesktopNotification("test", "KOTA", true, "darwin");
+			mockPlatform.mockReturnValue("darwin");
+			sendDesktopNotification("test", "KOTA", true);
 			const args = mockExec.mock.calls[0];
 			const script = args[1]?.[1] as string;
 			expect(script).toContain('sound name "Glass"');
 		});
 
 		it("omits sound clause when sound=false on macOS", () => {
-			sendDesktopNotification("test", "KOTA", false, "darwin");
+			mockPlatform.mockReturnValue("darwin");
+			sendDesktopNotification("test", "KOTA", false);
 			const args = mockExec.mock.calls[0];
 			const script = args[1]?.[1] as string;
 			expect(script).not.toContain("sound name");
 		});
 
 		it("escapes quotes in macOS notification", () => {
-			sendDesktopNotification('He said "hi"', "KOTA", true, "darwin");
+			mockPlatform.mockReturnValue("darwin");
+			sendDesktopNotification('He said "hi"', "KOTA", true);
 			const args = mockExec.mock.calls[0];
 			const script = args[1]?.[1] as string;
 			expect(script).toContain('\\"');
 		});
 
 		it("escapes backslashes in macOS notification", () => {
-			sendDesktopNotification("path\\to\\file", "KOTA", true, "darwin");
+			mockPlatform.mockReturnValue("darwin");
+			sendDesktopNotification("path\\to\\file", "KOTA", true);
 			const args = mockExec.mock.calls[0];
 			const script = args[1]?.[1] as string;
 			expect(script).toContain("\\\\");
 		});
 
 		it("uses notify-send on linux", () => {
-			const result = sendDesktopNotification("hello", "KOTA", true, "linux");
+			mockPlatform.mockReturnValue("linux");
+			const result = sendDesktopNotification("hello", "KOTA", true);
 			expect(result.channel).toBe("desktop");
 			expect(result.delivered).toBe(true);
 			expect(mockExec).toHaveBeenCalledWith(
@@ -112,31 +126,34 @@ describe("notify tool", () => {
 		});
 
 		it("reports ENOENT on linux when notify-send missing", () => {
+			mockPlatform.mockReturnValue("linux");
 			mockExec.mockImplementation(() => {
 				const err = new Error("not found") as NodeJS.ErrnoException;
 				err.code = "ENOENT";
 				throw err;
 			});
 
-			const result = sendDesktopNotification("test", "KOTA", true, "linux");
+			const result = sendDesktopNotification("test", "KOTA", true);
 			expect(result.delivered).toBe(false);
 			expect(result.error).toContain("notify-send not found");
 		});
 
 		it("falls back to console on unsupported platform", () => {
+			mockPlatform.mockReturnValue("freebsd" as NodeJS.Platform);
 			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-			const result = sendDesktopNotification("test", "KOTA", true, "freebsd");
+			const result = sendDesktopNotification("test", "KOTA", true);
 			expect(result.channel).toBe("console");
 			expect(result.delivered).toBe(true);
 			stderrSpy.mockRestore();
 		});
 
 		it("reports desktop failure when osascript fails", () => {
+			mockPlatform.mockReturnValue("darwin");
 			mockExec.mockImplementation(() => {
 				throw new Error("osascript error");
 			});
 
-			const result = sendDesktopNotification("test", "KOTA", true, "darwin");
+			const result = sendDesktopNotification("test", "KOTA", true);
 			expect(result.channel).toBe("desktop");
 			expect(result.delivered).toBe(false);
 			expect(result.error).toContain("osascript error");
