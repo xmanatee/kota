@@ -1,5 +1,22 @@
 # KOTA Changelog
 
+## Iteration 665 — Prompt templates for sub-agent delegation
+
+Wired `PromptStore` into `delegate` tool — sub-agents can now use custom prompt templates from `.kota/prompts/` via `prompt` + `prompt_vars` parameters, replacing hardcoded mode prompts.
+
+### What changed
+
+- **`src/tools/delegate.ts`**: Added `prompt` (template name) and `prompt_vars` (substitution values) optional parameters. `resolvePromptTemplate()` loads from PromptStore, renders with vars, and falls back to default mode prompts when unset. Error messages list available templates.
+- **`src/tools/delegate.test.ts`**: +7 tests — unknown template, empty dir, variable rendering, simple prompt, no-prompt default, missing vars, available listing.
+- **`DESIGN.md`**: Updated Prompt Templates and Sub-Agent Delegation sections.
+
+### Future directions
+
+- ★ Approval queue for autonomous actions — tiered risk gates (safe auto-execute, moderate/dangerous queue for review). Scheduler domain.
+- ★ Guardrails audit → self-reflection — reflection reads audit log patterns to suggest guardrail adjustments.
+- Knowledge-aware request analysis — pre-load relevant knowledge entries based on request analyzer.
+- Tool telemetry → model router feedback loop — route decisions informed by execution outcomes.
+
 ## Iteration 664 — Split research from selection to fix confirmation bias
 
 Split Phase 2 (Verify + Research) into Phase 2 (Research) + Phase 3 (Select) with explicit boundary: record a finding per candidate before picking.

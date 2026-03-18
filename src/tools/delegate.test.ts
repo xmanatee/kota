@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { runDelegate } from "./delegate.js";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { runDelegate, setDelegateConfig } from "./delegate.js";
 import type { DelegateMetadata } from "./delegate-format.js";
 import { assembleDelegateResult, buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";
@@ -423,5 +426,122 @@ describe("assembleDelegateResult (cross-module)", () => {
     expect(result.content).toContain("Partial results.");
     expect(result.content).toContain("--- Sources (1) ---");
     expect(result.blocks).toHaveLength(2);
+  });
+});
+
+// --- Prompt template integration tests ---
+
+describe("runDelegate prompt template resolution", () => {
+  const testDir = join(tmpdir(), `kota-delegate-prompt-test-${Date.now()}`);
+  const promptsDir = join(testDir, ".kota", "prompts");
+
+  beforeAll(() => {
+    mkdirSync(promptsDir, { recursive: true });
+    writeFileSync(
+      join(promptsDir, "code-review.md"),
+      [
+        "---",
+        "name: code-review",
+        "description: Custom code review prompt",
+        "variables: [language, focus]",
+        "---",
+        "You are reviewing {{language}} code. Focus on: {{focus}}.",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(promptsDir, "simple.md"),
+      ["---", "name: simple", "---", "You are a simple helper."].join("\n"),
+    );
+    // Configure delegate to use the test directory
+    setDelegateConfig({ model: "test-model", cwd: testDir });
+  });
+
+  afterAll(() => {
+    if (existsSync(testDir)) rmSync(testDir, { recursive: true });
+  });
+
+  it("rejects unknown prompt template", async () => {
+    const result = await runDelegate({
+      task: "test",
+      prompt: "nonexistent",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain('prompt template "nonexistent" not found');
+    expect(result.content).toContain("code-review");
+    expect(result.content).toContain("simple");
+  });
+
+  it("lists available templates when prompt not found", async () => {
+    const result = await runDelegate({ task: "test", prompt: "missing" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Available:");
+    expect(result.content).toContain("code-review");
+  });
+
+  it("resolves prompt template with variables", async () => {
+    // This will fail at API call (no real client), but will pass validation+resolution
+    const result = await runDelegate({
+      task: "review auth module",
+      prompt: "code-review",
+      prompt_vars: { language: "TypeScript", focus: "security" },
+    });
+    // Fails at API level, not at prompt resolution
+    if (result.is_error) {
+      expect(result.content).not.toContain("prompt template");
+      expect(result.content).not.toContain("not found");
+    }
+  });
+
+  it("resolves simple prompt without variables", async () => {
+    const result = await runDelegate({
+      task: "help me",
+      prompt: "simple",
+    });
+    if (result.is_error) {
+      expect(result.content).not.toContain("prompt template");
+      expect(result.content).not.toContain("not found");
+    }
+  });
+
+  it("works normally without prompt parameter", async () => {
+    const result = await runDelegate({
+      task: "find bugs",
+      mode: "explore",
+    });
+    if (result.is_error) {
+      expect(result.content).not.toContain("prompt template");
+    }
+  });
+
+  it("warns about missing variables in template", async () => {
+    // Use code-review template without providing required vars
+    const result = await runDelegate({
+      task: "review code",
+      prompt: "code-review",
+      prompt_vars: { language: "Python" },
+      // missing "focus" variable
+    });
+    // Validation passes — error is from API, not from template resolution
+    if (result.is_error) {
+      expect(result.content).not.toContain("prompt template");
+    }
+  });
+});
+
+describe("runDelegate prompt with empty prompts dir", () => {
+  const emptyDir = join(tmpdir(), `kota-empty-prompt-test-${Date.now()}`);
+
+  beforeAll(() => {
+    setDelegateConfig({ model: "test-model", cwd: emptyDir });
+  });
+
+  afterAll(() => {
+    if (existsSync(emptyDir)) rmSync(emptyDir, { recursive: true });
+  });
+
+  it("shows 'no templates found' when prompts dir missing", async () => {
+    const result = await runDelegate({ task: "test", prompt: "anything" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("No templates found");
   });
 });

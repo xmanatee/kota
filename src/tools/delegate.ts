@@ -17,6 +17,7 @@ import type { McpManager } from "../mcp/manager.js";
 import { AnthropicModelClient, type ModelClient } from "../model-client.js";
 import type { DelegateBackend, ModelTiers } from "../model-router.js";
 import { routeModel } from "../model-router.js";
+import { PromptStore } from "../prompt-template.js";
 import { isRetryable } from "../streaming.js";
 import { maybeRetry } from "../tool-retry.js";
 import type { Transport } from "../transport.js";
@@ -40,7 +41,8 @@ export const delegateTool: Anthropic.Tool = {
     "Delegate a task to a sub-agent with its own context. " +
     "explore (default): read-only research. " +
     "execute: can modify files and run commands. " +
-    "research: deep multi-step research with iterative search and source tracking.",
+    "research: deep multi-step research with iterative search and source tracking. " +
+    "Use 'prompt' to override the sub-agent's system prompt with a template from .kota/prompts/.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -53,6 +55,14 @@ export const delegateTool: Anthropic.Tool = {
         type: "string",
         enum: ["explore", "execute", "research"],
         description: "explore (default): read-only. execute: can modify files. research: deep multi-step research with iterative search.",
+      },
+      prompt: {
+        type: "string",
+        description: "Name of a prompt template from .kota/prompts/ to use as the sub-agent system prompt (overrides default mode prompt).",
+      },
+      prompt_vars: {
+        type: "object",
+        description: "Variables to substitute in the prompt template (e.g. {\"language\": \"TypeScript\"}).",
       },
     },
     required: ["task"],
@@ -93,6 +103,31 @@ let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
 
 export function setDelegateConfig(config: DelegateConfig): void {
   delegateConfig = config;
+}
+
+// --- Prompt template resolution ---
+
+function resolvePromptTemplate(
+  name: string,
+  vars: Record<string, string>,
+  cwd?: string,
+): { content?: string; error?: string } {
+  const store = new PromptStore(cwd || process.cwd());
+  store.discover();
+  const tpl = store.get(name);
+  if (!tpl) {
+    const available = store.list();
+    const hint = available.length > 0
+      ? ` Available: ${available.map((t) => t.name).join(", ")}`
+      : " No templates found in .kota/prompts/.";
+    return { error: `Error: prompt template "${name}" not found.${hint}` };
+  }
+  const result = store.render(name, vars);
+  if (!result) return { error: `Error: failed to render template "${name}".` };
+  const warn = result.missing.length > 0
+    ? `\n\nNote: unresolved template variables: ${result.missing.join(", ")}`
+    : "";
+  return { content: result.content + warn };
 }
 
 // --- Main delegate runner ---
@@ -147,7 +182,18 @@ export async function runDelegate(
   const mcpTools = mcpMgr ? mcpMgr.getTools() : [];
   const tools = mcpTools.length > 0 ? [...builtinTools, ...mcpTools] : builtinTools;
   const maxTurns = TURNS_BY_MODE[mode as DelegateMode];
-  const basePrompt = PROMPT_BY_MODE[mode as DelegateMode];
+
+  // Resolve prompt: custom template or default mode prompt
+  const promptName = input.prompt as string | undefined;
+  const promptVars = (input.prompt_vars as Record<string, string>) || {};
+  let basePrompt: string;
+  if (promptName) {
+    const resolved = resolvePromptTemplate(promptName, promptVars, delegateConfig.cwd);
+    if (resolved.error) return { content: resolved.error, is_error: true };
+    basePrompt = resolved.content!;
+  } else {
+    basePrompt = PROMPT_BY_MODE[mode as DelegateMode];
+  }
   const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
   const modifiedFiles = new Set<string>();
   const collectedImages: ToolResultBlock[] = [];

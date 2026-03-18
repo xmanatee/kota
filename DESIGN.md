@@ -457,6 +457,8 @@ File-based prompt management using markdown + YAML front matter. Templates live 
 
 **Agent tool** (`prompt_template`): management group. Actions: `list` (available templates), `get` (load by name), `render` (with variable substitution, warns on unresolved vars), `create` (new template file). Templates are re-discovered on each action to pick up external changes.
 
+**Delegate integration**: The `delegate` tool accepts optional `prompt` (template name) and `prompt_vars` (substitution values) parameters. When specified, the named template replaces the default mode system prompt (EXPLORE_PROMPT/EXECUTE_PROMPT/RESEARCH_PROMPT), enabling domain-specific sub-agent behavior without code changes.
+
 ### Working Memory (`src/memory/working-memory.ts`, `src/modules/working-memory.ts`)
 
 Agent-controlled scratchpad — named entries that appear in `<working-memory>` tags in the dynamic system prompt every turn. Inspired by Letta/MemGPT's memory blocks. Limits: 20 entries, 500 chars/value, 4000 chars total. The `working_memory` tool supports write/read/list/remove/clear actions with optional `persist:true` flag. Persistent entries are saved to `.kota/modules/working-memory/entries.json` via `ModuleStorage` and auto-restored on session start via the module's `onLoad` hook. Non-persistent entries remain session-scoped. Persistent entries show a ★ marker in the system prompt.
@@ -591,6 +593,8 @@ Three modes and two backends:
 - **Backend routing**: Model router selects `thin` (KOTA's own tool loop) or `agent-sdk` (Claude Code runtime via `delegate-agent-sdk.ts`). Agent SDK backend auto-selected for execute + coding/debugging/automation at capable tier. Manual override via `DelegateConfig.backend`.
 
 Fresh API call per delegation — main context only sees task + final answer. Sub-agent text streams to stderr for live progress visibility. Robustness: prompt caching across turns, tool result truncation (30K cap), circuit breaker on 3 identical failures, and context overflow handling with actionable errors.
+
+**Custom prompt templates**: The `prompt` parameter overrides the default mode system prompt with a template from `.kota/prompts/`. Templates are markdown files with YAML front matter and `{{variable}}` substitution (via `PromptStore`). The `prompt_vars` parameter supplies substitution values. This enables users to customize sub-agent behavior for domain-specific tasks (e.g., custom code review, security audit, data analysis) without modifying source code. When a template is specified but not found, an error lists available templates.
 
 **MCP tool integration**: When MCP servers are configured, their tools are automatically available to sub-agents. The `McpManager` is threaded through `DelegateConfig` after MCP initialization. In the delegate loop, tool calls are routed: MCP-namespaced tools (`mcp__*`) go through `McpManager.executeTool()`, built-in tools through the standard runners. This ensures users' external tool servers work consistently across the main loop and delegated tasks.
 
