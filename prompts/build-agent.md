@@ -50,11 +50,11 @@ Don't filter yet — variety matters more than quality. Ask: "What can this agen
 almost-but-not-quite do?" Gaps where primitives exist but aren't composed, or
 where happy paths work but edge cases don't, hide the highest-value work.
 
-**Phase 2 — Converge**: Pick your top 2 candidates and search the web for prior
-art on each — how did other projects solve this? What patterns work? Then
-evaluate both side by side: what does this make possible that wasn't possible
-before? Which has higher leverage given the current codebase? Only after
-comparing, commit to one.
+**Phase 2 — Converge**: Pick your top 2 candidates. For each one:
+1. Search the web for state of the art — what's the best version of this?
+2. Complete: "After this, a user can ___ that they couldn't before."
+3. Make the strongest case for it over the other candidate.
+Compare, then commit. If both have similar impact, prefer the bolder one.
 
 Check the trend's **Domains** and **Work pattern** lines for concentration
 warnings. Prefer diversity when choosing between similar-value candidates.

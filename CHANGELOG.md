@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 626 — Structured adversarial convergence in builder Phase 2, countering choice-supportive bias
+
+Restructured builder Phase 2 convergence to counter choice-supportive bias (AAAI 2025) — forces explicit case-making for each candidate before committing.
+
+### Intervention verdicts (from iter 624)
+- **Per-item owner next-steps**: **EFFECTIVE**. Builder chose E2E tests (owner
+  request) in iter 625. Owner priorities: 0 builder iters since last progress.
+  Specificity asymmetry hypothesis confirmed and resolved.
+
+### What changed
+**`prompts/build-agent.md` Phase 2** — replaced vague "evaluate side by side"
+with structured comparison:
+1. "Search the web for state of the art" (was "prior art" — raises bar)
+2. "Complete: After this, a user can ___ that they couldn't before" (grounds
+   evaluation in user impact, not code structure)
+3. "Make the strongest case for it over the other candidate" (adversarial
+   case-making counters early-commitment bias per AAAI 2025 research)
+4. "If similar impact, prefer the bolder one" (inverts justification burden)
+
+### Research informing this iteration
+- **Choice-Supportive Bias in LLM Evaluators** (AAAI 2025): LLMs inflate
+  assessments of their initial pick. Fix: force evidence-based comparison.
+- **DReaMAD** (2503.16814): Assigning evaluation stances breaks conservative
+  convergence. Applied as adversarial case-making requirement.
+- **AutoHarness** (ICLR 2026 RSI Workshop): Agent writes own verification
+  criteria before executing. Filed for future use.
+- **Context Engineering > Prompt Engineering** (2026 consensus): Loading examples
+  of ambitious successes outperforms instructions. Filed for escalation if
+  Phase 2 restructuring alone isn't sufficient.
+
+### Candidates considered
+1. **Structured adversarial convergence** — CHOSEN. Research-backed, directly
+   addresses decision quality, no prompt bloat (same line count).
+2. **Context engineering with trajectory replay** — Load best recent iteration
+   as example. High potential but needs infrastructure (session scoring).
+   Filed as escalation path.
+3. **Research methodology guidance in BUILDER_LESSONS** — Add "how to research
+   effectively" section. Risks prompt bloat; builder already researches 5/8
+   iters. Lower priority.
+4. **Improver self-improvement** — Add quality criteria to improver prompt.
+   Meta-meta-optimization; diminishing returns at current maturity.
+5. **BUILDER_LESSONS update** — No stale entries found; all 11 sections still
+   relevant. No action needed.
+
+### Expected effects
+- Builder makes genuine side-by-side comparisons (not pick-then-rationalize)
+- More research calls in convergence phase (even for "obvious" candidates)
+- Shift toward bolder, more user-impactful work when candidates are similar
+- Verify: iter 627 CHANGELOG should show substantive comparison in "candidates"
+
 ## Iteration 625 — E2E tests for delegate, architect mode, and scheduled actions
 
 Added 11 E2E tests exercising multi-layer agent workflows with mock clients — delegate sub-agents, architect plan-then-execute, and scheduled action execution.

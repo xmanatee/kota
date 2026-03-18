@@ -4,36 +4,33 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 624)
+## Current Hypothesis (updated iter 626)
 
-**Specificity asymmetry** is the root cause of owner-priority drift. The iter
-622 staleness warning was visible but ignored (builder saw it, chose split
-anyway). The top-neglected list provides specific, risk-free candidates;
-owner requests were vague. Fix: per-item "Next:" steps in trend output, owner
-section moved above neglected, neglected condensed 5→2 when stale.
+**Choice-supportive bias** limits decision quality. The builder picks early in
+its thinking and rationalizes post-hoc (AAAI 2025). Phase 2 said "evaluate side
+by side" but didn't structure the comparison to prevent early commitment. Fix:
+require explicit case-making for each candidate before committing, with a
+"describe the user impact" heuristic that grounds evaluation in outcomes.
 
-**Key insight**: Data signals compete on specificity. A concrete "Next:
-integration test with Ollama" beats a vague "getting stale" warning even when
-the vague one is higher priority. This extends principle #1 (data > instructions)
-— within data, specificity > priority.
+**Key insight (iter 624, confirmed)**: Data signals compete on specificity.
+Per-item next-steps fixed owner-priority drift. **New insight (iter 626)**:
+evaluation structure > evaluation instruction. Telling the builder to "compare"
+doesn't work; structuring the comparison as adversarial case-making does
+(DReaMAD, AAAI 2025 choice-supportive bias research).
 
 **Active issues:**
-1. **Owner priority drift** — 5 pending `b:` items, last progress iter 613
-   (5 builder iters ago, 3 consecutive file-splits). Iter 624 added per-item
-   next-steps and condensed top-neglected. Verify: does builder pick owner
-   request in iter 625?
-2. **Implementation efficiency** — Test reruns 8.7× avg. Includes targeted TDD
-   runs (healthy). Monitor.
-3. **Composition verification** — No E2E for batch/pipe/map.
-4. **System prompt scaling** — 32 tools, ~200 chars headroom.
+1. **Decision quality** — Builder gravitates to safe/easy-to-decide work when
+   not steered by data. Iter 626 restructured Phase 2 to counter
+   choice-supportive bias. Verify: does iter 627 show genuine comparison?
+2. **Composition verification** — No E2E for batch/pipe/map.
+3. **System prompt scaling** — 32 tools, ~200 chars headroom.
 
 **Resolved issues:**
-- Depth coverage gap: 4 depth iters (615-621), now balanced by owner-priority
-  signal. Top-neglected list condensed when stale.
-- Suite_totals, test delta, subsystem classification, depth tracking, signal
-  accuracy, owner-priority alignment (prompt-level), research usage, domain
-  concentration, brainstorming quality, DESIGN.md growth, instruction bloat:
-  all RESOLVED.
+- Owner priority drift: per-item next-steps (624) fixed it. Iter 625 chose
+  E2E tests (owner request). 0 builder iters since last progress.
+- Depth coverage, suite_totals, test delta, subsystem classification, depth
+  tracking, signal accuracy, research usage, domain concentration,
+  brainstorming quality, DESIGN.md growth, instruction bloat: all RESOLVED.
 
 ## Intervention History
 
@@ -59,17 +56,22 @@ research strategy lesson (540). See CHANGELOG archive for details.
   accurate +42 delta).
 - **(622)** Owner priority staleness signal in trend. **INEFFECTIVE**: builder
   saw warning but chose file-split anyway. Specificity asymmetry was root cause.
-- **(624)** Per-item owner next-steps + condensed neglected list. Pending.
+- **(624)** Per-item owner next-steps + condensed neglected list. **EFFECTIVE**:
+  builder chose E2E tests (owner request) in iter 625.
+- **(626)** Structured convergence with adversarial case-making. Pending.
 
-## Evidence (updated iter 624)
+## Evidence (updated iter 626)
 
-- **Iter 623 metrics**: 72 calls, $3.02, 42k ctx/turn, +25 tests, 0 fix cycles,
-  38% rework, 33% re-edit. Split module-factory.ts. 3rd consecutive file-split.
-- **10-iter trend (605-623)**: calls avg 81, cost avg $3.86, +28 tests/iter.
-  Context 54k avg (shrinking -16%). Re-edit 39% avg, 2.0 edits/file avg.
-  Domains: 5 modules, 3 tools, 2 other. Builder iters since owner progress: 5.
-  **Key concern**: top-neglected specificity was outcompeting owner priorities.
-  Now addressed with per-item next-steps.
+- **Iter 625 metrics**: 75 calls, $2.78, 55k ctx/turn, +11 tests, 1 fix cycle,
+  33% rework, 75% re-edit. E2E tests for delegate/architect/scheduled actions.
+  Chose owner request (E2E testing). 0 web research calls (expected for test work).
+- **8-iter trend (611-625)**: calls avg 76, cost avg $3.54, +30.6 tests/iter.
+  Context 53k avg (shrinking -5%). Re-edit 39% avg, 2.2 edits/file avg.
+  Work pattern: 3 feature, 3 hardening, 2 architecture (healthy diversity).
+  Owner priorities: 0 builder iters since last progress. **Resolved**.
+- **Decision quality concern**: 3/8 iters had 0 web research (file splits, tests).
+  Research correlates with ambitious work (r≈0.7 across recent iters). Phase 2
+  restructuring should encourage research even for seemingly-obvious candidates.
 
 ## Research Library
 
@@ -87,6 +89,9 @@ research strategy lesson (540). See CHANGELOG archive for details.
 | ETH Zurich AGENTS.md (2602.11988) | Verbose context files reduce success 3%, cost +20% | iter 562 |
 | Prompt Instruction Limits (2507.11538) | ~150 instruction threshold for reasoning models | iter 564 |
 | JetBrains Complexity Trap (NeurIPS 2025) | Observation masking matches LLM summarization at lower cost; hybrid gives 7-11% extra cost reduction | applied iter 523 |
+| Choice-Supportive Bias (AAAI 2025) | LLMs inflate positive assessments of their initial pick; force explicit comparison with evidence before committing | iter 626 (Phase 2 restructuring) |
+| DReaMAD (2503.16814) | Assigning different evaluation stances breaks conservative convergence in LLM debate/evaluation | iter 626 (adversarial case-making) |
+| AutoHarness (ICLR 2026 RSI) | Agent writes own verification criteria before executing; prompt-level technique | potential |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -156,15 +161,20 @@ Core principles distilled from 40 interventions across 80 iterations:
    for strategic decisions. For strategic change, modify the evaluation criterion
    or inject data into the decision process.
 
+8. **Evaluation structure > evaluation instruction**: Telling the builder to
+   "compare" doesn't prevent choice-supportive bias (AAAI 2025). Structuring
+   the comparison as adversarial case-making — "make the strongest case for
+   each candidate over the other" — forces genuine evaluation. Similarly,
+   "describe the demo" grounds abstract impact claims in concrete user outcomes.
+
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Owner priority drift** — Iter 624 added per-item next-steps and condensed
-   neglected 5→2. If builder still doesn't pick owner request in iter 625,
-   escalate: consider making "Owner request" category mandatory in convergence
-   (must evaluate at least one owner item in Phase 2).
-2. **SGICE trajectory replay** — Research finding: 73→93% lift from feeding
-   successful trajectories as few-shot examples. Practical opportunity: store
-   high-scoring session summaries (low cost, 0% re-edit) and inject during
-   brainstorming for similar work types.
+1. **Decision quality** — Iter 626 restructured Phase 2 with adversarial
+   case-making. Verify in iter 627: does the builder genuinely compare
+   candidates, or does it still pick-then-rationalize?
+2. **Context engineering** — Loading examples of successful ambitious iterations
+   is more effective than instructions (AAAI 2025, context engineering research).
+   Practical next step: if Phase 2 restructuring alone isn't enough, inject
+   a "best recent iteration" example into brainstorming context.
 3. **Composition verification** — No E2E for batch/pipe/map.
 4. **System prompt scaling** — ~200 chars headroom at 32 tools.
