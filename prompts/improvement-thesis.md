@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 636)
+## Current Hypothesis (updated iter 638)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -10,14 +10,11 @@ Strategic context for the improver. Read at start; update when evidence changes.
 requirement + Future Directions review working).
 
 **Active issues:**
-1. **Selection quality**: Builder researches well but "deepest opportunity" is
-   vague. Fix (636): explicit three-axis criterion (novelty × owner alignment ×
-   research depth) replaces subjective "deepest opportunity."
-2. **Progress tracking gap**: Builder addresses owner priorities but doesn't
-   annotate NOTES.md, breaking staleness tracker. Fix (636): moved NOTES.md
-   update to Record phase with explicit `→ Progress` instruction.
-3. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
-4. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
+1. **No quality self-assessment**: Builder verifies mechanically (typecheck,
+   tests) but never evaluates implementation quality or impact. Fix (638):
+   self-review step between Verify and Record (Agent-as-Judge pattern).
+2. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
+3. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
 
 ## Intervention History
 
@@ -29,23 +26,19 @@ per-item next-steps (624), adversarial case-making (626), feasibility/evaluation
 research separation (628). Key failures: quality lesson (546), research strategy
 lesson (540), domain concentration (7 iterations, accepted at 608).
 
-**Recent (iters 630-634):**
-- **(630)** Inspiration-first brainstorming. **PARTIALLY EFFECTIVE**: found
-  novel ideas but research still shallow (4 searches).
-- **(632a)** Quality criteria + comparative. **EFFECTIVE**: iter 633 did strong
-  top-2 comparison with concrete demos. Research still low (4 searches).
-- **(632b)** Trend simplification: 22→9 signals. **EFFECTIVE**: builder still
-  reads and acts on trend data (noticed STALE, picked owner priority).
+**Recent (iters 632-638):**
+- **(632)** Quality criteria + comparative + trend simplification. **EFFECTIVE**.
 - **(634)** Research-after-candidates + diversity requirement. **EFFECTIVE**:
-  iter 635 had 36 searches (vs 4 prior), chose NEVER-addressed owner priority
-  (source reorg), 20% rework. Both mechanisms confirmed working.
-- **(636)** Three-axis selection criterion + NOTES.md progress tracking fix.
+  research 4→36/iter, builder chose NEVER-addressed owner priority.
+- **(636)** Three-axis selection + NOTES.md progress tracking. **EFFECTIVE**:
+  iter 637 used three-axis table, added `→ Progress` annotation. Rework 23%.
+- **(638)** Self-review step (Agent-as-Judge pattern) + BUILDER_LESSONS pruning.
 
 ## Evidence
 
-- **10-iter trend (619-999)**: +28 tests/iter, 40% rework, 5 fix cycles.
-  Work diversity 73% (healthy). Research: 7/10 iters (12/iter avg).
-  Iter 635: research surged to 36, rework dropped to 20%.
+- **10-iter trend (619-999)**: +22.6 tests/iter, 38% rework. Diversity 73%.
+  Research: 8/10 iters (15/iter avg). Rework trending down: 20-23% in last
+  2 builder iters vs 57-62% prior. Three-axis selection + research working.
 
 ## Research Library
 
@@ -53,7 +46,7 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 |---|---|---|
 | Arumugam et al. (ICLR 2025) | Structural changes > verbal encouragement | iter 624 |
 | GEPA (ICLR 2026 Oral) | Structured reflection on traces >> scalar rewards | iter 614 |
-| ETH Zurich (2602.11988) | Verbose context files reduce success 3%, cost +20% | iter 562 |
+| ETH Zurich (2602.11988) | Only non-inferable context helps; verbose/generic = noise | iter 562, 638 |
 | Prompt Instruction Limits (2507.11538) | ~150 instruction threshold | iter 564 |
 | Choice-Supportive Bias (AAAI 2025) | Force explicit comparison before committing | iter 626 |
 | Deep Ideation (2511.02238) | Exploration before ideation: 10.67% quality lift | iter 630 |
@@ -61,10 +54,9 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | HGM (Sakana, ICLR 2026 Oral) | Short-term optimization can kill long-term potential | reference |
 | SE-Agent (2508.02085) | Cross-trajectory inspiration breaks formulaic loops | iter 634 |
 | QDAIF (ICLR 2024) | Quality-diversity: maintain diverse candidates, not just best | iter 634 |
-| SGICE (Addy Osmani) | Self-generated in-context examples: 73→89-93% lift | potential |
-| MPO (EMNLP 2025) | Meta-plan abstraction escapes local optima | potential |
-| Intrinsic Metacognition (OpenReview) | Truly self-improving agents need self-eval of learning process | reference |
-| MAR (Multi-Agent Reflexion) | Diverse personas + judge = fewer blind spots | reference |
+| Agent-as-Judge (2508.02994) | Evaluate trajectory, not just outcome; ~85% human agreement | iter 638 |
+| Karpathy AutoResearch (2026) | Atomic changes + scalar quality signal + append-only log | reference |
+
 
 ## Improver Principles
 

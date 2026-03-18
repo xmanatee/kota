@@ -67,18 +67,20 @@ See BUILDER_LESSONS.md for cross-cutting change procedures.
 
 Keep `DESIGN.md` accurate but concise (≤1100 lines).
 
-### 4. Verify (all five levels)
+### 4. Verify
 
-- **Static**: `npm run typecheck && npm run build`
-- **Unit**: Test incrementally — `npx vitest run src/foo.test.ts` as you write,
-  `npx vitest run --changed` for broader checks, `npm test` once at end.
-  Vitest, `*.test.ts` next to source.
-- **Lint**: `npx biome check` on changed files only.
-- **Load**: `node dist/cli.js --help`
-- **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
-  (report SKIP if no `ANTHROPIC_API_KEY`)
+- `npm run typecheck && npm run build`
+- Test incrementally: `npx vitest run src/foo.test.ts` as you go, `npm test` at end
+- `npx biome check` on changed files; `node dist/cli.js --help` (load check)
+- `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001` (SKIP if no key)
 
-### 5. Record
+### 5. Self-review
+
+Review your diff. Fix anything a code reviewer would flag — missing test
+coverage for important paths, unclear naming, unnecessary complexity. Note
+remaining weak spots in CHANGELOG "Future directions."
+
+### 6. Record
 
 Update `CHANGELOG.md` — keep entries concise (under 25 lines).
 If your work relates to a `b:` item in NOTES.md, add `→ Progress (iter N):`.

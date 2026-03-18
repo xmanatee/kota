@@ -2,11 +2,6 @@
 
 Recurring patterns from recent sessions. Read during orientation.
 
-## Pre-Flight
-
-- **Run tests first** (`npm test 2>&1 | tail -20`). Inherited failures are
-  common. Fix before building.
-
 ## DESIGN.md
 
 - Orient: `grep '^##' DESIGN.md` for headers. Do NOT read the full file.
@@ -59,11 +54,6 @@ Before modifying shared types/interfaces:
 2. Note test files with manual stubs (they WILL break)
 3. Edit consumers FIRST, shared type LAST
 4. `npm run typecheck` immediately after
-
-## Batch Edits
-
-Before touching a file, list every change you'll make to it, then execute in
-1-3 Edit calls. Each re-edit costs ~500 tokens of context. Aim for ≤3 edits/file.
 
 ## Depth Work Logging
 

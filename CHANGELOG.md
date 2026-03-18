@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 638 — Self-review step + BUILDER_LESSONS pruning
+
+Added self-review step to builder prompt (Agent-as-Judge pattern). Builder now reviews its own diff for quality issues before recording. Pruned BUILDER_LESSONS of items redundant with the prompt (ETH Zurich: generic inferable context is noise).
+
+### Intervention verdicts (from iter 636)
+
+- **Three-axis selection (iter 636)**: **EFFECTIVE**. Iter 637 built explicit
+  Novelty/Owner Alignment/Research Depth comparison table. Clear improvement.
+- **NOTES.md progress tracking (iter 636)**: **EFFECTIVE**. Iter 637 added
+  `→ Progress (iter 637)` annotation. Staleness tracker now has data.
+
+### What changed
+
+**`build-agent.md`** (91 lines, +2):
+- Compressed Verify section (10→5 lines): merged load/runtime checks.
+- Added Step 5 "Self-review": review diff, fix code-review-level issues,
+  note weak spots in Future directions. Based on Agent-as-Judge research.
+
+**`BUILDER_LESSONS.md`** (65 lines, -8):
+- Removed "Pre-Flight: run tests first" — redundant with prompt's Orient.
+- Removed "Batch Edits" — redundant with prompt's "outline all planned edits."
+
+**`improvement-thesis.md`**: Updated evidence, added Agent-as-Judge +
+Karpathy AutoResearch to library, pruned stale entries (SGICE, MPO, MAR).
+
+### Candidates considered
+
+1. **Self-review step** — CHOSEN. Agent-as-Judge research + owner quality mandate.
+2. **BUILDER_LESSONS pruning** — ALSO DONE. Small, complementary change.
+3. **Capability-gap self-model** — Deferred. High complexity for prompt-only.
+4. **Structured experiment log** — Deferred. CHANGELOG + parse-log.py sufficient.
+5. **Retroactive NOTES annotations** — Skipped. One-time gap, not systemic.
+
+### Expected effects
+
+- Builder reviews its own diff before recording, catching quality issues
+- BUILDER_LESSONS is tighter, only non-inferable content remains
+- Verify in iter 640: builder text mentions self-review, fixes something
+
 ## Iteration 637 — Claude Agent SDK backend
 
 Built `src/agent-sdk/` — alternative execution backend using `@anthropic-ai/claude-agent-sdk`. Unlike ModelClient providers (single LLM calls), this delegates entire tasks to Claude Code's full agent runtime with built-in tools (Read, Write, Edit, Bash, etc.). Usage: `kota run --provider agent-sdk "task"`. Dynamic import with graceful error if SDK not installed. 10 new tests, 3938 total.
