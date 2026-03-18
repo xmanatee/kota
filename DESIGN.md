@@ -599,6 +599,8 @@ From Aider's research (+3-8% on benchmarks):
 2. **Editor pass**: Fresh conversation with only file tools executes the plan (up to 30 turns).
 3. **Main loop** continues with all tools for verification.
 
+**Adaptive replanning** (`src/architect-replan.ts`): The editor loop monitors tool execution for failure patterns. When 3+ consecutive errors or stagnation (same tool+error repeating) is detected, a replanner LLM call evaluates the situation and decides: continue, revise the remaining plan, or abort. Max 2 replans per execution. Based on AdaPlanner's dual-mode refinement.
+
 ### Prompt Caching
 
 System prompt sent with `cache_control: { type: "ephemeral" }`. Static prefix cached at 0.1x cost. Only new messages pay full price.

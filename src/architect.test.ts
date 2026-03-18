@@ -79,8 +79,8 @@ function toolUseContent(calls: { id: string; name: string; input: Record<string,
 }
 
 function createMockClient() {
-  return { messages: { stream: vi.fn() } } as unknown as
-    ModelClient & { messages: { stream: ReturnType<typeof vi.fn> } };
+  return { messages: { stream: vi.fn(), create: vi.fn() } } as unknown as
+    ModelClient & { messages: { stream: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> } };
 }
 
 // --- Tests ---
@@ -613,5 +613,227 @@ describe("runEditorLoop", () => {
       (e) => e.type === "error" && e.message?.includes("turn limit"),
     );
     expect(turnLimitError).toBeUndefined();
+  });
+
+  it("triggers replanning after 3 consecutive tool errors", async () => {
+    let streamCallCount = 0;
+    // 3 turns of failing tool calls, then replanner says REVISE, then model finishes
+    client.messages.stream.mockImplementation(() => {
+      streamCallCount++;
+      if (streamCallCount <= 3) {
+        return createMockStream({
+          content: toolUseContent([
+            { id: `t${streamCallCount}`, name: "file_edit", input: { path: "a.ts" } },
+          ]),
+        });
+      }
+      return createMockStream({ _text: "Done after replan." });
+    });
+
+    mockExecuteTool.mockResolvedValue({ content: "old_string not found", is_error: true });
+
+    // Mock replanner response
+    client.messages.create.mockResolvedValue({
+      content: [{ type: "text", text: "DECISION: REVISE\n1. Read the file first\n2. Then edit" }],
+      usage: mockUsage(),
+    });
+
+    const events: Array<{ type: string; message?: string }> = [];
+    const transport = {
+      emit(event: { type: string; message?: string }) { events.push(event); },
+    };
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Edit a.ts",
+      transport: transport as import("./transport.js").Transport,
+    });
+
+    expect(result.text).toBe("Done after replan.");
+    expect(result.replans).toBe(1);
+    expect(client.messages.create).toHaveBeenCalledTimes(1);
+
+    const replanEvent = events.find((e) => e.message?.includes("Replanning"));
+    expect(replanEvent).toBeDefined();
+    const revisedEvent = events.find((e) => e.message?.includes("Plan revised"));
+    expect(revisedEvent).toBeDefined();
+  });
+
+  it("aborts execution when replanner returns ABORT", async () => {
+    // 3 failing turns then replanner says ABORT
+    client.messages.stream.mockImplementation(() =>
+      createMockStream({
+        content: toolUseContent([
+          { id: `t${Math.random()}`, name: "shell", input: { command: "fail" } },
+        ]),
+      }),
+    );
+
+    mockExecuteTool.mockResolvedValue({ content: "command not found", is_error: true });
+
+    client.messages.create.mockResolvedValue({
+      content: [{ type: "text", text: "DECISION: ABORT\nThe command does not exist on this system." }],
+      usage: mockUsage(),
+    });
+
+    const events: Array<{ type: string; message?: string }> = [];
+    const transport = {
+      emit(event: { type: string; message?: string }) { events.push(event); },
+    };
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Run the command",
+      transport: transport as import("./transport.js").Transport,
+    });
+
+    expect(result.text).toContain("Plan aborted");
+    const abortEvent = events.find((e) => e.type === "error" && e.message?.includes("aborted"));
+    expect(abortEvent).toBeDefined();
+  });
+
+  it("continues without replanning when replanner says CONTINUE", async () => {
+    let streamCallCount = 0;
+    // 3 failing turns (different errors to avoid stagnation), replanner says CONTINUE, then success
+    client.messages.stream.mockImplementation(() => {
+      streamCallCount++;
+      if (streamCallCount <= 3) {
+        return createMockStream({
+          content: toolUseContent([
+            { id: `t${streamCallCount}`, name: "file_edit", input: { path: "b.ts" } },
+          ]),
+        });
+      }
+      return createMockStream({ _text: "Completed." });
+    });
+
+    let errorCount = 0;
+    mockExecuteTool.mockImplementation(() => {
+      errorCount++;
+      return { content: `error variant ${errorCount}`, is_error: true };
+    });
+
+    client.messages.create.mockResolvedValue({
+      content: [{ type: "text", text: "DECISION: CONTINUE" }],
+      usage: mockUsage(),
+    });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Edit b.ts",
+    });
+
+    expect(result.replans).toBe(1);
+  });
+
+  it("limits replanning to MAX_REPLANS (2)", async () => {
+    // Continuously failing — should trigger replan twice then stop
+    client.messages.stream.mockImplementation(() =>
+      createMockStream({
+        content: toolUseContent([
+          { id: `t${Math.random()}`, name: "shell", input: { command: "x" } },
+        ]),
+      }),
+    );
+
+    mockExecuteTool.mockResolvedValue({ content: "error", is_error: true });
+
+    client.messages.create.mockResolvedValue({
+      content: [{ type: "text", text: "DECISION: REVISE\n1. Try differently" }],
+      usage: mockUsage(),
+    });
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    // Should have called replanner exactly 2 times (MAX_REPLANS)
+    expect(client.messages.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not replan when tool calls succeed", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([{ id: "t1", name: "file_read", input: { path: "a.ts" } }]),
+        }),
+      )
+      .mockReturnValueOnce(
+        createMockStream({
+          content: toolUseContent([{ id: "t2", name: "file_edit", input: { path: "a.ts" } }]),
+        }),
+      )
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+
+    mockExecuteTool.mockResolvedValue({ content: "ok" });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    expect(result.replans).toBeUndefined();
+    expect(client.messages.create).not.toHaveBeenCalled();
+  });
+
+  it("detects stagnation and triggers replanning", async () => {
+    let streamCallCount = 0;
+    // 2 identical failures (stagnation), then replan, then success
+    client.messages.stream.mockImplementation(() => {
+      streamCallCount++;
+      if (streamCallCount <= 2) {
+        return createMockStream({
+          content: toolUseContent([
+            { id: `t${streamCallCount}`, name: "file_edit", input: { path: "x.ts" } },
+          ]),
+        });
+      }
+      return createMockStream({ _text: "Fixed." });
+    });
+
+    mockExecuteTool.mockResolvedValue({ content: "old_string not found", is_error: true });
+
+    client.messages.create.mockResolvedValue({
+      content: [{ type: "text", text: "DECISION: REVISE\n1. Read the file first" }],
+      usage: mockUsage(),
+    });
+
+    const result = await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "Edit x.ts",
+    });
+
+    expect(result.text).toBe("Fixed.");
+    expect(result.replans).toBe(1);
+  });
+
+  it("injects revised plan into editor conversation", async () => {
+    let streamCallCount = 0;
+    client.messages.stream.mockImplementation(() => {
+      streamCallCount++;
+      if (streamCallCount <= 3) {
+        return createMockStream({
+          content: toolUseContent([
+            { id: `t${streamCallCount}`, name: "shell", input: { command: "fail" } },
+          ]),
+        });
+      }
+      return createMockStream({ _text: "Done." });
+    });
+
+    mockExecuteTool.mockResolvedValue({ content: "error", is_error: true });
+
+    client.messages.create.mockResolvedValue({
+      content: [{ type: "text", text: "DECISION: REVISE\nNew approach: read first" }],
+      usage: mockUsage(),
+    });
+
+    await runEditorLoop({
+      client, model: "test", maxTokens: 1000, plan: "test",
+    });
+
+    // The 4th stream call should contain the revised plan in messages
+    const lastStreamCall = client.messages.stream.mock.calls[3][0];
+    const messages = lastStreamCall.messages as Array<{ role: string; content: string | unknown[] }>;
+    const replanMsg = messages.find(
+      (m) => typeof m.content === "string" && m.content.includes("[Plan revised]"),
+    );
+    expect(replanMsg).toBeDefined();
+    expect(replanMsg!.content).toContain("New approach: read first");
   });
 });

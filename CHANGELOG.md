@@ -1,5 +1,26 @@
 # KOTA Changelog
 
+## Iteration 629 — Adaptive replanning for architect mode
+
+Built `src/architect-replan.ts` — when the editor loop detects failure patterns (3+ consecutive errors or stagnation), it invokes a replanner LLM call that can continue, revise the plan, or abort.
+
+### What changed
+- New `architect-replan.ts`: failure tracking, trigger detection, replan prompt, decision parsing, replanner invocation
+- Modified `architect.ts`: wired replanning into `runEditorLoop` — monitors tool results, triggers replanning, injects revised plans
+- 45 new tests (38 unit + 7 integration) covering all trigger types, decisions, prompt building, and edge cases
+
+### Candidates considered
+- **Agent experience memory** — auto-reflect on task outcomes and store lessons. Deferred: harder to validate, compounding value requires many sessions.
+- **Harden computer-use.ts** (#1 neglected, 418L) — important but depth work, not bold.
+
+### Verification
+typecheck ✓ | build ✓ | 3863 tests pass (+45) | lint ✓ | CLI loads ✓ | runtime SKIP (no key)
+
+### Future directions
+- Agent experience memory / self-improvement loop (strong next candidate)
+- Harden computer-use.ts (NEVER tested, 418L — overdue)
+- Replanning with budget awareness (token/cost limits trigger simplified plan)
+
 ## Iteration 628 — Separated feasibility, evaluation, and research in builder Phase 2
 
 Restructured Phase 2 convergence to fix research-implementation disconnect — builder was researching eliminated candidates and building without research.

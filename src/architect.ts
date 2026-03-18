@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { createFailureTracker, detectReplanTrigger, invokeReplanner, recordStep } from "./architect-replan.js";
 import { truncateToolResult } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import type { ModelClient } from "./model-client.js";
@@ -112,6 +113,7 @@ export type EditorOptions = {
 export type EditorResult = {
   text: string;
   modifiedFiles: string[];
+  replans?: number;
 };
 
 export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> {
@@ -128,6 +130,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
   let lastText = "";
   const modifiedFiles = new Set<string>();
   let completedNaturally = false;
+  const tracker = createFailureTracker();
 
   for (let turn = 0; turn < MAX_EDITOR_TURNS; turn++) {
     let response!: Anthropic.Message;
@@ -191,6 +194,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
         );
         return {
           tool_use_id: block.id,
+          name: block.name,
           content: truncateToolResult(result.content, EDITOR_RESULT_LIMIT),
           is_error: result.is_error,
         };
@@ -209,6 +213,14 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
       }
     }
 
+    // Record steps for failure tracking
+    for (const res of filtered) {
+      recordStep(tracker, {
+        tool: res.name,
+        error: res.is_error ? res.content : null,
+      });
+    }
+
     messages.push({
       role: "user",
       content: filtered.map((r) => ({
@@ -218,11 +230,43 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
         is_error: r.is_error,
       })),
     });
+
+    // Check for replan trigger
+    const trigger = detectReplanTrigger(tracker);
+    if (trigger) {
+      if (transport) transport.emit({ type: "status", message: `[kota] Replanning (${trigger})...` });
+      const decision = await invokeReplanner({
+        client, model, maxTokens, originalPlan: plan, messages, trigger, costTracker,
+      });
+
+      if (decision.action === "abort") {
+        if (transport) transport.emit({ type: "error", message: `[kota] Plan aborted: ${decision.reason}` });
+        lastText = `Plan aborted: ${decision.reason}`;
+        completedNaturally = true;
+        break;
+      }
+
+      if (decision.action === "revise") {
+        if (transport) transport.emit({ type: "status", message: "[kota] Plan revised — continuing execution..." });
+        messages.push({
+          role: "user",
+          content: `[Plan revised] The previous approach encountered issues. Here is the revised plan for remaining work:\n\n${decision.plan}\n\nContinue executing from here. Previous successful results are still valid.`,
+        });
+      }
+
+      tracker.replanCount++;
+      tracker.consecutiveErrors = 0;
+      tracker.recentErrors = [];
+    }
   }
 
   if (!completedNaturally && transport) {
     transport.emit({ type: "error", message: `[kota] Editor hit turn limit (${MAX_EDITOR_TURNS}) — execution may be incomplete` });
   }
 
-  return { text: lastText, modifiedFiles: [...modifiedFiles] };
+  return {
+    text: lastText,
+    modifiedFiles: [...modifiedFiles],
+    ...(tracker.replanCount > 0 && { replans: tracker.replanCount }),
+  };
 }
