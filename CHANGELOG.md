@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 664 — Split research from selection to fix confirmation bias
+
+Split Phase 2 (Verify + Research) into Phase 2 (Research) + Phase 3 (Select) with explicit boundary: record a finding per candidate before picking.
+
+### Intervention verdicts (from iter 662)
+
+- **Composition-first brainstorming (iter 662)**: **PARTIALLY EFFECTIVE**. Builder
+  663 generated 3 composition candidates (#4 guardrails+audit, #5 prompts+events,
+  #6 knowledge+request-analyzer) — up from 0 before. Still chose an owner request
+  (AGENTS.md), which was the right call (high-priority, zero prior progress).
+  Generation is working; selection will follow once owner backlog cools.
+
+### What changed
+
+- **`prompts/build-agent.md`** (99→94 lines): "Phase 2 — Verify + Research"
+  split into "Phase 2 — Research (before selecting)" + "Phase 3 — Select."
+  Key addition: "Record a key finding per candidate. Do not pick yet." This
+  creates a structural boundary — the builder must research multiple candidates
+  before committing. Evidence: iters 661 and 663 both had ALL web searches
+  targeting the pre-selected candidate, zero on competitors.
+- **`prompts/improvement-thesis.md`** (101→103 lines): 662 verdict, new active
+  issue (confirmation bias), updated evidence (research quality gap).
+
+### Candidates considered
+
+1. **Research-before-selection structural fix** — CHOSEN. Session analysis shows
+   builder shortcuts research to confirm pre-selected choice (100% of web searches
+   on chosen candidate in 2 consecutive iters). Structural > verbal (Arumugam).
+2. **Inherited-failure isolation** — Builder 663 spent time fixing 2 inherited E2E
+   failures mid-iteration. Could add "fix inherited failures in orient." Moderate
+   impact — failures are intermittent and already partially handled.
+3. **Strengthen self-review dimensions** — Current self-review is brief/generic.
+   Could specify dimensions (API design, edge cases, composition check). Deferred:
+   the research phase is the bigger quality bottleneck right now.
+4. **Parse-log: track research breadth** — Detect whether web searches cover
+   multiple candidates vs one. Tooling budget (1-in-5) — defer.
+
+### Expected effects
+
+- Builder 665 does web searches for ≥2 candidates before selecting
+- Research findings genuinely influence the selection, not just confirm it
+- Higher-quality decisions from better-informed comparisons
+
 ## Iteration 663 — AGENTS.md / CLAUDE.md instruction file discovery
 
 Built `src/instruction-files.ts` — discovers and loads AGENTS.md and CLAUDE.md project instruction files, following the cross-tool standard adopted by Claude Code, Codex CLI, Cursor, Copilot, and Gemini CLI. Files are discovered by walking up the directory tree (root-first ordering), with `@path.md` cross-reference resolution (depth 3, circular-ref safe) and 8KB-per-file truncation. Injected into system prompt at startup alongside `.kota.md` project context. Delegate sub-agents also receive instruction context.

@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 662)
+## Current Hypothesis (updated iter 664)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -11,15 +11,17 @@ vision (640), maintenance convergence (642), backlog anchoring (644),
 perfunctory self-review (646), misleading top-neglected signal (646),
 redundant research on existing features (648), parse-log STALE metric (650),
 tools concentration (653), post-hoc steelman (654), brainstorm axis collapse
-(658), ★-mark anchoring in selection (660 — broke 3-iter ★-chain).
+(658), ★-mark anchoring in selection (660).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Addition bias over composition**: Codebase has 30+ subsystems but builder
-   keeps adding standalone tools (9/15 recent iters = new features). At this
-   maturity, composing existing subsystems often delivers more value. Intervention
-   (662): reword Capability axis to put composition first, with concrete
-   instruction to scan DESIGN.md headers for pairs that don't yet interact.
+2. **Addition bias over composition**: Intervention (662) working — builder 663
+   generated 3 composition candidates (vs 0 before). Monitoring.
+3. **Confirmation bias in research**: Builder researches only the pre-selected
+   candidate. Iters 661, 663: ALL web searches about the chosen task, zero on
+   competitors. Phase 2 "for top 2-3, do 2+ web searches each" was ignored.
+   Intervention (664): split Phase 2 into "Research" + "Select" with explicit
+   boundary — record a finding per candidate before picking.
 
 ## Intervention History
 
@@ -33,18 +35,19 @@ steelman (652, not followed). Partial: self-review structure (646), impact
 criterion (656).
 
 **Recent:**
-- **(660)** Neutralize ★-mark anchoring. **EFFECTIVE**: builder 661 chose
-  owner request (prompt templates) over ★-marked items, breaking the
-  655→657→659 ★-chain. Owner staleness: 4 → 1 builder iter.
+- **(660)** Neutralize ★-mark anchoring. **EFFECTIVE**: broke ★-chain.
+- **(662)** Composition-first brainstorming. **PARTIALLY EFFECTIVE**: builder
+  663 generated 3 composition candidates (up from 0). Still chose an owner
+  request — acceptable, since it was high-priority. Need more data.
 
 ## Evidence
 
-- **15-iter trend**: +18.4 tests/iter, 38% rework. Diversity 78% (healthy).
-  Research: 15/15 iters (saturated). Work: 9 feature, 5 architecture, 1 harden.
-  Owner priorities: 9 pending, last progress 1 builder iter ago (661).
-- **Addition pattern**: 30+ subsystems in DESIGN.md, but recent iters mostly
-  add standalone tools. Only a few (event handlers 645, provider wiring 653)
-  compose existing subsystems.
+- **15-iter trend**: +19.1 tests/iter, 40% rework. Diversity 73% (healthy).
+  Research: 15/15 (saturated). Work: 10 feature, 4 architecture, 1 harden.
+  Owner priorities: 10 pending, last progress 1 builder iter ago (663).
+- **Research quality gap**: In iters 661 and 663, ALL web searches targeted the
+  already-chosen candidate. Zero research on competing candidates despite prompt
+  requiring "2+ searches each for top 2-3."
 
 ## Research Library
 
@@ -83,6 +86,8 @@ criterion (656).
 | ECHO (2601.06794) | Co-evolve evaluator with agent — static criteria go stale as capability grows | iter 662 |
 | Live-SWE-agent (2511.13646) | Agent evolves own scaffold at runtime; minimal start → accumulated tools | reference |
 | AutoHarness (2603.03329, DeepMind) | Improving code harness > improving prompts; smaller model + good harness > larger without | reference |
+| Curriculum Collapse (Agent0, 2511.16043) | Self-improving loops stagnate in comfort zone; external signal breaks ceiling | reference |
+| LangChain Harness Engineering (2026) | All gains from harness, not model; composable middleware (loop detection, context injection) | reference |
 
 ## Improver Principles
 

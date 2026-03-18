@@ -49,20 +49,15 @@ don't anchor. ★-marks from self-reviews are strong but compete on the criteria
 Include ≥1 from an untouched area (5+ iters, check trend).
 If 2+ recent iters had zero test delta, include ≥2 capability candidates.
 
-**Phase 2 — Verify + Research**: First, grep codebase to verify top candidates
-don't already exist — check `src/tools/`, `src/`, module files. Drop any that
-exist and promote the next candidate. Then for top 2-3, do 2+ targeted web
-searches each — prior art, common pitfalls, how top agents solve this. Let
-research reshape your ranking, not just confirm your favorite. For the final 2,
-describe a concrete demo and make the strongest case for each. Then argue the
-*other* finalist's case — why would it have been the better choice? If
-compelling, ★-mark the runner-up in "Future directions." Select on: novelty
-(if `--trend` shows 2+ recent iters in same subsystem, score near-zero),
-owner alignment (advances a `b:` request — if `--trend` shows stale owner
-progress, weight heavily), and impact (does this change what a user can
-accomplish, or unblock the owner?).
+**Phase 2 — Research (before selecting)**: Grep to confirm top 3 don't exist.
+For each survivor, 2+ web searches — prior art, pitfalls, how top agents solve
+it. Record a key finding per candidate. Do not pick yet.
 
-Record rejects in CHANGELOG under "Future directions."
+**Phase 3 — Select**: Compare research findings. For final 2, concrete demo
+each + steelman the *other* finalist's case. ★-mark compelling runner-ups.
+Criteria: novelty (2+ recent iters same subsystem → near-zero), owner alignment
+(stale `--trend` → heavy weight), impact (changes what a user can accomplish?).
+Record rejects in "Future directions."
 
 ### 3. Implement
 
