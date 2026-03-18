@@ -52,6 +52,7 @@ def parse(path: str) -> None:
     text_blocks: list[str] = []       # truncated for display
     full_text_blocks: list[str] = []  # untruncated for analysis
     changelog_edits: list[str] = []   # CHANGELOG Edit new_strings
+    suite_totals: list[int] = []      # full-suite test totals from Bash output
 
     for msg in messages:
         if msg.get("type") == "assistant":
@@ -102,6 +103,16 @@ def parse(path: str) -> None:
                         err_content = err_content[:200]
                     if err_content:
                         errors.append(err_content)
+                elif block.get("type") == "tool_result":
+                    _raw = json.dumps(block.get("content", ""))
+                    _clean = re.sub(
+                        r"\x1b\[[0-9;]*m|\\u001b\[[0-9;]*m|\[[0-9;]*m",
+                        "", _raw,
+                    )
+                    for _m in re.finditer(r"(\d{3,})\s+passed", _clean):
+                        _n = int(_m.group(1))
+                        if _n > 500:
+                            suite_totals.append(_n)
 
     # --- Tool call sequence ---
     print(f"=== Tool Call Sequence ({len(tool_calls)} calls) ===")
@@ -133,6 +144,7 @@ def parse(path: str) -> None:
     if "build-agent" in path:
         _print_builder_analysis(
             tool_calls, text_blocks, full_text_blocks, changelog_edits,
+            suite_totals,
         )
 
 
@@ -183,13 +195,16 @@ def _extract_test_delta(texts: list[str]) -> str | None:
             return f"+{m.group(1)}"
 
     # P3: "+N tests" or "N new tests" — more precise than generic arrow
-    # Negative lookahead excludes "+1 new test file" from matching as "+1 test"
+    # Negative lookahead excludes "+1 new test file" and "0 new test failures"
     for text in texts:
         m = re.search(r"\+\s*(\d+)\s*(?:new\s+)?tests?(?!\s+file)", text, re.I)
-        if m:
+        if m and int(m.group(1)) > 0:
             return f"+{m.group(1)}"
-        m = re.search(r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?(?!\s+file)", text, re.I)
-        if m:
+        m = re.search(
+            r"(\d+)\s+new\s+(?:[\w-]+\s+)?tests?(?!\s+file)(?!\s+fail)",
+            text, re.I,
+        )
+        if m and int(m.group(1)) > 0:
             return f"+{m.group(1)}"
 
     # P4: "X→Y" within 60 chars of "test" — broad arrow pattern (false-positive
@@ -334,6 +349,7 @@ def _print_builder_analysis(
     text_blocks: list[str],
     full_text_blocks: list[str] | None = None,
     changelog_edits: list[str] | None = None,
+    suite_totals: list[int] | None = None,
 ) -> None:
     all_text = " ".join(text_blocks).lower()
 
@@ -439,10 +455,18 @@ def _print_builder_analysis(
     )
     print(f"  Verification: {status}")
 
-    # 6. Test delta — search full-length text + CHANGELOG edits
-    #    (truncated text_blocks miss deltas in long summary blocks)
-    search_texts = (full_text_blocks or text_blocks) + (changelog_edits or [])
-    test_delta = _extract_test_delta(search_texts)
+    # 6. Test delta — primary: actual test suite totals, fallback: text patterns
+    test_delta = None
+    st = suite_totals or []
+    if len(st) >= 2:
+        delta = st[-1] - st[0]
+        test_delta = (
+            f"{st[0]}→{st[-1]} (+{delta})" if delta > 0
+            else "+0" if delta == 0 else f"{st[0]}→{st[-1]} ({delta})"
+        )
+    if not test_delta:
+        search_texts = (full_text_blocks or text_blocks) + (changelog_edits or [])
+        test_delta = _extract_test_delta(search_texts)
     print(f"  Test delta:   {test_delta or '?'}")
 
     # 7. Source files edited (scope of changes)
@@ -659,13 +683,26 @@ def _quick_parse(path: str) -> dict:
     cl_edits: list[str] = []
     error_count = 0
     tc_list: list[tuple[str, str]] = []  # (name, searchable) for sweep
+    # Track full-suite test totals for reliable delta computation
+    _suite_totals: list[int] = []
+    _ansi_re = re.compile(r"\x1b\[[0-9;]*m|\\u001b\[[0-9;]*m|\[[0-9;]*m")
+
     for msg in messages:
         if msg.get("type") == "user":
             content = msg.get("message", {}).get("content", [])
             if isinstance(content, list):
                 for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") == "tool_result" and block.get("is_error"):
                         error_count += 1
+                    elif block.get("type") == "tool_result":
+                        _raw = json.dumps(block.get("content", ""))
+                        _clean = _ansi_re.sub("", _raw)
+                        for _m in re.finditer(r"(\d{3,})\s+passed", _clean):
+                            _n = int(_m.group(1))
+                            if _n > 500:
+                                _suite_totals.append(_n)
             continue
         if msg.get("type") != "assistant":
             continue
@@ -882,7 +919,15 @@ def _quick_parse(path: str) -> dict:
         "module": target_mod,
         "approach": target_app,
         "work_type": work_type,
-        "test_delta": _extract_test_delta(full_texts + cl_edits),
+        "test_delta": (
+            # Primary: compute from actual test run totals (first vs last)
+            f"{_suite_totals[0]}→{_suite_totals[-1]} (+{_suite_totals[-1] - _suite_totals[0]})"
+            if len(_suite_totals) >= 2 and _suite_totals[-1] > _suite_totals[0]
+            else (
+                "+0" if len(_suite_totals) >= 2 and _suite_totals[-1] == _suite_totals[0]
+                else None
+            )
+        ) or _extract_test_delta(full_texts + cl_edits),
         "mutation": "ran" if mutation_calls > 0 else "no",
         "cache_read": cache_read,
         "cache_per_turn": round(cache_read / turns) if turns else 0,

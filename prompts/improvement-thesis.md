@@ -4,32 +4,32 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 612)
+## Current Hypothesis (updated iter 614)
 
-**Research is self-calibrating**: Iter 611 did 36 web searches (vs 2 in iter
-609). The swing looked alarming but was actually adaptive — unfamiliar territory
-(claude-agent-sdk, OpenAI format translation) warranted heavy research; familiar
-refactoring (iter 609) warranted light research. No intervention needed.
+**Metric accuracy continues to be load-bearing** (Pattern Watch #5, now
+confirmed 4×). Test delta extraction gave a false +0 for iter 613 because
+"0 new test failures" matched the regex. Fixed by extracting actual suite
+totals from test run output — far more reliable than text-pattern matching.
+Iter 613 actually produced +22 tests (3580→3602).
 
 **Active issues:**
 1. **Depth coverage gap** — 31/44 large modules stale or never depth-reviewed.
-   The builder hasn't done depth work since iter 463 (~74 iterations ago). Trend
-   now surfaces top-5 neglected modules to make "Deepen existing" brainstorming
-   more concrete. Monitor whether builder picks up the signal.
-2. **Implementation efficiency** — Test reruns 6.0× avg (highest metric). Some
-   is healthy incremental testing, but flaky `process.test.ts` wastes 2-4 calls
-   per encounter. Added to BUILDER_LESSONS to reduce future investigation cost.
+   Builder hasn't done depth work since iter 463 (~150 iterations ago). Iter 613
+   continued multi-provider (owner request) despite neglected-modules signal.
+   Expected — the owner request took priority. Monitor iter 615.
+2. **Implementation efficiency** — Test reruns 7.0× avg (highest metric). Partly
+   structural (3600+ tests), partly flaky tests, partly avoidable rework (iter
+   613: 3 fix cycles from not reading test files before breaking changes).
 3. **Composition verification** — No E2E for batch/pipe/map. Still a gap.
 4. **System prompt scaling** — 32 tools, ~200 chars headroom. Nearly full.
+5. **Context growth** — 55k avg, growing +24%. May be driven by codebase growth.
 
 **Resolved issues:**
-- Owner-priority alignment: EFFECTIVE (iter 608→609→611).
-- Research usage: SELF-CALIBRATING (iter 612 analysis). 2→36 swing is adaptive.
-- Domain concentration: ACCEPTED as partially tractable (iters 588→608).
-- Signal accuracy: ONGOING — classification drift fixed in iter 612 (model
-  client → modules/provider). Keyword classifiers need periodic refresh.
-- Brainstorming quality, web research drought, feature concentration, DESIGN.md
-  growth, instruction bloat: all RESOLVED (see iter 610 thesis for details).
+- Signal accuracy: test delta false positive fixed (iter 614). Suite totals now
+  primary source. Classification drift fixed (iter 612).
+- Owner-priority alignment, research usage, domain concentration, brainstorming
+  quality, web research drought, feature concentration, DESIGN.md growth,
+  instruction bloat: all RESOLVED (see iter 610 thesis for details).
 
 ## Intervention History
 
@@ -39,7 +39,7 @@ tool registration checklist (554, rework 72→28%), CHANGELOG archive (568),
 diverge/converge brainstorming (598). Key failures: quality lesson (546),
 research strategy lesson (540). See CHANGELOG archive for details.
 
-**Recent (iters 598-612):**
+**Recent (iters 598-614):**
 - **(598)** Diverge/converge brainstorming. **STRUCTURALLY EFFECTIVE**.
 - **(600)** Research-before-convergence. **VERY EFFECTIVE**: 0→21 web searches.
 - **(602)** Work-type classification fix + Shannon entropy. **EFFECTIVE**.
@@ -47,52 +47,56 @@ research strategy lesson (540). See CHANGELOG archive for details.
 - **(606)** Domain signal fix + fix cycle detection fix. Domain: **INEFFECTIVE**.
 - **(608)** Owner-priority brainstorming category. **EFFECTIVE** (verified 609).
 - **(610)** Thesis compression 491→149 lines. **NEUTRAL** (expected).
-- **(612)** Top-neglected modules in trend + classifier fix. Pending verification.
+- **(612)** Top-neglected modules in trend + classifier fix. **PARTIALLY
+  EFFECTIVE**: classifier fix confirmed; neglected-modules signal not acted on
+  (builder was finishing owner-requested multi-provider work). Pending 1 more iter.
+- **(614)** Suite-total-based test delta + thesis research update. Pending.
 
-## Evidence (updated iter 612)
+## Evidence (updated iter 614)
 
-- **Iter 611 metrics**: 96 calls, $5.11, 59k ctx/turn, +36 tests, 0 fix cycles,
-  30% rework, 33% re-edit, 36 web searches. Built OpenAIModelClient with
-  extensive research (3 Agent subprocesses). Research was productive: discovered
-  claude-agent-sdk is incompatible, pivoted to OpenAI-compatible approach.
-- **8-iter trend (597-611)**: calls avg 94, cost avg $4.34, +21.2 tests/iter.
-  Context 58k avg (growing +4%). Re-edit 54% avg, 2.4 edits/file avg.
-  Domains: 4 tools, 3 modules, 1 other. Work pattern: 6 arch, 2 feature
-  — diversity 51% (moderately concentrated).
+- **Iter 613 metrics**: 95 calls, $4.40, 61k ctx/turn, +22 tests (3580→3602),
+  3 fix cycles, 45% rework, 71% re-edit. Completed multi-provider CLI wiring
+  (owner request). Fix cycles from not reading cli.test.ts before removing
+  ensureApiKey — cross-cutting lesson exists but was applied too late.
+- **8-iter trend (599-613)**: calls avg 94, cost avg $4.20, +21.4 tests/iter.
+  Context 55k avg (growing +24%). Re-edit 56% avg, 2.6 edits/file avg.
+  Domains: 4 modules, 3 tools, 1 other. Work pattern: 6 arch, 2 feature.
 
 ## Research Library
 
 ### Actively Informing Strategy
 | Paper | Key Insight | Applied |
 |---|---|---|
+| GEPA (2507.19457, ICLR 2026 Oral) | Evolve prompts by reading full execution traces, diagnosing in natural language, proposing targeted mutations. Outperforms MIPROv2 by 10%+. Key: structured reflection on traces >> sparse scalar rewards | iter 614 (validates improver approach) |
+| SICA (2504.15228) | Best-performing agent from archive becomes the meta-agent. Archive tracks utility = f(benchmark, time, cost). 17→53% on SWE-bench subset | iter 614 (archive pattern) |
 | CreativeDC (2512.23601) | Diverge/converge phases prevent mode-collapse in ideation | iter 598 |
-| CHI 2025 Artificial Hivemind | RLHF-aligned LLMs converge toward average; repeated assistance decreases originality | iter 598 |
 | Self-Play Information Gain (2603.02218) | Without explicit diversity tracking, self-improvement drifts to repetitive work | iter 592 |
 | GVU "Second Law" (2512.02731) | Plateau → strengthen verifier, not generator | iter 548 |
 | ETH Zurich AGENTS.md (2602.11988) | Verbose context files reduce success 3%, cost +20% | iter 562 |
 | Prompt Instruction Limits (2507.11538) | ~150 instruction threshold for reasoning models | iter 564 |
-| Self-Verification Dilemma (2602.03485) | LLMs waste computation on confirmatory rechecks; experience-driven suppression reduces tokens 20% without accuracy loss | NEW |
-| Eco-Evolve (dual-process) | System 1 (fast generation) + System 2 (dedicated critic): +26.6% on SWE-bench Verified | NEW |
+| Anthropic harnesses blog | Initializer agent + progress file for session handoff; separate first-window prompt from continuation prompts | NEW |
+| Factory.ai context compression | Per-tool-type summarizers (50-200 chars); structured > unstructured compression | NEW |
+| JetBrains Complexity Trap (NeurIPS 2025) | Observation masking matches LLM summarization at lower cost; hybrid gives 7-11% extra cost reduction | applied iter 523 |
 
 ### Potential Future Directions
 | Paper | Opportunity |
 |---|---|
-| Live-SWE-agent (2511.13646) | Agent evolves own scaffolding at runtime; 77.4% SWE-bench Verified — outperforms all manually crafted agents |
-| Meta ACH / Mutation-Guided Testing (FSE 2025) | LLM-generated mutants + test generation; 73% acceptance rate at Meta scale |
-| SSR Self-play SWE-RL (2512.18552) | Bug injection → resolution self-play; +10.4 on SWE-bench Verified without human labels |
-| Self-Challenging Agents (NeurIPS 2025) | Challenger creates tasks, executor solves them; doubles tool-use benchmark performance |
-| RISE Recursive Introspection (NeurIPS 2024) | Multi-turn self-correction; 17-24% improvement over 5 introspection turns |
-| ITR (2602.17046) | Per-step retrieval of prompt fragments + tools; 95% context reduction |
-| SICA (2504.15228) | Agent reviews own performance, edits own code/prompts (17→53%) |
+| Self-Challenging Agents (2506.01716) | Agent generates both task AND verification function (Code-as-Task); doubles success rates via self-play. Could generate test cases for untested integration paths. |
+| ACON (2510.00615) | Learn compression rules from failure pairs; 26-54% memory reduction, 95%+ accuracy. When builder fails after context grows, analyze what was lost. |
+| Live-SWE-agent (2511.13646) | Agent evolves own scaffolding at runtime; start minimal, create tools per-task. |
+| SWE-EVO (2512.18470) | Even GPT-5 + OpenHands achieves only 21% on multi-file evolution tasks. Design for iteration, not one-shot. |
+| OpenEvolve (open-source AlphaEvolve) | Dual-model ensemble: cheap for breadth, expensive for depth. Island-based architecture prevents local optima. |
 
 ### Background (validated, no current action needed)
-DSPy/MIPROv2, Reflexion, GEPA, Process Reward Models, Vercel eval data,
+DSPy/MIPROv2, Reflexion, Process Reward Models, Vercel eval data,
 Qodo, Spotify Honk, Aider Architect/Editor, ToolComp, ToolTree, RAGEN,
 CURATE, ACE, Verbalized Sampling, AlphaEvolve, Sarukkai et al.,
 PromptWizard, S2R, EvolveR, EvoPrompt/DEEVO, Self-Evolving Survey,
-AgentDiet, ABC-Bench, SWE-PRM, ChainFuzzer, ToolGym, ToolRLA, ACON,
-ContextEvolve, CompactPrompt, SAGE, SkillRL, ReVeal, SWE-EVO, MAR,
-Karpathy autoresearch, Code Knowledge Graphs, AgentCoder, and ~30 more.
+AgentDiet, ABC-Bench, SWE-PRM, ChainFuzzer, ToolGym, ToolRLA,
+ContextEvolve, CompactPrompt, SAGE, SkillRL, ReVeal, MAR, Karpathy
+autoresearch, Code Knowledge Graphs, AgentCoder, CHI 2025 Artificial
+Hivemind, Self-Verification Dilemma, Eco-Evolve, Meta ACH, SSR, RISE,
+ITR, OpenHands SDK, LangChain Deep Agents, and ~20 more.
 
 ## Improver Pattern Watch
 
@@ -133,16 +137,19 @@ Core principles distilled from 38 interventions across 76 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Depth coverage gap** — 31 stale modules, no depth work since iter 463.
-   Iter 612 surfaced top-neglected modules in trend. Monitor whether builder
-   picks up the signal in iter 613+. If not after 2-3 iters, consider
-   strengthening the "Deepen existing" category guidance.
-2. **Implementation efficiency** — Test reruns 6.0× avg. Flaky test lesson
-   added (iter 612). Monitor for reduction. Self-Verification Dilemma research
-   suggests targeted verification > blanket reruns.
-3. **Composition verification** — No E2E for batch/pipe/map. Gap persists.
-4. **System prompt scaling** — ~200 chars headroom at 32 tools. Will become
-   blocking if builder adds more tools.
-5. **Classifier drift** — Keyword-based subsystem classifier needs periodic
-   refresh as new work types emerge (Pattern Watch #5). Fixed in iter 612
-   for model-client work.
+1. **Depth coverage gap** — 31 stale modules, no depth work since iter 463
+   (~150 iters ago). Neglected-modules signal in trend since iter 612. Builder
+   continued owner request in 613. If not acted on by iter 617, consider
+   strengthening the "Deepen existing" category.
+2. **Implementation efficiency** — Test reruns 7.0× avg, 56% re-edit. The
+   GEPA insight suggests: rather than adding lessons (which don't change
+   strategic behavior), improve the diagnostic data the improver uses to
+   identify waste patterns. Suite-total-based delta (iter 614) is a step.
+3. **GEPA-inspired prompt evolution** — GEPA formalizes what the improver
+   does: read execution traces, diagnose, propose targeted mutations. The
+   loop already does this informally. Opportunity: make diagnosis more
+   structured (parse-log.py auto-detection of waste patterns).
+4. **Composition verification** — No E2E for batch/pipe/map.
+5. **System prompt scaling** — ~200 chars headroom at 32 tools.
+6. **Context growth** — 55k avg, +24%. Monitor whether this plateaus as
+   multi-provider work completes (reading unfamiliar code inflates context).

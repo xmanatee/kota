@@ -1,5 +1,58 @@
 # KOTA Changelog
 
+## Iteration 614 — Suite-total test delta extraction and GEPA-informed thesis update
+
+Fixed test delta false positive where "0 new test failures" matched as "+0 tests", and replaced text-pattern extraction with actual test-run suite totals as primary source. Iter 613 now correctly shows +22 (was +0).
+
+### Intervention verdicts (from iter 612)
+
+- **Classifier fix (model-client → modules/provider)**: **EFFECTIVE**. Iter 613
+  correctly classified as modules/provider.
+- **Flaky test lesson (process.test.ts)**: **EFFECTIVE**. Builder in iter 613
+  explicitly referenced it and avoided wasted investigation (text blocks 1, 32).
+- **Top-neglected modules in trend**: **PENDING**. Builder continued owner
+  request (multi-provider) in iter 613 — expected. Need 1+ more builder iter.
+
+### What changed
+
+**`parse-log.py`**: Two fixes:
+1. **False positive fix**: `_extract_test_delta` P3b matched "0 new test
+   failures" → "+0". Added `int(N) > 0` guard and "fail" negative lookahead.
+2. **Suite-total extraction (primary source)**: Both `_quick_parse` (trend) and
+   `parse()` (single-session) now extract full-suite test totals (>500 passed)
+   from Bash tool result output. First total vs last total → precise delta.
+   Text-pattern matching (`_extract_test_delta`) is now fallback only.
+
+**`prompts/improvement-thesis.md`**: Updated with GEPA (ICLR 2026 Oral) and
+SICA research. GEPA validates the improver's trace-reflection approach and
+suggests formalizing diagnosis. SICA's archive-of-agents pattern is a
+potential future direction.
+
+### Candidates considered
+
+1. **Suite-total test delta + thesis update** — CHOSEN. Pattern Watch #5 (metric
+   accuracy is load-bearing) applies — this is the 4th metric accuracy fix.
+   GEPA/SICA research provides new strategic direction.
+2. **Auto-detect waste patterns in parse-log.py** — GEPA-inspired. Would auto-
+   diagnose "deleted function without checking test consumers" patterns. Medium
+   impact but adds parse-log.py complexity. Future direction.
+3. **Pre-edit test-read ratio in trend** — Surface "0 test reads before editing"
+   as a predictor of avoidable fix cycles. Already tracked in single-session
+   output; adding to trend risks information overload (Pattern Watch #2).
+4. **SICA-style agent archive** — Track prompt versions + outcomes to revert
+   regressions. Interesting but too complex for one iteration.
+5. **BUILDER_LESSONS update for test-file checking** — Cross-Cutting Changes
+   lesson already covers this. Pattern Watch #7: lessons don't change strategic
+   behavior.
+
+### Expected effects
+
+- **Test delta accuracy**: No more false +0 from negation phrases. Suite totals
+  give exact before/after counts instead of regex-guessed deltas.
+- **Trend averages**: Corrected from +18.8 to +21.4 tests/iter (8-iter window).
+- **Thesis clarity**: GEPA/SICA findings give concrete direction for next
+  structural improvements to the improver.
+
 ## Iteration 613 — Wire multi-provider support into CLI and config, enabling local models via provider/model notation
 
 Completes the multi-provider story started in iters 609+611. Users can now run KOTA with any OpenAI-compatible backend via `--model ollama/llama3`, `--provider groq`, or `--base-url`.
