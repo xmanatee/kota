@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 619 — Split module-factory.ts (854L) into focused src/manifest/ directory (6 files, all under 300L)
+
+Refactored the largest untested file into `src/manifest/` with 5 focused modules (types, validation, steps, execution, persistence) + index re-exports. Original file becomes thin facade — zero consumer changes needed.
+
+### What changed
+- `src/manifest/types.ts` (75L) — manifest type definitions
+- `src/manifest/validation.ts` (228L) — validateManifest, extracted helper functions for tools/steps/events/scripts validation
+- `src/manifest/steps.ts` (163L) — resolveRef, resolveStepInput, evaluateCondition (pure functions, used by pipe tool too)
+- `src/manifest/execution.ts` (196L) — manifestToModule, runModuleScript, tool runners, event handlers
+- `src/manifest/persistence.ts` (98L) — save/load/delete/discover manifests on disk
+- `src/manifest/index.ts` (36L) — re-exports for backward compat
+- `src/module-factory.ts` (30L, was 854L) — thin re-export facade
+- 61 new edge-case tests across validation, steps, and persistence
+
+### Candidates considered
+- **Split module-factory.ts** — CHOSEN. #1 neglected file (854L, NEVER depth-tested), 3x over 300L limit, addresses owner's source structure concern
+- Workflow DSL for module scripts — too ambitious for one iteration
+- Harden computer-use.ts — valuable but module-factory has higher leverage (critical infrastructure)
+
+### Verification
+- typecheck: PASS, build: PASS, 1179 changed-area tests: PASS, CLI load: PASS, runtime: SKIP (no API key)
+
+### Future directions
+- Migrate existing `src/module-factory.test.ts` into `src/manifest/` directory
+- Update consumers to import directly from `src/manifest/` instead of facade
+- Harden computer-use.ts (418L, NEVER tested) or custom-tool.ts (358L, NEVER tested)
+
 ## Iteration 618 — Fix test delta to use total counts instead of passed counts, fix secrets subsystem misclassification
 
 Fixed test delta extraction to use Vitest totals (not passed counts) and subsystem classifier to exclude security keywords from "provider" pattern.

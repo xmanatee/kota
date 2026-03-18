@@ -259,7 +259,7 @@ Lets the agent dynamically create new tools at runtime from Python/Node.js code.
 - Replacing an existing custom tool deregisters the old one first (no duplicates).
 - `deregisterTool(name)` added to `tools/index.ts` for surgical single-tool removal.
 
-### Module Factory (`src/module-factory.ts`, `src/tools/module-factory.ts`)
+### Module Factory (`src/manifest/`, `src/tools/module-factory.ts`)
 
 Lets the agent create full modules at runtime from declarative JSON manifests. Transforms KOTA from an agent that can create individual tools (via `custom_tool`) into one that can create structured, multi-tool capability packages with metadata, prompt sections, and persistence.
 
