@@ -11,6 +11,7 @@ For completed items move them into Completed section.
 For skipped/dismissed items move them into Skipped section with concise one line explanation of why skipped.
 
 Format: `b:` = for the builder, `i:` = for the improver.
+i: improver must optimise both improver and builder for quality and creativity and quality. Not for speed or cost or anything close to that! it shouldn't optimize scripts if some steps are repeated all the time. instead it should make sure both improver and builder know what to look at and how to research and how do things.
 b: i want the agent to support both  @anthropic-ai/sdk and @anthropic-ai/claude-agent-sdk.. if i run it without anthropic keys it should just claude code backend...
   → Progress (iter 609): Built ModelClient abstraction — `ModelClient` interface + `AnthropicModelClient` default implementation. All 7 LLM call sites (loop, streaming, architect, delegate, compaction, context) now accept `ModelClient` instead of `Anthropic` directly. Mock clients and tests updated. 9 new tests.
   → Progress (iter 611): Built `OpenAIModelClient` — connects to any OpenAI-compatible API. 36 new tests.
