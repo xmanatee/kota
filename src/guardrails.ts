@@ -14,7 +14,7 @@
 import { getCoreRegistrations } from "./tools/index.js";
 
 export type RiskLevel = "safe" | "moderate" | "dangerous";
-export type Policy = "allow" | "confirm" | "deny";
+export type Policy = "allow" | "confirm" | "deny" | "queue";
 
 export type GuardrailsConfig = {
   /** Policy applied at each risk level. */
@@ -230,7 +230,7 @@ export function assess(
 export const NON_INTERACTIVE_POLICIES: Record<RiskLevel, Policy> = {
   safe: "allow",
   moderate: "allow",
-  dangerous: "deny",
+  dangerous: "queue",
 };
 
 export function nonInteractiveConfig(
@@ -260,7 +260,7 @@ export function sanitizeGuardrailsConfig(
     const p = raw.policies as Record<string, unknown>;
     for (const level of ["safe", "moderate", "dangerous"] as RiskLevel[]) {
       const val = p[level];
-      if (val === "allow" || val === "confirm" || val === "deny") {
+      if (val === "allow" || val === "confirm" || val === "deny" || val === "queue") {
         config.policies[level] = val;
       }
     }
@@ -269,7 +269,7 @@ export function sanitizeGuardrailsConfig(
   if (typeof raw.toolOverrides === "object" && raw.toolOverrides !== null) {
     const overrides: Record<string, Policy> = {};
     for (const [key, val] of Object.entries(raw.toolOverrides as Record<string, unknown>)) {
-      if (val === "allow" || val === "confirm" || val === "deny") {
+      if (val === "allow" || val === "confirm" || val === "deny" || val === "queue") {
         overrides[key] = val;
       }
     }

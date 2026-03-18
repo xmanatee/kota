@@ -207,6 +207,10 @@ Dedicated VCS tool with structured operations and safety guardrails. Operations:
 
 Agent-initiated approval gate for high-stakes actions in autonomous workflows. The agent calls `confirm(action, risk, details?, timeout?)` before irreversible operations. Risk levels (low/medium/high) set default timeouts (60s/300s/600s). Interactive mode prompts via terminal; non-interactive auto-rejects (safe default). Emits `confirm.requested` / `confirm.resolved` events on the bus for module integration. Management group, safe risk.
 
+### Approval Queue (`src/approval-queue.ts`, `src/tools/approval.ts`)
+
+File-based queue for tool calls that require human approval. When guardrails resolve to `queue` policy (default for dangerous operations in non-interactive contexts like server, telegram, daemon), the tool call is stored in `.kota/approvals/` instead of being denied. Each pending item is a JSON file with tool name, input, risk, reason, and source. The `approval` agent tool provides 4 actions: `list` (pending items), `approve` (execute queued call), `reject` (with optional reason), `count`. Approved items execute immediately via `executeTool()`. Emits `approval.requested` / `approval.resolved` events on the bus. Management group, safe risk.
+
 ### Desktop Notifications (`src/tools/notify.ts`)
 
 OS-native desktop notifications (macOS `osascript`, Linux `notify-send`) with console fallback. Core tool, safe risk. Sound enabled by default.
@@ -376,7 +380,8 @@ Centralized risk classification and policy enforcement for all tool calls. Every
 
 **Policies** (configurable per risk level):
 - `allow` — Execute immediately. Default for safe and moderate.
-- `confirm` — In interactive mode, prompt the user. In non-interactive mode, deny. Default for dangerous.
+- `confirm` — In interactive mode, prompt the user. In non-interactive mode, deny. Default for dangerous (interactive).
+- `queue` — Enqueue in ApprovalQueue for later review. Default for dangerous (non-interactive). Returns queued item ID.
 - `deny` — Block execution. Return error guiding the agent to use ask_user or try a safer approach.
 
 **Configuration** (`.kota/config.json`):

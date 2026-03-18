@@ -179,9 +179,9 @@ describe("assess", () => {
 });
 
 describe("nonInteractiveConfig", () => {
-  it("denies dangerous operations by default", () => {
+  it("queues dangerous operations for approval by default", () => {
     const config = nonInteractiveConfig();
-    expect(config.policies.dangerous).toBe("deny");
+    expect(config.policies.dangerous).toBe("queue");
     expect(config.policies.safe).toBe("allow");
     expect(config.policies.moderate).toBe("allow");
   });
@@ -192,7 +192,7 @@ describe("nonInteractiveConfig", () => {
       toolOverrides: { shell: "allow" },
     };
     const config = nonInteractiveConfig(base);
-    expect(config.policies.dangerous).toBe("deny");
+    expect(config.policies.dangerous).toBe("queue");
     expect(config.toolOverrides?.shell).toBe("allow");
   });
 });
@@ -212,6 +212,13 @@ describe("sanitizeGuardrailsConfig", () => {
     });
     expect(config!.policies.moderate).toBe("confirm");
     expect(config!.policies.dangerous).toBe("deny");
+  });
+
+  it("accepts queue policy value", () => {
+    const config = sanitizeGuardrailsConfig({
+      policies: { dangerous: "queue" },
+    });
+    expect(config!.policies.dangerous).toBe("queue");
   });
 
   it("ignores invalid policy values", () => {

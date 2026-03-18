@@ -1,3 +1,4 @@
+import { getApprovalQueue } from "./approval-queue.js";
 import { truncateToolResult } from "./context.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import { getAuditStore } from "./guardrails-audit.js";
@@ -65,6 +66,17 @@ export async function executeToolCalls(
             tool_use_id: block.id,
             content: `Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
               "This operation requires approval. Use ask_user to request permission, or try a safer approach.",
+            is_error: true,
+          };
+        }
+        if (assessment.policy === "queue") {
+          const queued = getApprovalQueue().enqueue(
+            block.name, input, assessment.risk, assessment.reason, sessionId,
+          );
+          return {
+            tool_use_id: block.id,
+            content: `Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+              "Use the approval tool to list and approve pending items.",
             is_error: true,
           };
         }

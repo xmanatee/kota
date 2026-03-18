@@ -1,0 +1,138 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
+
+vi.mock("./event-bus.js", () => ({
+	tryEmit: vi.fn(),
+	getEventBus: () => null,
+}));
+
+describe("ApprovalQueue", () => {
+	let dir: string;
+	let queue: ApprovalQueue;
+
+	beforeEach(() => {
+		dir = mkdtempSync(join(tmpdir(), "approval-test-"));
+		queue = new ApprovalQueue(dir);
+	});
+
+	afterEach(() => {
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("enqueues and retrieves an item", () => {
+		const item = queue.enqueue("shell", { command: "rm -rf /tmp" }, "dangerous", "destructive command");
+		expect(item.id).toHaveLength(8);
+		expect(item.tool).toBe("shell");
+		expect(item.status).toBe("pending");
+		expect(item.risk).toBe("dangerous");
+
+		const retrieved = queue.get(item.id);
+		expect(retrieved).toEqual(item);
+	});
+
+	it("returns null for nonexistent id", () => {
+		expect(queue.get("nonexistent")).toBeNull();
+	});
+
+	it("lists pending items", () => {
+		queue.enqueue("shell", { command: "rm a" }, "dangerous", "reason1");
+		queue.enqueue("git", { command: "git push" }, "dangerous", "reason2");
+		const items = queue.list("pending");
+		expect(items).toHaveLength(2);
+		const tools = new Set(items.map((i) => i.tool));
+		expect(tools).toContain("shell");
+		expect(tools).toContain("git");
+	});
+
+	it("list returns all statuses when no filter", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		queue.approve(item.id);
+		queue.enqueue("git", { command: "push" }, "dangerous", "reason2");
+
+		const all = queue.list();
+		expect(all).toHaveLength(2);
+		const pending = queue.list("pending");
+		expect(pending).toHaveLength(1);
+		expect(pending[0].tool).toBe("git");
+	});
+
+	it("approves a pending item", () => {
+		const item = queue.enqueue("shell", { command: "sudo apt" }, "dangerous", "sudo detected");
+		const approved = queue.approve(item.id);
+		expect(approved).not.toBeNull();
+		expect(approved!.status).toBe("approved");
+		expect(approved!.resolvedAt).toBeDefined();
+
+		const retrieved = queue.get(item.id);
+		expect(retrieved!.status).toBe("approved");
+	});
+
+	it("rejects a pending item with reason", () => {
+		const item = queue.enqueue("shell", { command: "rm -rf /" }, "dangerous", "destructive");
+		const rejected = queue.reject(item.id, "too dangerous");
+		expect(rejected).not.toBeNull();
+		expect(rejected!.status).toBe("rejected");
+		expect(rejected!.rejectionReason).toBe("too dangerous");
+	});
+
+	it("cannot approve an already resolved item", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		queue.approve(item.id);
+		expect(queue.approve(item.id)).toBeNull();
+	});
+
+	it("cannot reject an already resolved item", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		queue.reject(item.id);
+		expect(queue.reject(item.id)).toBeNull();
+	});
+
+	it("counts pending items", () => {
+		queue.enqueue("shell", { command: "a" }, "dangerous", "r");
+		queue.enqueue("shell", { command: "b" }, "dangerous", "r");
+		const third = queue.enqueue("shell", { command: "c" }, "dangerous", "r");
+		queue.approve(third.id);
+
+		expect(queue.count("pending")).toBe(2);
+		expect(queue.count("approved")).toBe(1);
+		expect(queue.count()).toBe(3);
+	});
+
+	it("clears all items", () => {
+		queue.enqueue("shell", { command: "a" }, "dangerous", "r");
+		queue.enqueue("shell", { command: "b" }, "dangerous", "r");
+		queue.clear();
+		expect(queue.list()).toHaveLength(0);
+	});
+
+	it("stores source in enqueued item", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", "session-123");
+		expect(item.source).toBe("session-123");
+	});
+});
+
+describe("getApprovalQueue singleton", () => {
+	afterEach(() => resetApprovalQueue());
+
+	it("returns same instance on repeated calls", () => {
+		const dir = mkdtempSync(join(tmpdir(), "approval-singleton-"));
+		const q1 = getApprovalQueue(dir);
+		const q2 = getApprovalQueue();
+		expect(q1).toBe(q2);
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("resets to new instance after resetApprovalQueue", () => {
+		const dir1 = mkdtempSync(join(tmpdir(), "approval-reset1-"));
+		const dir2 = mkdtempSync(join(tmpdir(), "approval-reset2-"));
+		const q1 = getApprovalQueue(dir1);
+		resetApprovalQueue();
+		const q2 = getApprovalQueue(dir2);
+		expect(q1).not.toBe(q2);
+		rmSync(dir1, { recursive: true, force: true });
+		rmSync(dir2, { recursive: true, force: true });
+	});
+});

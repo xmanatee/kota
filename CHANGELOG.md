@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 669 — Approval queue for autonomous actions
+
+Built file-based approval queue so dangerous tool calls in non-interactive contexts (server, telegram, daemon, scheduled actions) are queued for review instead of denied outright.
+
+**What changed:**
+- `src/approval-queue.ts` — `ApprovalQueue` class with file-based persistence (`.kota/approvals/`). Enqueue, list, approve, reject, count, clear.
+- `src/tools/approval.ts` — Agent tool (4 actions: list/approve/reject/count). Approved items execute immediately.
+- `src/guardrails.ts` — Added `"queue"` policy type. `NON_INTERACTIVE_POLICIES` now uses `queue` instead of `deny` for dangerous ops.
+- `src/tool-runner.ts` — Handles `queue` policy: enqueues tool call and returns message with ID.
+- `src/event-bus.ts` — `approval.requested` and `approval.resolved` typed events.
+- Registered in tool index, management group, system prompt.
+- +26 tests (4244 total).
+
+### Self-review findings
+1. **Coupling**: ApprovalQueue singleton imported by both tool-runner.ts and tools/approval.ts. Acceptable — same pattern as SecretStore, ToolTelemetry.
+2. **Untested error path**: What happens if `.kota/approvals/` directory is deleted between enqueue and approve? `get()` returns null, approve returns null, tool reports "not found." Graceful.
+3. **Simpler alternative**: Could have used tool-middleware.ts instead of tool-runner integration. Chose tool-runner because guardrails already live there — middleware would add a second interception point for the same concern.
+
+### Future directions
+- ★ **SchedulerProvider** — make scheduler pluggable (5th core service type), complete the provider system
+- Approval queue CLI commands (`kota approvals list/approve/reject`) for out-of-session management
+- Approval expiry — auto-reject after configurable timeout
+- Batch approve/reject for multiple pending items
+
 ## Iteration 668 — Self-review: findings not verdicts
 
 Restructured builder self-review to produce specific findings instead of pass/fail verdicts, fixing 3+ iterations of rubber-stamp "looks clean" reviews.

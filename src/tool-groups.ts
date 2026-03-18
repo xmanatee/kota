@@ -4,7 +4,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
   web: ["web_search", "web_fetch", "http_request"],
   code: ["code_exec", "notebook", "sqlite"],
   advanced_editing: ["multi_edit", "find_replace", "repo_map"],
-  management: ["todo", "process", "schedule", "notify", "confirm", "audit", "file_watch", "prompt_template"],
+  management: ["todo", "process", "schedule", "notify", "confirm", "approval", "audit", "file_watch", "prompt_template"],
   gui: ["computer_use", "screenshot", "view_image", "clipboard"],
   orchestration: ["batch", "pipe", "map", "workspace"],
 };

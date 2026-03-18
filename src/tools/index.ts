@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runEnableTools } from "../tool-groups.js";
 import { registration as agentStatus } from "./agent-status.js";
+import { registration as approval } from "./approval.js";
 import { registration as askUser } from "./ask-user.js";
 import { registration as audit } from "./audit.js";
 import { registration as batch } from "./batch.js";
@@ -74,6 +75,7 @@ export type ToolRegistration = {
 
 const registrationImports = [
   () => agentStatus,
+  () => approval,
   () => audit,
   () => shell,
   () => fileRead,

@@ -66,6 +66,19 @@ export type BusEvents = {
     approved: boolean;
     reason: string;
   };
+  "approval.requested": {
+    id: string;
+    tool: string;
+    risk: string;
+    reason: string;
+    source: string;
+  };
+  "approval.resolved": {
+    id: string;
+    tool: string;
+    approved: boolean;
+    reason: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */
