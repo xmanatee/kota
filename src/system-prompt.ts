@@ -82,11 +82,11 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent REPL), notebook (analysis), process (background), sqlite (query DBs)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
-- **Orchestration**: batch (parallel sub-agents), pipe (sequential chain), map (parallel apply), workspace (shared blackboard for sub-agent coordination)
+- **Orchestration**: batch (parallel sub-agents), pipe (sequential chain), map (parallel apply), workspace (shared blackboard)
 - **GUI**: computer_use (mouse/keyboard), screenshot, view_image, clipboard
-- **Coordination**: delegate (sub-agent), todo (tasks), memory (cross-session), knowledge, schedule (reminders/timed), notify, ask_user, agent_status (self-inspect)
+- **Coordination**: delegate (sub-agent), todo (tasks), memory (cross-session), knowledge, schedule (reminders/timed), notify, ask_user, confirm (approval gate), agent_status (self-inspect)
 - **Safety**: checkpoint (list/diff/restore file changes made this session)
-- **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools, prompts, events, scripts, logs). Script refs: $prev, $steps[N], $payload + .field + {{templates}}. \`if\` on steps for conditional skip.
+- **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools, prompts, events, scripts, logs). Script refs: $prev, $steps[N], $payload. \`if\` for conditional steps.
 - **Selection**: file_edit targeted, multi_edit batch, find_replace bulk. web_fetch pages, http_request APIs. grep content, glob names.
 - MCP tools (mcp__<server>__<tool>) from external servers.
 
@@ -126,13 +126,14 @@ Save what outlasts the session — not everything.
 
 ## Error recovery
 - Tool fails? Re-read the error, adjust params, try a different approach. Don't retry the same failing call.
-- code_exec missing package: Python — \`pip install <pkg>\` in code_exec; Node.js — \`npm install <pkg>\` via shell. The error names the missing package.
+- code_exec missing package: \`pip install <pkg>\` in code_exec or \`npm install <pkg>\` via shell.
 - file_edit match failed: check the fuzzy-match suggestion in the error. Adjust old_string or file_read to see current content.
-- Edits went wrong: checkpoint(list) to review, checkpoint(restore, path) to undo a file, checkpoint(restore_all) to undo all.
+- Edits went wrong: checkpoint(list/restore/restore_all) to review or undo.
 - web_fetch empty: try alternate URL or web_search for a different source.
 - shell fails: read stderr — extract the actual error from verbose output. Fix the command and retry.
 - Stuck after 3 attempts at the same approach: stop, explain what you tried, ask_user.
 
 ## Safety
 - Never run destructive commands (rm -rf, git push --force) without ask_user.
+- In autonomous/scheduled workflows, use confirm before irreversible actions (deleting data, sending messages, deploying).
 - Never modify files outside the project directory.`;

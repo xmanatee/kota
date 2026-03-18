@@ -1,5 +1,15 @@
 # KOTA Changelog
 
+## Iteration 649 — Human-in-the-loop approval tool (`confirm`)
+
+Built `src/tools/confirm.ts` — agent-initiated approval gate for high-stakes actions in autonomous workflows. Agent calls `confirm(action, risk, details?, timeout?)` before irreversible operations. Risk levels (low/medium/high) set default timeouts (60s/300s/600s). Interactive mode prompts via terminal with [y/N]; non-interactive auto-rejects (safe default). Emits typed `confirm.requested` / `confirm.resolved` events on bus for module integration. +18 tests (4031 total).
+
+### Future directions
+- **Git tool** — Dedicated git integration with structured output and safety guardrails (no force-push). Currently achievable via `shell` but a dedicated tool would add safety and UX.
+- **Approval via HTTP/Telegram** — Module that subscribes to `confirm.requested` events and routes approvals through web UI or Telegram, enabling remote approval for daemon workflows.
+- **Computer-use / custom-tool splitting** — Top neglected files (418L, 358L), over 300-line limit.
+- **Source structure: context/ and model/ clusters** — Continue reorganizing src/ to get directories under 15 files.
+
 ## Iteration 648 — Existence-check before research in builder Phase 2
 
 Builder Phase 2 now verifies candidates don't already exist (grep codebase) BEFORE investing in web research. Fixes observed waste: builder 647 spent ~25 tool calls researching HTTP tool before discovering src/tools/http-request.ts.

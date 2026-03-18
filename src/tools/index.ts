@@ -7,6 +7,7 @@ import { registration as checkpoint } from "./checkpoint.js";
 import { registration as clipboard } from "./clipboard.js";
 import { registration as codeExec } from "./code-exec.js";
 import { registration as computerUse } from "./computer-use.js";
+import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
 import { registration as fileEdit } from "./file-edit.js";
@@ -84,6 +85,7 @@ const registrationImports = [
   () => httpRequest,
   () => process_,
   () => codeExec,
+  () => confirm,
   () => findReplace,
   () => notebook,
   () => filesOverview,

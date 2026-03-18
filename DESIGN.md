@@ -195,6 +195,10 @@ Typed interfaces for swappable core services. Modules can register alternative i
 - Default providers registered during init, before modules load. Modules can override.
 - Registry cleared on `ModuleLoader.unloadAll()` — no stale providers across sessions.
 
+### Human-in-the-Loop Approval (`src/tools/confirm.ts`)
+
+Agent-initiated approval gate for high-stakes actions in autonomous workflows. The agent calls `confirm(action, risk, details?, timeout?)` before irreversible operations. Risk levels (low/medium/high) set default timeouts (60s/300s/600s). Interactive mode prompts via terminal; non-interactive auto-rejects (safe default). Emits `confirm.requested` / `confirm.resolved` events on the bus for module integration. Management group, safe risk.
+
 ### Desktop Notifications (`src/tools/notify.ts`)
 
 OS-native desktop notifications (macOS `osascript`, Linux `notify-send`) with console fallback. Core tool, safe risk. Sound enabled by default.

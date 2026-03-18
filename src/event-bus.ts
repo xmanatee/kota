@@ -49,6 +49,18 @@ export type BusEvents = {
   "knowledge.delete": {
     id: string;
   };
+  "confirm.requested": {
+    action: string;
+    risk: string;
+    details: string;
+    timeout: number;
+  };
+  "confirm.resolved": {
+    action: string;
+    risk: string;
+    approved: boolean;
+    reason: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */
