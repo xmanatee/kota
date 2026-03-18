@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
 
@@ -159,6 +161,47 @@ describe("registerTool", () => {
     const result = await executeTool("ephemeral", {});
     expect(result.is_error).toBe(true);
     expect(result.content).toBe("Unknown tool: ephemeral");
+  });
+});
+
+describe("child_process isolation", () => {
+  // Tools that intentionally run real commands in isolated temp dirs (integration tests)
+  const INTEGRATION_ALLOWLIST = new Set(["git", "sqlite", "shell", "grep", "file-read", "code-exec", "process", "env-probes"]);
+
+  it("every tool using execFileSync/execSync has a test that mocks child_process", () => {
+    const toolsDir = new URL(".", import.meta.url).pathname;
+    const sources = readdirSync(toolsDir)
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "index.ts");
+
+    const violations: string[] = [];
+
+    for (const src of sources) {
+      const content = readFileSync(join(toolsDir, src), "utf-8");
+      const importsChildProcess =
+        content.includes("from \"node:child_process\"") ||
+        content.includes("from 'node:child_process'");
+
+      if (!importsChildProcess) continue;
+
+      const baseName = src.replace(".ts", "");
+      if (INTEGRATION_ALLOWLIST.has(baseName)) continue;
+
+      const testFile = src.replace(".ts", ".test.ts");
+      const testPath = join(toolsDir, testFile);
+      let testContent: string;
+      try {
+        testContent = readFileSync(testPath, "utf-8");
+      } catch {
+        violations.push(`${src}: imports child_process but has no test file (${testFile})`);
+        continue;
+      }
+
+      if (!testContent.includes('vi.mock("node:child_process"')) {
+        violations.push(`${src}: imports child_process but ${testFile} does not mock it`);
+      }
+    }
+
+    expect(violations).toEqual([]);
   });
 });
 

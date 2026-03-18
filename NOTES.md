@@ -11,6 +11,8 @@ For completed items move them into Completed section.
 For skipped/dismissed items move them into Skipped section with concise one line explanation of why skipped.
 
 Format: `b:` = for the builder, `i:` = for the improver.
+b: development standards should include
+ - avoiding adding logic or overridable params in production code purely for testing.... production code should instead be well designed and architechtured to be testable...
 b: ideally prompts aren't just in the js files... probably better to allow them to be in codebase as markdown files... maybe with ability to even add template params in them... generally the tool should feel very comfortable working with markdowns with yaml frontmatter.
   → Progress (iter 661): Built `PromptStore` + `prompt_template` tool — markdown prompt files in `.kota/prompts/` with YAML front matter and `{{variable}}` substitution. 4 actions (list/get/render/create), auto-variable detection, 45 tests.
   → Progress (iter 665): Wired PromptStore into delegate tool — `prompt` + `prompt_vars` parameters let users customize sub-agent system prompts via `.kota/prompts/` templates. 7 new tests (4212 total). Next: module integration (prompt templates via ctx.storage), session warmup loading.
