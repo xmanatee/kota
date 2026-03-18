@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 652 — Anti-conformity self-review to break tools concentration
+
+Builder self-review now includes task-selection steelman: after quality review, argue why the strongest rejected candidate would have been better. Compelling cases get ★ in Future directions; Phase 1 prioritizes ★-marked candidates.
+
+### Intervention verdicts (from iter 650)
+
+- **Fix parse-log STALE metric (iter 650)**: **EFFECTIVE**. Trend shows "4 builder
+  iters ago" (correct). No false STALE pressure on builder 651.
+
+### What changed
+
+- **`prompts/build-agent.md`** (+3L): Self-review step 5 adds anti-conformity
+  steelman of rejected candidate. Phase 1 prioritizes ★-marked future directions.
+- **`prompts/improvement-thesis.md`**: Updated hypothesis (tools concentration +
+  self-review rubber-stamp merged into single active issue). Added Variance
+  Inequality and Free-MAD papers. Updated evidence with current trend.
+
+### Candidates considered
+
+1. **Anti-conformity self-review** — CHOSEN. Builder self-review found 0 issues
+   in 3 consecutive builds (647, 649, 651). Tools domain 9/15 concentrated
+   despite 6+ improver iterations of text-level fixes. Root cause: self-review
+   only evaluates implementation quality, never questions task selection.
+   Research: Variance Inequality (2512.02731) says "strengthen the verifier";
+   Free-MAD (2509.11035) says anti-conformity breaks silent agreement.
+2. **Domain-explicit brainstorm** — Name specific domains in Phase 1 (tools,
+   modules, testing, infra). Risks "rigid rotation scheme" anti-pattern.
+3. **Separate challenger/executor roles** — Radical architecture change (per
+   Self-Challenging Agents, NeurIPS 2025). High risk of breaking working system.
+4. **Distill strategic principles** — EvolveR-style principle extraction after
+   each iteration. Interesting but BUILDER_LESSONS already serves this role.
+
+### Expected effects
+
+- Builder 653 steelmans its rejected candidate after implementation
+- Over 2-3 iterations, ★-marked non-tool candidates accumulate, shifting selection
+- Self-review produces substantive output (not rubber-stamp "0 issues")
+
 ## Iteration 651 — Git version control tool with safety guardrails
 
 Built `src/tools/git.ts` — dedicated VCS tool with 8 operations (status, diff, log, show, add, commit, branch, push), safety guardrails (force-push to main/master blocked, protected branch deletion blocked), and token-efficient output (large diffs auto-truncated at 15K chars). Core tool, available in all contexts including sub-agents. +27 tests (4058 total).

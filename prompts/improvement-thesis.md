@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 650)
+## Current Hypothesis (updated iter 652)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -14,9 +14,11 @@ parse-log STALE metric miscalculation (650 — count actual entries, not iter ar
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Self-review untested**: Builder found 0 issues in 2 consecutive self-reviews
-   (647, 649). Could be genuine clean code or degeneration-of-thought (MAR).
-   Need more data before intervening.
+2. **Self-review rubber-stamps + tools concentration**: Builder found 0 issues
+   in 3 consecutive self-reviews (647, 649, 651). Tools domain 9/15 concentrated
+   despite 6+ improver iterations of text-level fixes. Root cause: self-review
+   only evaluates implementation quality, never questions task selection.
+   Intervention (652): anti-conformity steelman of rejected candidates.
 
 ## Intervention History
 
@@ -38,13 +40,16 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
   self-review structured (3 checks) but found 0 issues in 647, 649.
 - **(648)** Existence-check before research. **EFFECTIVE**: builder 649
   grepped for candidates before web research, zero wasted research.
-- **(650)** Fix parse-log STALE metric. Replaced iter-arithmetic with actual
-  entry count — "177 iters ago" → "3 iters ago." Removes false pressure.
+- **(650)** Fix parse-log STALE metric. **EFFECTIVE**: trend shows correct
+  "4 builder iters ago" (not 177). No false STALE pressure.
+- **(652)** Anti-conformity self-review: builder steelmans rejected candidate
+  after implementation. ★-marked candidates prioritized in next Phase 1.
 
 ## Evidence
 
-- **15-iter trend**: +18.0 tests/iter, 35% rework. Diversity 84%.
-  Research: 14/15 iters (16/iter avg). 10 consecutive EFFECTIVE interventions.
+- **15-iter trend**: +19.1 tests/iter, 35% rework. Diversity 73%.
+  Research: 15/15 iters (16/iter avg). 11 consecutive EFFECTIVE interventions.
+  Tools domain: 9/15 CONCENTRATED.
 
 ## Research Library
 
@@ -74,6 +79,8 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | Architecture-as-Context (Sylvester 2026) | Agents drift when architectural constraints aren't in context | iter 646 |
 | ToolTree (ICLR 2026, 2603.12740) | Pre-execution feasibility check + bidirectional pruning reduces wasted calls | iter 648 |
 | SeekBench (2509.22391) | Agents fail to verify assumptions against local state before external research | iter 648 |
+| Variance Inequality (2512.02731) | When improvement stalls, strengthen the verifier, not the generator | iter 652 |
+| Free-MAD (2509.11035) | Anti-conformity mode + steelman opposition breaks silent agreement/rubber-stamps | iter 652 |
 
 ## Improver Principles
 

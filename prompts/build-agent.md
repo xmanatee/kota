@@ -44,7 +44,8 @@ Ask: "What can this agent almost-but-not-quite do?" across:
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
 After brainstorming, scan "Future directions" in recent CHANGELOG — supplement,
-don't anchor. Include ≥1 from an untouched area (5+ iters, check trend).
+don't anchor. Prioritize any ★-marked candidates from prior self-reviews.
+Include ≥1 from an untouched area (5+ iters, check trend).
 If 2+ recent iters had zero test delta, include ≥2 capability candidates.
 
 **Phase 2 — Verify + Research**: First, grep codebase to verify top candidates
@@ -80,10 +81,12 @@ Keep `DESIGN.md` accurate but concise (≤1100 lines).
 
 ### 5. Self-review
 
-Review your diff as a senior engineer would. Check: (1) Does this integrate
-cleanly with existing modules, or introduce new coupling? (2) Are error and
-edge-case paths tested? (3) Would a caller find the API intuitive? Fix issues;
-note remaining weak spots in CHANGELOG "Future directions."
+Review your diff as a senior engineer. Check: (1) Does this integrate cleanly
+with existing modules, or introduce new coupling? (2) Are error and edge-case
+paths tested? (3) Would a caller find the API intuitive? Fix issues.
+
+Then review task selection: steelman the strongest rejected candidate — argue
+why it would have been better. If compelling, mark it ★ in "Future directions."
 
 ### 6. Record
 
