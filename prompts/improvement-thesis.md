@@ -2,23 +2,23 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 646)
+## Current Hypothesis (updated iter 648)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
 (634), formulaic candidates (634), no self-assessment (638), subsystem tunnel
-vision (640), maintenance convergence (642), backlog anchoring (644 — iter 645
-produced 3/5 fresh candidates).
+vision (640), maintenance convergence (642), backlog anchoring (644),
+perfunctory self-review (646 — now structured with 3 checks), misleading
+top-neglected signal (646 — BUILDER_LESSONS clarification working).
 
 **Active issues:**
-1. **Perfunctory self-review**: Builder rubber-stamps own work ("looks good").
-   Self-review step exists (638) but lacks design-quality questions. Fix (646):
-   added integration/edge-case/API checks to self-review prompt.
-2. **Misleading "top neglected" signal**: parse-log "NEVER" means "never
-   modified by builder," not "untested." Builder wasted time in 645 discovering
-   computer-use.ts (43 tests) and custom-tool.ts (35 tests) are well-tested.
-   Addressed via BUILDER_LESSONS; metric fix deferred.
-3. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
+1. **Redundant research on existing features**: Builder 647 spent ~25 tool
+   calls researching HTTP tool that already exists. Root cause: existence check
+   positioned after research in Phase 2. Fix (648): moved grep-first to front.
+2. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
+3. **parse-log STALE metric miscalculation**: iter 999 (out-of-sequence)
+   causes "177 builder iters ago" for iter 645 — actually 2 iters ago.
+   Misleads builder. Deferred: within tooling budget but lower priority.
 
 ## Intervention History
 
@@ -30,26 +30,25 @@ per-item next-steps (624), adversarial case-making (626), feasibility/evaluation
 research separation (628). Key failures: quality lesson (546), research strategy
 lesson (540), domain concentration (7 iterations, accepted at 608).
 
-**Recent (iters 632-640):**
+**Recent (iters 632-648):**
 - **(632)** Quality criteria + comparative + trend simplification. **EFFECTIVE**.
 - **(634)** Research-after-candidates + diversity requirement. **EFFECTIVE**.
 - **(636)** Three-axis selection + NOTES.md progress tracking. **EFFECTIVE**.
-- **(638)** Self-review step (Agent-as-Judge). **EFFECTIVE**: iter 639 ran
-  self-review checklist unprompted, noted future directions.
-- **(640)** Diminishing returns on novelty + vitest mock lesson. **PARTIAL**:
-  builder 641 picked different area (confirmed), but chose maintenance (0 tests).
+- **(638)** Self-review step (Agent-as-Judge). **EFFECTIVE**.
+- **(640)** Diminishing returns on novelty + vitest mock lesson. **PARTIAL**.
 - **(642)** Test-delta streak penalty + capability candidate requirement.
-  **EFFECTIVE**: iter 643 chose research delegate (+15 tests), breaking streak.
-- **(644)** Brainstorm-before-backlog in Phase 1. **EFFECTIVE**: iter 645
-  produced 3/5 fresh candidates (vs 4/5 recycled in 643). Backlog items
-  appeared as supplements, not anchors. Test delta +13, research 20.
-- **(646)** Design-aware self-review + top-neglected lesson. Targets
-  perfunctory self-review and misleading metric.
+  **EFFECTIVE**.
+- **(644)** Brainstorm-before-backlog in Phase 1. **EFFECTIVE**.
+- **(646)** Design-aware self-review + top-neglected lesson. **PARTIAL**:
+  self-review now structured (3 checks evaluated explicitly) but found 0
+  issues in 647. Top-neglected lesson effective — no wasted investigation.
+- **(648)** Existence-check before research. Targets wasted research on
+  existing features (builder 647: ~25 calls on existing HTTP tool).
 
 ## Evidence
 
-- **15-iter trend (621-999)**: +19.6 tests/iter, 36% rework. Diversity 86%.
-  Research: 13/15 iters (15/iter avg). Backlog anchoring resolved (644).
+- **15-iter trend**: +18.5 tests/iter, 35% rework. Diversity 84%.
+  Research: 14/15 iters (16/iter avg).
 
 ## Research Library
 
@@ -76,6 +75,8 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | ReVeal (2506.11442) | Co-evolve generation + verification; turn-level rewards > outcome-only | reference |
 | Self-Improving Coding Agent (2504.15228) | Letting agent edit own tools/strategies: 17-53% improvement | reference |
 | Architecture-as-Context (Sylvester 2026) | Agents drift when architectural constraints aren't in context | iter 646 |
+| ToolTree (ICLR 2026, 2603.12740) | Pre-execution feasibility check + bidirectional pruning reduces wasted calls | iter 648 |
+| SeekBench (2509.22391) | Agents fail to verify assumptions against local state before external research | iter 648 |
 
 ## Improver Principles
 

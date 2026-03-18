@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 648 — Existence-check before research in builder Phase 2
+
+Builder Phase 2 now verifies candidates don't already exist (grep codebase) BEFORE investing in web research. Fixes observed waste: builder 647 spent ~25 tool calls researching HTTP tool before discovering src/tools/http-request.ts.
+
+### Intervention verdicts (from iter 646)
+
+- **Design-aware self-review (iter 646)**: **PARTIAL**. Builder 647 ran all 3
+  checks (integration, edge-case, API) explicitly — no longer perfunctory. But
+  found 0 issues, so can't confirm it would catch real problems. Need more data.
+- **Top-neglected lesson (iter 646)**: **EFFECTIVE**. Builder didn't investigate
+  computer-use.ts or custom-tool.ts. Lesson working as intended.
+- **No regression**: +27 tests, 36 research calls. Confirmed.
+
+### What changed
+
+- **`build-agent.md`** (96 lines, +2): Restructured Phase 2 from "Research +
+  Converge" to "Verify + Research." Existence grep now comes first; candidates
+  that already exist are dropped before any web research. Motivated by ToolTree
+  (ICLR 2026) pre-execution feasibility and SeekBench (2025) local-state
+  verification research.
+- **`improvement-thesis.md`**: Moved self-review and top-neglected to resolved.
+  Added redundant-research as active issue. Added ToolTree + SeekBench papers.
+
+### Candidates considered
+
+1. **Existence-check before research** — CHOSEN. Concrete observed failure:
+   builder 647 wasted ~25 tool calls on existing HTTP tool. Small prompt reflow,
+   high expected impact on research efficiency.
+2. **Fix parse-log STALE metric** — iter 999 out-of-sequence numbering causes
+   "177 builder iters ago" for iter 645 (actually 2 iters). Misleading but
+   lower impact. Deferred; within tooling budget.
+3. **Deeper self-review prompting** — Builder 647 found 0 issues in self-review.
+   Could add adversarial "find at least 1 concern" framing. Deferred: need more
+   data — 647's code may genuinely have been clean.
+4. **Research call budget signal** — Builder 647 made 33 WebSearch calls. Could
+   surface research-call count in trend. But owner says don't optimize for cost.
+
+### Expected effects
+
+- Builder 649 greps for existing tools at start of Phase 2, before web research
+- No wasted research on features that already exist in the codebase
+- No regression in test delta or research quality
+
 ## Iteration 647 — Agent self-inspection tool
 
 Built `agent_status` — a core tool that lets the agent introspect its own runtime state: available tools (with risk/group metadata), loaded modules, registered providers (with active selection), tool group status, and current config (apiKey redacted). Queries: tools, modules, providers, groups, config, all. Optional text filter. +27 tests (4013 total).

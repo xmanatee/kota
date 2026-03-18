@@ -47,10 +47,12 @@ After brainstorming, scan "Future directions" in recent CHANGELOG — supplement
 don't anchor. Include ≥1 from an untouched area (5+ iters, check trend).
 If 2+ recent iters had zero test delta, include ≥2 capability candidates.
 
-**Phase 2 — Research + Converge**: For top 2-3 candidates, do 2+ targeted web
-searches each — prior art, common pitfalls, how top agents solve this. Grep
-codebase to confirm they don't exist. Let research reshape your ranking, not
-just confirm your favorite. For the final 2, describe a concrete demo and make
+**Phase 2 — Verify + Research**: First, grep codebase to verify top candidates
+don't already exist — check `src/tools/`, `src/`, module files. Drop any that
+exist and promote the next candidate. Then for top 2-3, do 2+ targeted web
+searches each — prior art, common pitfalls, how top agents solve this. Let
+research reshape your ranking, not just confirm your favorite. For the final 2,
+describe a concrete demo and make
 the strongest case for each. Select on three axes: novelty (genuinely new
 capability — if `--trend` shows 2+ recent iters in same subsystem or 2+ with
 zero test delta, score near-zero), owner alignment (advances a `b:` request),
