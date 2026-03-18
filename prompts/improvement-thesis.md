@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 660)
+## Current Hypothesis (updated iter 662)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -11,55 +11,40 @@ vision (640), maintenance convergence (642), backlog anchoring (644),
 perfunctory self-review (646), misleading top-neglected signal (646),
 redundant research on existing features (648), parse-log STALE metric (650),
 tools concentration (653), post-hoc steelman (654), brainstorm axis collapse
-(658 — user-wall reframe restored 3-axis diversity).
+(658), ★-mark anchoring in selection (660 — broke 3-iter ★-chain).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **★-mark anchoring in selection**: Iter 658 fixed generation (3-axis
-   diversity restored), but "Prioritize any ★-marked" anchors selection to
-   capability items. Builder 659 brainstormed across all axes but chose the
-   ★-marked capability item over an 18-iter-stale owner request. Intervention
-   (660): downgrade ★ from "Prioritize" to neutral competitor on same criteria;
-   strengthen owner-alignment signal with staleness weighting.
+2. **Addition bias over composition**: Codebase has 30+ subsystems but builder
+   keeps adding standalone tools (9/15 recent iters = new features). At this
+   maturity, composing existing subsystems often delivers more value. Intervention
+   (662): reword Capability axis to put composition first, with concrete
+   instruction to scan DESIGN.md headers for pairs that don't yet interact.
 
 ## Intervention History
 
-**Archived (iters 534-628)**: Key wins: BUILDER_LESSONS (534), consumer-first
-editing (536), deferred reads (538), tool registration checklist (554),
-CHANGELOG archive (568), diverge/converge brainstorming (598), research-before-
-convergence (600), owner-priority category (608), top-neglected signal (612),
-per-item next-steps (624), adversarial case-making (626), feasibility/evaluation/
-research separation (628). Key failures: quality lesson (546), research strategy
-lesson (540), domain concentration (7 iterations, accepted at 608).
+**Archived (iters 534-658)**: Key wins: BUILDER_LESSONS (534), consumer-first
+editing (536), diverge/converge brainstorming (598), owner-priority category
+(608), adversarial case-making (626), quality criteria (632), three-axis
+selection (638), brainstorm-before-backlog (644), existence-check (648),
+counterfactual to Phase 2 (654), user-wall reframe (658). Key failures:
+quality lesson (546), domain concentration (7 iters, accepted 608), post-hoc
+steelman (652, not followed). Partial: self-review structure (646), impact
+criterion (656).
 
-**Recent (iters 632-650):**
-- **(632-638)** Quality criteria, diversity, three-axis selection, self-review.
-  All **EFFECTIVE**.
-- **(640)** Diminishing returns on novelty + vitest mock lesson. **PARTIAL**.
-- **(642)** Test-delta streak penalty + capability candidates. **EFFECTIVE**.
-- **(644)** Brainstorm-before-backlog in Phase 1. **EFFECTIVE**.
-- **(646)** Design-aware self-review + top-neglected lesson. **PARTIAL**:
-  self-review structured (3 checks) but found 0 issues in 647, 649.
-- **(648)** Existence-check before research. **EFFECTIVE**: builder 649
-  grepped for candidates before web research, zero wasted research.
-- **(650)** Fix parse-log STALE metric. **EFFECTIVE**: trend shows correct
-  "4 builder iters ago" (not 177). No false STALE pressure.
-- **(652)** Post-hoc steelman in step 5. **NOT FOLLOWED**: builder 653 skipped.
-- **(654)** Move counterfactual to Phase 2. **EFFECTIVE**: builder 655
-  steelmanned runner-up, ★-marked it, made explicit for/against case.
-- **(656)** Impact criterion replacing research depth. **PARTIAL**: fixed
-  selection, not generation.
-- **(658)** User-wall brainstorm reframe. **EFFECTIVE**: builder 659 generated
-  2 capability, 2 reliability, 1 owner (vs 657's 7/7 capability). But ★-mark
-  "Prioritize" anchored final selection to capability item anyway.
+**Recent:**
+- **(660)** Neutralize ★-mark anchoring. **EFFECTIVE**: builder 661 chose
+  owner request (prompt templates) over ★-marked items, breaking the
+  655→657→659 ★-chain. Owner staleness: 4 → 1 builder iter.
 
 ## Evidence
 
-- **15-iter trend**: +15.2 tests/iter, 36% rework. Diversity 78% (healthy).
+- **15-iter trend**: +18.4 tests/iter, 38% rework. Diversity 78% (healthy).
   Research: 15/15 iters (saturated). Work: 9 feature, 5 architecture, 1 harden.
-  Owner priorities: 9 pending, last progress 4 builder iters ago.
-- **★-mark chain**: 655→657→659 all chose ★-marked capability items. 3
-  consecutive ★-picks while owner priorities stall.
+  Owner priorities: 9 pending, last progress 1 builder iter ago (661).
+- **Addition pattern**: 30+ subsystems in DESIGN.md, but recent iters mostly
+  add standalone tools. Only a few (event handlers 645, provider wiring 653)
+  compose existing subsystems.
 
 ## Research Library
 
@@ -95,6 +80,9 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | PAE: Corrupt Success (2603.03116) | Agents skip procedural steps while achieving correct outcomes | iter 654 |
 | GEA (2602.04837) | Performance-Novelty joint criterion; saturated metrics should rotate | iter 656 |
 | AgentEvolver (2511.10395) | Task Synthesis from user-tasks, not capability gaps; generation shapes outcomes more than selection | iter 658 |
+| ECHO (2601.06794) | Co-evolve evaluator with agent — static criteria go stale as capability grows | iter 662 |
+| Live-SWE-agent (2511.13646) | Agent evolves own scaffold at runtime; minimal start → accumulated tools | reference |
+| AutoHarness (2603.03329, DeepMind) | Improving code harness > improving prompts; smaller model + good harness > larger without | reference |
 
 ## Improver Principles
 

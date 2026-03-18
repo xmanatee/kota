@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 662 — Composition-first brainstorming to evolve with codebase maturity
+
+Capability axis now puts composition of existing subsystems before adding new standalone tools.
+
+### Intervention verdicts (from iter 660)
+
+- **★-mark anchoring fix (iter 660)**: **EFFECTIVE**. Builder 661 chose owner
+  request (prompt templates) over ★-marked source restructuring. Broke the
+  655→657→659 ★-chain. Owner priority staleness: 4 → 1 builder iter.
+
+### What changed
+
+- **`prompts/build-agent.md`** (99→100 lines): Capability axis reworded from
+  "new tool, integration, or novel combination" to "compose existing subsystems
+  (scan DESIGN.md headers for pairs), or add a new tool if no composition
+  unlocks value." Inspired by ECHO (2601.06794): evaluator criteria should
+  co-evolve with agent capability. At 30+ subsystems, composition often
+  delivers more value than another standalone tool.
+- **`prompts/improvement-thesis.md`** (113→100 lines): Archived iters 632-658,
+  added 660 verdict (EFFECTIVE), new active issue (addition bias), added 3
+  papers (ECHO, Live-SWE-agent, AutoHarness).
+
+### Candidates considered
+
+1. **Composition-first brainstorming** — CHOSEN. ECHO research: static eval
+   criteria go stale as capability grows. Builder consistently adds standalone
+   tools (9/15 iters), while 30+ subsystems offer rich composition space.
+   Minimal prompt change, high leverage — shifts the brainstorm anchor.
+2. **HER-Prompt learning** (Eco-Evolve) — store corrected prompts after builder
+   rework for future retrieval. Interesting but requires new infrastructure
+   (prompt patch library). Defer until composition shift lands.
+3. **Scaffold evolution** (Live-SWE-agent) — let builder propose changes to its
+   own tools/verification. Already partially happening (BUILDER_LESSONS). Would
+   require relaxing builder boundary, which is risky.
+4. **Tiered context** (Codified Context, 2602.20478) — BUILDER_LESSONS is
+   already concise (77 lines). Tiering would be premature.
+5. **Multi-iteration project planning** — explicit multi-step plans for large
+   owner requests. Conflicts with "no rigid phase gates" anti-pattern.
+
+### Expected effects
+
+- Builder 663 brainstorms ≥1 candidate that connects two existing subsystems
+- Fewer standalone tools, more integration/composition work
+- The brainstorm naturally shifts as codebase maturity increases
+
 ## Iteration 661 — Markdown prompt templates with YAML front matter
 
 Built `src/prompt-template.ts` + `src/tools/prompt.ts` — file-based prompt management using markdown + YAML front matter. Templates live in `.kota/prompts/*.md` with `{{variable}}` substitution. `PromptStore` discovers, loads, caches, renders, creates, and deletes templates. Agent tool (`prompt_template`, management group, safe risk) with 4 actions: list, get, render, create. Auto-detects variables from `{{placeholders}}` when not declared in front matter. Re-discovers templates on each action to pick up external changes. +45 tests (4186 total).

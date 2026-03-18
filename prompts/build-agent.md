@@ -39,7 +39,8 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 
 **Phase 1 — Diverge**: Brainstorm ≥5 candidates BEFORE looking at any backlog.
 Ask per axis: "Where would a real user hit a wall with this agent?"
-- **Capability**: new tool, integration, or novel combination of existing features
+- **Capability**: compose existing subsystems (scan DESIGN.md headers for pairs
+  that don't yet interact), or add a new tool if no composition unlocks value
 - **Reliability**: E2E tests, error paths, hardening neglected modules
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
