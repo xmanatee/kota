@@ -6,7 +6,7 @@
  * Used by delegate to auto-select cost-appropriate models for sub-agents.
  */
 
-import { routeTask, type TaskType } from "./task-router.js";
+import { routeTask, type TaskType } from "./scheduler/task-router.js";
 
 export type ModelTier = "fast" | "balanced" | "capable";
 

@@ -7,10 +7,10 @@
  * Scheduler integration delivers reminders and action results to active chats.
  */
 
-import { ActionExecutor, type ActionResult, partitionDueItems } from "./action-executor.js";
 import type { KotaConfig } from "./config.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
-import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
+import { ActionExecutor, type ActionResult, partitionDueItems } from "./scheduler/action-executor.js";
+import { getScheduler, initScheduler, resetScheduler } from "./scheduler/scheduler.js";
 import { type AgentEvent, NullTransport, ProxyTransport, type Transport } from "./transport.js";
 
 const TELEGRAM_API = "https://api.telegram.org";

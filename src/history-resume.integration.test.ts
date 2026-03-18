@@ -58,8 +58,8 @@ vi.mock("./mcp/manager.js", () => ({
 
 // --- Import after mocks ---
 
-import { getHistory, resetHistory } from "./history.js";
 import { AgentSession } from "./loop.js";
+import { getHistory, resetHistory } from "./memory/history.js";
 
 // --- Test helpers ---
 

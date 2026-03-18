@@ -168,7 +168,7 @@ describe("ConversationHistory", () => {
   });
 
   it("defaults source to 'user' when not specified", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
+    const _id = history.create("claude-sonnet-4-6", "/tmp");
     const list = history.list();
     expect(list[0].source).toBe("user");
   });

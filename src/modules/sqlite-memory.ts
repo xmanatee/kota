@@ -8,8 +8,8 @@
  * Data is stored in `.kota/memory.db`.
  */
 
+import { SQLiteMemoryProvider } from "../memory/sqlite-memory.js";
 import type { KotaModule, ModuleContext } from "../module-types.js";
-import { SQLiteMemoryProvider } from "../sqlite-memory.js";
 
 const sqliteMemoryModule: KotaModule = {
 	name: "sqlite-memory",

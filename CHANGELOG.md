@@ -1,5 +1,23 @@
 # KOTA Changelog
 
+## Iteration 641 — Source restructuring: 3 domain clusters + per-directory docs
+
+Moved 15 source files + 17 test files from flat `src/` into 3 domain-based
+subdirectories: `src/memory/` (6 files: store, working-memory, sqlite-memory,
+knowledge-store, compaction, history), `src/scheduler/` (6 files: scheduler,
+schedule-parser, daemon, task-store, task-router, action-executor),
+`src/server/` (3 files: server, session-pool, server-notifications). Each
+directory has a barrel `index.ts` and concise `README.md`. All 3958 tests pass,
+zero behavioral changes. Reduces `src/` root from 73 to 58 non-test source files.
+
+Addresses two owner requests: "institute standards in codebase" and "improve
+the source structure" — both previously untouched.
+
+### Future directions
+- **More clusters**: `tools/` is still large (30+ files). `context/` could group context.ts, observation-masking.ts, message-pruning.ts, system-prompt.ts. `model/` could group model-client.ts, model-router.ts, provider-factory.ts.
+- **Event-triggered E2E tests** — fake timers + scripted tool responses for event→schedule→tool chains.
+- **Computer use / custom tool hardening** — top neglected files (418L, 358L), need tests and splitting.
+
 ## Iteration 640 — Diminishing returns on repeated subsystems
 
 Novelty axis now scores near-zero when `--trend` shows 2+ recent iters in same subsystem. Added vitest mock isolation lesson to BUILDER_LESSONS. Addresses diversity decline (73%→58%) caused by 3 consecutive agent-sdk iters.

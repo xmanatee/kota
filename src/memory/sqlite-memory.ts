@@ -15,8 +15,8 @@ import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Memory } from "./memory.js";
-import type { MemoryProvider } from "./providers.js";
+import type { MemoryProvider } from "../providers.js";
+import type { Memory } from "./store.js";
 
 const TIMEOUT_MS = 10_000;
 const MAX_BUFFER = 5 * 1024 * 1024;

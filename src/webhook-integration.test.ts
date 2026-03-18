@@ -8,13 +8,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus, initEventBus, resetEventBus } from "./event-bus.js";
-import { Scheduler, initScheduler, getScheduler, resetScheduler } from "./scheduler.js";
+import { type EventBus, initEventBus, resetEventBus } from "./event-bus.js";
+import { getScheduler, initScheduler, resetScheduler, type Scheduler } from "./scheduler/scheduler.js";
 
 describe("webhook → event bus → scheduler integration", () => {
   let bus: EventBus;
   let scheduler: Scheduler;
-  let firedItems: Array<import("./scheduler.js").ScheduledItem[]>;
+  let firedItems: Array<import("./scheduler/scheduler.js").ScheduledItem[]>;
 
   beforeEach(() => {
     resetEventBus();

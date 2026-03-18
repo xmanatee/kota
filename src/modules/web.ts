@@ -8,7 +8,7 @@
 
 import { Command } from "commander";
 import type { KotaModule } from "../module-types.js";
-import { startServer } from "../server.js";
+import { startServer } from "../server/server.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);

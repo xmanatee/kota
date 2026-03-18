@@ -2,15 +2,15 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryStore } from "../memory.js";
+import { MemoryStore } from "../memory/store.js";
 
 // Mock getMemoryStore so runMemory uses a fresh temp-dir store
-vi.mock("../memory.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../memory.js")>();
+vi.mock("../memory/store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../memory/store.js")>();
   return { ...actual, getMemoryStore: vi.fn() };
 });
 
-import { getMemoryStore } from "../memory.js";
+import { getMemoryStore } from "../memory/store.js";
 import { runMemory } from "./memory.js";
 
 const mocked = vi.mocked(getMemoryStore);

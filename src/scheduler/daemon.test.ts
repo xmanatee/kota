@@ -2,12 +2,12 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEventBus } from "../event-bus.js";
 import { Daemon, type DaemonConfig, RESTART_EXIT_CODE } from "./daemon.js";
-import { resetEventBus } from "./event-bus.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 
 // Mock the AgentSession to avoid real API calls
-vi.mock("./loop.js", () => {
+vi.mock("../loop.js", () => {
   return {
     AgentSession: class MockAgentSession {
       private label: string | undefined;
@@ -294,7 +294,7 @@ describe("Daemon", () => {
 
     it("handles idle task session creation failure gracefully", async () => {
       // Temporarily override the mock to throw on construction
-      const loopModule = await import("./loop.js");
+      const loopModule = await import("../loop.js");
       const OriginalSession = loopModule.AgentSession;
       let throwOnConstruct = false;
 
@@ -332,7 +332,7 @@ describe("Daemon", () => {
     }, 15_000);
 
     it("handles idle task send() rejection without crashing", async () => {
-      const loopModule = await import("./loop.js");
+      const loopModule = await import("../loop.js");
       const OriginalSession = loopModule.AgentSession;
 
       vi.mocked(loopModule).AgentSession = class FailingSendSession {
@@ -419,7 +419,7 @@ describe("Daemon", () => {
     it("stale idle .finally() does not clobber new lifecycle session", async () => {
       // Controllable session mock: send() blocks on a deferred promise
       const sendDeferreds: { resolve: (v: string) => void }[] = [];
-      const loopModule = await import("./loop.js");
+      const loopModule = await import("../loop.js");
       const OrigSession = loopModule.AgentSession;
 
       vi.mocked(loopModule).AgentSession = class DeferredSession {
@@ -536,7 +536,7 @@ describe("Daemon", () => {
 
     it("stop waits for in-flight actions before resolving", async () => {
       // Mock session with a delayed send to make actions take time
-      const loopModule = await import("./loop.js");
+      const loopModule = await import("../loop.js");
       const OrigSession = loopModule.AgentSession;
       let actionCompleted = false;
 

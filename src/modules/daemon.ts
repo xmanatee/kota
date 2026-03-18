@@ -8,7 +8,7 @@
 
 import { Command } from "commander";
 import type { KotaModule } from "../module-types.js";
-import { Daemon, type IdleTask } from "../daemon.js";
+import { Daemon, type IdleTask } from "../scheduler/daemon.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);

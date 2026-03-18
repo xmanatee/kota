@@ -54,7 +54,7 @@ vi.mock("./tools/code-exec.js", () => ({
   codeExecTool: { name: "code_exec", description: "", input_schema: { type: "object", properties: {} } },
   runCodeExec: vi.fn(),
 }));
-vi.mock("./task-store.js", () => ({
+vi.mock("./scheduler/task-store.js", () => ({
   initTaskStore: vi.fn(),
 }));
 vi.mock("./mcp/manager.js", () => ({

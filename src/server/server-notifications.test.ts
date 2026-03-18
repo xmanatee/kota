@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ActionExecutor, ActionResult } from "./action-executor.js";
-import type { ScheduledItem } from "./scheduler.js";
+import type { ActionExecutor, ActionResult } from "../scheduler/action-executor.js";
+import type { ScheduledItem } from "../scheduler/scheduler.js";
 import { NotificationHub } from "./server-notifications.js";
 import type { SseTransport } from "./session-pool.js";
 

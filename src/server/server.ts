@@ -10,15 +10,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { ActionExecutor } from "./action-executor.js";
-import type { KotaConfig } from "./config.js";
-import { loadConfig } from "./config.js";
-import { type EventBus, initEventBus, resetEventBus } from "./event-bus.js";
-import { getHistory } from "./history.js";
-import { AgentSession, type LoopOptions } from "./loop.js";
-import { initModuleLogStore } from "./module-log.js";
-import type { RouteRegistration } from "./module-types.js";
-import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
+import type { KotaConfig } from "../config.js";
+import { loadConfig } from "../config.js";
+import { type EventBus, initEventBus, resetEventBus } from "../event-bus.js";
+import { AgentSession, type LoopOptions } from "../loop.js";
+import { getHistory } from "../memory/history.js";
+import { initModuleLogStore } from "../module-log.js";
+import type { RouteRegistration } from "../module-types.js";
+import { ActionExecutor } from "../scheduler/action-executor.js";
+import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
+import { NullTransport, type Transport } from "../transport.js";
+import { getWebUI } from "../web-ui/web-ui.js";
 import { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,
@@ -28,8 +30,6 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
-import { NullTransport, type Transport } from "./transport.js";
-import { getWebUI } from "./web-ui/web-ui.js";
 
 
 export type ServerOptions = {

@@ -187,7 +187,7 @@ Typed interfaces for swappable core services. Modules can register alternative i
 
 **Built-in providers**:
 - `default` — file-based JSON (`MemoryStore`, `KnowledgeStore`). Active by default.
-- `sqlite-memory` — SQLite-backed memory (`src/sqlite-memory.ts`, `src/modules/sqlite-memory.ts`). SQL-powered search, no 100-memory cap, concurrent-safe via WAL mode. Uses `sqlite3` CLI (no library dependency). Activate: `{ "providers": { "memory": "sqlite-memory" } }`. DB stored at `.kota/modules/sqlite-memory/memory.db`.
+- `sqlite-memory` — SQLite-backed memory (`src/memory/sqlite-memory.ts`, `src/modules/sqlite-memory.ts`). SQL-powered search, no 100-memory cap, concurrent-safe via WAL mode. Uses `sqlite3` CLI (no library dependency). Activate: `{ "providers": { "memory": "sqlite-memory" } }`. DB stored at `.kota/modules/sqlite-memory/memory.db`.
 
 **Design decisions**:
 - Structural typing — existing classes don't need `implements MemoryProvider`. TypeScript duck typing ensures conformance automatically.
@@ -435,7 +435,7 @@ Provider-based credential management with automatic output masking. Prevents sec
 
 **Output masking**: `SecretStore.mask(text)` replaces all known secret values with `<secret:NAME>`. Called in `tool-runner.ts` on every tool result before it enters the conversation context. Uses a compiled regex sorted by value length (longest match wins). Values under 4 chars are excluded to avoid false positives.
 
-### Working Memory (`src/working-memory.ts`, `src/modules/working-memory.ts`)
+### Working Memory (`src/memory/working-memory.ts`, `src/modules/working-memory.ts`)
 
 Agent-controlled scratchpad — named entries that appear in `<working-memory>` tags in the dynamic system prompt every turn. Inspired by Letta/MemGPT's memory blocks. Limits: 20 entries, 500 chars/value, 4000 chars total. The `working_memory` tool supports write/read/list/remove/clear actions with optional `persist:true` flag. Persistent entries are saved to `.kota/modules/working-memory/entries.json` via `ModuleStorage` and auto-restored on session start via the module's `onLoad` hook. Non-persistent entries remain session-scoped. Persistent entries show a ★ marker in the system prompt.
 
@@ -464,7 +464,7 @@ Gives the agent access to its own conversation history — search, list, and rea
 - Messages truncated to 500 chars each, max 50 messages per read — prevents context explosion when reading long conversations.
 - Builds on existing `ConversationHistory` infrastructure (iter 525+) — no new storage layer needed.
 
-### HTTP API Server (`src/server.ts`)
+### HTTP API Server (`src/server/server.ts`)
 
 Pure `node:http` server exposing KOTA via REST + SSE. Key endpoints: `POST /api/chat` (SSE stream), sessions CRUD, schedules, notifications, events webhook, health. ProxyTransport pattern swaps SSE target per-request. SessionPool with TTL cleanup (30min) and LRU eviction (max 10). Usage: `kota serve --port 3000`.
 
@@ -476,7 +476,7 @@ Embedded browser chat at `GET /`. Zero-dependency HTML/CSS/JS assembled from 4 m
 
 Telegram messaging frontend using Bot API over `fetch` (zero deps). ProxyTransport pattern (same as HTTP server). Per-chat sessions with typing indicators, message chunking (4096 char limit), long polling. Commands: `/start`, `/clear`, `/status`. Access control via `allowedChatIds`. Scheduler integration for reminders and autonomous actions. Usage: `kota telegram --token <TOKEN>`.
 
-### Daemon Mode (`src/daemon.ts`)
+### Daemon Mode (`src/scheduler/daemon.ts`)
 
 Long-running event-driven runtime hosting event bus, scheduler, and round-robin idle tasks. Self-restart on `dist/cli.js` change (exit 75). State persisted to `~/.kota/daemon-state.json`. Graceful shutdown (30s drain). CLI: `kota daemon [--idle-prompt "..."] [--idle-cooldown 300]`.
 
@@ -624,7 +624,7 @@ Complements session warmup (which is generic, per-session) with per-request inte
 
 Zero LLM cost — pure heuristics and local lookups. Security: all paths resolved relative to cwd, rejects paths outside the working directory.
 
-### Task Router (`src/task-router.ts`)
+### Task Router (`src/scheduler/task-router.ts`)
 
 Classifies user requests by task type and provides strategy hints. Complements the request analyzer (which pre-loads context) with task-level intelligence (which adapts the agent's approach).
 
@@ -647,7 +647,7 @@ Classifies user requests by task type and provides strategy hints. Complements t
 
 Reads `.kota.md` files from working directory up to root (like Claude Code's CLAUDE.md). Injected into system prompt.
 
-### Persistent Tasks (`src/task-store.ts`)
+### Persistent Tasks (`src/scheduler/task-store.ts`)
 
 Cross-session task tracking that survives session restarts. Tasks are stored per-project in `~/.kota/tasks-<hash>.json` where `<hash>` is derived from the project directory path.
 
@@ -664,7 +664,7 @@ Cross-session task tracking that survives session restarts. Tasks are stored per
 
 **In-memory mode**: When `storageDir` is `null`, the store operates without file I/O (used in tests and sub-agents).
 
-### Scheduler (`src/schedule-parser.ts`, `src/scheduler.ts`, `src/tools/schedule.ts`)
+### Scheduler (`src/scheduler/schedule-parser.ts`, `src/scheduler/scheduler.ts`, `src/tools/schedule.ts`)
 
 Time-aware scheduling for reminders, recurring tasks, and autonomous agent actions. Enables the agent to "remind me in 30 minutes", "check this every hour", or proactively execute tasks on a schedule.
 
@@ -691,7 +691,7 @@ Pure parsing utilities (`parseTime`, `parseRepeat`, `matchesFilter`, `formatRela
 
 **Event-based triggers**: Items can fire when a named event occurs on the EventBus instead of at a time. Created via `addEventTrigger(description, eventName, opts?)` or the `on_event` tool action. The scheduler subscribes to the bus via `connectBus(bus, onFire)` — a wildcard listener checks pending event-triggered items against incoming events. Optional `triggerFilter` does key-value matching on the event payload (string coercion). Repeating event triggers (`repeat: true`) stay pending after firing; one-shot triggers become "fired". `schedule.fire` events are ignored to prevent self-triggering loops. Event-triggered items are excluded from `getDue()` (they don't use time-based polling). This enables automations like "when a session ends, run this prompt."
 
-### Autonomous Scheduled Actions (`src/action-executor.ts`)
+### Autonomous Scheduled Actions (`src/scheduler/action-executor.ts`)
 
 Transforms KOTA from a reactive tool into a proactive agent. Scheduled items can carry an `action` prompt that KOTA executes autonomously when triggered — no user input needed.
 
@@ -712,11 +712,11 @@ Transforms KOTA from a reactive tool into a proactive agent. Scheduled items can
 
 **Example**: "Every morning at 8am, check Hacker News for AI news and summarize the top 5 stories" — KOTA runs this autonomously and delivers the summary without being prompted.
 
-### Persistent Memory (`src/memory.ts`)
+### Persistent Memory (`src/memory/store.ts`)
 
 Cross-session memory in `~/.kota/memory.json`. Save/search/list/delete with keyword ranking. Auto-prune at 100 entries.
 
-### Knowledge Store (`src/knowledge-store.ts`)
+### Knowledge Store (`src/memory/knowledge-store.ts`)
 
 File-based structured data layer — each entry is a markdown file with YAML front matter. Replaces the limitations of flat JSON memory with human-readable, git-trackable knowledge management.
 
@@ -743,7 +743,7 @@ Content in markdown...
 
 **Integration**: Registered via the `knowledge` module in the `management` tool group. Session warmup (`init.ts`) recalls recent project knowledge entries at session start.
 
-### Conversation History (`src/history.ts`)
+### Conversation History (`src/memory/history.ts`)
 
 Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast listing. Resume via `kota run --continue [id]`. CLI: list, show, resume, delete, clear. HTTP: `/api/history` CRUD. Source-aware auto-prune (50 user / 20 action max). Session warmup shows recent conversations on start.
 
@@ -875,7 +875,7 @@ External tool servers via Model Context Protocol. Configure in `.kota/mcp.json`.
 
 `file_read` handles images (PNG, JPEG, GIF, WebP) natively — base64-encoded and sent as Anthropic image content blocks. Rich tool results (`ToolResult.blocks`) support mixed text + image content.
 
-### Session Pool (`src/session-pool.ts`)
+### Session Pool (`src/server/session-pool.ts`)
 
 Extracted HTTP session infrastructure — `SseTransport`, `SessionPool`, `ManagedSession` type, and HTTP helpers (`setCors`, `jsonResponse`, `readBody`). Shared by the HTTP server and any future transport that needs session management over HTTP.
 

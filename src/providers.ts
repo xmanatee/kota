@@ -8,10 +8,10 @@
  * Follows the same pattern as SecretProvider (src/secrets.ts) but generalized.
  */
 
-import type { KnowledgeEntry, SearchFilters } from "./knowledge-store.js";
-import { getKnowledgeStore } from "./knowledge-store.js";
-import type { Memory } from "./memory.js";
-import { getMemoryStore } from "./memory.js";
+import type { KnowledgeEntry, SearchFilters } from "./memory/knowledge-store.js";
+import { getKnowledgeStore } from "./memory/knowledge-store.js";
+import type { Memory } from "./memory/store.js";
+import { getMemoryStore } from "./memory/store.js";
 
 // --- Provider interfaces ---
 

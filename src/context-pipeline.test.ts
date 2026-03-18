@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import { compactMessages, extractWorkingState } from "./compaction.js";
 import { Context, truncateToolResult } from "./context.js";
+import { compactMessages, extractWorkingState } from "./memory/compaction.js";
 import { buildToolCallMap, pruneMessages } from "./message-pruning.js";
 import type { ModelClient } from "./model-client.js";
 

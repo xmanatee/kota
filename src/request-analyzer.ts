@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { type ConversationRecord, getHistory } from "./history.js";
-import { getMemoryStore, type Memory } from "./memory.js";
+import { type ConversationRecord, getHistory } from "./memory/history.js";
+import { getMemoryStore, type Memory } from "./memory/store.js";
 
 export type PathInfo = {
   path: string;

@@ -1,15 +1,15 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+import type { AgentEvent } from "../transport.js";
 import {
   CORS_HEADERS,
+  jsonResponse,
   type ManagedSession,
+  readBody,
   SessionPool,
   SseTransport,
-  jsonResponse,
-  readBody,
   setCors,
 } from "./session-pool.js";
-import type { AgentEvent } from "./transport.js";
 
 // --- Mocks ---
 
@@ -55,7 +55,7 @@ function makePool(opts?: { maxSessions?: number; ttlMs?: number }) {
 }
 
 function poolFactory(pool: SessionPool): ManagedSession {
-  return pool.create((transport) => {
+  return pool.create((_transport) => {
     const session = mockAgentSession();
     return session as never;
   });
@@ -258,7 +258,7 @@ describe("SessionPool", () => {
 
     it("preserves sessions within TTL", () => {
       const pool = makePool({ ttlMs: 60000 });
-      const s1 = poolFactory(pool);
+      const _s1 = poolFactory(pool);
 
       const count = pool.cleanup();
 

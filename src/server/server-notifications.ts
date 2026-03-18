@@ -6,9 +6,9 @@
  * 2. Make notification broadcasting independently testable
  */
 
-import type { ActionExecutor, ActionResult } from "./action-executor.js";
-import { partitionDueItems } from "./action-executor.js";
-import type { ScheduledItem } from "./scheduler.js";
+import type { ActionExecutor, ActionResult } from "../scheduler/action-executor.js";
+import { partitionDueItems } from "../scheduler/action-executor.js";
+import type { ScheduledItem } from "../scheduler/scheduler.js";
 import type { SseTransport } from "./session-pool.js";
 
 export class NotificationHub {

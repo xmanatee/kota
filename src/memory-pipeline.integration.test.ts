@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryStore } from "./memory.js";
+import { MemoryStore } from "./memory/store.js";
 import { runMemory } from "./tools/memory.js";
 
 /**
@@ -18,7 +18,7 @@ let store: MemoryStore;
 import { vi } from "vitest";
 // We need to override getMemoryStore so runMemory uses our test store.
 // Since getMemoryStore is a module-level singleton, we mock it.
-import * as memoryModule from "./memory.js";
+import * as memoryModule from "./memory/store.js";
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "kota-mem-pipeline-"));

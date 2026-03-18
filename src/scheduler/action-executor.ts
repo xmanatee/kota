@@ -7,10 +7,10 @@
  * into a proactive agent that can act without being prompted.
  */
 
-import { tryEmit } from "./event-bus.js";
-import { AgentSession, type LoopOptions } from "./loop.js";
+import { tryEmit } from "../event-bus.js";
+import { AgentSession, type LoopOptions } from "../loop.js";
+import { BufferTransport } from "../transport.js";
 import type { ScheduledItem } from "./scheduler.js";
-import { BufferTransport } from "./transport.js";
 
 export type ActionResult = {
   item: ScheduledItem;

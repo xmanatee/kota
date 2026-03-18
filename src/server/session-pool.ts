@@ -8,8 +8,8 @@
 
 import { randomUUID } from "node:crypto";
 import type { ServerResponse } from "node:http";
-import type { AgentSession } from "./loop.js";
-import { type AgentEvent, ProxyTransport, type Transport } from "./transport.js";
+import type { AgentSession } from "../loop.js";
+import { type AgentEvent, ProxyTransport, type Transport } from "../transport.js";
 
 /** Transport that writes AgentEvents as Server-Sent Events to an HTTP response. */
 export class SseTransport implements Transport {

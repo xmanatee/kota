@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getScheduler, parseRepeat, parseTime } from "../scheduler.js";
+import { getScheduler, parseRepeat, parseTime } from "../scheduler/scheduler.js";
 import type { ToolResult } from "./index.js";
 
 export const scheduleTool: Anthropic.Tool = {

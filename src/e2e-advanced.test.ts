@@ -13,7 +13,6 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ActionExecutor } from "./action-executor.js";
 import { resetEventBus } from "./event-bus.js";
 import { AgentSession } from "./loop.js";
 import {
@@ -23,7 +22,8 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./mock-client.js";
-import { resetScheduler, Scheduler } from "./scheduler.js";
+import { ActionExecutor } from "./scheduler/action-executor.js";
+import { resetScheduler, Scheduler } from "./scheduler/scheduler.js";
 import { BufferTransport } from "./transport.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});

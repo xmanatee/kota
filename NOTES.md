@@ -12,6 +12,7 @@ For skipped/dismissed items move them into Skipped section with concise one line
 
 Format: `b:` = for the builder, `i:` = for the improver.
 b: institute standards in codebase: proper structure, codestyle, work approach with stages for work e.t.c. ideally some of that should be automated through linters or tests... the rest is approach which could be changed in prompts... instead of having a single DESIGN doc establish a strucure with directories and write the design for every system/component there. it sohuldn't be detailed! concise and high-level.. implementation details can be checked in code when needed. Also these docs must be kept up to date!
+  → Progress (iter 641): Created 3 domain-based subdirectories (memory/, scheduler/, server/) with per-directory README.md docs. Moved 15 source files from flat src/ root. Each README has concise file table + dependency graph. Next: more clusters (context/, model/), codestyle automation.
 i: improver shouldn't overoptimise things that aren't broken (e.g. reading files or smth like that)
 i: improver must optimise both improver and builder for quality and creativity and quality. Not for speed or cost or anything close to that! it shouldn't optimize scripts if some steps are repeated all the time. instead it should make sure both improver and builder know what to look at and how to research and how do things.
 b: i want the agent to support both  @anthropic-ai/sdk and @anthropic-ai/claude-agent-sdk.. if i run it without anthropic keys it should just claude code backend...
@@ -45,6 +46,7 @@ credentials, but KOTA needs the env var directly. Set
 `export ANTHROPIC_API_KEY=...` in the shell that runs `loop.sh` to enable the
 smoke test. Cost is ~$0.005 per builder iteration.
 b: improve the source structure... it should be really well structured with core, modules, features, e.t.c. think of the right grouping and structure and organisation and implement it. it shouldn't be more than 15 files in a directory... there should be a nice file/module structure
+  → Progress (iter 641): Moved 15 source files into 3 domain directories (memory/ 6 files, scheduler/ 6 files, server/ 3 files) with barrel exports and READMEs. src/ root reduced from 73 to 58 non-test source files. Next: more clusters to get each dir under 15 files.
 i: introduce rght mechanisms for things TODO, progress tracking, owner NOTES e.t.c. everything must be convenient and efficient... but at the same time it shouldn't be restrictive on agents! Agents shouldn't be just injected some "important" stuff ... they must be trusted, but they must be directed to look in the the right places and things....
 
 ---

@@ -39,7 +39,7 @@ vi.mock("./loop.js", () => {
 
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
-import { startServer } from "./server.js";
+import { startServer } from "./server/server.js";
 
 let server: Server;
 let baseUrl: string;

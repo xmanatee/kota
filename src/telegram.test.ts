@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { partitionDueItems } from "./action-executor.js";
-import { resetScheduler, Scheduler } from "./scheduler.js";
+import { partitionDueItems } from "./scheduler/action-executor.js";
+import { resetScheduler, Scheduler } from "./scheduler/scheduler.js";
 import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./telegram.js";
 
 // --- splitMessage ---

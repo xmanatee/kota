@@ -6,7 +6,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { type ConversationRecord, getHistory } from "../history.js";
+import { type ConversationRecord, getHistory } from "../memory/history.js";
 import type { ToolResult } from "./index.js";
 
 export const conversationRecallTool: Anthropic.Tool = {

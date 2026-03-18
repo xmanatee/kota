@@ -12,8 +12,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { EventBus } from "./event-bus.js";
-import { tryEmit } from "./event-bus.js";
+import type { EventBus } from "../event-bus.js";
+import { tryEmit } from "../event-bus.js";
 import {
   formatRelative,
   matchesFilter,

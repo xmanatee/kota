@@ -10,14 +10,14 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { KotaConfig } from "../config.js";
+import { type EventBus, initEventBus } from "../event-bus.js";
+import { AgentSession } from "../loop.js";
+import { initModuleLogStore } from "../module-log.js";
+import { CliTransport, type Transport } from "../transport.js";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
-import type { KotaConfig } from "./config.js";
-import { type EventBus, initEventBus } from "./event-bus.js";
-import { AgentSession } from "./loop.js";
-import { initModuleLogStore } from "./module-log.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
-import { CliTransport, type Transport } from "./transport.js";
 
 export type IdleTask = {
   name: string;

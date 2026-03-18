@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { initTaskStore, resetTaskStore } from "../task-store.js";
+import { initTaskStore, resetTaskStore } from "../scheduler/task-store.js";
 import { getTodoState, runTodo } from "./todo.js";
 
 beforeAll(() => {

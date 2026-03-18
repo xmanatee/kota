@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock memory module to isolate from real ~/.kota/memory.json
-vi.mock("./memory.js", () => ({
+vi.mock("./memory/store.js", () => ({
   getMemoryStore: vi.fn(() => ({
     list: () => [] as any[],
     search: () => [] as any[],
@@ -13,31 +13,31 @@ vi.mock("./memory.js", () => ({
 }));
 
 // Mock history module to control conversation data
-vi.mock("./history.js", () => ({
+vi.mock("./memory/history.js", () => ({
   getHistory: vi.fn(() => ({
     getMostRecent: () => null,
   })),
 }));
 
 // Mock task-store module to isolate and test failure paths
-vi.mock("./task-store.js", () => ({
+vi.mock("./scheduler/task-store.js", () => ({
   getTaskStore: vi.fn(() => ({
     getActiveSummary: () => null,
   })),
 }));
 
 // Mock scheduler module to isolate and test failure paths
-vi.mock("./scheduler.js", () => ({
+vi.mock("./scheduler/scheduler.js", () => ({
   getScheduler: vi.fn(() => ({
     getPendingSummary: () => null,
   })),
 }));
 
-import { getHistory } from "./history.js";
 import { buildSessionWarmup, detectEnvironment, detectProject, getDirectoryOverview } from "./init.js";
-import { getMemoryStore } from "./memory.js";
-import { getScheduler } from "./scheduler.js";
-import { getTaskStore } from "./task-store.js";
+import { getHistory } from "./memory/history.js";
+import { getMemoryStore } from "./memory/store.js";
+import { getScheduler } from "./scheduler/scheduler.js";
+import { getTaskStore } from "./scheduler/task-store.js";
 
 const mocked = vi.mocked(getMemoryStore);
 const mockedHistory = vi.mocked(getHistory);

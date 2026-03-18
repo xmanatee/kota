@@ -1,11 +1,11 @@
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { getHistory } from "./history.js";
-import { getKnowledgeStore } from "./knowledge-store.js";
-import { getMemoryStore } from "./memory.js";
-import { getScheduler } from "./scheduler.js";
-import { getTaskStore } from "./task-store.js";
+import { getHistory } from "./memory/history.js";
+import { getKnowledgeStore } from "./memory/knowledge-store.js";
+import { getMemoryStore } from "./memory/store.js";
+import { getScheduler } from "./scheduler/scheduler.js";
+import { getTaskStore } from "./scheduler/task-store.js";
 
 /** Detect project type from config files in cwd. */
 export function detectProject(cwd: string): string | null {

@@ -7,10 +7,11 @@ import { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
 import { getChangeTracker, initChangeTracker, resetChangeTracker } from "./file-changes.js";
 import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
-import { getHistory } from "./history.js";
 import { buildSessionWarmup } from "./init.js";
 import { listManifestModules } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
+import { getHistory } from "./memory/history.js";
+import { getWorkingMemoryState } from "./memory/working-memory.js";
 import { AnthropicModelClient, type ModelClient } from "./model-client.js";
 import { ModuleLoader } from "./module-loader.js";
 import { initModuleLogStore } from "./module-log.js";
@@ -20,12 +21,12 @@ import { loadProjectContext } from "./project-context.js";
 import { initProviderRegistry, registerDefaultProviders, resetProviderRegistry } from "./providers.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
-import { initScheduler } from "./scheduler.js";
+import { initScheduler } from "./scheduler/scheduler.js";
+import { formatTaskHint, routeTask } from "./scheduler/task-router.js";
+import { initTaskStore } from "./scheduler/task-store.js";
 import { type SessionState, SessionStateMachine } from "./session-state.js";
 import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
-import { formatTaskHint, routeTask } from "./task-router.js";
-import { initTaskStore } from "./task-store.js";
 import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
 import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
@@ -37,7 +38,6 @@ import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory/ind
 import { cleanupProcesses } from "./tools/process.js";
 import { BufferTransport, CliTransport, type Transport } from "./transport.js";
 import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
-import { getWorkingMemoryState } from "./working-memory.js";
 
 
 const MAX_ITERATIONS = 200;

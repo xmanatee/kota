@@ -133,7 +133,7 @@ describe("provider singleton", () => {
 
 describe("interface conformance", () => {
 	it("MemoryProvider interface matches MemoryStore shape", async () => {
-		const { MemoryStore } = await import("./memory.js");
+		const { MemoryStore } = await import("./memory/store.js");
 		const store = new MemoryStore("/tmp/test-provider-conformance");
 		const provider: MemoryProvider = store;
 		expect(typeof provider.save).toBe("function");
@@ -144,7 +144,7 @@ describe("interface conformance", () => {
 	});
 
 	it("KnowledgeProvider interface matches KnowledgeStore shape", async () => {
-		const { KnowledgeStore } = await import("./knowledge-store.js");
+		const { KnowledgeStore } = await import("./memory/knowledge-store.js");
 		const store = new KnowledgeStore("/tmp/test-provider-conformance");
 		const provider: KnowledgeProvider = store;
 		expect(typeof provider.create).toBe("function");

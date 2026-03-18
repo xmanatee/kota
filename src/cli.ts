@@ -1,16 +1,16 @@
 import { createInterface } from "node:readline";
 import { Command } from "commander";
-import { ActionExecutor, partitionDueItems } from "./action-executor.js";
 import { executeWithAgentSDK } from "./agent-sdk/index.js";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { confirmAction, setSkipConfirmations } from "./confirm.js";
-import { type ConversationHistory, getHistory } from "./history.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
+import { type ConversationHistory, getHistory } from "./memory/history.js";
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { createModelClient, parseModelString } from "./provider-factory.js";
-import { getScheduler, resetScheduler } from "./scheduler.js";
+import { ActionExecutor, partitionDueItems } from "./scheduler/action-executor.js";
+import { getScheduler, resetScheduler } from "./scheduler/scheduler.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
 export function parseIntOption(value: string, name: string): number {
