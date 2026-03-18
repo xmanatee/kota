@@ -12,7 +12,7 @@ import {
 } from "../delegate-prompts.js";
 import type { McpManager } from "../mcp/manager.js";
 import { AnthropicModelClient, type ModelClient } from "../model-client.js";
-import type { ModelTiers } from "../model-router.js";
+import type { DelegateBackend, ModelTiers } from "../model-router.js";
 import { routeModel } from "../model-router.js";
 import { isRetryable } from "../streaming.js";
 import { maybeRetry } from "../tool-retry.js";
@@ -76,6 +76,10 @@ export type DelegateConfig = {
   costTracker?: CostTracker;
   transport?: Transport;
   mcpManager?: McpManager;
+  /** Override backend selection: "thin" (default KOTA loop) or "agent-sdk" (Claude Code runtime). */
+  backend?: DelegateBackend;
+  /** Budget cap in USD for Agent SDK delegations. */
+  agentSdkBudgetUsd?: number;
 };
 
 let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
@@ -100,14 +104,29 @@ export async function runDelegate(
   }
 
   const isExecute = mode === "execute";
-  const builtinTools = isExecute ? executeTools : exploreTools;
-  const runners = isExecute ? executeRunners : exploreRunners;
 
   // Adaptive model selection: route to appropriate tier based on task complexity
   const modelRoute = delegateConfig.modelTiers
     ? routeModel(task, mode, delegateConfig.modelTiers, delegateConfig.model)
     : null;
   const selectedModel = modelRoute?.model ?? delegateConfig.model;
+
+  // Route to Agent SDK backend if configured or auto-selected
+  const resolvedBackend = delegateConfig.backend ?? modelRoute?.backend ?? "thin";
+  if (resolvedBackend === "agent-sdk") {
+    const { runDelegateAgentSDK } = await import("./delegate-agent-sdk.js");
+    return runDelegateAgentSDK(task, mode, {
+      cwd: delegateConfig.cwd,
+      projectContext: delegateConfig.projectContext,
+      costTracker: delegateConfig.costTracker,
+      transport: delegateConfig.transport,
+      maxBudgetUsd: delegateConfig.agentSdkBudgetUsd,
+      model: selectedModel,
+    });
+  }
+
+  const builtinTools = isExecute ? executeTools : exploreTools;
+  const runners = isExecute ? executeRunners : exploreRunners;
 
   // Include MCP tools so sub-agents can use external tool servers
   const mcpMgr = delegateConfig.mcpManager;

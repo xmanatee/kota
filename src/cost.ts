@@ -49,6 +49,11 @@ export class CostTracker {
       1_000_000;
   }
 
+  /** Add a pre-computed dollar cost (e.g. from Agent SDK's total_cost_usd). */
+  addRawCost(usd: number): void {
+    this.totalCost += usd;
+  }
+
   getTotalCost(): number {
     return this.totalCost;
   }

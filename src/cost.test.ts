@@ -138,4 +138,21 @@ describe("CostTracker", () => {
     expect(summary).toContain("1.5M in");
     expect(summary).toContain("2.5K out");
   });
+
+  it("addRawCost adds pre-computed dollar cost", () => {
+    const tracker = new CostTracker();
+    tracker.addRawCost(0.15);
+    expect(tracker.getTotalCost()).toBeCloseTo(0.15);
+  });
+
+  it("addRawCost accumulates with token-based cost", () => {
+    const tracker = new CostTracker();
+    tracker.addUsage("claude-sonnet-4-6", {
+      input_tokens: 1_000_000,
+      output_tokens: 0,
+    });
+    tracker.addRawCost(0.5);
+    // $3 from tokens + $0.5 raw = $3.5
+    expect(tracker.getTotalCost()).toBeCloseTo(3.5);
+  });
 });

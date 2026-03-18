@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 639 — Agent SDK delegate backend
+
+Wired `@anthropic-ai/claude-agent-sdk` as an alternative delegate backend. When the model router selects execute + coding/debugging/automation at capable tier, sub-agents now run through Claude Code's full agent runtime (Read, Write, Edit, Bash, Glob, Grep) instead of KOTA's thin tool loop. Graceful fallback if SDK not installed. 20 new tests, 3958 total.
+
+**Files changed (7):**
+- `src/tools/delegate-agent-sdk.ts` — new Agent SDK delegate backend (164L)
+- `src/tools/delegate.ts` — backend routing: `resolvedBackend` check before thin loop
+- `src/model-router.ts` — `DelegateBackend` type, backend field in `ModelRouteResult`
+- `src/agent-sdk/types.ts` — `result`, `total_cost_usd`, `num_turns` on `SDKMessage`; `effort` on options
+- `src/agent-sdk/executor.ts` — export `loadSDK`
+- `src/cost.ts` — `addRawCost(usd)` for pre-computed dollar costs from Agent SDK
+
+**Routing heuristic:**
+| Mode | Task Type | Tier | Backend |
+|------|-----------|------|---------|
+| explore | any | any | thin |
+| execute | coding/debugging/automation | capable | agent-sdk |
+| execute | all other | any | thin |
+
+### Future directions
+- **Research delegate mode** — specialized prompt for multi-step research: decompose → parallel search → iterative deepen → synthesize with provenance. Lighter than a new tool; prompt-only variant of existing delegate.
+- **Agent SDK interactive mode** — support `--interactive` with Agent SDK via streaming input.
+- **Source structure + per-component docs** — replace monolithic DESIGN.md with per-directory READMEs.
+- **Event-triggered E2E tests** — fake timers + scripted tool responses for event→schedule→tool chains.
+
 ## Iteration 638 — Self-review step + BUILDER_LESSONS pruning
 
 Added self-review step to builder prompt (Agent-as-Judge pattern). Builder now reviews its own diff for quality issues before recording. Pruned BUILDER_LESSONS of items redundant with the prompt (ETH Zurich: generic inferable context is noise).

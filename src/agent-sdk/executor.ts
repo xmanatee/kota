@@ -39,7 +39,7 @@ function extractText(message: SDKMessage): string {
 }
 
 /** Dynamically import the Agent SDK. Throws a clear error if not installed. */
-async function loadSDK(): Promise<SDKModule> {
+export async function loadSDK(): Promise<SDKModule> {
 	try {
 		return (await import(
 			"@anthropic-ai/claude-agent-sdk"

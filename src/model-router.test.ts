@@ -228,6 +228,68 @@ describe("routeModel", () => {
 		);
 		expect(result.reason).toContain("→capable");
 	});
+
+	// --- Backend routing ---
+
+	it("routes to agent-sdk for execute+coding at capable tier", () => {
+		// coding=balanced(1), architecture=+1→capable(2), execute=+1→capable(clamped)
+		const result = routeModel(
+			"Refactor the entire authentication architecture with JWT",
+			"execute",
+		);
+		expect(result.tier).toBe("capable");
+		expect(result.backend).toBe("agent-sdk");
+		expect(result.reason).toContain("sdk");
+	});
+
+	it("routes to thin for explore mode even at capable tier", () => {
+		const result = routeModel(
+			"Plan out the database migration in phases",
+			"explore",
+		);
+		expect(result.tier).toBe("capable");
+		expect(result.backend).toBe("thin");
+	});
+
+	it("routes to thin for execute+coding at balanced tier (simplicity offsets execute)", () => {
+		// coding=balanced(1), "look up"=-1→fast(0), execute=+1→balanced(1) → thin
+		const result = routeModel(
+			"Look up the config format and implement the missing field",
+			"execute",
+		);
+		expect(result.tier).toBe("balanced");
+		expect(result.backend).toBe("thin");
+	});
+
+	it("routes to thin for execute+research tasks", () => {
+		const result = routeModel(
+			"Research distributed system architecture patterns",
+			"execute",
+		);
+		// research=fast(0), architecture=+1→balanced(1), execute=+1→capable(2)
+		// But research is not SDK-eligible
+		expect(result.backend).toBe("thin");
+	});
+
+	it("routes to agent-sdk for execute+debugging at capable tier", () => {
+		// debugging=balanced(1), multi-service=+1→capable(2), execute=+1→capable(clamped)
+		const result = routeModel(
+			"Debug the multi-service integration failure in the auth pipeline",
+			"execute",
+		);
+		expect(result.tier).toBe("capable");
+		expect(result.backend).toBe("agent-sdk");
+	});
+
+	it("routes to agent-sdk for execute+automation at capable tier", () => {
+		// automation=balanced(1), cross-cutting=+1→capable(2), execute=+1→capable(clamped)
+		const result = routeModel(
+			"Automate the cross-cutting deployment pipeline for all services",
+			"execute",
+		);
+		expect(result.tier).toBe("capable");
+		expect(result.backend).toBe("agent-sdk");
+	});
 });
 
 describe("resolveModelForTier", () => {

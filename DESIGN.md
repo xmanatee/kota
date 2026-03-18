@@ -562,9 +562,10 @@ Two-tier recovery when `old_string` not found:
 
 ### Sub-Agent Delegation (`src/tools/delegate.ts`)
 
-Two modes:
+Two modes and two backends:
 - **`explore`**: Research with read + execution tools (file_read, grep, glob, repo_map, web tools, code_exec, shell, http_request). Max 10 turns.
 - **`execute`**: Can modify files and run commands (adds file_edit, file_write, multi_edit, shell@60s). Max 15 turns. Tracks and reports modified files.
+- **Backend routing**: Model router selects `thin` (KOTA's own tool loop) or `agent-sdk` (Claude Code runtime via `delegate-agent-sdk.ts`). Agent SDK backend auto-selected for execute + coding/debugging/automation at capable tier. Manual override via `DelegateConfig.backend`.
 
 Fresh API call per delegation — main context only sees task + final answer. Sub-agent text streams to stderr for live progress visibility. Robustness: prompt caching across turns, tool result truncation (30K cap), circuit breaker on 3 identical failures, and context overflow handling with actionable errors.
 
@@ -772,11 +773,15 @@ Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `trans
 
 ### Claude Agent SDK Backend (`src/agent-sdk/`)
 
-Alternative execution backend using `@anthropic-ai/claude-agent-sdk` (optional peer dep). Unlike ModelClient providers (which handle single LLM calls while KOTA manages the agent loop), this delegates entire tasks to Claude Code's full agent runtime — Claude Code handles its own tool execution (Read, Write, Edit, Bash, Glob, Grep, WebSearch), file checkpointing, and context management. Usage: `kota run --provider agent-sdk "task"` or `modelProvider.type: "agent-sdk"` in config. Streams assistant text to stdout. Types in `types.ts` match SDK's public API surface. Dynamic import with graceful error if SDK not installed. 10 tests.
+Alternative execution backend using `@anthropic-ai/claude-agent-sdk` (optional peer dep). Unlike ModelClient providers (which handle single LLM calls while KOTA manages the agent loop), this delegates entire tasks to Claude Code's full agent runtime — Claude Code handles its own tool execution (Read, Write, Edit, Bash, Glob, Grep, WebSearch), file checkpointing, and context management. Usage: `kota run --provider agent-sdk "task"` or `modelProvider.type: "agent-sdk"` in config. Streams assistant text to stdout. Types in `types.ts` match SDK's public API surface. Dynamic import with graceful error if SDK not installed. Also used as delegate backend (see below). 10 tests.
+
+### Agent SDK Delegate Backend (`src/tools/delegate-agent-sdk.ts`)
+
+Routes delegate sub-agent tasks through Claude Code's full agent runtime instead of the "thin" KOTA tool loop. When the model router selects the `agent-sdk` backend (execute mode + coding/debugging/automation at capable tier), `runDelegateAgentSDK()` calls `loadSDK().query()` with mode-appropriate options: explore gets read-only tools (Read, Glob, Grep, Bash, WebSearch, WebFetch), execute adds Edit+Write. Budget-capped ($0.50 default, configurable via `agentSdkBudgetUsd`). Result and cost from SDK's `ResultMessage` feed back into KOTA's `assembleDelegateResult()` and `CostTracker.addRawCost()`. Graceful fallback: if SDK not installed, returns error prompting thin backend. 12 tests.
 
 ### Adaptive Model Routing (`src/model-router.ts`)
 
-Automatically selects the optimal model tier (fast/balanced/capable) for delegate sub-agents based on task analysis. Combines task-type classification from `routeTask()` with complexity signals (architecture keywords → upgrade, simple lookups → downgrade) and delegate mode (execute → +1 tier bump). Config: `modelTiers: { fast, balanced, capable }` in `config.json` maps tiers to model strings. Defaults: fast=haiku, balanced=sonnet, capable=opus. When `modelTiers` is configured, delegate shows routing in status messages: `[balanced:claude-sonnet-4-6]`. Without config, falls back to single `editorModel` (backward compatible). 29 tests.
+Automatically selects the optimal model tier (fast/balanced/capable) and delegate backend (thin/agent-sdk) for delegate sub-agents based on task analysis. Combines task-type classification from `routeTask()` with complexity signals (architecture keywords → upgrade, simple lookups → downgrade) and delegate mode (execute → +1 tier bump). Backend routing: execute + coding/debugging/automation at capable tier → agent-sdk; everything else → thin. Config: `modelTiers: { fast, balanced, capable }` in `config.json` maps tiers to model strings. Defaults: fast=haiku, balanced=sonnet, capable=opus. 35 tests.
 
 ### Session State Machine (`src/session-state.ts`)
 

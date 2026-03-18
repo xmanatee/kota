@@ -56,11 +56,14 @@ function clampTier(index: number): ModelTier {
 	return TIER_ORDER[Math.max(0, Math.min(index, TIER_ORDER.length - 1))];
 }
 
+export type DelegateBackend = "thin" | "agent-sdk";
+
 export type ModelRouteResult = {
 	tier: ModelTier;
 	model: string;
 	taskType: TaskType | null;
 	reason: string;
+	backend: DelegateBackend;
 };
 
 /**
@@ -104,11 +107,19 @@ export function routeModel(
 	const tier = clampTier(tierIndex);
 	const model = resolved[tier] || fallback || resolved.balanced;
 
+	// Route to Agent SDK for execute-mode coding/debugging/automation at capable tier
+	const SDK_ELIGIBLE_TYPES: Set<TaskType> = new Set(["coding", "debugging", "automation"]);
+	const backend: DelegateBackend =
+		mode === "execute" && SDK_ELIGIBLE_TYPES.has(taskType) && tier === "capable"
+			? "agent-sdk"
+			: "thin";
+
 	const parts: string[] = [`type=${taskType}`];
 	if (mode === "execute") parts.push("execute+1");
 	parts.push(`→${tier}`);
+	if (backend === "agent-sdk") parts.push("sdk");
 
-	return { tier, model, taskType, reason: parts.join(", ") };
+	return { tier, model, taskType, reason: parts.join(", "), backend };
 }
 
 /**

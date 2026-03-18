@@ -13,6 +13,7 @@ export type SDKQueryOptions = {
 	cwd?: string;
 	maxBudgetUsd?: number;
 	persistSession?: boolean;
+	effort?: "low" | "medium" | "high" | "max";
 };
 
 export type SDKContentBlock = {
@@ -26,6 +27,9 @@ export type SDKMessage = {
 	sessionId?: string;
 	content?: SDKContentBlock[];
 	message?: string;
+	result?: string;
+	total_cost_usd?: number;
+	num_turns?: number;
 };
 
 export type SDKQueryFn = (params: {
