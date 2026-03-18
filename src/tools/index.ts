@@ -14,6 +14,7 @@ import { registration as delegate } from "./delegate.js";
 import { registration as envInfo } from "./env-info.js";
 import { registration as fileEdit } from "./file-edit.js";
 import { registration as fileRead } from "./file-read.js";
+import { registration as fileWatch } from "./file-watch.js";
 import { registration as fileWrite } from "./file-write.js";
 import { registration as filesOverview } from "./files-overview.js";
 import { registration as findReplace } from "./find-replace.js";
@@ -84,6 +85,7 @@ const registrationImports = [
   () => repoMap,
   () => delegate,
   () => envInfo,
+  () => fileWatch,
   () => webFetch,
   () => webSearch,
   () => askUser,

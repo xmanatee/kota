@@ -606,6 +606,15 @@ In-memory shared key-value store for multi-agent coordination. Parent creates a 
 
 Structured host environment discovery tool. Queries: `os` (platform, arch, version, shell, hostname, user, uptime, sudo), `runtimes` (installed languages — node, python, go, rust, java, ruby, deno, bun — and package managers), `services` (listening ports via lsof, Docker containers), `resources` (CPU model/cores, memory used/total/free, disk, GPU via nvidia-smi), `all`. All probes use 3-second timeouts and graceful fallback ("not available" on failure). Cross-platform: macOS-specific checks (sw_vers, sysctl), Linux (os-release), with general fallbacks. Safe-risk core tool. No environment variable exposure — avoids secret leakage.
 
+### File Watcher (`src/file-watcher.ts`, `src/tools/file-watch.ts`)
+
+Reactive filesystem monitoring with event bus integration. Watches directories for file changes (create/change/delete), batch-debounces at 250ms, and emits `file.changed` events on the EventBus. Enables reactive automation — combine with `schedule(on_event, "file.changed")` for auto-lint-on-save, test-on-change, or sync workflows.
+
+- **WatcherManager**: Singleton managing up to 10 concurrent watchers. Each watcher uses `fs.watch` (recursive on macOS/Windows, per-directory fallback on Linux). Default-ignores: node_modules, .git, dist, build, .next, __pycache__, .cache, .turbo, dotfiles.
+- **Tool actions**: `start` (path, optional extensions filter, recursive flag), `stop` (by ID), `list` (active watchers with change counts).
+- **Delete detection**: `rename` events checked with `stat()` — missing files marked as `delete`.
+- Moderate risk, management group.
+
 ### Agent Status Introspection (`src/tools/agent-status.ts`)
 
 Runtime self-inspection tool — lets the agent query its own capabilities and configuration. Queries: `tools` (core + module-registered, with risk/group), `modules` (loaded modules + tool counts), `providers` (registered service providers + active selection), `groups` (tool groups + enabled/disabled status), `config` (current settings, apiKey redacted), `all`. Optional `filter` parameter for text search across results. Safe-risk core tool (always available). Module and config info injected by `loop.ts` via setter pattern to avoid circular imports.

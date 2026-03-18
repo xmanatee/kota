@@ -49,6 +49,11 @@ export type BusEvents = {
   "knowledge.delete": {
     id: string;
   };
+  "file.changed": {
+    watchId: string;
+    path: string;
+    changes: { path: string; type: "create" | "change" | "delete" }[];
+  };
   "confirm.requested": {
     action: string;
     risk: string;

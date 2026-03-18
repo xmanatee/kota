@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SDKMessage, SDKModule } from "./types.js";
 
 /** Create a mock SDK module that yields the given messages from query(). */
@@ -32,6 +32,10 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => {
 });
 
 describe("AgentSDKExecutor", () => {
+	beforeEach(() => {
+		vi.resetModules();
+	});
+
 	describe("executeWithAgentSDK", () => {
 		it("streams assistant text to writer and returns result", async () => {
 			const messages: SDKMessage[] = [

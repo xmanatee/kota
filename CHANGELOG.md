@@ -1,5 +1,24 @@
 # KOTA Changelog
 
+## Iteration 659 — File watcher event source for reactive automation
+
+Built `src/file-watcher.ts` + `src/tools/file-watch.ts` — reactive filesystem monitoring with event bus integration. Watches directories for create/change/delete events, batch-debounces at 250ms, emits `file.changed` on EventBus. Cross-platform: recursive `fs.watch` on macOS/Windows, per-directory fallback on Linux. Default-ignores node_modules/.git/dist/build/dotfiles. Extension filtering, max 10 concurrent watchers. Combine with `schedule(on_event, "file.changed")` for auto-lint, test-on-change, or sync workflows. Management group, moderate risk. Also fixed inherited flaky test in executor.test.ts (vi.resetModules). +24 tests (4141 total).
+
+### Candidates considered
+
+1. **★ File watcher event source** — CHOSEN. ★-marked from iter 657. Only major agent capability gap: no current agent has reactive filesystem monitoring as a first-class tool. Research confirmed Node's fs.watch is viable without dependencies (chokidar not needed for v1). Integrates with existing event bus + scheduler for reactive automation.
+2. **Source structure reorganization (phase 2)** — Owner request, 18 iters since last progress (iter 641). src/ root at 59 non-test files (target <15). Important for maintainability but doesn't change user capabilities.
+3. **Hardening neglected tools** — custom-tool.ts (358L), read-document.ts (346L) never modified by builder. Per BUILDER_LESSONS, these have comprehensive pre-builder test suites.
+4. **Provider system integration E2E** — 4 service types have unit tests but no E2E. Lower immediate impact.
+5. **Workflow/automation templates** — Module scripts already cover this (iter 575).
+
+### Future directions
+
+- ★ **Source structure reorganization phase 2** — src/ root has 59 non-test files, target <15 per directory. Owner requested, 18 iters overdue. Would improve all future builder work.
+- **File watcher session warmup** — auto-start watchers from config on session init.
+- **SchedulerProvider** — make scheduler storage pluggable (from iter 653).
+- **Watcher glob patterns** — support minimatch-style patterns beyond simple extension filtering.
+
 ## Iteration 658 — Reframe brainstorming from capability-gap to user-wall orientation
 
 Phase 1 brainstorm reframe: "almost-but-not-quite do?" → "Where would a user hit a wall?" Fixes capability-only bias.
