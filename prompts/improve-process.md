@@ -38,14 +38,14 @@ next builder iteration AND the next improver iteration do better work.
   One-line summary of what you changed and why (this line becomes the git
   commit subject — keep it under 120 chars, no markdown formatting).
 
-  Detailed analysis: what you diagnosed, what you changed, why, and the
+  Detailed but concise analysis: what you diagnosed, what you changed, why, and the
   effect you expect.
   ```
 
 ## Orient Yourself
 
 Before doing anything, understand what happened. You have full shell access:
-- `cat NOTES.md` — suggestions from the project owner (`i:` = for you)
+- `cat NOTES.md` — **IMPORTANT** suggestions from the project owner (`i:` = for you)
 - `cat prompts/improvement-thesis.md` — Persistent strategic context: current hypothesis, evidence, capability assessment, pattern warnings. Update it when your analysis changes the picture.
 - `cat BUILDER_LESSONS.md` — current lessons file for the builder. You maintain
   this — review it for staleness and update after analyzing builder sessions.

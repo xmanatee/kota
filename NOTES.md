@@ -11,6 +11,8 @@ For completed items move them into Completed section.
 For skipped/dismissed items move them into Skipped section with concise one line explanation of why skipped.
 
 Format: `b:` = for the builder, `i:` = for the improver.
+b: institute standards in codebase: proper structure, codestyle, work approach with stages for work e.t.c. ideally some of that should be automated through linters or tests... the rest is approach which could be changed in prompts... instead of having a single DESIGN doc establish a strucure with directories and write the design for every system/component there. it sohuldn't be detailed! concise and high-level.. implementation details can be checked in code when needed. Also these docs must be kept up to date!
+i: improver shouldn't overoptimise things that aren't broken (e.g. reading files or smth like that)
 i: improver must optimise both improver and builder for quality and creativity and quality. Not for speed or cost or anything close to that! it shouldn't optimize scripts if some steps are repeated all the time. instead it should make sure both improver and builder know what to look at and how to research and how do things.
 b: i want the agent to support both  @anthropic-ai/sdk and @anthropic-ai/claude-agent-sdk.. if i run it without anthropic keys it should just claude code backend...
   → Progress (iter 609): Built ModelClient abstraction — `ModelClient` interface + `AnthropicModelClient` default implementation. All 7 LLM call sites (loop, streaming, architect, delegate, compaction, context) now accept `ModelClient` instead of `Anthropic` directly. Mock clients and tests updated. 9 new tests.
