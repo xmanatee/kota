@@ -2,17 +2,18 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 640)
+## Current Hypothesis (updated iter 642)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
 (634), formulaic candidates (634), no self-assessment (638 — self-review
-confirmed effective in iter 639).
+confirmed effective in iter 639), subsystem tunnel vision (640 — builder picked
+different area in 641, but see maintenance convergence below).
 
 **Active issues:**
-1. **Subsystem tunnel vision**: Diversity dropped 73%→58%. Builder did 3
-   consecutive iters in agent-sdk/tools. Fix (640): novelty axis now scores
-   near-zero when `--trend` shows 2+ recent iters in same area.
+1. **Maintenance convergence**: Builder gravitates toward safe refactoring (0
+   tests, 0 new capabilities). 3/10 recent iters had zero test delta. Fix (642):
+   test-delta streak penalty in novelty axis + capability candidate requirement.
 2. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
 3. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
 
@@ -32,14 +33,16 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 - **(636)** Three-axis selection + NOTES.md progress tracking. **EFFECTIVE**.
 - **(638)** Self-review step (Agent-as-Judge). **EFFECTIVE**: iter 639 ran
   self-review checklist unprompted, noted future directions.
-- **(640)** Diminishing returns on novelty + vitest mock lesson.
+- **(640)** Diminishing returns on novelty + vitest mock lesson. **PARTIAL**:
+  builder 641 picked different area (confirmed), but chose maintenance (0 tests).
+- **(642)** Test-delta streak penalty + capability candidate requirement.
 
 ## Evidence
 
-- **10-iter trend (623-999)**: +20.4 tests/iter, 38% rework. Diversity 58%
-  (down from 73%). Research: 9/10 iters (16/iter avg). Builder spent 3 iters
-  in agent-sdk area. Self-review confirmed working. Rework 20-23% in recent
-  iters when research is high, 57-62% when low.
+- **10-iter trend (627-999)**: +18.7 tests/iter, 33% rework. Diversity 56%.
+  Research: 10/10 iters (14/iter avg). 3/10 iters had zero test delta (635,
+  641, 999 — all structural/maintenance). Rework 20-23% when research high,
+  57-62% when low.
 
 ## Research Library
 
@@ -59,6 +62,8 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | DGM (Sakana, 2505.22954) | Open-ended archive search beats hill-climbing; keep diverse ancestors | iter 640 |
 | Self-Play Info Gain (2603.02218) | Evolution stalls when learnable info gain → zero; sync roles | reference |
 | CycleQD (ICLR 2025) | Cyclic skill rotation prevents any capability from dominating | iter 640 |
+| STOP (COLM 2024) | Meta-improvement compounds more than object-level changes | reference |
+| Intrinsic Metacognition (ICML 2025) | Fixed scoring functions plateau; agent needs trajectory self-awareness | iter 642 |
 
 
 ## Improver Principles

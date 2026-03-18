@@ -44,6 +44,8 @@ for abandoned ideas worth revisiting. Generate ≥5 candidates across:
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
 Include ≥1 candidate from an area untouched in 5+ iterations (check trend).
+Check recent CHANGELOG test deltas — if 2+ recent iters had zero, include ≥2
+capability candidates (new features or hardening with tests, not refactoring).
 Ask: "What can this agent almost-but-not-quite do?"
 
 **Phase 2 — Research + Converge**: For top 2-3 candidates, do 2+ targeted web
@@ -51,9 +53,9 @@ searches each — prior art, common pitfalls, how top agents solve this. Grep
 codebase to confirm they don't exist. Let research reshape your ranking, not
 just confirm your favorite. For the final 2, describe a concrete demo and make
 the strongest case for each. Select on three axes: novelty (genuinely new
-capability — if `--trend` shows 2+ recent iters in the same subsystem, score
-near-zero; diminishing returns are real), owner alignment (advances a `b:`
-request), and research depth (non-obvious insights from web research).
+capability — if `--trend` shows 2+ recent iters in same subsystem or 2+ with
+zero test delta, score near-zero), owner alignment (advances a `b:` request),
+and research depth (non-obvious insights from web research).
 
 Record rejects in CHANGELOG under "Future directions."
 

@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 642 — Test-delta streak penalty prevents maintenance convergence
+
+Builder novelty axis now penalizes consecutive zero-test-delta iters. Phase 1 requires ≥2 capability candidates when recent iters lack tests.
+
+### Intervention verdicts (from iter 640)
+
+- **Subsystem novelty penalty (iter 640)**: **PARTIAL**. Builder 641 picked
+  different area (source-restructuring, not agent-sdk) — subsystem diversity
+  goal met. But builder chose pure maintenance (0 tests, 0 capabilities).
+  Novelty axis prevented same-area repetition but enabled safe convergence.
+- **Vitest mock lesson (iter 640)**: **NOT YET TESTED**. No mock-heavy work.
+
+### What changed
+
+**`build-agent.md`** (94 lines, +2): Added test-delta streak check to Phase 1 —
+if 2+ recent iters had zero test delta, builder must include ≥2 capability
+candidates. Phase 2 novelty axis now penalizes zero-test-delta streaks alongside
+same-subsystem streaks. Based on Intrinsic Metacognition (ICML 2025): fixed
+scoring functions plateau without trajectory self-awareness.
+
+**`improvement-thesis.md`**: Updated hypothesis (642), moved subsystem tunnel
+vision to resolved, added maintenance convergence as active issue. Added STOP
+(COLM 2024) and Intrinsic Metacognition (ICML 2025) to research library.
+
+### Candidates considered
+
+1. **Test-delta streak penalty** — CHOSEN. Structural change to scoring criteria.
+   Data-driven (builder reads --trend test deltas). Addresses 3/10 zero-test iters.
+2. **Trajectory reflection step** — Deferred. Add explicit "review last 3 iters"
+   between Orient and Decide. More metacognitive but risks verbal encouragement.
+3. **Improve parse-log.py to flag capability vs maintenance** — Deferred. Would
+   surface better data but uses tooling budget; the builder already sees test deltas.
+4. **Meta-self-improvement (STOP pattern)** — Deferred. Let builder improve its
+   own selection logic. High potential but needs infrastructure beyond prompts.
+5. **Builder personality diversity (DEI pattern)** — Deferred. Multiple builder
+   strategies routed by underrepresentation. Complex, needs more design.
+
+### Expected effects
+
+- Builder 643 generates ≥2 capability candidates (features or hardening with tests)
+- Zero-test-delta streaks break — next builder iter adds tests
+- Diversity recovers as capability work naturally spans different subsystems
+
 ## Iteration 641 — Source restructuring: 3 domain clusters + per-directory docs
 
 Moved 15 source files + 17 test files from flat `src/` into 3 domain-based
