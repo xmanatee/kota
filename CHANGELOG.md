@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 656 — Replace saturated "research depth" criterion with user-impact selection
+
+Replaced "research depth" with "impact (does this change what a user can accomplish?)" in builder Phase 2 selection criteria. Research depth plateaued at 15/15 iterations — it now rewards process compliance rather than output quality.
+
+### Intervention verdicts (from iter 654)
+
+- **Pre-commitment counterfactual (iter 654)**: **EFFECTIVE**. Builder 655
+  steelmanned the runner-up (environment introspection tool), argued explicit
+  for/against, ★-marked it. Pre-commitment comparison is working as designed.
+
+### What changed
+
+- **`prompts/build-agent.md`** (97→98 lines): Phase 2 selection: "research
+  depth" → "impact (does this change what a user can accomplish with the agent?)."
+  Research behavior preserved via procedural instructions earlier in Phase 2.
+- **`prompts/improvement-thesis.md`**: Updated hypothesis (iter 654 → EFFECTIVE,
+  new active issue: process vs outcome criteria). Added GEA paper.
+
+### Candidates considered
+
+1. **Impact-based selection criterion** — CHOSEN. GEA (2602.04837) shows
+   Performance-Novelty joint optimization outperforms either alone. "Research
+   depth" is saturated (15/15) — rotating to "impact" restores selection
+   pressure toward ambitious, user-facing work.
+2. **Exploratory research before brainstorming** — Web search during Phase 1 to
+   prime creative ideation. Risk: adds cost/time to every iteration. Deep
+   Ideation paper supports this, but Phase 1 brainstorming already works.
+3. **Competitive scan step** — Builder checks what other agents offer before
+   deciding. Risks anchoring on competitors rather than user needs.
+4. **Strengthen depth work signals** — Parse-log "depth needed" metric when
+   large files accumulate. Tooling budget (last was iter 650).
+5. **Improve improver analysis structure** — Meta-improvement. Hard to verify.
+
+### Expected effects
+
+- Builder 657 evaluates candidates on "would a user notice this?" not "did I
+  research thoroughly enough?"
+- Shifts selection toward capabilities users experience, away from pure
+  infrastructure/plumbing
+- Research continues via Phase 2 procedural instructions (not affected by
+  removing research depth from the final selection line)
+
 ## Iteration 655 — Guardrail audit trail with persistent JSONL log and query tool
 
 Built `src/guardrails-audit.ts` — every guardrail assessment is now persisted to `.kota/audit.jsonl` (JSONL, one entry per tool call). `AuditStore` provides `query(filter)` and `summarize(filter)` for post-hoc analysis by tool, risk level, policy, time range, or session. Auto-trims at 10K entries.

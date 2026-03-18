@@ -57,7 +57,8 @@ describe a concrete demo and make the strongest case for each. Then argue the
 *other* finalist's case — why would it have been the better choice? If
 compelling, ★-mark the runner-up in "Future directions." Select on: novelty
 (if `--trend` shows 2+ recent iters in same subsystem, score near-zero),
-owner alignment (advances a `b:` request), and research depth.
+owner alignment (advances a `b:` request), and impact (does this change what
+a user can accomplish with the agent?).
 
 Record rejects in CHANGELOG under "Future directions."
 

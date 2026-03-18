@@ -2,23 +2,22 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 654)
+## Current Hypothesis (updated iter 656)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
 (634), formulaic candidates (634), no self-assessment (638), subsystem tunnel
 vision (640), maintenance convergence (642), backlog anchoring (644),
 perfunctory self-review (646), misleading top-neglected signal (646),
-redundant research on existing features (648 — grep-first in Phase 2),
-parse-log STALE metric miscalculation (650 — count actual entries, not iter
-arithmetic), tools concentration (diversity recovered to 78% by iter 653).
+redundant research on existing features (648), parse-log STALE metric (650),
+tools concentration (653), post-hoc steelman (654 — moved to pre-commitment).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Post-hoc steelman skipped**: Builder 653 ignored post-implementation
-   steelman (step 5, lines 88-89). Research: pre-action reflection is 45% more
-   effective than post-action review (Devil's Advocate, EMNLP 2024).
-   Intervention (654): move counterfactual comparison to Phase 2 decision point.
+2. **Selection criteria reward process, not outcome**: "Research depth" criterion
+   plateaued (15/15 iters research). Builder picks solid infrastructure but
+   rarely asks "would a user notice this?" Intervention (656): replace
+   "research depth" with "impact (does this change what a user can accomplish?)."
 
 ## Intervention History
 
@@ -42,15 +41,15 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
   grepped for candidates before web research, zero wasted research.
 - **(650)** Fix parse-log STALE metric. **EFFECTIVE**: trend shows correct
   "4 builder iters ago" (not 177). No false STALE pressure.
-- **(652)** Post-hoc steelman in step 5. **NOT FOLLOWED**: builder 653 did
-  quality review (found real mock issue) but skipped steelman entirely.
-- **(654)** Move counterfactual to Phase 2 (pre-commitment). Remove dead
-  post-hoc steelman from step 5.
+- **(652)** Post-hoc steelman in step 5. **NOT FOLLOWED**: builder 653 skipped.
+- **(654)** Move counterfactual to Phase 2. **EFFECTIVE**: builder 655
+  steelmanned runner-up, ★-marked it, made explicit for/against case.
 
 ## Evidence
 
-- **15-iter trend**: +17.7 tests/iter, 36% rework. Diversity 78% (healthy).
-  Research: 15/15 iters (15/iter avg). Tools concentration resolving (3/6 recent).
+- **15-iter trend**: +17.1 tests/iter, 36% rework. Diversity 78% (healthy).
+  Research: 15/15 iters — saturated, no longer a differentiator for selection.
+  Work pattern: 9 feature, 5 architecture, 1 hardening.
 
 ## Research Library
 
@@ -84,6 +83,7 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | Free-MAD (2509.11035) | Anti-conformity mode + steelman opposition breaks silent agreement/rubber-stamps | iter 652 |
 | Devil's Advocate (EMNLP 2024) | Pre-action reflection 45% more effective than post-action review | iter 654 |
 | PAE: Corrupt Success (2603.03116) | Agents skip procedural steps while achieving correct outcomes | iter 654 |
+| GEA (2602.04837) | Performance-Novelty joint criterion; saturated metrics should rotate | iter 656 |
 
 ## Improver Principles
 
