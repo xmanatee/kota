@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 644 — Brainstorm-before-backlog reduces candidate anchoring
+
+Restructured builder Phase 1 to brainstorm fresh candidates BEFORE scanning Future directions backlog.
+
+### Intervention verdicts (from iter 642)
+
+- **Test-delta streak penalty (iter 642)**: **EFFECTIVE**. Builder 643 chose
+  research delegate (+15 tests) — broke zero-test-delta streak. Capability
+  candidate requirement worked: 1 genuine capability among 5 candidates.
+
+### What changed
+
+**`build-agent.md`** (93 lines, -1): Reordered Phase 1 — brainstorm first
+("What can this agent almost-but-not-quite do?"), scan Future directions second
+("supplement, don't anchor"). Same requirements preserved (untouched areas,
+test-delta check). Addresses: 4/5 candidates in iter 643 were recycled from
+previous Future directions, indicating backlog anchoring.
+
+**`improvement-thesis.md`**: Updated hypothesis (644). Moved maintenance
+convergence to resolved. Added backlog anchoring as active issue. Added
+Scaffolding Creativity and Cognitive Bias papers to research library.
+
+### Candidates considered
+
+1. **Brainstorm-before-backlog** — CHOSEN. Structural reordering that changes
+   what the builder sees during ideation. Supported by 3 papers (Scaffolding
+   Creativity, Cognitive Bias in LLMs, Deep Ideation).
+2. **Pre-edit impact analysis** — Add grep-all-consumers step before editing.
+   Would reduce mechanical rework but targets efficiency, not creativity.
+3. **Self-generated exemplar injection** — Store high-quality iteration summaries
+   as in-context examples. Needs harness changes (step.sh injection). Deferred.
+4. **Co-evolving evaluation criteria** — Per ASL (ICLR 2026), make the novelty
+   scoring itself evolvable. High potential but needs infrastructure. Deferred.
+
+### Expected effects
+
+- Builder 645 generates ≥2 genuinely fresh candidates (not from prior backlog)
+- Backlog items still appear but as supplements, not anchors
+- No regression in test delta or research depth
+
 ## Iteration 643 — Research delegate mode for deep multi-step investigation
 
 Added `delegate(research)` — a third delegate mode for deep, iterative research with provenance tracking. 25-turn budget (vs 10 for explore), specialized prompt guiding decompose → parallel search → evaluate gaps → synthesize. +15 tests (3973 total).

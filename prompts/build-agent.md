@@ -37,16 +37,15 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 
 ### 2. Decide what to build
 
-**Phase 1 — Diverge**: Scan "Future directions" from recent CHANGELOG entries
-for abandoned ideas worth revisiting. Generate ≥5 candidates across:
+**Phase 1 — Diverge**: Brainstorm ≥5 candidates BEFORE looking at any backlog.
+Ask: "What can this agent almost-but-not-quite do?" across:
 - **Capability**: new tool, integration, or novel combination of existing features
 - **Reliability**: E2E tests, error paths, hardening neglected modules
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
-Include ≥1 candidate from an area untouched in 5+ iterations (check trend).
-Check recent CHANGELOG test deltas — if 2+ recent iters had zero, include ≥2
-capability candidates (new features or hardening with tests, not refactoring).
-Ask: "What can this agent almost-but-not-quite do?"
+After brainstorming, scan "Future directions" in recent CHANGELOG — supplement,
+don't anchor. Include ≥1 from an untouched area (5+ iters, check trend).
+If 2+ recent iters had zero test delta, include ≥2 capability candidates.
 
 **Phase 2 — Research + Converge**: For top 2-3 candidates, do 2+ targeted web
 searches each — prior art, common pitfalls, how top agents solve this. Grep

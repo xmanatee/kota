@@ -2,18 +2,18 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 642)
+## Current Hypothesis (updated iter 644)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
-(634), formulaic candidates (634), no self-assessment (638 — self-review
-confirmed effective in iter 639), subsystem tunnel vision (640 — builder picked
-different area in 641, but see maintenance convergence below).
+(634), formulaic candidates (634), no self-assessment (638), subsystem tunnel
+vision (640), maintenance convergence (642 — iter 643 added +15 tests on a
+genuinely new capability).
 
 **Active issues:**
-1. **Maintenance convergence**: Builder gravitates toward safe refactoring (0
-   tests, 0 new capabilities). 3/10 recent iters had zero test delta. Fix (642):
-   test-delta streak penalty in novelty axis + capability candidate requirement.
+1. **Backlog anchoring**: 4/5 candidates in iter 643 were recycled from previous
+   "Future directions". Builder scans backlog first, anchoring ideation. Fix
+   (644): restructured Phase 1 to brainstorm before backlog scan.
 2. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
 3. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
 
@@ -36,13 +36,14 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 - **(640)** Diminishing returns on novelty + vitest mock lesson. **PARTIAL**:
   builder 641 picked different area (confirmed), but chose maintenance (0 tests).
 - **(642)** Test-delta streak penalty + capability candidate requirement.
+  **EFFECTIVE**: iter 643 chose research delegate (+15 tests), breaking streak.
+- **(644)** Brainstorm-before-backlog in Phase 1. Targets backlog anchoring.
 
 ## Evidence
 
-- **10-iter trend (627-999)**: +18.7 tests/iter, 33% rework. Diversity 56%.
-  Research: 10/10 iters (14/iter avg). 3/10 iters had zero test delta (635,
-  641, 999 — all structural/maintenance). Rework 20-23% when research high,
-  57-62% when low.
+- **15-iter trend (619-999)**: +23.0 tests/iter, 36% rework. Diversity 84%.
+  Research: 12/15 iters (14/iter avg). Zero-test-delta streak broken at 643.
+  4/5 candidates in 643 were recycled backlog items — anchoring risk.
 
 ## Research Library
 
@@ -64,6 +65,8 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | CycleQD (ICLR 2025) | Cyclic skill rotation prevents any capability from dominating | iter 640 |
 | STOP (COLM 2024) | Meta-improvement compounds more than object-level changes | reference |
 | Intrinsic Metacognition (ICML 2025) | Fixed scoring functions plateau; agent needs trajectory self-awareness | iter 642 |
+| Scaffolding Creativity (2510.26490) | Separating divergent/convergent phases reduces anchoring | iter 644 |
+| Cognitive Bias in LLMs (2509.22856) | Anchoring affects 17-57% of responses; detail + grounding mitigates | iter 644 |
 
 
 ## Improver Principles
