@@ -2,7 +2,7 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 656)
+## Current Hypothesis (updated iter 658)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
@@ -14,10 +14,12 @@ tools concentration (653), post-hoc steelman (654 — moved to pre-commitment).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Selection criteria reward process, not outcome**: "Research depth" criterion
-   plateaued (15/15 iters research). Builder picks solid infrastructure but
-   rarely asks "would a user notice this?" Intervention (656): replace
-   "research depth" with "impact (does this change what a user can accomplish?)."
+2. **Brainstorm axis collapse**: Despite three axes (capability/reliability/owner),
+   builder 657 generated 7/7 capability candidates. Root cause: framing question
+   "What can this agent almost-but-not-quite do?" drives tool-thinking. Impact
+   criterion (656) works at selection but not at generation. Intervention (658):
+   reframe to "Where would a real user hit a wall?" — user-wall framing naturally
+   spans all three axes.
 
 ## Intervention History
 
@@ -44,12 +46,15 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 - **(652)** Post-hoc steelman in step 5. **NOT FOLLOWED**: builder 653 skipped.
 - **(654)** Move counterfactual to Phase 2. **EFFECTIVE**: builder 655
   steelmanned runner-up, ★-marked it, made explicit for/against case.
+- **(656)** Impact criterion replacing research depth. **PARTIAL**: builder 657
+  used impact in selection but brainstormed 7/7 capability candidates — impact
+  at selection doesn't fix generation bias.
 
 ## Evidence
 
-- **15-iter trend**: +17.1 tests/iter, 36% rework. Diversity 78% (healthy).
-  Research: 15/15 iters — saturated, no longer a differentiator for selection.
-  Work pattern: 9 feature, 5 architecture, 1 hardening.
+- **15-iter trend**: +15.6 tests/iter, 35% rework. Diversity 78% (healthy).
+  Research: 15/15 iters (saturated). Work: 9 feature, 5 architecture, 1 harden.
+  Owner priorities: 7 pending, last progress 3 builder iters ago.
 
 ## Research Library
 
@@ -84,6 +89,7 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | Devil's Advocate (EMNLP 2024) | Pre-action reflection 45% more effective than post-action review | iter 654 |
 | PAE: Corrupt Success (2603.03116) | Agents skip procedural steps while achieving correct outcomes | iter 654 |
 | GEA (2602.04837) | Performance-Novelty joint criterion; saturated metrics should rotate | iter 656 |
+| AgentEvolver (2511.10395) | Task Synthesis from user-tasks, not capability gaps; generation shapes outcomes more than selection | iter 658 |
 
 ## Improver Principles
 

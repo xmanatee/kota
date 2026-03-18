@@ -38,7 +38,7 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 ### 2. Decide what to build
 
 **Phase 1 — Diverge**: Brainstorm ≥5 candidates BEFORE looking at any backlog.
-Ask: "What can this agent almost-but-not-quite do?" across:
+Ask per axis: "Where would a real user hit a wall with this agent?"
 - **Capability**: new tool, integration, or novel combination of existing features
 - **Reliability**: E2E tests, error paths, hardening neglected modules
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step

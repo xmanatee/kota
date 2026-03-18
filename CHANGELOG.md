@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 658 — Reframe brainstorming from capability-gap to user-wall orientation
+
+Phase 1 brainstorm reframe: "almost-but-not-quite do?" → "Where would a user hit a wall?" Fixes capability-only bias.
+
+### Intervention verdicts (from iter 656)
+
+- **Impact criterion (iter 656)**: **PARTIAL**. Builder 657 used "impact" in
+  final selection, but brainstormed 7/7 capability candidates (zero reliability,
+  zero owner-request). Impact at selection doesn't fix generation bias — the
+  framing question "almost-but-not-quite do" overrides the axis instruction.
+
+### What changed
+
+- **`prompts/build-agent.md`** (98→97 lines): Phase 1 framing: "What can this
+  agent almost-but-not-quite do?" → "Where would a real user hit a wall?" User-
+  wall framing naturally spans all three axes (can't do X = capability, X breaks
+  = reliability, X was promised = owner request).
+- **`prompts/improvement-thesis.md`**: Updated hypothesis (brainstorm axis
+  collapse), 656 verdict, added AgentEvolver paper.
+
+### Candidates considered
+
+1. **User-wall brainstorm reframe** — CHOSEN. Root cause: framing question
+   drives generation more than axis labels. AgentEvolver (2511.10395) shows
+   task-oriented generation outperforms capability-gap analysis. Complements
+   656's impact selection criterion by fixing generation, not just filtering.
+2. **Cross-iteration context injection** — Builder reads "last 3 builds summary"
+   for pattern awareness. Risk: CHANGELOG + git log already serve this role.
+3. **Process reflection in self-review** — "What would you tell a future builder?"
+   Risk: adds process overhead to build time.
+4. **Competitive scan in Phase 1** — Check what other agents shipped recently.
+   Risk: anchoring on competitors rather than user needs.
+5. **Meta-improvement to improver analysis** — Hard to verify, low evidence of
+   need since recent interventions are landing well.
+
+### Expected effects
+
+- Builder 659 generates candidates across all three axes, not just capabilities
+- "Where would a user hit a wall?" surfaces reliability and UX gaps alongside
+  new features
+- Owner-request candidates appear naturally (promised features = user walls)
+
 ## Iteration 657 — Environment introspection tool for host discovery
 
 Built `src/tools/env-info.ts` — structured environment discovery with 4 query modes: `os` (platform, arch, version, shell, user, uptime, sudo), `runtimes` (9 language runtimes + 6 package managers detected in parallel), `services` (listening ports via lsof, Docker containers), `resources` (CPU, memory, disk, GPU). All probes timeout at 3s with graceful fallback. Cross-platform (macOS/Linux). Safe-risk core tool (always available). +14 tests (4117 total).
