@@ -15,6 +15,7 @@ import { registration as fileRead } from "./file-read.js";
 import { registration as fileWrite } from "./file-write.js";
 import { registration as filesOverview } from "./files-overview.js";
 import { registration as findReplace } from "./find-replace.js";
+import { registration as git } from "./git.js";
 import { registration as glob } from "./glob.js";
 import { registration as grep } from "./grep.js";
 import { registration as httpRequest } from "./http-request.js";
@@ -86,6 +87,7 @@ const registrationImports = [
   () => process_,
   () => codeExec,
   () => confirm,
+  () => git,
   () => findReplace,
   () => notebook,
   () => filesOverview,

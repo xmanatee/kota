@@ -6,6 +6,7 @@ import { fileReadTool, runFileRead } from "./tools/file-read.js";
 import { fileWriteTool, runFileWrite } from "./tools/file-write.js";
 import { filesOverviewTool, runFilesOverview } from "./tools/files-overview.js";
 import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
+import { gitTool, runGit } from "./tools/git.js";
 import { globTool, runGlob } from "./tools/glob.js";
 import { grepTool, runGrep } from "./tools/grep.js";
 import { httpRequestTool, runHttpRequest } from "./tools/http-request.js";
@@ -132,6 +133,7 @@ const subShellTool: Anthropic.Tool = {
 
 export const exploreTools: Anthropic.Tool[] = [
   fileReadTool,
+  gitTool,
   grepTool,
   globTool,
   repoMapTool,
@@ -146,6 +148,7 @@ export const exploreTools: Anthropic.Tool[] = [
 
 export const exploreRunners: Record<string, ToolRunner> = {
   file_read: runFileRead,
+  git: runGit,
   grep: runGrep,
   glob: runGlob,
   repo_map: runRepoMap,

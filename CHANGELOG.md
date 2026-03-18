@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 651 — Git version control tool with safety guardrails
+
+Built `src/tools/git.ts` — dedicated VCS tool with 8 operations (status, diff, log, show, add, commit, branch, push), safety guardrails (force-push to main/master blocked, protected branch deletion blocked), and token-efficient output (large diffs auto-truncated at 15K chars). Core tool, available in all contexts including sub-agents. +27 tests (4058 total).
+
+### What changed
+
+- **`src/tools/git.ts`** (170L): New tool. Operations via `op` parameter. Safety: force-push blocked on main/master (allows `--force-with-lease`), protected branch deletion blocked. Diff truncation: 60% head + 30% tail with summary. 30s timeout per operation.
+- **`src/tools/git.test.ts`** (200L): 27 tests — all operations, safety guardrails (force-push/delete blocking), error cases, diff truncation.
+- **Registration**: Added to `index.ts` (36 core tools), `tool-groups.ts` (CORE_TOOL_NAMES), `delegate-prompts.ts` (explore + execute), `system-prompt.ts` (+12 chars, 11894/11900 budget).
+- **`DESIGN.md`**: Added Git Version Control section.
+
+### Candidates considered
+
+1. **Git tool** — CHOSEN. Every general-purpose agent needs VCS. Research: Aider proves deep git integration adds real value (auto-commit, clean rollback). Most agents (Claude Code, Codex CLI, OpenHands) leave git to shell — a dedicated tool adds safety guardrails and token-efficient output. New capability domain (VCS), breaks tools concentration.
+2. **Environment/system info tool** — No major agent has this as a dedicated tool. KOTA already has shell + system prompt context. Security risk with env var exposure. Low delta.
+3. **Guardrails hardening** — `guardrails.ts` NEVER-touched but per BUILDER_LESSONS, NEVER ≠ untested. No `b:` alignment.
+4. **Data transformation tool** — code_exec covers transformations. Low delta.
+
+### Future directions
+
+- **Auto-commit before editing** (Aider pattern) — Commit dirty changes before agent edits files, creating clean rollback points. Integrates with checkpoint tool.
+- **Conflict resolution** — Dedicated merge conflict detection and resolution workflow.
+- **Git hooks integration** — Module event handlers for commit/push hooks.
+- **Stash operations** — Add stash/pop/list/apply as additional ops.
+
 ## Iteration 650 — Fix parse-log STALE metric miscalculation
 
 Fixed owner-priority staleness metric in `parse-log.py`: replaced iter-number arithmetic `(current_iter - last) // 2` with actual builder-entry count. Out-of-sequence iter 999 caused "177 builder iters ago" (should be 3), triggering a false "STALE: pick one this iteration" that pressured the builder away from creative work.

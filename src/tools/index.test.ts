@@ -9,7 +9,7 @@ const makeTool = (name: string) => ({
 
 describe("getAllTools", () => {
   it("contains built-in tool definitions (memory + schedule moved to modules)", () => {
-    expect(getAllTools()).toHaveLength(35);
+    expect(getAllTools()).toHaveLength(36);
   });
 
   it("has unique names", () => {
@@ -32,7 +32,7 @@ describe("getAllTools", () => {
     const names = new Set(getAllTools().map((t) => t.name));
     const expected = new Set([
       "agent_status", "shell", "file_read", "file_write", "file_edit", "multi_edit",
-      "grep", "glob", "todo", "repo_map", "delegate", "web_fetch",
+      "git", "grep", "glob", "todo", "repo_map", "delegate", "web_fetch",
       "web_search", "ask_user", "http_request", "process",
       "code_exec", "confirm", "find_replace", "notebook", "files_overview",
       "custom_tool", "checkpoint", "module_factory", "notify", "screenshot",
@@ -46,7 +46,7 @@ describe("getAllTools", () => {
 describe("getCoreRegistrations", () => {
   it("returns all core tool registrations", () => {
     const regs = getCoreRegistrations();
-    expect(regs).toHaveLength(35);
+    expect(regs).toHaveLength(36);
   });
 
   it("each registration has tool, runner, and risk", () => {
@@ -149,7 +149,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(35);
+    expect(getAllTools()).toHaveLength(36);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 
