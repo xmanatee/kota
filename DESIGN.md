@@ -391,7 +391,9 @@ Centralized risk classification and policy enforcement for all tool calls. Every
 
 **Non-interactive contexts** (server, telegram, daemon, scheduled actions): Default policy for dangerous operations is `deny` instead of `confirm`, since there's no user to prompt. This prevents autonomous sessions from running destructive commands. Configurable via config.
 
-**Integration**: Guardrails check runs in `executeToolCalls()` in `tool-runner.ts`, before any tool execution. Transport emits `guardrail` events for visibility (logged in CLI verbose mode, always logged for non-allow decisions).
+**Integration**: Guardrails check runs in `executeToolCalls()` in `tool-runner.ts`, before any tool execution. Transport emits `guardrail` events for visibility (logged in CLI verbose mode, always logged for non-allow decisions). Every assessment is also persisted to the audit trail.
+
+**Audit trail** (`src/guardrails-audit.ts`): Persistent JSONL log at `.kota/audit.jsonl`. Every guardrail assessment (tool name, risk, policy, reason, session ID, timestamp) is appended. `AuditStore` provides `query(filter)` and `summarize(filter)` for analysis. Auto-trims at 10K entries. The `audit` tool (management group) lets the agent query its own guardrail history.
 
 **Design decisions**:
 - Centralized: one check point for all tools, rather than each tool implementing its own safety checks. Shell/process retain their existing `isDangerous()` + `confirmExecution()` as a fallback layer.

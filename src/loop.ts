@@ -7,6 +7,7 @@ import { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
 import { getChangeTracker, initChangeTracker, resetChangeTracker } from "./file-changes.js";
 import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
+import { initAuditStore, resetAuditStore } from "./guardrails-audit.js";
 import { buildSessionWarmup } from "./init.js";
 import { listManifestModules } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
@@ -136,6 +137,7 @@ export class AgentSession {
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
     initModuleLogStore(process.cwd());
+    initAuditStore(process.cwd());
     initChangeTracker();
     initProviderRegistry();
     registerDefaultProviders();
@@ -479,7 +481,7 @@ export class AgentSession {
       const resultLimit = this.context.getToolResultLimit();
       const validResults = await executeToolCalls(
         toolBlocks, resultLimit, this.verbose, this.mcpManager ?? undefined, this.transport,
-        this.guardrailsConfig,
+        this.guardrailsConfig, this.sessionId,
       );
       this.context.addToolResults(validResults);
 
@@ -555,6 +557,7 @@ export class AgentSession {
     resetGroups();
     resetProviderRegistry();
     resetToolTelemetry();
+    resetAuditStore();
     resetAgentStatusProviders();
     this.moduleLoader.unloadAll().catch(() => {});
     this.mcpManager?.close().catch(() => {});

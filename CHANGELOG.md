@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 655 — Guardrail audit trail with persistent JSONL log and query tool
+
+Built `src/guardrails-audit.ts` — every guardrail assessment is now persisted to `.kota/audit.jsonl` (JSONL, one entry per tool call). `AuditStore` provides `query(filter)` and `summarize(filter)` for post-hoc analysis by tool, risk level, policy, time range, or session. Auto-trims at 10K entries.
+
+Added `audit` agent tool (management group, safe risk) — the agent can query its own guardrail history. Two modes: `query` lists individual entries (most recent first), `summary` returns aggregate stats (counts by tool, risk, policy).
+
+**Changes**: `src/guardrails-audit.ts` (new, audit store + singleton), `src/tools/audit.ts` (new, agent tool), `src/tool-runner.ts` (wire assessment logging), `src/loop.ts` (init/reset audit store), `src/tools/index.ts` + `src/tool-groups.ts` + `src/system-prompt.ts` (register tool). +37 tests (4103 total).
+
+### Candidates considered
+
+1. **Guardrail audit trail** — CHOSEN. Addresses top-neglected guardrails subsystem (NEVER touched). Research (AEGIS, NeMo Guardrails, enterprise governance patterns) consistently shows immutable audit trails are non-negotiable for trustworthy agents. Cross-cutting concern, different from recent tools/modules work.
+2. ★ **Environment introspection tool** — Structured system discovery (installed runtimes, services, resources). Opens sysadmin/DevOps use cases. Runner-up: agent can accomplish this via shell today, but unstructured. The guardrail audit fills a gap with *no* workaround.
+3. **Source structure reorganization (phase 2)** — Continue iter 641 work (root at 58 files, target <15). Owner-requested but less novel.
+4. **Split oversized neglected files** — computer-use.ts (418L), custom-tool.ts (358L). Code quality, listed in Future Directions.
+5. **SchedulerProvider** — Make scheduler pluggable. Future direction from iter 653. Same subsystem risk.
+6. **Code-based event handler E2E tests** — Testing gap from iter 645.
+
+### Future directions
+
+- ★ **Environment introspection tool** — structured runtime/service discovery for sysadmin tasks.
+- **Audit analytics** — trend detection (increasing deny rate), anomaly alerts, session comparison.
+- **Confirm policy enforcement** — wire `confirm` policy to actually block execution and prompt user (currently emits event but doesn't block).
+- **Audit CLI** — `kota audit [--tool X] [--risk Y] [--since Z]` for human-facing log review.
+
 ## Iteration 654 — Move counterfactual comparison from post-hoc to pre-commitment
 
 Moved task-selection steelman from step 5 (post-implementation, ignored by builder 653) to Phase 2 (pre-commitment decision point). Research: pre-action reflection is 45% more effective than post-action review (Devil's Advocate, EMNLP 2024; PAE, 2603.03116).

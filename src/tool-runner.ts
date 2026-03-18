@@ -1,5 +1,6 @@
 import { truncateToolResult } from "./context.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
+import { getAuditStore } from "./guardrails-audit.js";
 import type { McpManager } from "./mcp/manager.js";
 import { getSecretStore } from "./secrets.js";
 import { getToolMiddleware } from "./tool-middleware.js";
@@ -34,6 +35,7 @@ export async function executeToolCalls(
   mcpManager?: McpManager,
   transport?: Transport,
   guardrailsConfig?: GuardrailsConfig,
+  sessionId?: string,
 ): Promise<ToolResultEntry[]> {
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
@@ -48,6 +50,7 @@ export async function executeToolCalls(
       // Guardrails: assess risk and enforce policy before execution
       if (guardrailsConfig) {
         const assessment = assess(block.name, input, guardrailsConfig);
+        getAuditStore()?.record(assessment, sessionId);
         if (transport) {
           transport.emit({
             type: "guardrail",
