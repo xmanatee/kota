@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { OpenAIModelClient } from "../openai/client.js";
 import { AnthropicModelClient } from "./model-client.js";
-import { OpenAIModelClient } from "./openai/client.js";
 import {
 	createModelClient,
 	PROVIDER_PRESETS,
@@ -16,7 +16,7 @@ vi.mock("./model-client.js", () => {
 	return { AnthropicModelClient: MockAnthropic };
 });
 
-vi.mock("./openai/client.js", () => {
+vi.mock("../openai/client.js", () => {
 	const MockOpenAI = vi.fn(function (this: Record<string, unknown>) {
 		this.messages = { stream: vi.fn(), create: vi.fn() };
 	});

@@ -518,7 +518,7 @@ Split system blocks: static prompt (cached) + dynamic state (uncached, changes p
 
 Each turn shows `context: N%`. Above 50%, budget warnings appear in the dynamic system prompt. Tool results auto-truncate based on remaining budget (head + tail with notice).
 
-### Streaming (`src/streaming.ts`)
+### Streaming (`src/model/streaming.ts`)
 
 Mid-stream failures retry up to 3 times with jittered exponential backoff. Auth/config errors fail fast; transient errors retry. Text streams to stdout, thinking to stderr.
 
@@ -556,7 +556,7 @@ From Anthropic's "Writing Tools for Agents":
 2. Output is token-efficient — no verbose dumps, paginated where needed
 3. Errors guide the agent — "File not found at X. Did you mean Y?" not "ENOENT"
 
-### Page-Level Web Extraction (`src/html-page-extract.ts`)
+### Page-Level Web Extraction (`src/data/html-page-extract.ts`)
 
 Enhances `web_fetch` output for HTML pages with three layers of intelligence on top of the base `extractContent()` pipeline:
 
@@ -569,7 +569,7 @@ Enhances `web_fetch` output for HTML pages with three layers of intelligence on 
 **Integration**: `web_fetch` calls `extractPage()` instead of `extractContent()` for HTML responses. The result includes a compact metadata header (title, author, date, site name, description) followed by `---` separator and clean Markdown content.
 
 **Design decisions**:
-- Separate file from `html-extract.ts` — page-level concerns (metadata, content regions) are distinct from HTML→Markdown conversion.
+- Separate file from `data/html-extract.ts` — page-level concerns (metadata, content regions) are distinct from HTML→Markdown conversion.
 - `extractPage()` delegates to `extractContent()` for the Markdown conversion step — no code duplication.
 - Zero new dependencies — all regex-based, consistent with the existing approach.
 - Content region detection uses priority ordering (article > main > role=main > id=content) to handle pages with multiple semantic containers.
@@ -813,7 +813,7 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 - **Verification nudges** (`src/verify-tracker.ts`): Tracks unverified edits, detects available test/build commands, escalates after 3 turns.
 - **File change tracking & undo** (`src/file-changes.ts`, `src/tools/checkpoint.ts`): Automatically records the original state of every file before its first modification. The `checkpoint` tool (core, always available) lets the agent list changes, diff against originals, and restore files — surgical undo for multi-file edits gone wrong. Singleton lifecycle managed in `AgentSession` (init on construction, reset on close). Change summary injected into dynamic system state for agent awareness.
 
-### Model Client Abstraction (`src/model-client.ts`)
+### Model Client Abstraction (`src/model/model-client.ts`)
 
 `ModelClient` interface decouples the agent loop from the Anthropic SDK. Exposes `messages.stream()` and `messages.create()` — the two API surfaces used by the agent. `MessageStream` interface: `.on("text"|"thinking", cb)` + `.finalMessage()`. `AnthropicModelClient` wraps `@anthropic-ai/sdk` as the default provider. All LLM call sites (`loop.ts`, `streaming.ts`, `architect.ts`, `delegate.ts`, `compaction.ts`, `context.ts`) accept `ModelClient` instead of `Anthropic` directly. Mock clients in tests now implement `ModelClient` instead of casting to `Anthropic`. Enables future provider swapping (Claude Agent SDK, other models) without changing agent code.
 
@@ -821,7 +821,7 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 
 Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `translations.ts` (Anthropic ↔ OpenAI format conversion), `stream.ts` (SSE consumer with tool call accumulation), `client.ts` (`OpenAIModelClient` class). Works with any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, Together, vLLM, LM Studio). 78 tests across 4 test files.
 
-### Provider Factory (`src/provider-factory.ts`)
+### Provider Factory (`src/model/provider-factory.ts`)
 
 `createModelClient({ model, provider?, baseUrl?, apiKey? })` resolves CLI flags + config into a `ModelClient`. Supports `provider/model` notation (e.g., `ollama/llama3`, `openai/gpt-4o`) following the LiteLLM convention. Built-in presets: `openai`, `ollama`, `groq`, `together`, `lmstudio` (each with default base URL and API key env var). Unknown providers work with explicit `--base-url`. Config file: `modelProvider: { type, baseUrl, apiKey }` in `config.json`. Precedence: CLI flags > `provider/model` prefix > config file > default (anthropic). 23 tests.
 
@@ -833,7 +833,7 @@ Alternative execution backend using `@anthropic-ai/claude-agent-sdk` (optional p
 
 Routes delegate sub-agent tasks through Claude Code's full agent runtime instead of the "thin" KOTA tool loop. When the model router selects the `agent-sdk` backend (execute mode + coding/debugging/automation at capable tier), `runDelegateAgentSDK()` calls `loadSDK().query()` with mode-appropriate options: explore gets read-only tools (Read, Glob, Grep, Bash, WebSearch, WebFetch), execute adds Edit+Write. Budget-capped ($0.50 default, configurable via `agentSdkBudgetUsd`). Result and cost from SDK's `ResultMessage` feed back into KOTA's `assembleDelegateResult()` and `CostTracker.addRawCost()`. Graceful fallback: if SDK not installed, returns error prompting thin backend. 12 tests.
 
-### Adaptive Model Routing (`src/model-router.ts`)
+### Adaptive Model Routing (`src/model/model-router.ts`)
 
 Automatically selects the optimal model tier (fast/balanced/capable) and delegate backend (thin/agent-sdk) for delegate sub-agents based on task analysis. Combines task-type classification from `routeTask()` with complexity signals (architecture keywords → upgrade, simple lookups → downgrade) and delegate mode (execute → +1 tier bump). Backend routing: execute + coding/debugging/automation at capable tier → agent-sdk; everything else → thin. Config: `modelTiers: { fast, balanced, capable }` in `config.json` maps tiers to model strings. Defaults: fast=haiku, balanced=sonnet, capable=opus. 35 tests.
 
@@ -861,7 +861,7 @@ Middleware that auto-retries transient tool failures. Per-tool policies in `RETR
 
 Persistent REPL sessions (Python / Node.js) for iterative computation. Wrapper processes use a sentinel-based protocol: code lines are sent via stdin until a sentinel marker, then executed, with a done marker printed to stdout when complete. State (variables, imports) persists across calls within a session. AST-based last-expression extraction (Python) displays return values like IPython. Sessions are managed per-language and cleaned up on agent shutdown.
 
-**Matplotlib auto-capture** (`src/plot-capture.ts`): Python wrapper sets `MPLBACKEND=Agg` and captures open matplotlib figures after each execution (up to 5). Images are saved as temp PNGs, extracted from output via markers, read as base64, and returned as image blocks in the tool result. The agent can see its own charts and iterate on visualizations. Seaborn works automatically (uses matplotlib backend).
+**Matplotlib auto-capture** (`src/data/plot-capture.ts`): Python wrapper sets `MPLBACKEND=Agg` and captures open matplotlib figures after each execution (up to 5). Images are saved as temp PNGs, extracted from output via markers, read as base64, and returned as image blocks in the tool result. The agent can see its own charts and iterate on visualizations. Seaborn works automatically (uses matplotlib backend).
 
 ### Plugin Discovery (`src/plugin-loader.ts`)
 
@@ -939,12 +939,12 @@ Biome linter enforces code quality across all source files. Rules cover unused i
 
 ## Testing
 
-### E2E Tests with Mock Client (`src/mock-client.ts`, `src/e2e.test.ts`)
+### E2E Tests with Mock Client (`src/model/mock-client.ts`, `src/e2e.test.ts`)
 
 The mock client enables full agent loop testing without a real API key:
 
 ```typescript
-import { createMockClient, textResponse, toolUseResponse } from "./mock-client.js";
+import { createMockClient, textResponse, toolUseResponse } from "./model/mock-client.js";
 
 // Define the response sequence the "LLM" will return
 const [client, calls] = createMockClient([

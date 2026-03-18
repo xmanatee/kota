@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
-import type { ModelClient } from "./model-client.js";
+import type { ModelClient } from "./model/model-client.js";
 import {
 	buildAnthropicMessage,
 	mapFinishReason,

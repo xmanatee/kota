@@ -5,10 +5,10 @@ import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { confirmAction, setSkipConfirmations } from "./confirm.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { type ConversationHistory, getHistory } from "./memory/history.js";
+import { createModelClient, parseModelString } from "./model/provider-factory.js";
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
-import { createModelClient, parseModelString } from "./provider-factory.js";
 import { ActionExecutor, partitionDueItems } from "./scheduler/action-executor.js";
 import { getScheduler, resetScheduler } from "./scheduler/scheduler.js";
 

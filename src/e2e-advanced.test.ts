@@ -21,7 +21,7 @@ import {
 	resetMockIds,
 	textResponse,
 	toolUseResponse,
-} from "./mock-client.js";
+} from "./model/mock-client.js";
 import { ActionExecutor } from "./scheduler/action-executor.js";
 import { resetScheduler, Scheduler } from "./scheduler/scheduler.js";
 import { BufferTransport } from "./transport.js";

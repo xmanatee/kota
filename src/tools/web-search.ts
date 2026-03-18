@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { decodeEntities } from "../html-extract.js";
+import { decodeEntities } from "../data/html-extract.js";
 import type { ToolResult } from "./index.js";
 
 export const webSearchTool: Anthropic.Tool = {

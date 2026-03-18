@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../code-wrappers.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
 import { type Language, sessions } from "../repl-session.js";
 
 // Avoid circular dependency: index.ts imports from us, so we accept

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { compactMessages } from "./memory/compaction.js";
 import { type PruneStats, pruneMessages } from "./message-pruning.js";
-import type { ModelClient } from "./model-client.js";
+import type { ModelClient } from "./model/model-client.js";
 import { type MaskStats, maskObservations } from "./observation-masking.js";
 import type { ToolResultBlock } from "./tools/index.js";
 import { getTodoState } from "./tools/index.js";

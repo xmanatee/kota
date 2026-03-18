@@ -26,7 +26,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
     messages = { stream: vi.fn() };
   },
 }));
-vi.mock("./streaming.js", () => ({ streamMessage: mockStreamMessage }));
+vi.mock("./model/streaming.js", () => ({ streamMessage: mockStreamMessage }));
 vi.mock("./tool-runner.js", async () => {
   const actual = await vi.importActual<typeof import("./tool-runner.js")>("./tool-runner.js");
   return { ...actual, executeToolCalls: mockExecuteToolCalls };

@@ -4,7 +4,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../code-wrappers.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
 import { getModuleLogStore } from "../module-log.js";
 import type { KotaModule, ToolDef } from "../module-types.js";
 import type { Language } from "../repl-session.js";

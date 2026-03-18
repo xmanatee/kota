@@ -14,7 +14,8 @@ import { listManifestModules } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
 import { getWorkingMemoryState } from "./memory/working-memory.js";
-import { AnthropicModelClient, type ModelClient } from "./model-client.js";
+import { AnthropicModelClient, type ModelClient } from "./model/model-client.js";
+import { streamMessage } from "./model/streaming.js";
 import { ModuleLoader } from "./module-loader.js";
 import { initModuleLogStore } from "./module-log.js";
 import { builtinModules } from "./modules/index.js";
@@ -27,7 +28,6 @@ import { initScheduler } from "./scheduler/scheduler.js";
 import { formatTaskHint, routeTask } from "./scheduler/task-router.js";
 import { initTaskStore } from "./scheduler/task-store.js";
 import { type SessionState, SessionStateMachine } from "./session-state.js";
-import { streamMessage } from "./streaming.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { executeToolCalls, FailureTracker } from "./tool-runner.js";
@@ -103,7 +103,7 @@ export class AgentSession {
   private sessionStartTime = 0;
   private guardrailsConfig: GuardrailsConfig;
   private reflectionEnabled: boolean;
-  private modelTiers?: import("./model-router.js").ModelTiers;
+  private modelTiers?: import("./model/model-router.js").ModelTiers;
   private stateMachine: SessionStateMachine;
 
   constructor(options: LoopOptions = {}) {

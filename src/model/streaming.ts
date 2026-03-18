@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { Transport } from "../transport.js";
 import type { ModelClient } from "./model-client.js";
-import type { Transport } from "./transport.js";
 
 const STREAM_MAX_RETRIES = 3;
 

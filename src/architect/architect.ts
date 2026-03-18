@@ -1,8 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { truncateToolResult } from "../context.js";
 import type { CostTracker } from "../cost.js";
-import type { ModelClient } from "../model-client.js";
-import { isRetryable } from "../streaming.js";
+import type { ModelClient } from "../model/model-client.js";
+import { isRetryable } from "../model/streaming.js";
 import { extractModifiedFiles } from "../tools/delegate-format.js";
 import { executeTool, getAllTools } from "../tools/index.js";
 import type { Transport } from "../transport.js";

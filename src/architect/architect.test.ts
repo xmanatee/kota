@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModelClient } from "../model-client.js";
+import type { ModelClient } from "../model/model-client.js";
 
 // --- Hoisted mocks ---
 const { mockExecuteTool } = vi.hoisted(() => ({

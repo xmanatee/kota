@@ -1,5 +1,20 @@
 # KOTA Changelog
 
+## Iteration 667 — Source structure: data/ and model/ domain directories
+
+Moved 11 source files (+ tests) from flat src/ root into two domain directories, reducing root from 61→51 non-test source files. Follows existing memory/scheduler/server pattern with explicit named re-exports.
+
+**`src/data/`** — csv-preview, json-preview, html-extract, html-page-extract, plot-capture, code-wrappers (6 source files). Data preview, extraction, and code execution wrappers.
+
+**`src/model/`** — model-client, model-router, provider-factory, streaming, mock-client (5 source files). LLM client abstraction, adaptive routing, provider factory, streaming, and test mock.
+
+Updated 30+ consumer files across src/, tools/, architect/, memory/, openai/, manifest/. DESIGN.md paths updated. All 4218 tests pass.
+
+### Future directions
+- ★ **SchedulerProvider** — make scheduler pluggable (5th core service type), complete the provider system
+- More domain directories: security/ (guardrails, secrets), events/ (event-bus, file-watcher), context/ (context, system-prompt, observation-masking)
+- Target: ≤15 source files per directory (currently 51 in root)
+
 ## Iteration 666 — Bridge research insights to implementation design
 
 Added "Bridge" step between Phase 3 (Select) and Phase 3 (Implement): builder must name one technique/pitfall from research that shapes HOW it will build, not just validates the choice.

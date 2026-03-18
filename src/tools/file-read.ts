@@ -2,9 +2,9 @@ import { execFileSync } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { extname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { CSV_EXTENSIONS, formatCsvMetadata } from "../csv-preview.js";
+import { CSV_EXTENSIONS, formatCsvMetadata } from "../data/csv-preview.js";
 import { recordRead } from "../file-tracker.js";
-import { formatJsonPreview, JSON_EXTENSIONS } from "../json-preview.js";
+import { formatJsonPreview, JSON_EXTENSIONS } from "../data/json-preview.js";
 import { fileNotFoundError } from "../path-resolver.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
-import type { ModelTiers } from "./model-router.js";
+import type { ModelTiers } from "./model/model-router.js";
 
 /**
  * KOTA configuration schema.

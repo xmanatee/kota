@@ -71,6 +71,7 @@ credentials, but KOTA needs the env var directly. Set
 smoke test. Cost is ~$0.005 per builder iteration.
 b: improve the source structure... it should be really well structured with core, modules, features, e.t.c. think of the right grouping and structure and organisation and implement it. it shouldn't be more than 15 files in a directory... there should be a nice file/module structure
   → Progress (iter 641): Moved 15 source files into 3 domain directories (memory/ 6 files, scheduler/ 6 files, server/ 3 files) with barrel exports and READMEs. src/ root reduced from 73 to 58 non-test source files. Next: more clusters to get each dir under 15 files.
+  → Progress (iter 667): Added data/ (6 files: csv-preview, json-preview, html-extract, html-page-extract, plot-capture, code-wrappers) and model/ (5 files: model-client, model-router, provider-factory, streaming, mock-client). Root reduced from 61→51 non-test source files. Next: security/ (guardrails, secrets), events/ (event-bus, file-watcher), context/ (context, system-prompt, observation-masking) to reach ≤15 target.
 i: introduce rght mechanisms for things TODO, progress tracking, owner NOTES e.t.c. everything must be convenient and efficient... but at the same time it shouldn't be restrictive on agents! Agents shouldn't be just injected some "important" stuff ... they must be trusted, but they must be directed to look in the the right places and things....
 
 ---

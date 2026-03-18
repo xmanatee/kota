@@ -19,7 +19,7 @@ import {
 	resetMockIds,
 	textResponse,
 	toolUseResponse,
-} from "./mock-client.js";
+} from "./model/mock-client.js";
 import { BufferTransport } from "./transport.js";
 
 // Suppress console output during tests
