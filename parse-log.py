@@ -1324,8 +1324,9 @@ def trend(n: int = 5) -> None:
         last = owner["last_progress_iter"]
         builder_iters_ago = 0
         if last and entries:
-            current_iter = entries[-1]["iter"]
-            builder_iters_ago = (current_iter - last) // 2
+            # Count actual builder sessions after last progress, not arithmetic
+            # on iter numbers (which breaks with out-of-sequence entries like 999)
+            builder_iters_ago = sum(1 for e in entries if e["iter"] > last)
         owner_stale = builder_iters_ago >= 5 or not last
         warn = ""
         if not last:

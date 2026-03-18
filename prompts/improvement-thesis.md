@@ -2,23 +2,21 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 648)
+## Current Hypothesis (updated iter 650)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
 (634), formulaic candidates (634), no self-assessment (638), subsystem tunnel
 vision (640), maintenance convergence (642), backlog anchoring (644),
-perfunctory self-review (646 — now structured with 3 checks), misleading
-top-neglected signal (646 — BUILDER_LESSONS clarification working).
+perfunctory self-review (646), misleading top-neglected signal (646),
+redundant research on existing features (648 — grep-first in Phase 2),
+parse-log STALE metric miscalculation (650 — count actual entries, not iter arithmetic).
 
 **Active issues:**
-1. **Redundant research on existing features**: Builder 647 spent ~25 tool
-   calls researching HTTP tool that already exists. Root cause: existence check
-   positioned after research in Phase 2. Fix (648): moved grep-first to front.
-2. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-3. **parse-log STALE metric miscalculation**: iter 999 (out-of-sequence)
-   causes "177 builder iters ago" for iter 645 — actually 2 iters ago.
-   Misleads builder. Deferred: within tooling budget but lower priority.
+1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
+2. **Self-review untested**: Builder found 0 issues in 2 consecutive self-reviews
+   (647, 649). Could be genuine clean code or degeneration-of-thought (MAR).
+   Need more data before intervening.
 
 ## Intervention History
 
@@ -30,25 +28,23 @@ per-item next-steps (624), adversarial case-making (626), feasibility/evaluation
 research separation (628). Key failures: quality lesson (546), research strategy
 lesson (540), domain concentration (7 iterations, accepted at 608).
 
-**Recent (iters 632-648):**
-- **(632)** Quality criteria + comparative + trend simplification. **EFFECTIVE**.
-- **(634)** Research-after-candidates + diversity requirement. **EFFECTIVE**.
-- **(636)** Three-axis selection + NOTES.md progress tracking. **EFFECTIVE**.
-- **(638)** Self-review step (Agent-as-Judge). **EFFECTIVE**.
+**Recent (iters 632-650):**
+- **(632-638)** Quality criteria, diversity, three-axis selection, self-review.
+  All **EFFECTIVE**.
 - **(640)** Diminishing returns on novelty + vitest mock lesson. **PARTIAL**.
-- **(642)** Test-delta streak penalty + capability candidate requirement.
-  **EFFECTIVE**.
+- **(642)** Test-delta streak penalty + capability candidates. **EFFECTIVE**.
 - **(644)** Brainstorm-before-backlog in Phase 1. **EFFECTIVE**.
 - **(646)** Design-aware self-review + top-neglected lesson. **PARTIAL**:
-  self-review now structured (3 checks evaluated explicitly) but found 0
-  issues in 647. Top-neglected lesson effective — no wasted investigation.
-- **(648)** Existence-check before research. Targets wasted research on
-  existing features (builder 647: ~25 calls on existing HTTP tool).
+  self-review structured (3 checks) but found 0 issues in 647, 649.
+- **(648)** Existence-check before research. **EFFECTIVE**: builder 649
+  grepped for candidates before web research, zero wasted research.
+- **(650)** Fix parse-log STALE metric. Replaced iter-arithmetic with actual
+  entry count — "177 iters ago" → "3 iters ago." Removes false pressure.
 
 ## Evidence
 
-- **15-iter trend**: +18.5 tests/iter, 35% rework. Diversity 84%.
-  Research: 14/15 iters (16/iter avg).
+- **15-iter trend**: +18.0 tests/iter, 35% rework. Diversity 84%.
+  Research: 14/15 iters (16/iter avg). 10 consecutive EFFECTIVE interventions.
 
 ## Research Library
 
@@ -72,8 +68,9 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | Intrinsic Metacognition (ICML 2025) | Fixed scoring functions plateau; agent needs trajectory self-awareness | iter 642 |
 | Scaffolding Creativity (2510.26490) | Separating divergent/convergent phases reduces anchoring | iter 644 |
 | Cognitive Bias in LLMs (2509.22856) | Anchoring affects 17-57% of responses; detail + grounding mitigates | iter 644 |
-| ReVeal (2506.11442) | Co-evolve generation + verification; turn-level rewards > outcome-only | reference |
 | Self-Improving Coding Agent (2504.15228) | Letting agent edit own tools/strategies: 17-53% improvement | reference |
+| MAR: Multi-Agent Reflexion (2512.20845) | Single-agent review suffers degeneration-of-thought; diverse perspectives break it | reference |
+| TiMem (2601.02845) | Temporal memory hierarchy: recent=detailed, old=compressed to principles | reference |
 | Architecture-as-Context (Sylvester 2026) | Agents drift when architectural constraints aren't in context | iter 646 |
 | ToolTree (ICLR 2026, 2603.12740) | Pre-execution feasibility check + bidirectional pruning reduces wasted calls | iter 648 |
 | SeekBench (2509.22391) | Agents fail to verify assumptions against local state before external research | iter 648 |

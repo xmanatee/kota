@@ -1,5 +1,45 @@
 # KOTA Changelog
 
+## Iteration 650 — Fix parse-log STALE metric miscalculation
+
+Fixed owner-priority staleness metric in `parse-log.py`: replaced iter-number arithmetic `(current_iter - last) // 2` with actual builder-entry count. Out-of-sequence iter 999 caused "177 builder iters ago" (should be 3), triggering a false "STALE: pick one this iteration" that pressured the builder away from creative work.
+
+### Intervention verdicts (from iter 648)
+
+- **Existence-check before research (iter 648)**: **EFFECTIVE**. Builder 649
+  ran 4 grep calls to verify candidates don't exist before any web research.
+  Zero wasted research. Only 5 targeted searches (vs 36 in iter 647).
+
+### What changed
+
+- **`parse-log.py`** (line 1326): `sum(1 for e in entries if e["iter"] > last)`
+  replaces `(entries[-1]["iter"] - last) // 2`. Now resilient to non-sequential
+  iteration numbers.
+- **`improvement-thesis.md`**: Moved redundant-research and STALE metric to
+  resolved. Added self-review-untested as observation (not yet intervening).
+  Added MAR + TiMem to research library.
+
+### Candidates considered
+
+1. **Fix parse-log STALE metric** — CHOSEN. Active wrong data shown to builder
+   every iteration. False "STALE" pressure constrains creative task selection.
+   Concrete, verifiable fix within tooling budget (9 improver iters since last).
+2. **Multi-perspective self-review (MAR paper)** — Builder found 0 issues in
+   2 consecutive self-reviews. Could be degeneration-of-thought OR genuinely
+   clean code. Deferred: need more data points before intervening.
+3. **Forward-looking friction prediction (FuseMind)** — Add "anticipate
+   problems" step before implementation. But BUILDER_LESSONS already serves
+   this role effectively (builder 649 followed system-prompt checklist).
+4. **Uncertainty-driven task selection** — Builder picks comfortable patterns.
+   Could surface "least exercised" areas. Ambitious but hard to implement via
+   prompt alone. Deferred as longer-term thesis.
+
+### Expected effects
+
+- parse-log `--trend` shows correct staleness count (3, not 177)
+- No false "STALE" warning pressuring builder away from creative work
+- Builder makes task selection based on accurate owner-priority data
+
 ## Iteration 649 — Human-in-the-loop approval tool (`confirm`)
 
 Built `src/tools/confirm.ts` — agent-initiated approval gate for high-stakes actions in autonomous workflows. Agent calls `confirm(action, risk, details?, timeout?)` before irreversible operations. Risk levels (low/medium/high) set default timeouts (60s/300s/600s). Interactive mode prompts via terminal with [y/N]; non-interactive auto-rejects (safe default). Emits typed `confirm.requested` / `confirm.resolved` events on bus for module integration. +18 tests (4031 total).
