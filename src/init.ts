@@ -1,11 +1,10 @@
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { getHistory } from "./memory/history.js";
 import { getKnowledgeStore } from "./memory/knowledge-store.js";
 import { getMemoryStore } from "./memory/store.js";
+import { getHistoryProvider, getTaskProvider } from "./providers.js";
 import { getScheduler } from "./scheduler/scheduler.js";
-import { getTaskStore } from "./scheduler/task-store.js";
 
 /** Detect project type from config files in cwd. */
 export function detectProject(cwd: string): string | null {
@@ -207,7 +206,7 @@ function recallMemories(cwd: string): string | null {
 /** Recall active tasks from persistent task store. */
 function recallTasks(): string | null {
   try {
-    const store = getTaskStore();
+    const store = getTaskProvider();
     return store.getActiveSummary();
   } catch {
     return null;
@@ -246,7 +245,7 @@ function recallKnowledge(cwd: string): string | null {
 /** Show hint about the most recent conversation in this directory. */
 function recallRecentConversation(cwd: string): string | null {
   try {
-    const history = getHistory();
+    const history = getHistoryProvider();
     const recent = history.getMostRecent(cwd);
     if (!recent) return null;
 

@@ -6,7 +6,8 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { type ConversationRecord, getHistory } from "../memory/history.js";
+import type { ConversationRecord } from "../memory/history.js";
+import { getHistoryProvider } from "../providers.js";
 import type { ToolResult } from "./index.js";
 
 export const conversationRecallTool: Anthropic.Tool = {
@@ -82,7 +83,7 @@ export async function runConversationRecall(
 	input: Record<string, unknown>,
 ): Promise<ToolResult> {
 	const action = input.action as string;
-	const history = getHistory();
+	const history = getHistoryProvider();
 	const limit = Math.min(Math.max((input.limit as number) || 10, 1), 30);
 
 	switch (action) {

@@ -161,9 +161,11 @@ Persistent, queryable log storage for modules. Each module gets a JSONL file at 
 
 Typed interfaces for swappable core services. Modules can register alternative implementations — swap memory from JSON to SQLite, vector DB, or cloud storage by implementing an interface and setting config.
 
-**Interfaces**:
-- `MemoryProvider` — `save`, `search`, `list`, `update`, `delete`. The built-in `MemoryStore` structurally satisfies this.
-- `KnowledgeProvider` — `create`, `read`, `update`, `delete`, `search`, `list`, `count`. The built-in `KnowledgeStore` structurally satisfies this.
+**Interfaces** (4 service types):
+- `MemoryProvider` — `save`, `search`, `list`, `update`, `delete`. Built-in: `MemoryStore`.
+- `KnowledgeProvider` — `create`, `read`, `update`, `delete`, `search`, `list`, `count`. Built-in: `KnowledgeStore`.
+- `TaskProvider` — `add`, `update`, `list`, `active`, `get`, `clear`, `archiveCompleted`, `getActiveSummary`, `isEmpty`, `count`. Built-in: `TaskStore`.
+- `HistoryProvider` — `create`, `save`, `load`, `list`, `getMostRecent`, `findByPrefix`, `remove`, `cleanup`. Built-in: `ConversationHistory`.
 
 **ProviderRegistry**:
 - `register(type, name, provider)` — register a named provider for a service type
@@ -176,7 +178,9 @@ Typed interfaces for swappable core services. Modules can register alternative i
 {
   "providers": {
     "memory": "my-vector-memory",
-    "knowledge": "default"
+    "knowledge": "default",
+    "task": "default",
+    "history": "default"
   }
 }
 ```

@@ -2,16 +2,21 @@
  * Provider interfaces and registry — enables swappable backends for core services.
  *
  * Modules can register alternative implementations of MemoryProvider, KnowledgeProvider,
- * etc. The agent resolves the active provider from the registry, falling back to the
- * built-in implementation if no custom provider is configured.
+ * TaskProvider, HistoryProvider, etc. The agent resolves the active provider from the
+ * registry, falling back to the built-in implementation if no custom provider is configured.
  *
  * Follows the same pattern as SecretProvider (src/secrets.ts) but generalized.
  */
 
+import type Anthropic from "@anthropic-ai/sdk";
+import type { ConversationData, ConversationRecord } from "./memory/history.js";
+import { getHistory } from "./memory/history.js";
 import type { KnowledgeEntry, SearchFilters } from "./memory/knowledge-store.js";
 import { getKnowledgeStore } from "./memory/knowledge-store.js";
 import type { Memory } from "./memory/store.js";
 import { getMemoryStore } from "./memory/store.js";
+import type { Task, TaskPriority, TaskStatus } from "./scheduler/task-store.js";
+import { getTaskStore } from "./scheduler/task-store.js";
 
 // --- Provider interfaces ---
 
@@ -54,6 +59,58 @@ export interface KnowledgeProvider {
 	search(query: string, filters?: SearchFilters): KnowledgeEntry[];
 	list(filters?: SearchFilters): KnowledgeEntry[];
 	count(type?: string): number;
+}
+
+/** Interface for persistent task storage (add/update/list/get/clear). */
+export interface TaskProvider {
+	add(
+		task: string,
+		opts?: {
+			parent_id?: number;
+			priority?: TaskPriority;
+			blocked_by?: number[];
+			notes?: string;
+		},
+	): Task;
+	update(
+		id: number,
+		changes: {
+			status?: TaskStatus;
+			priority?: TaskPriority;
+			blocked_by?: number[];
+			notes?: string;
+		},
+	): Task;
+	list(): Task[];
+	active(): Task[];
+	get(id: number): Task | undefined;
+	clear(): void;
+	archiveCompleted(): number;
+	getActiveSummary(): string | null;
+	isEmpty(): boolean;
+	count(): number;
+}
+
+/** Interface for conversation history storage (create/save/load/list/find/remove). */
+export interface HistoryProvider {
+	create(model: string, cwd: string, source?: "user" | "action"): string;
+	save(
+		id: string,
+		messages: Anthropic.MessageParam[],
+		compactionCount: number,
+		lastInputTokens: number,
+	): void;
+	load(id: string): ConversationData | null;
+	list(opts?: {
+		search?: string;
+		limit?: number;
+		cwd?: string;
+		source?: "user" | "action";
+	}): ConversationRecord[];
+	getMostRecent(cwd?: string): ConversationRecord | null;
+	findByPrefix(idOrPrefix: string): ConversationRecord | null;
+	remove(id: string): boolean;
+	cleanup(): number;
 }
 
 // --- Provider registry ---
@@ -160,11 +217,13 @@ export function resetProviderRegistry(): void {
 	registry = null;
 }
 
-/** Register the built-in MemoryStore and KnowledgeStore as default providers. */
+/** Register built-in stores as default providers for all service types. */
 export function registerDefaultProviders(cwd?: string): void {
 	if (!registry) return;
 	registry.register("memory", "default", getMemoryStore());
 	registry.register("knowledge", "default", getKnowledgeStore(cwd));
+	registry.register("task", "default", getTaskStore());
+	registry.register("history", "default", getHistory());
 }
 
 // --- Convenience getters with fallback ---
@@ -185,4 +244,22 @@ export function getKnowledgeProvider(cwd?: string): KnowledgeProvider {
 		if (provider) return provider;
 	}
 	return getKnowledgeStore(cwd);
+}
+
+/** Get the active task provider, falling back to the built-in TaskStore. */
+export function getTaskProvider(): TaskProvider {
+	if (registry) {
+		const provider = registry.get<TaskProvider>("task");
+		if (provider) return provider;
+	}
+	return getTaskStore();
+}
+
+/** Get the active history provider, falling back to the built-in ConversationHistory. */
+export function getHistoryProvider(): HistoryProvider {
+	if (registry) {
+		const provider = registry.get<HistoryProvider>("history");
+		if (provider) return provider;
+	}
+	return getHistory();
 }

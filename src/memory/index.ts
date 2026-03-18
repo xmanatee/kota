@@ -9,6 +9,7 @@ export {
 	extractWorkingState,
 } from "./compaction.js";
 export {
+	type ConversationData,
 	ConversationHistory,
 	type ConversationRecord,
 	generateTitle,

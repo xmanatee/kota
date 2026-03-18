@@ -17,7 +17,7 @@ export type ConversationRecord = {
   source?: "user" | "action";
 };
 
-type ConversationData = {
+export type ConversationData = {
   record: ConversationRecord;
   messages: Message[];
   compactionCount: number;

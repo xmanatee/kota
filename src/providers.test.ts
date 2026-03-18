@@ -1,14 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	getHistoryProvider,
 	getKnowledgeProvider,
 	getMemoryProvider,
 	getProviderRegistry,
+	getTaskProvider,
+	type HistoryProvider,
 	initProviderRegistry,
 	type KnowledgeProvider,
 	type MemoryProvider,
 	ProviderRegistry,
 	registerDefaultProviders,
 	resetProviderRegistry,
+	type TaskProvider,
 } from "./providers.js";
 
 // --- ProviderRegistry unit tests ---
@@ -155,6 +159,36 @@ describe("interface conformance", () => {
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.count).toBe("function");
 	});
+
+	it("TaskProvider interface matches TaskStore shape", async () => {
+		const { TaskStore } = await import("./scheduler/task-store.js");
+		const store = new TaskStore(undefined, null);
+		const provider: TaskProvider = store;
+		expect(typeof provider.add).toBe("function");
+		expect(typeof provider.update).toBe("function");
+		expect(typeof provider.list).toBe("function");
+		expect(typeof provider.active).toBe("function");
+		expect(typeof provider.get).toBe("function");
+		expect(typeof provider.clear).toBe("function");
+		expect(typeof provider.archiveCompleted).toBe("function");
+		expect(typeof provider.getActiveSummary).toBe("function");
+		expect(typeof provider.isEmpty).toBe("function");
+		expect(typeof provider.count).toBe("function");
+	});
+
+	it("HistoryProvider interface matches ConversationHistory shape", async () => {
+		const { ConversationHistory } = await import("./memory/history.js");
+		const history = new ConversationHistory("/tmp/test-provider-conformance-history");
+		const provider: HistoryProvider = history;
+		expect(typeof provider.create).toBe("function");
+		expect(typeof provider.save).toBe("function");
+		expect(typeof provider.load).toBe("function");
+		expect(typeof provider.list).toBe("function");
+		expect(typeof provider.getMostRecent).toBe("function");
+		expect(typeof provider.findByPrefix).toBe("function");
+		expect(typeof provider.remove).toBe("function");
+		expect(typeof provider.cleanup).toBe("function");
+	});
 });
 
 // --- Convenience getter tests ---
@@ -218,6 +252,74 @@ describe("convenience getters", () => {
 		const provider = getMemoryProvider();
 		expect(typeof provider.save).toBe("function");
 	});
+
+	it("getTaskProvider falls back to TaskStore when no registry", () => {
+		resetProviderRegistry();
+		const provider = getTaskProvider();
+		expect(typeof provider.add).toBe("function");
+		expect(typeof provider.list).toBe("function");
+	});
+
+	it("getTaskProvider returns custom provider when registered", () => {
+		const reg = initProviderRegistry();
+		const custom: TaskProvider = {
+			add: () => ({ id: 99, task: "custom", status: "pending", created: "" }),
+			update: () => ({ id: 99, task: "custom", status: "done", created: "" }),
+			list: () => [],
+			active: () => [],
+			get: () => undefined,
+			clear: () => {},
+			archiveCompleted: () => 0,
+			getActiveSummary: () => null,
+			isEmpty: () => true,
+			count: () => 0,
+		};
+		reg.register("task", "custom", custom);
+		reg.setActive("task", "custom");
+
+		const provider = getTaskProvider();
+		expect(provider).toBe(custom);
+		expect(provider.count()).toBe(0);
+	});
+
+	it("getTaskProvider returns default when registry exists but has no task provider", () => {
+		initProviderRegistry();
+		const provider = getTaskProvider();
+		expect(typeof provider.add).toBe("function");
+	});
+
+	it("getHistoryProvider falls back to ConversationHistory when no registry", () => {
+		resetProviderRegistry();
+		const provider = getHistoryProvider();
+		expect(typeof provider.list).toBe("function");
+		expect(typeof provider.load).toBe("function");
+	});
+
+	it("getHistoryProvider returns custom provider when registered", () => {
+		const reg = initProviderRegistry();
+		const custom: HistoryProvider = {
+			create: () => "custom-id",
+			save: () => {},
+			load: () => null,
+			list: () => [],
+			getMostRecent: () => null,
+			findByPrefix: () => null,
+			remove: () => false,
+			cleanup: () => 0,
+		};
+		reg.register("history", "custom", custom);
+		reg.setActive("history", "custom");
+
+		const provider = getHistoryProvider();
+		expect(provider).toBe(custom);
+		expect(provider.create("model", "/tmp")).toBe("custom-id");
+	});
+
+	it("getHistoryProvider returns default when registry exists but has no history provider", () => {
+		initProviderRegistry();
+		const provider = getHistoryProvider();
+		expect(typeof provider.list).toBe("function");
+	});
 });
 
 // --- registerDefaultProviders tests ---
@@ -225,13 +327,17 @@ describe("convenience getters", () => {
 describe("registerDefaultProviders", () => {
 	afterEach(() => resetProviderRegistry());
 
-	it("registers default memory and knowledge providers", () => {
+	it("registers default providers for all four service types", () => {
 		const reg = initProviderRegistry();
 		registerDefaultProviders("/tmp");
 		expect(reg.list("memory")).toEqual(["default"]);
 		expect(reg.list("knowledge")).toEqual(["default"]);
+		expect(reg.list("task")).toEqual(["default"]);
+		expect(reg.list("history")).toEqual(["default"]);
 		expect(reg.getActiveName("memory")).toBe("default");
 		expect(reg.getActiveName("knowledge")).toBe("default");
+		expect(reg.getActiveName("task")).toBe("default");
+		expect(reg.getActiveName("history")).toBe("default");
 	});
 
 	it("default providers are functional", () => {
@@ -241,6 +347,10 @@ describe("registerDefaultProviders", () => {
 		expect(typeof mem.save).toBe("function");
 		const know = getKnowledgeProvider();
 		expect(typeof know.create).toBe("function");
+		const task = getTaskProvider();
+		expect(typeof task.add).toBe("function");
+		const hist = getHistoryProvider();
+		expect(typeof hist.list).toBe("function");
 	});
 
 	it("does nothing when registry not initialized", () => {

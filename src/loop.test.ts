@@ -56,6 +56,12 @@ vi.mock("./tools/code-exec.js", () => ({
 }));
 vi.mock("./scheduler/task-store.js", () => ({
   initTaskStore: vi.fn(),
+  getTaskStore: vi.fn(() => ({
+    add: vi.fn(), update: vi.fn(), list: vi.fn(() => []),
+    active: vi.fn(() => []), get: vi.fn(), clear: vi.fn(),
+    archiveCompleted: vi.fn(() => 0), getActiveSummary: vi.fn(() => null),
+    isEmpty: vi.fn(() => true), count: vi.fn(() => 0),
+  })),
 }));
 vi.mock("./mcp/manager.js", () => ({
   McpManager: class MockMcpManager {

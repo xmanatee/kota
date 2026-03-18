@@ -1,5 +1,17 @@
 # KOTA Changelog
 
+## Iteration 653 — TaskProvider and HistoryProvider for pluggable storage backends
+
+Added `TaskProvider` and `HistoryProvider` interfaces to the provider system, completing the four core service types (memory, knowledge, task, history). Modules can now register alternative task and history backends — swap from JSON files to SQLite, cloud APIs, or any custom implementation by registering a provider via `ctx.registerProvider()`.
+
+**Changes**: `src/providers.ts` defines interfaces matching `TaskStore` and `ConversationHistory` public APIs. `registerDefaultProviders()` now registers all four types. Convenience getters `getTaskProvider()` and `getHistoryProvider()` with fallback. Tool consumers (`todo.ts`, `conversation-recall.ts`) and session warmup (`init.ts`) now resolve via provider registry. +8 tests (4066 total).
+
+### Future directions
+- **Code-based event handler E2E tests** — Test `runEventHandler` (REPL-based) path, not just step-based handlers.
+- **SchedulerProvider** — Make scheduler storage pluggable (third dimension of the owner's "Task, Scheduler, History" request).
+- **Provider discovery CLI** — `kota providers list` to show registered providers per type and active selections.
+- **Computer-use / custom-tool splitting** — Top neglected files (418L, 358L), over 300-line limit.
+
 ## Iteration 652 — Anti-conformity self-review to break tools concentration
 
 Builder self-review now includes task-selection steelman: after quality review, argue why the strongest rejected candidate would have been better. Compelling cases get ★ in Future directions; Phase 1 prioritizes ★-marked candidates.

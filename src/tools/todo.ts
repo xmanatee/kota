@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getTaskStore, type Task, type TaskPriority } from "../scheduler/task-store.js";
+import { getTaskProvider } from "../providers.js";
+import type { Task, TaskPriority } from "../scheduler/task-store.js";
 import type { ToolResult } from "./index.js";
 
 export type Priority = TaskPriority;
@@ -65,7 +66,7 @@ export async function runTodo(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
   const action = input.action as string;
-  const store = getTaskStore();
+  const store = getTaskProvider();
 
   switch (action) {
     case "add": {
@@ -165,7 +166,7 @@ function formatTodos(tasks: Task[]): string {
 }
 
 export function getTodoState(): string {
-  const store = getTaskStore();
+  const store = getTaskProvider();
   const tasks = store.list();
   if (tasks.length === 0) return "";
   // Show active tasks + up to 5 recent completed for context
