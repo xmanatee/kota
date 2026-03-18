@@ -109,8 +109,10 @@ def parse(path: str) -> None:
                         r"\x1b\[[0-9;]*m|\\u001b\[[0-9;]*m|\[[0-9;]*m",
                         "", _raw,
                     )
-                    for _m in re.finditer(r"(\d{3,})\s+passed", _clean):
-                        _n = int(_m.group(1))
+                    for _m in re.finditer(
+                        r"(\d{3,})\s+passed(?:\s*\((\d+)\))?", _clean,
+                    ):
+                        _n = int(_m.group(2) or _m.group(1))
                         if _n > 500:
                             suite_totals.append(_n)
 
@@ -699,8 +701,10 @@ def _quick_parse(path: str) -> dict:
                     elif block.get("type") == "tool_result":
                         _raw = json.dumps(block.get("content", ""))
                         _clean = _ansi_re.sub("", _raw)
-                        for _m in re.finditer(r"(\d{3,})\s+passed", _clean):
-                            _n = int(_m.group(1))
+                        for _m in re.finditer(
+                            r"(\d{3,})\s+passed(?:\s*\((\d+)\))?", _clean,
+                        ):
+                            _n = int(_m.group(2) or _m.group(1))
                             if _n > 500:
                                 _suite_totals.append(_n)
             continue
@@ -1091,6 +1095,8 @@ def _classify_subsystem(title: str) -> str:
         return "modules/manifest"
     if any(kw in t for kw in ["modulecontext", "module context", "ctx.", "event proxy", "session factory", "dependency inject"]):
         return "modules/ctx"
+    if any(kw in t for kw in ["secret", "credential", "keychain", "injection guard"]):
+        return "other"
     if any(kw in t for kw in ["provider", "sqlite", "memory backend", "alternative backend", "model client", "modelclient", "openai-compatible"]):
         return "modules/provider"
     if any(kw in t for kw in ["log storage", "persistent log", "audit trail", "module log"]):

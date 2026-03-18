@@ -107,7 +107,7 @@ but explicit logging is more precise.)
 
 ## Architecture as Capability
 
-32+ tools, 3618+ tests. Each new tool adds less than the last. Architecture
+32+ tools, 3651+ tests. Each new tool adds less than the last. Architecture
 work IS capability work when it enables something new:
 - Module isolation → runtime extensibility (user asks agent to create a tool)
 - Untested integration paths → reliability (50-turn conversation without degradation)

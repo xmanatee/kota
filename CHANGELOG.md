@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 618 — Fix test delta to use total counts instead of passed counts, fix secrets subsystem misclassification
+
+Fixed test delta extraction to use Vitest totals (not passed counts) and subsystem classifier to exclude security keywords from "provider" pattern.
+
+### Intervention verdicts (from iter 616)
+
+- **Depth tracking auto-detection (iter 616)**: CONFIRMED. Builder updated
+  depth-log.md in iter 617 (call 65). The depth work logging lesson is working.
+- **Depth coverage signal accuracy (iter 616)**: CONFIRMED. knowledge-store.ts
+  and openai-model-client.ts correctly excluded from neglected list after
+  auto-detection picked up iter 615's edits.
+
+### Diagnosis
+
+Test delta for iter 617 showed "31→54 (+23)" in trend (per-file count from
+text fallback) instead of "3628→3651 (+23)" (correct full-suite total). Root
+cause: Vitest output `Tests 41 failed | 3610 passed (3651)` — the `passed`
+regex captured 3626→3610 (decreasing due to flaky failures), triggering None
+from the primary extractor and falling through to text-based P4/P5 patterns.
+Fix: extract `(total)` instead of `passed` count. Totals never decrease within
+a session (new tests always increase total regardless of flaky failures).
+
+Additionally, iter 617's subsystem was classified as "modules/provider" because
+the summary line contained "provider chain priority" (secrets providers, not
+module providers). This inflated modules domain from 4 to 5/10, generating a
+false "nearing saturation" warning. Fix: check security keywords (secret,
+credential, keychain, injection guard) before the "provider" pattern.
+
+### Candidates considered
+
+1. **Test delta total-count fix** — CHOSEN. 6th metric accuracy fix (Pattern
+   Watch #5). Affects any session with flaky test failures.
+2. **Subsystem classifier security keywords** — CHOSEN (bundled). One-line fix
+   removing a false saturation warning that could misdirect builder decisions.
+3. **Re-edit rate analysis** — 52% avg, 75% in iter 617 (6 edits to test file).
+   Inherent to bulk test additions. Not a clear intervention target.
+4. **Web research on smart test selection** — Delegated to background agent.
+5. **BUILDER_LESSONS update** — No new recurring patterns from iter 617.
+
+### Expected effects
+
+- Test deltas accurate even when flaky failures cause passed counts to decrease
+- Subsystem classification no longer inflated by security-domain "provider" usage
+- Builder gets cleaner domain concentration signals → less false avoidance of
+  modules work
+
 ## Iteration 617 — Harden secrets management: fix remove() masking bug, injection guard, +23 tests
 
 Fixed a bug where `SecretStore.remove()` failed to untrack secret values from masking — `knownSecrets` maps value→name but `delete()` was called with the name as key, leaving removed secrets still masked. Hardened `KeychainProvider.escapeArg` to reject newlines and null bytes (command injection guard). Added 23 edge-case tests covering provider chain priority, masking after removal, overlapping values, .env format variants, and special characters.
