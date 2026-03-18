@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import { Command } from "commander";
 import { ActionExecutor, partitionDueItems } from "./action-executor.js";
+import { executeWithAgentSDK } from "./agent-sdk/index.js";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { confirmAction, setSkipConfirmations } from "./confirm.js";
 import { type ConversationHistory, getHistory } from "./history.js";
@@ -8,7 +9,7 @@ import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
-import { createModelClient } from "./provider-factory.js";
+import { createModelClient, parseModelString } from "./provider-factory.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
@@ -53,7 +54,7 @@ program
   .description("Run KOTA with a prompt")
   .argument("[prompt...]", "The task to perform")
   .option("-m, --model <model>", "Model (default: claude-sonnet-4-6). Supports provider/model notation: ollama/llama3, openai/gpt-4o")
-  .option("--provider <name>", "Model provider: anthropic, openai, ollama, groq, together, lmstudio (or any OpenAI-compat with --base-url)")
+  .option("--provider <name>", "Model provider: anthropic, openai, ollama, groq, together, lmstudio, agent-sdk (Claude Agent SDK)")
   .option("--base-url <url>", "Base URL for OpenAI-compatible provider (overrides preset)")
   .option("--editor-model <model>", "Model for editor pass and sub-agents (defaults to --model)")
   .option("--max-tokens <n>", "Max tokens per response")
@@ -74,11 +75,31 @@ program
 
     const config = loadConfig();
 
+    // Detect agent-sdk provider — separate execution path (full Claude Code backend)
+    const providerName = opts.provider || config.modelProvider?.type;
+    if (providerName === "agent-sdk") {
+      const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
+      const { model } = parseModelString(modelSpec);
+      let prompt = promptWords.join(" ");
+      prompt = expandAlias(prompt, config.aliases);
+      if (!prompt) {
+        console.error("agent-sdk provider requires a prompt. Interactive mode is not supported.");
+        process.exit(1);
+      }
+      await executeWithAgentSDK(prompt, {
+        model,
+        verbose: opts.verbose || config.verbose || false,
+        cwd: process.cwd(),
+      });
+      console.log();
+      return;
+    }
+
     // Resolve model provider: CLI flags > config file > default (anthropic)
     const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
     const resolved = createModelClient({
       model: modelSpec,
-      provider: opts.provider || config.modelProvider?.type,
+      provider: providerName,
       baseUrl: opts.baseUrl || config.modelProvider?.baseUrl,
       apiKey: config.modelProvider?.apiKey,
     });
@@ -385,6 +406,15 @@ async function checkPipeMode() {
     const piped = chunks.join("").trim();
     if (piped) {
       const config = loadConfig();
+
+      if (config.modelProvider?.type === "agent-sdk") {
+        const modelSpec = config.model || "claude-sonnet-4-6";
+        const { model } = parseModelString(modelSpec);
+        await executeWithAgentSDK(piped, { model, verbose: config.verbose, cwd: process.cwd() });
+        console.log();
+        return true;
+      }
+
       const resolved = createModelClient({
         model: config.model || "claude-sonnet-4-6",
         provider: config.modelProvider?.type,

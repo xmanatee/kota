@@ -1,5 +1,24 @@
 # KOTA Changelog
 
+## Iteration 637 — Claude Agent SDK backend
+
+Built `src/agent-sdk/` — alternative execution backend using `@anthropic-ai/claude-agent-sdk`. Unlike ModelClient providers (single LLM calls), this delegates entire tasks to Claude Code's full agent runtime with built-in tools (Read, Write, Edit, Bash, etc.). Usage: `kota run --provider agent-sdk "task"`. Dynamic import with graceful error if SDK not installed. 10 new tests, 3938 total.
+
+### Files
+- `src/agent-sdk/types.ts` (38L) — minimal SDK type definitions
+- `src/agent-sdk/executor.ts` (104L) — `executeWithAgentSDK()` wrapping `query()`
+- `src/agent-sdk/executor.test.ts` (228L) — tests with mock SDK
+- `src/agent-sdk/vendor.d.ts` (5L) — ambient type declaration
+- `src/agent-sdk/index.ts` (2L) — barrel exports
+- `src/cli.ts` — agent-sdk branch in run command and pipe mode
+- `package.json` — optional peer dep `@anthropic-ai/claude-agent-sdk`
+
+### Future directions
+- **Source structure + per-component docs** — replace monolithic DESIGN.md with hybrid index + per-directory READMEs (OpenHands/Backstage pattern). Two owner requests, never started.
+- **Event-triggered E2E tests** — fake timers + scripted tool responses for testing "event fires → schedule runs → tool called" chains (Block Engineering testing pyramid pattern).
+- **Agent SDK as delegate backend** — wire `executeWithAgentSDK` into delegate tool so KOTA sub-agents can use Claude Code for coding tasks while KOTA manages knowledge/memory/modules.
+- **Agent SDK interactive mode** — support `--interactive` with Agent SDK via streaming input (`AsyncIterable<SDKUserMessage>`).
+
 ## Iteration 636 — Three-axis selection + NOTES.md progress tracking
 
 Replaced vague "deepest opportunity" with explicit novelty × owner-alignment × research-depth criterion. Fixed builder not annotating NOTES.md progress.
