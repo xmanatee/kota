@@ -2,19 +2,19 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 668)
+## Current Hypothesis (updated iter 670)
 
-**Resolved**: 20 issues (iters 632-666). Key: metric obsession, prompt
+**Resolved**: 21 issues (iters 632-668). Key: metric obsession, prompt
 overspecification, formulaic candidates, backlog anchoring, ★-mark anchoring,
-confirmation bias, research→implementation gap (Bridge step, 666 — EFFECTIVE).
+confirmation bias, research→implementation gap (666), rubber-stamp self-review (668).
 
 **Active issues:**
 1. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-2. **Rubber-stamp self-review**: Self-review consistently finds "no issues"
-   across 3+ iterations (663: 52% rework/3 fix cycles, 665: 50%/2, 667: 46%/0
-   — all self-reviewed as "looks clean"). Pass/fail questions let builder affirm
-   quality without generating findings. Intervention (668): restructured
-   questions to demand specific findings, not pass/fail verdicts.
+2. **Feature-tool concentration**: 10/15 iters in tools domain, 12/15 feature
+   work. Selection criteria structurally favor features: "novelty" checked
+   per-subsystem (too granular), "impact" rewarded user-facing only.
+   Intervention (670): reframed criteria — domain-level novelty, compounding
+   impact.
 
 ## Intervention History
 
@@ -30,18 +30,20 @@ criterion (656).
 **Recent:**
 - **(662)** Composition-first brainstorming. **EFFECTIVE** (confirmed 2 iters).
 - **(664)** Split research from selection. **EFFECTIVE** (confirmed 1 iter).
-- **(666)** Bridge step (research→implementation). **EFFECTIVE**: builder 667
-  named "explicit named re-exports" from research; directly shaped implementation.
+- **(666)** Bridge step (research→implementation). **EFFECTIVE** (2 iters).
+- **(668)** Self-review: specific findings, not verdicts. **EFFECTIVE**: builder
+  669 produced 3 named findings (coupling, untested path, simpler alternative).
+- **(670)** Domain-level novelty + compounding impact criteria.
 
 ## Evidence
 
-- **15-iter trend**: +17.3 tests/iter, 44% rework. Diversity 66% (healthy).
-  Research: 15/15 (saturated). Work: 11 feature, 3 architecture, 1 harden.
-  Owner priorities: 11 pending, last progress iter 667 (current).
-  Tools domain: 9/15 CONCENTRATED.
-- **Rubber-stamp self-review**: Iters 663, 665, 667 all produced "no issues"
-  self-reviews despite significant rework during implementation. Pass/fail
-  questions are structurally incapable of generating findings.
+- **15-iter trend**: +19.1 tests/iter, 46% rework. Diversity 57% (declining).
+  Research: 15/15 (saturated). Work: 12 feature, 2 architecture, 1 harden.
+  Owner priorities: 11 pending, last progress iter 667 (2 iters ago).
+  Tools domain: 10/15 CONCENTRATED.
+- **Self-review fixed (668)**: Builder 669 produced 3 named findings. Resolved.
+- **Feature-tool rut**: Selection criteria favor features because "novelty" is
+  per-subsystem (every tool is novel) and "impact" measures user-facing only.
 
 ## Research Library
 
@@ -64,6 +66,7 @@ diversity pressure (QDAIF, DGM), pre-action > post-action reflection (Devil's Ad
 | HGM (Sakana, ICLR 2026 Oral) | Short-term optimization can kill long-term potential | reference |
 | MAR (2512.20845) | Diverse reasoning personas reduce shared blind spots in self-review | iter 668 |
 | ASL (2510.14253, ICLR 2026) | Three-role loop (generate/solve/evaluate) avoids stagnation | reference |
+| Speed≠Quality (2511.04427) | Agent velocity gains transient; quality debt compounds | iter 670 |
 
 ## Improver Principles
 

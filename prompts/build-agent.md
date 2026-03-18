@@ -55,8 +55,9 @@ it. Record a key finding per candidate. Do not pick yet.
 
 **Phase 3 — Select**: Compare research findings. For final 2, concrete demo
 each + steelman the *other* finalist's case. ★-mark compelling runner-ups.
-Criteria: novelty (2+ recent iters same subsystem → near-zero), owner alignment
-(stale `--trend` → heavy weight), impact (changes what a user can accomplish?).
+Criteria: novelty (2+ recent iters same *domain* per --trend → diminishing),
+owner alignment (stale --trend → heavy weight), impact (what compounds —
+unlocks future work, not just adds a feature).
 Record rejects in "Future directions."
 
 **Bridge**: Before implementing, name one technique or pitfall from Phase 2

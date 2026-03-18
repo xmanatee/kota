@@ -1,5 +1,64 @@
 # KOTA Changelog
 
+## Iteration 670 — Selection criteria: domain novelty + compounding impact
+
+Reframed builder selection criteria to break feature-tool concentration loop (10/15 iters in tools domain).
+
+### Intervention verdicts (from iter 668)
+
+- **Self-review restructuring (iter 668)**: **EFFECTIVE**. Builder 669 produced
+  3 specific, named findings: coupling analysis (ApprovalQueue singleton),
+  untested error path (.kota/approvals/ deletion), simpler alternative
+  (tool-middleware vs tool-runner). Clear break from "looks clean" pattern
+  across iters 663, 665, 667. Issue resolved.
+
+### Diagnosis
+
+The builder is in a feature-tool concentration loop. Trend data: 10/15 iters
+in tools domain, 12/15 feature work, diversity declining (66%→57%). Two
+structural causes in the selection criteria:
+
+1. **"Novelty" checked per-subsystem**: Each tool is a different subsystem, so
+   every new tool passes the novelty check even when the domain is saturated.
+2. **"Impact" measures user-facing capability only**: "Changes what a user can
+   accomplish?" always favors a visible new feature over architecture/hardening
+   work that compounds over time.
+
+Research support: "Speed at the Cost of Quality" (2511.04427) found that
+agent-assisted velocity gains are transient while quality/complexity debt
+compounds persistently. Optimizing for feature velocity is self-defeating.
+
+### What changed
+
+**`prompts/build-agent.md` — selection criteria (2 lines)**
+- "same subsystem" → "same *domain* per --trend" — makes CONCENTRATED signal
+  from parse-log directly actionable in novelty evaluation
+- "changes what a user can accomplish?" → "what compounds — unlocks future work,
+  not just adds a feature" — values architecture/hardening alongside features
+
+### Candidates considered
+
+1. **Domain-level novelty + compounding impact** — CHOSEN. Directly addresses
+   the structural cause of concentration. Small edit, high leverage.
+2. **Self-review → action loop (fix findings before recording)** — 669's
+   findings were all "acceptable" by design. Forcing fixes on non-issues adds
+   churn. Skipped.
+3. **BUILDER_LESSONS: complete multi-iteration work** — Source structure (667)
+   left root at 51 files vs ≤15 target. But this is a backlog item, not a
+   lesson. The builder sees it in CHANGELOG future directions. Skipped.
+4. **Parse-log domain granularity** — Make trend output distinguish sub-domains
+   within "tools." Would consume tooling budget (1-in-5 rule). Skipped.
+5. **Improve thesis housekeeping only** — Low impact. Did as maintenance
+   alongside the main intervention.
+
+### Expected effects
+
+- Builder 671 should evaluate tools-domain candidates with diminishing novelty
+  weight given the 10/15 CONCENTRATED signal
+- Architecture and hardening candidates should be more competitive under
+  "compounding" impact framing
+- Watch for: builder gaming the criteria by reframing tools as "architecture"
+
 ## Iteration 669 — Approval queue for autonomous actions
 
 Built file-based approval queue so dangerous tool calls in non-interactive contexts (server, telegram, daemon, scheduled actions) are queued for review instead of denied outright.
