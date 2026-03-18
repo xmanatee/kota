@@ -172,3 +172,191 @@ describe("evaluateCondition edge cases", () => {
 		expect(evaluateCondition("0", "", {}, [])).toBe(false);
 	});
 });
+
+describe("evaluateCondition — contains operator", () => {
+	it("returns true when $prev contains substring", () => {
+		expect(evaluateCondition("$prev contains error", "an error occurred", {}, [])).toBe(true);
+	});
+
+	it("returns false when $prev does not contain substring", () => {
+		expect(evaluateCondition("$prev contains error", "all good", {}, [])).toBe(false);
+	});
+
+	it("works with $steps[N] reference", () => {
+		expect(evaluateCondition("$steps[0] contains ok", "", {}, ["status: ok"])).toBe(true);
+		expect(evaluateCondition("$steps[0] contains fail", "", {}, ["status: ok"])).toBe(false);
+	});
+
+	it("works with $payload field", () => {
+		expect(evaluateCondition("$payload.msg contains hello", "", { msg: "say hello world" }, [])).toBe(true);
+	});
+
+	it("is case-sensitive", () => {
+		expect(evaluateCondition("$prev contains Error", "an error occurred", {}, [])).toBe(false);
+		expect(evaluateCondition("$prev contains Error", "an Error occurred", {}, [])).toBe(true);
+	});
+});
+
+describe("evaluateCondition — matches operator", () => {
+	it("matches simple regex", () => {
+		expect(evaluateCondition("$prev matches ^200$", "200", {}, [])).toBe(true);
+		expect(evaluateCondition("$prev matches ^200$", "2001", {}, [])).toBe(false);
+	});
+
+	it("matches digit patterns", () => {
+		expect(evaluateCondition("$prev matches ^2\\d\\d$", "204", {}, [])).toBe(true);
+		expect(evaluateCondition("$prev matches ^2\\d\\d$", "404", {}, [])).toBe(false);
+	});
+
+	it("returns false on invalid regex", () => {
+		expect(evaluateCondition("$prev matches [invalid", "anything", {}, [])).toBe(false);
+	});
+
+	it("matches partial content", () => {
+		expect(evaluateCondition("$prev matches error", "an error occurred", {}, [])).toBe(true);
+	});
+});
+
+describe("evaluateCondition — && operator", () => {
+	it("true when both sides are truthy", () => {
+		expect(evaluateCondition("$prev && $payload.ok", "yes", { ok: "true" }, [])).toBe(true);
+	});
+
+	it("false when left side is falsy", () => {
+		expect(evaluateCondition("$prev && $payload.ok", "", { ok: "true" }, [])).toBe(false);
+	});
+
+	it("false when right side is falsy", () => {
+		expect(evaluateCondition("$prev && $payload.ok", "yes", { ok: "" }, [])).toBe(false);
+	});
+
+	it("chains three conditions", () => {
+		expect(evaluateCondition(
+			"$prev && $steps[0] && $payload.x",
+			"a", { x: "b" }, ["c"],
+		)).toBe(true);
+		expect(evaluateCondition(
+			"$prev && $steps[0] && $payload.x",
+			"a", { x: "" }, ["c"],
+		)).toBe(false);
+	});
+
+	it("works with comparisons", () => {
+		expect(evaluateCondition(
+			"$prev.status == 200 && $prev.ok == true",
+			'{"status":"200","ok":"true"}', {}, [],
+		)).toBe(true);
+		expect(evaluateCondition(
+			"$prev.status == 200 && $prev.ok == true",
+			'{"status":"200","ok":"false"}', {}, [],
+		)).toBe(false);
+	});
+});
+
+describe("evaluateCondition — || operator", () => {
+	it("true when either side is truthy", () => {
+		expect(evaluateCondition("$prev || $payload.fallback", "", { fallback: "yes" }, [])).toBe(true);
+		expect(evaluateCondition("$prev || $payload.fallback", "yes", { fallback: "" }, [])).toBe(true);
+	});
+
+	it("false when both sides are falsy", () => {
+		expect(evaluateCondition("$prev || $payload.fallback", "", { fallback: "" }, [])).toBe(false);
+	});
+
+	it("chains three conditions", () => {
+		expect(evaluateCondition("$prev || $steps[0] || $payload.x", "", { x: "" }, [""])).toBe(false);
+		expect(evaluateCondition("$prev || $steps[0] || $payload.x", "", { x: "yes" }, [""])).toBe(true);
+	});
+});
+
+describe("evaluateCondition — ! negation", () => {
+	it("negates truthy value", () => {
+		expect(evaluateCondition("!$prev", "truthy", {}, [])).toBe(false);
+	});
+
+	it("negates falsy value", () => {
+		expect(evaluateCondition("!$prev", "", {}, [])).toBe(true);
+	});
+
+	it("negates comparison", () => {
+		expect(evaluateCondition("!($prev == error)", "error", {}, [])).toBe(false);
+		expect(evaluateCondition("!($prev == error)", "ok", {}, [])).toBe(true);
+	});
+
+	it("double negation", () => {
+		expect(evaluateCondition("!!$prev", "truthy", {}, [])).toBe(true);
+		expect(evaluateCondition("!!$prev", "", {}, [])).toBe(false);
+	});
+});
+
+describe("evaluateCondition — parentheses", () => {
+	it("groups || inside &&", () => {
+		// ($prev || $steps[0]) && $payload.ok
+		// prev is falsy, steps[0] is truthy, payload.ok is truthy → true
+		expect(evaluateCondition(
+			"($prev || $steps[0]) && $payload.ok",
+			"", { ok: "yes" }, ["truthy"],
+		)).toBe(true);
+	});
+
+	it("respects grouping precedence", () => {
+		// Without parens: A || B && C = A || (B && C)
+		// A=true, B=false, C=false → true (A is truthy)
+		expect(evaluateCondition("$prev || $steps[0] && $payload.x", "yes", { x: "" }, [""])).toBe(true);
+		// With parens: (A || B) && C
+		// A=true, B=false, C=false → false (C is falsy)
+		expect(evaluateCondition("($prev || $steps[0]) && $payload.x", "yes", { x: "" }, [""])).toBe(false);
+	});
+
+	it("nested parentheses", () => {
+		expect(evaluateCondition("(($prev))", "truthy", {}, [])).toBe(true);
+		expect(evaluateCondition("(($prev))", "", {}, [])).toBe(false);
+	});
+});
+
+describe("evaluateCondition — combined operators", () => {
+	it("contains with && and ||", () => {
+		expect(evaluateCondition(
+			"$prev contains healthy && $steps[0] contains 200",
+			"status: healthy", {}, ["HTTP 200 OK"],
+		)).toBe(true);
+		expect(evaluateCondition(
+			"$prev contains error || $prev contains warning",
+			"a warning was raised", {}, [],
+		)).toBe(true);
+	});
+
+	it("negation with contains", () => {
+		expect(evaluateCondition("!($prev contains error)", "all good", {}, [])).toBe(true);
+		expect(evaluateCondition("!($prev contains error)", "an error", {}, [])).toBe(false);
+	});
+
+	it("matches with &&", () => {
+		expect(evaluateCondition(
+			"$prev matches ^2\\d\\d$ && $steps[0] contains ok",
+			"200", {}, ["result: ok"],
+		)).toBe(true);
+	});
+
+	it("real-world: API health check workflow", () => {
+		const healthy = '{"status":200,"body":"healthy"}';
+		const degraded = '{"status":200,"body":"degraded"}';
+		const down = '{"status":500,"body":"error"}';
+
+		const isHealthy = "$prev.status == 200 && $prev.body contains healthy";
+		const isDegraded = "$prev.status == 200 && !($prev.body contains healthy)";
+		const isDown = "$prev.status != 200";
+
+		expect(evaluateCondition(isHealthy, healthy, {}, [])).toBe(true);
+		expect(evaluateCondition(isHealthy, degraded, {}, [])).toBe(false);
+		expect(evaluateCondition(isHealthy, down, {}, [])).toBe(false);
+
+		expect(evaluateCondition(isDegraded, healthy, {}, [])).toBe(false);
+		expect(evaluateCondition(isDegraded, degraded, {}, [])).toBe(true);
+		expect(evaluateCondition(isDegraded, down, {}, [])).toBe(false);
+
+		expect(evaluateCondition(isDown, healthy, {}, [])).toBe(false);
+		expect(evaluateCondition(isDown, degraded, {}, [])).toBe(false);
+		expect(evaluateCondition(isDown, down, {}, [])).toBe(true);
+	});
+});

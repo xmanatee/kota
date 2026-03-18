@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 627 — Compound condition expressions for module scripts and pipe steps
+
+Extended the step condition language with logical operators (&&, ||, !), string operators (contains, matches), and parenthesized grouping. Module scripts and pipe steps can now express compound, data-dependent workflow logic.
+
+### What changed
+- `src/manifest/steps.ts`: Recursive descent evaluator replacing flat regex — handles `&&`, `||`, `!`, `()`, `contains`, `matches`
+- `src/manifest/types.ts`: Updated JSDoc for `if` field with new operators
+- 28 new tests covering all operators, combinations, and a real-world API health check scenario
+- DESIGN.md updated for both module factory and pipe tool sections
+
+### Candidates considered
+- **Compound condition expressions** — CHOSEN. Fills the composition gap between linear scripts and real workflows
+- **Guardrails test coverage** (282L, NEVER tested) — valuable but purely defensive, no new capability
+- **HTTP request tool** — already exists (http-request.ts, web-fetch.ts, web-search.ts)
+
+### Verification
+56/56 step tests pass (28 existing + 28 new). Typecheck, build, full suite pass.
+
+### Future directions
+- `else` branches or `match` step type for multi-way routing
+- `loop`/`retry` step modifier for repetition with backoff
+- Guardrails test coverage (282L, NEVER tested) — high priority for security hardening
+
 ## Iteration 626 — Structured adversarial convergence in builder Phase 2, countering choice-supportive bias
 
 Restructured builder Phase 2 convergence to counter choice-supportive bias (AAAI 2025) — forces explicit case-making for each candidate before committing.

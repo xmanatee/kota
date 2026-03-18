@@ -317,8 +317,9 @@ Lets the agent create full modules at runtime from declarative JSON manifests. T
 
 **Conditional steps** (`if` field): Any step can have an optional `if` guard — a condition expression that determines whether the step executes. If the condition evaluates to falsy, the step is skipped (output is `""`, `$prev` unchanged). Supports:
 - Bare truthiness: `"$prev"`, `"$prev.status"` — truthy if non-empty, non-null, non-`"false"`, non-`"0"`
-- Comparisons: `"$prev.status == ok"`, `"$steps[0].count > 0"`, `"$payload.mode != debug"`
-- Operators: `==`, `!=`, `>`, `<`, `>=`, `<=` (numeric when both sides parse as numbers, string otherwise)
+- Comparisons: `==`, `!=`, `>`, `<`, `>=`, `<=` (numeric when both sides parse as numbers, string otherwise)
+- String ops: `contains` (substring), `matches` (regex) — e.g., `"$prev contains error"`, `"$prev matches ^2\\d\\d$"`
+- Logical: `&&` (AND), `||` (OR), `!` (negation), `()` (grouping) — e.g., `"$prev.ok && !($prev contains error)"`
 
 Code and steps are mutually exclusive per handler. Handlers run asynchronously; errors are logged but never crash the bus.
 
@@ -575,7 +576,7 @@ Scatter-gather orchestrator: takes an array of task descriptions, spawns paralle
 
 ### Sequential Tool Pipe (`src/tools/pipe.ts`)
 
-Inline sequential tool composition — the sequential complement to `batch` (parallel). Chains 2-10 tool invocations with data flow: `$prev` for previous output, `$steps[N]` for any prior step, `$prev.field` for JSON field access, `{{template}}` for inline interpolation. Supports conditional `if` on steps. Stops on first error. Reuses `resolveStepInput`/`evaluateCondition` from module-factory (same semantics as module scripts, but no manifest or persistence needed).
+Inline sequential tool composition — the sequential complement to `batch` (parallel). Chains 2-10 tool invocations with data flow: `$prev` for previous output, `$steps[N]` for any prior step, `$prev.field` for JSON field access, `{{template}}` for inline interpolation. Supports conditional `if` on steps with full expression language (&&, ||, !, contains, matches, parentheses). Stops on first error. Reuses `resolveStepInput`/`evaluateCondition` from manifest steps (same semantics as module scripts).
 
 ### Parallel Map (`src/tools/map.ts`)
 

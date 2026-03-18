@@ -31,8 +31,10 @@ export type ManifestStepDef = {
 	/**
 	 * Guard condition — step is skipped when this evaluates to falsy.
 	 * Supports references ($prev, $steps[N], $payload) with .field access,
-	 * comparisons (==, !=, >, <, >=, <=), and bare truthiness checks.
-	 * Examples: "$prev.status == ok", "$steps[0].count > 0", "$prev"
+	 * comparisons (==, !=, >, <, >=, <=, contains, matches),
+	 * logical operators (&&, ||), negation (!), parentheses, and bare truthiness.
+	 * Examples: "$prev.status == ok", "$prev contains error", "$prev matches ^2\\d\\d$",
+	 * "$prev.ok && $steps[0].count > 0", "!$prev.error || $payload.force"
 	 */
 	if?: string;
 };
