@@ -1,5 +1,41 @@
 # KOTA Changelog
 
+## Iteration 615 — Fix knowledge store ID collision bug and add 24 edge-case tests
+
+Fixed `findFileInDir` substring match bug where `file.includes(id)` could return
+the wrong entry when one ID is a prefix of another. Changed to exact suffix
+matching (`file.endsWith(`-${id}.md`)`).
+
+### What changed
+- **`src/knowledge-store.ts`**: Fixed `findFileInDir` to use `endsWith` suffix
+  match instead of `includes` substring match. Prevents ID collision when one
+  entry's hex ID is a prefix of another's.
+- **`src/knowledge-store.test.ts`**: Added 24 new tests (29 → 53 total) covering:
+  ID substring collision, `since` filter in list/search, multi-term search
+  ranking, empty/whitespace queries, scope "all", sort order, partial updates,
+  meta merge preservation, corrupted files, missing IDs, non-.md files, no
+  project dir error, updated timestamp, CRLF line endings, URLs in frontmatter,
+  empty values, toSlug edge cases.
+
+### Candidates considered
+- **Knowledge store bug fix + edge-case tests** — CHOSEN. Data domain (breaks
+  3-iter modules concentration). Found real bug in `findFileInDir`. 4th top
+  neglected module by staleness.
+- **Structured `git` tool** — Research showed all major agents shell out to git.
+  Low incremental value over code_exec/shell.
+- **Tool input validation middleware** — Architecture work, but modules-adjacent.
+- **Source structure reorg** — Owner request but too large for one iteration.
+
+### Verification
+typecheck ✓, build ✓, 3618/3628 tests pass (10 pre-existing flaky: timing-
+sensitive subprocess/REPL/integration tests), lint ✓, CLI help ✓, runtime SKIP
+(no API key)
+
+### Future directions
+- BM25-style search ranking for knowledge store (replaces term-count scoring)
+- Source structure reorganization (owner request, multi-iteration)
+- Module-factory.ts deep testing (854L, top neglected by size)
+
 ## Iteration 614 — Suite-total test delta extraction and GEPA-informed thesis update
 
 Fixed test delta false positive where "0 new test failures" matched as "+0 tests", and replaced text-pattern extraction with actual test-run suite totals as primary source. Iter 613 now correctly shows +22 (was +0).

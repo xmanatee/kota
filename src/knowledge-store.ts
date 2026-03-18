@@ -365,8 +365,10 @@ export class KnowledgeStore {
 	}
 
 	private findFileInDir(dir: string, id: string): string | null {
+		// Match by filename convention: {slug}-{id}.md
+		const suffix = `-${id}.md`;
 		for (const file of this.mdFiles(dir)) {
-			if (file.includes(id)) return file;
+			if (file.endsWith(suffix)) return file;
 		}
 		// Fallback: parse files to match by ID attribute
 		for (const file of this.mdFiles(dir)) {

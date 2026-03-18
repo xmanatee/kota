@@ -338,4 +338,277 @@ describe("KnowledgeStore", () => {
 		expect(entry!.type).toBe("reference");
 		expect(entry!.content).toBe("Manually created markdown file.");
 	});
+
+	// --- ID collision / substring safety ---
+
+	it("does not confuse entries whose IDs are substrings of each other", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		const mkEntry = (id: string, title: string) =>
+			[`---`, `id: ${id}`, `title: ${title}`, `type: note`, `tags: []`, `status: active`, `created: 2024-01-01T00:00:00Z`, `updated: 2024-01-01T00:00:00Z`, `---`, `Content for ${title}`].join("\n");
+
+		writeFileSync(join(dir, "entry-abc12345.md"), mkEntry("abc12345", "Full ID"), "utf-8");
+		writeFileSync(join(dir, "entry-abc1234.md"), mkEntry("abc1234", "Short ID"), "utf-8");
+
+		const full = store.read("abc12345");
+		const short = store.read("abc1234");
+		expect(full).not.toBeNull();
+		expect(short).not.toBeNull();
+		expect(full!.title).toBe("Full ID");
+		expect(short!.title).toBe("Short ID");
+	});
+
+	// --- since filter ---
+
+	it("lists entries filtered by since date", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		const mkEntry = (id: string, title: string, created: string) =>
+			[`---`, `id: ${id}`, `title: ${title}`, `type: note`, `tags: []`, `status: active`, `created: ${created}`, `updated: ${created}`, `---`, ``].join("\n");
+
+		writeFileSync(join(dir, "old-aaa11111.md"), mkEntry("aaa11111", "Old Entry", "2023-01-01T00:00:00Z"), "utf-8");
+		writeFileSync(join(dir, "new-bbb22222.md"), mkEntry("bbb22222", "New Entry", "2025-06-01T00:00:00Z"), "utf-8");
+
+		const filtered = store.list({ since: "2024-01-01" });
+		expect(filtered.length).toBe(1);
+		expect(filtered[0].title).toBe("New Entry");
+	});
+
+	it("search respects since filter", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		const mkEntry = (id: string, title: string, created: string) =>
+			[`---`, `id: ${id}`, `title: ${title}`, `type: note`, `tags: []`, `status: active`, `created: ${created}`, `updated: ${created}`, `---`, `relevant content`].join("\n");
+
+		writeFileSync(join(dir, "old-ccc11111.md"), mkEntry("ccc11111", "Old Relevant", "2023-01-01T00:00:00Z"), "utf-8");
+		writeFileSync(join(dir, "new-ddd22222.md"), mkEntry("ddd22222", "New Relevant", "2025-06-01T00:00:00Z"), "utf-8");
+
+		const results = store.search("relevant", { since: "2024-01-01" });
+		expect(results.length).toBe(1);
+		expect(results[0].title).toBe("New Relevant");
+	});
+
+	// --- Multi-term search ranking ---
+
+	it("ranks entries by number of matching terms", () => {
+		store.create({ title: "Alpha Beta Gamma", content: "All three terms", tags: ["test"] });
+		store.create({ title: "Alpha Only", content: "Just one term here", tags: ["test"] });
+		store.create({ title: "Alpha Beta", content: "Two terms present", tags: ["test"] });
+
+		const results = store.search("alpha beta gamma");
+		expect(results.length).toBe(3);
+		expect(results[0].title).toBe("Alpha Beta Gamma");
+		expect(results[1].title).toBe("Alpha Beta");
+		expect(results[2].title).toBe("Alpha Only");
+	});
+
+	// --- Empty search query ---
+
+	it("returns all entries for empty search query", () => {
+		store.create({ title: "Entry A", content: "a" });
+		store.create({ title: "Entry B", content: "b" });
+		const results = store.search("");
+		expect(results.length).toBe(2);
+	});
+
+	it("returns all entries for whitespace-only search query", () => {
+		store.create({ title: "Entry X", content: "x" });
+		const results = store.search("   ");
+		expect(results.length).toBe(1);
+	});
+
+	// --- Scope "all" ---
+
+	it("lists entries with scope all", () => {
+		store.create({ title: "Project Item", content: "local", scope: "project" });
+		store.create({ title: "Global Item", content: "global", scope: "global" });
+
+		const all = store.list({ scope: "all" });
+		expect(all.length).toBe(2);
+		const titles = all.map((e) => e.title).sort();
+		expect(titles).toEqual(["Global Item", "Project Item"]);
+	});
+
+	// --- list() sort order ---
+
+	it("lists entries sorted newest first by updated date", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		const mkEntry = (id: string, title: string, updated: string) =>
+			[`---`, `id: ${id}`, `title: ${title}`, `type: note`, `tags: []`, `status: active`, `created: 2024-01-01T00:00:00Z`, `updated: ${updated}`, `---`, ``].join("\n");
+
+		writeFileSync(join(dir, "mid-eee11111.md"), mkEntry("eee11111", "Middle", "2024-06-01T00:00:00Z"), "utf-8");
+		writeFileSync(join(dir, "old-fff22222.md"), mkEntry("fff22222", "Oldest", "2024-01-01T00:00:00Z"), "utf-8");
+		writeFileSync(join(dir, "new-ggg33333.md"), mkEntry("ggg33333", "Newest", "2025-01-01T00:00:00Z"), "utf-8");
+
+		const entries = store.list();
+		expect(entries[0].title).toBe("Newest");
+		expect(entries[1].title).toBe("Middle");
+		expect(entries[2].title).toBe("Oldest");
+	});
+
+	// --- Partial update ---
+
+	it("partial update preserves unchanged fields", () => {
+		const id = store.create({
+			title: "Original Title",
+			content: "Original content",
+			type: "research",
+			tags: ["api", "design"],
+			status: "active",
+		});
+
+		store.update(id, { content: "Updated content only" });
+
+		const entry = store.read(id);
+		expect(entry!.title).toBe("Original Title");
+		expect(entry!.content).toBe("Updated content only");
+		expect(entry!.type).toBe("research");
+		expect(entry!.tags).toEqual(["api", "design"]);
+		expect(entry!.status).toBe("active");
+	});
+
+	it("update merges new meta keys without removing existing ones", () => {
+		const id = store.create({
+			title: "Meta Test",
+			content: "body",
+			meta: { priority: "low", author: "alice" },
+		});
+
+		store.update(id, { meta: { priority: "high", category: "urgent" } });
+
+		const entry = store.read(id);
+		expect(entry!.meta.priority).toBe("high");
+		expect(entry!.meta.author).toBe("alice");
+		expect(entry!.meta.category).toBe("urgent");
+	});
+
+	// --- Corrupted / edge-case files ---
+
+	it("ignores files without valid frontmatter", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		writeFileSync(join(dir, "corrupted-zzz11111.md"), "No front matter at all", "utf-8");
+		store.create({ title: "Valid Entry", content: "good" });
+
+		const entries = store.list();
+		expect(entries.length).toBe(1);
+		expect(entries[0].title).toBe("Valid Entry");
+	});
+
+	it("ignores files without id attribute", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		writeFileSync(join(dir, "no-id-yyy11111.md"), "---\ntitle: No ID\ntype: note\n---\nbody", "utf-8");
+		store.create({ title: "Has ID", content: "yes" });
+
+		const entries = store.list();
+		expect(entries.length).toBe(1);
+		expect(entries[0].title).toBe("Has ID");
+	});
+
+	it("ignores non-md files in data directory", () => {
+		const dir = join(projectDir, ".kota", "data");
+		mkdirSync(dir, { recursive: true });
+
+		writeFileSync(join(dir, "data.json"), '{"not":"markdown"}', "utf-8");
+		writeFileSync(join(dir, ".hidden"), "hidden file", "utf-8");
+		store.create({ title: "Markdown Entry", content: "real" });
+
+		const entries = store.list();
+		expect(entries.length).toBe(1);
+	});
+
+	// --- No project directory ---
+
+	it("throws when accessing project scope without project dir", () => {
+		const globalOnly = new KnowledgeStore(undefined, globalDir);
+		expect(() =>
+			globalOnly.create({ title: "Fail", content: "x", scope: "project" }),
+		).toThrow("No project directory configured");
+	});
+
+	// --- Updated timestamp changes on update ---
+
+	it("updates the updated timestamp on update", () => {
+		const id = store.create({ title: "Timestamp Test", content: "v1" });
+		const before = store.read(id)!.updated;
+
+		// Small delay to ensure timestamp differs
+		const start = Date.now();
+		while (Date.now() - start < 5) { /* busy wait */ }
+
+		store.update(id, { content: "v2" });
+		const after = store.read(id)!.updated;
+		expect(after).not.toBe(before);
+		expect(new Date(after).getTime()).toBeGreaterThan(new Date(before).getTime());
+	});
+});
+
+// --- parseFrontMatter edge cases ---
+
+describe("parseFrontMatter edge cases", () => {
+	it("handles Windows line endings (CRLF)", () => {
+		const raw = "---\r\ntitle: Hello\r\ntype: note\r\n---\r\nBody here";
+		const { attrs, body } = parseFrontMatter(raw);
+		expect(attrs.title).toBe("Hello");
+		expect(attrs.type).toBe("note");
+		expect(body).toBe("Body here");
+	});
+
+	it("handles values containing colons (URLs)", () => {
+		const raw = "---\nurl: https://example.com:8080/path\ntitle: Test\n---\nbody";
+		const { attrs } = parseFrontMatter(raw);
+		expect(attrs.url).toBe("https://example.com:8080/path");
+		expect(attrs.title).toBe("Test");
+	});
+
+	it("handles empty body after front matter", () => {
+		const raw = "---\nid: abc\ntitle: Empty\n---\n";
+		const { attrs, body } = parseFrontMatter(raw);
+		expect(attrs.id).toBe("abc");
+		expect(body).toBe("");
+	});
+
+	it("handles front matter with empty values", () => {
+		const raw = "---\ntitle: \ntype: note\n---\nbody";
+		const { attrs } = parseFrontMatter(raw);
+		expect(attrs.title).toBe("");
+		expect(attrs.type).toBe("note");
+	});
+
+	it("handles keys without values (no colon)", () => {
+		const raw = "---\ntitle: Test\ninvalidline\ntype: note\n---\nbody";
+		const { attrs } = parseFrontMatter(raw);
+		expect(attrs.title).toBe("Test");
+		expect(attrs.type).toBe("note");
+		expect(Object.keys(attrs)).not.toContain("invalidline");
+	});
+});
+
+// --- toSlug edge cases ---
+
+describe("toSlug edge cases", () => {
+	it("returns empty string for empty input", () => {
+		expect(toSlug("")).toBe("");
+	});
+
+	it("returns empty string for all special characters", () => {
+		expect(toSlug("!@#$%^&*()")).toBe("");
+	});
+
+	it("handles unicode characters", () => {
+		const slug = toSlug("Café résumé");
+		expect(slug).toBe("caf-r-sum");
+	});
+
+	it("collapses multiple separators", () => {
+		expect(toSlug("hello   world---test")).toBe("hello-world-test");
+	});
 });
