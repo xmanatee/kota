@@ -11,12 +11,17 @@ For completed items move them into Completed section.
 For skipped/dismissed items move them into Skipped section with concise one line explanation of why skipped.
 
 Format: `b:` = for the builder, `i:` = for the improver.
+b: ideally prompts aren't just in the js files... probably better to allow them to be in codebase as markdown files... maybe with ability to even add template params in them... generally the tool should feel very comfortable working with markdowns with yaml frontmatter.
+b: ideally modules are isolated and self-contained even more... to the point that it should be possiblee to have modules written in other languages... e.g. rust... and it should be possible to load, unload, reload modules in runtime. The architechture and API and protocols should allow for that.
 b: explore the following interesting articles and resources... maybe they could be base for improvements... but maybe some of them are already irrelevant and everything is great already:
  - https://glthr.com/XML-fundamental-to-Claude
  - https://www.bengubler.com/posts/2026-02-25-introducing-helm
  - https://arxiv.org/abs/2511.18423
  - https://github.com/martian-engineering/lossless-claw
  - https://github.com/wu-yc/LabClaw
+ - https://github.com/open-pencil/open-pencil
+ - https://github.com/andrewyng/context-hub
+ - https://github.com/RightNow-AI/openfang
 b: institute standards in codebase: proper structure, codestyle, work approach with stages for work e.t.c. ideally some of that should be automated through linters or tests... the rest is approach which could be changed in prompts... instead of having a single DESIGN doc establish a strucure with directories and write the design for every system/component there. it sohuldn't be detailed! concise and high-level.. implementation details can be checked in code when needed. Also these docs must be kept up to date!
   → Progress (iter 641): Created 3 domain-based subdirectories (memory/, scheduler/, server/) with per-directory README.md docs. Moved 15 source files from flat src/ root. Each README has concise file table + dependency graph. Next: more clusters (context/, model/), codestyle automation.
 i: improver shouldn't overoptimise things that aren't broken (e.g. reading files or smth like that)
