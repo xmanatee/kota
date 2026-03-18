@@ -55,6 +55,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 513 | harden | architect.ts | high | multi_edit file tracking used wrong property `file_path` instead of `path` (never tracked), silent MAX_EDITOR_TURNS exit; replaced inline tracking with shared `extractModifiedFiles()`; 8 new tests |
 | 515 | friction | tools/delegate.ts, tools/web-search.ts | high | Whitespace-only task accepted (wasted API call), http_request URLs missing from sources section, task preview split multi-byte characters; sweep-fixed same whitespace bug in web-search.ts; 10 new tests |
 | 615 | harden | knowledge-store.ts | high | Fixed `findFileInDir` substring match bug (`file.includes(id)` could return wrong file when one ID is prefix of another); 24 new edge-case tests (29→53) |
+| 625 | e2e | delegate, architect, action-executor, scheduler | high | 11 advanced E2E tests: delegate explore/execute, architect plan-execute, scheduled action pipeline |
 
 ## Approach Summary
 
@@ -65,13 +66,13 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | audit | 6 | 507 | eligible |
 | friction | 6 | 495 | eligible |
 | structural-health | 4 | 475 | eligible |
-| e2e | 4 | 461 | eligible |
+| e2e | 5 | 625 | BLOCKED |
 | concurrency | 3 | 511 | BLOCKED |
 | resource-lifecycle | 2 | 509 | eligible |
 
-48 depth iterations across 8 approaches.
-**Rotation blocked** (used in last 2 builder iters): harden, concurrency
-**Rotation eligible**: error-paths, audit, friction, structural-health, e2e, resource-lifecycle
+49 depth iterations across 8 approaches.
+**Rotation blocked** (used in last 2 builder iters): harden, concurrency, e2e
+**Rotation eligible**: error-paths, audit, friction, structural-health, resource-lifecycle
 
 ## Uncovered Modules — PRIMARY Targets
 

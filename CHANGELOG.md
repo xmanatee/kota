@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 625 — E2E tests for delegate, architect mode, and scheduled actions
+
+Added 11 E2E tests exercising multi-layer agent workflows with mock clients — delegate sub-agents, architect plan-then-execute, and scheduled action execution.
+
+### What changed
+- **Delegate E2E tests** (4 tests): Main loop → delegate(explore/execute) → sub-agent uses tools → results return to main loop. Covers explore mode file reading, execute mode file editing, invalid mode error, and empty task error.
+- **Architect mode E2E tests** (2 tests): Full architect → editor → main loop pipeline. Covers single-file and multi-file plan execution with real tool I/O.
+- **Scheduled action E2E tests** (5 tests): ActionExecutor → AgentSession pipeline, no-action error, concurrency limits, Scheduler.getDue() → ActionExecutor pipeline, and multi-turn tool-using actions.
+
+### Candidates considered
+1. **E2E tests for delegate/architect/actions** — CHOSEN. Owner request (iter 533, "Next: delegate E2E tests, architect mode tests, scheduled action tests"). 46+ iters stale.
+2. **Source structure reorganization** — owner `[never]` item, but large scope and lower immediate reliability value.
+3. **Test computer-use.ts** (418L, NEVER tested) — hard to test without OS-level mocking.
+4. **New capability (structured data query)** — less urgent than reliability.
+
+### Verification
+- All 3790 tests pass (+11 new). Typecheck, build, lint clean. Load OK. Runtime SKIP (no API key).
+
+### Future directions
+- Source structure reorganization (owner `[never]` item)
+- More provider types for module system (iter 575 next step)
+- Ollama integration test for multi-provider (iter 613 next step)
+
 ## Iteration 624 — Per-item owner priority next-steps in trend, breaking top-neglected attractor
 
 Owner-priority staleness signal (iter 622) was visible but ignored — builder chose file-splitting 3 straight iters despite "getting stale" warning, because top-neglected list provided specific, risk-free candidates. Fixed specificity asymmetry.
