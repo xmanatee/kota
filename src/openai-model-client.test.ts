@@ -8,7 +8,7 @@ import {
 	systemToText,
 	toOpenAIMessages,
 	toOpenAITools,
-} from "./openai-model-client.js";
+} from "./openai/index.js";
 
 // --- Translation function tests ---
 

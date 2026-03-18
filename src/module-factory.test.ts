@@ -16,7 +16,7 @@ import {
 	runModuleScript,
 	saveManifest,
 	validateManifest,
-} from "./module-factory.js";
+} from "./manifest/index.js";
 import type { KotaModule, ToolDef } from "./module-types.js";
 
 /** Helper to get tools as array from a KotaModule. */

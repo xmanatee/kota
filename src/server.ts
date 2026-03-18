@@ -32,8 +32,6 @@ import {
 import { NullTransport, type Transport } from "./transport.js";
 import { getWebUI } from "./web-ui.js";
 
-// Re-export for backwards compatibility with tests
-export { type ManagedSession, SessionPool, SseTransport } from "./session-pool.js";
 
 export type ServerOptions = {
   port?: number;

@@ -28,6 +28,19 @@ TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_PREFIX="${ITERATION_PAD}-${TASK}-${TIMESTAMP}"
 SESSION_LOG="$LOG_DIR/${LOG_PREFIX}.session.jsonl"
 
+# Validate prompt sizes (hard limit: 150 lines)
+for f in "$DIR/prompts/build-agent.md" "$DIR/prompts/improve-process.md"; do
+  lines=$(wc -l < "$f")
+  if (( lines > 150 )); then
+    echo "[step] ERROR: $(basename "$f") is $lines lines (limit: 150)"
+    exit 1
+  fi
+done
+
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "[step] WARNING: ANTHROPIC_API_KEY not set — runtime smoke test will be skipped"
+fi
+
 # Run claude
 cd "$DIR"
 STEP_START=$(date +%s)

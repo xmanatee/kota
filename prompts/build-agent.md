@@ -17,12 +17,12 @@ automation.
   auto-commits when you finish.
 - **Process boundary**: Do not modify `loop.sh`, `step.sh`, `prompts/`,
   `.gitignore`, or `logs/`.
+- **No legacy**: No re-export facades, backward-compat shims, or deprecated
+  wrappers. When restructuring code, update all consumers directly and remove
+  the old file entirely.
 - **Verification**: Run `npm run typecheck && npm run build` before finishing.
-- **CHANGELOG**: Update with heading `## Iteration {{ITERATION}} — Short Title`
-  followed by a one-line summary (becomes git commit subject — under 120 chars,
-  no markdown formatting). Keep entries under 25 lines total: what changed (3-5
-  lines), candidates considered (1-line each), verification (1 line), future
-  directions (2-3 bullets). Session logs capture full detail.
+- **CHANGELOG**: `## Iteration {{ITERATION}} — Short Title` + one-line summary
+  (git commit subject, ≤120 chars). Keep entries under 25 lines.
 
 ## How to Work
 
@@ -33,66 +33,47 @@ CHANGELOG.md`. Scan DESIGN.md headers (`grep '^##' DESIGN.md`).
 Do NOT read source files or full DESIGN.md — headers and CHANGELOG suffice.
 
 Run `npm test 2>&1 | tail -20` (fix inherited failures), then
-`python3 parse-log.py --trend 5` (note the work pattern for brainstorming).
+`python3 parse-log.py --trend 5` (note the work pattern).
 
 ### 2. Decide what to build
 
-**Brainstorm in two phases:**
-
-**Phase 1 — Explore & Diverge**: First, do 2-3 quick web searches for recent
-agent capabilities, patterns, or research you haven't seen before. Let
-discoveries seed your thinking — not just what this agent already has. Then
-generate at least one candidate from each category:
-- **New capability**: tool, integration, or workflow the agent can't do today
-- **Deepen existing**: E2E tests, error paths, composition chains, reliability
-- **Architecture**: structural changes that remove scaling limits or enable work
-- **Novel composition**: combine 2+ existing capabilities into something new
-  that no individual feature provides
+**Phase 1 — Diverge**: Do 2-3 web searches for recent agent patterns or
+research. Then generate ≥5 candidates across these areas:
+- **Capability or composition**: new tool, integration, workflow, or novel
+  combination of 2+ existing features into something new
+- **Reliability**: E2E tests, error paths, hardening neglected modules
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
 Don't filter yet. Ask: "What can this agent almost-but-not-quite do?"
 
-**Phase 2 — Converge**:
-1. **Feasibility**: For your top candidates, grep the codebase to confirm they
-   don't already exist. Eliminate duplicates. (Don't research what you already have.)
-2. **Evaluate**: Pick the top 2 surviving candidates. For each, describe a
-   concrete demo: what does the user do, what happens, why is it impressive?
-   Make the strongest case for it over the other. Commit to the bolder one.
-   Then define 2-3 criteria that would make your implementation *excellent*
-   — carry these into step 3 and check them during verification.
-3. **Research your choice**: Search for at least 2 different approaches to
-   this problem from top agents or recent research. Compare their trade-offs
-   and pick the approach that fits KOTA's architecture. Let findings shape
-   your design, not just confirm your initial plan.
+**Phase 2 — Converge**: Grep the codebase to confirm top candidates don't
+already exist. For the top 2, describe a concrete demo (what does the user do,
+what happens, why is it impressive?) and make the strongest case for each over
+the other. Commit to the bolder one. Then search the web for how top agents
+implement this — let findings shape your implementation.
 
-Check the trend's **Domains** and **Work pattern** lines for concentration
-warnings. Prefer diversity when choosing between similar-value candidates.
-
-Be skeptical. Record rejected candidates in CHANGELOG under "Future directions."
+Check the trend's work pattern for concentration warnings.
+Record rejected candidates in CHANGELOG under "Future directions."
 
 ### 3. Implement
 
 NOW read source files — only those relevant to your chosen work. Every file
-read adds context and degrades downstream reasoning. Use grep to find files.
+read adds context. Use grep to find files.
 
 Write real, working code. For each file, outline all planned edits before
-making the first one — re-visits cost context. Auto-fix lint per file (`npx
-biome check --write <file>`). For cross-cutting changes: grep all consumers
-first, fix consumers before changing the shared type, run `npm run typecheck`
-immediately after. See BUILDER_LESSONS.md for details.
+making the first one. Auto-fix lint per file (`npx biome check --write <file>`).
+See BUILDER_LESSONS.md for cross-cutting change procedures.
 
-Keep `DESIGN.md` accurate — but concise. When updating, condense verbose
-sections for stable components (1-2 lines + code snippet if needed). DESIGN.md
-must stay under ~1100 lines / 25000 tokens to remain fully readable.
-Update NOTES.md for related `b:` items.
+Keep `DESIGN.md` accurate but concise (≤1100 lines). Update NOTES.md for
+related `b:` items.
 
 ### 4. Verify (all five levels)
 
 - **Static**: `npm run typecheck && npm run build`
 - **Unit**: Test incrementally — `npx vitest run src/foo.test.ts` as you write,
-  `npx vitest run --changed` for broader checks, `npm test` once at end. Write
-  tests for new modules. Vitest, `*.test.ts` next to source.
-- **Lint**: `npx biome check` on changed files only (pre-existing issues exist).
+  `npx vitest run --changed` for broader checks, `npm test` once at end.
+  Vitest, `*.test.ts` next to source.
+- **Lint**: `npx biome check` on changed files only.
 - **Load**: `node dist/cli.js --help`
 - **Runtime**: `echo "Say hello" | node dist/cli.js run --model claude-haiku-4-5-20251001`
   (report SKIP if no `ANTHROPIC_API_KEY`)

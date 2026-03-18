@@ -11,7 +11,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { discoverManifestModules } from "./module-factory.js";
+import { discoverManifestModules } from "./manifest/index.js";
 import type { KotaModule } from "./module-types.js";
 import { adaptExport } from "./tool-adapters.js";
 

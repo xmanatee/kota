@@ -7,7 +7,7 @@
  */
 
 import { AnthropicModelClient, type ModelClient } from "./model-client.js";
-import { OpenAIModelClient } from "./openai-model-client.js";
+import { OpenAIModelClient } from "./openai/client.js";
 
 /** Known provider presets: base URL and env var for the API key. */
 export const PROVIDER_PRESETS: Record<

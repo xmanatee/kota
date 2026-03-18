@@ -7,51 +7,31 @@ Recurring patterns from recent sessions. Read during orientation.
 - **Run tests first** (`npm test 2>&1 | tail -20`). Inherited failures are
   common. Fix before building.
 
-## DESIGN.md Reading
+## DESIGN.md
 
-During orient, use `grep '^##' DESIGN.md` for section headers — do NOT read
-the full file. Read only the specific section(s) you need during implementation
-(step 3), using offset/limit. In iter 581, 8 full reads of DESIGN.md drove
-context to 108k/turn and cost to $8.12 (vs $4.27 avg). Iters 575-579 grepped
-headers during orient and only read 1-2 targeted sections later — context
-stayed at 44-63k/turn, cost at $2.47-$3.80.
-
-## DESIGN.md Size
-
-Trend output shows the current line count — check during orient. When updating,
-condense only sections you're directly modifying. Aim for net-zero or
-net-negative line count per iteration. Don't bulk-condense all stable sections
-at once — in iter 597 this consumed 30 calls (33% of total) and drove context
-to 80k. Target: ≤1100 lines; currently ~912 (healthy).
+- Orient: `grep '^##' DESIGN.md` for headers. Do NOT read the full file.
+- Read only sections you need during implementation, with offset/limit.
+- When updating: condense sections you're modifying. Target: ≤1100 lines.
 
 ## Common Gotchas
 
 - **Module count tests**: Adding/removing modules → update TWO assertions in
   `module-cli.integration.test.ts` (search `toBe(` near "builtin modules").
-- **System prompt tests**: `system-prompt.test.ts` asserts tool names, headings,
-  content, and a ~12000 char budget with ≤200 chars headroom. When adding text:
-  run the system-prompt tests FIRST to see current length in the failure message,
-  then write aggressively concise text — cut 2× more than you think needed.
-  One upfront trim is faster than four edit-test cycles (iter 577 spent 13
-  calls on this). Adding a tool = prompt change (tool names listed in prompt).
-- **Flaky test: `process.test.ts` "truncates output exceeding MAX_OUTPUT_CHARS"**:
-  This test uses a fixed 1500ms timeout to wait for a shell loop generating 250
-  lines. Under system load it produces only ~146 lines, staying under the
-  truncation threshold. If it fails alone on retry, it's this timing issue — not
-  your code. Don't spend calls investigating.
-- **Flaky test: `sqlite-memory.test.ts`**: Timing-dependent — fails under load
-  during the full suite but passes in isolation. Same pattern as above.
+- **System prompt tests**: `system-prompt.test.ts` asserts a ~12000 char budget
+  with ≤200 chars headroom. Adding a tool = prompt change. Run system-prompt
+  tests FIRST, then write aggressively concise text.
+- **Flaky tests**: `process.test.ts` (truncation timing) and
+  `sqlite-memory.test.ts` (load-dependent). Both pass in isolation. Don't
+  investigate if they fail alone on retry.
 
 ## Lint
 
 Batch at operation boundaries: `npx biome check --write <files>` after each
 group of related edits, then `npx biome check <all-changed>` once at the end.
-Don't run intermediate verification checks between auto-fix passes.
 
 ## New Core Tool Registration
 
 Tools self-register via `registration` export (risk, group, tool, runner).
-Guardrails and module-factory auto-derive from the registry.
 
 **Checklist** (8 files):
 1. `src/tools/<tool>.ts` — implement + export `registration`
@@ -59,62 +39,35 @@ Guardrails and module-factory auto-derive from the registry.
 3. `src/tool-groups.ts` — add to appropriate group
 4. `src/tools/index.test.ts` — update count AND name assertions
 5. `src/tools/<tool>.test.ts` + `DESIGN.md`
-6. `src/system-prompt.ts` + `src/system-prompt.test.ts` — add tool name to
-   system prompt; verify char budget stays under ~11900
-7. `src/delegate-prompts.ts` — if sub-agents should have access to the tool
+6. `src/system-prompt.ts` + `src/system-prompt.test.ts` — verify char budget
+7. `src/delegate-prompts.ts` — if sub-agents should have access
 8. `src/tools/tool-groups.test.ts` — if adding to a group, update group test
 
 Read ONE recent tool file as template. Read all checklist files before editing.
 
-## Circular Imports in Cross-Cutting Refactors
+## Circular Imports
 
-When refactoring shared modules (e.g., `tools/index.ts`, `guardrails.ts`),
-check for circular import chains BEFORE starting. Run:
-```
-grep -r "from.*/<module>" src/ --include="*.ts" -l
-```
-Then trace: does any importer also get imported by the module you're changing?
-If so, use **lazy initialization** (getter functions, not module-level
-`const`) to break the cycle. In iter 561, eager module-level initialization
-in a circular chain (`delegate → context → tools/index → delegate`) caused
-30+ calls of rework.
-
-Also: test mocks of the changed module must include any new exports. Grep
-for `vi.mock(.*<module>)` to find all mock sites before adding exports.
-
-## Batch Edits
-
-Before touching a file, list every change you'll make to it, then execute in
-1-3 Edit calls. Iter 603: 7 edits to `working-memory.ts` (could have been 2-3
-with upfront planning). Each re-edit costs ~500 tokens of context. The trend
-tracks `edits/file avg` — aim for ≤3.
+When refactoring shared modules, check for circular import chains BEFORE
+starting: `grep -r "from.*/<module>" src/ --include="*.ts" -l`. Use lazy
+initialization (getter functions) to break cycles. Also grep for
+`vi.mock(.*<module>)` — test mocks must include any new exports.
 
 ## Cross-Cutting Changes
 
-The #1 rework source. Before modifying shared types/interfaces:
+Before modifying shared types/interfaces:
 1. `grep -r "TypeName" src/ --include="*.ts" -l` — find ALL consumers
 2. Note test files with manual stubs (they WILL break)
 3. Edit consumers FIRST, shared type LAST
 4. `npm run typecheck` immediately after
 
+## Batch Edits
+
+Before touching a file, list every change you'll make to it, then execute in
+1-3 Edit calls. Each re-edit costs ~500 tokens of context. Aim for ≤3 edits/file.
+
 ## Depth Work Logging
 
-When doing depth/hardening work on existing modules (bug fixes, edge-case
-tests, error-path coverage), append a row to `depth-log.md`:
+When doing depth/hardening work, append a row to `depth-log.md`:
 ```
 | <iter> | <approach> | <module(s)> | <severity> | <one-line summary> |
 ```
-Approaches: audit, friction, harden, e2e, error-paths, structural-health,
-concurrency, resource-lifecycle. This keeps the depth coverage signal accurate
-in the trend output. (Auto-detection from session data also supplements this,
-but explicit logging is more precise.)
-
-## Architecture as Capability
-
-32+ tools, 3651+ tests. Each new tool adds less than the last. Architecture
-work IS capability work when it enables something new:
-- Module isolation → runtime extensibility (user asks agent to create a tool)
-- Untested integration paths → reliability (50-turn conversation without degradation)
-- Tight coupling → independent evolution (swap memory backend, touch zero other files)
-
-**The test**: describe a before/after where user experience improves.

@@ -1,8 +1,7 @@
 /**
- * Module Factory Tool — thin facade.
+ * Module Factory Tool — router and public API.
  *
  * Implementation split into: definition, state, actions, scripts, logs.
- * This file wires the router and re-exports the public API.
  */
 
 import type { ToolResult } from "../index.js";
@@ -11,7 +10,7 @@ import { moduleFactoryTool } from "./definition.js";
 import { handleLogs } from "./logs.js";
 import { handleRun } from "./scripts.js";
 
-// Re-export public API (preserves backward compatibility)
+// Public API
 export { moduleFactoryTool } from "./definition.js";
 export {
 	getLoadedManifestModuleCount,

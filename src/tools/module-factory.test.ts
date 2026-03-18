@@ -9,7 +9,7 @@ import {
 	markModuleLoaded,
 	resetModuleFactory,
 	runModuleFactory,
-} from "./module-factory.js";
+} from "./module-factory/index.js";
 
 // Save/restore cwd since saveManifest uses cwd by default
 let originalCwd: string;

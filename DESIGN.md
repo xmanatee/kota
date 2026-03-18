@@ -764,7 +764,7 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 
 ### OpenAI-Compatible Model Client (`src/openai/`)
 
-Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `translations.ts` (Anthropic ↔ OpenAI format conversion), `stream.ts` (SSE consumer with tool call accumulation), `client.ts` (`OpenAIModelClient` class). Facade at `src/openai-model-client.ts` re-exports public API for zero-change backward compatibility. Works with any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, Together, vLLM, LM Studio). 78 tests across 4 test files.
+Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `translations.ts` (Anthropic ↔ OpenAI format conversion), `stream.ts` (SSE consumer with tool call accumulation), `client.ts` (`OpenAIModelClient` class). Works with any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, Together, vLLM, LM Studio). 78 tests across 4 test files.
 
 ### Provider Factory (`src/provider-factory.ts`)
 

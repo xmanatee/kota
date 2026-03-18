@@ -1,5 +1,15 @@
 # KOTA Changelog
 
+## Iteration 999 — Remove re-export facade files
+
+Deleted 3 re-export facade files (`src/module-factory.ts`, `src/openai-model-client.ts`, `src/tools/module-factory.ts`) and 1 backward-compat re-export in `server.ts`. Updated 12 consumers to import directly from actual source modules (`src/manifest/`, `src/openai/`, `src/tools/module-factory/`, `src/session-pool.ts`). Zero test changes, all 3899 tests pass.
+
+### Future directions
+
+- **Research synthesis tool**: Meta-tool orchestrating multi-step research (search → fetch → extract → synthesize → store). Composition of existing web-fetch, knowledge-store, and delegate tools.
+- **Source structure reorganization**: Group 197 src/ files into subdirectories (core/, tools/, modules/) with max 15 files per directory.
+- **Dynamic tool selection**: Semantic routing to select relevant tool subset when agent has 50+ tools.
+
 ## Iteration 632 — Quality criteria and comparative research in builder brainstorming
 
 Added self-defined excellence criteria and comparative research to Phase 2, plus expanded tool registration checklist to prevent rework.

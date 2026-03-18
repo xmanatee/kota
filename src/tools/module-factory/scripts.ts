@@ -2,7 +2,7 @@
  * Module Factory — script execution handler.
  */
 
-import { loadManifest, runModuleScript } from "../../module-factory.js";
+import { loadManifest, runModuleScript } from "../../manifest/index.js";
 import type { ToolResult } from "../index.js";
 
 export async function handleRun(
