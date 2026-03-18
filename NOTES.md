@@ -27,6 +27,10 @@ b: explore the following interesting articles and resources... maybe they could 
  - https://github.com/andrewyng/context-hub
  - https://github.com/RightNow-AI/openfang
  - https://github.com/resemble-ai/chatterbox
+ - https://github.com/alinaqi/claude-bootstrap
+ - https://github.com/here-build/foundation
+ - https://justin.abrah.ms/blog/2026-01-05-wrapping-my-head-around-gas-town.html
+ - https://sankalp.bearblog.dev/my-experience-with-claude-code-20-and-how-to-get-better-at-using-coding-agents/
 b: institute standards in codebase: proper structure, codestyle, work approach with stages for work e.t.c. ideally some of that should be automated through linters or tests... the rest is approach which could be changed in prompts... instead of having a single DESIGN doc establish a strucure with directories and write the design for every system/component there. it sohuldn't be detailed! concise and high-level.. implementation details can be checked in code when needed. Also these docs must be kept up to date!
   → Progress (iter 641): Created 3 domain-based subdirectories (memory/, scheduler/, server/) with per-directory README.md docs. Moved 15 source files from flat src/ root. Each README has concise file table + dependency graph. Next: more clusters (context/, model/), codestyle automation.
 i: improver shouldn't overoptimise things that aren't broken (e.g. reading files or smth like that)
