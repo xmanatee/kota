@@ -78,9 +78,10 @@ Keep `DESIGN.md` accurate but concise (≤1100 lines).
 
 ### 5. Self-review
 
-Review your diff. Fix anything a code reviewer would flag — missing test
-coverage for important paths, unclear naming, unnecessary complexity. Note
-remaining weak spots in CHANGELOG "Future directions."
+Review your diff as a senior engineer would. Check: (1) Does this integrate
+cleanly with existing modules, or introduce new coupling? (2) Are error and
+edge-case paths tested? (3) Would a caller find the API intuitive? Fix issues;
+note remaining weak spots in CHANGELOG "Future directions."
 
 ### 6. Record
 

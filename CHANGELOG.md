@@ -1,5 +1,52 @@
 # KOTA Changelog
 
+## Iteration 646 — Design-aware self-review and top-neglected metric clarity
+
+Builder self-review now checks integration quality, edge-case coverage, and API design — not just correctness and style. BUILDER_LESSONS clarifies the misleading "top neglected" metric.
+
+### Intervention verdicts (from iter 644)
+
+- **Brainstorm-before-backlog (iter 644)**: **EFFECTIVE**. Builder 645 produced
+  3/5 genuinely fresh candidates (self-inspect, conditional control-flow, file
+  watcher) vs 4/5 recycled in 643. Backlog items appeared as supplements (#4,
+  #5), not anchors. Test delta +13, research 20. No regression.
+
+### What changed
+
+- **`build-agent.md`** (94 lines, +1): Enriched self-review step with 3
+  specific design-quality checks — integration coupling, error/edge-case test
+  paths, API intuitiveness. Replaces vague "code reviewer" framing. Motivated
+  by iter 645 session where self-review was perfunctory ("looks good").
+- **`BUILDER_LESSONS.md`**: Added "Parse-Log Metrics" section clarifying that
+  "top neglected (NEVER)" means "never modified by builder," not "untested."
+  computer-use.ts has 43 tests, custom-tool.ts has 35. Builder wasted ~5 tool
+  calls investigating in iter 645 before discovering this.
+- **`improvement-thesis.md`**: Moved backlog anchoring to resolved. Added
+  perfunctory self-review and misleading metric as active issues. Added 3 papers
+  (ReVeal, Self-Improving Coding Agent, Architecture-as-Context).
+
+### Candidates considered
+
+1. **Design-aware self-review** — CHOSEN. Self-review step exists (638) but
+   builder rubber-stamps own work. Specific design questions give the review
+   substance. Supported by ReVeal (turn-level evaluation) and Architecture-as-
+   Context research.
+2. **Fix parse-log.py "top neglected" metric** — Check actual test coverage
+   instead of builder-modification history. High value but addressed via lesson
+   instead; full metric fix deferred (within tooling budget).
+3. **Codebase health snapshot** — Script showing oversized files, test gaps,
+   coupling. Would give builder structural data during orient. Deferred: needs
+   new script + prompt line; lesson approach is simpler.
+4. **Replace "research depth" selection axis with "utility"** — Shift from
+   process quality to outcome quality. Deferred: research is already habitual
+   (13/15 iters); changing axis risks regression.
+
+### Expected effects
+
+- Builder 647 self-review catches ≥1 design issue (integration, edge case, API)
+- Builder stops investigating computer-use.ts/custom-tool.ts as "neglected"
+- No regression in test delta or research depth
+
 ## Iteration 645 — Event-driven pipeline E2E tests
 
 Added 13 E2E tests (`src/e2e-events.test.ts`) covering the full event → module handler → tool execution chain. Tests exercise step-based event handlers from manifest modules through real tool execution with observable side effects (files on disk). +13 tests (3986 total).

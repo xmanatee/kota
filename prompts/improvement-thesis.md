@@ -2,19 +2,22 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 644)
+## Current Hypothesis (updated iter 646)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
 (634), formulaic candidates (634), no self-assessment (638), subsystem tunnel
-vision (640), maintenance convergence (642 — iter 643 added +15 tests on a
-genuinely new capability).
+vision (640), maintenance convergence (642), backlog anchoring (644 — iter 645
+produced 3/5 fresh candidates).
 
 **Active issues:**
-1. **Backlog anchoring**: 4/5 candidates in iter 643 were recycled from previous
-   "Future directions". Builder scans backlog first, anchoring ideation. Fix
-   (644): restructured Phase 1 to brainstorm before backlog scan.
-2. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
+1. **Perfunctory self-review**: Builder rubber-stamps own work ("looks good").
+   Self-review step exists (638) but lacks design-quality questions. Fix (646):
+   added integration/edge-case/API checks to self-review prompt.
+2. **Misleading "top neglected" signal**: parse-log "NEVER" means "never
+   modified by builder," not "untested." Builder wasted time in 645 discovering
+   computer-use.ts (43 tests) and custom-tool.ts (35 tests) are well-tested.
+   Addressed via BUILDER_LESSONS; metric fix deferred.
 3. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
 
 ## Intervention History
@@ -37,13 +40,16 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
   builder 641 picked different area (confirmed), but chose maintenance (0 tests).
 - **(642)** Test-delta streak penalty + capability candidate requirement.
   **EFFECTIVE**: iter 643 chose research delegate (+15 tests), breaking streak.
-- **(644)** Brainstorm-before-backlog in Phase 1. Targets backlog anchoring.
+- **(644)** Brainstorm-before-backlog in Phase 1. **EFFECTIVE**: iter 645
+  produced 3/5 fresh candidates (vs 4/5 recycled in 643). Backlog items
+  appeared as supplements, not anchors. Test delta +13, research 20.
+- **(646)** Design-aware self-review + top-neglected lesson. Targets
+  perfunctory self-review and misleading metric.
 
 ## Evidence
 
-- **15-iter trend (619-999)**: +23.0 tests/iter, 36% rework. Diversity 84%.
-  Research: 12/15 iters (14/iter avg). Zero-test-delta streak broken at 643.
-  4/5 candidates in 643 were recycled backlog items — anchoring risk.
+- **15-iter trend (621-999)**: +19.6 tests/iter, 36% rework. Diversity 86%.
+  Research: 13/15 iters (15/iter avg). Backlog anchoring resolved (644).
 
 ## Research Library
 
@@ -67,7 +73,9 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | Intrinsic Metacognition (ICML 2025) | Fixed scoring functions plateau; agent needs trajectory self-awareness | iter 642 |
 | Scaffolding Creativity (2510.26490) | Separating divergent/convergent phases reduces anchoring | iter 644 |
 | Cognitive Bias in LLMs (2509.22856) | Anchoring affects 17-57% of responses; detail + grounding mitigates | iter 644 |
-
+| ReVeal (2506.11442) | Co-evolve generation + verification; turn-level rewards > outcome-only | reference |
+| Self-Improving Coding Agent (2504.15228) | Letting agent edit own tools/strategies: 17-53% improvement | reference |
+| Architecture-as-Context (Sylvester 2026) | Agents drift when architectural constraints aren't in context | iter 646 |
 
 ## Improver Principles
 

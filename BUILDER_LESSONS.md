@@ -8,6 +8,13 @@ Recurring patterns from recent sessions. Read during orientation.
 - Read only sections you need during implementation, with offset/limit.
 - When updating: condense sections you're modifying. Target: ≤1100 lines.
 
+## Parse-Log Metrics
+
+- **"Top neglected" (NEVER)** means "never modified by the builder loop," NOT
+  "untested." Files like `computer-use.ts` (43 tests) and `custom-tool.ts`
+  (35 tests) have comprehensive pre-builder test suites. Check actual test
+  coverage before investigating.
+
 ## Common Gotchas
 
 - **Module count tests**: Adding/removing modules → update TWO assertions in
