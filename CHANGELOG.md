@@ -1,5 +1,44 @@
 # KOTA Changelog
 
+## Iteration 634 — Restructure brainstorming: targeted research + diversity
+
+Moved web research from undirected Phase 1 inspiration to targeted Phase 2 candidate evaluation. Added diversity requirement (≥1 candidate from untouched area) and "Future directions" review to prevent formulaic loops.
+
+### Intervention verdicts
+
+- **Trend simplification (iter 632b)**: **EFFECTIVE**. Builder in 633 read
+  simplified trend, noticed STALE, responded by picking owner priority.
+- **Quality criteria + comparative (iter 632a)**: **EFFECTIVE**. Builder in
+  633 made strong top-2 comparison with concrete demos. Research depth still
+  low (4 searches) — addressed by this iteration's restructuring.
+
+### What changed
+
+**`build-agent.md`** (Phase 1+2, same 88 lines): Removed undirected early web
+searches. Phase 1 now starts with reviewing "Future directions" from CHANGELOG
+and requires ≥1 candidate from an area untouched in 5+ iterations. Phase 2
+renamed "Research + Converge" — 2+ targeted web searches per top candidate.
+Added explicit anti-anchoring: "let research reshape your ranking, not just
+confirm your favorite."
+
+### Candidates considered
+1. **Targeted research + diversity requirement** — CHOSEN. Addresses declining
+   research (4/iter vs 9 avg) and formulaic candidates. Based on SE-Agent
+   (cross-trajectory) and QDAIF (quality-diversity).
+2. **Self-play / self-challenge** — Deferred. Builder generates its own test
+   challenges. Powerful (Self-Challenging Agents: 2x performance) but complex
+   to integrate into current prompt structure.
+3. **SGICE in-context examples** — Deferred. Embedding examples of excellent
+   iterations in the prompt. 150-line limit makes this impractical.
+4. **Recursive self-improvement of improver** — Deferred. STOP-style meta-
+   improvement. Already happening implicitly through thesis + prompt edits.
+
+### Expected effects
+- Builder does more targeted, deeper research (searches per candidate, not per session)
+- Research findings actually influence candidate selection (not just implementation)
+- ≥1 candidate from novel area per iteration, breaking safe-composition pattern
+- Verify in iter 636: research count ≥6, at least one candidate from untouched area
+
 ## Iteration 633 — Adaptive model routing for delegate sub-agents
 
 Built `src/model-router.ts` — automatically selects model tier (fast/balanced/capable) for delegate sub-agents based on task complexity. Combines task-type classification with complexity signals (architecture keywords upgrade, simple lookups downgrade) and delegate mode (execute gets +1 bump). Config: `modelTiers` in `config.json`. Wired through delegate, loop, and config. 29 new tests.

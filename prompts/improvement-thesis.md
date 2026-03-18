@@ -2,32 +2,22 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 632)
+## Current Hypothesis (updated iter 634)
 
-**Owner audit (iter 632) identified systemic issues — now structurally fixed:**
-
-1. **Improver metric obsession**: 4 of 12 recent improver iterations (614, 616,
-   618, 620) spent on parse-log.py fixes — 33% of cycles on measurement tooling.
-   Now capped at 1-in-5 by the tooling budget guardrail.
-2. **Builder prompt overspecification**: Brainstorming had 5 mandatory categories
-   + 3 Phase 2 sub-steps. Simplified to 3 categories and natural flow.
-3. **Never-tested files as wallpaper**: computer-use.ts (418L), custom-tool.ts
-   (358L), guardrails.ts (282L) flagged for dozens of iterations, never addressed.
-4. **No runtime testing**: Every iteration ends "runtime SKIP" due to missing
-   ANTHROPIC_API_KEY. step.sh now warns. Owner needs to set the env var.
-5. **Owner's big requests stalling**: Source structure reorg, true plug-n-play
-   modules, self-hosting loop — repeatedly deferred as "too large."
-6. **Legacy facades**: Re-export shims from file splits now banned by builder
-   guardrail. Existing facades (module-factory.ts, openai-model-client.ts)
-   queued for cleanup.
-7. **Prompt size enforcement**: Both prompts capped at 150 lines, enforced by
-   step.sh validation. Forces remove-before-add discipline.
+**Resolved systemic issues (iter 632)**: Metric obsession (capped 1-in-5),
+prompt overspecification (simplified), legacy facades (banned + cleaned),
+prompt size enforcement (150 lines, step.sh validates).
 
 **Active issues:**
-1. **Composition verification** — No E2E for batch/pipe/map.
-2. **System prompt scaling** — 33 tools, ~200 chars headroom.
-3. **Process quality** — Focus on improving builder creativity and implementation
-   quality through better conditions, not more procedure.
+1. **Research declining**: 4 searches/iter in last 2 iters (vs 9 avg). Builder
+   treats early web searches as checkbox. Fix: moved research to Phase 2 where
+   it serves candidate evaluation, not undirected inspiration.
+2. **Formulaic candidates**: Builder gravitates toward safe compositions of
+   existing systems. Fix: added diversity requirement (≥1 candidate from
+   untouched area) and CHANGELOG "Future directions" review.
+3. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
+4. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
+5. **Owner's big requests**: Source reorg, true plug-n-play modules — stalling.
 
 ## Intervention History
 
@@ -39,18 +29,22 @@ per-item next-steps (624), adversarial case-making (626), feasibility/evaluation
 research separation (628). Key failures: quality lesson (546), research strategy
 lesson (540), domain concentration (7 iterations, accepted at 608).
 
-**Recent (iters 630-632):**
-- **(630)** Inspiration-first brainstorming. **PARTIALLY EFFECTIVE**: iter 631
-  found novel blackboard idea from web research but only 4 total searches.
-- **(632a)** Quality criteria + comparative research. **INCONCLUSIVE**: iter 999
-  was refactoring, not a feature. Need feature iteration to evaluate.
-- **(632b)** Trend output simplification: 22 signals → 9. Owner-requested.
-  Reduces cognitive load during builder brainstorming.
+**Recent (iters 630-634):**
+- **(630)** Inspiration-first brainstorming. **PARTIALLY EFFECTIVE**: found
+  novel ideas but research still shallow (4 searches).
+- **(632a)** Quality criteria + comparative. **EFFECTIVE**: iter 633 did strong
+  top-2 comparison with concrete demos. Research still low (4 searches).
+- **(632b)** Trend simplification: 22→9 signals. **EFFECTIVE**: builder still
+  reads and acts on trend data (noticed STALE, picked owner priority).
+- **(634)** Research-after-candidates + diversity requirement. Restructured
+  brainstorming: research now targets specific candidates, not undirected.
+  Added ≥1 candidate from untouched area + CHANGELOG Future Directions review.
 
 ## Evidence
 
-- **10-iter trend (615-999)**: +29.5 tests/iter, 38% rework, 7 fix cycles.
-  Work diversity 82% (healthy). Research: 7/10 iters (10/iter avg).
+- **10-iter trend (617-999)**: +30 tests/iter, 41% rework, 6 fix cycles.
+  Work diversity 82% (healthy). Research: 7/10 iters (9/iter avg).
+  Last 2 iters: research declining (4/iter), rework rising (57%→62%).
 
 ## Research Library
 
@@ -64,8 +58,12 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | Deep Ideation (2511.02238) | Exploration before ideation: 10.67% quality lift | iter 630 |
 | ICLR 2026 RSI Workshop | Prompt-only modifications plateau; expand to tools | reference |
 | HGM (Sakana, ICLR 2026 Oral) | Short-term optimization can kill long-term potential | reference |
+| SE-Agent (2508.02085) | Cross-trajectory inspiration breaks formulaic loops | iter 634 |
+| QDAIF (ICLR 2024) | Quality-diversity: maintain diverse candidates, not just best | iter 634 |
 | SGICE (Addy Osmani) | Self-generated in-context examples: 73→89-93% lift | potential |
 | MPO (EMNLP 2025) | Meta-plan abstraction escapes local optima | potential |
+| SICA (ICLR 2025 WS) | Self-editing agent: 17-53% improvement via self-modification | reference |
+| STOP (NeurIPS 2025) | Recursive self-improvement of the improver itself | reference |
 
 ## Improver Principles
 

@@ -37,23 +37,23 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 
 ### 2. Decide what to build
 
-**Phase 1 — Diverge**: Do 2-3 web searches for recent agent patterns or
-research. Then generate ≥5 candidates across these areas:
-- **Capability or composition**: new tool, integration, workflow, or novel
-  combination of 2+ existing features into something new
+**Phase 1 — Diverge**: Scan "Future directions" from recent CHANGELOG entries
+for abandoned ideas worth revisiting. Generate ≥5 candidates across:
+- **Capability**: new tool, integration, or novel combination of existing features
 - **Reliability**: E2E tests, error paths, hardening neglected modules
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
-Don't filter yet. Ask: "What can this agent almost-but-not-quite do?"
+Include ≥1 candidate from an area untouched in 5+ iterations (check trend).
+Ask: "What can this agent almost-but-not-quite do?"
 
-**Phase 2 — Converge**: Grep the codebase to confirm top candidates don't
-already exist. For the top 2, describe a concrete demo (what does the user do,
-what happens, why is it impressive?) and make the strongest case for each over
-the other. Commit to the bolder one. Then search the web for how top agents
-implement this — let findings shape your implementation.
+**Phase 2 — Research + Converge**: For top 2-3 candidates, do 2+ targeted web
+searches each — prior art, common pitfalls, how top agents solve this. Grep
+codebase to confirm they don't exist. Let research reshape your ranking, not
+just confirm your favorite. For the final 2, describe a concrete demo and make
+the strongest case for each. Commit to the one where research revealed the
+deepest opportunity.
 
-Check the trend's work pattern for concentration warnings.
-Record rejected candidates in CHANGELOG under "Future directions."
+Record rejects in CHANGELOG under "Future directions."
 
 ### 3. Implement
 
