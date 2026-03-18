@@ -1124,6 +1124,35 @@ def _depth_health(
     }
 
 
+def _parse_owner_priorities() -> dict:
+    """Parse NOTES.md for pending b: items and their latest progress iteration."""
+    from pathlib import Path
+
+    notes = Path(__file__).parent / "NOTES.md"
+    if not notes.exists():
+        return {"pending": 0, "last_progress_iter": None}
+    text = notes.read_text()
+    # Only process active items (before Completed/Skipped sections)
+    for marker in ["---\nCompleted:", "---\nSkipped:"]:
+        idx = text.find(marker)
+        if idx >= 0:
+            text = text[:idx]
+    items: list[dict] = []
+    current: dict | None = None
+    for line in text.split("\n"):
+        if line.startswith("b:"):
+            current = {"label": line[2:].strip()[:60], "last_iter": None}
+            items.append(current)
+        elif current and "Progress (iter " in line:
+            m = re.search(r"iter (\d+)", line)
+            if m:
+                it = int(m.group(1))
+                if current["last_iter"] is None or it > current["last_iter"]:
+                    current["last_iter"] = it
+    last = max((i["last_iter"] for i in items if i["last_iter"]), default=None)
+    return {"pending": len(items), "last_progress_iter": last}
+
+
 def _classify_subsystem(title: str) -> str:
     """Classify a CHANGELOG title into a top-level subsystem for concentration detection."""
     t = title.lower().replace("`", "")
@@ -1483,6 +1512,25 @@ def trend(n: int = 5) -> None:
                 f"  WARNING: depth-log has approaches not in parse-log.py: "
                 f"{', '.join(sorted(h['unknown_approaches']))}"
             )
+
+    # Owner priority staleness — how long since builder progressed an owner request
+    owner = _parse_owner_priorities()
+    if owner["pending"] > 0:
+        last = owner["last_progress_iter"]
+        if last and entries:
+            current_iter = entries[-1]["iter"]
+            builder_iters_ago = (current_iter - last) // 2
+            warn = ""
+            if builder_iters_ago >= 8:
+                warn = " — STALE (consider owner request)"
+            elif builder_iters_ago >= 5:
+                warn = " — getting stale"
+            print(
+                f"  Owner priorities: {owner['pending']} pending, "
+                f"last progress: iter {last} ({builder_iters_ago} builder iters ago){warn}"
+            )
+        elif not last:
+            print(f"  Owner priorities: {owner['pending']} pending, never progressed")
     print()
 
 

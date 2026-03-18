@@ -4,37 +4,33 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 620)
+## Current Hypothesis (updated iter 622)
 
-**Feedback loop accuracy remains the dominant lever** (Pattern Watch #5,
-confirmed 7×). Iter 620 fix: suite_totals collected counts from targeted test
-runs (`--changed`, specific files) alongside full-suite runs, producing
-nonsensical negative deltas (e.g., `3651→1179 (-2472)` for iter 619). Fixed:
-correlate tool_result with originating Bash command via tool_use_id, skip
-targeted runs.
+**Owner-priority drift is the new dominant issue.** Builder has been doing safe,
+productive file-splitting for 4 straight iterations (615-621). Owner requests
+haven't progressed since iter 613. The trend signals showed this as "healthy"
+(94% diversity) because splits classify as "architecture." Fix: added owner-
+priority staleness signal to trend output — concrete data the builder can't
+ignore.
 
 **Active issues:**
-1. **Depth coverage gap** — Builder did depth work 3 iterations in a row (615,
-   617, 619). All found real issues. Depth-log lesson + top-neglected signal
-   working well. 33 stale modules remain, 282/344 approach combos untried.
-2. **Implementation efficiency** — Test reruns 8.5× avg (highest metric). Much
-   of this is targeted incremental testing (good TDD), not full-suite rework.
-   A targeted vs full-suite breakdown would clarify. Monitor.
-3. **Composition verification** — No E2E for batch/pipe/map. Still a gap.
-4. **System prompt scaling** — 32 tools, ~200 chars headroom. Nearly full.
-5. **Context growth** — 56k avg, growing +3%. Not yet concerning.
+1. **Owner priority drift** — 5 pending `b:` items, last progress iter 613
+   (4 builder iters ago). New trend signal now surfaces this. Monitor if builder
+   responds in iter 623.
+2. **Depth coverage gap** — Builder did depth work 4 iterations in a row (615-
+   621), all productive. 33 stale modules remain. Depth signal working well —
+   may be working *too* well, crowding out owner priorities.
+3. **Implementation efficiency** — Test reruns 8.5× avg. Includes targeted TDD
+   runs (healthy). Monitor.
+4. **Composition verification** — No E2E for batch/pipe/map.
+5. **System prompt scaling** — 32 tools, ~200 chars headroom.
 
 **Resolved issues:**
-- Suite_totals targeted-test filtering (iter 620). Both parse modes now skip
-  targeted Bash test runs.
-- Test delta accuracy: total-count extraction (iter 618).
-- Subsystem classification: security-keyword pre-check (iter 618).
-- Depth tracking accuracy: auto-detection from session data (iter 616).
-- Signal accuracy: test delta false positive fixed (iter 614). Classification
-  drift fixed (iter 612).
-- Owner-priority alignment, research usage, domain concentration, brainstorming
-  quality, web research drought, feature concentration, DESIGN.md growth,
-  instruction bloat: all RESOLVED (see iter 610 thesis for details).
+- Suite_totals targeted-test filtering (iter 620, confirmed iter 621).
+- Test delta accuracy, subsystem classification, depth tracking, signal
+  accuracy, owner-priority alignment (prompt-level), research usage, domain
+  concentration, brainstorming quality, DESIGN.md growth, instruction bloat:
+  all RESOLVED (see prior thesis versions for details).
 
 ## Intervention History
 
@@ -44,7 +40,7 @@ tool registration checklist (554, rework 72→28%), CHANGELOG archive (568),
 diverge/converge brainstorming (598). Key failures: quality lesson (546),
 research strategy lesson (540). See CHANGELOG archive for details.
 
-**Recent (iters 598-616):**
+**Recent (iters 598-622):**
 - **(598)** Diverge/converge brainstorming. **STRUCTURALLY EFFECTIVE**.
 - **(600)** Research-before-convergence. **VERY EFFECTIVE**: 0→21 web searches.
 - **(602)** Work-type classification fix + Shannon entropy. **EFFECTIVE**.
@@ -52,29 +48,25 @@ research strategy lesson (540). See CHANGELOG archive for details.
 - **(606)** Domain signal fix + fix cycle detection fix. Domain: **INEFFECTIVE**.
 - **(608)** Owner-priority brainstorming category. **EFFECTIVE** (verified 609).
 - **(610)** Thesis compression 491→149 lines. **NEUTRAL** (expected).
-- **(612)** Top-neglected modules in trend + classifier fix. **EFFECTIVE**:
-  builder acted on neglected-modules signal in iter 615 (first depth work in
-  150+ iters), found real bug, added 22 tests. Confirmed 3 iterations later.
-- **(614)** Suite-total-based test delta. **CONFIRMED**: iter 615 shows accurate
-  `3596→3618 (+22)` delta. No more false positives.
-- **(616)** Depth tracking auto-detection from session data. **CONFIRMED**: builder
-  updated depth-log.md in iter 617 (call 65). Lesson followed.
-- **(618)** Test delta total-count fix + subsystem security-keyword pre-check.
-  **CONFIRMED**: iter 619 trend shows accurate `+61`. Subsystem correctly
-  classified as `modules/manifest`. Individual session mode had separate bug
-  (fixed iter 620).
-- **(620)** Suite_totals targeted-test filtering. Pending.
+- **(612)** Top-neglected in trend. **EFFECTIVE**: drove 4 depth iters (615-621).
+- **(614)** Suite-total-based test delta. **CONFIRMED**.
+- **(616)** Depth tracking auto-detection. **CONFIRMED**.
+- **(618)** Test delta + subsystem classifier fixes. **CONFIRMED**.
+- **(620)** Suite_totals targeted-test filtering. **CONFIRMED** (iter 621:
+  accurate +42 delta).
+- **(622)** Owner priority staleness signal in trend. Pending.
 
-## Evidence (updated iter 620)
+## Evidence (updated iter 622)
 
-- **Iter 619 metrics**: 69 calls, $3.98, 67k ctx/turn, +61 tests, 1 fix cycle,
-  46% rework, 23% re-edit. Split module-factory.ts (854L → 5 focused modules).
-  Responded to top-neglected signal. No web research (acceptable for refactoring).
-- **10-iter trend (601-619)**: calls avg 85, cost avg $4.10, +26.0 tests/iter.
-  Context 56k avg (+3%). Re-edit 50% avg, 2.5 edits/file avg.
-  Domains: 5 modules, 3 other, 2 tools. Work pattern: 6 arch, 3 feature,
-  1 hardening. Diversity 82% (healthy). Test reruns 8.5× avg (includes
-  targeted TDD runs — not all rework).
+- **Iter 621 metrics**: 67 calls, $2.43, 42k ctx/turn, +42 tests, 0 fix cycles,
+  45% rework, 0% re-edit. Split openai-model-client.ts into `src/openai/`.
+  Cheapest and cleanest iteration in the 10-iter window.
+- **10-iter trend (603-621)**: calls avg 82, cost avg $3.90, +27.4 tests/iter.
+  Context 54k avg (shrinking -4%). Re-edit 43% avg, 2.3 edits/file avg.
+  Domains: 5 modules, 3 tools, 2 other. Work pattern: 5 arch, 3 feature,
+  2 hardening — diversity 94%. Owner priorities: 5 pending, last iter 613.
+  **Key concern**: depth signal working *too* well — 4 consecutive depth/
+  refactoring iters. Builder choosing safe file-splits over ambitious features.
 
 ## Research Library
 
@@ -99,7 +91,9 @@ research strategy lesson (540). See CHANGELOG archive for details.
 | Live-SWE-agent (2511.13646) | Agent evolves own scaffolding at runtime; start minimal, create tools per-task. |
 | SWE-EVO (2512.18470) | Even GPT-5 + OpenHands achieves only 21% on multi-file evolution tasks. Design for iteration, not one-shot. |
 | OpenEvolve (open-source AlphaEvolve) | Dual-model ensemble: cheap for breadth, expensive for depth. Island-based architecture prevents local optima. |
-| Addy Osmani self-improving agents | Pattern imitation: agents mimic quality of existing tests. Progress logs carry knowledge between iterations. Atomic tasks with acceptance criteria. |
+| Addy Osmani / SGICE | Self-Generated In-Context Examples: store successful trajectories, feed as few-shot. 73→89-93% performance lift. Progress logs carry knowledge between iterations. |
+| MPO (2503.02682, EMNLP 2025) | Meta Plan Optimization: high-level abstract plans refined iteratively beat step-level optimization. 83.1% SOTA ALFWorld/SciWorld. When stuck in local optima, raise abstraction level. |
+| ICLR 2026 RSI Workshop | Agents modifying only prompts plateau quickly. Expanding to tool/scaffold code shows continued improvement. Five lenses for evaluating self-improvement. |
 | HGM (Sakana AI, ICLR 2026 Oral) | Short-term benchmark optimization can kill long-term self-improvement potential. Misalignment between immediate metric gains and improvement capacity. |
 | AgentDiet (2509.23586) | Trajectory compression via reflection: 40-60% input token reduction, 21-36% cost reduction with no performance loss. Identifies useless/redundant/expired information. |
 | RAGEN Echo Trap | Multi-turn RL agents hit reward variance cliffs causing repetitive behavior. Fix: trajectory filtering, gradient stabilization, diverse initial states. |
@@ -156,17 +150,18 @@ Core principles distilled from 39 interventions across 78 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Depth coverage gap** — 34 stale modules (corrected signal). Builder did
-   depth work in iter 615 for first time in 150+ iters. Depth-log lesson added,
-   auto-detection active. Monitor frequency of depth work over next 3-5 iters.
-   If still rare, consider making depth work outcomes more visible (bugs found,
-   test coverage gaps exposed).
-2. **Implementation efficiency** — Test reruns 7.5× avg, 50% re-edit. Iter 615
-   proved excellent efficiency is possible (0% re-edit). Root cause may be
-   scope-dependent: complex cross-cutting work inherently has more rework.
-3. **GEPA-inspired structured diagnosis** — Auto-detection of waste patterns
-   from execution traces. The iter 616 session-activity detection is a step
-   toward this. Next: detect specific waste patterns (full-suite reruns when
-   targeted would suffice, edits before reading tests).
+1. **Owner priority drift** — NEW, highest priority. Builder gravitated to safe
+   file-splitting for 4 straight iters. Owner has 5 pending requests. Iter 622
+   added staleness signal to trend. Verify in iter 623: does builder pick an
+   owner request? If not, consider stronger intervention (e.g., add owner items
+   as explicit brainstorming constraints, or show per-item staleness).
+2. **Depth signal calibration** — Top-neglected signal (iter 612) was highly
+   effective but may be *too* attractive, crowding out other work. If owner
+   priority signal resolves the balance, depth is fine. If not, consider
+   reducing its prominence.
+3. **SGICE trajectory replay** — Research finding: 73→93% lift from feeding
+   successful trajectories as few-shot examples. Practical opportunity: store
+   high-scoring session summaries (low cost, 0% re-edit) and inject during
+   brainstorming for similar work types.
 4. **Composition verification** — No E2E for batch/pipe/map.
 5. **System prompt scaling** — ~200 chars headroom at 32 tools.

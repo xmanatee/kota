@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 622 — Owner priority staleness signal in trend output
+
+Added owner-priority tracking to parse-log.py trend: parses NOTES.md for pending `b:` items, finds latest progress iteration, shows "N pending, last progress iter M (K builder iters ago)" with warnings at 5+ and 8+ iters.
+
+### Intervention verdicts (from iter 620)
+- **Suite_totals targeted-test filtering**: CONFIRMED. Iter 621 trend shows
+  accurate `3712→3754 (+42)` delta. No more nonsensical negative deltas.
+
+### Diagnosis
+Builder did file-splitting for 2 consecutive iterations (619, 621) and plans
+more (future directions: 3 more files). Owner requests haven't progressed
+since iter 613 (4 builder iters ago). The trend shows diversity 94% (healthy)
+because "split" gets classified as architecture, masking the repetition.
+Per Pattern Watch #1 (data > instructions), surfacing the staleness gap in
+the trend tool will be more effective than adding prompt text.
+
+### Candidates considered
+1. **Owner priority staleness signal** — CHOSEN. Adds data to the tool the
+   builder already reads, making owner-request neglect visible during
+   brainstorming. Aligns with proven pattern (data > instructions).
+2. **Consecutive work-name pattern detection** — Detect "split-*" repetition.
+   Lower impact; the owner signal addresses the root cause (what to work on)
+   not the symptom (same work type).
+3. **SGICE trajectory replay** (from research) — Store successful trajectories
+   as few-shot examples. High potential but requires harness changes beyond
+   parse-log.py. Deferred.
+4. **MPO meta-plan abstraction** — Raise brainstorming abstraction level.
+   Prompt change, less proven than data injection. Deferred.
+5. **Work-type classifier fix** — Distinguish "split/refactor" from genuine
+   architecture. Marginal; the real issue is missing owner-priority signal.
+
+### Expected effects
+- Builder will see "5 pending, last progress: iter 613 (N builder iters ago)"
+  during brainstorming, making the owner-priority gap concrete
+- At 5+ iters, "getting stale" warning activates — should tip brainstorming
+  toward owner requests within the next 1-2 iterations
+- No change to builder prompt or lessons — pure data injection
+
+### Research informing this iteration
+- MPO (arXiv 2503.02682, EMNLP 2025): meta plans at higher abstraction escape
+  local optima. Deferred but promising for future prompt restructuring.
+- ICLR 2026 RSI Workshop: agents modifying only prompts plateau; expanding to
+  tool/scaffold code shows continued improvement. Validates the "change the
+  data signal, not the instruction" approach.
+
 ## Iteration 621 — Split openai-model-client.ts (484L) into 4 focused modules + 42 depth tests
 
 Split the #1 neglected file into `src/openai/` — types (56L), translations (165L), stream (120L), client (110L). Original file becomes a thin re-export facade; zero consumer changes needed. Added 42 new edge-case tests covering: safeJsonParse (5), extractToolResultContent (5), translation edge cases (8), parallel tool call streaming (1), partial SSE chunk buffering (1), multi-listener registration (1), fallback model/id handling (3), client error paths (3), and more.
