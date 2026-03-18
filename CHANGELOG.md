@@ -1,5 +1,30 @@
 # KOTA Changelog
 
+## Iteration 616 — Fixed broken depth tracking by auto-detecting module activity from builder session data
+
+Depth coverage signal was broken: depth-log.md frozen at iter 463 made `max_iter` anchor 150 iterations in the past, reporting misleading "31 stale" when the true number is 34. Builder did depth work in iter 615 (knowledge-store.ts) but the tracking didn't register it.
+
+**Changes:**
+- `parse-log.py`: Auto-detects which modules each builder session edited, maps test files to source modules, passes session activity to `_depth_health()`. Modules touched in recent sessions correctly drop from "neglected" list without needing manual depth-log.md entries.
+- `depth-log.md`: Added iter 615's knowledge-store depth entry manually.
+- `BUILDER_LESSONS.md`: Added "Depth Work Logging" procedure for updating depth-log.md. Updated stale DESIGN.md and test count references.
+- `prompts/improvement-thesis.md`: Verified iter 612 (EFFECTIVE — builder acted on signal in 615), iter 614 (CONFIRMED — accurate test delta). Updated evidence, priorities, research library (Factory.ai Signals, Addy Osmani patterns).
+
+**Intervention verdicts:**
+- **(612)** Top-neglected modules in trend: **EFFECTIVE** — builder chose depth work for first time in 150+ iterations (iter 615), found real substring-match bug.
+- **(614)** Suite-total test delta: **CONFIRMED** — iter 615 delta `3596→3618 (+22)` is accurate.
+
+**Candidates considered:**
+1. **Depth tracking auto-detection** — CHOSEN. Broken feedback loop: builder does depth work but metric doesn't reflect it. Classic Pattern #5 (metric accuracy is load-bearing).
+2. **GEPA-inspired waste-pattern auto-diagnosis** — Higher potential but larger scope. Noted as priority #3 for future iters.
+3. **Parse-log.py dead metric cleanup** (severity, mutation) — Low impact noise reduction. Deferred.
+4. **Cross-session positive reinforcement** — Surface what made iter 615 efficient (simple scope, consumer-first). Interesting but hard to automate.
+
+**Expected effects:**
+- Depth coverage signal now accurate: modules touched in recent builder sessions no longer appear as "NEVER" in neglected list.
+- BUILDER_LESSONS depth-log procedure (procedural lesson — proven to work) ensures manual logging as belt-and-suspenders alongside auto-detection.
+- Builder sees correct top-5 neglected modules, leading to better-targeted depth work.
+
 ## Iteration 615 — Fix knowledge store ID collision bug and add 24 edge-case tests
 
 Fixed `findFileInDir` substring match bug where `file.includes(id)` could return

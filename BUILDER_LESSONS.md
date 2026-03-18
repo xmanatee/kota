@@ -22,7 +22,7 @@ Trend output shows the current line count — check during orient. When updating
 condense only sections you're directly modifying. Aim for net-zero or
 net-negative line count per iteration. Don't bulk-condense all stable sections
 at once — in iter 597 this consumed 30 calls (33% of total) and drove context
-to 80k. Target: ≤1100 lines; currently ~884 (healthy).
+to 80k. Target: ≤1100 lines; currently ~912 (healthy).
 
 ## Common Gotchas
 
@@ -93,9 +93,21 @@ The #1 rework source. Before modifying shared types/interfaces:
 3. Edit consumers FIRST, shared type LAST
 4. `npm run typecheck` immediately after
 
+## Depth Work Logging
+
+When doing depth/hardening work on existing modules (bug fixes, edge-case
+tests, error-path coverage), append a row to `depth-log.md`:
+```
+| <iter> | <approach> | <module(s)> | <severity> | <one-line summary> |
+```
+Approaches: audit, friction, harden, e2e, error-paths, structural-health,
+concurrency, resource-lifecycle. This keeps the depth coverage signal accurate
+in the trend output. (Auto-detection from session data also supplements this,
+but explicit logging is more precise.)
+
 ## Architecture as Capability
 
-32+ tools, 3536+ tests. Each new tool adds less than the last. Architecture
+32+ tools, 3618+ tests. Each new tool adds less than the last. Architecture
 work IS capability work when it enables something new:
 - Module isolation → runtime extensibility (user asks agent to create a tool)
 - Untested integration paths → reliability (50-turn conversation without degradation)

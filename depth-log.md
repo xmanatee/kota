@@ -54,6 +54,7 @@ identify coverage gaps without grepping 15K+ lines of CHANGELOG.
 | 511 | concurrency | daemon.ts, telegram.ts | high | Stale .finally() clobbers new lifecycle's activeIdleSession, handleDueItems starts actions during shutdown, in-flight actions untracked/unwaited by stop(); sweep-fixed same guard in telegram.ts; 6 new tests |
 | 513 | harden | architect.ts | high | multi_edit file tracking used wrong property `file_path` instead of `path` (never tracked), silent MAX_EDITOR_TURNS exit; replaced inline tracking with shared `extractModifiedFiles()`; 8 new tests |
 | 515 | friction | tools/delegate.ts, tools/web-search.ts | high | Whitespace-only task accepted (wasted API call), http_request URLs missing from sources section, task preview split multi-byte characters; sweep-fixed same whitespace bug in web-search.ts; 10 new tests |
+| 615 | harden | knowledge-store.ts | high | Fixed `findFileInDir` substring match bug (`file.includes(id)` could return wrong file when one ID is prefix of another); 24 new edge-case tests (29→53) |
 
 ## Approach Summary
 

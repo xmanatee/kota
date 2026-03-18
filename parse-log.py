@@ -941,6 +941,7 @@ def _quick_parse(path: str) -> dict:
         "return_edit_pct": return_edit_ratio,
         "edits_per_file": edits_per_file,
         "edited_file_count": len(_edited_files),
+        "edited_files": set(_edited_files),
     }
 
 
@@ -968,10 +969,11 @@ def _load_depth_log() -> tuple[dict[int, str], list[dict]]:
     return sevs, rows
 
 
-def _depth_health(rows: list[dict]) -> dict:
-    """Compute depth phase health metrics from main table rows."""
-    if not rows:
-        return {}
+def _depth_health(
+    rows: list[dict],
+    session_activity: dict[str, int] | None = None,
+) -> dict:
+    """Compute depth phase health metrics from depth-log rows + session data."""
     from pathlib import Path
     src = Path(__file__).parent / "src"
     # Count source files ≥200 lines (same logic as refresh-depth-log.py)
@@ -987,6 +989,8 @@ def _depth_health(rows: list[dict]) -> dict:
             if rel not in exclude:
                 source_files[rel] = sum(1 for _ in f.open())
     big_modules = {p for p, n in source_files.items() if n >= 200}
+    if not big_modules:
+        return {}
 
     # Build coverage map from depth-log rows
     covered: dict[str, list[tuple[int, str]]] = {}
@@ -1008,7 +1012,19 @@ def _depth_health(rows: list[dict]) -> dict:
             for path in resolved:
                 covered.setdefault(path, []).append((row["iter"], row["approach"]))
 
-    max_iter = max(r["iter"] for r in rows)
+    # Merge auto-detected activity from recent builder sessions.
+    # A module edited in a session isn't maximally stale even without a
+    # depth-log entry.  Tagged "session" so it doesn't count toward formal
+    # depth approach combos.
+    if session_activity:
+        for rel_path, iter_num in session_activity.items():
+            if rel_path in big_modules:
+                covered.setdefault(rel_path, []).append((iter_num, "session"))
+
+    all_iters = [r["iter"] for r in rows]
+    if session_activity:
+        all_iters.extend(session_activity.values())
+    max_iter = max(all_iters) if all_iters else 0
     stale_count = 0
     total_combos = 0
     tried_combos = 0
@@ -1022,11 +1038,11 @@ def _depth_health(rows: list[dict]) -> dict:
         if builder_iters_ago >= 10:
             stale_count += 1
             total_combos += len(DEPTH_APPROACHES)
-            tried = len(set(a for _, a in covered[path]))
+            tried = len(set(a for _, a in covered[path] if a != "session"))
             tried_combos += tried
         else:
             total_combos += len(DEPTH_APPROACHES)
-            tried = len(set(a for _, a in covered[path]))
+            tried = len(set(a for _, a in covered[path] if a != "session"))
             tried_combos += tried
 
     distinct_modules = len(set(p for p in covered if p in big_modules))
@@ -1381,8 +1397,23 @@ def trend(n: int = 5) -> None:
         else:
             print(f"  DESIGN.md: {design_lines} lines (limit: {design_limit}, ok)")
 
-    # Depth phase health (from depth-log.md)
-    health = _depth_health(depth_rows)
+    # Depth phase health (from depth-log.md + auto-detected session activity)
+    # Extract module-level activity from session edited files so depth
+    # tracking doesn't depend solely on manual depth-log.md updates.
+    session_module_activity: dict[str, int] = {}
+    for e in entries:
+        for fp in e.get("edited_files", set()):
+            m = re.search(r"/src/(.+\.ts)$", fp)
+            if not m:
+                continue
+            rel = m.group(1)
+            # Map test files to their source module
+            rel = re.sub(r"\.integration\.test\.ts$", ".ts", rel)
+            rel = re.sub(r"\.test\.ts$", ".ts", rel)
+            cur = session_module_activity.get(rel)
+            if cur is None or e["iter"] > cur:
+                session_module_activity[rel] = e["iter"]
+    health = _depth_health(depth_rows, session_activity=session_module_activity)
     if health:
         h = health
         print(
