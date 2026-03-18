@@ -100,6 +100,7 @@ export class AgentSession {
   private sessionStartTime = 0;
   private guardrailsConfig: GuardrailsConfig;
   private reflectionEnabled: boolean;
+  private modelTiers?: import("./model-router.js").ModelTiers;
   private stateMachine: SessionStateMachine;
 
   constructor(options: LoopOptions = {}) {
@@ -117,6 +118,7 @@ export class AgentSession {
     this.guardrailsConfig = options.config?.guardrails
       ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
     this.reflectionEnabled = options.reflectionEnabled ?? options.config?.reflection ?? true;
+    this.modelTiers = options.config?.modelTiers;
 
     const thinkingBudget = options.thinkingBudget || 10_000;
     this.thinkingConfig = options.thinkingEnabled
@@ -197,6 +199,7 @@ export class AgentSession {
 
     setDelegateConfig({
       model: this.editorModel,
+      modelTiers: options.config?.modelTiers,
       client: this.client,
       cwd: process.cwd(),
       projectContext: projectContext || undefined,
@@ -249,6 +252,7 @@ export class AgentSession {
         // Update delegate config so sub-agents can use MCP tools
         setDelegateConfig({
           model: this.editorModel,
+          modelTiers: this.modelTiers,
           client: this.client,
           cwd: process.cwd(),
           projectContext: this.projectContext || undefined,

@@ -12,6 +12,8 @@ import {
 } from "../delegate-prompts.js";
 import type { McpManager } from "../mcp-manager.js";
 import { AnthropicModelClient, type ModelClient } from "../model-client.js";
+import type { ModelTiers } from "../model-router.js";
+import { routeModel } from "../model-router.js";
 import { isRetryable } from "../streaming.js";
 import { maybeRetry } from "../tool-retry.js";
 import type { Transport } from "../transport.js";
@@ -67,6 +69,7 @@ function streamBackoff(attempt: number): Promise<void> {
 
 export type DelegateConfig = {
   model: string;
+  modelTiers?: ModelTiers;
   client?: ModelClient;
   cwd?: string;
   projectContext?: string;
@@ -99,6 +102,12 @@ export async function runDelegate(
   const isExecute = mode === "execute";
   const builtinTools = isExecute ? executeTools : exploreTools;
   const runners = isExecute ? executeRunners : exploreRunners;
+
+  // Adaptive model selection: route to appropriate tier based on task complexity
+  const modelRoute = delegateConfig.modelTiers
+    ? routeModel(task, mode, delegateConfig.modelTiers, delegateConfig.model)
+    : null;
+  const selectedModel = modelRoute?.model ?? delegateConfig.model;
 
   // Include MCP tools so sub-agents can use external tool servers
   const mcpMgr = delegateConfig.mcpManager;
@@ -136,7 +145,8 @@ export async function runDelegate(
   const transport = delegateConfig.transport;
   const taskChars = [...task];
   const taskPreview = taskChars.length > 60 ? `${taskChars.slice(0, 57).join("")}...` : task;
-  if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) starting: ${taskPreview}` });
+  const routeInfo = modelRoute ? ` [${modelRoute.tier}:${selectedModel}]` : "";
+  if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode})${routeInfo} starting: ${taskPreview}` });
 
   for (let turn = 0; turn < maxTurns; turn++) {
     let response!: Anthropic.Message;
@@ -144,7 +154,7 @@ export async function runDelegate(
     for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
       try {
         const stream = client.messages.stream({
-          model: delegateConfig.model,
+          model: selectedModel,
           max_tokens: 8192,
           system: systemBlocks,
           tools,
@@ -189,7 +199,7 @@ export async function runDelegate(
     if (!streamSuccess) break;
 
     totalTurns++;
-    if (costTracker) costTracker.addUsage(delegateConfig.model, response.usage);
+    if (costTracker) costTracker.addUsage(selectedModel, response.usage);
 
     const toolNames = response.content
       .filter((b) => b.type === "tool_use")

@@ -770,6 +770,10 @@ Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `trans
 
 `createModelClient({ model, provider?, baseUrl?, apiKey? })` resolves CLI flags + config into a `ModelClient`. Supports `provider/model` notation (e.g., `ollama/llama3`, `openai/gpt-4o`) following the LiteLLM convention. Built-in presets: `openai`, `ollama`, `groq`, `together`, `lmstudio` (each with default base URL and API key env var). Unknown providers work with explicit `--base-url`. Config file: `modelProvider: { type, baseUrl, apiKey }` in `config.json`. Precedence: CLI flags > `provider/model` prefix > config file > default (anthropic). 23 tests.
 
+### Adaptive Model Routing (`src/model-router.ts`)
+
+Automatically selects the optimal model tier (fast/balanced/capable) for delegate sub-agents based on task analysis. Combines task-type classification from `routeTask()` with complexity signals (architecture keywords → upgrade, simple lookups → downgrade) and delegate mode (execute → +1 tier bump). Config: `modelTiers: { fast, balanced, capable }` in `config.json` maps tiers to model strings. Defaults: fast=haiku, balanced=sonnet, capable=opus. When `modelTiers` is configured, delegate shows routing in status messages: `[balanced:claude-sonnet-4-6]`. Without config, falls back to single `editorModel` (backward compatible). 29 tests.
+
 ### Session State Machine (`src/session-state.ts`)
 
 Explicit lifecycle states for `AgentSession`, mapping to the ReAct pattern. States: `idle → initializing → ready → thinking → acting → ready` (happy path), with `reflecting` and `error` branches. Transition table enforced — invalid transitions throw. Listeners notified on every change with `(from, to, meta)`. State changes emit `state_change` transport events and `session.state` bus events. `AgentSession.getState()` exposes current state. History tracking with `consecutiveCount()` for loop detection.

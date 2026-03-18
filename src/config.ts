@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
+import type { ModelTiers } from "./model-router.js";
 
 /**
  * KOTA configuration schema.
@@ -48,6 +49,9 @@ export type KotaConfig = {
     baseUrl?: string;
     apiKey?: string;
   };
+
+  /** Model tier mapping for adaptive routing. Keys: fast, balanced, capable. */
+  modelTiers?: ModelTiers;
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -133,6 +137,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (mp.type || mp.baseUrl) out.modelProvider = mp;
   }
 
+  if (typeof raw.modelTiers === "object" && raw.modelTiers !== null && !Array.isArray(raw.modelTiers)) {
+    const tiers: ModelTiers = {};
+    const src = raw.modelTiers as Record<string, unknown>;
+    if (typeof src.fast === "string" && src.fast) tiers.fast = src.fast;
+    if (typeof src.balanced === "string" && src.balanced) tiers.balanced = src.balanced;
+    if (typeof src.capable === "string" && src.capable) tiers.capable = src.capable;
+    if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
+  }
+
   return out;
 }
 
@@ -162,6 +175,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.providers = { ...a.providers, ...(val as Record<string, string>) };
     } else if (key === "modelProvider" && typeof val === "object") {
       merged.modelProvider = { ...a.modelProvider, ...(val as KotaConfig["modelProvider"]) };
+    } else if (key === "modelTiers" && typeof val === "object") {
+      merged.modelTiers = { ...a.modelTiers, ...(val as ModelTiers) };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];

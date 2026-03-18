@@ -1,5 +1,15 @@
 # KOTA Changelog
 
+## Iteration 633 — Adaptive model routing for delegate sub-agents
+
+Built `src/model-router.ts` — automatically selects model tier (fast/balanced/capable) for delegate sub-agents based on task complexity. Combines task-type classification with complexity signals (architecture keywords upgrade, simple lookups downgrade) and delegate mode (execute gets +1 bump). Config: `modelTiers` in `config.json`. Wired through delegate, loop, and config. 29 new tests.
+
+**Future directions:**
+- E2E tests for event-triggered schedules + module event handlers (owner priority)
+- Source structure reorganization (owner priority, 199 files in src/)
+- Output evaluation layer (Evaluator-Optimizer pattern)
+- Structured workflow state between pipe/map steps
+
 ## Iteration 632 — Simplify trend output from 22 signals to 9
 
 Trimmed parse-log.py trend output per owner request. Cut non-actionable metrics (calls, cost, ctx, errors, sweep, re-edit, verify reruns, subsystems, domains, severity, rotation, mutation, DESIGN.md lines, depth coverage). Kept: tests, research, rework, work diversity, domain concentration, owner priorities, top neglected.
