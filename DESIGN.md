@@ -582,6 +582,10 @@ Inline sequential tool composition — the sequential complement to `batch` (par
 
 Homogeneous parallel apply — calls `executeTool` directly for each item (no LLM overhead). Complements `batch` (heterogeneous, LLM-powered sub-agents) and `pipe` (sequential chain). Max 50 items, concurrency 5-20. Per-item result budget scales inversely with count (total 30K). Partial failures don't stop other items.
 
+### Shared Workspace / Blackboard (`src/workspace.ts`, `src/tools/workspace.ts`)
+
+In-memory shared key-value store for multi-agent coordination. Parent creates a workspace, delegates tasks — sub-agents read/write entries directly without routing through the parent. Actions: `create`, `write`, `read`, `list`, `delete`. Entries have key, value, optional author, timestamp. Available to both explore and execute sub-agents. Part of the `orchestration` tool group.
+
 ### Background Process Management (`src/tools/process.ts`)
 
 Enables async workflows — start servers, run watchers, monitor long-running tasks:

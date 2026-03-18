@@ -6,7 +6,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
   advanced_editing: ["multi_edit", "find_replace", "repo_map"],
   management: ["todo", "process", "schedule", "notify"],
   gui: ["computer_use", "screenshot", "view_image", "clipboard"],
-  orchestration: ["batch", "pipe", "map"],
+  orchestration: ["batch", "pipe", "map", "workspace"],
 };
 
 export const CORE_TOOL_NAMES = new Set([

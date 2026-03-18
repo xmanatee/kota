@@ -82,7 +82,7 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 - **Search**: grep (regex; files_only for file lists, count_only for match counts, context_lines:N), glob (patterns), repo_map (codebase overview)
 - **Execution**: shell (120s timeout), code_exec (persistent REPL), notebook (analysis), process (background), sqlite (query DBs)
 - **Web**: web_search, web_fetch (URL→markdown; save_to for downloads), http_request (any method/headers/body; save_to for large responses)
-- **Orchestration**: batch (parallel sub-agents), pipe (sequential chain), map (parallel apply)
+- **Orchestration**: batch (parallel sub-agents), pipe (sequential chain), map (parallel apply), workspace (shared blackboard for sub-agent coordination)
 - **GUI**: computer_use (mouse/keyboard), screenshot, view_image, clipboard
 - **Coordination**: delegate (sub-agent), todo (tasks), memory (cross-session), knowledge, schedule (reminders/timed), notify, ask_user
 - **Safety**: checkpoint (list/diff/restore file changes made this session)

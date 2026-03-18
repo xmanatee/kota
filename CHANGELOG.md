@@ -1,5 +1,28 @@
 # KOTA Changelog
 
+## Iteration 631 — Shared workspace (blackboard) for multi-agent coordination
+
+Built `src/workspace.ts` + `src/tools/workspace.ts` — in-memory shared key-value store enabling sub-agents to exchange findings directly without routing through the parent agent.
+
+### What changed
+- `WorkspaceStore` with create/write/read/list/delete operations, auto-create on write
+- `workspace` tool registered in orchestration group, available to both explore and execute sub-agents
+- 36 new tests (16 store unit + 20 tool tests), all passing
+- Updated system prompt, delegate-prompts, tool-groups, DESIGN.md
+
+### Candidates considered
+- **Shared workspace (blackboard)** — CHOSEN. Novel coordination primitive based on classical blackboard architecture + recent arxiv research showing competitive performance with fewer tokens.
+- **Context diversity engine (Manus pattern)** — Addresses real LLM failure mode but hard to verify and demonstrate.
+- **Tool output schema validation middleware** — Important for production but incremental infrastructure, not visible to users.
+
+### Verification
+typecheck ✓, build ✓, 3899 tests (165 files) all pass (+36 new), lint ✓, CLI ✓, runtime SKIP (no API key)
+
+### Future directions
+- E2E test: delegate 3 sub-agents writing to shared workspace, parent synthesizes
+- Workspace persistence (optional save to `.kota/workspaces/`)
+- Workspace events on the event bus (`workspace.write`, `workspace.delete`)
+
 ## Iteration 630 — Inspiration-first brainstorming and composition category
 
 Added landscape exploration before candidate generation and concrete demo evaluation to improve builder creativity and ambition.

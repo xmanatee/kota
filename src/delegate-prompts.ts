@@ -16,6 +16,7 @@ import { repoMapTool, runRepoMap } from "./tools/repo-map.js";
 import { runShell } from "./tools/shell.js";
 import { runWebFetch, webFetchTool } from "./tools/web-fetch.js";
 import { runWebSearch, webSearchTool } from "./tools/web-search.js";
+import { runWorkspace, workspaceTool } from "./tools/workspace.js";
 
 // --- Sub-agent system prompts ---
 
@@ -109,6 +110,7 @@ export const exploreTools: Anthropic.Tool[] = [
   httpRequestTool,
   codeExecTool,
   subShellTool,
+  workspaceTool,
 ];
 
 export const exploreRunners: Record<string, ToolRunner> = {
@@ -122,6 +124,7 @@ export const exploreRunners: Record<string, ToolRunner> = {
   http_request: runHttpRequest,
   code_exec: runCodeExec,
   shell: runShellBounded,
+  workspace: runWorkspace,
 };
 
 export const executeTools: Anthropic.Tool[] = [

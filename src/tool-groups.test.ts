@@ -89,14 +89,14 @@ describe("tool-groups", () => {
     it("enables orchestration group with composition tools", () => {
       const result = enableGroup("orchestration");
       expect(result.error).toBeUndefined();
-      expect(result.tools).toEqual(["batch", "pipe", "map"]);
+      expect(result.tools).toEqual(["batch", "pipe", "map", "workspace"]);
       expect(getEnabledGroups()).toEqual(["orchestration"]);
     });
 
     it("resolves batch to orchestration group", () => {
       const result = enableGroup("batch");
       expect(result.error).toBeUndefined();
-      expect(result.tools).toEqual(["batch", "pipe", "map"]);
+      expect(result.tools).toEqual(["batch", "pipe", "map", "workspace"]);
       expect(getEnabledGroups()).toEqual(["orchestration"]);
     });
 

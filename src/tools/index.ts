@@ -32,6 +32,7 @@ import { getTodoState, registration as todo } from "./todo.js";
 import { registration as viewImage } from "./view-image.js";
 import { registration as webFetch } from "./web-fetch.js";
 import { registration as webSearch } from "./web-search.js";
+import { registration as workspace } from "./workspace.js";
 
 export type ToolResultBlock =
   | { type: "text"; text: string }
@@ -97,6 +98,7 @@ const registrationImports = [
   () => batch,
   () => pipe,
   () => map,
+  () => workspace,
 ];
 
 let _coreRegistrations: ToolRegistration[] | null = null;
