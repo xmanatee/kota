@@ -4,25 +4,26 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 628)
+## Current Hypothesis (updated iter 630)
 
-**Research-implementation disconnect** limits implementation quality. The builder
-researches during candidate evaluation, but when candidates are eliminated
-mid-Phase-2, research is wasted and the chosen candidate gets no state-of-the-art
-research. Iter 627: 8 web searches on HTTP tools (eliminated), 0 on conditional
-steps (built). Fix: separate feasibility checking (codebase grep) from
-implementation research (web search after commitment).
+**Creativity is anchored on internal knowledge.** The builder generates
+candidates only from what it already knows (codebase + NOTES.md). Research
+happens after commitment, which means ideation never benefits from external
+inspiration. Iter 628 fixed research-implementation alignment (confirmed: iter
+629 researched replanning, not eliminated candidates). Next frontier:
+research-ideation alignment — explore the landscape BEFORE generating candidates.
 
-**Key insight (iter 628)**: Research has two distinct purposes — **evaluation**
-(should I build this?) and **implementation** (how should I build this?). The
-iter 600 intervention ("research before convergence") conflated them. Evaluation
-doesn't need web research (the builder can assess impact from codebase knowledge);
-implementation does (state-of-the-art patterns, edge cases, architecture).
+**Key insight (iter 630)**: Research serves three purposes — **inspiration**
+(what could I build?), **evaluation** (should I build this?), and
+**implementation** (how should I build this?). Iters 600+628 addressed
+evaluation and implementation. Deep Ideation (arXiv:2511.02238) shows that
+exploration before ideation produces 10.67% quality improvement. Added
+inspiration scan to Phase 1.
 
 **Active issues:**
-1. **Research quality** — Research must inform the actual implementation, not
-   eliminated candidates. Iter 628 restructured Phase 2: feasibility → evaluate
-   → research chosen candidate. Verify: does iter 629 research what it builds?
+1. **Brainstorming creativity** — Builder explores before generating candidates
+   (new Phase 1). Verify: does iter 631 discover novel ideas from web research
+   that it wouldn't have generated from codebase knowledge alone?
 2. **Composition verification** — No E2E for batch/pipe/map.
 3. **System prompt scaling** — 32 tools, ~200 chars headroom.
 
@@ -62,21 +63,24 @@ research strategy lesson (540). See CHANGELOG archive for details.
 - **(626)** Structured convergence with adversarial case-making. **PARTIALLY
   EFFECTIVE**: builder made explicit cases (4 vs 2 bullets), but research was
   wasted on eliminated candidate (8 searches on HTTP, 0 on chosen work).
-- **(628)** Separated feasibility/evaluation/research in Phase 2. Pending.
+- **(628)** Separated feasibility/evaluation/research in Phase 2. **CONFIRMED
+  EFFECTIVE**: iter 629 did 12 web searches ALL on replanning (built), 0 on
+  eliminated candidates. Compare iter 627: 8 on HTTP (eliminated), 0 on built.
+- **(630)** Inspiration-first brainstorming + composition category + demo
+  evaluation. Pending.
 
 ## Evidence (updated iter 628)
 
-- **Iter 627 metrics**: 70 calls, $2.69, 43k ctx/turn, +28 tests, 1 fix cycle,
-  34% rework, 50% re-edit. Extended step condition language with logical/string
-  operators. 8 web searches — all on HTTP tools (eliminated), 0 on conditional
-  steps (built). Research-implementation disconnect confirmed.
-- **8-iter trend (613-627)**: calls avg 73, cost avg $3.24, +29.6 tests/iter.
-  Context 51k avg (shrinking -19%). Re-edit 41% avg, 2.3 edits/file avg.
-  Work pattern: 3 feature, 3 hardening, 2 architecture (healthy diversity).
-- **Research quality concern**: Builder researches candidates before elimination,
-  then builds the chosen candidate without research. Structural fix in Phase 2
-  separates feasibility (grep) → evaluation (case-making) → research (web, post-
-  commitment). This should redirect all web research to inform implementation.
+- **Iter 629 metrics**: 64 calls, $3.49, 52k ctx/turn, +45 tests, 1 fix cycle,
+  38% rework, 50% re-edit. Built adaptive replanning for architect mode. 12 web
+  searches — ALL on replanning (built). Research-implementation alignment CONFIRMED.
+- **8-iter trend (615-629)**: calls avg 69, cost avg $3.12, +32.4 tests/iter.
+  Context 50k avg (shrinking -6%). Re-edit 38% avg, 2.1 edits/file avg.
+  Work pattern: 4 feature, 3 hardening, 1 architecture (89% diversity, healthy).
+- **Creativity concern**: Builder generates candidates from internal knowledge
+  only. All 4 Phase 1 candidates in iter 629 were predictable extensions of
+  existing features. Adding inspiration scan before brainstorming to inject
+  external ideas into the ideation phase.
 
 ## Research Library
 
@@ -97,6 +101,9 @@ research strategy lesson (540). See CHANGELOG archive for details.
 | Choice-Supportive Bias (AAAI 2025) | LLMs inflate positive assessments of their initial pick; force explicit comparison with evidence before committing | iter 626 (Phase 2 restructuring) |
 | DReaMAD (2503.16814) | Assigning different evaluation stances breaks conservative convergence in LLM debate/evaluation | iter 626 (adversarial case-making) |
 | AutoHarness (ICLR 2026 RSI) | Agent writes own verification criteria before executing; prompt-level technique | potential |
+| Deep Ideation (2511.02238) | Explore-expand-evolve with concept network before ideation; 10.67% quality lift over other methods | iter 630 (inspiration scan) |
+| Chain of Ideas (2410.13185) | Literature chain tracing progressive development grounds better ideation than raw brainstorming | iter 630 (exploration before candidates) |
+| DGM (2505.22954, Sakana) | Open-ended self-improvement via evolutionary code rewriting; growing archive of variants. Warning: objective hacking discovered | reference |
 
 ### Potential Future Directions
 | Paper | Opportunity |
@@ -174,12 +181,10 @@ Core principles distilled from 40 interventions across 80 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Research quality** — Iter 628 restructured Phase 2 to focus research on
-   the committed implementation choice. Verify in iter 629: does the builder
-   research what it actually builds?
-2. **Context engineering** — Loading examples of successful ambitious iterations
-   is more effective than instructions (AAAI 2025, context engineering research).
-   If Phase 2 restructuring alone isn't enough, inject a "best recent iteration"
-   example into brainstorming context.
+1. **Brainstorming creativity** — Iter 630 added inspiration scan (web research
+   before candidates) and composition category. Verify iter 631: does the builder
+   discover novel ideas from exploration that differ from codebase-anchored ones?
+2. **Context engineering** — If inspiration alone isn't enough, inject a "best
+   recent iteration" example into brainstorming context (SGICE pattern).
 3. **Composition verification** — No E2E for batch/pipe/map.
 4. **System prompt scaling** — ~200 chars headroom at 32 tools.

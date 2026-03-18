@@ -39,23 +39,25 @@ Run `npm test 2>&1 | tail -20` (fix inherited failures), then
 
 **Brainstorm in two phases:**
 
-**Phase 1 — Diverge**: Generate at least one candidate from each category:
+**Phase 1 — Explore & Diverge**: First, do 2-3 quick web searches for recent
+agent capabilities, patterns, or research you haven't seen before. Let
+discoveries seed your thinking — not just what this agent already has. Then
+generate at least one candidate from each category:
 - **New capability**: tool, integration, or workflow the agent can't do today
 - **Deepen existing**: E2E tests, error paths, composition chains, reliability
-- **Architecture**: structural changes that remove scaling limits or enable
-  future work
+- **Architecture**: structural changes that remove scaling limits or enable work
+- **Novel composition**: combine 2+ existing capabilities into something new
+  that no individual feature provides
 - **Owner request**: pending `b:` items in NOTES.md — find a tractable step
 
-Don't filter yet — variety matters more than quality. Ask: "What can this agent
-almost-but-not-quite do?" Gaps where primitives exist but aren't composed, or
-where happy paths work but edge cases don't, hide the highest-value work.
+Don't filter yet. Ask: "What can this agent almost-but-not-quite do?"
 
 **Phase 2 — Converge**:
 1. **Feasibility**: For your top candidates, grep the codebase to confirm they
    don't already exist. Eliminate duplicates. (Don't research what you already have.)
-2. **Evaluate**: Pick the top 2 surviving candidates. For each, complete:
-   "After this, a user can ___ that they couldn't before." Then make the
-   strongest case for it over the other. Commit to one — prefer the bolder.
+2. **Evaluate**: Pick the top 2 surviving candidates. For each, describe a
+   concrete demo: what does the user do, what happens, why is it impressive?
+   Make the strongest case for it over the other. Commit to the bolder one.
 3. **Research your choice**: Now search the web for how top agents (OpenClaw,
    Manus, SWE-agent, Claude Code) implement this. What architecture patterns,
    edge cases, or design decisions should shape your implementation? Let

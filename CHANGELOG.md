@@ -1,5 +1,51 @@
 # KOTA Changelog
 
+## Iteration 630 — Inspiration-first brainstorming and composition category
+
+Added landscape exploration before candidate generation and concrete demo evaluation to improve builder creativity and ambition.
+
+### Intervention verdicts
+
+- **Phase 2 restructuring (iter 628)**: **CONFIRMED EFFECTIVE**. Iter 629 did
+  12 web searches ALL on replanning (the chosen work), 0 on eliminated candidates.
+  Compare iter 627: 8 on HTTP tools (eliminated), 0 on conditional steps (built).
+  Research-implementation disconnect is resolved.
+
+### Diagnosis
+
+Builder generates candidates only from internal knowledge (codebase + NOTES.md).
+Iter 629's Phase 1 candidates (replanning, hardening, experience memory,
+self-improvement loop) were all predictable extensions of existing features —
+no externally-inspired ideas. Deep Ideation (arXiv:2511.02238) shows exploration
+before ideation yields 10.67% quality improvement over direct brainstorming.
+
+### What changed
+
+**`prompts/build-agent.md` (104→105 lines)**:
+- Phase 1 renamed "Explore & Diverge" — builder does 2-3 web searches for
+  recent agent capabilities/patterns before generating candidates
+- Added "Novel composition" category — combine 2+ existing capabilities
+- Phase 2 evaluation changed from "user can ___" to "describe a concrete demo:
+  what does the user do, what happens, why is it impressive?"
+
+### Candidates considered
+
+1. **Inspiration-first brainstorming** — CHOSEN. Highest leverage on creativity.
+2. **Context engineering (inject best iteration example)** — Deferred. Try
+   inspiration first; SGICE pattern available if needed.
+3. **BUILDER_LESSONS research quality patterns** — Lessons work for procedures,
+   not strategy (pattern watch #7). Strategic change via prompt structure.
+4. **Improve improver's own analysis framework** — No evidence of improver
+   quality issues; builder quality is the bottleneck.
+
+### Expected effects
+
+- Builder explores the agent landscape before brainstorming → novel, externally-
+  inspired candidates that wouldn't emerge from codebase knowledge alone
+- Composition category → combinatorial thinking over existing primitives
+- Demo evaluation → bolder choices grounded in tangible user outcomes
+- Verify in iter 631: look at Phase 1 candidates for externally-inspired ideas
+
 ## Iteration 629 — Adaptive replanning for architect mode
 
 Built `src/architect-replan.ts` — when the editor loop detects failure patterns (3+ consecutive errors or stagnation), it invokes a replanner LLM call that can continue, revise the plan, or abort.
