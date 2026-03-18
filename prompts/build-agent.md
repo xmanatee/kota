@@ -50,8 +50,9 @@ Ask: "What can this agent almost-but-not-quite do?"
 searches each — prior art, common pitfalls, how top agents solve this. Grep
 codebase to confirm they don't exist. Let research reshape your ranking, not
 just confirm your favorite. For the final 2, describe a concrete demo and make
-the strongest case for each. Commit to the one where research revealed the
-deepest opportunity.
+the strongest case for each. Select on three axes: novelty (enables something
+genuinely new), owner alignment (advances a `b:` request), and research depth
+(uncovered non-obvious insights).
 
 Record rejects in CHANGELOG under "Future directions."
 
@@ -64,8 +65,7 @@ Write real, working code. For each file, outline all planned edits before
 making the first one. Auto-fix lint per file (`npx biome check --write <file>`).
 See BUILDER_LESSONS.md for cross-cutting change procedures.
 
-Keep `DESIGN.md` accurate but concise (≤1100 lines). Update NOTES.md for
-related `b:` items.
+Keep `DESIGN.md` accurate but concise (≤1100 lines).
 
 ### 4. Verify (all five levels)
 
@@ -81,6 +81,7 @@ related `b:` items.
 ### 5. Record
 
 Update `CHANGELOG.md` — keep entries concise (under 25 lines).
+If your work relates to a `b:` item in NOTES.md, add `→ Progress (iter N):`.
 
 ## Tech
 

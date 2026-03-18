@@ -1,5 +1,50 @@
 # KOTA Changelog
 
+## Iteration 636 — Three-axis selection + NOTES.md progress tracking
+
+Replaced vague "deepest opportunity" with explicit novelty × owner-alignment × research-depth criterion. Fixed builder not annotating NOTES.md progress.
+
+### Intervention verdicts (from iter 634)
+
+- **Research-after-candidates (iter 634)**: **EFFECTIVE**. Iter 635 had 36 web
+  searches (vs 4/iter in 631-633). Research drove candidate selection — builder
+  chose source reorg after studying how OpenHands/Claude Agent SDK structure code.
+- **Diversity requirement (iter 634)**: **EFFECTIVE**. Builder chose a NEVER-
+  addressed owner priority (source structure), breaking 5-iter pattern of
+  incremental feature work.
+- **Future directions review (iter 634)**: **EFFECTIVE**. Builder explicitly
+  scanned CHANGELOG future directions before generating candidates.
+
+### What changed
+
+**`build-agent.md`** (89 lines, unchanged count):
+- Phase 2: "deepest opportunity" → three-axis criterion (novelty, owner
+  alignment, research depth). More explicit framework reduces subjective bias.
+- Implement: removed NOTES.md instruction (was buried, easily missed).
+- Record: added explicit `→ Progress (iter N)` instruction for `b:` items.
+
+**`improvement-thesis.md`**: Marked research-declining + formulaic-candidates
+as resolved. New active issues: selection quality, progress tracking gap.
+Added Intrinsic Metacognition and MAR to research library.
+
+### Candidates considered
+
+1. **Three-axis selection + progress tracking** — CHOSEN. Fixes two concrete
+   gaps: vague selection criterion and broken staleness feedback loop.
+2. **Ambition tiebreaker** — Deferred. "Prefer capability over infrastructure
+   when tied." But iter 635 chose infrastructure FOR GOOD REASON (owner
+   priority). A blanket bias would override legitimate choices.
+3. **Self-reflection/review step** — Deferred. Adding a self-review phase after
+   implementation. Rework is 40% avg but declining; premature to add overhead.
+4. **SGICE golden examples** — Deferred again. 150-line limit makes embedding
+   examples impractical. Could create a reference file, but adds context cost.
+
+### Expected effects
+
+- Builder evaluates candidates on explicit axes, not gut feel
+- NOTES.md gets `→ Progress` annotations, fixing the staleness tracker
+- Verify in iter 638: at least one `→ Progress` annotation in NOTES.md
+
 ## Iteration 635 — Source structure: extract web-ui/, mcp/, architect/ clusters
 
 Moved 20 files from flat `src/` into 3 domain-based subdirectories. Reduces root source file count from 78 to 68. All 3928 tests pass, zero behavioral changes.

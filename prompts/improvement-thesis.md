@@ -2,22 +2,22 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 634)
+## Current Hypothesis (updated iter 636)
 
-**Resolved systemic issues (iter 632)**: Metric obsession (capped 1-in-5),
-prompt overspecification (simplified), legacy facades (banned + cleaned),
-prompt size enforcement (150 lines, step.sh validates).
+**Resolved systemic issues**: Metric obsession (632), prompt overspecification
+(632), legacy facades (632), prompt size enforcement (632), research declining
+(634 — research went 4→36/iter), formulaic candidates (634 — diversity
+requirement + Future Directions review working).
 
 **Active issues:**
-1. **Research declining**: 4 searches/iter in last 2 iters (vs 9 avg). Builder
-   treats early web searches as checkbox. Fix: moved research to Phase 2 where
-   it serves candidate evaluation, not undirected inspiration.
-2. **Formulaic candidates**: Builder gravitates toward safe compositions of
-   existing systems. Fix: added diversity requirement (≥1 candidate from
-   untouched area) and CHANGELOG "Future directions" review.
+1. **Selection quality**: Builder researches well but "deepest opportunity" is
+   vague. Fix (636): explicit three-axis criterion (novelty × owner alignment ×
+   research depth) replaces subjective "deepest opportunity."
+2. **Progress tracking gap**: Builder addresses owner priorities but doesn't
+   annotate NOTES.md, breaking staleness tracker. Fix (636): moved NOTES.md
+   update to Record phase with explicit `→ Progress` instruction.
 3. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
 4. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
-5. **Owner's big requests**: Source reorg, true plug-n-play modules — stalling.
 
 ## Intervention History
 
@@ -36,15 +36,16 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
   top-2 comparison with concrete demos. Research still low (4 searches).
 - **(632b)** Trend simplification: 22→9 signals. **EFFECTIVE**: builder still
   reads and acts on trend data (noticed STALE, picked owner priority).
-- **(634)** Research-after-candidates + diversity requirement. Restructured
-  brainstorming: research now targets specific candidates, not undirected.
-  Added ≥1 candidate from untouched area + CHANGELOG Future Directions review.
+- **(634)** Research-after-candidates + diversity requirement. **EFFECTIVE**:
+  iter 635 had 36 searches (vs 4 prior), chose NEVER-addressed owner priority
+  (source reorg), 20% rework. Both mechanisms confirmed working.
+- **(636)** Three-axis selection criterion + NOTES.md progress tracking fix.
 
 ## Evidence
 
-- **10-iter trend (617-999)**: +30 tests/iter, 41% rework, 6 fix cycles.
-  Work diversity 82% (healthy). Research: 7/10 iters (9/iter avg).
-  Last 2 iters: research declining (4/iter), rework rising (57%→62%).
+- **10-iter trend (619-999)**: +28 tests/iter, 40% rework, 5 fix cycles.
+  Work diversity 73% (healthy). Research: 7/10 iters (12/iter avg).
+  Iter 635: research surged to 36, rework dropped to 20%.
 
 ## Research Library
 
@@ -62,8 +63,8 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | QDAIF (ICLR 2024) | Quality-diversity: maintain diverse candidates, not just best | iter 634 |
 | SGICE (Addy Osmani) | Self-generated in-context examples: 73→89-93% lift | potential |
 | MPO (EMNLP 2025) | Meta-plan abstraction escapes local optima | potential |
-| SICA (ICLR 2025 WS) | Self-editing agent: 17-53% improvement via self-modification | reference |
-| STOP (NeurIPS 2025) | Recursive self-improvement of the improver itself | reference |
+| Intrinsic Metacognition (OpenReview) | Truly self-improving agents need self-eval of learning process | reference |
+| MAR (Multi-Agent Reflexion) | Diverse personas + judge = fewer blind spots | reference |
 
 ## Improver Principles
 
