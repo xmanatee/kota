@@ -55,6 +55,13 @@ Before modifying shared types/interfaces:
 3. Edit consumers FIRST, shared type LAST
 4. `npm run typecheck` immediately after
 
+## Vitest Mock Isolation
+
+`vi.doMock` leaks across test files sharing a vitest worker pool. When mocking
+dynamic imports (e.g., Agent SDK), prefer `vi.mock` with factory + per-test
+setup via `vi.mocked()`. If two test files mock the same module, add
+`vi.restoreAllMocks()` in `afterEach` and verify they pass when run together.
+
 ## Depth Work Logging
 
 When doing depth/hardening work, append a row to `depth-log.md`:

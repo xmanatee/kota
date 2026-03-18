@@ -2,17 +2,17 @@
 
 Strategic context for the improver. Read at start; update when evidence changes.
 
-## Current Hypothesis (updated iter 638)
+## Current Hypothesis (updated iter 640)
 
 **Resolved systemic issues**: Metric obsession (632), prompt overspecification
 (632), legacy facades (632), prompt size enforcement (632), research declining
-(634 — research went 4→36/iter), formulaic candidates (634 — diversity
-requirement + Future Directions review working).
+(634), formulaic candidates (634), no self-assessment (638 — self-review
+confirmed effective in iter 639).
 
 **Active issues:**
-1. **No quality self-assessment**: Builder verifies mechanically (typecheck,
-   tests) but never evaluates implementation quality or impact. Fix (638):
-   self-review step between Verify and Record (Agent-as-Judge pattern).
+1. **Subsystem tunnel vision**: Diversity dropped 73%→58%. Builder did 3
+   consecutive iters in agent-sdk/tools. Fix (640): novelty axis now scores
+   near-zero when `--trend` shows 2+ recent iters in same area.
 2. **Never-tested files**: computer-use.ts (418L), custom-tool.ts (358L).
 3. **No runtime testing**: Missing ANTHROPIC_API_KEY. Owner needs to set it.
 
@@ -26,19 +26,20 @@ per-item next-steps (624), adversarial case-making (626), feasibility/evaluation
 research separation (628). Key failures: quality lesson (546), research strategy
 lesson (540), domain concentration (7 iterations, accepted at 608).
 
-**Recent (iters 632-638):**
+**Recent (iters 632-640):**
 - **(632)** Quality criteria + comparative + trend simplification. **EFFECTIVE**.
-- **(634)** Research-after-candidates + diversity requirement. **EFFECTIVE**:
-  research 4→36/iter, builder chose NEVER-addressed owner priority.
-- **(636)** Three-axis selection + NOTES.md progress tracking. **EFFECTIVE**:
-  iter 637 used three-axis table, added `→ Progress` annotation. Rework 23%.
-- **(638)** Self-review step (Agent-as-Judge pattern) + BUILDER_LESSONS pruning.
+- **(634)** Research-after-candidates + diversity requirement. **EFFECTIVE**.
+- **(636)** Three-axis selection + NOTES.md progress tracking. **EFFECTIVE**.
+- **(638)** Self-review step (Agent-as-Judge). **EFFECTIVE**: iter 639 ran
+  self-review checklist unprompted, noted future directions.
+- **(640)** Diminishing returns on novelty + vitest mock lesson.
 
 ## Evidence
 
-- **10-iter trend (619-999)**: +22.6 tests/iter, 38% rework. Diversity 73%.
-  Research: 8/10 iters (15/iter avg). Rework trending down: 20-23% in last
-  2 builder iters vs 57-62% prior. Three-axis selection + research working.
+- **10-iter trend (623-999)**: +20.4 tests/iter, 38% rework. Diversity 58%
+  (down from 73%). Research: 9/10 iters (16/iter avg). Builder spent 3 iters
+  in agent-sdk area. Self-review confirmed working. Rework 20-23% in recent
+  iters when research is high, 57-62% when low.
 
 ## Research Library
 
@@ -55,7 +56,9 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 | SE-Agent (2508.02085) | Cross-trajectory inspiration breaks formulaic loops | iter 634 |
 | QDAIF (ICLR 2024) | Quality-diversity: maintain diverse candidates, not just best | iter 634 |
 | Agent-as-Judge (2508.02994) | Evaluate trajectory, not just outcome; ~85% human agreement | iter 638 |
-| Karpathy AutoResearch (2026) | Atomic changes + scalar quality signal + append-only log | reference |
+| DGM (Sakana, 2505.22954) | Open-ended archive search beats hill-climbing; keep diverse ancestors | iter 640 |
+| Self-Play Info Gain (2603.02218) | Evolution stalls when learnable info gain → zero; sync roles | reference |
+| CycleQD (ICLR 2025) | Cyclic skill rotation prevents any capability from dominating | iter 640 |
 
 
 ## Improver Principles

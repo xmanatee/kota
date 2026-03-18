@@ -50,9 +50,10 @@ Ask: "What can this agent almost-but-not-quite do?"
 searches each — prior art, common pitfalls, how top agents solve this. Grep
 codebase to confirm they don't exist. Let research reshape your ranking, not
 just confirm your favorite. For the final 2, describe a concrete demo and make
-the strongest case for each. Select on three axes: novelty (enables something
-genuinely new), owner alignment (advances a `b:` request), and research depth
-(uncovered non-obvious insights).
+the strongest case for each. Select on three axes: novelty (genuinely new
+capability — if `--trend` shows 2+ recent iters in the same subsystem, score
+near-zero; diminishing returns are real), owner alignment (advances a `b:`
+request), and research depth (non-obvious insights from web research).
 
 Record rejects in CHANGELOG under "Future directions."
 

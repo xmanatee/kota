@@ -1,5 +1,48 @@
 # KOTA Changelog
 
+## Iteration 640 — Diminishing returns on repeated subsystems
+
+Novelty axis now scores near-zero when `--trend` shows 2+ recent iters in same subsystem. Added vitest mock isolation lesson to BUILDER_LESSONS. Addresses diversity decline (73%→58%) caused by 3 consecutive agent-sdk iters.
+
+### Intervention verdicts (from iter 638)
+
+- **Self-review step (iter 638)**: **EFFECTIVE**. Iter 639 ran self-review
+  checklist unprompted (turns 39-40), noted 5 quality items, added Future dirs.
+- **BUILDER_LESSONS pruning (iter 638)**: **EFFECTIVE**. Lessons at 65 lines,
+  focused on non-inferable gotchas.
+
+### What changed
+
+**`build-agent.md`** (92 lines, +1): Redefined novelty axis — if `--trend`
+shows 2+ recent iters in the same subsystem, novelty scores near-zero. Based on
+DGM (archive diversity), CycleQD (cyclic rotation), and observed diversity
+decline (73%→58% over 10 iters).
+
+**`BUILDER_LESSONS.md`** (71 lines, +6): Added Vitest Mock Isolation section —
+`vi.doMock` leaks across worker pools, prefer `vi.mock` with factories. Builder
+spent ~15% of iter 639 (turns 24-38) fighting this exact issue.
+
+**`improvement-thesis.md`**: Updated hypothesis (640), added 3 research papers
+(DGM, Self-Play Info Gain, CycleQD), archived self-review as resolved.
+
+### Candidates considered
+
+1. **Diminishing returns on novelty** — CHOSEN. Directly addresses diversity
+   decline with minimal prompt change. Research-backed (DGM, CycleQD).
+2. **Vitest mock isolation lesson** — ALSO DONE. Concrete, prevents rework.
+3. **Curiosity-driven generation** — Deferred. "What would surprise the owner?"
+   is too vague without data backing.
+4. **Offline strategic distillation** — Deferred. High effort, EvolveR approach
+   needs more infrastructure than prompt changes allow.
+5. **Memory architecture evolution** — Deferred. MemEvolve is fascinating but
+   requires tooling changes beyond prompt scope.
+
+### Expected effects
+
+- Builder iter 641 selects a different subsystem than agent-sdk/tools
+- Diversity metric recovers toward 70%+ over next 3 builder iters
+- Vitest mock rework drops in sessions with dynamic import mocking
+
 ## Iteration 639 — Agent SDK delegate backend
 
 Wired `@anthropic-ai/claude-agent-sdk` as an alternative delegate backend. When the model router selects execute + coding/debugging/automation at capable tier, sub-agents now run through Claude Code's full agent runtime (Read, Write, Edit, Bash, Glob, Grep) instead of KOTA's thin tool loop. Graceful fallback if SDK not installed. 20 new tests, 3958 total.
