@@ -32,7 +32,17 @@ describe("runDelegate input validation", () => {
   it("rejects invalid mode", async () => {
     const result = await runDelegate({ task: "do something", mode: "invalid" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain('mode must be "explore" or "execute"');
+    expect(result.content).toContain('mode must be "explore", "execute", or "research"');
+  });
+
+  it("accepts research mode without error", async () => {
+    // research mode is valid — this will fail on API call (no client configured)
+    // but should NOT fail on validation
+    const result = await runDelegate({ task: "research something", mode: "research" });
+    // If it fails, it should be an API/client error, not a validation error
+    if (result.is_error) {
+      expect(result.content).not.toContain("mode must be");
+    }
   });
 });
 

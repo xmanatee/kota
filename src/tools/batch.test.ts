@@ -37,7 +37,7 @@ describe("runBatch input validation", () => {
 	it("rejects invalid mode", async () => {
 		const r = await runBatch({ tasks: ["hello"], mode: "bad" });
 		expect(r.is_error).toBe(true);
-		expect(r.content).toContain('mode must be "explore" or "execute"');
+		expect(r.content).toContain('mode must be "explore", "execute", or "research"');
 	});
 });
 

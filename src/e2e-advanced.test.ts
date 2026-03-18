@@ -219,6 +219,138 @@ describe("E2E: delegate sub-agent", () => {
 		);
 		expect(hasError).toBe(true);
 	});
+
+	it("main loop invokes delegate(research) for deep multi-step research", async () => {
+		const { session, calls, transport } = createTestSession([
+			// Main loop call 1: agent decides to delegate a research task
+			toolUseResponse("delegate", {
+				task: "Research the differences between REST and GraphQL APIs. Check 3+ sources, compare claims.",
+				mode: "research",
+			}),
+			// Research delegate call 1: sub-agent searches broadly
+			toolUseResponse("web_search", { query: "REST vs GraphQL comparison 2025" }),
+			// Research delegate call 2: sub-agent searches with different angle
+			toolUseResponse("web_search", { query: "GraphQL advantages over REST real world" }),
+			// Research delegate call 3: sub-agent synthesizes findings
+			textResponse(
+				"## Executive summary\nREST is simpler; GraphQL reduces over-fetching.\n\n" +
+				"## Key findings\n| Finding | Source | Confidence |\n|---|---|---|\n" +
+				"| REST better for simple CRUD | docs.api.com | high |\n" +
+				"| GraphQL reduces requests | graphql.org | high |\n\n" +
+				"## Sources\n- https://docs.api.com/rest\n- https://graphql.org/learn",
+			),
+			// Main loop call 2: main agent presents the research
+			textResponse("Here's a comparison of REST vs GraphQL based on my research."),
+		]);
+
+		const result = await session.send("Compare REST and GraphQL APIs");
+		session.close();
+
+		// Main loop made 2 calls, research delegate made 3 calls = 5 total
+		expect(calls).toHaveLength(5);
+
+		// Research delegate should have been given the RESEARCH_PROMPT (not EXPLORE_PROMPT)
+		// Check that the sub-agent's system prompt contains research-specific guidance
+		const delegateCall1 = calls[1]; // First delegate call
+		const delegateSysPrompt = Array.isArray(delegateCall1.system)
+			? delegateCall1.system.map((s: { text?: string }) => s.text || "").join("")
+			: String(delegateCall1.system);
+		expect(delegateSysPrompt).toContain("Decompose");
+		expect(delegateSysPrompt).toContain("Evaluate gaps");
+
+		// Delegate result should flow back to main agent
+		const mainCall2 = calls[4];
+		const hasDelegateResult = mainCall2.messages.some(
+			(m) =>
+				m.role === "user" &&
+				Array.isArray(m.content) &&
+				m.content.some(
+					(b) => "type" in b && b.type === "tool_result",
+				),
+		);
+		expect(hasDelegateResult).toBe(true);
+
+		// Metadata should indicate research mode
+		const toolResultMsg = mainCall2.messages.find(
+			(m) =>
+				m.role === "user" &&
+				Array.isArray(m.content) &&
+				m.content.some((b) => "type" in b && b.type === "tool_result"),
+		);
+		const toolResult = Array.isArray(toolResultMsg?.content)
+			? toolResultMsg.content.find(
+					(b) => "type" in b && b.type === "tool_result",
+				)
+			: null;
+		const resultContent =
+			toolResult && "content" in toolResult
+				? String(toolResult.content)
+				: "";
+		expect(resultContent).toContain("[research:");
+		expect(resultContent).toContain("web_search");
+
+		// Transport should show delegate(research) status messages
+		const statusEvents = transport.events.filter(
+			(e) =>
+				e.type === "status" &&
+				"message" in e &&
+				typeof e.message === "string" &&
+				e.message.includes("delegate(research)"),
+		);
+		expect(statusEvents.length).toBeGreaterThan(0);
+
+		expect(result).toContain("REST");
+	});
+
+	it("delegate(research) has higher turn limit than explore", async () => {
+		// Create a long research sequence that exceeds explore's 10-turn limit
+		// but stays within research's 25-turn limit
+		const responses = [
+			// Main loop: delegate research
+			toolUseResponse("delegate", {
+				task: "Deep research on distributed consensus algorithms",
+				mode: "research",
+			}),
+			// Research sub-agent: 12 turns of searching (exceeds explore's 10)
+			...Array.from({ length: 11 }, (_, i) =>
+				toolUseResponse("web_search", { query: `consensus algorithm round ${i + 1}` }),
+			),
+			// Sub-agent finishes after 12 turns
+			textResponse("Comprehensive analysis of Raft, Paxos, and PBFT consensus algorithms."),
+			// Main loop summarizes
+			textResponse("Here's the research on consensus algorithms."),
+		];
+
+		const { session, calls, transport } = createTestSession(responses);
+		const result = await session.send("Research consensus algorithms deeply");
+		session.close();
+
+		// Should have completed: 1 main + 12 delegate + 1 main = 14 calls
+		expect(calls).toHaveLength(14);
+
+		// Check metadata shows 12 turns used (not hit turn limit at 10)
+		const mainCall2 = calls[13];
+		const toolResultMsg = mainCall2.messages.find(
+			(m) =>
+				m.role === "user" &&
+				Array.isArray(m.content) &&
+				m.content.some((b) => "type" in b && b.type === "tool_result"),
+		);
+		const toolResult = Array.isArray(toolResultMsg?.content)
+			? toolResultMsg.content.find(
+					(b) => "type" in b && b.type === "tool_result",
+				)
+			: null;
+		const resultContent =
+			toolResult && "content" in toolResult
+				? String(toolResult.content)
+				: "";
+		// Should show research: 12/25 turns (not 10/10 turn limit)
+		expect(resultContent).toContain("research: 12/25 turns");
+		expect(resultContent).not.toContain("hit turn limit");
+
+		expect(result).toContain("consensus");
+	});
 });
 
 // ── Architect Mode E2E Tests ────────────────────────────────────────

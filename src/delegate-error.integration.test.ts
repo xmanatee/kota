@@ -12,27 +12,26 @@ const { mockRunner } = vi.hoisted(() => ({
   mockRunner: vi.fn<(input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }>>(),
 }));
 
-vi.mock("./delegate-prompts.js", () => ({
-  EXPLORE_PROMPT: "Test explore prompt",
-  EXECUTE_PROMPT: "Test execute prompt",
-  buildSubAgentPrompt: () => "test system prompt",
-  exploreTools: [
-    { name: "shell", description: "test shell", input_schema: { type: "object", properties: { command: { type: "string" } } } },
-  ],
-  executeTools: [
-    { name: "shell", description: "test shell", input_schema: { type: "object", properties: { command: { type: "string" } } } },
-  ],
-  exploreRunners: {
+vi.mock("./delegate-prompts.js", () => {
+  const testShellTool = { name: "shell", description: "test shell", input_schema: { type: "object", properties: { command: { type: "string" } } } };
+  const testRunners = {
     shell: (input: Record<string, unknown>) => mockRunner(input),
     web_fetch: (input: Record<string, unknown>) => mockRunner(input),
     http_request: (input: Record<string, unknown>) => mockRunner(input),
-  },
-  executeRunners: {
-    shell: (input: Record<string, unknown>) => mockRunner(input),
-    web_fetch: (input: Record<string, unknown>) => mockRunner(input),
-    http_request: (input: Record<string, unknown>) => mockRunner(input),
-  },
-}));
+  };
+  return {
+    EXPLORE_PROMPT: "Test explore prompt",
+    EXECUTE_PROMPT: "Test execute prompt",
+    RESEARCH_PROMPT: "Test research prompt",
+    buildSubAgentPrompt: () => "test system prompt",
+    exploreTools: [testShellTool],
+    executeTools: [testShellTool],
+    researchTools: [testShellTool],
+    exploreRunners: testRunners,
+    executeRunners: testRunners,
+    researchRunners: testRunners,
+  };
+});
 
 import { runDelegate, setDelegateConfig } from "./tools/delegate.js";
 

@@ -1,5 +1,32 @@
 # KOTA Changelog
 
+## Iteration 643 — Research delegate mode for deep multi-step investigation
+
+Added `delegate(research)` — a third delegate mode for deep, iterative research with provenance tracking. 25-turn budget (vs 10 for explore), specialized prompt guiding decompose → parallel search → evaluate gaps → synthesize. +15 tests (3973 total).
+
+### What changed
+
+- **`src/delegate-prompts.ts`**: New `RESEARCH_PROMPT` with 6-step workflow (decompose, search broadly, read deeply, evaluate gaps, cross-reference, synthesize). Structured output format with executive summary, key findings table, confidence levels, and sources.
+- **`src/tools/delegate.ts`**: Added `research` mode to schema, validation, and routing. 25-turn limit. `DelegateMode` type exported. Mode routing via lookup maps instead of ternaries.
+- **`src/model-router.ts`**: `routeModel` accepts `research` mode — no execute bump, always `thin` backend.
+- **`src/tools/batch.ts`**: Added `research` to batch tool's mode enum.
+- **`src/system-prompt.ts`**: Updated agent prompt to prefer `delegate(research)` for deep research.
+- **Tests**: 15 new — RESEARCH_PROMPT content (7), research tools/runners (3), research delegate E2E with mock client (2), model router research mode (3).
+
+### Candidates considered
+
+1. **Research delegate mode** — CHOSEN. Genuinely new capability, well-supported by Manus wide research, OpenAI deep research, LangChain open deep research patterns. Different subsystem from recent work.
+2. **E2E event-triggered tests** — Good test coverage for event→schedule→action chains. Deferred.
+3. **Computer-use hardening** — Top neglected file (NEVER, 418L). Deferred.
+4. **Custom-tool hardening** — Second neglected (NEVER, 358L). Deferred.
+5. **Source restructuring** — Architecture-only, no tests. Deferred.
+
+### Future directions
+- **E2E event-triggered tests** — Fake timers + scripted tool responses for event→schedule→tool chains (repeatedly deferred, high value).
+- **Computer-use / custom-tool hardening** — Top neglected files (418L, 358L), need tests and splitting.
+- **Research delegate: record/replay integration tests** — Block Engineering middle-layer pattern: record a real research session, replay deterministically.
+- **Parallel research via batch** — `batch(tasks, mode:"research")` for wide research across multiple topics simultaneously.
+
 ## Iteration 642 — Test-delta streak penalty prevents maintenance convergence
 
 Builder novelty axis now penalizes consecutive zero-test-delta iters. Phase 1 requires ≥2 capability candidates when recent iters lack tests.

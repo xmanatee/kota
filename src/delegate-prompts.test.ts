@@ -7,6 +7,9 @@ import {
   executeTools,
   exploreRunners,
   exploreTools,
+  RESEARCH_PROMPT,
+  researchRunners,
+  researchTools,
 } from "./delegate-prompts.js";
 
 describe("buildSubAgentPrompt", () => {
@@ -290,6 +293,24 @@ describe("tool sets", () => {
     expect(names).toContain("shell");
   });
 
+  it("research tools are read-only (same as explore)", () => {
+    const names = researchTools.map((t) => t.name);
+    expect(names).toContain("web_search");
+    expect(names).toContain("web_fetch");
+    expect(names).toContain("http_request");
+    expect(names).toContain("code_exec");
+    expect(names).toContain("file_read");
+    expect(names).toContain("grep");
+    expect(names).not.toContain("file_edit");
+    expect(names).not.toContain("file_write");
+  });
+
+  it("research tools match explore tools exactly", () => {
+    const researchNames = researchTools.map((t) => t.name).sort();
+    const exploreNames = exploreTools.map((t) => t.name).sort();
+    expect(researchNames).toEqual(exploreNames);
+  });
+
   it("runners match tool definitions", () => {
     const exploreToolNames = exploreTools.map((t) => t.name).sort();
     const exploreRunnerNames = Object.keys(exploreRunners).sort();
@@ -298,5 +319,58 @@ describe("tool sets", () => {
     const executeToolNames = executeTools.map((t) => t.name).sort();
     const executeRunnerNames = Object.keys(executeRunners).sort();
     expect(executeRunnerNames).toEqual(executeToolNames);
+
+    const researchToolNames = researchTools.map((t) => t.name).sort();
+    const researchRunnerNames = Object.keys(researchRunners).sort();
+    expect(researchRunnerNames).toEqual(researchToolNames);
+  });
+});
+
+describe("RESEARCH_PROMPT", () => {
+  it("includes multi-step research workflow", () => {
+    expect(RESEARCH_PROMPT).toContain("Decompose");
+    expect(RESEARCH_PROMPT).toContain("Search broadly");
+    expect(RESEARCH_PROMPT).toContain("Read deeply");
+    expect(RESEARCH_PROMPT).toContain("Evaluate gaps");
+    expect(RESEARCH_PROMPT).toContain("Cross-reference");
+    expect(RESEARCH_PROMPT).toContain("Synthesize");
+  });
+
+  it("includes iterative deepening guidance (up to 3 rounds)", () => {
+    expect(RESEARCH_PROMPT).toContain("up to 3 rounds");
+    expect(RESEARCH_PROMPT).toContain("follow-up queries");
+  });
+
+  it("includes tool strategy for research", () => {
+    expect(RESEARCH_PROMPT).toContain("web_search");
+    expect(RESEARCH_PROMPT).toContain("web_fetch");
+    expect(RESEARCH_PROMPT).toContain("http_request");
+    expect(RESEARCH_PROMPT).toContain("code_exec");
+    expect(RESEARCH_PROMPT).toContain("grep");
+  });
+
+  it("includes source quality guidance", () => {
+    expect(RESEARCH_PROMPT).toContain("publication dates");
+    expect(RESEARCH_PROMPT).toContain("primary sources");
+    expect(RESEARCH_PROMPT).toContain("inaccessible");
+    expect(RESEARCH_PROMPT).toContain("provenance");
+  });
+
+  it("includes structured response format with provenance", () => {
+    expect(RESEARCH_PROMPT).toContain("Executive summary");
+    expect(RESEARCH_PROMPT).toContain("Key findings");
+    expect(RESEARCH_PROMPT).toContain("Confidence");
+    expect(RESEARCH_PROMPT).toContain("Contradictions");
+    expect(RESEARCH_PROMPT).toContain("Sources");
+  });
+
+  it("guides batching independent tool calls", () => {
+    expect(RESEARCH_PROMPT).toContain("Batch independent tool calls");
+  });
+
+  it("is read-only — does not mention file modification", () => {
+    expect(RESEARCH_PROMPT).not.toContain("file_edit");
+    expect(RESEARCH_PROMPT).not.toContain("file_write");
+    expect(RESEARCH_PROMPT).not.toContain("multi_edit");
   });
 });

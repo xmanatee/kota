@@ -562,9 +562,10 @@ Two-tier recovery when `old_string` not found:
 
 ### Sub-Agent Delegation (`src/tools/delegate.ts`)
 
-Two modes and two backends:
-- **`explore`**: Research with read + execution tools (file_read, grep, glob, repo_map, web tools, code_exec, shell, http_request). Max 10 turns.
+Three modes and two backends:
+- **`explore`**: Quick research with read + execution tools (file_read, grep, glob, repo_map, web tools, code_exec, shell, http_request). Max 10 turns.
 - **`execute`**: Can modify files and run commands (adds file_edit, file_write, multi_edit, shell@60s). Max 15 turns. Tracks and reports modified files.
+- **`research`**: Deep multi-step research with iterative deepening. Same read-only tools as explore, but 25-turn budget. Prompt guides: decompose → parallel search → evaluate gaps → deepen → synthesize with provenance. Response format: executive summary, key findings table with confidence, sources with dates.
 - **Backend routing**: Model router selects `thin` (KOTA's own tool loop) or `agent-sdk` (Claude Code runtime via `delegate-agent-sdk.ts`). Agent SDK backend auto-selected for execute + coding/debugging/automation at capable tier. Manual override via `DelegateConfig.backend`.
 
 Fresh API call per delegation — main context only sees task + final answer. Sub-agent text streams to stderr for live progress visibility. Robustness: prompt caching across turns, tool result truncation (30K cap), circuit breaker on 3 identical failures, and context overflow handling with actionable errors.

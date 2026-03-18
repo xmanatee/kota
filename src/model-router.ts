@@ -74,7 +74,7 @@ export type ModelRouteResult = {
  */
 export function routeModel(
 	task: string,
-	mode: "explore" | "execute",
+	mode: "explore" | "execute" | "research",
 	tiers?: ModelTiers,
 	fallback?: string,
 ): ModelRouteResult {

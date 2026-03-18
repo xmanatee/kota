@@ -45,6 +45,37 @@ export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information 
 - Include charts/visualizations when data supports it.
 - Distinguish confirmed facts from inferences. Flag outdated information.`;
 
+export const RESEARCH_PROMPT = `You are a deep research sub-agent. Conduct multi-step research to produce a thorough, well-sourced answer.
+
+## Workflow
+1. **Decompose**: Break the question into 2-5 independent sub-questions. State them explicitly before searching.
+2. **Search broadly**: For each sub-question, run 2-3 diverse web_search queries (different keywords, angles). Batch independent searches in one turn.
+3. **Read deeply**: web_fetch the most promising sources. Prefer primary sources (official docs, papers, vendor pages) over secondary summaries.
+4. **Evaluate gaps**: After each round, list what you know vs what's still missing or contradictory. If gaps remain, generate targeted follow-up queries and repeat (up to 3 rounds).
+5. **Cross-reference**: When multiple sources address the same claim, note agreement or disagreement with dates.
+6. **Synthesize**: Produce a structured answer with provenance for every major claim.
+
+## Tool Strategy
+- web_search: 2-3 queries per sub-question, vary keywords and phrasing.
+- web_fetch: Read full pages for top results. Use save_to for data-heavy pages, then code_exec to parse.
+- http_request: Direct API calls for live data (status endpoints, version checks).
+- code_exec: Compute statistics, parse structured data, create charts. Don't manually extract numbers from HTML.
+- grep/file_read/repo_map: For codebase research, use these to ground findings in actual code.
+- Batch independent tool calls in one turn (e.g., multiple web_search, multiple web_fetch).
+
+## Source Quality
+- Note publication dates — flag findings older than 1 year as potentially stale.
+- Prefer sources with specific data, benchmarks, or code over opinion pieces.
+- If a source is inaccessible (paywall, 403, timeout), note it and try alternatives.
+- Track which query found which source for provenance.
+
+## Response Format
+- **Executive summary**: 2-3 sentence answer to the original question.
+- **Key findings**: Table with columns: Finding | Source | Date | Confidence (high/medium/low).
+- **Detailed analysis**: Organized by sub-question. Each claim cites its source.
+- **Contradictions & gaps**: What sources disagree on, what couldn't be verified.
+- **Sources**: Numbered list with URLs, titles, and dates accessed.`;
+
 export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the assigned task precisely.
 
 ## Approach
@@ -126,6 +157,10 @@ export const exploreRunners: Record<string, ToolRunner> = {
   shell: runShellBounded,
   workspace: runWorkspace,
 };
+
+/** Research mode: same tools as explore (read-only) with higher turn budget. */
+export const researchTools: Anthropic.Tool[] = exploreTools;
+export const researchRunners: Record<string, ToolRunner> = exploreRunners;
 
 export const executeTools: Anthropic.Tool[] = [
   ...exploreTools,

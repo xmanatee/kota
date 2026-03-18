@@ -62,7 +62,7 @@ export type AgentSDKDelegateConfig = {
  */
 export async function runDelegateAgentSDK(
 	task: string,
-	mode: "explore" | "execute",
+	mode: "explore" | "execute" | "research",
 	config: AgentSDKDelegateConfig,
 ): Promise<ToolResult> {
 	let sdk: Awaited<ReturnType<typeof loadSDK>>;

@@ -18,9 +18,9 @@ export const batchTool: Anthropic.Tool = {
 			},
 			mode: {
 				type: "string",
-				enum: ["explore", "execute"],
+				enum: ["explore", "execute", "research"],
 				description:
-					"explore (default): read-only research. execute: can modify files.",
+					"explore (default): read-only. execute: can modify files. research: deep multi-step research.",
 			},
 			max_concurrent: {
 				type: "number",
@@ -95,9 +95,10 @@ export async function runBatch(
 			is_error: true,
 		};
 	}
-	if (mode !== "explore" && mode !== "execute") {
+	const VALID_MODES: Set<string> = new Set(["explore", "execute", "research"]);
+	if (!VALID_MODES.has(mode)) {
 		return {
-			content: `Error: mode must be "explore" or "execute", got "${mode}"`,
+			content: `Error: mode must be "explore", "execute", or "research", got "${mode}"`,
 			is_error: true,
 		};
 	}

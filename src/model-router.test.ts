@@ -290,6 +290,35 @@ describe("routeModel", () => {
 		expect(result.tier).toBe("capable");
 		expect(result.backend).toBe("agent-sdk");
 	});
+
+	// --- Research mode ---
+
+	it("research mode does not get execute bump", () => {
+		// Research task type → fast, no execute bump → stays fast
+		const result = routeModel(
+			"Research the best approaches for vector search",
+			"research",
+		);
+		expect(result.tier).toBe("fast");
+		expect(result.reason).not.toContain("execute+1");
+	});
+
+	it("research mode routes to thin backend", () => {
+		const result = routeModel(
+			"Research distributed system architecture patterns",
+			"research",
+		);
+		expect(result.backend).toBe("thin");
+	});
+
+	it("research mode still applies complexity signals", () => {
+		// research=fast(0), architecture=+1→balanced(1)
+		const result = routeModel(
+			"Research system architecture patterns for distributed consensus",
+			"research",
+		);
+		expect(result.tier).toBe("balanced");
+	});
 });
 
 describe("resolveModelForTier", () => {

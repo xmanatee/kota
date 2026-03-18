@@ -9,6 +9,9 @@ import {
   executeTools,
   exploreRunners,
   exploreTools,
+  RESEARCH_PROMPT,
+  researchRunners,
+  researchTools,
 } from "../delegate-prompts.js";
 import type { McpManager } from "../mcp/manager.js";
 import { AnthropicModelClient, type ModelClient } from "../model-client.js";
@@ -29,12 +32,15 @@ import type { ToolResult, ToolResultBlock } from "./index.js";
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
 export { buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 
+export type DelegateMode = "explore" | "execute" | "research";
+
 export const delegateTool: Anthropic.Tool = {
   name: "delegate",
   description:
     "Delegate a task to a sub-agent with its own context. " +
     "explore (default): read-only research. " +
-    "execute: can modify files and run commands.",
+    "execute: can modify files and run commands. " +
+    "research: deep multi-step research with iterative search and source tracking.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -45,8 +51,8 @@ export const delegateTool: Anthropic.Tool = {
       },
       mode: {
         type: "string",
-        enum: ["explore", "execute"],
-        description: "explore (default): read-only research. execute: can modify files and run commands.",
+        enum: ["explore", "execute", "research"],
+        description: "explore (default): read-only. execute: can modify files. research: deep multi-step research with iterative search.",
       },
     },
     required: ["task"],
@@ -55,6 +61,7 @@ export const delegateTool: Anthropic.Tool = {
 
 const EXPLORE_MAX_TURNS = 10;
 const EXECUTE_MAX_TURNS = 15;
+const RESEARCH_MAX_TURNS = 25;
 const SUB_AGENT_RESULT_LIMIT = 30_000;
 const IDENTICAL_FAILURE_LIMIT = 3;
 const MAX_DELEGATE_IMAGES = 10;
@@ -94,14 +101,16 @@ export async function runDelegate(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
   const task = input.task as string;
-  const mode = (input.mode as string) || "explore";
+  const rawMode = (input.mode as string) || "explore";
 
   if (!task || (typeof task === "string" && !task.trim())) {
     return { content: "Error: task is required", is_error: true };
   }
-  if (mode !== "explore" && mode !== "execute") {
-    return { content: `Error: mode must be "explore" or "execute", got "${mode}"`, is_error: true };
+  const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"]);
+  if (!VALID_MODES.has(rawMode as DelegateMode)) {
+    return { content: `Error: mode must be "explore", "execute", or "research", got "${rawMode}"`, is_error: true };
   }
+  const mode: DelegateMode = rawMode as DelegateMode;
 
   const isExecute = mode === "execute";
 
@@ -125,15 +134,20 @@ export async function runDelegate(
     });
   }
 
-  const builtinTools = isExecute ? executeTools : exploreTools;
-  const runners = isExecute ? executeRunners : exploreRunners;
+  const TOOLS_BY_MODE = { explore: exploreTools, execute: executeTools, research: researchTools } as const;
+  const RUNNERS_BY_MODE = { explore: exploreRunners, execute: executeRunners, research: researchRunners } as const;
+  const TURNS_BY_MODE = { explore: EXPLORE_MAX_TURNS, execute: EXECUTE_MAX_TURNS, research: RESEARCH_MAX_TURNS } as const;
+  const PROMPT_BY_MODE = { explore: EXPLORE_PROMPT, execute: EXECUTE_PROMPT, research: RESEARCH_PROMPT } as const;
+
+  const builtinTools = TOOLS_BY_MODE[mode as DelegateMode];
+  const runners = RUNNERS_BY_MODE[mode as DelegateMode];
 
   // Include MCP tools so sub-agents can use external tool servers
   const mcpMgr = delegateConfig.mcpManager;
   const mcpTools = mcpMgr ? mcpMgr.getTools() : [];
   const tools = mcpTools.length > 0 ? [...builtinTools, ...mcpTools] : builtinTools;
-  const maxTurns = isExecute ? EXECUTE_MAX_TURNS : EXPLORE_MAX_TURNS;
-  const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
+  const maxTurns = TURNS_BY_MODE[mode as DelegateMode];
+  const basePrompt = PROMPT_BY_MODE[mode as DelegateMode];
   const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
   const modifiedFiles = new Set<string>();
   const collectedImages: ToolResultBlock[] = [];
