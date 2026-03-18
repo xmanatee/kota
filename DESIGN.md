@@ -449,6 +449,14 @@ Provider-based credential management with automatic output masking. Prevents sec
 
 **Output masking**: `SecretStore.mask(text)` replaces all known secret values with `<secret:NAME>`. Called in `tool-runner.ts` on every tool result before it enters the conversation context. Uses a compiled regex sorted by value length (longest match wins). Values under 4 chars are excluded to avoid false positives.
 
+### Prompt Templates (`src/prompt-template.ts`, `src/tools/prompt.ts`)
+
+File-based prompt management using markdown + YAML front matter. Templates live in `.kota/prompts/*.md` and support `{{variable}}` substitution.
+
+**PromptStore**: discovers, loads, caches, and renders templates from the prompts directory. Auto-detects variables from `{{placeholders}}` when not declared in front matter. Create/delete operations persist to disk immediately.
+
+**Agent tool** (`prompt_template`): management group. Actions: `list` (available templates), `get` (load by name), `render` (with variable substitution, warns on unresolved vars), `create` (new template file). Templates are re-discovered on each action to pick up external changes.
+
 ### Working Memory (`src/memory/working-memory.ts`, `src/modules/working-memory.ts`)
 
 Agent-controlled scratchpad — named entries that appear in `<working-memory>` tags in the dynamic system prompt every turn. Inspired by Letta/MemGPT's memory blocks. Limits: 20 entries, 500 chars/value, 4000 chars total. The `working_memory` tool supports write/read/list/remove/clear actions with optional `persist:true` flag. Persistent entries are saved to `.kota/modules/working-memory/entries.json` via `ModuleStorage` and auto-restored on session start via the module's `onLoad` hook. Non-persistent entries remain session-scoped. Persistent entries show a ★ marker in the system prompt.

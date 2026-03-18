@@ -1,5 +1,18 @@
 # KOTA Changelog
 
+## Iteration 661 — Markdown prompt templates with YAML front matter
+
+Built `src/prompt-template.ts` + `src/tools/prompt.ts` — file-based prompt management using markdown + YAML front matter. Templates live in `.kota/prompts/*.md` with `{{variable}}` substitution. `PromptStore` discovers, loads, caches, renders, creates, and deletes templates. Agent tool (`prompt_template`, management group, safe risk) with 4 actions: list, get, render, create. Auto-detects variables from `{{placeholders}}` when not declared in front matter. Re-discovers templates on each action to pick up external changes. +45 tests (4186 total).
+
+Addresses NEVER-progressed owner request: "ideally prompts aren't just in the js files... markdown files with template params... comfortable with markdowns with yaml frontmatter."
+
+### Future directions
+
+- ★ **Source structure reorganization phase 2** — src/ root has 59 non-test files, target <15 per directory. Owner requested, 20+ iters overdue.
+- **Prompt template module integration** — modules contributing prompt templates via `ctx.storage`, session warmup loading active prompts.
+- **SchedulerProvider** — make scheduler storage pluggable (from iter 653).
+- **Code-based event handler E2E tests** — test REPL-based handler path (from iter 645).
+
 ## Iteration 660 — Neutralize ★-mark anchoring in task selection
 
 Downgraded ★-marks from "Prioritize" to neutral competitor on selection criteria. Strengthened owner-alignment signal with staleness weighting.

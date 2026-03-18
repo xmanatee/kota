@@ -29,6 +29,7 @@ import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
 import { registration as process_ } from "./process.js";
+import { registration as promptTemplate } from "./prompt.js";
 import { registration as readDocument } from "./read-document.js";
 import { registration as repoMap } from "./repo-map.js";
 import { registration as screenshot } from "./screenshot.js";
@@ -111,6 +112,7 @@ const registrationImports = [
   () => pipe,
   () => map,
   () => workspace,
+  () => promptTemplate,
 ];
 
 let _coreRegistrations: ToolRegistration[] | null = null;
