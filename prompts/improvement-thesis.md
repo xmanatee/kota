@@ -42,13 +42,15 @@ lesson (540), domain concentration (7 iterations, accepted at 608).
 **Recent (iters 630-632):**
 - **(630)** Inspiration-first brainstorming. **PARTIALLY EFFECTIVE**: iter 631
   found novel blackboard idea from web research but only 4 total searches.
-- **(632)** Owner audit — prompt simplification, size enforcement, tooling
-  budget, no-legacy guardrail. Structural prevention mechanisms.
+- **(632a)** Quality criteria + comparative research. **INCONCLUSIVE**: iter 999
+  was refactoring, not a feature. Need feature iteration to evaluate.
+- **(632b)** Trend output simplification: 22 signals → 9. Owner-requested.
+  Reduces cognitive load during builder brainstorming.
 
 ## Evidence
 
-- **8-iter trend (617-631)**: calls 69 avg, $3.16 avg, +33.9 tests/iter.
-  Context 51k avg (growing +9%). Work diversity 89% (healthy).
+- **10-iter trend (615-999)**: +29.5 tests/iter, 38% rework, 7 fix cycles.
+  Work diversity 82% (healthy). Research: 7/10 iters (10/iter avg).
 
 ## Research Library
 

@@ -1261,242 +1261,63 @@ def trend(n: int = 5) -> None:
         entries.append(data)
 
     print(f"=== Builder Trend (last {len(entries)}) ===")
-    total_calls = total_tests = test_count = 0
-    total_cost = 0.0
-    cpt_values: list[int] = []
+    total_tests = test_count = 0
     for e in entries:
         mod = e.get("feature_name") or e["module"] or "?"
         if "/" in mod:
             mod = mod.split("/")[-1]
-        is_depth = e["work_type"] == "depth"
-        app = e["approach"] or e["work_type"]
         subsys = e.get("subsystem", "?")
         td = e["test_delta"] or "?"
-        cpt = e.get("cache_per_turn", 0)
-        cpt_str = f"{cpt // 1000}k" if cpt else "?"
-        errs = e.get("error_count", 0)
-        sweep = e.get("sweep_calls", 0)
         rc = e.get("research_calls", 0)
         research = str(rc) if rc > 0 else "."
         rework = e.get("rework_pct", 0)
         fix_c = e.get("fix_cycles", 0)
         rework_str = f"{rework}%/{fix_c}" if rework else "0%"
-        re_pct = e.get("return_edit_pct", 0)
-        re_str = f"{re_pct}%" if re_pct else "0%"
         print(
             f"  {e['iter']}  {mod:<22s} {subsys:<18s}"
-            f" {e['calls']:>3d} calls  ${e['cost']:.2f}  tests: {td}"
-            f"  ctx: {cpt_str}/turn  errs: {errs}  sweep: {sweep}"
-            f"  rsrch: {research:<3s} rework: {rework_str}  re-edit: {re_str}"
+            f" tests: {td}  rsrch: {research:<3s} rework: {rework_str}"
         )
-        total_calls += e["calls"]
-        total_cost += e["cost"]
-        if cpt:
-            cpt_values.append(cpt)
         m = re.search(r"\+(\d+)", str(td))
         if m:
             total_tests += int(m.group(1))
             test_count += 1
 
     ne = len(entries)
-    avg_calls = total_calls / ne if ne else 0
-    avg_cost = total_cost / ne if ne else 0
     avg_tests = total_tests / test_count if test_count else 0
-    print(
-        f"  Avg: {avg_calls:.0f} calls, ${avg_cost:.2f}, "
-        f"+{avg_tests:.1f} tests/iter"
-    )
-    # Error and sweep aggregates
-    total_errors = sum(e.get("error_count", 0) for e in entries)
-    total_sweep = sum(e.get("sweep_calls", 0) for e in entries)
-    avg_sweep = total_sweep / ne if ne else 0
-    if total_errors > 0 or total_sweep > 0:
-        print(
-            f"  Errors: {total_errors} total ({total_errors / ne:.1f}/iter)"
-            f"  Sweep: {total_sweep} total ({avg_sweep:.0f}/iter avg)"
-        )
-    # Rework: post-verification overhead (% of calls after first verify, fix cycles)
-    # NOTE: rework_pct is inflated for multi-feature iterations — it counts ALL
-    # calls after first verify, including legitimate second-feature work.
     rework_vals = [e.get("rework_pct", 0) for e in entries]
     total_fix = sum(e.get("fix_cycles", 0) for e in entries)
     avg_rework = sum(rework_vals) / len(rework_vals) if rework_vals else 0
-    re_vals = [e.get("return_edit_pct", 0) for e in entries]
-    avg_re = sum(re_vals) / len(re_vals) if re_vals else 0
-    # Consecutive zero-fix-cycle streak from end
-    zero_streak = 0
-    for e in reversed(entries):
-        if e.get("fix_cycles", 0) == 0:
-            zero_streak += 1
-        else:
-            break
-    fix_note = ""
-    if zero_streak >= ne and ne >= 5:
-        fix_note = f" — 0 fix cycles in ALL {ne} iters (tests may not challenge impl)"
-    elif zero_streak >= 5:
-        fix_note = f" — 0 fix cycles last {zero_streak} iters"
-    print(
-        f"  Rework: {avg_rework:.0f}% post-verify overhead, "
-        f"{total_fix} fix cycles total{fix_note}"
-    )
-    epf_vals = [e.get("edits_per_file", 0) for e in entries if e.get("edits_per_file", 0) > 0]
-    avg_epf = sum(epf_vals) / len(epf_vals) if epf_vals else 0
-    epf_warn = ""
-    if avg_epf > 4:
-        epf_warn = " — plan all changes per file before editing (see BUILDER_LESSONS)"
-    elif avg_epf > 3:
-        epf_warn = " — consider batching edits"
-    print(
-        f"  Re-edit: {avg_re:.0f}% avg, {avg_epf:.1f} edits/file avg"
-        f"{epf_warn}"
-    )
-    # Verification breakdown: average runs per check type (>1 means reruns)
-    vr_keys = ["typecheck", "test", "lint", "build"]
-    vr_avgs = {}
-    for k in vr_keys:
-        vals = [e.get("verify_runs", {}).get(k, 0) for e in entries]
-        vr_avgs[k] = sum(vals) / ne if ne else 0
-    reruns = {k: v for k, v in vr_avgs.items() if v > 1.0}
-    if reruns:
-        parts = [f"{k} {v:.1f}×" for k, v in reruns.items()]
-        print(f"  Verify reruns: {', '.join(parts)} avg/iter (>1× = rework)")
-    else:
-        parts = [f"{k} {v:.1f}×" for k, v in vr_avgs.items() if v > 0]
-        if parts:
-            print(f"  Verify runs: {', '.join(parts)} avg/iter")
+    print(f"  Avg: +{avg_tests:.1f} tests/iter, {avg_rework:.0f}% rework, {total_fix} fix cycles")
 
-    # Context size trend (per-turn cache read)
-    if len(cpt_values) >= 2:
-        first_half = sum(cpt_values[: len(cpt_values) // 2]) / (len(cpt_values) // 2)
-        second_half = sum(cpt_values[len(cpt_values) // 2 :]) / (
-            len(cpt_values) - len(cpt_values) // 2
-        )
-        delta_pct = (second_half - first_half) / first_half * 100 if first_half else 0
-        if abs(delta_pct) < 3:
-            direction = "stable"
-        elif delta_pct > 0:
-            direction = f"growing (+{delta_pct:.0f}%)"
-        else:
-            direction = f"shrinking ({delta_pct:.0f}%)"
-        avg_cpt = sum(cpt_values) / len(cpt_values)
-        print(f"  Context/turn: {avg_cpt // 1000}k avg, {direction}")
-
-    # Subsystem distribution and streak detection
-    sub_ctr = Counter(e.get("subsystem", "?") for e in entries)
-    sub_str = ", ".join(f"{v} {k}" for k, v in sub_ctr.most_common())
-    # Detect trailing streak (consecutive same-subsystem at the end)
-    trail_sub = entries[-1].get("subsystem", "?") if entries else "?"
-    trail_streak = 0
-    for e in reversed(entries):
-        if e.get("subsystem", "?") == trail_sub:
-            trail_streak += 1
-        else:
-            break
-    streak_warn = ""
-    if trail_streak >= 3:
-        streak_warn = f" — {trail_sub} × {trail_streak} STREAK (diminishing returns)"
-    elif trail_streak == 2:
-        streak_warn = f" — {trail_sub} × {trail_streak} (watch for saturation)"
-    print(f"  Subsystems: {sub_str}{streak_warn}")
-
-    # Domain-level concentration (coarser than subsystem — catches drift
-    # across related subsystems like tools/orch → tools/routing → tools)
-    dom_ctr = Counter(e.get("domain", "other") for e in entries)
-    dom_str = ", ".join(f"{v} {k}" for k, v in dom_ctr.most_common())
-    # Domain concentration warning: if any domain has >50% of iterations
-    dom_warn = ""
-    for dom, cnt in dom_ctr.most_common(1):
-        if ne >= 4 and cnt >= ne * 0.6:
-            dom_warn = (
-                f" — {dom} domain: {cnt}/{ne} iters "
-                f"CONCENTRATED (explore other domains)"
-            )
-        elif ne >= 4 and cnt >= ne * 0.5:
-            dom_warn = f" — {dom} domain: {cnt}/{ne} iters (nearing saturation)"
-    print(f"  Domains: {dom_str}{dom_warn}")
-
-    # Work-type distribution with Shannon entropy diversity metric
+    # Work-type distribution with diversity metric + domain concentration
     type_ctr = Counter(e.get("work_type", "?") for e in entries)
     type_str = ", ".join(f"{v} {k}" for k, v in type_ctr.most_common())
     type_warn = ""
-    # Shannon entropy: H = -Σ p*log(p). Max for 3 types = ln(3) ≈ 1.10.
-    # Below 60% of max → concentrated. (arxiv 2511.15593: diversity correlates
-    # with agent performance)
     import math
     if ne >= 4:
         probs = [cnt / ne for cnt in type_ctr.values()]
         entropy = -sum(p * math.log(p) for p in probs if p > 0)
-        max_entropy = math.log(3)  # 3 work types: feature, architecture, hardening
+        max_entropy = math.log(3)
         diversity = entropy / max_entropy if max_entropy > 0 else 0
         if diversity < 0.3:
-            type_warn = f" — diversity {diversity:.0%} LOW (strongly concentrated)"
+            type_warn = f" — diversity {diversity:.0%} LOW"
         elif diversity < 0.6:
-            type_warn = f" — diversity {diversity:.0%} (moderately concentrated)"
+            type_warn = f" — diversity {diversity:.0%} (moderate)"
         else:
             type_warn = f" — diversity {diversity:.0%} (healthy)"
+    dom_ctr = Counter(e.get("domain", "other") for e in entries)
+    for dom, cnt in dom_ctr.most_common(1):
+        if ne >= 4 and cnt >= ne * 0.6:
+            type_warn += f" | {dom} domain {cnt}/{ne} CONCENTRATED"
     print(f"  Work pattern: {type_str}{type_warn}")
 
-    # Severity assessment
-    sev_ctr = Counter(e["severity"] for e in entries if e["severity"] != "?")
-    sev_str = ", ".join(f"{v} {k}" for k, v in sev_ctr.most_common())
-    all_med = all(s in ("medium", "low") for s in sev_ctr)
-    note = " (diminishing?)" if all_med and sev_ctr else ""
-    print(f"  Severity: {sev_str}{note}")
-
-    # Approach rotation
-    apps = [e["approach"] for e in entries if e["approach"]]
-    consec = any(apps[i] == apps[i + 1] for i in range(len(apps) - 1))
-    rot = "CONSECUTIVE REPEAT" if consec else "ok (no repeats)"
-    print(f"  Rotation: {rot}")
-
-    # Mutation check compliance (added iter 502, tracked from iter 504)
-    mut_ran = sum(1 for e in entries if e.get("mutation") == "ran")
-    mut_total = len(entries)
-    if mut_ran > 0 or any(e.get("mutation") for e in entries):
-        print(f"  Mutation check: {mut_ran}/{mut_total} ran")
-
-    # Web research usage — show volume, not just presence
+    # Web research
     total_research = sum(e.get("research_calls", 0) for e in entries)
     web_iters = sum(1 for e in entries if e.get("web_research"))
     avg_rc = total_research / web_iters if web_iters else 0
-    print(
-        f"  Web research: {web_iters}/{ne} iterations, "
-        f"{total_research} calls ({avg_rc:.0f}/iter avg)"
-    )
+    print(f"  Research: {web_iters}/{ne} iterations ({avg_rc:.0f}/iter avg)")
 
-    # DESIGN.md health check
-    from pathlib import Path
-    design_path = Path(__file__).parent / "DESIGN.md"
-    if design_path.exists():
-        design_lines = sum(1 for _ in design_path.open())
-        design_limit = 1100
-        if design_lines > design_limit:
-            pct_over = (design_lines - design_limit) * 100 // design_limit
-            print(
-                f"  DESIGN.md: {design_lines} lines "
-                f"(limit: {design_limit}, +{pct_over}% over — condense stable sections)"
-            )
-        else:
-            print(f"  DESIGN.md: {design_lines} lines (limit: {design_limit}, ok)")
-
-    # Depth phase health (from depth-log.md + auto-detected session activity)
-    # Extract module-level activity from session edited files so depth
-    # tracking doesn't depend solely on manual depth-log.md updates.
-    session_module_activity: dict[str, int] = {}
-    for e in entries:
-        for fp in e.get("edited_files", set()):
-            m = re.search(r"/src/(.+\.ts)$", fp)
-            if not m:
-                continue
-            rel = m.group(1)
-            # Map test files to their source module
-            rel = re.sub(r"\.integration\.test\.ts$", ".ts", rel)
-            rel = re.sub(r"\.test\.ts$", ".ts", rel)
-            cur = session_module_activity.get(rel)
-            if cur is None or e["iter"] > cur:
-                session_module_activity[rel] = e["iter"]
-    # Owner priority staleness — show BEFORE depth/neglected so it's the first
-    # actionable signal, with per-item next-steps to match neglected-list specificity
+    # Owner priority staleness
     owner = _parse_owner_priorities()
     owner_stale = False
     if owner["pending"] > 0:
@@ -1518,7 +1339,6 @@ def trend(n: int = 5) -> None:
             + (f"last progress: iter {last} ({builder_iters_ago} builder iters ago){warn}"
                if last else f"never progressed{warn}")
         )
-        # When stale, show per-item details with actionable next steps
         if owner_stale and owner.get("items"):
             for item in owner["items"]:
                 label = item["label"][:50]
@@ -1529,29 +1349,29 @@ def trend(n: int = 5) -> None:
                 else:
                     print(f"    → [{iter_info}] {label}")
 
+    # Top neglected files (from depth-log + session activity)
+    session_module_activity: dict[str, int] = {}
+    for e in entries:
+        for fp in e.get("edited_files", set()):
+            m_fp = re.search(r"/src/(.+\.ts)$", fp)
+            if not m_fp:
+                continue
+            rel = m_fp.group(1)
+            rel = re.sub(r"\.integration\.test\.ts$", ".ts", rel)
+            rel = re.sub(r"\.test\.ts$", ".ts", rel)
+            cur = session_module_activity.get(rel)
+            if cur is None or e["iter"] > cur:
+                session_module_activity[rel] = e["iter"]
     health = _depth_health(depth_rows, session_activity=session_module_activity)
-    if health:
-        h = health
-        print(
-            f"  Depth coverage: {h['distinct_modules']}/{h['total_big']} modules, "
-            f"{h['stale']} stale, "
-            f"{h['untried']}/{h['total_combos']} approach combos untried"
-        )
-        if h.get("top_neglected"):
-            # When owner priorities are stale, condense to 2 entries to reduce attractor
-            limit = 2 if owner_stale else 5
-            parts = []
-            for path, last_iter, lines in h["top_neglected"][:limit]:
-                if last_iter is None:
-                    parts.append(f"{path} (NEVER, {lines}L)")
-                else:
-                    parts.append(f"{path} (iter {last_iter}, {lines}L)")
-            print(f"  Top neglected: {', '.join(parts)}")
-        if h["unknown_approaches"]:
-            print(
-                f"  WARNING: depth-log has approaches not in parse-log.py: "
-                f"{', '.join(sorted(h['unknown_approaches']))}"
-            )
+    if health and health.get("top_neglected"):
+        limit = 2 if owner_stale else 5
+        parts = []
+        for path, last_iter, lines in health["top_neglected"][:limit]:
+            if last_iter is None:
+                parts.append(f"{path} (NEVER, {lines}L)")
+            else:
+                parts.append(f"{path} (iter {last_iter}, {lines}L)")
+        print(f"  Top neglected: {', '.join(parts)}")
     print()
 
 

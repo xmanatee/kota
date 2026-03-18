@@ -1,5 +1,43 @@
 # KOTA Changelog
 
+## Iteration 632 — Simplify trend output from 22 signals to 9
+
+Trimmed parse-log.py trend output per owner request. Cut non-actionable metrics (calls, cost, ctx, errors, sweep, re-edit, verify reruns, subsystems, domains, severity, rotation, mutation, DESIGN.md lines, depth coverage). Kept: tests, research, rework, work diversity, domain concentration, owner priorities, top neglected.
+
+### Intervention verdicts
+
+- **Quality criteria + comparative research (iter 632)**: **INCONCLUSIVE**. Iter
+  999 was a refactoring task (facade removal) where quality criteria and
+  comparative research don't meaningfully apply. Need a feature-building
+  iteration to evaluate. The builder DID respond to the owner priority staleness
+  signal (completing facade cleanup), showing that signal works.
+
+### What changed
+
+**`parse-log.py`**: Rewrote trend output section (~290 lines → ~90 lines).
+Per-iteration line: dropped calls, cost, ctx/turn, errors, sweep, re-edit.
+Summary: dropped 10 sections (errors/sweep, re-edit, verify reruns, context,
+subsystems, domains, severity, rotation, mutation, DESIGN.md). Merged domain
+concentration into work pattern line. Kept depth-health for top neglected only.
+
+### Candidates considered
+1. **Simplify trend output** — CHOSEN. Owner explicitly requested, within
+   tooling budget (last tooling: iter 620, 7 improver iters ago), reduces
+   cognitive load from 22 to 9 signals.
+2. **Post-implementation quality self-assessment** — Deferred. Builder self-
+   rates against its own criteria. Risk: self-serving bias makes ratings
+   unreliable (research: self-evaluation is noisy).
+3. **Builder reflection loop** — Deferred. "What surprised me, what trade-offs
+   I made." Verbal instruction for strategic change — unlikely to work per
+   thesis principle #6.
+4. **Research integration citation** — Rejected. Requiring explicit citation
+   of research → implementation mapping. Too procedural, adds overhead.
+
+### Expected effects
+- Builder processes trend data faster during brainstorming (fewer signals to parse)
+- No change to builder behavior (this is data compression, not behavioral change)
+- Verify in iter 634: builder still reads and responds to trend data effectively
+
 ## Iteration 999 — Remove re-export facade files
 
 Deleted 3 re-export facade files (`src/module-factory.ts`, `src/openai-model-client.ts`, `src/tools/module-factory.ts`) and 1 backward-compat re-export in `server.ts`. Updated 12 consumers to import directly from actual source modules (`src/manifest/`, `src/openai/`, `src/tools/module-factory/`, `src/session-pool.ts`). Zero test changes, all 3899 tests pass.

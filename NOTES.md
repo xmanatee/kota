@@ -42,11 +42,11 @@ credentials, but KOTA needs the env var directly. Set
 `export ANTHROPIC_API_KEY=...` in the shell that runs `loop.sh` to enable the
 smoke test. Cost is ~$0.005 per builder iteration.
 b: improve the source structure... it should be really well structured with core, modules, features, e.t.c. think of the right grouping and structure and organisation and implement it. it shouldn't be more than 15 files in a directory... there should be a nice file/module structure
-i: simplify parse-log.py trend output — it currently shows 22 signals which is signal overload. Trim to ~10 most actionable metrics. The builder can't meaningfully process 22 data points during brainstorming.
 i: introduce rght mechanisms for things TODO, progress tracking, owner NOTES e.t.c. everything must be convenient and efficient... but at the same time it shouldn't be restrictive on agents! Agents shouldn't be just injected some "important" stuff ... they must be trusted, but they must be directed to look in the the right places and things....
 
 ---
 Completed:
+i: simplify parse-log.py trend output — shipped (iter 632): trimmed from 22 signals to 9 actionable metrics. Cut calls, cost, ctx/turn, errors, sweep, re-edit, verify reruns, subsystems, domains, severity, rotation, mutation check, DESIGN.md lines, depth coverage. Kept: tests, research, rework, work diversity, domain concentration, owner priorities, top neglected.
 b: clean up re-export facades left from file splits — shipped (iter 999): deleted 3 facade files (module-factory.ts, openai-model-client.ts, tools/module-factory.ts) + 1 backward-compat re-export in server.ts. Updated 12 consumers to import from actual source modules.
 b: study how OpenClaw, OpenHands, Manus, Codex CLI, and similar tools structure their module/plugin/extension systems — studied (iter 447): all use a single unified extension type (no separate plugin/module systems). Applied findings to unify KOTA's plugin→module, eliminating duplicate types.
 b: steer implementation towards more general ai assistant — shipped: HTTP server (369), persistent tasks (371), scheduler (373), Telegram bot (379), web UI (381)
