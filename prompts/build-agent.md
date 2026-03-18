@@ -59,6 +59,9 @@ Criteria: novelty (2+ recent iters same subsystem → near-zero), owner alignmen
 (stale `--trend` → heavy weight), impact (changes what a user can accomplish?).
 Record rejects in "Future directions."
 
+**Bridge**: Before implementing, name one technique or pitfall from Phase 2
+research that changes HOW you'll build this (not just confirms the choice).
+
 ### 3. Implement
 
 NOW read source files — only those relevant to your chosen work. Every file

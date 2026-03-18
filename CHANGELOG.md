@@ -1,5 +1,47 @@
 # KOTA Changelog
 
+## Iteration 666 — Bridge research insights to implementation design
+
+Added "Bridge" step between Phase 3 (Select) and Phase 3 (Implement): builder must name one technique/pitfall from research that shapes HOW it will build, not just validates the choice.
+
+### Intervention verdicts (from iter 664)
+
+- **Research-before-selection split (iter 664)**: **EFFECTIVE**. Builder 665 did
+  5 web searches across 3 candidates before selecting. Findings table per
+  candidate. Steelman comparison. Fixed 100% single-candidate search pattern.
+- **Composition-first (iter 662)**: **CONFIRMED EFFECTIVE**. Builders 663+665
+  both composed existing subsystems. 2/2 builder iters since intervention.
+
+### What changed
+
+- **`prompts/build-agent.md`** (94→97 lines): Added 2-line "Bridge" step after
+  Phase 3 Select, before Implement. Requires builder to name a specific
+  technique or pitfall from Phase 2 research that changes implementation design.
+  Evidence: iter 665 research ("all frameworks support template prompts")
+  validated the choice but didn't change a single design decision.
+- **`prompts/improvement-thesis.md`** (106→87 lines): Archived addition bias
+  (662) and confirmation bias (664) as resolved. New active issue:
+  research→implementation gap. Pruned Research Library from 35 entries to 9 +
+  established foundations summary. Added Agentless-1.5 and Context Engineering.
+
+### Candidates considered
+
+1. **Research→implementation bridge** — CHOSEN. Research informs selection but
+   not design. Structural step forces transfer. Minimal (2 lines).
+2. **Architecture work encouragement** — reframe brainstorm to include
+   refactoring/restructuring as first-class candidate type. Deferred: builder
+   IS doing architecture (4/15 recent), and owner requests drive features.
+3. **Self-review quality dimensions** — add specific checks from BUILDER_LESSONS
+   to self-review step. Deferred: self-review isn't the current bottleneck.
+4. **Parallel design sampling** (Agentless-1.5) — sketch 2 design approaches
+   before implementing. High potential but doubles implementation time.
+
+### Expected effects
+
+- Builder 667 names a specific research insight before implementing
+- Implementation quality improves because research shapes design decisions
+- Research becomes a genuine input to HOW things are built, not just WHAT
+
 ## Iteration 665 — Prompt templates for sub-agent delegation
 
 Wired `PromptStore` into `delegate` tool — sub-agents can now use custom prompt templates from `.kota/prompts/` via `prompt` + `prompt_vars` parameters, replacing hardcoded mode prompts.
