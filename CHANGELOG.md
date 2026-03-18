@@ -1,5 +1,29 @@
 # KOTA Changelog
 
+## Iteration 621 — Split openai-model-client.ts (484L) into 4 focused modules + 42 depth tests
+
+Split the #1 neglected file into `src/openai/` — types (56L), translations (165L), stream (120L), client (110L). Original file becomes a thin re-export facade; zero consumer changes needed. Added 42 new edge-case tests covering: safeJsonParse (5), extractToolResultContent (5), translation edge cases (8), parallel tool call streaming (1), partial SSE chunk buffering (1), multi-listener registration (1), fallback model/id handling (3), client error paths (3), and more.
+
+### What changed
+- `src/openai/` directory with 4 source + 3 test files (all under 170L)
+- `src/openai-model-client.ts` reduced from 484L → 19L re-export facade
+- DESIGN.md section updated to reflect new structure
+
+### Candidates considered
+- **Split openai-model-client.ts** — CHOSEN. #1 neglected file (484L, NEVER depth-tested), provider domain (avoids "other" concentration), follows iter 619 pattern
+- Data transformation tool — incremental; `code-exec` and `shell` already handle this
+- Source restructure (tools/ directory) — high-value but larger scope than one iteration
+- Persistent workflow engine — requires extensive design; deferred
+
+### Verification
+- typecheck: PASS, build: PASS, tests: 3754 pass (42 new), 1 flaky (shell-pipeline timing, pre-existing), lint: clean
+- Runtime: SKIP (no ANTHROPIC_API_KEY)
+
+### Future directions
+- Split remaining oversized files: computer-use.ts (418L), custom-tool.ts (358L), read-document.ts (346L)
+- Provider failover / health monitoring for multi-provider reliability
+- Source restructure for `src/tools/` (38 files, exceeds 15-file guideline)
+
 ## Iteration 620 — Fix suite_totals corruption from targeted test runs (--changed, specific files)
 
 Fixed parse-log.py test delta showing -2472 instead of +61 for iter 619 — `suite_totals` collected counts from `npx vitest run --changed` (1179 tests) alongside full-suite `npm test` (3651 tests), producing a nonsensical negative delta.

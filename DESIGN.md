@@ -755,9 +755,9 @@ Auto-persists conversations to `~/.kota/history/<id>.json` with index for fast l
 
 `ModelClient` interface decouples the agent loop from the Anthropic SDK. Exposes `messages.stream()` and `messages.create()` — the two API surfaces used by the agent. `MessageStream` interface: `.on("text"|"thinking", cb)` + `.finalMessage()`. `AnthropicModelClient` wraps `@anthropic-ai/sdk` as the default provider. All LLM call sites (`loop.ts`, `streaming.ts`, `architect.ts`, `delegate.ts`, `compaction.ts`, `context.ts`) accept `ModelClient` instead of `Anthropic` directly. Mock clients in tests now implement `ModelClient` instead of casting to `Anthropic`. Enables future provider swapping (Claude Agent SDK, other models) without changing agent code.
 
-### OpenAI-Compatible Model Client (`src/openai-model-client.ts`)
+### OpenAI-Compatible Model Client (`src/openai/`)
 
-`OpenAIModelClient implements ModelClient` — connects to any OpenAI-compatible API (OpenAI, Ollama, Groq, Together, vLLM, LM Studio). Translates between Anthropic message format (KOTA's internal representation) and OpenAI chat completions format. Constructor: `new OpenAIModelClient({ baseUrl, apiKey })`. Both `stream()` (SSE parsing, tool call accumulation) and `create()` (single request/response) are fully implemented. Translation handles: system prompt (top-level → system role), tool definitions (`input_schema` → `function.parameters`), tool_use/tool_result content blocks, thinking block filtering, and finish_reason mapping. Enables running KOTA with local models (Ollama, no API key needed).
+Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `translations.ts` (Anthropic ↔ OpenAI format conversion), `stream.ts` (SSE consumer with tool call accumulation), `client.ts` (`OpenAIModelClient` class). Facade at `src/openai-model-client.ts` re-exports public API for zero-change backward compatibility. Works with any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, Together, vLLM, LM Studio). 78 tests across 4 test files.
 
 ### Provider Factory (`src/provider-factory.ts`)
 

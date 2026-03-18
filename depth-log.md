@@ -196,4 +196,6 @@ Data refreshed at iter 514. Previous refresh at iter 513.
 | 617 | harden | secrets.ts | high | Fixed remove() masking bug (value→name map keyed wrong), hardened escapeArg injection, +23 edge-case tests |
 | 619 | structural-health | module-factory.ts | high | Split 854L monolith into src/manifest/ (6 files, all <300L), +61 edge-case tests across validation/steps/persistence |
 
-Distribution (50 iterations): critical=9, high=38, medium=3
+| 621 | structural-health | openai-model-client.ts | high | Split 484L into src/openai/ (4 modules, all <170L), +42 depth tests for edge cases |
+
+Distribution (51 iterations): critical=9, high=39, medium=3
