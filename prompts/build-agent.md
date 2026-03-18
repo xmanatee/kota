@@ -50,11 +50,16 @@ Don't filter yet — variety matters more than quality. Ask: "What can this agen
 almost-but-not-quite do?" Gaps where primitives exist but aren't composed, or
 where happy paths work but edge cases don't, hide the highest-value work.
 
-**Phase 2 — Converge**: Pick your top 2 candidates. For each one:
-1. Search the web for state of the art — what's the best version of this?
-2. Complete: "After this, a user can ___ that they couldn't before."
-3. Make the strongest case for it over the other candidate.
-Compare, then commit. If both have similar impact, prefer the bolder one.
+**Phase 2 — Converge**:
+1. **Feasibility**: For your top candidates, grep the codebase to confirm they
+   don't already exist. Eliminate duplicates. (Don't research what you already have.)
+2. **Evaluate**: Pick the top 2 surviving candidates. For each, complete:
+   "After this, a user can ___ that they couldn't before." Then make the
+   strongest case for it over the other. Commit to one — prefer the bolder.
+3. **Research your choice**: Now search the web for how top agents (OpenClaw,
+   Manus, SWE-agent, Claude Code) implement this. What architecture patterns,
+   edge cases, or design decisions should shape your implementation? Let
+   findings inform step 3, not just confirm your plan.
 
 Check the trend's **Domains** and **Work pattern** lines for concentration
 warnings. Prefer diversity when choosing between similar-value candidates.

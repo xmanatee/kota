@@ -4,24 +4,25 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 626)
+## Current Hypothesis (updated iter 628)
 
-**Choice-supportive bias** limits decision quality. The builder picks early in
-its thinking and rationalizes post-hoc (AAAI 2025). Phase 2 said "evaluate side
-by side" but didn't structure the comparison to prevent early commitment. Fix:
-require explicit case-making for each candidate before committing, with a
-"describe the user impact" heuristic that grounds evaluation in outcomes.
+**Research-implementation disconnect** limits implementation quality. The builder
+researches during candidate evaluation, but when candidates are eliminated
+mid-Phase-2, research is wasted and the chosen candidate gets no state-of-the-art
+research. Iter 627: 8 web searches on HTTP tools (eliminated), 0 on conditional
+steps (built). Fix: separate feasibility checking (codebase grep) from
+implementation research (web search after commitment).
 
-**Key insight (iter 624, confirmed)**: Data signals compete on specificity.
-Per-item next-steps fixed owner-priority drift. **New insight (iter 626)**:
-evaluation structure > evaluation instruction. Telling the builder to "compare"
-doesn't work; structuring the comparison as adversarial case-making does
-(DReaMAD, AAAI 2025 choice-supportive bias research).
+**Key insight (iter 628)**: Research has two distinct purposes — **evaluation**
+(should I build this?) and **implementation** (how should I build this?). The
+iter 600 intervention ("research before convergence") conflated them. Evaluation
+doesn't need web research (the builder can assess impact from codebase knowledge);
+implementation does (state-of-the-art patterns, edge cases, architecture).
 
 **Active issues:**
-1. **Decision quality** — Builder gravitates to safe/easy-to-decide work when
-   not steered by data. Iter 626 restructured Phase 2 to counter
-   choice-supportive bias. Verify: does iter 627 show genuine comparison?
+1. **Research quality** — Research must inform the actual implementation, not
+   eliminated candidates. Iter 628 restructured Phase 2: feasibility → evaluate
+   → research chosen candidate. Verify: does iter 629 research what it builds?
 2. **Composition verification** — No E2E for batch/pipe/map.
 3. **System prompt scaling** — 32 tools, ~200 chars headroom.
 
@@ -58,20 +59,24 @@ research strategy lesson (540). See CHANGELOG archive for details.
   saw warning but chose file-split anyway. Specificity asymmetry was root cause.
 - **(624)** Per-item owner next-steps + condensed neglected list. **EFFECTIVE**:
   builder chose E2E tests (owner request) in iter 625.
-- **(626)** Structured convergence with adversarial case-making. Pending.
+- **(626)** Structured convergence with adversarial case-making. **PARTIALLY
+  EFFECTIVE**: builder made explicit cases (4 vs 2 bullets), but research was
+  wasted on eliminated candidate (8 searches on HTTP, 0 on chosen work).
+- **(628)** Separated feasibility/evaluation/research in Phase 2. Pending.
 
-## Evidence (updated iter 626)
+## Evidence (updated iter 628)
 
-- **Iter 625 metrics**: 75 calls, $2.78, 55k ctx/turn, +11 tests, 1 fix cycle,
-  33% rework, 75% re-edit. E2E tests for delegate/architect/scheduled actions.
-  Chose owner request (E2E testing). 0 web research calls (expected for test work).
-- **8-iter trend (611-625)**: calls avg 76, cost avg $3.54, +30.6 tests/iter.
-  Context 53k avg (shrinking -5%). Re-edit 39% avg, 2.2 edits/file avg.
+- **Iter 627 metrics**: 70 calls, $2.69, 43k ctx/turn, +28 tests, 1 fix cycle,
+  34% rework, 50% re-edit. Extended step condition language with logical/string
+  operators. 8 web searches — all on HTTP tools (eliminated), 0 on conditional
+  steps (built). Research-implementation disconnect confirmed.
+- **8-iter trend (613-627)**: calls avg 73, cost avg $3.24, +29.6 tests/iter.
+  Context 51k avg (shrinking -19%). Re-edit 41% avg, 2.3 edits/file avg.
   Work pattern: 3 feature, 3 hardening, 2 architecture (healthy diversity).
-  Owner priorities: 0 builder iters since last progress. **Resolved**.
-- **Decision quality concern**: 3/8 iters had 0 web research (file splits, tests).
-  Research correlates with ambitious work (r≈0.7 across recent iters). Phase 2
-  restructuring should encourage research even for seemingly-obvious candidates.
+- **Research quality concern**: Builder researches candidates before elimination,
+  then builds the chosen candidate without research. Structural fix in Phase 2
+  separates feasibility (grep) → evaluation (case-making) → research (web, post-
+  commitment). This should redirect all web research to inform implementation.
 
 ## Research Library
 
@@ -169,12 +174,12 @@ Core principles distilled from 40 interventions across 80 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Decision quality** — Iter 626 restructured Phase 2 with adversarial
-   case-making. Verify in iter 627: does the builder genuinely compare
-   candidates, or does it still pick-then-rationalize?
+1. **Research quality** — Iter 628 restructured Phase 2 to focus research on
+   the committed implementation choice. Verify in iter 629: does the builder
+   research what it actually builds?
 2. **Context engineering** — Loading examples of successful ambitious iterations
    is more effective than instructions (AAAI 2025, context engineering research).
-   Practical next step: if Phase 2 restructuring alone isn't enough, inject
-   a "best recent iteration" example into brainstorming context.
+   If Phase 2 restructuring alone isn't enough, inject a "best recent iteration"
+   example into brainstorming context.
 3. **Composition verification** — No E2E for batch/pipe/map.
 4. **System prompt scaling** — ~200 chars headroom at 32 tools.

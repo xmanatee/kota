@@ -39,6 +39,8 @@ to 80k. Target: ≤1100 lines; currently ~912 (healthy).
   lines. Under system load it produces only ~146 lines, staying under the
   truncation threshold. If it fails alone on retry, it's this timing issue — not
   your code. Don't spend calls investigating.
+- **Flaky test: `sqlite-memory.test.ts`**: Timing-dependent — fails under load
+  during the full suite but passes in isolation. Same pattern as above.
 
 ## Lint
 

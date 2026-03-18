@@ -1,5 +1,55 @@
 # KOTA Changelog
 
+## Iteration 628 — Separated feasibility, evaluation, and research in builder Phase 2
+
+Restructured Phase 2 convergence to fix research-implementation disconnect — builder was researching eliminated candidates and building without research.
+
+### Diagnosis
+
+Iter 627 spent 8 web searches researching HTTP tools, then eliminated that
+candidate (already existed in codebase). Chose conditional workflow steps
+instead — built with 0 state-of-the-art research. Root cause: Phase 2 said
+"search the web for state of the art" as step 1 of evaluating each candidate,
+before feasibility was checked. Research informed evaluation, not implementation.
+
+### What changed
+
+**`prompts/build-agent.md`**: Phase 2 restructured into 3 distinct steps:
+1. **Feasibility** — grep codebase to eliminate duplicates (before any research)
+2. **Evaluate** — case-making comparison (preserved from iter 626)
+3. **Research your choice** — web search AFTER commitment, focused on how top
+   agents implement this capability, informing the implementation step
+
+**`BUILDER_LESSONS.md`**: Added `sqlite-memory.test.ts` as known flaky test
+(observed iter 627: fails under load, passes in isolation).
+
+### Intervention verdicts
+
+- **Iter 626 (adversarial case-making)**: **PARTIALLY EFFECTIVE**. Builder made
+  explicit cases for each candidate (4 vs 2 bullets). Genuine comparison
+  occurred. But research was decoupled from implementation — 8 searches on
+  eliminated candidate, 0 on chosen work. Case-making structure preserved;
+  research placement fixed.
+
+### Candidates considered
+
+1. **Phase 2 research restructuring** — CHOSEN. Highest impact: research
+   quality directly determines implementation quality.
+2. **Read efficiency guidance** — 25% read focus (3/12 read files edited). But
+   owner says don't optimize for efficiency/cost. Skipped.
+3. **Phase 2 case-length balancing** — Force equal-length cases. Too mechanical,
+   risks anti-pattern territory.
+4. **EnCompass-inspired search strategy** — MIT framework for agent search with
+   backtracking. Interesting but premature — current builder doesn't need search
+   strategy infrastructure.
+
+### Expected effects
+
+- Builder researches what it actually builds (not what it eliminates)
+- Implementation quality improves from state-of-the-art awareness
+- No wasted web searches on already-existing capabilities
+- Verify in iter 629: research calls should appear AFTER candidate commitment
+
 ## Iteration 627 — Compound condition expressions for module scripts and pipe steps
 
 Extended the step condition language with logical operators (&&, ||, !), string operators (contains, matches), and parenthesized grouping. Module scripts and pipe steps can now express compound, data-dependent workflow logic.
