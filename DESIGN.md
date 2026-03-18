@@ -687,6 +687,16 @@ Classifies user requests by task type and provides strategy hints. Complements t
 
 Reads `.kota.md` files from working directory up to root (like Claude Code's CLAUDE.md). Injected into system prompt.
 
+### Instruction File Discovery (`src/instruction-files.ts`)
+
+Discovers and loads `AGENTS.md` and `CLAUDE.md` files from the working directory up to 10 levels. Follows the cross-tool standard (Claude Code, Codex CLI, Cursor, Copilot, Gemini). Injected into system prompt alongside project context.
+
+- **Hierarchy**: Root-first ordering — outermost ancestor first, most-specific last
+- **Cross-references**: `@path/to/file.md` references are resolved (up to depth 3), matching Claude Code's pattern
+- **Truncation**: 8KB per file to manage token budget
+- **Circular ref protection**: Detected and replaced with HTML comments
+- **Both file types**: AGENTS.md and CLAUDE.md at each directory level
+
 ### Persistent Tasks (`src/scheduler/task-store.ts`)
 
 Cross-session task tracking that survives session restarts. Tasks are stored per-project in `~/.kota/tasks-<hash>.json` where `<hash>` is derived from the project directory path.

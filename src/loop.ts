@@ -9,6 +9,7 @@ import { getChangeTracker, initChangeTracker, resetChangeTracker } from "./file-
 import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
 import { initAuditStore, resetAuditStore } from "./guardrails-audit.js";
 import { buildSessionWarmup } from "./init.js";
+import { loadInstructionContext } from "./instruction-files.js";
 import { listManifestModules } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
@@ -144,11 +145,15 @@ export class AgentSession {
 
     this.projectContext = loadProjectContext();
     const projectContext = this.projectContext;
+    const instructionContext = loadInstructionContext();
     const warmup = buildSessionWarmup();
     const userProfile = options.config ? buildUserProfile(options.config) : "";
-    const systemPrompt = SYSTEM_PROMPT + projectContext + userProfile + warmup;
+    const systemPrompt = SYSTEM_PROMPT + projectContext + instructionContext + userProfile + warmup;
     if (projectContext && this.verbose) {
       this.transport.emit({ type: "status", message: "[kota] Loaded project context from .kota.md" });
+    }
+    if (instructionContext && this.verbose) {
+      this.transport.emit({ type: "status", message: "[kota] Loaded project instructions from AGENTS.md / CLAUDE.md" });
     }
     if (userProfile && this.verbose) {
       this.transport.emit({ type: "status", message: "[kota] User profile loaded from config" });

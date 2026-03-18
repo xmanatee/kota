@@ -1,5 +1,20 @@
 # KOTA Changelog
 
+## Iteration 663 — AGENTS.md / CLAUDE.md instruction file discovery
+
+Built `src/instruction-files.ts` — discovers and loads AGENTS.md and CLAUDE.md project instruction files, following the cross-tool standard adopted by Claude Code, Codex CLI, Cursor, Copilot, and Gemini CLI. Files are discovered by walking up the directory tree (root-first ordering), with `@path.md` cross-reference resolution (depth 3, circular-ref safe) and 8KB-per-file truncation. Injected into system prompt at startup alongside `.kota.md` project context. Delegate sub-agents also receive instruction context.
+
+Addresses owner request: "ideally kota respects and reads AGENTS.md and CLAUDE.md files if it finds it on the path to files."
+
+Also fixed 2 inherited delegate E2E test failures (research mode tests hung indefinitely due to `web_search` making real HTTP requests in mock context — switched to `file_read`). +19 tests (4205 total), 0 failures (was 3).
+
+### Future directions
+
+- ★ **Source structure reorganization phase 2** — src/ root has 59 non-test files, target <15/dir. Owner requested, 20+ iters overdue.
+- **Subdirectory-scoped instruction loading** — only load child-dir AGENTS.md when working in that subtree (like Claude Code), rather than always walking up from cwd.
+- **Instruction file caching** — watch for file changes and invalidate cache (compose with file-watcher from iter 659).
+- **SchedulerProvider** — make scheduler storage pluggable (from iter 653).
+
 ## Iteration 662 — Composition-first brainstorming to evolve with codebase maturity
 
 Capability axis now puts composition of existing subsystems before adding new standalone tools.

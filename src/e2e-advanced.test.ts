@@ -221,23 +221,21 @@ describe("E2E: delegate sub-agent", () => {
 	});
 
 	it("main loop invokes delegate(research) for deep multi-step research", async () => {
+		// Use file_read (local, instant) instead of web_search (network) to avoid hangs
+		const researchFile = join(testDir, "api-notes.txt");
+		writeFileSync(researchFile, "REST is simpler; GraphQL reduces over-fetching.", "utf-8");
+
 		const { session, calls, transport } = createTestSession([
 			// Main loop call 1: agent decides to delegate a research task
 			toolUseResponse("delegate", {
-				task: "Research the differences between REST and GraphQL APIs. Check 3+ sources, compare claims.",
+				task: `Research API patterns by reading ${researchFile}`,
 				mode: "research",
 			}),
-			// Research delegate call 1: sub-agent searches broadly
-			toolUseResponse("web_search", { query: "REST vs GraphQL comparison 2025" }),
-			// Research delegate call 2: sub-agent searches with different angle
-			toolUseResponse("web_search", { query: "GraphQL advantages over REST real world" }),
-			// Research delegate call 3: sub-agent synthesizes findings
+			// Research delegate call 1: sub-agent reads a file
+			toolUseResponse("file_read", { path: researchFile }),
+			// Research delegate call 2: sub-agent synthesizes findings
 			textResponse(
-				"## Executive summary\nREST is simpler; GraphQL reduces over-fetching.\n\n" +
-				"## Key findings\n| Finding | Source | Confidence |\n|---|---|---|\n" +
-				"| REST better for simple CRUD | docs.api.com | high |\n" +
-				"| GraphQL reduces requests | graphql.org | high |\n\n" +
-				"## Sources\n- https://docs.api.com/rest\n- https://graphql.org/learn",
+				"## Executive summary\nREST is simpler; GraphQL reduces over-fetching.",
 			),
 			// Main loop call 2: main agent presents the research
 			textResponse("Here's a comparison of REST vs GraphQL based on my research."),
@@ -246,12 +244,11 @@ describe("E2E: delegate sub-agent", () => {
 		const result = await session.send("Compare REST and GraphQL APIs");
 		session.close();
 
-		// Main loop made 2 calls, research delegate made 3 calls = 5 total
-		expect(calls).toHaveLength(5);
+		// Main loop made 2 calls, research delegate made 2 calls = 4 total
+		expect(calls).toHaveLength(4);
 
-		// Research delegate should have been given the RESEARCH_PROMPT (not EXPLORE_PROMPT)
-		// Check that the sub-agent's system prompt contains research-specific guidance
-		const delegateCall1 = calls[1]; // First delegate call
+		// Research delegate should have been given the RESEARCH_PROMPT
+		const delegateCall1 = calls[1];
 		const delegateSysPrompt = Array.isArray(delegateCall1.system)
 			? delegateCall1.system.map((s: { text?: string }) => s.text || "").join("")
 			: String(delegateCall1.system);
@@ -259,7 +256,7 @@ describe("E2E: delegate sub-agent", () => {
 		expect(delegateSysPrompt).toContain("Evaluate gaps");
 
 		// Delegate result should flow back to main agent
-		const mainCall2 = calls[4];
+		const mainCall2 = calls[3];
 		const hasDelegateResult = mainCall2.messages.some(
 			(m) =>
 				m.role === "user" &&
@@ -287,7 +284,6 @@ describe("E2E: delegate sub-agent", () => {
 				? String(toolResult.content)
 				: "";
 		expect(resultContent).toContain("[research:");
-		expect(resultContent).toContain("web_search");
 
 		// Transport should show delegate(research) status messages
 		const statusEvents = transport.events.filter(
@@ -303,17 +299,20 @@ describe("E2E: delegate sub-agent", () => {
 	});
 
 	it("delegate(research) has higher turn limit than explore", async () => {
-		// Create a long research sequence that exceeds explore's 10-turn limit
-		// but stays within research's 25-turn limit
+		// Use file_read (local) instead of web_search (network) to avoid hangs.
+		// 12 turns exceeds explore's 10-turn limit but stays within research's 25.
+		const researchFile = join(testDir, "consensus.txt");
+		writeFileSync(researchFile, "Raft, Paxos, PBFT consensus algorithms.", "utf-8");
+
 		const responses = [
 			// Main loop: delegate research
 			toolUseResponse("delegate", {
-				task: "Deep research on distributed consensus algorithms",
+				task: `Deep research by reading ${researchFile} repeatedly`,
 				mode: "research",
 			}),
-			// Research sub-agent: 12 turns of searching (exceeds explore's 10)
-			...Array.from({ length: 11 }, (_, i) =>
-				toolUseResponse("web_search", { query: `consensus algorithm round ${i + 1}` }),
+			// Research sub-agent: 11 file_read turns + 1 text turn = 12 delegate turns
+			...Array.from({ length: 11 }, () =>
+				toolUseResponse("file_read", { path: researchFile }),
 			),
 			// Sub-agent finishes after 12 turns
 			textResponse("Comprehensive analysis of Raft, Paxos, and PBFT consensus algorithms."),
@@ -321,7 +320,7 @@ describe("E2E: delegate sub-agent", () => {
 			textResponse("Here's the research on consensus algorithms."),
 		];
 
-		const { session, calls, transport } = createTestSession(responses);
+		const { session, calls } = createTestSession(responses);
 		const result = await session.send("Research consensus algorithms deeply");
 		session.close();
 

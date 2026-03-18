@@ -39,6 +39,7 @@ vi.mock("./tools/index.js", () => ({
   getTodoState: vi.fn(() => ""),
 }));
 vi.mock("./project-context.js", () => ({ loadProjectContext: vi.fn(() => "") }));
+vi.mock("./instruction-files.js", () => ({ loadInstructionContext: vi.fn(() => "") }));
 vi.mock("./init.js", () => ({ buildSessionWarmup: vi.fn(() => "") }));
 vi.mock("./tools/delegate.js", () => ({
   setDelegateConfig: vi.fn(),
