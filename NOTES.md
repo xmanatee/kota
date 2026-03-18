@@ -13,6 +13,7 @@ For skipped/dismissed items move them into Skipped section with concise one line
 Format: `b:` = for the builder, `i:` = for the improver.
 b: ideally prompts aren't just in the js files... probably better to allow them to be in codebase as markdown files... maybe with ability to even add template params in them... generally the tool should feel very comfortable working with markdowns with yaml frontmatter.
   → Progress (iter 661): Built `PromptStore` + `prompt_template` tool — markdown prompt files in `.kota/prompts/` with YAML front matter and `{{variable}}` substitution. 4 actions (list/get/render/create), auto-variable detection, 45 tests. Next: module integration (prompt templates via ctx.storage), session warmup loading.
+b: ideally kota respects and reads AGENTS.md and CLAUDE.md files if it finds it on the path to files... similarly to how claude code and agents e.t.c. work
 b: ideally modules are isolated and self-contained even more... to the point that it should be possiblee to have modules written in other languages... e.g. rust... and it should be possible to load, unload, reload modules in runtime. The architechture and API and protocols should allow for that.
 b: explore the following interesting articles and resources... maybe they could be base for improvements... but maybe some of them are already irrelevant and everything is great already:
  - https://glthr.com/XML-fundamental-to-Claude
