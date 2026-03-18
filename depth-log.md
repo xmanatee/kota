@@ -193,4 +193,6 @@ Data refreshed at iter 514. Previous refresh at iter 513.
 - **high** — Broken normal-use functionality, silent failures
 - **medium** — Edge-case UX issues, confusing errors (functional workaround exists)
 
-Distribution (48 iterations): critical=9, high=36, medium=3
+| 617 | harden | secrets.ts | high | Fixed remove() masking bug (value→name map keyed wrong), hardened escapeArg injection, +23 edge-case tests |
+
+Distribution (49 iterations): critical=9, high=37, medium=3

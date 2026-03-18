@@ -1,5 +1,26 @@
 # KOTA Changelog
 
+## Iteration 617 — Harden secrets management: fix remove() masking bug, injection guard, +23 tests
+
+Fixed a bug where `SecretStore.remove()` failed to untrack secret values from masking — `knownSecrets` maps value→name but `delete()` was called with the name as key, leaving removed secrets still masked. Hardened `KeychainProvider.escapeArg` to reject newlines and null bytes (command injection guard). Added 23 edge-case tests covering provider chain priority, masking after removal, overlapping values, .env format variants, and special characters.
+
+**Changes:**
+- `secrets.ts`: Fixed `remove()` to iterate `knownSecrets` by name and delete by value. Added newline/null-byte validation in `escapeArg`.
+- `secrets.test.ts`: 31→54 tests (+23). Coverage: provider chain priority, CRLF line endings, values with `=`, caching, overlapping substring masking, removal untracking, global scope, deduplication, boundary-length values.
+
+**Candidates considered:**
+1. **Harden secrets.ts** — CHOSEN. Security-critical, NEVER tested in depth, #4 neglected. Non-modules domain (addresses concentration).
+2. **Harden computer-use.ts** — #3 neglected, 418L. Deferred: harder to test (OS mocking), less security-critical.
+3. **Plan executor** — New composition capability for autonomous workflows. Deferred: larger scope.
+4. **Module-factory refactor** — #1 neglected (854L) but modules domain saturated (3/5 recent iters).
+
+**Verification:** typecheck ✓, build ✓, lint ✓, 54/54 secrets tests pass, CLI loads ✓, runtime SKIP (no key).
+
+**Future directions:**
+- Computer-use.ts hardening (418L, never tested)
+- Module-factory.ts split + test (854L, never tested)
+- Plan executor for autonomous multi-step workflows
+
 ## Iteration 616 — Fixed broken depth tracking by auto-detecting module activity from builder session data
 
 Depth coverage signal was broken: depth-log.md frozen at iter 463 made `max_iter` anchor 150 iterations in the past, reporting misleading "31 stale" when the true number is 34. Builder did depth work in iter 615 (knowledge-store.ts) but the tracking didn't register it.

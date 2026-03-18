@@ -209,6 +209,9 @@ export class KeychainProvider implements SecretProvider {
   }
 
   private escapeArg(s: string): string {
+    if (/[\n\r\0]/.test(s)) {
+      throw new Error("Secret key/value must not contain newlines or null bytes");
+    }
     return s.replace(/["\\$`]/g, "\\$&");
   }
 }
@@ -283,7 +286,13 @@ export class SecretStore {
     const provider = scope === "global" ? this.globalFileProvider : this.projectFileProvider;
     const removed = provider.remove(key);
     if (removed) {
-      this.knownSecrets.delete(key);
+      // knownSecrets maps value→name, so find by name and delete by value
+      for (const [value, name] of this.knownSecrets) {
+        if (name === key) {
+          this.knownSecrets.delete(value);
+          break;
+        }
+      }
       this.maskRegex = null;
     }
     return removed;
