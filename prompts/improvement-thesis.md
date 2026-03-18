@@ -4,33 +4,36 @@ Persistent strategic context for the improver. Read at start of each iteration;
 update when evidence changes the picture. NOT a task list — a hypothesis to
 test and refine.
 
-## Current Hypothesis (updated iter 622)
+## Current Hypothesis (updated iter 624)
 
-**Owner-priority drift is the new dominant issue.** Builder has been doing safe,
-productive file-splitting for 4 straight iterations (615-621). Owner requests
-haven't progressed since iter 613. The trend signals showed this as "healthy"
-(94% diversity) because splits classify as "architecture." Fix: added owner-
-priority staleness signal to trend output — concrete data the builder can't
-ignore.
+**Specificity asymmetry** is the root cause of owner-priority drift. The iter
+622 staleness warning was visible but ignored (builder saw it, chose split
+anyway). The top-neglected list provides specific, risk-free candidates;
+owner requests were vague. Fix: per-item "Next:" steps in trend output, owner
+section moved above neglected, neglected condensed 5→2 when stale.
+
+**Key insight**: Data signals compete on specificity. A concrete "Next:
+integration test with Ollama" beats a vague "getting stale" warning even when
+the vague one is higher priority. This extends principle #1 (data > instructions)
+— within data, specificity > priority.
 
 **Active issues:**
 1. **Owner priority drift** — 5 pending `b:` items, last progress iter 613
-   (4 builder iters ago). New trend signal now surfaces this. Monitor if builder
-   responds in iter 623.
-2. **Depth coverage gap** — Builder did depth work 4 iterations in a row (615-
-   621), all productive. 33 stale modules remain. Depth signal working well —
-   may be working *too* well, crowding out owner priorities.
-3. **Implementation efficiency** — Test reruns 8.5× avg. Includes targeted TDD
+   (5 builder iters ago, 3 consecutive file-splits). Iter 624 added per-item
+   next-steps and condensed top-neglected. Verify: does builder pick owner
+   request in iter 625?
+2. **Implementation efficiency** — Test reruns 8.7× avg. Includes targeted TDD
    runs (healthy). Monitor.
-4. **Composition verification** — No E2E for batch/pipe/map.
-5. **System prompt scaling** — 32 tools, ~200 chars headroom.
+3. **Composition verification** — No E2E for batch/pipe/map.
+4. **System prompt scaling** — 32 tools, ~200 chars headroom.
 
 **Resolved issues:**
-- Suite_totals targeted-test filtering (iter 620, confirmed iter 621).
-- Test delta accuracy, subsystem classification, depth tracking, signal
+- Depth coverage gap: 4 depth iters (615-621), now balanced by owner-priority
+  signal. Top-neglected list condensed when stale.
+- Suite_totals, test delta, subsystem classification, depth tracking, signal
   accuracy, owner-priority alignment (prompt-level), research usage, domain
   concentration, brainstorming quality, DESIGN.md growth, instruction bloat:
-  all RESOLVED (see prior thesis versions for details).
+  all RESOLVED.
 
 ## Intervention History
 
@@ -54,25 +57,27 @@ research strategy lesson (540). See CHANGELOG archive for details.
 - **(618)** Test delta + subsystem classifier fixes. **CONFIRMED**.
 - **(620)** Suite_totals targeted-test filtering. **CONFIRMED** (iter 621:
   accurate +42 delta).
-- **(622)** Owner priority staleness signal in trend. Pending.
+- **(622)** Owner priority staleness signal in trend. **INEFFECTIVE**: builder
+  saw warning but chose file-split anyway. Specificity asymmetry was root cause.
+- **(624)** Per-item owner next-steps + condensed neglected list. Pending.
 
-## Evidence (updated iter 622)
+## Evidence (updated iter 624)
 
-- **Iter 621 metrics**: 67 calls, $2.43, 42k ctx/turn, +42 tests, 0 fix cycles,
-  45% rework, 0% re-edit. Split openai-model-client.ts into `src/openai/`.
-  Cheapest and cleanest iteration in the 10-iter window.
-- **10-iter trend (603-621)**: calls avg 82, cost avg $3.90, +27.4 tests/iter.
-  Context 54k avg (shrinking -4%). Re-edit 43% avg, 2.3 edits/file avg.
-  Domains: 5 modules, 3 tools, 2 other. Work pattern: 5 arch, 3 feature,
-  2 hardening — diversity 94%. Owner priorities: 5 pending, last iter 613.
-  **Key concern**: depth signal working *too* well — 4 consecutive depth/
-  refactoring iters. Builder choosing safe file-splits over ambitious features.
+- **Iter 623 metrics**: 72 calls, $3.02, 42k ctx/turn, +25 tests, 0 fix cycles,
+  38% rework, 33% re-edit. Split module-factory.ts. 3rd consecutive file-split.
+- **10-iter trend (605-623)**: calls avg 81, cost avg $3.86, +28 tests/iter.
+  Context 54k avg (shrinking -16%). Re-edit 39% avg, 2.0 edits/file avg.
+  Domains: 5 modules, 3 tools, 2 other. Builder iters since owner progress: 5.
+  **Key concern**: top-neglected specificity was outcompeting owner priorities.
+  Now addressed with per-item next-steps.
 
 ## Research Library
 
 ### Actively Informing Strategy
 | Paper | Key Insight | Applied |
 |---|---|---|
+| Arumugam et al. (ICLR 2025) | Verbal "explore more" doesn't work; structural algorithmic changes (PSRL with 3 LLM roles) produce efficient exploration | iter 624 (specificity > priority) |
+| MAST Taxonomy (NeurIPS 2025) | 14 failure modes in multi-agent systems; "unaware of termination conditions" causes work-type loops | iter 624 (depth attractor diagnosis) |
 | GEPA (2507.19457, ICLR 2026 Oral) | Evolve prompts by reading full execution traces, diagnosing in natural language, proposing targeted mutations. Outperforms MIPROv2 by 10%+. Key: structured reflection on traces >> sparse scalar rewards | iter 614 (validates improver approach) |
 | Factory.ai Signals | LLM-as-judge on sessions to extract abstract friction patterns. Threshold-based triggers for self-fixes. Recursive self-improvement without manual triage | iter 616 (validates auto-detection approach) |
 | SICA (2504.15228) | Best-performing agent from archive becomes the meta-agent. Archive tracks utility = f(benchmark, time, cost). 17→53% on SWE-bench subset | iter 614 (archive pattern) |
@@ -112,13 +117,16 @@ Factory.ai context compression, and ~20 more.
 
 ## Improver Pattern Watch
 
-Core principles distilled from 39 interventions across 78 iterations:
+Core principles distilled from 40 interventions across 80 iterations:
 
 1. **Data > instructions**: When you want the builder to change behavior,
    surface the data in tools it already uses (trend output). Text instructions
    in prompts are ignored without supporting data. Proven: DESIGN.md line count
    (596), domain concentration (590-592), work-type diversity (594), depth
-   coverage (612→615).
+   coverage (612→615). **Corollary (iter 624)**: within data signals,
+   specificity > priority. A concrete "Next: integration test with Ollama"
+   outcompetes a vague "getting stale" warning even when the warning has
+   higher urgency.
 
 2. **Compression > addition**: Verbose context hurts execution quality (ETH
    Zurich, ~150 instruction limit). The 360→169 prompt compression improved ALL
@@ -150,18 +158,13 @@ Core principles distilled from 39 interventions across 78 iterations:
 
 ## Strategic Priorities (for the improver, not the builder)
 
-1. **Owner priority drift** — NEW, highest priority. Builder gravitated to safe
-   file-splitting for 4 straight iters. Owner has 5 pending requests. Iter 622
-   added staleness signal to trend. Verify in iter 623: does builder pick an
-   owner request? If not, consider stronger intervention (e.g., add owner items
-   as explicit brainstorming constraints, or show per-item staleness).
-2. **Depth signal calibration** — Top-neglected signal (iter 612) was highly
-   effective but may be *too* attractive, crowding out other work. If owner
-   priority signal resolves the balance, depth is fine. If not, consider
-   reducing its prominence.
-3. **SGICE trajectory replay** — Research finding: 73→93% lift from feeding
+1. **Owner priority drift** — Iter 624 added per-item next-steps and condensed
+   neglected 5→2. If builder still doesn't pick owner request in iter 625,
+   escalate: consider making "Owner request" category mandatory in convergence
+   (must evaluate at least one owner item in Phase 2).
+2. **SGICE trajectory replay** — Research finding: 73→93% lift from feeding
    successful trajectories as few-shot examples. Practical opportunity: store
    high-scoring session summaries (low cost, 0% re-edit) and inject during
    brainstorming for similar work types.
-4. **Composition verification** — No E2E for batch/pipe/map.
-5. **System prompt scaling** — ~200 chars headroom at 32 tools.
+3. **Composition verification** — No E2E for batch/pipe/map.
+4. **System prompt scaling** — ~200 chars headroom at 32 tools.

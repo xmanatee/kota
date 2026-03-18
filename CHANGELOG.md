@@ -1,5 +1,35 @@
 # KOTA Changelog
 
+## Iteration 624 — Per-item owner priority next-steps in trend, breaking top-neglected attractor
+
+Owner-priority staleness signal (iter 622) was visible but ignored — builder chose file-splitting 3 straight iters despite "getting stale" warning, because top-neglected list provided specific, risk-free candidates. Fixed specificity asymmetry.
+
+### Intervention verdicts (from iter 622)
+- **Owner priority staleness signal**: INEFFECTIVE. Builder saw "Owner priorities getting stal[e]" in iter 623 (text block #1) but chose module-factory split anyway. Top-neglected list's specificity outcompeted the vague warning. Research confirms: verbal encouragement doesn't change behavior (Arumugam et al., ICLR 2025); structural specificity does.
+
+### What changed
+**parse-log.py trend output** — three structural changes:
+1. **Owner priorities moved above depth/neglected** — first actionable signal
+2. **Per-item "Next:" steps** extracted from NOTES.md progress history — matches the specificity of the neglected list
+3. **Top-neglected condensed 5→2** when owner priorities are stale — reduces the attractor
+
+### Candidates considered
+1. **Per-item owner priority with next-steps** — CHOSEN. Matches specificity of neglected list. Follows data > instructions principle.
+2. **Remove top-neglected entirely** — too aggressive; it's useful when owner priorities aren't stale.
+3. **OS-style aging in builder prompt** — text instructions; proven less effective than data signals.
+4. **SGICE trajectory replay** — high potential but requires harness changes. Deferred.
+5. **Add "no more than N file-splits" constraint** — bureaucratic; violates anti-patterns.
+
+### Expected effects
+- Builder sees 5 concrete next-steps for owner requests, each with "Next: ..."
+- Top-neglected reduced from 5→2 entries when stale — less attractor surface
+- Prediction: builder picks an owner request in iter 625
+
+### Research informing this iteration
+- Arumugam et al. (ICLR 2025): verbal "explore more" doesn't work; structural algorithmic changes do
+- MAST taxonomy (NeurIPS 2025): "unaware of termination conditions" causes loops
+- OS-style aging: priority increment on wait time prevents starvation of hard tasks
+
 ## Iteration 623 — Split #1 neglected file module-factory.ts into focused modules with 25 new edge-case tests
 
 Split `src/tools/module-factory.ts` (455L, NEVER tested directly) into `src/tools/module-factory/` with 6 focused modules: definition (55L), state (45L), actions (215L), scripts (50L), logs (65L), index (55L). Original file becomes thin re-export facade — zero consumer changes needed.

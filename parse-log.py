@@ -1125,12 +1125,12 @@ def _depth_health(
 
 
 def _parse_owner_priorities() -> dict:
-    """Parse NOTES.md for pending b: items and their latest progress iteration."""
+    """Parse NOTES.md for pending b: items with per-item detail."""
     from pathlib import Path
 
     notes = Path(__file__).parent / "NOTES.md"
     if not notes.exists():
-        return {"pending": 0, "last_progress_iter": None}
+        return {"pending": 0, "last_progress_iter": None, "items": []}
     text = notes.read_text()
     # Only process active items (before Completed/Skipped sections)
     for marker in ["---\nCompleted:", "---\nSkipped:"]:
@@ -1141,7 +1141,7 @@ def _parse_owner_priorities() -> dict:
     current: dict | None = None
     for line in text.split("\n"):
         if line.startswith("b:"):
-            current = {"label": line[2:].strip()[:60], "last_iter": None}
+            current = {"label": line[2:].strip()[:60], "last_iter": None, "next_step": None}
             items.append(current)
         elif current and "Progress (iter " in line:
             m = re.search(r"iter (\d+)", line)
@@ -1149,8 +1149,12 @@ def _parse_owner_priorities() -> dict:
                 it = int(m.group(1))
                 if current["last_iter"] is None or it > current["last_iter"]:
                     current["last_iter"] = it
+                    # Extract "Next:" step from this progress line
+                    nx = re.search(r"Next:\s*(.+?)\.?\s*$", line)
+                    if nx:
+                        current["next_step"] = nx.group(1).strip()[:80]
     last = max((i["last_iter"] for i in items if i["last_iter"]), default=None)
-    return {"pending": len(items), "last_progress_iter": last}
+    return {"pending": len(items), "last_progress_iter": last, "items": items}
 
 
 def _classify_subsystem(title: str) -> str:
@@ -1491,6 +1495,40 @@ def trend(n: int = 5) -> None:
             cur = session_module_activity.get(rel)
             if cur is None or e["iter"] > cur:
                 session_module_activity[rel] = e["iter"]
+    # Owner priority staleness — show BEFORE depth/neglected so it's the first
+    # actionable signal, with per-item next-steps to match neglected-list specificity
+    owner = _parse_owner_priorities()
+    owner_stale = False
+    if owner["pending"] > 0:
+        last = owner["last_progress_iter"]
+        builder_iters_ago = 0
+        if last and entries:
+            current_iter = entries[-1]["iter"]
+            builder_iters_ago = (current_iter - last) // 2
+        owner_stale = builder_iters_ago >= 5 or not last
+        warn = ""
+        if not last:
+            warn = " — NEVER PROGRESSED"
+        elif builder_iters_ago >= 8:
+            warn = " — STALE: pick one this iteration"
+        elif builder_iters_ago >= 5:
+            warn = " — getting stale"
+        print(
+            f"  Owner priorities: {owner['pending']} pending, "
+            + (f"last progress: iter {last} ({builder_iters_ago} builder iters ago){warn}"
+               if last else f"never progressed{warn}")
+        )
+        # When stale, show per-item details with actionable next steps
+        if owner_stale and owner.get("items"):
+            for item in owner["items"]:
+                label = item["label"][:50]
+                step = item.get("next_step")
+                iter_info = f"iter {item['last_iter']}" if item["last_iter"] else "never"
+                if step:
+                    print(f"    → [{iter_info}] {label} — Next: {step}")
+                else:
+                    print(f"    → [{iter_info}] {label}")
+
     health = _depth_health(depth_rows, session_activity=session_module_activity)
     if health:
         h = health
@@ -1500,8 +1538,10 @@ def trend(n: int = 5) -> None:
             f"{h['untried']}/{h['total_combos']} approach combos untried"
         )
         if h.get("top_neglected"):
+            # When owner priorities are stale, condense to 2 entries to reduce attractor
+            limit = 2 if owner_stale else 5
             parts = []
-            for path, last_iter, lines in h["top_neglected"]:
+            for path, last_iter, lines in h["top_neglected"][:limit]:
                 if last_iter is None:
                     parts.append(f"{path} (NEVER, {lines}L)")
                 else:
@@ -1512,25 +1552,6 @@ def trend(n: int = 5) -> None:
                 f"  WARNING: depth-log has approaches not in parse-log.py: "
                 f"{', '.join(sorted(h['unknown_approaches']))}"
             )
-
-    # Owner priority staleness — how long since builder progressed an owner request
-    owner = _parse_owner_priorities()
-    if owner["pending"] > 0:
-        last = owner["last_progress_iter"]
-        if last and entries:
-            current_iter = entries[-1]["iter"]
-            builder_iters_ago = (current_iter - last) // 2
-            warn = ""
-            if builder_iters_ago >= 8:
-                warn = " — STALE (consider owner request)"
-            elif builder_iters_ago >= 5:
-                warn = " — getting stale"
-            print(
-                f"  Owner priorities: {owner['pending']} pending, "
-                f"last progress: iter {last} ({builder_iters_ago} builder iters ago){warn}"
-            )
-        elif not last:
-            print(f"  Owner priorities: {owner['pending']} pending, never progressed")
     print()
 
 
