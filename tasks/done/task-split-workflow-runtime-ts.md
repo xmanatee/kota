@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-runtime-ts
 title: Split workflow/runtime.ts — extract step execution and state management
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: workflow/runtime.ts is 563 lines, nearly twice the 300-line limit. The WorkflowRuntime class handles step dispatch, state persistence, event emission, and run lifecycle in one file. Splitting improves navigability.
