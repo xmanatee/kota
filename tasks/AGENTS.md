@@ -16,6 +16,7 @@ outstanding work.
 ## Task Format
 
 - One task per file.
+- **All task files must be named `task-<slug>.md`** (e.g. `task-split-daemon-ts.md`). This applies in every state directory including `inbox/`.
 - Inbox items may start as lightweight captures without full frontmatter.
 - Once a task leaves `inbox/`, it must use the full task format.
 - Required frontmatter keys outside `inbox/`: `id`, `title`, `status`, `priority`, `area`, `summary`, `created_at`, `updated_at`.
