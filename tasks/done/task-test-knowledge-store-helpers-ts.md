@@ -1,7 +1,7 @@
 ---
 id: task-test-knowledge-store-helpers-ts
 title: Add direct unit tests for knowledge-store-helpers.ts
-status: inbox
+status: done
 priority: p2
 area: testing
 summary: >
