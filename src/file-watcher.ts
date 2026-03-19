@@ -1,11 +1,9 @@
 /**
  * FileWatcher — reactive filesystem monitoring with event bus integration.
  *
- * Uses Node's built-in fs.watch. On macOS/Windows, recursive watching is native.
- * On Linux, falls back to per-directory watchers. All change events are batch-
- * debounced (250ms trailing) and emitted on the EventBus as "file.changed".
- *
- * Singleton pattern — shared across sessions and modules.
+ * Uses fs.watch where available, supplements recursive watching with
+ * per-directory watchers, and reconciles with periodic snapshots so missed
+ * backend events still surface as "file.changed".
  */
 
 import { type FSWatcher, type WatchEventType, watch } from "node:fs";
@@ -59,6 +57,39 @@ const MAX_WATCHERS = 10;
 const WATCHER_SETTLE_MS = 50;
 const POLL_INTERVAL_MS = 500;
 
+function getErrorCode(error: unknown): string | undefined {
+	if (
+		error &&
+		typeof error === "object" &&
+		"code" in error &&
+		typeof (error as { code?: unknown }).code === "string"
+	) {
+		return (error as { code: string }).code;
+	}
+	return undefined;
+}
+
+function isIgnorableFsRace(error: unknown): boolean {
+	const code = getErrorCode(error);
+	return (
+		code === "ENOENT" ||
+		code === "ENOTDIR" ||
+		code === "EPERM" ||
+		code === "EACCES"
+	);
+}
+
+function isUnsupportedRecursiveWatch(error: unknown): boolean {
+	const code = getErrorCode(error);
+	const message =
+		error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+	return (
+		code === "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM" ||
+		message.includes("recursive") ||
+		message.includes("not supported")
+	);
+}
+
 function mapEventType(eventType: WatchEventType): "create" | "change" {
 	return eventType === "rename" ? "create" : "change";
 }
@@ -82,7 +113,7 @@ function splitPathSegments(filePath: string): string[] {
 	return filePath.split(/[\\/]/);
 }
 
-/** Recursively collect subdirectory paths (for Linux fallback). */
+/** Recursively collect subdirectory paths for explicit directory watchers. */
 async function collectDirs(root: string): Promise<string[]> {
 	const result: string[] = [root];
 	try {
@@ -93,8 +124,8 @@ async function collectDirs(root: string): Promise<string[]> {
 				result.push(...(await collectDirs(full)));
 			}
 		}
-	} catch {
-		// Permission denied or deleted — skip
+	} catch (error) {
+		if (!isIgnorableFsRace(error)) throw error;
 	}
 	return result;
 }
@@ -110,7 +141,8 @@ async function collectFileSnapshot(
 		let entries;
 		try {
 			entries = await readdir(dir, { withFileTypes: true });
-		} catch {
+		} catch (error) {
+			if (!isIgnorableFsRace(error)) throw error;
 			return;
 		}
 
@@ -131,8 +163,8 @@ async function collectFileSnapshot(
 			try {
 				const entryStat = await stat(fullPath);
 				snapshot.set(relativePath, entryStat.mtimeMs);
-			} catch {
-				// File disappeared during the scan; the next poll will reconcile it.
+			} catch (error) {
+				if (!isIgnorableFsRace(error)) throw error;
 			}
 		}
 	}
@@ -247,10 +279,14 @@ export class WatcherManager {
 						queueChange(eventType, filename);
 					},
 				);
-				fsw.on("error", () => {});
+				fsw.on("error", () => {
+					this.handleWatcherBackendError(active, fsw);
+				});
 				active.fsWatchers.push(fsw);
-			} catch {
-				// Linux: recursive not supported — rely on per-directory watchers below.
+			} catch (error) {
+				if (!isUnsupportedRecursiveWatch(error) && !isIgnorableFsRace(error)) {
+					throw error;
+				}
 			}
 		}
 
@@ -291,11 +327,13 @@ export class WatcherManager {
 				if (!filename) return;
 				queueChange(eventType, relative(active.rootPath, join(dir, filename)));
 			});
-			fsw.on("error", () => {});
+			fsw.on("error", () => {
+				this.handleWatcherBackendError(active, fsw, dir);
+			});
 			active.fsWatchers.push(fsw);
 			active.watchedDirs.add(dir);
-		} catch {
-			// Directory may have been deleted before the watcher attached.
+		} catch (error) {
+			if (!isIgnorableFsRace(error)) throw error;
 		}
 	}
 
@@ -311,8 +349,8 @@ export class WatcherManager {
 			for (const dir of dirs) {
 				this.attachDirectoryWatcher(active, dir, queueChange);
 			}
-		} catch {
-			// The path may already be gone or still be materializing; nothing to attach.
+		} catch (error) {
+			if (!isIgnorableFsRace(error)) throw error;
 		}
 	}
 
@@ -363,8 +401,7 @@ export class WatcherManager {
 		active.timer = null;
 		active.changeCount += changes.length;
 
-		// Detect deletes by checking existence
-		this.resolveDeletes(active.rootPath, changes).then((resolved) => {
+		void this.resolveDeletes(active.rootPath, changes).then((resolved) => {
 			const bus = getEventBus();
 			if (bus) {
 				bus.emit("file.changed", {
@@ -386,7 +423,8 @@ export class WatcherManager {
 					try {
 						await stat(join(rootPath, c.path));
 						return c;
-					} catch {
+					} catch (error) {
+						if (!isIgnorableFsRace(error)) throw error;
 						return { ...c, type: "delete" as const };
 					}
 				}
@@ -395,15 +433,22 @@ export class WatcherManager {
 		);
 	}
 
+	private handleWatcherBackendError(
+		active: ActiveWatcher,
+		fsw: FSWatcher,
+		dir?: string,
+	): void {
+		active.fsWatchers = active.fsWatchers.filter((candidate) => candidate !== fsw);
+		if (dir) active.watchedDirs.delete(dir);
+		fsw.close();
+		void this.pollChanges(active);
+	}
+
 	private closeWatcher(active: ActiveWatcher): void {
 		if (active.timer) clearTimeout(active.timer);
 		if (active.pollTimer) clearInterval(active.pollTimer);
 		for (const fsw of active.fsWatchers) {
-			try {
-				fsw.close();
-			} catch {
-				// Already closed
-			}
+			fsw.close();
 		}
 		active.fsWatchers = [];
 		active.pending.clear();

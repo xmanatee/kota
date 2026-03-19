@@ -6,6 +6,22 @@ import { DONE_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./data/code
 export type Language = "python" | "node";
 const SETTLE_STDERR_GRACE_MS = 10;
 
+function isMissingProcessError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes("ESRCH") ||
+      error.message.includes("process object is not bound"))
+  );
+}
+
+function sendSignal(proc: ChildProcess, signal: NodeJS.Signals): void {
+  try {
+    proc.kill(signal);
+  } catch (error) {
+    if (!isMissingProcessError(error)) throw error;
+  }
+}
+
 /** Find the best Python binary, preferring a local virtualenv over system python3. */
 export function findPythonBinary(cwd: string): string {
   for (const dir of [".venv", "venv"]) {
@@ -122,7 +138,7 @@ export class REPLSession {
       const timer = setTimeout(() => {
         if (this.language === "python" && this.proc) {
           interrupted = true;
-          try { proc.kill("SIGINT"); } catch {}
+          sendSignal(proc, "SIGINT");
           killTimer = setTimeout(() => {
             if (!settled) {
               this.kill();
@@ -152,9 +168,11 @@ export class REPLSession {
 
   kill(): void {
     if (this.proc) {
-      try { this.proc.kill("SIGTERM"); } catch {}
+      sendSignal(this.proc, "SIGTERM");
       const ref = this.proc;
-      setTimeout(() => { try { ref.kill("SIGKILL"); } catch {} }, 2000);
+      setTimeout(() => {
+        sendSignal(ref, "SIGKILL");
+      }, 2000);
     }
     this.alive = false;
     this.proc = null;
