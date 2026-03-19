@@ -1,7 +1,7 @@
 ---
 id: task-split-module-loader-ts
 title: Split module-loader.ts — extract lifecycle and dependency resolution
-status: ready
+status: done
 priority: p2
 area: structure
 summary: module-loader.ts is 525 lines, 75% over the 300-line limit. It handles dependency sorting, module lifecycle, tool/command/route registration, and event wiring in one class. Splitting improves navigability.
