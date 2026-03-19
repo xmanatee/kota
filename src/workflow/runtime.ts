@@ -1,21 +1,23 @@
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import {
-  buildClaudeCodeSystemPrompt,
-  executeWithAgentSDK,
-} from "../agent-sdk/index.js";
-import type { SDKMessage } from "../agent-sdk/types.js";
+import { resolve } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope, BusEvents, EventBus } from "../event-bus.js";
-import { executeTool, type ToolResult } from "../tools/index.js";
+import { executeTool } from "../tools/index.js";
+import {
+  buildStepCompletedPayload,
+  buildStepStartedPayload,
+  buildWorkflowCompletedPayload,
+} from "./event-payloads.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { WorkflowRunStore } from "./run-store.js";
+import {
+  type AgentStepConfig,
+  executeStep,
+  shouldRunStep,
+} from "./step-executor.js";
 import type {
   RegisteredWorkflowDefinitionInput,
-  WorkflowAgentStep,
-  WorkflowCodeStep,
   WorkflowDefinition,
-  WorkflowEmitStep,
   WorkflowFilterValue,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
@@ -25,7 +27,6 @@ import type {
   WorkflowStep,
   WorkflowStepContext,
   WorkflowStepResult,
-  WorkflowToolStep,
 } from "./types.js";
 import {
   validateWorkflowDefinitions,
@@ -33,24 +34,6 @@ import {
 } from "./validation.js";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;
-const DEFAULT_MODEL = "claude-sonnet-4-6";
-
-type WorkflowStepOutput =
-  | ToolResult
-  | {
-      content: string;
-      streamedText?: string;
-      sessionId?: string;
-      turns?: number;
-      totalCostUsd?: number;
-      subtype?: string;
-    }
-  | Record<string, unknown>
-  | string
-  | number
-  | boolean
-  | null
-  | undefined;
 
 export type WorkflowRuntimeConfig = {
   bus: EventBus;
@@ -365,227 +348,6 @@ export class WorkflowRuntime {
     };
   }
 
-  private async resolveValue<T>(
-    value: T | ((context: WorkflowStepContext) => T | Promise<T>),
-    context: WorkflowStepContext,
-  ): Promise<T> {
-    if (typeof value === "function") {
-      return (value as (ctx: WorkflowStepContext) => T | Promise<T>)(context);
-    }
-    return value;
-  }
-
-  private async shouldRunStep(
-    step: WorkflowStep,
-    context: WorkflowStepContext,
-  ): Promise<boolean> {
-    if (!step.when) return true;
-    return Boolean(await step.when(context));
-  }
-
-  private async executeToolStep(
-    step: WorkflowToolStep,
-    context: WorkflowStepContext,
-  ): Promise<WorkflowStepOutput> {
-    const input = await this.resolveValue(step.input ?? {}, context);
-    if (!input || typeof input !== "object" || Array.isArray(input)) {
-      throw new Error(`Tool step "${step.id}" resolved to a non-object input`);
-    }
-    return context.runTool(step.tool, input);
-  }
-
-  private buildAgentPrompt(
-    definition: WorkflowDefinition,
-    step: WorkflowAgentStep,
-    metadata: WorkflowRunMetadata,
-    trigger: WorkflowRunTrigger,
-  ): { systemPromptAppend: string; prompt: string } {
-    const promptBody = readFileSync(
-      resolve(this.projectDir, step.promptPath),
-      "utf-8",
-    );
-    const lines = [
-      "Execute one KOTA workflow step in this repository.",
-      `Workflow: ${definition.name}`,
-      `Step: ${step.id}`,
-      `Run ID: ${metadata.id}`,
-      `Run directory: ${metadata.runDir}`,
-      `Workflow definition: ${metadata.definitionPath}`,
-      `Prompt file: ${step.promptPath}`,
-      `Project root: ${this.projectDir}`,
-      `Trigger event: ${trigger.event}`,
-      "",
-      "Trigger payload:",
-      "```json",
-      JSON.stringify(trigger.payload, null, 2),
-      "```",
-      "",
-      "Use the workflow instructions in your system prompt.",
-      "Work directly instead of narrating intent.",
-      'Do not emit progress filler such as "Let me..." or "I will...".',
-      "If you leave a textual summary, keep it brief and factual.",
-      "Write any run-specific artifacts under the run directory when useful.",
-      "Finish this step fully, then stop.",
-    ];
-
-    return {
-      systemPromptAppend: promptBody,
-      prompt: lines.join("\n"),
-    };
-  }
-
-  private buildStepStartedPayload(
-    metadata: WorkflowRunMetadata,
-    step: WorkflowStep,
-  ): BusEvents["workflow.step.started"] {
-    return {
-      workflow: metadata.workflow,
-      runId: metadata.id,
-      stepId: step.id,
-      stepType: step.type,
-      runDir: metadata.runDir,
-      definitionPath: metadata.definitionPath,
-      startedAt: new Date().toISOString(),
-    };
-  }
-
-  private buildStepCompletedPayload(
-    metadata: WorkflowRunMetadata,
-    result: WorkflowStepResult,
-  ): BusEvents["workflow.step.completed"] {
-    return {
-      workflow: metadata.workflow,
-      runId: metadata.id,
-      stepId: result.id,
-      stepType: result.type,
-      status: result.status,
-      durationMs: result.durationMs,
-      runDir: metadata.runDir,
-      definitionPath: metadata.definitionPath,
-    };
-  }
-
-  private buildWorkflowCompletedPayload(
-    metadata: WorkflowRunMetadata,
-    status: WorkflowRunStatus,
-  ): BusEvents["workflow.completed"] {
-    return {
-      workflow: metadata.workflow,
-      runId: metadata.id,
-      status,
-      triggerEvent: metadata.trigger.event,
-      durationMs: metadata.durationMs ?? 0,
-      definitionPath: metadata.definitionPath,
-      runDir: metadata.runDir,
-    };
-  }
-
-  private async executeAgentStep(
-    definition: WorkflowDefinition,
-    step: WorkflowAgentStep,
-    metadata: WorkflowRunMetadata,
-    trigger: WorkflowRunTrigger,
-    abortController: AbortController,
-    appendMessage: (message: SDKMessage) => void,
-    writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
-  ): Promise<WorkflowStepOutput> {
-    const agentPrompt = this.buildAgentPrompt(
-      definition,
-      step,
-      metadata,
-      trigger,
-    );
-    const promptDir = dirname(resolve(this.projectDir, step.promptPath));
-    const systemPrompt = buildClaudeCodeSystemPrompt(
-      this.config,
-      agentPrompt.systemPromptAppend,
-      promptDir,
-    );
-    const systemPromptAppend =
-      typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
-    writeInputs(systemPromptAppend, agentPrompt.prompt);
-
-    const result = await executeWithAgentSDK(agentPrompt.prompt, {
-      model: step.model ?? this.model ?? this.config?.model ?? DEFAULT_MODEL,
-      cwd: this.projectDir,
-      systemPrompt,
-      maxTurns: step.maxTurns,
-      maxBudgetUsd: step.maxBudgetUsd,
-      allowedTools: step.allowedTools,
-      disallowedTools: step.disallowedTools,
-      permissionMode: step.permissionMode,
-      persistSession: false,
-      settingSources: step.settingSources,
-      abortController,
-      onMessage: appendMessage,
-    }, {
-      write: () => true,
-    });
-
-    if (result.isError) {
-      const reason = result.subtype ?? "error";
-      const detail = result.text.trim() || "Agent step returned an error result";
-      throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
-    }
-
-    return {
-      content: result.text,
-      streamedText: result.streamedText,
-      sessionId: result.sessionId,
-      turns: result.turns,
-      totalCostUsd: result.totalCostUsd,
-      subtype: result.subtype,
-    };
-  }
-
-  private async executeEmitStep(
-    step: WorkflowEmitStep,
-    context: WorkflowStepContext,
-  ): Promise<WorkflowStepOutput> {
-    const payload = await this.resolveValue(step.payload ?? {}, context);
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      throw new Error(`Emit step "${step.id}" resolved to a non-object payload`);
-    }
-    this.runtimeConfig.bus.emit(step.event, payload);
-    return {
-      event: step.event,
-      payload,
-    };
-  }
-
-  private async executeRestartStep(
-    step: Extract<WorkflowStep, { type: "restart" }>,
-    context: WorkflowStepContext,
-  ): Promise<WorkflowStepOutput> {
-    const missingRequirements = step.requires.filter((stepId) => {
-      const result = context.stepResults[stepId];
-      return !result || result.status !== "success";
-    });
-    if (missingRequirements.length > 0) {
-      throw new Error(
-        `Restart step "${step.id}" requires successful verification steps: ${missingRequirements.join(", ")}`,
-      );
-    }
-
-    const reason = await this.resolveValue(
-      step.reason ?? `${context.workflow.name} requested restart`,
-      context,
-    );
-    if (typeof reason !== "string" || !reason.trim()) {
-      throw new Error(`Restart step "${step.id}" resolved to an empty reason`);
-    }
-    context.requestRestart(reason);
-    return {
-      event: "runtime.restart_requested",
-      payload: {
-        reason,
-        workflow: context.workflow.name,
-        runId: context.workflow.runId,
-        requires: step.requires,
-      },
-    };
-  }
-
   private logStepStarted(definition: WorkflowDefinition, step: WorkflowStep): void {
     this.log(
       `Starting step "${step.id}" (${step.type}) in workflow "${definition.name}"`,
@@ -623,46 +385,6 @@ export class WorkflowRuntime {
     this.log(
       `Failed step "${result.id}" (${result.type}) in workflow "${definition.name}": ${result.error ?? "unknown error"}`,
     );
-  }
-
-  private async executeCodeStep(
-    step: WorkflowCodeStep,
-    context: WorkflowStepContext,
-  ): Promise<WorkflowStepOutput> {
-    return (await step.run(context)) as WorkflowStepOutput;
-  }
-
-  private async executeStep(
-    definition: WorkflowDefinition,
-    step: WorkflowStep,
-    metadata: WorkflowRunMetadata,
-    trigger: WorkflowRunTrigger,
-    context: WorkflowStepContext,
-    abortController: AbortController,
-    appendMessage: (message: SDKMessage) => void,
-    writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
-  ): Promise<WorkflowStepOutput> {
-    if (step.type === "tool") {
-      return this.executeToolStep(step, context);
-    }
-    if (step.type === "agent") {
-      return this.executeAgentStep(
-        definition,
-        step,
-        metadata,
-        trigger,
-        abortController,
-        appendMessage,
-        writeInputs,
-      );
-    }
-    if (step.type === "emit") {
-      return this.executeEmitStep(step, context);
-    }
-    if (step.type === "restart") {
-      return this.executeRestartStep(step, context);
-    }
-    return this.executeCodeStep(step, context);
   }
 
   private async runWorkflow(
@@ -706,7 +428,13 @@ export class WorkflowRuntime {
           );
           const stepStartedAt = Date.now();
 
-          if (!(await this.shouldRunStep(step, context))) {
+          const agentConfig: AgentStepConfig = {
+            model: this.model,
+            config: this.config,
+            projectDir: this.projectDir,
+          };
+
+          if (!(await shouldRunStep(step, context))) {
             const skipped: WorkflowStepResult = {
               id: step.id,
               type: step.type,
@@ -721,18 +449,18 @@ export class WorkflowRuntime {
             stepOutputs.push({ skipped: true });
             this.runtimeConfig.bus.emit(
               "workflow.step.completed",
-              this.buildStepCompletedPayload(run.metadata, skipped),
+              buildStepCompletedPayload(run.metadata, skipped),
             );
             continue;
           }
 
           this.runtimeConfig.bus.emit(
             "workflow.step.started",
-            this.buildStepStartedPayload(run.metadata, step),
+            buildStepStartedPayload(run.metadata, step),
           );
           this.logStepStarted(definition, step);
           try {
-            const output = await this.executeStep(
+            const output = await executeStep(
               definition,
               step,
               run.metadata,
@@ -742,6 +470,7 @@ export class WorkflowRuntime {
               (message) => run.appendAgentMessage(step.id, message),
               (systemPromptAppend, prompt) =>
                 run.writeAgentInputs(step.id, systemPromptAppend, prompt),
+              agentConfig,
             );
 
             const completed: WorkflowStepResult = {
@@ -761,7 +490,7 @@ export class WorkflowRuntime {
 
             this.runtimeConfig.bus.emit(
               "workflow.step.completed",
-              this.buildStepCompletedPayload(run.metadata, completed),
+              buildStepCompletedPayload(run.metadata, completed),
             );
             this.logStepCompleted(definition, completed);
           } catch (error) {
@@ -779,7 +508,7 @@ export class WorkflowRuntime {
             stepResultsById[step.id] = failed;
             this.runtimeConfig.bus.emit(
               "workflow.step.completed",
-              this.buildStepCompletedPayload(run.metadata, failed),
+              buildStepCompletedPayload(run.metadata, failed),
             );
             this.logStepFailed(definition, failed);
             throw err;
@@ -792,7 +521,7 @@ export class WorkflowRuntime {
         });
         this.runtimeConfig.bus.emit(
           "workflow.completed",
-          this.buildWorkflowCompletedPayload(completed, "success"),
+          buildWorkflowCompletedPayload(completed, "success"),
         );
         this.log(`Completed workflow "${definition.name}" (${completed.id})`);
       } catch (error) {
@@ -808,7 +537,7 @@ export class WorkflowRuntime {
         });
         this.runtimeConfig.bus.emit(
           "workflow.completed",
-          this.buildWorkflowCompletedPayload(completed, status),
+          buildWorkflowCompletedPayload(completed, status),
         );
         this.log(
           `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,
