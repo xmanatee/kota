@@ -10,9 +10,14 @@
  * - Native KotaModule (pass-through)
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import type { KotaModule, ToolDef } from "./module-types.js";
-import type { ToolResult } from "./tools/tool-result.js";
+import {
+  buildInputSchema,
+  extractJsonSchema,
+  normalizeResult,
+} from "./tool-adapters-zod.js";
+
+export { extractJsonSchema, normalizeResult, zodDefToJsonSchema } from "./tool-adapters-zod.js";
 
 // --- External format types ---
 
@@ -43,56 +48,7 @@ export type VercelAITool = {
   group?: string;
 };
 
-// --- Result normalization ---
-
-/** Convert arbitrary tool return values to KOTA's ToolResult format. */
-export function normalizeResult(value: unknown): ToolResult {
-  if (value === null || value === undefined) {
-    return { content: "" };
-  }
-  if (typeof value === "string") {
-    return { content: value };
-  }
-  if (typeof value === "object") {
-    // Error objects — JSON.stringify produces "{}" (non-enumerable props)
-    if (value instanceof Error) {
-      return { content: value.message || String(value) };
-    }
-    const obj = value as Record<string, unknown>;
-    // Already a ToolResult
-    if (typeof obj.content === "string") {
-      return value as ToolResult;
-    }
-    // Object with text property
-    if (typeof obj.text === "string") {
-      return { content: obj.text };
-    }
-    // Serialize anything else
-    try {
-      return { content: JSON.stringify(value, null, 2) };
-    } catch {
-      return { content: "[object — could not serialize (circular reference or non-serializable)]" };
-    }
-  }
-  // Numbers, booleans, etc.
-  return { content: String(value) };
-}
-
 // --- Adapters ---
-
-/**
- * Build a valid Anthropic input_schema from external parameters.
- * Anthropic requires type:"object" — external schemas may have wrong type or
- * be missing `properties`. This ensures the result is always valid.
- */
-function buildInputSchema(params?: Record<string, unknown>): Anthropic.Tool.InputSchema {
-  const base = params ?? {};
-  return {
-    ...base,
-    type: "object" as const,
-    properties: (base.properties as Record<string, unknown>) ?? {},
-  };
-}
 
 /** Convert a simple tool definition to KOTA's ToolDef. */
 export function fromSimple(def: SimpleTool): ToolDef {
@@ -103,13 +59,13 @@ export function fromSimple(def: SimpleTool): ToolDef {
     throw new Error(`Simple tool "${def.name}" must have a 'run' function`);
   }
 
-  const tool: Anthropic.Tool = {
+  const tool = {
     name: def.name,
     description: def.description || "",
     input_schema: buildInputSchema(def.parameters),
   };
 
-  const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
+  const runner = async (input: Record<string, unknown>) => {
     const result = await def.run(input);
     return normalizeResult(result);
   };
@@ -127,121 +83,18 @@ export function fromOpenAI(def: OpenAIFunctionTool): ToolDef {
     throw new Error(`OpenAI tool "${fn.name}" must have a 'run' function`);
   }
 
-  const tool: Anthropic.Tool = {
+  const tool = {
     name: fn.name,
     description: fn.description || "",
     input_schema: buildInputSchema(fn.parameters),
   };
 
-  const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
+  const runner = async (input: Record<string, unknown>) => {
     const result = await def.run(input);
     return normalizeResult(result);
   };
 
   return { tool, runner, group: def.group };
-}
-
-// --- Zod → JSON Schema (lightweight, no zod dependency) ---
-
-/**
- * Extract a JSON Schema from various parameter formats:
- * - Vercel AI SDK's jsonSchema() result (has `.jsonSchema` property)
- * - Raw JSON Schema object (has `type: "object"`)
- * - Zod schema (has `._def.typeName`)
- */
-export function extractJsonSchema(params: unknown): Record<string, unknown> {
-  if (!params || typeof params !== "object") {
-    return { type: "object", properties: {} };
-  }
-
-  const p = params as Record<string, unknown>;
-
-  // AI SDK's jsonSchema() — has a `jsonSchema` property
-  if (p.jsonSchema && typeof p.jsonSchema === "object") {
-    return p.jsonSchema as Record<string, unknown>;
-  }
-
-  // Already a JSON Schema object — has `type` property
-  if (typeof p.type === "string") {
-    return p;
-  }
-
-  // Zod schema — has `_def` with `typeName`
-  const def = p._def as Record<string, unknown> | undefined;
-  if (def?.typeName) {
-    return zodDefToJsonSchema(p);
-  }
-
-  return { type: "object", properties: {} };
-}
-
-/** Convert a Zod schema's _def structure to JSON Schema (handles common types). */
-export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
-  if (!schema || typeof schema !== "object") return {};
-
-  const s = schema as Record<string, unknown>;
-  const def = s._def as Record<string, unknown> | undefined;
-  if (!def?.typeName) return {};
-
-  const typeName = def.typeName as string;
-  const desc = s.description as string | undefined;
-  const base: Record<string, unknown> = {};
-  if (desc) base.description = desc;
-
-  switch (typeName) {
-    case "ZodString": return { ...base, type: "string" };
-    case "ZodNumber": return { ...base, type: "number" };
-    case "ZodBoolean": return { ...base, type: "boolean" };
-    case "ZodLiteral": return { ...base, const: def.value };
-    case "ZodEnum":
-      return { ...base, type: "string", enum: def.values as string[] };
-    case "ZodArray": {
-      const items = zodDefToJsonSchema(def.type);
-      return { ...base, type: "array", items };
-    }
-    case "ZodOptional": {
-      const inner = zodDefToJsonSchema(def.innerType);
-      if (desc && !inner.description) inner.description = desc;
-      return inner;
-    }
-    case "ZodNullable": {
-      const inner = zodDefToJsonSchema(def.innerType);
-      if (desc && !inner.description) inner.description = desc;
-      if (typeof inner.type === "string") {
-        return { ...inner, type: [inner.type, "null"] };
-      }
-      return inner;
-    }
-    case "ZodDefault": {
-      const inner = zodDefToJsonSchema(def.innerType);
-      if (desc && !inner.description) inner.description = desc;
-      if (typeof def.defaultValue === "function") {
-        try { inner.default = (def.defaultValue as () => unknown)(); } catch { /* skip */ }
-      }
-      return inner;
-    }
-    case "ZodObject": {
-      const shape = typeof def.shape === "function"
-        ? (def.shape as () => Record<string, unknown>)()
-        : def.shape;
-      const properties: Record<string, unknown> = {};
-      const required: string[] = [];
-      if (shape && typeof shape === "object") {
-        for (const [key, val] of Object.entries(shape as Record<string, unknown>)) {
-          properties[key] = zodDefToJsonSchema(val);
-          const valDef = (val as Record<string, unknown>)?._def as Record<string, unknown> | undefined;
-          if (valDef?.typeName !== "ZodOptional" && valDef?.typeName !== "ZodDefault") {
-            required.push(key);
-          }
-        }
-      }
-      const result: Record<string, unknown> = { ...base, type: "object", properties };
-      if (required.length > 0) result.required = required;
-      return result;
-    }
-    default:
-      return base;
-  }
 }
 
 /** Convert a Vercel AI SDK tool definition to KOTA's ToolDef. */
@@ -252,7 +105,7 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
 
   const inputSchema = extractJsonSchema(def.parameters);
 
-  const tool: Anthropic.Tool = {
+  const tool = {
     name,
     description: def.description || "",
     input_schema: buildInputSchema(
@@ -260,7 +113,7 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
     ),
   };
 
-  const runner = async (input: Record<string, unknown>): Promise<ToolResult> => {
+  const runner = async (input: Record<string, unknown>) => {
     const result = await def.execute(input);
     return normalizeResult(result);
   };
@@ -302,25 +155,18 @@ export function adaptExport(exported: unknown, fileName: string): KotaModule {
     throw new Error(`${fileName}: export is not an object or array`);
   }
 
-  // Array of tools
   if (Array.isArray(exported)) {
     return adaptArray(exported, fileName);
   }
 
   const obj = exported as Record<string, unknown>;
 
-  // Native KotaModule — has name + optional tools/hooks.
-  // A module with just a name is valid (might register groups via onLoad, or be a placeholder).
-  // We distinguish from simple tools by checking that it does NOT have a 'run' function.
   if (isKotaModule(obj) && typeof obj.run !== "function") {
-    // If it has tools, check if they're already in ToolDef format
     if (Array.isArray(obj.tools) && obj.tools.length > 0) {
       const first = obj.tools[0] as Record<string, unknown>;
       if (first.tool && first.runner) {
-        // Already native format
         return exported as KotaModule;
       }
-      // Tools array but in simple/openai format — adapt each
       const tools = adaptToolArray(obj.tools as Record<string, unknown>[], fileName);
       return {
         name: obj.name as string,
@@ -333,28 +179,24 @@ export function adaptExport(exported: unknown, fileName: string): KotaModule {
     return exported as KotaModule;
   }
 
-  // Single OpenAI format tool
   if (isOpenAIFormat(obj)) {
     const tool = fromOpenAI(obj as unknown as OpenAIFunctionTool);
     const name = moduleNameFromFile(fileName);
     return { name, tools: [tool] };
   }
 
-  // Single simple format tool
   if (isSimpleFormat(obj)) {
     const tool = fromSimple(obj as unknown as SimpleTool);
     const name = (obj.name as string) || moduleNameFromFile(fileName);
     return { name, tools: [tool] };
   }
 
-  // Single Vercel AI SDK tool (has `execute` + `parameters`, no `name`)
   if (isVercelAIFormat(obj)) {
     const name = moduleNameFromFile(fileName);
     const tool = fromVercelAI(obj as unknown as VercelAITool, name);
     return { name, tools: [tool] };
   }
 
-  // Map of Vercel AI SDK tools: { toolName: { execute, parameters }, ... }
   const entries = Object.entries(obj);
   if (entries.length > 0 && entries.every(([, v]) =>
     v && typeof v === "object" && isVercelAIFormat(v as Record<string, unknown>),
