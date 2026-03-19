@@ -1,7 +1,7 @@
 ---
 id: task-split-process-ts
 title: Split src/tools/process.ts — 339 lines, over limit
-status: ready
+status: done
 priority: p3
 area: source
 summary: Split process.ts (339 lines) into focused modules, each under 300 lines.
