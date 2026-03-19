@@ -16,6 +16,7 @@ import type {
   WorkflowCodeStep,
   WorkflowDefinition,
   WorkflowEmitStep,
+  WorkflowFilterValue,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
   WorkflowRunStatus,
@@ -302,12 +303,17 @@ export class WorkflowRuntime {
   }
 
   private matchesFilter(
-    filter: Record<string, string | number | boolean> | undefined,
+    filter: Record<string, WorkflowFilterValue> | undefined,
     payload: Record<string, unknown>,
   ): boolean {
     if (!filter) return true;
     for (const [key, expected] of Object.entries(filter)) {
-      if (payload[key] !== expected) return false;
+      const actual = payload[key];
+      if (Array.isArray(expected)) {
+        if (!expected.includes(actual as string | number | boolean)) return false;
+        continue;
+      }
+      if (actual !== expected) return false;
     }
     return true;
   }

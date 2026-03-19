@@ -14,7 +14,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       event: "workflow.completed",
       filter: {
         workflow: "builder",
-        status: "success",
+        status: ["success", "failed"],
       },
     },
   ],

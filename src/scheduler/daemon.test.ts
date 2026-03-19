@@ -197,14 +197,11 @@ describe("Daemon", () => {
     expect(resolved).toBe(true);
   });
 
-  it("loads corrupted state files gracefully", () => {
+  it("fails fast on corrupted daemon state files", () => {
     mkdirSync(stateDir, { recursive: true });
     writeFileSync(join(stateDir, "daemon-state.json"), "not json", "utf-8");
 
-    const daemon = makeDaemon({ workflows: [] });
-    const state = daemon.getState();
-    expect(state.pid).toBe(process.pid);
-    expect(state.completedRuns).toBe(0);
+    expect(() => makeDaemon({ workflows: [] })).toThrow(/daemon-state\.json/);
   });
 
   it("removes signal handlers on stop", async () => {

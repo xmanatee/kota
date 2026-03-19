@@ -66,27 +66,32 @@ describe("repo task files", () => {
 		for (const state of STATE_DIRS) {
 			for (const file of listTaskFiles(state)) {
 				const raw = readFileSync(file, "utf-8").trim();
-				const { attrs, body } = parseFlatFrontMatter(raw);
-
-				expect(String(attrs.id)).toMatch(/^task-[a-z0-9-]+$/);
-				expect(basename(file, ".md")).toBe(String(attrs.id));
-				expect(["p0", "p1", "p2", "p3"]).toContain(String(attrs.priority));
-				expect(String(attrs.summary)).not.toContain("\n");
 
 				if (state === "inbox") {
-					for (const attr of [
-						"id",
-						"title",
-						"status",
-						"priority",
-						"summary",
-						"created_at",
-						"updated_at",
-					] as const) {
-						expect(typeof attrs[attr]).toBe("string");
-						expect(String(attrs[attr]).trim().length).toBeGreaterThan(0);
+					expect(basename(file, ".md")).toMatch(/^task-[a-z0-9-]+$/);
+					expect(raw.length).toBeGreaterThan(0);
+
+					if (raw.startsWith("---\n")) {
+						const { attrs } = parseFlatFrontMatter(raw);
+						if (attrs.id !== undefined) {
+							expect(String(attrs.id)).toBe(basename(file, ".md"));
+						}
+						if (attrs.priority !== undefined) {
+							expect(["p0", "p1", "p2", "p3"]).toContain(
+								String(attrs.priority),
+							);
+						}
+						if (attrs.summary !== undefined) {
+							expect(String(attrs.summary)).not.toContain("\n");
+						}
 					}
 				} else {
+					const { attrs, body } = parseFlatFrontMatter(raw);
+					expect(String(attrs.id)).toMatch(/^task-[a-z0-9-]+$/);
+					expect(basename(file, ".md")).toBe(String(attrs.id));
+					expect(["p0", "p1", "p2", "p3"]).toContain(String(attrs.priority));
+					expect(String(attrs.summary)).not.toContain("\n");
+
 					for (const attr of REQUIRED_ATTRS) {
 						expect(typeof attrs[attr]).toBe("string");
 						expect(String(attrs[attr]).trim().length).toBeGreaterThan(0);

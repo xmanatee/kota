@@ -165,17 +165,24 @@ function expectOptionalScalarFilter(
   }
   const filter: Record<string, WorkflowFilterValue> = {};
   for (const [key, entry] of Object.entries(value)) {
+    const values = Array.isArray(entry) ? entry : [entry];
     if (
-      typeof entry !== "string" &&
-      typeof entry !== "number" &&
-      typeof entry !== "boolean"
+      values.length === 0 ||
+      values.some(
+        (current) =>
+          typeof current !== "string" &&
+          typeof current !== "number" &&
+          typeof current !== "boolean",
+      )
     ) {
       throw new WorkflowDefinitionError(
-        `${field}.${key} must be a string, number, or boolean`,
+        `${field}.${key} must be a scalar or non-empty array of scalars`,
         definitionPath,
       );
     }
-    filter[key] = entry;
+    filter[key] = Array.isArray(entry)
+      ? [...values]
+      : (entry as WorkflowFilterValue);
   }
   return filter;
 }

@@ -157,6 +157,67 @@ describe("WorkflowRuntime", () => {
     expect(runIds.length).toBe(2);
   });
 
+  it("queues improver after failed builder completions but ignores interruptions", async () => {
+    const bus = new EventBus();
+    const seenWorkflows: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      seenWorkflows.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 1000,
+      workflows: [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflow: "builder",
+                status: ["success", "failed"],
+              },
+            },
+          ],
+          steps: [
+            {
+              id: "notify",
+              type: "emit",
+              event: "improver.done",
+              payload: { source: "improver" },
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    bus.emit("workflow.completed", {
+      workflow: "builder",
+      runId: "run-failed",
+      status: "failed",
+      triggerEvent: "runtime.idle",
+      durationMs: 10,
+      definitionPath: "test/builder.ts",
+      runDir: ".kota/runs/run-failed",
+    });
+    bus.emit("workflow.completed", {
+      workflow: "builder",
+      runId: "run-interrupted",
+      status: "interrupted",
+      triggerEvent: "runtime.idle",
+      durationMs: 10,
+      definitionPath: "test/builder.ts",
+      runDir: ".kota/runs/run-interrupted",
+    });
+
+    await wait(120);
+    await runtime.stop();
+
+    expect(seenWorkflows).toEqual(["improver"]);
+  });
+
   it("supports code steps that call KOTA tools before agent steps", async () => {
     writeFileSync(
       join(projectDir, "src", "workflows", "builder", "prompt.md"),
@@ -493,6 +554,23 @@ describe("WorkflowRuntime", () => {
     await secondRuntime.stop();
 
     expect(started[0]).toBe("improver");
+  });
+
+  it("fails fast on corrupted workflow state files", () => {
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "workflow-state.json"),
+      "not json",
+      "utf-8",
+    );
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      workflows: [],
+    });
+
+    expect(() => runtime.start()).toThrow(/workflow-state\.json/);
   });
 
   it("fails restart steps when required verification steps were skipped", async () => {

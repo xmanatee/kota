@@ -2,11 +2,15 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
 import type { SDKMessage } from "../agent-sdk/types.js";
+import {
+  JsonFileError,
+  readOptionalJsonFile,
+  writeJsonFileAtomic,
+} from "../json-file.js";
 import type {
   WorkflowDefinition,
   WorkflowQueuedRun,
@@ -35,17 +39,128 @@ type WorkflowSnapshot = {
   steps: Array<Record<string, unknown>>;
 };
 
-function ensureDir(path: string): void {
-  if (!existsSync(path)) mkdirSync(path, { recursive: true });
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function readJsonFile<T>(path: string): T | null {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf-8")) as T;
-  } catch {
-    return null;
+function isWorkflowRunStatus(value: unknown): value is WorkflowRunStatus {
+  return value === "success" || value === "failed" || value === "interrupted";
+}
+
+function isWorkflowRunTrigger(value: unknown): value is WorkflowRunTrigger {
+  return (
+    isPlainObject(value) &&
+    typeof value.event === "string" &&
+    isPlainObject(value.payload)
+  );
+}
+
+function isQueuedRun(value: unknown): value is WorkflowQueuedRun {
+  return (
+    isPlainObject(value) &&
+    typeof value.workflowName === "string" &&
+    isWorkflowRunTrigger(value.trigger) &&
+    Number.isFinite(value.enqueuedAtMs) &&
+    Number.isFinite(value.notBeforeMs)
+  );
+}
+
+function assertWorkflowRuntimeState(
+  path: string,
+  value: unknown,
+): asserts value is WorkflowRuntimeState {
+  if (!isPlainObject(value)) {
+    throw new JsonFileError(path, "parse", "invalid workflow state shape");
   }
+  const completedRuns = value.completedRuns;
+  if (
+    typeof completedRuns !== "number" ||
+    !Number.isInteger(completedRuns) ||
+    completedRuns < 0
+  ) {
+    throw new JsonFileError(
+      path,
+      "parse",
+      "workflow state missing completedRuns",
+    );
+  }
+  if (
+    !Array.isArray(value.pendingRuns) ||
+    value.pendingRuns.some((item) => !isQueuedRun(item))
+  ) {
+    throw new JsonFileError(path, "parse", "workflow state has invalid pendingRuns");
+  }
+  if (!isPlainObject(value.workflows)) {
+    throw new JsonFileError(path, "parse", "workflow state has invalid workflows");
+  }
+  for (const [workflowName, entry] of Object.entries(value.workflows)) {
+    if (!isPlainObject(entry)) {
+      throw new JsonFileError(
+        path,
+        "parse",
+        `workflow state entry "${workflowName}" is invalid`,
+      );
+    }
+    for (const key of ["lastRunId", "lastStartedAt", "lastCompletedAt"] as const) {
+      const current = entry[key];
+      if (
+        current !== undefined &&
+        (typeof current !== "string" || !current.trim())
+      ) {
+        throw new JsonFileError(
+          path,
+          "parse",
+          `workflow state entry "${workflowName}" has invalid ${key}`,
+        );
+      }
+    }
+    if (
+      entry.lastStatus !== undefined &&
+      !isWorkflowRunStatus(entry.lastStatus)
+    ) {
+      throw new JsonFileError(
+        path,
+        "parse",
+        `workflow state entry "${workflowName}" has invalid lastStatus`,
+      );
+    }
+  }
+  for (const key of ["activeRunId", "activeWorkflow", "activeStartedAt"] as const) {
+    const current = value[key];
+    if (current !== undefined && (typeof current !== "string" || !current.trim())) {
+      throw new JsonFileError(path, "parse", `workflow state has invalid ${key}`);
+    }
+  }
+}
+
+function assertWorkflowRunMetadata(
+  path: string,
+  value: unknown,
+): asserts value is WorkflowRunMetadata {
+  if (!isPlainObject(value)) {
+    throw new JsonFileError(path, "parse", "invalid workflow run metadata shape");
+  }
+  if (
+    typeof value.id !== "string" ||
+    typeof value.workflow !== "string" ||
+    typeof value.definitionPath !== "string" ||
+    !isWorkflowRunTrigger(value.trigger) ||
+    typeof value.startedAt !== "string" ||
+    typeof value.runDir !== "string" ||
+    !Array.isArray(value.steps)
+  ) {
+    throw new JsonFileError(path, "parse", "workflow run metadata is incomplete");
+  }
+  if (
+    value.status !== "running" &&
+    !isWorkflowRunStatus(value.status)
+  ) {
+    throw new JsonFileError(path, "parse", "workflow run metadata has invalid status");
+  }
+}
+
+function ensureDir(path: string): void {
+  if (!existsSync(path)) mkdirSync(path, { recursive: true });
 }
 
 function safeJsonStringify(value: unknown, indent?: number): string {
@@ -81,7 +196,7 @@ function safeJsonStringify(value: unknown, indent?: number): string {
 }
 
 function writeJsonFile(path: string, value: unknown): void {
-  writeFileSync(path, safeJsonStringify(value, 2), "utf-8");
+  writeJsonFileAtomic(path, value, (current) => safeJsonStringify(current, 2));
 }
 
 function formatRunId(workflowName: string): string {
@@ -170,7 +285,10 @@ export class WorkflowRunStore {
   }
 
   readState(): WorkflowRuntimeState {
-    const state = readJsonFile<WorkflowRuntimeState>(this.statePath);
+    const state = readOptionalJsonFile<unknown>(this.statePath);
+    if (state !== null) {
+      assertWorkflowRuntimeState(this.statePath, state);
+    }
     return {
       completedRuns: state?.completedRuns ?? 0,
       pendingRuns: state?.pendingRuns ?? [],
@@ -191,7 +309,10 @@ export class WorkflowRunStore {
     if (!state.activeRunId || !state.activeWorkflow) return null;
 
     const metadataPath = join(this.runsDir, state.activeRunId, "metadata.json");
-    const metadata = readJsonFile<WorkflowRunMetadata>(metadataPath);
+    const metadata = readOptionalJsonFile<unknown>(metadataPath);
+    if (metadata !== null) {
+      assertWorkflowRunMetadata(metadataPath, metadata);
+    }
     if (!metadata || metadata.status !== "running") {
       delete state.activeRunId;
       delete state.activeWorkflow;

@@ -51,6 +51,38 @@ describe("workflow validation", () => {
     });
   });
 
+  it("accepts trigger filters with multiple allowed values", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflow: "builder",
+                status: ["success", "failed"],
+              },
+            },
+          ],
+          steps: [
+            {
+              id: "mark",
+              type: "emit",
+              event: "improver.done",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.triggers[0]?.filter).toEqual({
+      workflow: "builder",
+      status: ["success", "failed"],
+    });
+  });
+
   it("rejects missing prompt files", () => {
     expect(() =>
       validateWorkflowDefinitions(

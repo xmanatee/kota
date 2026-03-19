@@ -16,7 +16,7 @@ outstanding work.
 ## Task Format
 
 - One task per file.
-- Inbox items may start as lightweight captures.
+- Inbox items may start as lightweight captures without full frontmatter.
 - Once a task leaves `inbox/`, it must use the full task format.
 - Required frontmatter keys outside `inbox/`: `id`, `title`, `status`, `priority`, `area`, `summary`, `created_at`, `updated_at`.
 - Required body sections outside `inbox/`: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
