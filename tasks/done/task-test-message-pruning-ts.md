@@ -1,12 +1,12 @@
 ---
 id: task-test-message-pruning-ts
 title: Add direct unit tests for message-pruning.ts
-status: inbox
+status: done
 priority: p2
 area: testing
 summary: Add unit tests for buildToolCallMap, generateSummary, and pruneMessages in src/message-pruning.ts
 created_at: 2026-03-19
-updated_at: 2026-03-19
+updated_at: 2026-03-19T13:42:00Z
 ---
 
 ## Problem

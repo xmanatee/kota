@@ -91,6 +91,13 @@ describe("generateSummary", () => {
     const summary = generateSummary("grep", { pattern: longPattern }, "match");
     expect(summary.length).toBeLessThan(150);
   });
+
+  it("generates default fallback summary for unknown tool", () => {
+    const summary = generateSummary("custom_tool", {}, "line1\nline2");
+    expect(summary).toContain("custom_tool");
+    expect(summary).toContain("2 lines");
+    expect(summary).toContain("Re-run if needed");
+  });
 });
 
 describe("pruneMessages", () => {
@@ -237,6 +244,29 @@ describe("pruneMessages", () => {
     ];
     const stats = pruneMessages(messages, { keepRecent: 4, minLength: 100 });
     expect(stats.prunedCount).toBe(2);
+  });
+
+  it("prunes image-bearing results regardless of size", () => {
+    const imageContent: Anthropic.Messages.ToolResultBlockParam["content"] = [
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+    ];
+    const messages: Message[] = [
+      toolUse("file_read", { path: "screenshot.png" }, "t1"),
+      {
+        role: "user",
+        content: [{ type: "tool_result", tool_use_id: "t1", content: imageContent }],
+      },
+      ...Array.from({ length: 6 }, (_, i) => ({
+        role: "user" as const,
+        content: `msg-${i}`,
+      })),
+    ];
+    const stats = pruneMessages(messages, { keepRecent: 4, minLength: 100 });
+    expect(stats.prunedCount).toBe(1);
+    expect(stats.charsSaved).toBeGreaterThan(0);
+    const resultMsg = messages[1] as { role: string; content: Array<{ content: string }> };
+    expect(typeof resultMsg.content[0].content).toBe("string");
+    expect(resultMsg.content[0].content).toContain("image");
   });
 
   it("handles mixed pruneable and non-pruneable in same message", () => {
