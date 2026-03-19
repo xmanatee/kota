@@ -1,7 +1,7 @@
 ---
 id: task-split-loop-ts
 title: Split loop.ts — extract session initialization and iteration logic
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: loop.ts is 602 lines, twice the 300-line limit. AgentSession mixes construction, initialization, and the main send() iteration in one class. Splitting it improves legibility and reduces diff noise on unrelated changes.

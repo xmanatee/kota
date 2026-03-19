@@ -1,49 +1,33 @@
 import { existsSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { runArchitectStep } from "./architect/runner.js";
 import { buildUserProfile, type KotaConfig } from "./config.js";
-import { CONTEXT_WINDOW, Context } from "./context.js";
+import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
-import { getEventBus, tryEmit } from "./event-bus.js";
-import { getChangeTracker, initChangeTracker, resetChangeTracker } from "./file-changes.js";
+import { tryEmit } from "./event-bus.js";
+import { initChangeTracker } from "./file-changes.js";
 import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
-import { initAuditStore, resetAuditStore } from "./guardrails-audit.js";
+import { initAuditStore } from "./guardrails-audit.js";
 import { buildSessionWarmup } from "./init.js";
 import { loadInstructionContext } from "./instruction-files.js";
-import { listManifestModules } from "./manifest/index.js";
-import { McpManager } from "./mcp/manager.js";
+import { type AgentLoopState, runClose, runInitExtensions, saveToHistoryImpl } from "./loop-init.js";
+import { runSend } from "./loop-send.js";
+import type { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
-import { getWorkingMemoryState } from "./memory/working-memory.js";
 import { AnthropicModelClient, type ModelClient } from "./model/model-client.js";
-import { streamMessage } from "./model/streaming.js";
+import type { ModelTiers } from "./model/model-router.js";
 import { ModuleLoader } from "./module-loader.js";
 import { initModuleLogStore } from "./module-log.js";
-import { builtinModules } from "./modules/index.js";
-import { discoverPluginModules } from "./plugin-loader.js";
 import { loadProjectContext } from "./project-context.js";
-import { initProviderRegistry, registerDefaultProviders, resetProviderRegistry } from "./providers.js";
-import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
-import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
+import { initProviderRegistry, registerDefaultProviders } from "./providers.js";
 import { initScheduler } from "./scheduler/scheduler.js";
-import { formatTaskHint, routeTask } from "./scheduler/task-router.js";
 import { initTaskStore } from "./scheduler/task-store.js";
 import { type SessionState, SessionStateMachine } from "./session-state.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
-import { detectToolGroups, enableGroup, filterTools, resetGroups } from "./tool-groups.js";
-import { executeToolCalls, FailureTracker } from "./tool-runner.js";
-import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
-import { resetAgentStatusProviders, setConfigProvider, setModuleInfoProvider } from "./tools/agent-status.js";
-import { cleanupSessions } from "./tools/code-exec.js";
-import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
+import { enableGroup } from "./tool-groups.js";
+import { setConfigProvider, setModuleInfoProvider } from "./tools/agent-status.js";
 import { setDelegateConfig } from "./tools/delegate.js";
-import { getAllTools } from "./tools/index.js";
-import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory/index.js";
-import { cleanupProcesses } from "./tools/process.js";
 import { BufferTransport, CliTransport, type Transport } from "./transport.js";
-import { detectVerifyCommands, processToolResults, VerifyTracker } from "./verify-tracker.js";
-
-
-const MAX_ITERATIONS = 200;
+import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
 
 export type LoopOptions = {
   model?: string;
@@ -104,7 +88,7 @@ export class AgentSession {
   private sessionStartTime = 0;
   private guardrailsConfig: GuardrailsConfig;
   private reflectionEnabled: boolean;
-  private modelTiers?: import("./model/model-router.js").ModelTiers;
+  private modelTiers?: ModelTiers;
   private stateMachine: SessionStateMachine;
 
   constructor(options: LoopOptions = {}) {
@@ -117,7 +101,6 @@ export class AgentSession {
     this.architectMode = options.architectMode || false;
     this.sessionPath = options.sessionPath;
     this.transport = options.transport || new CliTransport(this.verbose);
-    // Non-interactive sessions (actions, server-spawned) use stricter guardrails by default
     const isNonInteractive = options.historySource === "action";
     this.guardrailsConfig = options.config?.guardrails
       ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
@@ -135,7 +118,6 @@ export class AgentSession {
     this.client = options.client ?? new AnthropicModelClient({ maxRetries: 5 });
     this.costTracker = new CostTracker();
 
-    // Initialize persistent stores for this project
     initTaskStore(process.cwd());
     initScheduler(process.cwd());
     initModuleLogStore(process.cwd());
@@ -164,7 +146,6 @@ export class AgentSession {
       this.transport.emit({ type: "status", message: "[kota] Session warmup loaded" });
     }
 
-    // Auto-enable tool groups from config
     if (options.config?.autoEnable) {
       for (const group of options.config.autoEnable) {
         enableGroup(group);
@@ -177,7 +158,6 @@ export class AgentSession {
       }
     }
 
-    // Resume from conversation history, legacy session file, or start fresh
     if (options.resumeConversation) {
       const history = getHistory();
       const data = history.load(options.resumeConversation);
@@ -200,8 +180,6 @@ export class AgentSession {
       this.context = new Context(systemPrompt);
     }
 
-    // History is enabled if not explicitly disabled. When resuming a conversation,
-    // always keep saving to it even if sessionPath is also set.
     this.historyEnabled = !options.noHistory && (!this.sessionPath || !!this.conversationId);
     this.historySource = options.historySource ?? "user";
 
@@ -222,7 +200,7 @@ export class AgentSession {
     setModuleInfoProvider(() =>
       this.moduleLoader.getLoadedModules().map((name) => ({
         name,
-        toolCount: 0, // per-module count not exposed; total via getToolCount()
+        toolCount: 0,
       })),
     );
     if (options.config) {
@@ -273,314 +251,29 @@ export class AgentSession {
   }
 
   private async initExtensions(): Promise<void> {
-    const config = McpManager.loadConfig();
-    if (config) {
-      this.mcpManager = new McpManager();
-      await this.mcpManager.initialize(config);
-      if (this.mcpManager.getToolCount() > 0) {
-        // Update delegate config so sub-agents can use MCP tools
-        setDelegateConfig({
-          model: this.editorModel,
-          modelTiers: this.modelTiers,
-          client: this.client,
-          cwd: process.cwd(),
-          projectContext: this.projectContext || undefined,
-          instructionContext: this.instructionContext || undefined,
-          costTracker: this.costTracker,
-          transport: this.transport,
-          mcpManager: this.mcpManager,
-        });
-        if (this.verbose) {
-          this.transport.emit({
-            type: "status",
-            message: `[kota] MCP: ${this.mcpManager.getServerCount()} server(s), ${this.mcpManager.getToolCount()} tool(s)`,
-          });
-        }
-      }
-    }
-
-    const pluginModules = await discoverPluginModules(undefined, this.verbose);
-    // Track which manifest modules were discovered for module_factory status
-    for (const { name } of listManifestModules()) markModuleLoaded(name);
-    await this.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
-
-    // Append module prompt sections to system prompt
-    const modulePromptSections = this.moduleLoader.getPromptSections();
-    if (modulePromptSections) {
-      this.context.appendSystemPrompt(modulePromptSections);
-    }
-
-    // Load persisted custom tools from .kota/tools/
-    const customToolCount = loadSavedTools();
-    if (customToolCount > 0 && this.verbose) {
-      this.transport.emit({ type: "status", message: `[kota] Loaded ${customToolCount} custom tool(s)` });
-    }
-
-    // Connect module event subscriptions to the bus if it exists
-    // (server and daemon init the bus before creating sessions)
-    const bus = getEventBus();
-    if (bus) this.moduleLoader.connectEvents(bus);
-
-    this.initialized = true;
-    if (this.stateMachine.canTransition("ready")) {
-      this.stateMachine.transition("ready");
-    }
+    return runInitExtensions(this as unknown as AgentLoopState);
   }
 
   /** Send a prompt and run the agent loop until the agent stops. */
   async send(prompt: string): Promise<string> {
-    if (!this.initialized) await this.initPromise;
-    if (this.sessionStartTime === 0) {
-      this.sessionStartTime = Date.now();
-      tryEmit("session.start", { sessionId: this.sessionId, label: this.sessionLabel });
-    }
-
-    // Request-aware context pre-loading and task routing.
-    // Zero LLM cost — pure heuristics and pattern matching.
-    const analysis = analyzeRequest(prompt, process.cwd());
-    const taskRoute = routeTask(prompt);
-    let augmentedPrompt = prompt;
-    if (analysis) augmentedPrompt += formatContextHint(analysis);
-    augmentedPrompt += formatTaskHint(taskRoute);
-
-    this.context.addUserMessage(augmentedPrompt);
-    for (const g of detectToolGroups(prompt)) enableGroup(g);
-    if (taskRoute) {
-      for (const g of taskRoute.groups) enableGroup(g);
-    }
-    let lastResult = "";
-
-    // MCP tools always included; built-in tools filtered by active groups
-    const mcpTools = this.mcpManager ? this.mcpManager.getTools() : [];
-
-    if (this.architectMode) {
-      const result = await runArchitectStep({
-        client: this.client,
-        model: this.model,
-        editorModel: this.editorModel,
-        maxTokens: this.maxTokens,
-        effectiveMaxTokens: this.effectiveMaxTokens,
-        systemContext: this.context.getSystemPrompt(),
-        messages: this.context.getMessages(),
-        costTracker: this.costTracker,
-        verbose: this.verbose,
-        thinkingConfig: this.thinkingConfig,
-        transport: this.transport,
-      });
-      if (result) {
-        lastResult = result.lastResult;
-        for (const f of result.modifiedFiles) this.verifyTracker.recordEdit(f);
-        this.context.addAssistantText(result.summary);
-        this.context.addUserMessage(
-          "The architect/editor has made changes. " +
-          "Verify they are correct: run builds, tests, or type checks as appropriate.",
-        );
-      }
-    }
-
-    const failureTracker = new FailureTracker();
-    let reflectionDone = false;
-
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      // Always-on observation masking: replace old tool outputs with placeholders.
-      // Zero-cost (no LLM call), runs every turn to keep context lean.
-      const maskStats = this.context.maskOldObservations();
-      if (maskStats.maskedCount > 0) {
-        this.transport.emit({
-          type: "status",
-          message: `[kota] Masked ${maskStats.maskedCount} old observations (saved ~${Math.round(maskStats.charsSaved / 4)} tokens)`,
-        });
-      }
-
-      if (this.context.needsCompaction()) {
-        if (this.verbose) this.transport.emit({ type: "status", message: "[kota] Compacting context..." });
-        await this.context.compact(this.client, this.model);
-      }
-
-      if (this.verbose) {
-        const stats = this.context.getStats();
-        this.transport.emit({
-          type: "status",
-          message: `[kota] Turn ${i + 1} (${stats.turns} messages, ${stats.compactions} compactions)`,
-        });
-      }
-
-      // Build system blocks: static prompt (cached) + dynamic state (uncached)
-      const system: Anthropic.Messages.TextBlockParam[] = [
-        { type: "text", text: this.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
-      ];
-      const changesSummary = getChangeTracker()?.getSummary() ?? "";
-      const telemetrySummary = getToolTelemetry().getSummary();
-      const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
-      const dynamicState = this.context.getDynamicState() + this.verifyTracker.getState() + changesSummary + getWorkingMemoryState() + telemetryBlock;
-      if (dynamicState) {
-        system.push({ type: "text", text: dynamicState });
-      }
-
-      // Progressive disclosure: filter built-in tools by active groups, include MCP tools
-      const activeTools = [...filterTools(getAllTools()), ...mcpTools];
-
-      if (this.stateMachine.canTransition("thinking")) {
-        this.stateMachine.transition("thinking", { turn: i + 1 });
-      }
-
-      const { response, streamedText } = await streamMessage({
-        client: this.client,
-        model: this.model,
-        maxTokens: this.effectiveMaxTokens,
-        system,
-        messages: this.context.getMessages(),
-        tools: activeTools,
-        thinkingConfig: this.thinkingConfig,
-        transport: this.transport,
-      });
-
-      if (streamedText) {
-        this.transport.emit({ type: "text", content: "\n" });
-        lastResult = streamedText;
-      }
-
-      this.context.setInputTokens(response.usage.input_tokens);
-      this.costTracker.addUsage(this.model, response.usage);
-      const budgetPct = Math.round(this.context.getBudgetPercent() * 100);
-      this.transport.emit({
-        type: "cost",
-        summary: `Turn ${i + 1} — ${this.costTracker.getSummary()}`,
-        budgetPercent: budgetPct,
-      });
-
-      if (this.verbose) {
-        const u = response.usage;
-        this.transport.emit({
-          type: "status",
-          message: `[kota] Tokens: input=${u.input_tokens}/${CONTEXT_WINDOW}` +
-            (u.cache_read_input_tokens ? `, cache_read=${u.cache_read_input_tokens}` : "") +
-            (u.cache_creation_input_tokens ? `, cache_created=${u.cache_creation_input_tokens}` : ""),
-        });
-      }
-
-      this.context.addAssistantMessage(response);
-
-      const toolBlocks = response.content.filter(
-        (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
-      );
-
-      if (toolBlocks.length === 0) {
-        // Self-reflection: before delivering, evaluate response quality
-        if (this.reflectionEnabled && !reflectionDone) {
-          const responseText = streamedText || getLastAssistantText(this.context.getMessages());
-          if (shouldReflect(this.context.getMessages(), responseText)) {
-            reflectionDone = true;
-            if (this.stateMachine.canTransition("reflecting")) {
-              this.stateMachine.transition("reflecting");
-            }
-            const reflectionPrompt = buildReflectionPrompt(this.context.getMessages());
-            this.context.addUserMessage(reflectionPrompt);
-            this.transport.emit({ type: "status", message: "[kota] Self-reflecting on response quality..." });
-            continue;
-          }
-        }
-        break;
-      }
-
-      if (this.stateMachine.canTransition("acting")) {
-        this.stateMachine.transition("acting", { toolCount: toolBlocks.length });
-      }
-
-      const resultLimit = this.context.getToolResultLimit();
-      const validResults = await executeToolCalls(
-        toolBlocks, resultLimit, this.verbose, this.mcpManager ?? undefined, this.transport,
-        this.guardrailsConfig, this.sessionId,
-      );
-      this.context.addToolResults(validResults);
-
-      processToolResults(this.verifyTracker, toolBlocks, validResults);
-
-      if (this.sessionPath) this.context.save(this.sessionPath);
-      this.saveToHistory();
-
-      const action = failureTracker.record(validResults);
-      if (action !== "continue") {
-        const msg = FailureTracker.getMessage(action);
-        this.transport.emit({
-          type: "error",
-          message: `[kota] ${action === "circuit_break" ? "Circuit breaker" : "Failure guidance"}: ${msg}`,
-        });
-        this.context.addUserMessage(msg);
-      }
-    }
-
-    if (this.sessionPath) this.context.save(this.sessionPath);
-    this.saveToHistory();
-    if (this.stateMachine.canTransition("ready")) {
-      this.stateMachine.transition("ready");
-    }
-    return lastResult;
+    return runSend(this as unknown as AgentLoopState, prompt);
   }
 
   /** Save current state to conversation history. Creates the entry lazily on first call with messages. */
   private saveToHistory(): void {
-    if (!this.historyEnabled) return;
-    const snapshot = this.context.snapshot();
-    const history = getHistory();
-    if (!this.conversationId) {
-      if (snapshot.messages.length === 0) return;
-      this.conversationId = history.create(this.model, process.cwd(), this.historySource);
-    }
-    history.save(this.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
+    saveToHistoryImpl(this as unknown as AgentLoopState);
   }
 
-  /** Get cumulative cost summary string. */
-  getCostSummary(): string {
-    return this.costTracker.getSummary();
-  }
+  getCostSummary(): string { return this.costTracker.getSummary(); }
 
-  /** Get the current session lifecycle state. */
-  getState(): SessionState {
-    return this.stateMachine.current();
-  }
+  getState(): SessionState { return this.stateMachine.current(); }
 
-  /** Get the conversation ID for this session (null if history tracking disabled). */
-  getConversationId(): string | null {
-    return this.conversationId;
-  }
+  getConversationId(): string | null { return this.conversationId; }
 
   /** Clean up handlers and save final state. */
   close(errored = false): void {
-    if (this.closed) return;
-    this.closed = true;
-    if (errored && this.stateMachine.canTransition("error")) {
-      this.stateMachine.transition("error");
-    }
-    if (this.stateMachine.canTransition("closed")) {
-      this.stateMachine.transition("closed");
-    }
     process.removeListener("SIGINT", this.sigintHandler);
-    if (this.sessionPath) this.context.save(this.sessionPath);
-    this.saveToHistory();
-    cleanupProcesses();
-    cleanupSessions();
-    resetCustomTools();
-    resetModuleFactory();
-    resetChangeTracker();
-    resetGroups();
-    resetProviderRegistry();
-    resetToolTelemetry();
-    resetAuditStore();
-    resetAgentStatusProviders();
-    this.moduleLoader.unloadAll().catch(() => {});
-    this.mcpManager?.close().catch(() => {});
-    if (this.sessionStartTime > 0) {
-      tryEmit("session.end", {
-        sessionId: this.sessionId,
-        label: this.sessionLabel,
-        error: errored ? "session errored" : undefined,
-        durationMs: Date.now() - this.sessionStartTime,
-      });
-    }
-    if (!errored) {
-      this.transport.emit({ type: "status", message: `[kota] Done — ${this.costTracker.getSummary()}` });
-    }
+    runClose(this as unknown as AgentLoopState, errored);
   }
 }
 
