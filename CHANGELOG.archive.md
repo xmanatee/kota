@@ -1265,7 +1265,7 @@ Research signals (SICA/ICLR 2025, Intrinsic Metacognitive Learning/ICML 2025) co
 
 ## Iteration 517 — Native secrets management with provider chain, output masking, CLI commands, and agent tool
 
-Implemented the secrets management plan (`plans/secrets-management.md`) — a provider-based credential layer that prevents secret leakage into LLM context through automatic output masking.
+Implemented the secrets management plan (`docs/archive/secrets-management.md`) — a provider-based credential layer that prevents secret leakage into LLM context through automatic output masking.
 
 ### What was built
 
@@ -4823,7 +4823,7 @@ Added a "Select item" step before the plan/no-plan fork in the builder prompt's 
 
 The builder prompt's Breadth section had a structural gap: "Active plan?" was checked first, and if any `b:` item referenced a plan file, the builder followed plan execution without ever considering other active items. The staleness check ("items waiting 5+ builder iterations are overdue") existed on line 85-86 inside the "No plan?" section — but this path is **unreachable** when any item has a plan reference.
 
-Result: the "study OpenClaw" item (added between iters 440/441, no plan reference) has been active for 2 builder iterations while the builder always picks the hardening item (which references `plans/modular-architecture.md`). The hardening work is good and productive, but the prompt structure prevented the builder from even evaluating whether the other item should take priority.
+Result: the "study OpenClaw" item (added between iters 440/441, no plan reference) has been active for 2 builder iterations while the builder always picks the hardening item (which references `docs/archive/modular-architecture.md`). The hardening work is good and productive, but the prompt structure prevented the builder from even evaluating whether the other item should take priority.
 
 ### Changes
 
@@ -5066,7 +5066,7 @@ Three eval signals in a row. Justified: the plan→depth transition is a high-st
 
 ## Iteration 439 — Extract vercel-adapter module, completing the modular architecture plan
 
-Extracted vercel-ai-stream.ts into the seventh and final KotaModule, completing plans/modular-architecture.md — all features now use the module protocol.
+Extracted vercel-ai-stream.ts into the seventh and final KotaModule, completing docs/archive/modular-architecture.md — all features now use the module protocol.
 
 ### What was built
 - Created `src/modules/vercel-adapter.ts` — a KotaModule that registers `POST /api/chat/vercel` via the `routes` property, the first module to exercise the route registration mechanism
@@ -5650,7 +5650,7 @@ Defined the KotaModule protocol and ModuleLoader, then extracted memory as the f
 
 ### Why this matters
 
-This is step 1 of `plans/modular-architecture.md`. The module protocol is now defined and proven with a real extraction. Future iterations extract scheduler, telegram, web, and daemon — each one-at-a-time, each using the same protocol. External modules become possible once all built-ins are extracted.
+This is step 1 of `docs/archive/modular-architecture.md`. The module protocol is now defined and proven with a real extraction. Future iterations extract scheduler, telegram, web, and daemon — each one-at-a-time, each using the same protocol. External modules become possible once all built-ins are extracted.
 
 ### Verified
 
@@ -5662,7 +5662,7 @@ This is step 1 of `plans/modular-architecture.md`. The module protocol is now de
 
 ### Future directions
 
-Next extractions from `plans/modular-architecture.md`:
+Next extractions from `docs/archive/modular-architecture.md`:
 1. **Scheduler module** — `scheduler.ts` + `action-executor.ts` + `tools/schedule.ts` → tools, event subscriptions
 2. **Telegram module** — `telegram.ts` → CLI command, transport
 3. **Web module** — `server.ts` + `web-ui*.ts` + `session-pool.ts` → CLI command, HTTP routes, transport
@@ -5683,7 +5683,7 @@ Builder 425 missed a new `b:` item (modular architecture plan) added between ite
 
 ### Diagnosis
 
-The owner added `b: implement plans/modular-architecture.md` to NOTES.md in commit `ff57bc2` between iter 424 and 425. Builder 425 ran `cat NOTES.md` but concluded "All b: items are complete" and entered depth phase. The root cause: the phase gate instruction says "Check NOTES.md" — a vague attention-dependent check. The builder was anchored to the previous state (all `b:` items had been completed as of iter 423) and didn't notice the new item in the active section.
+The owner added `b: implement docs/archive/modular-architecture.md` to NOTES.md in commit `ff57bc2` between iter 424 and 425. Builder 425 ran `cat NOTES.md` but concluded "All b: items are complete" and entered depth phase. The root cause: the phase gate instruction says "Check NOTES.md" — a vague attention-dependent check. The builder was anchored to the previous state (all `b:` items had been completed as of iter 423) and didn't notice the new item in the active section.
 
 This is a first-order process failure: the builder did valid depth work (structural health on server.ts), but it should have been executing the new modular architecture plan.
 
@@ -5819,7 +5819,7 @@ All `b:` NOTES.md items are now in Completed. Builder 425 will enter **depth pha
 
 ## Iteration 423 — Webhook Endpoints for External Event Triggers
 
-Fourth and final piece of the self-hosting loop plan (plans/self-hosting-loop.md). External systems can now fire events on KOTA's event bus via HTTP, completing the automation pipeline.
+Fourth and final piece of the self-hosting loop plan (docs/archive/self-hosting-loop.md). External systems can now fire events on KOTA's event bus via HTTP, completing the automation pipeline.
 
 ### What was built
 
@@ -5930,7 +5930,7 @@ Last 4 entries: 420 (own prompt), 418 (builder prompt), 416 (eval signals), 414 
 
 ## Iteration 421 — Daemon Mode
 
-Third piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). KOTA can now run as a long-lived daemon process that hosts the event bus, scheduler, and idle tasks — an event-driven runtime for autonomous agent operation.
+Third piece of the self-hosting loop plan (`docs/archive/self-hosting-loop.md`). KOTA can now run as a long-lived daemon process that hosts the event bus, scheduler, and idle tasks — an event-driven runtime for autonomous agent operation.
 
 ### What was built
 
@@ -6017,7 +6017,7 @@ Additionally, my expected effects from iter 416 got N/A verdicts because the bui
 
 ## Iteration 419 — Event-Based Scheduler Triggers
 
-Second piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). The
+Second piece of the self-hosting loop plan (`docs/archive/self-hosting-loop.md`). The
 Scheduler can now fire items when named events occur on the EventBus, not just
 at specific times. This enables automations like "when a session ends, run
 self-improve" — the foundation for the daemon mode's event-driven loop.
@@ -6103,7 +6103,7 @@ With 3 more plan steps ahead (event-based triggers, daemon mode, webhooks), the 
 
 ## Iteration 417 — Event Bus
 
-First piece of the self-hosting loop plan (`plans/self-hosting-loop.md`). Internal pub/sub so modules can react to each other without direct coupling — foundation for event-based scheduler triggers, daemon mode, and webhook endpoints.
+First piece of the self-hosting loop plan (`docs/archive/self-hosting-loop.md`). Internal pub/sub so modules can react to each other without direct coupling — foundation for event-based scheduler triggers, daemon mode, and webhook endpoints.
 
 ### What was built
 

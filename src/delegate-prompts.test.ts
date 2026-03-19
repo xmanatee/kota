@@ -32,6 +32,13 @@ describe("buildSubAgentPrompt", () => {
     expect(result).toContain("This is a Node.js app.");
   });
 
+  it("appends instruction context when provided", () => {
+    const result = buildSubAgentPrompt(base, {
+      instructionContext: "## Project Instructions\n\nFollow AGENTS.md",
+    });
+    expect(result).toContain("Follow AGENTS.md");
+  });
+
   it("includes both cwd and project context in order", () => {
     const result = buildSubAgentPrompt(base, {
       cwd: "/opt/app",
@@ -51,6 +58,11 @@ describe("buildSubAgentPrompt", () => {
 
   it("does not include empty project context", () => {
     const result = buildSubAgentPrompt(base, { projectContext: "" });
+    expect(result).toBe(base);
+  });
+
+  it("does not include empty instruction context", () => {
+    const result = buildSubAgentPrompt(base, { instructionContext: "" });
     expect(result).toBe(base);
   });
 });
@@ -170,7 +182,7 @@ describe("buildSubAgentPrompt × init.ts — delegate environment context", () =
     expect(result).toContain("Working directory:");
   });
 
-  it("orders: cwd → project → directory → projectContext", async () => {
+  it("orders: cwd → project → directory → projectContext → instructionContext", async () => {
     const { writeFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     writeFileSync(
@@ -181,14 +193,17 @@ describe("buildSubAgentPrompt × init.ts — delegate environment context", () =
     const result = buildSubAgentPrompt(base, {
       cwd: tmpDir,
       projectContext: "## Rules\nUse tabs.",
+      instructionContext: "## Project Instructions\nRead AGENTS.md",
     });
     const cwdIdx = result.indexOf("Working directory:");
     const projIdx = result.indexOf("Project:");
     const dirIdx = result.indexOf("Directory:");
     const ctxIdx = result.indexOf("Use tabs.");
+    const instructionsIdx = result.indexOf("Read AGENTS.md");
     expect(cwdIdx).toBeLessThan(projIdx);
     expect(projIdx).toBeLessThan(dirIdx);
     expect(dirIdx).toBeLessThan(ctxIdx);
+    expect(ctxIdx).toBeLessThan(instructionsIdx);
   });
 
   it("filters noise directories from delegate overview", async () => {

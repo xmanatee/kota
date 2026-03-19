@@ -90,6 +90,7 @@ export type DelegateConfig = {
   client?: ModelClient;
   cwd?: string;
   projectContext?: string;
+  instructionContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;
   mcpManager?: McpManager;
@@ -162,6 +163,7 @@ export async function runDelegate(
     return runDelegateAgentSDK(task, mode, {
       cwd: delegateConfig.cwd,
       projectContext: delegateConfig.projectContext,
+      instructionContext: delegateConfig.instructionContext,
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
       maxBudgetUsd: delegateConfig.agentSdkBudgetUsd,

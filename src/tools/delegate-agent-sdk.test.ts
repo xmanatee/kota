@@ -86,6 +86,7 @@ describe("delegate-agent-sdk", () => {
     await runDelegateAgentSDK("find all API endpoints", "explore", {
       cwd: "/tmp/project",
       model: "claude-haiku-4-5-20251001",
+      instructionContext: "## Project Instructions\nUse AGENTS.md",
     });
 
     const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
@@ -100,6 +101,7 @@ describe("delegate-agent-sdk", () => {
     expect(options.allowedTools).toContain("Grep");
     expect(options.allowedTools).not.toContain("Edit");
     expect(options.allowedTools).not.toContain("Write");
+    expect(options.systemPrompt).toContain("Use AGENTS.md");
   });
 
   it("passes execute-mode options to the shared executor", async () => {

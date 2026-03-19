@@ -41,6 +41,7 @@ const EXECUTE_SDK_TOOLS = [
 export type AgentSDKDelegateConfig = {
   cwd?: string;
   projectContext?: string;
+  instructionContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;
   maxBudgetUsd?: number;
@@ -57,6 +58,7 @@ export async function runDelegateAgentSDK(
   const promptConfig: PromptConfig = {
     cwd: config.cwd,
     projectContext: config.projectContext,
+    instructionContext: config.instructionContext,
   };
   const systemPrompt = buildSubAgentPrompt(basePrompt, promptConfig);
   const maxTurns = isExecute ? EXECUTE_MAX_TURNS : EXPLORE_MAX_TURNS;

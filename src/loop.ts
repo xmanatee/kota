@@ -95,6 +95,7 @@ export class AgentSession {
   private initialized = false;
   private initPromise: Promise<void>;
   private projectContext: string;
+  private instructionContext: string;
   private conversationId: string | null = null;
   private historyEnabled: boolean;
   private historySource: "user" | "action";
@@ -146,6 +147,7 @@ export class AgentSession {
     this.projectContext = loadProjectContext();
     const projectContext = this.projectContext;
     const instructionContext = loadInstructionContext();
+    this.instructionContext = instructionContext;
     const warmup = buildSessionWarmup();
     const userProfile = options.config ? buildUserProfile(options.config) : "";
     const systemPrompt = SYSTEM_PROMPT + projectContext + instructionContext + userProfile + warmup;
@@ -211,6 +213,7 @@ export class AgentSession {
       client: this.client,
       cwd: process.cwd(),
       projectContext: projectContext || undefined,
+      instructionContext: instructionContext || undefined,
       costTracker: this.costTracker,
       transport: this.transport,
     });
@@ -282,6 +285,7 @@ export class AgentSession {
           client: this.client,
           cwd: process.cwd(),
           projectContext: this.projectContext || undefined,
+          instructionContext: this.instructionContext || undefined,
           costTracker: this.costTracker,
           transport: this.transport,
           mcpManager: this.mcpManager,

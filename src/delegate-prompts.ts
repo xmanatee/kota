@@ -188,6 +188,7 @@ export const executeRunners: Record<string, ToolRunner> = {
 export type PromptConfig = {
   cwd?: string;
   projectContext?: string;
+  instructionContext?: string;
 };
 
 /** Build a sub-agent system prompt enriched with project context. */
@@ -205,6 +206,9 @@ export function buildSubAgentPrompt(
   }
   if (config.projectContext) {
     parts.push(`\n${config.projectContext}`);
+  }
+  if (config.instructionContext) {
+    parts.push(`\n${config.instructionContext}`);
   }
   return parts.join("\n");
 }

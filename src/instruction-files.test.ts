@@ -204,6 +204,37 @@ describe("findInstructionFiles", () => {
 		const fromTestDirs = files.filter((f) => f.path.startsWith(TEST_ROOT));
 		expect(fromTestDirs).toHaveLength(0);
 	});
+
+	it("supports repo-style root AGENTS that reference docs files", () => {
+		mkdirSync(join(TEST_ROOT, "docs"), { recursive: true });
+		mkdirSync(join(TEST_ROOT, "tasks"), { recursive: true });
+		writeFileSync(
+			join(TEST_ROOT, "AGENTS.md"),
+			"# Root\n\n@docs/STANDARDS.md\n\n@tasks/AGENTS.md",
+			"utf-8",
+		);
+		writeFileSync(
+			join(TEST_ROOT, "docs", "STANDARDS.md"),
+			"standards rules",
+			"utf-8",
+		);
+		writeFileSync(
+			join(TEST_ROOT, "tasks", "AGENTS.md"),
+			"task rules",
+			"utf-8",
+		);
+		try {
+			const files = findInstructionFiles(CHILD);
+			const root = files.find((f) => f.path === join(TEST_ROOT, "AGENTS.md"));
+			expect(root).toBeDefined();
+			expect(root!.content).toContain("standards rules");
+			expect(root!.content).toContain("task rules");
+		} finally {
+			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
+			rmSync(join(TEST_ROOT, "docs"), { recursive: true, force: true });
+			rmSync(join(TEST_ROOT, "tasks"), { recursive: true, force: true });
+		}
+	});
 });
 
 describe("loadInstructionContext", () => {
