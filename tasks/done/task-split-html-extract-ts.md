@@ -1,7 +1,7 @@
 ---
 id: task-split-html-extract-ts
 title: Split src/data/html-extract.ts — extract parsing helpers
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/data/html-extract.ts is 313 lines, over the 300-line limit. Splitting improves navigability and keeps each file focused.
