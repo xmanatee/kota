@@ -1,7 +1,7 @@
 ---
 id: task-split-cli-ts
 title: Split cli.ts — extract subcommand handlers from entry point
-status: ready
+status: done
 priority: p2
 area: structure
 summary: src/cli.ts is 449 lines, 50% over the 300-line limit. The file contains the CLI entry point plus all subcommand handler logic inline.
