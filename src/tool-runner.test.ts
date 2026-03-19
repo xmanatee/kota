@@ -20,16 +20,28 @@ vi.mock("./confirm.js", () => ({
 vi.mock("./guardrails-audit.js", () => ({
   getAuditStore: vi.fn(() => null),
 }));
+vi.mock("./approval-queue.js", () => ({
+  getApprovalQueue: vi.fn(() => ({
+    enqueue: vi.fn(() => ({ id: "abc123" })),
+  })),
+}));
+vi.mock("./secrets.js", () => ({
+  getSecretStore: vi.fn(() => null),
+}));
 
+import { getApprovalQueue } from "./approval-queue.js";
 import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
 import { assess } from "./guardrails.js";
+import { getAuditStore } from "./guardrails-audit.js";
 import { executeTool } from "./tools/index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
 const mockTruncate = vi.mocked(truncateToolResult);
 const mockAssess = vi.mocked(assess);
 const mockConfirmAction = vi.mocked(confirmAction);
+const mockGetApprovalQueue = vi.mocked(getApprovalQueue);
+const mockGetAuditStore = vi.mocked(getAuditStore);
 
 function toolBlock(
   name: string,
@@ -273,6 +285,7 @@ describe("guardrails confirm gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTruncate.mockImplementation((text: string) => text);
+    mockGetApprovalQueue.mockReturnValue({ enqueue: vi.fn(() => ({ id: "abc123" })) } as any);
   });
 
   it("blocks a destructive tool call when user rejects confirmation", async () => {
@@ -310,5 +323,95 @@ describe("guardrails confirm gate", () => {
     expect(results[0].is_error).toBeUndefined();
     expect(results[0].content).toBe("reset done");
     expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "git reset --hard HEAD~1" });
+  });
+
+  it("blocks a tool call when policy is deny", async () => {
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "deny" as const });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "rm -rf /" })],
+      50000,
+      false,
+      undefined,
+      undefined,
+      { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("Blocked by guardrails");
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+    expect(mockConfirmAction).not.toHaveBeenCalled();
+  });
+
+  it("queues a tool call when policy is queue", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q1" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "queue" as const });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "rm -rf /tmp/old" })],
+      50000,
+      false,
+      undefined,
+      undefined,
+      { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+      "session-1",
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("Queued for approval");
+    expect(results[0].content).toContain("q1");
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      "shell",
+      { command: "rm -rf /tmp/old" },
+      "dangerous",
+      "destructive command pattern detected",
+      "session-1",
+    );
+  });
+
+  it("emits guardrail event to transport", async () => {
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "deny" as const });
+    const transport = { emit: vi.fn() };
+
+    await executeToolCalls(
+      [toolBlock("shell", { command: "rm -rf /" })],
+      50000,
+      false,
+      undefined,
+      transport as any,
+      { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+    );
+
+    expect(transport.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "guardrail",
+        tool: "shell",
+        risk: "dangerous",
+        policy: "deny",
+      }),
+    );
+  });
+
+  it("records assessment to audit store", async () => {
+    const mockRecord = vi.fn();
+    mockGetAuditStore.mockReturnValue({ record: mockRecord } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "deny" as const });
+
+    await executeToolCalls(
+      [toolBlock("shell", { command: "rm -rf /" })],
+      50000,
+      false,
+      undefined,
+      undefined,
+      { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+      "session-42",
+    );
+
+    expect(mockRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: "shell", risk: "dangerous", policy: "deny" }),
+      "session-42",
+    );
   });
 });
