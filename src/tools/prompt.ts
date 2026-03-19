@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { PromptStore } from "../prompt-template.js";
 import type { ToolRegistration, ToolResult } from "./index.js";
+import { PromptStore } from "./prompt-template.js";
 
 let store: PromptStore | null = null;
 

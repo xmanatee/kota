@@ -12,7 +12,7 @@ import {
   resolveStepLanguageRef,
   resolveStepLanguageValue,
   type StepLanguageState,
-} from "../step-language.js";
+} from "./step-language.js";
 
 const WHOLE_STEP_INDEX_RE = /^\$steps\[(\d+)\]$/;
 

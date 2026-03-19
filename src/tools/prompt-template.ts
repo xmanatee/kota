@@ -18,7 +18,7 @@ import { join, resolve } from "node:path";
 import {
 	parseFlatFrontMatter,
 	serializeFlatFrontMatter,
-} from "./frontmatter.js";
+} from "../frontmatter.js";
 
 // --- Types ---
 

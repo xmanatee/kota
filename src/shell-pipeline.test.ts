@@ -16,7 +16,7 @@ import {
   enrichWithSourceContext,
   extractFileReferences,
 } from "./error-context.js";
-import { smartErrorTruncate } from "./shell-diagnostics.js";
+import { smartErrorTruncate } from "./tools/shell-diagnostics.js";
 
 const TMP = join(tmpdir(), `kota-pipeline-${process.pid}`);
 const SRC = join(TMP, "src");

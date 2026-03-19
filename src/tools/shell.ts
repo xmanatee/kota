@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { confirmExecution, isDangerous } from "../confirm.js";
 import { enrichWithSourceContext } from "../error-context.js";
-import { smartErrorTruncate } from "../shell-diagnostics.js";
 import type { ToolResult } from "./index.js";
+import { smartErrorTruncate } from "./shell-diagnostics.js";
 
 export const shellTool: Anthropic.Tool = {
   name: "shell",

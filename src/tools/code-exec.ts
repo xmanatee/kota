@@ -4,8 +4,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
 import { extractPlots, readPlotFiles } from "../data/plot-capture.js";
 import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "../repl-session.js";
-import { which } from "../runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
+import { which } from "./runtime-check.js";
 
 export { cleanupSessions };
 

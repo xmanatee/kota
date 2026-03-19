@@ -1,7 +1,7 @@
 ---
 id: task-continue-source-tree-cleanup
 title: Continue source tree cleanup
-status: backlog
+status: done
 priority: p1
 area: structure
 summary: Reduce oversized directories and tighten file boundaries so the source tree stays legible.

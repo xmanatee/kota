@@ -18,7 +18,6 @@ import { AnthropicModelClient, type ModelClient } from "../model/model-client.js
 import type { DelegateBackend, ModelTiers } from "../model/model-router.js";
 import { routeModel } from "../model/model-router.js";
 import { isRetryable } from "../model/streaming.js";
-import { PromptStore } from "../prompt-template.js";
 import { maybeRetry } from "../tool-retry.js";
 import type { Transport } from "../transport.js";
 import {
@@ -29,6 +28,7 @@ import {
   extractModifiedFiles,
 } from "./delegate-format.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
+import { PromptStore } from "./prompt-template.js";
 
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
 export { buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";

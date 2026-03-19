@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PromptStore } from "../prompt-template.js";
 import { resetPromptStore, runPromptTemplate, setPromptStore } from "./prompt.js";
+import { PromptStore } from "./prompt-template.js";
 
 describe("prompt_template tool", () => {
 	let dir: string;
