@@ -5,7 +5,7 @@
  * AgentSession.send() path using mock clients. The LLM is mocked
  * but all tool execution is real.
  *
- * Addresses: NOTES.md "it should also be properly tested somehow" —
+ * Addresses: owner request for stronger autonomous/runtime testing —
  * delegate E2E tests and architect mode tests.
  */
 

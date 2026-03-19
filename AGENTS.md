@@ -1,7 +1,8 @@
 # KOTA
 
 KOTA uses repo-local docs, task files, and directory-level `AGENTS.md` files to
-explain structure, standards, and current priorities.
+explain structure, standards, current priorities, and how work moves through
+the repo.
 
 @docs/STANDARDS.md
 

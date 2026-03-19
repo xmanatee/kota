@@ -3,3 +3,4 @@ dist/
 logs/
 .loop-state
 .kota/
+__pycache__/

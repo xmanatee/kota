@@ -2,15 +2,23 @@
 
 ## Repository Surfaces
 
-- `docs/` is for durable reference docs and historical notes that still help.
+- `docs/` is for durable reference docs.
 - `tasks/` is the live work queue and the source of truth for outstanding work.
 - Local `AGENTS.md` files explain directory purpose and boundaries.
+- Git history and `.kota/runs/` are the historical record. Do not add parallel changelog, audit, archive, or lesson surfaces.
 
 ## Documentation
 
 - Keep docs concise, high-level, and current.
 - Do not duplicate code, tests, prompts, or other docs unless duplication changes decisions.
 - Prefer one clear source of truth per topic.
+
+## Engineering Rules
+
+- Do not add test-only production flags, hooks, or override parameters just to make tests easier.
+- Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
+- Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
+- Treat runtime, workflow, and core-loop changes as high-risk and verify them more thoroughly than routine edits.
 
 ## AGENTS.md Files
 

@@ -4,7 +4,7 @@
  * Tests the full chain: EventBus emits → manifest event handler triggers →
  * step pipeline executes tools → observable side effects (files on disk).
  *
- * Addresses: NOTES.md "properly tested" — event-triggered E2E tests,
+ * Addresses: owner request for stronger event-driven testing —
  * module event handler E2E tests.
  */
 

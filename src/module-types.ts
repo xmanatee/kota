@@ -3,7 +3,7 @@
  *
  * A module can register tools, CLI commands, HTTP routes, and event
  * subscriptions. Built-in features and third-party extensions use the
- * same protocol. See docs/archive/modular-architecture.md for the historical design context.
+ * same protocol.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";

@@ -13,7 +13,6 @@ const STATE_DIRS = [
 	"blocked",
 	"done",
 	"dropped",
-	"archive",
 ] as const;
 const REQUIRED_ATTRS = [
 	"id",
@@ -41,8 +40,20 @@ function listTaskFiles(state: (typeof STATE_DIRS)[number]): string[] {
 describe("repo task files", () => {
 	it("uses tasks as the single live work queue", () => {
 		expect(existsSync(TASK_ROOT)).toBe(true);
+		expect(existsSync(join(ROOT, "NOTES.md"))).toBe(false);
 		expect(existsSync(join(ROOT, "docs", "TODO.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "docs", "archive"))).toBe(false);
 		expect(existsSync(join(ROOT, "plans"))).toBe(false);
+		expect(existsSync(join(ROOT, "tasks", "archive"))).toBe(false);
+		expect(existsSync(join(ROOT, "CHANGELOG.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "CHANGELOG.archive.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "AUDIT.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "BUILDER_LESSONS.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "DESIGN.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "depth-log.md"))).toBe(false);
+		expect(existsSync(join(ROOT, "metrics.csv"))).toBe(false);
+		expect(existsSync(join(ROOT, "parse-log.py"))).toBe(false);
+		expect(existsSync(join(ROOT, "refresh-depth-log.py"))).toBe(false);
 	});
 
 	it("keeps AGENTS.md in every task state directory", () => {
@@ -57,24 +68,35 @@ describe("repo task files", () => {
 				const raw = readFileSync(file, "utf-8").trim();
 				const { attrs, body } = parseFlatFrontMatter(raw);
 
-				for (const attr of REQUIRED_ATTRS) {
-					expect(typeof attrs[attr]).toBe("string");
-					expect(String(attrs[attr]).trim().length).toBeGreaterThan(0);
-				}
-
 				expect(String(attrs.id)).toMatch(/^task-[a-z0-9-]+$/);
 				expect(basename(file, ".md")).toBe(String(attrs.id));
 				expect(["p0", "p1", "p2", "p3"]).toContain(String(attrs.priority));
 				expect(String(attrs.summary)).not.toContain("\n");
 
-				if (state === "archive") {
-					expect(["done", "dropped"]).toContain(String(attrs.status));
+				if (state === "inbox") {
+					for (const attr of [
+						"id",
+						"title",
+						"status",
+						"priority",
+						"summary",
+						"created_at",
+						"updated_at",
+					] as const) {
+						expect(typeof attrs[attr]).toBe("string");
+						expect(String(attrs[attr]).trim().length).toBeGreaterThan(0);
+					}
 				} else {
-					expect(String(attrs.status)).toBe(state);
-				}
+					for (const attr of REQUIRED_ATTRS) {
+						expect(typeof attrs[attr]).toBe("string");
+						expect(String(attrs[attr]).trim().length).toBeGreaterThan(0);
+					}
 
-				for (const section of REQUIRED_SECTIONS) {
-					expect(body).toContain(section);
+					expect(String(attrs.status)).toBe(state);
+
+					for (const section of REQUIRED_SECTIONS) {
+						expect(body).toContain(section);
+					}
 				}
 			}
 		}
