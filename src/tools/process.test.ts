@@ -159,8 +159,9 @@ describe("process tool", () => {
 
   describe("output truncation", () => {
     it("truncates output exceeding MAX_OUTPUT_CHARS", async () => {
-      // Each line is ~110 chars, 250 lines ≈ 27500 chars > 20000 limit
-      const cmd = "for i in $(seq 1 250); do printf 'X%.0s' $(seq 1 100); echo; done";
+      // Each line is 101 chars, 250 lines ≈ 25250 chars > 20000 limit
+      // Use python3 to avoid slow bash loop with seq subprocesses
+      const cmd = "python3 -c \"for _ in range(250): print('X'*100)\"";
       await runProcess({ action: "start", command: cmd });
       await new Promise((r) => setTimeout(r, 1500));
       const result = await runProcess({ action: "output", process_id: "p1", lines: 500 });
