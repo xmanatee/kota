@@ -1,6 +1,6 @@
 # Scheduler Subsystem
 
-Task scheduling, execution, and routing for autonomous and user-triggered actions.
+Task scheduling, reminder delivery, and daemon orchestration.
 
 ## Files
 
@@ -10,12 +10,10 @@ Task scheduling, execution, and routing for autonomous and user-triggered action
 | `schedule-parser.ts` | Parses time expressions, repeat intervals, and cron-like schedules |
 | `task-store.ts` | `TaskStore` — persistent task/todo list (file-based) |
 | `task-router.ts` | Classifies user prompts into task types for model routing |
-| `action-executor.ts` | `ActionExecutor` — runs scheduled actions via agent sessions |
-| `daemon.ts` | `Daemon` — long-running background process with idle task queue |
+| `daemon.ts` | `Daemon` — long-running background process hosting scheduler + workflows |
 
 ## Dependencies
 
 - `scheduler.ts` ← `schedule-parser.ts`, `../event-bus.ts`
-- `action-executor.ts` ← `scheduler.ts`, `../loop.ts`, `../transport.ts`
-- `daemon.ts` ← `scheduler.ts`, `task-store.ts`, `action-executor.ts`, `../loop.ts`
+- `daemon.ts` ← `scheduler.ts`, `task-store.ts`, `../workflow/runtime.ts`
 - `task-router.ts`, `task-store.ts` are mostly standalone

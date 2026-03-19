@@ -1,105 +1,87 @@
-/**
- * Daemon — long-running process hosting the event bus, scheduler, and idle tasks.
- *
- * Third piece of the self-hosting loop plan (plans/self-hosting-loop.md).
- * Provides an event-driven runtime where scheduled actions fire automatically,
- * idle tasks run when nothing else is active, and the process can self-restart
- * after code changes.
- */
-
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
-import { AgentSession } from "../loop.js";
 import { initModuleLogStore } from "../module-log.js";
 import { CliTransport, type Transport } from "../transport.js";
-import { ActionExecutor, partitionDueItems } from "./action-executor.js";
+import { WorkflowRuntime } from "../workflow/runtime.js";
+import type {
+  RegisteredWorkflowDefinitionInput,
+  WorkflowRunStatus,
+} from "../workflow/types.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
 
-export type IdleTask = {
-  name: string;
-  prompt: string;
-  /** Minimum time between runs in ms (default: no cooldown). */
-  cooldownMs?: number;
-};
-
 export type DaemonConfig = {
+  projectDir?: string;
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
-  idleTasks?: IdleTask[];
-  /** Scheduler poll interval in ms (default: 30000). */
+  idleIntervalMs?: number;
   pollIntervalMs?: number;
-  /** Watch dist/ for changes and exit with restart code (default: true). */
-  restartOnBuild?: boolean;
-  /** Action executor timeout in ms (default: 300000 = 5 min). */
-  actionTimeoutMs?: number;
-  /** Directory for daemon state persistence (default: ~/.kota). */
   stateDir?: string;
+  workflows?: readonly RegisteredWorkflowDefinitionInput[];
 };
 
 export type DaemonState = {
   startedAt: string;
-  idleCycles: number;
-  lastIdleTask?: string;
-  lastIdleTaskAt?: string;
+  completedRuns: number;
+  lastCompletedWorkflow?: string;
+  lastCompletedAt?: string;
+  lastCompletedStatus?: WorkflowRunStatus;
   pid: number;
 };
 
-/** Exit code signaling the daemon should be restarted by a wrapper. */
 export const RESTART_EXIT_CODE = 75;
 
 const STATE_FILE = "daemon-state.json";
-const IDLE_CHECK_INTERVAL = 5_000;
 const DEFAULT_POLL_INTERVAL = 30_000;
-const DEFAULT_ACTION_TIMEOUT = 300_000;
+const SIGNAL_STOP_TIMEOUT_MS = 5_000;
 
 export class Daemon {
-  private bus: EventBus;
-  private executor: ActionExecutor;
-  private transport: Transport;
-  private config: DaemonConfig;
-  private state: DaemonState;
-  private stateDir: string;
+  private readonly bus: EventBus;
+  private readonly transport: Transport;
+  private readonly config: DaemonConfig;
+  private readonly stateDir: string;
+  private readonly workflows: WorkflowRuntime;
+  private readonly projectDir: string;
 
+  private state: DaemonState;
   private stopSchedulerTimer: (() => void) | null = null;
   private stopBus: (() => void) | null = null;
-  private idleTimer: ReturnType<typeof setInterval> | null = null;
-  private distWatchTimer: ReturnType<typeof setInterval> | null = null;
-  private distMtime: number | null = null;
+  private stopWorkflowListener: (() => void) | null = null;
+  private stopRestartListener: (() => void) | null = null;
+  private restartRequested = false;
+  private restartReason: string | null = null;
   private running = false;
   private stopping = false;
   private shutdownHandler: (() => void) | null = null;
-  private activeIdleSession: AgentSession | null = null;
-  private idleTaskIndex = 0;
-  private lastIdleRunAt = new Map<string, number>();
-  private inflightActions = new Set<Promise<void>>();
 
   constructor(config: DaemonConfig) {
     this.config = config;
     this.transport = new CliTransport(config.verbose);
-    this.stateDir = config.stateDir ?? join(homedir(), ".kota");
+    this.projectDir = config.projectDir ?? process.cwd();
+    this.stateDir = config.stateDir ?? join(this.projectDir, ".kota");
 
     this.bus = initEventBus();
-    initTaskStore(process.cwd());
-    initScheduler(process.cwd());
-    initModuleLogStore(process.cwd());
+    initTaskStore(this.projectDir);
+    initScheduler(this.projectDir);
+    initModuleLogStore(this.projectDir);
 
-    this.executor = new ActionExecutor({
-      sessionOptions: {
-        model: config.model ?? config.config?.model,
-        verbose: config.verbose,
-        config: config.config,
-      },
-      timeoutMs: config.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT,
+    this.workflows = new WorkflowRuntime({
+      bus: this.bus,
+      projectDir: this.projectDir,
+      model: config.model ?? config.config?.model,
+      verbose: config.verbose,
+      config: config.config,
+      idleIntervalMs: config.idleIntervalMs,
+      onLog: (message) => this.log(message),
+      workflows: config.workflows,
     });
 
     this.state = this.loadState() ?? {
       startedAt: new Date().toISOString(),
-      idleCycles: 0,
+      completedRuns: 0,
       pid: process.pid,
     };
     this.state.pid = process.pid;
@@ -109,89 +91,70 @@ export class Daemon {
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
+    this.restartRequested = false;
+    this.restartReason = null;
 
     this.log("Daemon starting...");
     this.saveState();
 
     const scheduler = getScheduler();
-
-    // Connect scheduler to event bus for event-triggered items
     this.stopBus = scheduler.connectBus(this.bus, (items) => {
       this.handleDueItems(items);
     });
 
-    // Start time-based scheduler polling
     const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
     this.stopSchedulerTimer = scheduler.startTimer(pollMs, (items) => {
       this.handleDueItems(items);
     });
 
-    // Start idle task loop
-    if (this.config.idleTasks && this.config.idleTasks.length > 0) {
-      this.idleTimer = setInterval(() => this.checkIdleTasks(), IDLE_CHECK_INTERVAL);
-      this.idleTimer.unref();
-    }
+    this.stopWorkflowListener = this.bus.on("workflow.completed", (payload) => {
+      this.state.completedRuns += 1;
+      this.state.lastCompletedWorkflow = payload.workflow;
+      this.state.lastCompletedAt = new Date().toISOString();
+      this.state.lastCompletedStatus = payload.status;
+      this.saveState();
+      this.maybeRestart();
+    });
 
-    // Watch dist/ for changes (self-restart)
-    if (this.config.restartOnBuild !== false) {
-      this.distMtime = this.getDistMtime();
-      this.distWatchTimer = setInterval(() => this.checkDistChanged(), 5_000);
-      this.distWatchTimer.unref();
-    }
+    this.stopRestartListener = this.bus.on(
+      "runtime.restart_requested",
+      (payload) => {
+        this.requestRestart(payload.reason ?? "workflow requested restart");
+      },
+    );
 
-    // Signal handlers (stored for cleanup)
-    this.shutdownHandler = () => { this.stop(); };
+    this.workflows.start();
+
+    this.shutdownHandler = () => {
+      void this.stop(SIGNAL_STOP_TIMEOUT_MS);
+    };
     process.on("SIGINT", this.shutdownHandler);
     process.on("SIGTERM", this.shutdownHandler);
 
     this.log(`Daemon running (pid ${process.pid})`);
     this.log(`  Scheduler poll: ${pollMs}ms`);
-    this.log(`  Idle tasks: ${this.config.idleTasks?.length ?? 0}`);
+    this.log(`  Workflows: ${this.workflows.getDefinitionCount()}`);
     this.log(`  Pending schedules: ${scheduler.count()}`);
-    this.log(`  Dist watch: ${this.config.restartOnBuild !== false ? "on" : "off"}`);
 
-    // Keep process alive
     await new Promise<void>((resolve) => {
       const keepAlive = setInterval(() => {
         if (!this.running) {
           clearInterval(keepAlive);
           resolve();
+        } else {
+          this.maybeRestart();
         }
       }, 1_000);
-      keepAlive.unref();
     });
   }
 
-  async stop(): Promise<void> {
+  async stop(timeoutMs = 30_000): Promise<void> {
     if (this.stopping) return;
     this.stopping = true;
     this.log("Daemon shutting down...");
 
-    // Stop accepting new work
-    if (this.idleTimer) {
-      clearInterval(this.idleTimer);
-      this.idleTimer = null;
-    }
-    if (this.distWatchTimer) {
-      clearInterval(this.distWatchTimer);
-      this.distWatchTimer = null;
-    }
+    await this.workflows.stop(timeoutMs);
 
-    // Wait for active idle session to finish (with 30s timeout)
-    if (this.activeIdleSession) {
-      this.log("Waiting for active idle task to complete...");
-      const deadline = Date.now() + 30_000;
-      while (this.activeIdleSession && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (this.activeIdleSession) {
-        this.log("Idle task timed out, closing forcefully");
-        this.activeIdleSession.close(true);
-        this.activeIdleSession = null;
-      }
-    }
-
-    // Clean up scheduler connections (stops new items from firing)
     if (this.stopSchedulerTimer) {
       this.stopSchedulerTimer();
       this.stopSchedulerTimer = null;
@@ -200,20 +163,15 @@ export class Daemon {
       this.stopBus();
       this.stopBus = null;
     }
-
-    // Wait for in-flight actions to drain (with 10s timeout)
-    if (this.inflightActions.size > 0) {
-      this.log(`Waiting for ${this.inflightActions.size} in-flight action(s)...`);
-      const actionDeadline = Date.now() + 10_000;
-      while (this.inflightActions.size > 0 && Date.now() < actionDeadline) {
-        await new Promise((r) => setTimeout(r, 250));
-      }
-      if (this.inflightActions.size > 0) {
-        this.log(`${this.inflightActions.size} action(s) still running, proceeding with shutdown`);
-      }
+    if (this.stopWorkflowListener) {
+      this.stopWorkflowListener();
+      this.stopWorkflowListener = null;
+    }
+    if (this.stopRestartListener) {
+      this.stopRestartListener();
+      this.stopRestartListener = null;
     }
 
-    // Remove signal handlers
     if (this.shutdownHandler) {
       process.removeListener("SIGINT", this.shutdownHandler);
       process.removeListener("SIGTERM", this.shutdownHandler);
@@ -226,157 +184,55 @@ export class Daemon {
     this.log("Daemon stopped.");
   }
 
-  /** Get current daemon state (for status endpoints). */
   getState(): DaemonState {
     return { ...this.state };
   }
 
-  /** Check if the daemon is currently running. */
   isRunning(): boolean {
     return this.running && !this.stopping;
   }
 
-  /** Check if an idle task is currently active. */
-  isIdleActive(): boolean {
-    return this.activeIdleSession !== null;
+  hasActiveWorkflow(): boolean {
+    return this.workflows.isBusy();
   }
 
   private handleDueItems(items: import("./scheduler.js").ScheduledItem[]): void {
     if (!this.running || this.stopping) return;
-    const { actions, notifications } = partitionDueItems(items);
-
-    for (const item of notifications) {
+    for (const item of items) {
       this.log(`Reminder: ${item.description}`);
     }
+  }
 
-    for (const item of actions) {
-      if (!this.executor.canExecute()) {
-        this.log(`Skipped action "${item.description}" — too many running`);
-        continue;
-      }
-      this.log(`Running action: "${item.description}"...`);
-      const p = this.executor.execute(item).then((result) => {
-        if (result.error) {
-          this.log(`Action "${item.description}" failed: ${result.error}`);
-        } else {
-          this.log(`Action "${item.description}" completed (${Math.round(result.durationMs / 1000)}s)`);
-        }
-      }).catch((err) => {
-        this.log(`Action "${item.description}" error: ${(err as Error).message}`);
+  private maybeRestart(): void {
+    if (!this.restartRequested || this.stopping) return;
+    if (this.workflows.isBusy()) return;
+
+    const reason = this.restartReason ?? "workflow requested restart";
+    this.log(`Restarting daemon: ${reason}`);
+    this.saveState();
+    void this.stop()
+      .then(() => {
+        process.exitCode = RESTART_EXIT_CODE;
+      })
+      .catch((error) => {
+        this.log(`Restart shutdown failed: ${(error as Error).message}`);
       });
-      this.inflightActions.add(p);
-      p.finally(() => this.inflightActions.delete(p));
-    }
   }
 
-  private checkIdleTasks(): void {
-    if (this.stopping) return;
-    if (this.activeIdleSession) return;
-    if (this.executor.activeCount > 0) return;
-
-    const tasks = this.config.idleTasks;
-    if (!tasks || tasks.length === 0) return;
-
-    // Round-robin through idle tasks
-    const now = Date.now();
-    for (let attempt = 0; attempt < tasks.length; attempt++) {
-      const idx = (this.idleTaskIndex + attempt) % tasks.length;
-      const task = tasks[idx];
-
-      // Check cooldown
-      const lastRun = this.lastIdleRunAt.get(task.name);
-      if (lastRun && task.cooldownMs && now - lastRun < task.cooldownMs) {
-        continue;
-      }
-
-      this.idleTaskIndex = (idx + 1) % tasks.length;
-      this.runIdleTask(task);
-      return;
-    }
-  }
-
-  private runIdleTask(task: IdleTask): void {
-    this.log(`Starting idle task: "${task.name}"`);
-    this.lastIdleRunAt.set(task.name, Date.now());
-
-    let session: AgentSession;
-    try {
-      session = new AgentSession({
-        model: this.config.model ?? this.config.config?.model,
-        verbose: this.config.verbose,
-        transport: this.transport,
-        config: this.config.config,
-        label: `idle:${task.name}`,
-        noHistory: true,
-      });
-    } catch (err) {
-      this.log(`Idle task "${task.name}" failed to create session: ${(err as Error).message}`);
-      return;
-    }
-
-    this.activeIdleSession = session;
-
-    session.send(task.prompt).then(() => {
-      this.log(`Idle task "${task.name}" completed`);
-      this.state.idleCycles++;
-      this.state.lastIdleTask = task.name;
-      this.state.lastIdleTaskAt = new Date().toISOString();
-      this.saveState();
-    }).catch((err) => {
-      this.log(`Idle task "${task.name}" failed: ${(err as Error).message}`);
-    }).finally(() => {
-      session.close();
-      // Only clear if this is still the active session — a stale .finally()
-      // from a forcefully-closed session must not clobber a new lifecycle's ref.
-      if (this.activeIdleSession === session) {
-        this.activeIdleSession = null;
-      }
-    });
-  }
-
-  private checkDistChanged(): void {
-    if (this.stopping) return;
-    try {
-      const current = this.getDistMtime();
-      if (current === null || this.distMtime === null) return;
-
-      if (current > this.distMtime) {
-        this.log("dist/ changed — requesting restart");
-        this.saveState();
-
-        this.stop().then(() => {
-          process.exitCode = RESTART_EXIT_CODE;
-        }).catch((err) => {
-          this.log(`Restart shutdown failed: ${(err as Error).message}`);
-        });
-      }
-    } catch (err) {
-      this.log(`Dist watch error: ${(err as Error).message}`);
-    }
-  }
-
-  private getDistMtime(): number | null {
-    try {
-      const distDir = join(process.cwd(), "dist");
-      if (!existsSync(distDir)) return null;
-
-      const dirStat = statSync(distDir);
-      const cliPath = join(distDir, "cli.js");
-      if (existsSync(cliPath)) {
-        const cliStat = statSync(cliPath);
-        return Math.max(dirStat.mtimeMs, cliStat.mtimeMs);
-      }
-      return dirStat.mtimeMs;
-    } catch {
-      return null;
-    }
+  private requestRestart(reason: string): void {
+    if (this.restartRequested) return;
+    this.restartRequested = true;
+    this.restartReason = reason;
+    this.workflows.setDispatchPaused(true);
+    this.log(`${reason} — restart requested`);
+    this.maybeRestart();
   }
 
   private loadState(): DaemonState | null {
     const path = join(this.stateDir, STATE_FILE);
     if (!existsSync(path)) return null;
     try {
-      return JSON.parse(readFileSync(path, "utf-8"));
+      return JSON.parse(readFileSync(path, "utf-8")) as DaemonState;
     } catch {
       return null;
     }
@@ -385,12 +241,10 @@ export class Daemon {
   private saveState(): void {
     const path = join(this.stateDir, STATE_FILE);
     try {
-      if (!existsSync(this.stateDir)) {
-        mkdirSync(this.stateDir, { recursive: true });
-      }
+      if (!existsSync(this.stateDir)) mkdirSync(this.stateDir, { recursive: true });
       writeFileSync(path, JSON.stringify(this.state, null, 2), "utf-8");
     } catch {
-      // State persistence is best-effort
+      // Daemon state persistence is best-effort.
     }
   }
 

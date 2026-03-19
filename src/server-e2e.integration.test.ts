@@ -139,7 +139,7 @@ describe("HTTP Server E2E", () => {
       const body = JSON.parse(res.body);
       expect(body.status).toBe("ok");
       expect(typeof body.sessions).toBe("number");
-      expect(typeof body.activeActions).toBe("number");
+      expect(typeof body.pendingSchedules).toBe("number");
     });
 
     it("OPTIONS returns 204 with CORS headers", async () => {
@@ -522,7 +522,6 @@ describe("HTTP Server E2E", () => {
       expect(body).toHaveProperty("daemon");
       expect(body).toHaveProperty("server");
       expect(typeof body.server.sessions).toBe("number");
-      expect(typeof body.server.activeActions).toBe("number");
       expect(typeof body.server.pendingSchedules).toBe("number");
       expect(typeof body.server.eventBusListeners).toBe("number");
     });

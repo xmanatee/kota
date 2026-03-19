@@ -9,7 +9,6 @@
 
 import type { KotaConfig } from "./config.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
-import { ActionExecutor, type ActionResult, partitionDueItems } from "./scheduler/action-executor.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler/scheduler.js";
 import { type AgentEvent, NullTransport, ProxyTransport, type Transport } from "./transport.js";
 
@@ -187,7 +186,6 @@ export class TelegramBot {
   private offset = 0;
   private options: TelegramBotOptions;
   private stopSchedulerTimer: (() => void) | null = null;
-  private actionExecutor: ActionExecutor | null = null;
 
   constructor(options: TelegramBotOptions) {
     this.token = options.token;
@@ -230,40 +228,15 @@ export class TelegramBot {
     return this.sessions.size;
   }
 
-  /** Start the scheduler timer for reminders and autonomous actions. */
+  /** Start the scheduler timer for reminders. */
   private startScheduler(): void {
     initScheduler(process.cwd());
     const scheduler = getScheduler();
 
-    this.actionExecutor = new ActionExecutor({
-      sessionOptions: {
-        model: this.options.model ?? this.options.config?.model,
-        verbose: this.options.verbose ?? this.options.config?.verbose,
-        config: this.options.config,
-      },
-    });
-
     this.stopSchedulerTimer = scheduler.startTimer(SCHEDULER_CHECK_MS, (dueItems) => {
       if (!this.running) return;
-      const { actions, notifications } = partitionDueItems(dueItems);
-
-      for (const item of notifications) {
+      for (const item of dueItems) {
         this.broadcastToChats(`\u23f0 Reminder: ${item.description}`);
-      }
-
-      for (const item of actions) {
-        if (!this.actionExecutor?.canExecute()) {
-          this.broadcastToChats(`Skipped action "${item.description}" \u2014 too many running`);
-          continue;
-        }
-
-        this.broadcastToChats(`Running action: "${item.description}"...`);
-
-        this.actionExecutor.execute(item).then((result) => {
-          this.broadcastActionResult(result);
-        }).catch((err) => {
-          console.error(`[kota-telegram] Action "${item.description}" error:`, (err as Error).message);
-        });
       }
     });
 
@@ -276,20 +249,6 @@ export class TelegramBot {
   private broadcastToChats(text: string): void {
     for (const chatId of this.sessions.keys()) {
       this.sendText(chatId, text);
-    }
-  }
-
-  /** Deliver an action result to all active chats. */
-  private broadcastActionResult(result: ActionResult): void {
-    if (result.error) {
-      this.broadcastToChats(`Action "${result.item.description}" failed: ${result.error}`);
-    } else {
-      const duration = Math.round(result.durationMs / 1000);
-      let msg = `Action "${result.item.description}" completed (${duration}s)`;
-      if (result.result) {
-        msg += `\n\n${result.result}`;
-      }
-      this.broadcastToChats(msg);
     }
   }
 

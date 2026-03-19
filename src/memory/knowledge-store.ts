@@ -27,6 +27,10 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+	parseFlatFrontMatter,
+	serializeFlatFrontMatter,
+} from "../frontmatter.js";
 
 export type KnowledgeEntry = {
 	id: string;
@@ -56,29 +60,7 @@ export function parseFrontMatter(raw: string): {
 	attrs: Record<string, string | string[]>;
 	body: string;
 } {
-	const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-	if (!match) return { attrs: {}, body: raw };
-
-	const attrs: Record<string, string | string[]> = {};
-	for (const line of match[1].split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed || trimmed.startsWith("#")) continue;
-		const colonIdx = trimmed.indexOf(":");
-		if (colonIdx < 1) continue;
-		const key = trimmed.slice(0, colonIdx).trim();
-		const val = trimmed.slice(colonIdx + 1).trim();
-		// Array: [item1, item2]
-		if (val.startsWith("[") && val.endsWith("]")) {
-			attrs[key] = val
-				.slice(1, -1)
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-		} else {
-			attrs[key] = val;
-		}
-	}
-	return { attrs, body: match[2] };
+	return parseFlatFrontMatter(raw);
 }
 
 /** Serialize attributes + body into a markdown file with YAML front matter. */
@@ -86,17 +68,7 @@ export function serializeFrontMatter(
 	attrs: Record<string, string | string[]>,
 	body: string,
 ): string {
-	const lines: string[] = ["---"];
-	for (const [key, val] of Object.entries(attrs)) {
-		if (Array.isArray(val)) {
-			lines.push(`${key}: [${val.join(", ")}]`);
-		} else {
-			lines.push(`${key}: ${val}`);
-		}
-	}
-	lines.push("---");
-	lines.push(body);
-	return lines.join("\n");
+	return serializeFlatFrontMatter(attrs, body);
 }
 
 // --- Slug generation ---

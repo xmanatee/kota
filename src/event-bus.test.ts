@@ -52,11 +52,32 @@ describe("EventBus", () => {
   it("once() auto-unsubscribes after first call", () => {
     const bus = new EventBus();
     const handler = vi.fn();
-    bus.once("action.start", handler);
-    bus.emit("action.start", { itemId: 1, description: "test" });
-    bus.emit("action.start", { itemId: 2, description: "test2" });
+    bus.once("workflow.started", handler);
+    bus.emit("workflow.started", {
+      workflow: "builder",
+      runId: "r1",
+      triggerEvent: "runtime.idle",
+      definitionPath: "src/workflows/builder/workflow.ts",
+      runDir: ".kota/runs/r1",
+      startedAt: "2026-01-01T00:00:00Z",
+    });
+    bus.emit("workflow.started", {
+      workflow: "improver",
+      runId: "r2",
+      triggerEvent: "workflow.completed",
+      definitionPath: "src/workflows/improver/workflow.ts",
+      runDir: ".kota/runs/r2",
+      startedAt: "2026-01-01T00:00:01Z",
+    });
     expect(handler).toHaveBeenCalledOnce();
-    expect(handler).toHaveBeenCalledWith({ itemId: 1, description: "test" });
+    expect(handler).toHaveBeenCalledWith({
+      workflow: "builder",
+      runId: "r1",
+      triggerEvent: "runtime.idle",
+      definitionPath: "src/workflows/builder/workflow.ts",
+      runDir: ".kota/runs/r1",
+      startedAt: "2026-01-01T00:00:00Z",
+    });
   });
 
   it("once() returns an unsubscribe function that works before delivery", () => {
@@ -73,15 +94,31 @@ describe("EventBus", () => {
     const envelopes: BusEnvelope[] = [];
     bus.on("*", (e) => envelopes.push(e));
     bus.emit("session.start", { sessionId: "s1" });
-    bus.emit("action.complete", { itemId: 1, durationMs: 50 });
+    bus.emit("workflow.completed", {
+      workflow: "builder",
+      runId: "r1",
+      status: "success",
+      triggerEvent: "runtime.idle",
+      durationMs: 50,
+      definitionPath: "src/workflows/builder/workflow.ts",
+      runDir: ".kota/runs/r1",
+    });
     expect(envelopes).toHaveLength(2);
     expect(envelopes[0]).toEqual({
       type: "session.start",
       payload: { sessionId: "s1" },
     });
     expect(envelopes[1]).toEqual({
-      type: "action.complete",
-      payload: { itemId: 1, durationMs: 50 },
+      type: "workflow.completed",
+      payload: {
+        workflow: "builder",
+        runId: "r1",
+        status: "success",
+        triggerEvent: "runtime.idle",
+        durationMs: 50,
+        definitionPath: "src/workflows/builder/workflow.ts",
+        runDir: ".kota/runs/r1",
+      },
     });
   });
 

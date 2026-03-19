@@ -1,285 +1,225 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SDKMessage, SDKModule } from "./types.js";
+import type { SDKMessage } from "./types.js";
 
-/** Create a mock SDK module that yields the given messages from query(). */
-function mockSDK(messages: SDKMessage[]): SDKModule {
-	return {
-		query: () => ({
-			async *[Symbol.asyncIterator]() {
-				for (const m of messages) yield m;
-			},
-		}),
-	};
+const mockQuery = vi.fn();
+const mockSpawnSync = vi.fn();
+
+vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
+  query: (...args: unknown[]) => mockQuery(...args),
+}));
+
+vi.mock("node:child_process", () => ({
+  spawnSync: (...args: unknown[]) => mockSpawnSync(...args),
+}));
+
+import {
+  buildQueryOptions,
+  detectLocalClaudeCodeExecutable,
+  executeWithAgentSDK,
+} from "./executor.js";
+
+function makeIterable(messages: SDKMessage[]): AsyncIterable<SDKMessage> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const message of messages) yield message;
+    },
+  };
 }
 
-/** Create a writable buffer for capturing output. */
-function mockWriter() {
-	const chunks: string[] = [];
-	return {
-		write(s: string) {
-			chunks.push(s);
-			return true;
-		},
-		get text() {
-			return chunks.join("");
-		},
-	};
+function makeWriter() {
+  const chunks: string[] = [];
+  return {
+    write(text: string) {
+      chunks.push(text);
+      return true;
+    },
+    get text() {
+      return chunks.join("");
+    },
+  };
 }
 
-// Mock the dynamic import so tests don't require the real SDK
-vi.mock("@anthropic-ai/claude-agent-sdk", () => {
-	throw new Error("SDK not installed");
-});
+describe("agent-sdk executor", () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+    mockSpawnSync.mockReset();
+    mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+    delete process.env.CLAUDE_CODE_EXECUTABLE;
+  });
 
-describe("AgentSDKExecutor", () => {
-	beforeEach(() => {
-		vi.resetModules();
-	});
+  it("streams assistant text and returns final result metadata", async () => {
+    mockQuery.mockReturnValue(
+      makeIterable([
+        { type: "system", subtype: "init", session_id: "sess-123" },
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "Hello " }] },
+        },
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "world" }] },
+        },
+        {
+          type: "result",
+          result: "Final answer",
+          num_turns: 2,
+          total_cost_usd: 0.12,
+          subtype: "success",
+        },
+      ]),
+    );
 
-	describe("executeWithAgentSDK", () => {
-		it("streams assistant text to writer and returns result", async () => {
-			const messages: SDKMessage[] = [
-				{ type: "system", sessionId: "sess-123" },
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "Hello, " }],
-				},
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "world!" }],
-				},
-			];
+    const writer = makeWriter();
+    const result = await executeWithAgentSDK("test prompt", {}, writer);
 
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
+    expect(writer.text).toBe("Hello world");
+    expect(result.text).toBe("Final answer");
+    expect(result.streamedText).toBe("Hello world");
+    expect(result.sessionId).toBe("sess-123");
+    expect(result.turns).toBe(2);
+    expect(result.totalCostUsd).toBe(0.12);
+    expect(result.subtype).toBe("success");
+    expect(result.isError).toBe(false);
+  });
 
-			const writer = mockWriter();
-			const result = await executeWithAgentSDK("test", {}, writer);
+  it("supports top-level content blocks when present", async () => {
+    mockQuery.mockReturnValue(
+      makeIterable([
+        {
+          type: "assistant",
+          content: [
+            { type: "text", text: "one " },
+            { type: "tool_use" },
+            { type: "text", text: "two" },
+          ],
+        },
+      ]),
+    );
 
-			expect(result.text).toBe("Hello, world!");
-			expect(result.sessionId).toBe("sess-123");
-			expect(result.turns).toBe(2);
-			expect(writer.text).toBe("Hello, world!");
+    const writer = makeWriter();
+    const result = await executeWithAgentSDK("test prompt", {}, writer);
 
-			vi.doUnmock("@anthropic-ai/claude-agent-sdk");
-		});
+    expect(writer.text).toBe("one two");
+    expect(result.text).toBe("one two");
+    expect(result.turns).toBe(1);
+    expect(result.isError).toBe(false);
+  });
 
-		it("handles empty content blocks", async () => {
-			const messages: SDKMessage[] = [
-				{ type: "assistant", content: [] },
-				{ type: "assistant", content: [{ type: "tool_use" }] },
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "done" }],
-				},
-			];
+  it("marks error result subtypes as errors", async () => {
+    mockQuery.mockReturnValue(
+      makeIterable([
+        {
+          type: "result",
+          result: "Stopped at turn limit",
+          subtype: "error_max_turns",
+          is_error: true,
+        },
+      ]),
+    );
 
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
+    const result = await executeWithAgentSDK("test prompt", {}, makeWriter());
 
-			const writer = mockWriter();
-			const result = await executeWithAgentSDK("test", {}, writer);
+    expect(result.subtype).toBe("error_max_turns");
+    expect(result.isError).toBe(true);
+  });
 
-			expect(result.text).toBe("done");
-			expect(result.turns).toBe(3);
-		});
+  it("passes strict SDK options through to query()", async () => {
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: "/usr/local/bin/claude\n" });
+    mockQuery.mockReturnValue(
+      makeIterable([{ type: "result", result: "done", subtype: "success" }]),
+    );
 
-		it("handles messages without content", async () => {
-			const messages: SDKMessage[] = [
-				{ type: "system", sessionId: "s1" },
-				{ type: "status", message: "working..." },
-				{ type: "assistant" },
-			];
+    await executeWithAgentSDK("my task", {
+      model: "claude-sonnet-4-6",
+      cwd: "/tmp/project",
+      maxTurns: 12,
+      maxBudgetUsd: 1.5,
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        append: "extra",
+      },
+      permissionMode: "bypassPermissions",
+      allowedTools: ["Read", "Edit"],
+      disallowedTools: ["Bash"],
+      persistSession: false,
+      settingSources: ["project"],
+      enableFileCheckpointing: true,
+    });
 
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery).toHaveBeenCalledWith({
+      prompt: "my task",
+      options: {
+        model: "claude-sonnet-4-6",
+        cwd: "/tmp/project",
+        maxTurns: 12,
+        maxBudgetUsd: 1.5,
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          append: "extra",
+        },
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
+        allowedTools: ["Read", "Edit"],
+        disallowedTools: ["Bash"],
+        persistSession: false,
+        settingSources: ["project"],
+        enableFileCheckpointing: true,
+        pathToClaudeCodeExecutable: "/usr/local/bin/claude",
+        abortController: undefined,
+        effort: undefined,
+      },
+    });
+  });
 
-			const writer = mockWriter();
-			const result = await executeWithAgentSDK("test", {}, writer);
+  it("detects a locally installed claude executable", () => {
+    mockSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stdout: "/Users/test/.local/bin/claude\n",
+    });
 
-			expect(result.text).toBe("");
-			expect(result.sessionId).toBe("s1");
-			expect(result.turns).toBe(1);
-		});
+    expect(detectLocalClaudeCodeExecutable()).toBe(
+      "/Users/test/.local/bin/claude",
+    );
+  });
 
-		it("writes verbose status messages to stderr", async () => {
-			const messages: SDKMessage[] = [
-				{ type: "status", message: "Reading file..." },
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "result" }],
-				},
-			];
+  it("prefers CLAUDE_CODE_EXECUTABLE over PATH lookup", () => {
+    process.env.CLAUDE_CODE_EXECUTABLE = "/custom/claude";
 
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
+    expect(detectLocalClaudeCodeExecutable()).toBe("/custom/claude");
+    expect(mockSpawnSync).not.toHaveBeenCalled();
+  });
 
-			const stderrSpy = vi
-				.spyOn(process.stderr, "write")
-				.mockReturnValue(true);
-			const writer = mockWriter();
+  it("writes verbose status messages to stderr", async () => {
+    mockQuery.mockReturnValue(
+      makeIterable([
+        {
+          type: "system",
+          subtype: "task_started",
+          description: "Running tests",
+        },
+        { type: "result", result: "done", subtype: "success" },
+      ]),
+    );
 
-			await executeWithAgentSDK("test", { verbose: true }, writer);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    await executeWithAgentSDK("task", { verbose: true }, makeWriter());
 
-			expect(stderrSpy).toHaveBeenCalledWith(
-				"[agent-sdk] Reading file...\n",
-			);
-			stderrSpy.mockRestore();
-		});
+    expect(stderrSpy).toHaveBeenCalledWith("[agent-sdk] Running tests\n");
+    stderrSpy.mockRestore();
+  });
 
-		it("does not write status messages when not verbose", async () => {
-			const messages: SDKMessage[] = [
-				{ type: "status", message: "Reading file..." },
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "result" }],
-				},
-			];
+  it("buildQueryOptions defaults to bypassPermissions", () => {
+    mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
-
-			const stderrSpy = vi
-				.spyOn(process.stderr, "write")
-				.mockReturnValue(true);
-			const writer = mockWriter();
-
-			await executeWithAgentSDK("test", {}, writer);
-
-			expect(stderrSpy).not.toHaveBeenCalled();
-			stderrSpy.mockRestore();
-		});
-
-		it("passes options through to SDK query", async () => {
-			let capturedOpts: unknown;
-			const sdk: SDKModule = {
-				query: (params) => {
-					capturedOpts = params;
-					return {
-						async *[Symbol.asyncIterator]() {
-							yield {
-								type: "assistant",
-								content: [{ type: "text", text: "ok" }],
-							};
-						},
-					};
-				},
-			};
-
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => sdk);
-			const { executeWithAgentSDK } = await import("./executor.js");
-
-			const writer = mockWriter();
-			await executeWithAgentSDK(
-				"my task",
-				{
-					model: "claude-haiku-4-5-20251001",
-					maxTurns: 10,
-					maxBudgetUsd: 0.5,
-					cwd: "/tmp/test",
-					systemPrompt: "You are helpful.",
-					allowedTools: ["Read", "Write"],
-					disallowedTools: ["Bash"],
-					permissionMode: "dontAsk",
-				},
-				writer,
-			);
-
-			const opts = capturedOpts as {
-				prompt: string;
-				options: Record<string, unknown>;
-			};
-			expect(opts.prompt).toBe("my task");
-			expect(opts.options.model).toBe("claude-haiku-4-5-20251001");
-			expect(opts.options.maxTurns).toBe(10);
-			expect(opts.options.maxBudgetUsd).toBe(0.5);
-			expect(opts.options.cwd).toBe("/tmp/test");
-			expect(opts.options.systemPrompt).toBe("You are helpful.");
-			expect(opts.options.allowedTools).toEqual(["Read", "Write"]);
-			expect(opts.options.disallowedTools).toEqual(["Bash"]);
-			expect(opts.options.permissionMode).toBe("dontAsk");
-
-			vi.doUnmock("@anthropic-ai/claude-agent-sdk");
-		});
-
-		it("defaults maxTurns to 50 and permissionMode to bypassPermissions", async () => {
-			let capturedOpts: unknown;
-			const sdk: SDKModule = {
-				query: (params) => {
-					capturedOpts = params;
-					return {
-						async *[Symbol.asyncIterator]() {
-							yield {
-								type: "assistant",
-								content: [{ type: "text", text: "ok" }],
-							};
-						},
-					};
-				},
-			};
-
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => sdk);
-			const { executeWithAgentSDK } = await import("./executor.js");
-
-			await executeWithAgentSDK("task", {}, mockWriter());
-
-			const opts = capturedOpts as {
-				options: Record<string, unknown>;
-			};
-			expect(opts.options.maxTurns).toBe(50);
-			expect(opts.options.permissionMode).toBe("bypassPermissions");
-
-			vi.doUnmock("@anthropic-ai/claude-agent-sdk");
-		});
-
-		it("handles multi-block assistant messages", async () => {
-			const messages: SDKMessage[] = [
-				{
-					type: "assistant",
-					content: [
-						{ type: "text", text: "first " },
-						{ type: "tool_use" },
-						{ type: "text", text: "second" },
-					],
-				},
-			];
-
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
-
-			const writer = mockWriter();
-			const result = await executeWithAgentSDK("test", {}, writer);
-
-			expect(result.text).toBe("first second");
-		});
-
-		it("returns zero turns when no assistant messages", async () => {
-			const messages: SDKMessage[] = [
-				{ type: "system", sessionId: "s1" },
-				{ type: "status", message: "initializing" },
-			];
-
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => mockSDK(messages));
-			const { executeWithAgentSDK } = await import("./executor.js");
-
-			const result = await executeWithAgentSDK("test", {}, mockWriter());
-
-			expect(result.turns).toBe(0);
-			expect(result.text).toBe("");
-			expect(result.sessionId).toBe("s1");
-		});
-	});
-
-	describe("loadSDK error", () => {
-		it("throws helpful error when SDK is not installed", async () => {
-			vi.doMock("@anthropic-ai/claude-agent-sdk", () => {
-				throw new Error("Cannot find module");
-			});
-			const { executeWithAgentSDK } = await import("./executor.js");
-
-			await expect(
-				executeWithAgentSDK("test", {}, mockWriter()),
-			).rejects.toThrow("@anthropic-ai/claude-agent-sdk is not installed");
-		});
-	});
+    expect(buildQueryOptions({ cwd: "/tmp/project" })).toMatchObject({
+      cwd: "/tmp/project",
+      maxTurns: undefined,
+      permissionMode: "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
+      pathToClaudeCodeExecutable: undefined,
+    });
+  });
 });

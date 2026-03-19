@@ -11,21 +11,15 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:workflow-critical": "vitest run src/agent-sdk/executor.test.ts src/event-bus.test.ts src/modules/daemon.test.ts src/scheduler/daemon.test.ts src/workflow/runtime.test.ts src/workflow/validation.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.77",
     "@anthropic-ai/sdk": "^0.52.0",
     "commander": "^13.1.0",
-    "glob": "^11.0.1"
-  },
-  "peerDependencies": {
-    "@anthropic-ai/claude-agent-sdk": ">=0.2.0"
-  },
-  "peerDependenciesMeta": {
-    "@anthropic-ai/claude-agent-sdk": {
-      "optional": true
-    }
+    "glob": "^13.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",

@@ -1,19 +1,12 @@
 /**
  * Scheduler subsystem — scheduling, task management, daemon mode,
- * action execution, and task routing.
+ * and task routing.
  */
 
-export {
-	ActionExecutor,
-	type ActionExecutorOptions,
-	type ActionResult,
-	partitionDueItems,
-} from "./action-executor.js";
 export {
 	Daemon,
 	type DaemonConfig,
 	type DaemonState,
-	type IdleTask,
 	RESTART_EXIT_CODE,
 } from "./daemon.js";
 export {

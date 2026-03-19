@@ -33,23 +33,19 @@ describe("webhook → event bus → scheduler integration", () => {
     resetEventBus();
   });
 
-  it("event trigger fires when matching event is emitted", () => {
-    scheduler.addEventTrigger("Run tests on deploy", "deploy.complete", {
-      action: "npm test",
-    });
+ it("event trigger fires when matching event is emitted", () => {
+    scheduler.addEventTrigger("Run tests on deploy", "deploy.complete");
 
     bus.emit("deploy.complete", { repo: "my-app" });
 
     expect(firedItems).toHaveLength(1);
     expect(firedItems[0]).toHaveLength(1);
     expect(firedItems[0][0].description).toBe("Run tests on deploy");
-    expect(firedItems[0][0].action).toBe("npm test");
   });
 
   it("event trigger with filter only fires when payload matches", () => {
     scheduler.addEventTrigger("Deploy staging", "deploy.complete", {
       filter: { env: "staging" },
-      action: "deploy staging",
     });
 
     // Non-matching payload
@@ -65,7 +61,6 @@ describe("webhook → event bus → scheduler integration", () => {
   it("repeat event trigger re-arms after firing", () => {
     scheduler.addEventTrigger("Log every session end", "session.end", {
       repeat: true,
-      action: "log session",
     });
 
     bus.emit("session.end", { sessionId: "a", durationMs: 100 });
@@ -77,7 +72,6 @@ describe("webhook → event bus → scheduler integration", () => {
   it("non-repeat event trigger fires only once", () => {
     scheduler.addEventTrigger("One-shot cleanup", "session.end", {
       repeat: false,
-      action: "cleanup",
     });
 
     bus.emit("session.end", { sessionId: "a", durationMs: 100 });
@@ -87,8 +81,8 @@ describe("webhook → event bus → scheduler integration", () => {
   });
 
   it("multiple triggers can fire from the same event", () => {
-    scheduler.addEventTrigger("Action A", "build.done", { action: "task-a" });
-    scheduler.addEventTrigger("Action B", "build.done", { action: "task-b" });
+    scheduler.addEventTrigger("Action A", "build.done");
+    scheduler.addEventTrigger("Action B", "build.done");
 
     bus.emit("build.done", {});
 
@@ -99,9 +93,7 @@ describe("webhook → event bus → scheduler integration", () => {
   });
 
   it("unrelated events do not trigger items", () => {
-    scheduler.addEventTrigger("On deploy", "deploy.complete", {
-      action: "run deploy",
-    });
+    scheduler.addEventTrigger("On deploy", "deploy.complete");
 
     bus.emit("session.end", { sessionId: "x", durationMs: 50 });
 
@@ -109,9 +101,7 @@ describe("webhook → event bus → scheduler integration", () => {
   });
 
   it("cancelled event triggers do not fire", () => {
-    const item = scheduler.addEventTrigger("Should not fire", "test.event", {
-      action: "noop",
-    });
+    const item = scheduler.addEventTrigger("Should not fire", "test.event");
     scheduler.cancel(item.id);
 
     bus.emit("test.event", {});

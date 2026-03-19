@@ -1,67 +1,75 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { resetEventBus } from "../event-bus.js";
+import { registerWorkflowDefinition } from "../workflow/validation.js";
 import { Daemon, type DaemonConfig, RESTART_EXIT_CODE } from "./daemon.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 
-// Mock the AgentSession to avoid real API calls
-vi.mock("../loop.js", () => {
+vi.mock("../agent-sdk/index.js", async () => {
+  const actual = await vi.importActual("../agent-sdk/index.js");
   return {
-    AgentSession: class MockAgentSession {
-      private label: string | undefined;
-      constructor(opts: Record<string, unknown>) {
-        this.label = opts.label as string | undefined;
-      }
-      async send(prompt: string): Promise<string> {
-        return `Mock response to: ${prompt.slice(0, 50)}`;
-      }
-      close(): void {}
-    },
-    runAgentLoop: vi.fn(),
+    ...actual,
+    executeWithAgentSDK: vi.fn(),
   };
 });
 
-// Mock task-store to avoid filesystem side effects
 vi.mock("./task-store.js", () => ({
   initTaskStore: vi.fn(),
 }));
 
+const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe("Daemon", () => {
-  let storageDir: string;
+  let projectDir: string;
+  let stateDir: string;
 
   beforeEach(() => {
-    storageDir = join(tmpdir(), `kota-daemon-test-${Date.now()}`);
-    mkdirSync(storageDir, { recursive: true });
+    projectDir = join(
+      tmpdir(),
+      `kota-daemon-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    stateDir = join(projectDir, ".kota");
+    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
     resetEventBus();
     resetScheduler();
+    mockedExecuteWithAgentSDK.mockReset();
   });
 
   afterEach(() => {
     resetEventBus();
     resetScheduler();
-    if (existsSync(storageDir)) {
-      rmSync(storageDir, { recursive: true, force: true });
-    }
+    rmSync(projectDir, { recursive: true, force: true });
   });
 
   function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
     return new Daemon({
-      model: "claude-haiku-4-5-20251001",
+      projectDir,
+      model: "claude-sonnet-4-6",
       verbose: false,
-      restartOnBuild: false, // Don't watch dist/ in tests
-      pollIntervalMs: 60_000, // Long poll to avoid timer interference
-      stateDir: storageDir, // Isolate state from other tests
+      idleIntervalMs: 1000,
+      pollIntervalMs: 60_000,
+      stateDir,
       ...overrides,
     });
   }
 
   it("constructs without errors", () => {
     const daemon = makeDaemon();
-    expect(daemon).toBeDefined();
     expect(daemon.isRunning()).toBe(false);
-    expect(daemon.isIdleActive()).toBe(false);
+    expect(daemon.hasActiveWorkflow()).toBe(false);
   });
 
   it("exports RESTART_EXIT_CODE as 75", () => {
@@ -69,560 +77,302 @@ describe("Daemon", () => {
   });
 
   it("starts and stops cleanly", async () => {
-    const daemon = makeDaemon();
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      subtype: "success",
+      isError: false,
+    });
 
-    // Start in background, then stop immediately
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
     const startPromise = daemon.start();
+    await wait(60);
+
     expect(daemon.isRunning()).toBe(true);
-
     await daemon.stop();
-    expect(daemon.isRunning()).toBe(false);
-
-    // start() should resolve after stop
     await startPromise;
+    expect(daemon.isRunning()).toBe(false);
   });
 
-  it("getState returns daemon state", async () => {
-    const daemon = makeDaemon();
-    const state = daemon.getState();
+  it("records completed autonomous runs in daemon state", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      sessionId: "sess-1",
+      turns: 2,
+      subtype: "success",
+      isError: false,
+    });
 
-    expect(state.pid).toBe(process.pid);
-    expect(state.idleCycles).toBe(0);
-    expect(state.startedAt).toBeTruthy();
-  });
-
-  it("stop is idempotent", async () => {
-    const daemon = makeDaemon();
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
     const startPromise = daemon.start();
+    await wait(80);
+
+    const state = daemon.getState();
+    expect(state.completedRuns).toBeGreaterThanOrEqual(1);
+    expect(state.lastCompletedWorkflow).toBe("builder");
+    expect(state.lastCompletedStatus).toBe("success");
 
     await daemon.stop();
-    await daemon.stop(); // second stop should be no-op
-    expect(daemon.isRunning()).toBe(false);
-
     await startPromise;
   });
 
-  it("handles scheduled items when they fire", async () => {
-    initScheduler(process.cwd(), storageDir);
+  it("handles scheduled notification items when they fire", async () => {
+    initScheduler(projectDir, stateDir);
     const scheduler = getScheduler();
-
-    // Add a notification-only scheduled item (no action)
     scheduler.add("Test reminder", new Date(Date.now() - 1000));
 
-    const daemon = makeDaemon({ pollIntervalMs: 100 });
+    const daemon = makeDaemon({ pollIntervalMs: 100, workflows: [] });
     const startPromise = daemon.start();
-
-    // Wait for the scheduler timer to fire
-    await new Promise((r) => setTimeout(r, 300));
+    await wait(300);
 
     await daemon.stop();
     await startPromise;
 
-    // The item should have been marked as fired
-    const items = scheduler.list();
-    const fired = items.filter((i) => i.status === "fired");
+    const fired = scheduler.list().filter((item) => item.status === "fired");
     expect(fired.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("runs idle tasks when nothing else is active", async () => {
-    const daemon = makeDaemon({
-      idleTasks: [
-        { name: "test-idle", prompt: "Do a quick health check" },
-      ],
-      pollIntervalMs: 60_000,
-    });
-
+  it("saves daemon state in the project-local state dir", async () => {
+    const daemon = makeDaemon({ workflows: [] });
     const startPromise = daemon.start();
-
-    // Idle check runs every 5s in production, but the mock session resolves instantly
-    // Wait a bit for the idle check to trigger
-    await new Promise((r) => setTimeout(r, 7_000));
-
-    const state = daemon.getState();
-    // The idle task should have run at least once
-    expect(state.idleCycles).toBeGreaterThanOrEqual(1);
-    expect(state.lastIdleTask).toBe("test-idle");
-
     await daemon.stop();
     await startPromise;
-  }, 15_000);
 
-  it("respects idle task cooldown", async () => {
-    const daemon = makeDaemon({
-      idleTasks: [
-        { name: "cool-task", prompt: "Do something", cooldownMs: 60_000 },
-      ],
-    });
-
-    const startPromise = daemon.start();
-
-    // Wait for one idle task run
-    await new Promise((r) => setTimeout(r, 7_000));
-
-    const state = daemon.getState();
-    // Should have run exactly once (cooldown prevents re-runs)
-    expect(state.idleCycles).toBe(1);
-
-    await daemon.stop();
-    await startPromise;
-  }, 15_000);
-
-  it("does not run idle tasks if none configured", async () => {
-    const daemon = makeDaemon({ idleTasks: undefined });
-    const startPromise = daemon.start();
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    expect(daemon.isIdleActive()).toBe(false);
-    expect(daemon.getState().idleCycles).toBe(0);
-
-    await daemon.stop();
-    await startPromise;
+    const statePath = join(stateDir, "daemon-state.json");
+    expect(existsSync(statePath)).toBe(true);
   });
 
-  it("detects dist/ mtime changes", () => {
-    // Create a fake dist/ directory
-    const distDir = join(process.cwd(), "dist");
-    const cliPath = join(distDir, "cli.js");
-    const originalExists = existsSync(distDir);
+  it("stays running while idle until explicitly stopped", async () => {
+    const daemon = makeDaemon({ workflows: [] });
+    let resolved = false;
+    const startPromise = daemon.start().then(() => {
+      resolved = true;
+    });
 
-    if (originalExists && existsSync(cliPath)) {
-      // Get the daemon's recorded mtime by reading it
-      const daemon = makeDaemon({ restartOnBuild: true });
-      // The daemon constructor records the mtime — we can't easily test the
-      // restart behavior without actually modifying dist/, so just verify
-      // the daemon creates without error
-      expect(daemon).toBeDefined();
+    await wait(150);
+
+    expect(daemon.isRunning()).toBe(true);
+    expect(resolved).toBe(false);
+
+    await daemon.stop();
+    await startPromise;
+    expect(resolved).toBe(true);
+  });
+
+  it("loads corrupted state files gracefully", () => {
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(join(stateDir, "daemon-state.json"), "not json", "utf-8");
+
+    const daemon = makeDaemon({ workflows: [] });
+    const state = daemon.getState();
+    expect(state.pid).toBe(process.pid);
+    expect(state.completedRuns).toBe(0);
+  });
+
+  it("removes signal handlers on stop", async () => {
+    const initialSigintCount = process.listenerCount("SIGINT");
+    const initialSigtermCount = process.listenerCount("SIGTERM");
+
+    const daemon = makeDaemon({ workflows: [] });
+    const startPromise = daemon.start();
+
+    expect(process.listenerCount("SIGINT")).toBe(initialSigintCount + 1);
+    expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount + 1);
+
+    await daemon.stop();
+    await startPromise;
+
+    expect(process.listenerCount("SIGINT")).toBe(initialSigintCount);
+    expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount);
+  });
+
+  it("persists completed run state to disk", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      subtype: "success",
+      isError: false,
+    });
+
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+    const startPromise = daemon.start();
+    await wait(80);
+    await daemon.stop();
+    await startPromise;
+
+    const state = JSON.parse(
+      readFileSync(join(stateDir, "daemon-state.json"), "utf-8"),
+    );
+    expect(state.completedRuns).toBeGreaterThanOrEqual(1);
+    expect(state.lastCompletedWorkflow).toBe("builder");
+  });
+
+  it("can be started again after stop", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      subtype: "success",
+      isError: false,
+    });
+
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+    const firstStart = daemon.start();
+    await wait(50);
+    await daemon.stop();
+    await firstStart;
+
+    const secondStart = daemon.start();
+    await wait(50);
+    await daemon.stop();
+    await secondStart;
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers queued follow-up workflows after restart-triggering builds", async () => {
+    const previousExitCode = process.exitCode;
+    const workflows = [
+      registerWorkflowDefinition("test/builder.ts", {
+        name: "builder",
+        triggers: [
+          {
+            event: "runtime.idle",
+            cooldownMs: 30_000,
+          },
+        ],
+        steps: [
+          {
+            id: "verify",
+            type: "code",
+            run: () => "ok",
+          },
+          {
+            id: "request-restart",
+            type: "restart",
+            requires: ["verify"],
+            reason: "builder requested restart",
+          },
+        ],
+      }),
+      registerWorkflowDefinition("test/improver.ts", {
+        name: "improver",
+        triggers: [
+          {
+            event: "workflow.completed",
+            filter: {
+              workflow: "builder",
+              status: "success",
+            },
+          },
+        ],
+        steps: [
+          {
+            id: "improve",
+            type: "emit",
+            event: "improver.finished",
+          },
+        ],
+      }),
+    ];
+
+    try {
+      const firstDaemon = makeDaemon({
+        workflows,
+        idleIntervalMs: 50,
+      });
+      await firstDaemon.start();
+
+      expect(process.exitCode).toBe(RESTART_EXIT_CODE);
+
+      const secondDaemon = makeDaemon({
+        workflows,
+        idleIntervalMs: 50,
+      });
+      const secondStart = secondDaemon.start();
+      await wait(200);
+
+      expect(secondDaemon.getState().lastCompletedWorkflow).toBe("improver");
+
+      await secondDaemon.stop();
+      await secondStart;
+    } finally {
+      process.exitCode = previousExitCode;
     }
-  });
-
-  it("handles event-triggered scheduler items", async () => {
-    initScheduler(process.cwd(), storageDir);
-    const scheduler = getScheduler();
-
-    // Add an event-triggered item
-    scheduler.addEventTrigger("On session end", "session.end", {
-      action: "Log that session ended",
-      repeat: true,
-    });
-
-    const daemon = makeDaemon({ pollIntervalMs: 60_000 });
-    const startPromise = daemon.start();
-
-    // Give the bus connection time to establish
-    await new Promise((r) => setTimeout(r, 200));
-
-    // The event bus + scheduler connection is set up by the daemon
-    // Verify the item is still pending (event hasn't fired yet)
-    const pending = scheduler.pending();
-    expect(pending.length).toBe(1);
-    expect(pending[0].triggerEvent).toBe("session.end");
-
-    await daemon.stop();
-    await startPromise;
-  });
-
-  describe("error paths", () => {
-    it("saves state even when stateDir does not exist yet", () => {
-      const nonExistentDir = join(tmpdir(), `kota-daemon-nodir-${Date.now()}`);
-      const daemon = makeDaemon({ stateDir: nonExistentDir });
-
-      // Start triggers saveState, which should create the directory
-      const startPromise = daemon.start();
-      daemon.stop();
-
-      // Verify the state file was created
-      const statePath = join(nonExistentDir, "daemon-state.json");
-      expect(existsSync(statePath)).toBe(true);
-
-      const state = JSON.parse(readFileSync(statePath, "utf-8"));
-      expect(state.pid).toBe(process.pid);
-
-      // Cleanup
-      rmSync(nonExistentDir, { recursive: true, force: true });
-      return startPromise;
-    });
-
-    it("loads corrupted state file gracefully", () => {
-      // Write invalid JSON to state file
-      writeFileSync(join(storageDir, "daemon-state.json"), "not json{{{", "utf-8");
-
-      const daemon = makeDaemon();
-      const state = daemon.getState();
-
-      // Should use default state, not crash
-      expect(state.pid).toBe(process.pid);
-      expect(state.idleCycles).toBe(0);
-    });
-
-    it("removes signal handlers on stop", async () => {
-      const initialSigintCount = process.listenerCount("SIGINT");
-      const initialSigtermCount = process.listenerCount("SIGTERM");
-
-      const daemon = makeDaemon();
-      const startPromise = daemon.start();
-
-      // Should have added handlers
-      expect(process.listenerCount("SIGINT")).toBe(initialSigintCount + 1);
-      expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount + 1);
-
-      await daemon.stop();
-      await startPromise;
-
-      // Should have removed handlers
-      expect(process.listenerCount("SIGINT")).toBe(initialSigintCount);
-      expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount);
-    });
-
-    it("resets stopping flag after stop completes", async () => {
-      const daemon = makeDaemon();
-      const startPromise = daemon.start();
-
-      await daemon.stop();
-      await startPromise;
-
-      // After stop, isRunning is false but the object is in a clean state
-      // (not stuck in "stopping" forever)
-      expect(daemon.isRunning()).toBe(false);
-
-      // Can start again without being blocked by stale stopping flag
-      const startPromise2 = daemon.start();
-      expect(daemon.isRunning()).toBe(true);
-      await daemon.stop();
-      await startPromise2;
-    });
-
-    it("handles idle task session creation failure gracefully", async () => {
-      // Temporarily override the mock to throw on construction
-      const loopModule = await import("../loop.js");
-      const OriginalSession = loopModule.AgentSession;
-      let throwOnConstruct = false;
-
-      vi.mocked(loopModule).AgentSession = class ThrowingSession {
-        constructor(opts: Record<string, unknown>) {
-          if (throwOnConstruct) {
-            throw new Error("Session creation failed");
-          }
-          return new (OriginalSession as unknown as new (o: Record<string, unknown>) => unknown)(opts) as ThrowingSession;
-        }
-        async send(_prompt: string): Promise<string> { return ""; }
-        close(): void {}
-      } as unknown as typeof loopModule.AgentSession;
-
-      const daemon = makeDaemon({
-        idleTasks: [{ name: "failing-task", prompt: "This will fail" }],
-      });
-      const startPromise = daemon.start();
-
-      // Enable throwing, then wait for idle check
-      throwOnConstruct = true;
-      await new Promise((r) => setTimeout(r, 7_000));
-
-      // Daemon should still be running (not crashed)
-      expect(daemon.isRunning()).toBe(true);
-      // No idle session should be active (it failed to create)
-      expect(daemon.isIdleActive()).toBe(false);
-      // idleCycles should be 0 (task never completed)
-      expect(daemon.getState().idleCycles).toBe(0);
-
-      // Restore
-      vi.mocked(loopModule).AgentSession = OriginalSession;
-      await daemon.stop();
-      await startPromise;
-    }, 15_000);
-
-    it("handles idle task send() rejection without crashing", async () => {
-      const loopModule = await import("../loop.js");
-      const OriginalSession = loopModule.AgentSession;
-
-      vi.mocked(loopModule).AgentSession = class FailingSendSession {
-        async send(_prompt: string): Promise<string> {
-          throw new Error("API call failed");
-        }
-        close(): void {}
-      } as unknown as typeof loopModule.AgentSession;
-
-      const daemon = makeDaemon({
-        idleTasks: [{ name: "send-fail", prompt: "This send will fail" }],
-      });
-      const startPromise = daemon.start();
-
-      await new Promise((r) => setTimeout(r, 7_000));
-
-      // Daemon should still be running
-      expect(daemon.isRunning()).toBe(true);
-      // Idle session should be cleared after the failure
-      expect(daemon.isIdleActive()).toBe(false);
-      // idleCycles should be 0 (task failed)
-      expect(daemon.getState().idleCycles).toBe(0);
-
-      vi.mocked(loopModule).AgentSession = OriginalSession;
-      await daemon.stop();
-      await startPromise;
-    }, 15_000);
-
-    it("does not accumulate signal handlers across start/stop cycles", async () => {
-      const initialSigintCount = process.listenerCount("SIGINT");
-
-      const daemon = makeDaemon();
-
-      // Cycle 1
-      const start1 = daemon.start();
-      await daemon.stop();
-      await start1;
-
-      // Cycle 2
-      const start2 = daemon.start();
-      await daemon.stop();
-      await start2;
-
-      // Cycle 3
-      const start3 = daemon.start();
-      await daemon.stop();
-      await start3;
-
-      // Should be back to original count
-      expect(process.listenerCount("SIGINT")).toBe(initialSigintCount);
-    });
-
-    it("survives double start call", async () => {
-      const daemon = makeDaemon();
-      const start1 = daemon.start();
-      // Second start should be a no-op
-      const start2 = daemon.start();
-
-      expect(daemon.isRunning()).toBe(true);
-
-      await daemon.stop();
-      await start1;
-      await start2;
-    });
-
-    it("persists state through restart cycles", async () => {
-      // First lifecycle
-      const daemon1 = makeDaemon();
-      const start1 = daemon1.start();
-      await daemon1.stop();
-      await start1;
-
-      // Second lifecycle reads state from same directory
-      const daemon2 = makeDaemon();
-      const state = daemon2.getState();
-
-      // Should have fresh startedAt and pid (overwritten in constructor)
-      expect(state.pid).toBe(process.pid);
-      expect(state.startedAt).toBeTruthy();
-    });
-  });
-
-  describe("concurrency", () => {
-    it("stale idle .finally() does not clobber new lifecycle session", async () => {
-      // Controllable session mock: send() blocks on a deferred promise
-      const sendDeferreds: { resolve: (v: string) => void }[] = [];
-      const loopModule = await import("../loop.js");
-      const OrigSession = loopModule.AgentSession;
-
-      vi.mocked(loopModule).AgentSession = class DeferredSession {
-        send(_prompt: string): Promise<string> {
-          return new Promise((resolve) => {
-            sendDeferreds.push({ resolve });
-          });
-        }
-        close(): void {}
-      } as unknown as typeof loopModule.AgentSession;
-
-      vi.useFakeTimers();
-      try {
-        const daemon = makeDaemon({
-          idleTasks: [{ name: "test", prompt: "Do something" }],
-        });
-
-        // Start daemon
-        const startP1 = daemon.start();
-        // Advance past first idle check (5s interval)
-        await vi.advanceTimersByTimeAsync(6_000);
-        expect(sendDeferreds).toHaveLength(1);
-        expect(daemon.isIdleActive()).toBe(true);
-
-        // Start stop — will wait for idle session (30s timeout)
-        const stopP = daemon.stop();
-
-        // Advance through stop()'s 30s idle-wait loop
-        await vi.advanceTimersByTimeAsync(31_000);
-        // Advance to let keepAlive in start() resolve
-        await vi.advanceTimersByTimeAsync(2_000);
-        await stopP;
-        await startP1;
-
-        expect(daemon.isIdleActive()).toBe(false);
-        expect(daemon.isRunning()).toBe(false);
-
-        // Start a new lifecycle
-        const startP2 = daemon.start();
-        // Advance past idle check to start a new idle task
-        await vi.advanceTimersByTimeAsync(6_000);
-        expect(sendDeferreds).toHaveLength(2);
-        expect(daemon.isIdleActive()).toBe(true);
-
-        // NOW resolve the OLD session's send() — triggers stale .finally()
-        sendDeferreds[0].resolve("done");
-        await vi.advanceTimersByTimeAsync(0); // flush microtasks
-
-        // Without fix: activeIdleSession would be null (stale .finally() clobbers it)
-        // With fix: guard prevents clobbering
-        expect(daemon.isIdleActive()).toBe(true);
-
-        // Clean up
-        sendDeferreds[1].resolve("done");
-        await vi.advanceTimersByTimeAsync(0);
-        await daemon.stop();
-        await vi.advanceTimersByTimeAsync(2_000);
-        await startP2;
-
-        // Both .then() handlers fire (old deferred was resolved by test),
-        // but the critical thing is that isIdleActive() was true above —
-        // proving the stale .finally() didn't clobber the new session.
-        expect(daemon.getState().idleCycles).toBe(2);
-      } finally {
-        vi.mocked(loopModule).AgentSession = OrigSession;
-        vi.useRealTimers();
-      }
-    });
-
-    it("handleDueItems rejects items while stopping", async () => {
-      const daemon = makeDaemon();
-      const startP = daemon.start();
-
-      // Manually set the stopping flag (simulating mid-shutdown)
-      (daemon as any).stopping = true;
-
-      // Call handleDueItems with an action item
-      const mockItems = [{
-        id: 1,
-        description: "Test action",
-        action: "Do something",
-        triggerAt: new Date(Date.now() - 1000).toISOString(),
-        status: "pending" as const,
-        created: new Date().toISOString(),
-      }];
-
-      (daemon as any).handleDueItems(mockItems);
-
-      // No inflight actions should have been started
-      expect((daemon as any).inflightActions.size).toBe(0);
-
-      // Clean up — restore state so stop() can proceed
-      (daemon as any).stopping = false;
-      await daemon.stop();
-      await startP;
-    });
-
-    it("handleDueItems rejects items when not running", () => {
-      const daemon = makeDaemon();
-      // Not started — running is false
-
-      const mockItems = [{
-        id: 1,
-        description: "Test action",
-        action: "Do something",
-        triggerAt: new Date(Date.now() - 1000).toISOString(),
-        status: "pending" as const,
-        created: new Date().toISOString(),
-      }];
-
-      (daemon as any).handleDueItems(mockItems);
-      expect((daemon as any).inflightActions.size).toBe(0);
-    });
-
-    it("stop waits for in-flight actions before resolving", async () => {
-      // Mock session with a delayed send to make actions take time
-      const loopModule = await import("../loop.js");
-      const OrigSession = loopModule.AgentSession;
-      let actionCompleted = false;
-
-      vi.mocked(loopModule).AgentSession = class SlowSession {
-        async send(_prompt: string): Promise<string> {
-          await new Promise((r) => setTimeout(r, 200));
-          actionCompleted = true;
-          return "done";
-        }
-        close(): void {}
-      } as unknown as typeof loopModule.AgentSession;
-
-      try {
-        const daemon = makeDaemon();
-        const startP = daemon.start();
-
-        // Manually inject an in-flight action via handleDueItems
-        const mockItems = [{
-          id: 1,
-          description: "Slow action",
-          action: "Do slow work",
-          triggerAt: new Date(Date.now() - 1000).toISOString(),
-          status: "pending" as const,
-          created: new Date().toISOString(),
-        }];
-
-        (daemon as any).handleDueItems(mockItems);
-        expect((daemon as any).inflightActions.size).toBe(1);
-
-        // Stop should wait for the action to drain
-        await daemon.stop();
-        await startP;
-
-        // By the time stop() resolves, the action should have completed
-        expect(actionCompleted).toBe(true);
-        expect((daemon as any).inflightActions.size).toBe(0);
-      } finally {
-        vi.mocked(loopModule).AgentSession = OrigSession;
-      }
-    });
-
-    it("inflight actions are cleaned up from tracking set after completion", async () => {
-      const daemon = makeDaemon();
-      const startP = daemon.start();
-
-      // Inject an action that resolves instantly (default mock)
-      const mockItems = [{
-        id: 1,
-        description: "Quick action",
-        action: "Do quick work",
-        triggerAt: new Date(Date.now() - 1000).toISOString(),
-        status: "pending" as const,
-        created: new Date().toISOString(),
-      }];
-
-      (daemon as any).handleDueItems(mockItems);
-
-      // Wait a tick for the promise chain to resolve
-      await new Promise((r) => setTimeout(r, 50));
-
-      // Action should be cleaned up from tracking set
-      expect((daemon as any).inflightActions.size).toBe(0);
-
-      await daemon.stop();
-      await startP;
-    });
-
-    it("concurrent stop and checkDistChanged do not double-stop", async () => {
-      vi.useFakeTimers();
-      try {
-        const daemon = makeDaemon({ restartOnBuild: false });
-        const startP = daemon.start();
-
-        // Simulate checkDistChanged calling stop() concurrently with a signal
-        const stop1 = daemon.stop();
-        const stop2 = daemon.stop(); // Should be no-op (stopping guard)
-
-        await vi.advanceTimersByTimeAsync(2_000);
-        await stop1;
-        await stop2;
-        await startP;
-
-        expect(daemon.isRunning()).toBe(false);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
   });
 });

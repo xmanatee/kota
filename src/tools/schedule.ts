@@ -5,11 +5,11 @@ import type { ToolResult } from "./index.js";
 export const scheduleTool: Anthropic.Tool = {
   name: "schedule",
   description:
-    "Set reminders, schedule recurring tasks, or create event-triggered automations. " +
+    "Set reminders, schedule recurring tasks, or create event-triggered schedules. " +
     "Time-based: natural expressions (\"in 30 minutes\", \"tomorrow at 9am\"). " +
-    "Event-based: trigger on internal events (\"session.end\", \"action.complete\"). " +
-    "Events: session.start, session.end, action.start, action.complete, schedule.fire, " +
-    "or any custom event name.",
+    "Event-based: trigger on internal events (\"session.end\", \"workflow.completed\"). " +
+    "Events: runtime.idle, workflow.started, workflow.completed, workflow.step.completed, " +
+    "session.start, session.end, schedule.fire, or any custom event name.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -36,20 +36,13 @@ export const scheduleTool: Anthropic.Tool = {
       event: {
         type: "string",
         description:
-          "Event name to trigger on (for 'on_event'). Examples: \"session.end\", \"action.complete\".",
+          "Event name to trigger on (for 'on_event'). Examples: \"session.end\", \"workflow.completed\".",
       },
       filter: {
         type: "object",
         description:
           'Optional payload filter for event triggers (for \'on_event\'). All keys must match. Example: {"label": "build-agent"}.',
         additionalProperties: { type: "string" },
-      },
-      agent_action: {
-        type: "string",
-        description:
-          "Optional agent prompt to execute autonomously when triggered. " +
-          'Example: "Check the weather in NYC and save a summary to /tmp/weather.txt". ' +
-          "Without this, the schedule only sends a notification. With it, KOTA executes the prompt as a background task.",
       },
       id: {
         type: "number",
@@ -109,17 +102,13 @@ export async function runSchedule(
         repeatOpts = { repeatMs: parsed.ms, repeatLabel: parsed.label };
       }
 
-      const agentAction = input.agent_action as string | undefined;
-
       const item = scheduler.add(description, triggerAt, {
         ...repeatOpts,
-        action: agentAction,
       });
       const timeLabel = formatTime(item.triggerAt);
       const repeatLabel = item.repeatLabel ? ` (${item.repeatLabel})` : "";
-      const actionLabel = item.action ? " [autonomous]" : "";
       return {
-        content: `Scheduled #${item.id}: "${description}" — ${timeLabel}${repeatLabel}${actionLabel}`,
+        content: `Scheduled #${item.id}: "${description}" — ${timeLabel}${repeatLabel}`,
       };
     }
 
@@ -134,20 +123,16 @@ export async function runSchedule(
       const repeatFlag =
         input.repeat === "true" || input.repeat === true;
       const filter = input.filter as Record<string, string> | undefined;
-      const agentAction = input.agent_action as string | undefined;
-
       const item = scheduler.addEventTrigger(description, eventName, {
         filter,
         repeat: repeatFlag,
-        action: agentAction,
       });
       const filterLabel = item.triggerFilter
         ? ` {${Object.entries(item.triggerFilter).map(([k, v]) => `${k}=${v}`).join(", ")}}`
         : "";
       const repeatLabel = item.repeat ? " (repeat)" : " (once)";
-      const actionLabel = item.action ? " [autonomous]" : "";
       return {
-        content: `Event trigger #${item.id}: "${description}" — on ${eventName}${filterLabel}${repeatLabel}${actionLabel}`,
+        content: `Event trigger #${item.id}: "${description}" — on ${eventName}${filterLabel}${repeatLabel}`,
       };
     }
 
@@ -161,13 +146,11 @@ export async function runSchedule(
             ? ` {${Object.entries(item.triggerFilter).map(([k, v]) => `${k}=${v}`).join(", ")}}`
             : "";
           const repeatLabel = item.repeat ? " (repeat)" : " (once)";
-          const auto = item.action ? " [autonomous]" : "";
-          return `#${item.id}: "${item.description}" — on ${item.triggerEvent}${filterLabel}${repeatLabel}${auto}`;
+          return `#${item.id}: "${item.description}" — on ${item.triggerEvent}${filterLabel}${repeatLabel}`;
         }
         const due = new Date(item.triggerAt) <= now ? " [OVERDUE]" : "";
         const repeat = item.repeatLabel ? ` (${item.repeatLabel})` : "";
-        const auto = item.action ? " [autonomous]" : "";
-        return `#${item.id}: "${item.description}" — ${formatTime(item.triggerAt)}${repeat}${due}${auto}`;
+        return `#${item.id}: "${item.description}" — ${formatTime(item.triggerAt)}${repeat}${due}`;
       });
       return { content: `${items.length} scheduled:\n${lines.join("\n")}` };
     }

@@ -8,7 +8,6 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { loadConfig } from "../config.js";
@@ -17,7 +16,6 @@ import { AgentSession, type LoopOptions } from "../loop.js";
 import { getHistory } from "../memory/history.js";
 import { initModuleLogStore } from "../module-log.js";
 import type { RouteRegistration } from "../module-types.js";
-import { ActionExecutor } from "../scheduler/action-executor.js";
 import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
 import { NullTransport, type Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
@@ -43,7 +41,7 @@ export type ServerOptions = {
 
 /** Read daemon state from disk. Returns null if unavailable. */
 function readDaemonState(): { running: boolean; state: Record<string, unknown> } | null {
-  const statePath = join(homedir(), ".kota", "daemon-state.json");
+  const statePath = join(process.cwd(), ".kota", "daemon-state.json");
   if (!existsSync(statePath)) return null;
   try {
     const state = JSON.parse(readFileSync(statePath, "utf-8"));
@@ -74,21 +72,12 @@ export function startServer(options: ServerOptions = {}): Server {
 
   const hub = new NotificationHub();
 
-  const actionExecutor = new ActionExecutor({
-    sessionOptions: {
-      model: options.model ?? config.model,
-      verbose: options.verbose ?? config.verbose,
-      config,
-    },
-  });
-
-  // Both bus-triggered and timer-triggered items use the same handler
   const stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
-    hub.handleDueItems(dueItems, actionExecutor);
+    hub.handleDueItems(dueItems);
   });
 
   const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
-    hub.handleDueItems(dueItems, actionExecutor);
+    hub.handleDueItems(dueItems);
   });
 
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
@@ -213,7 +202,6 @@ export function startServer(options: ServerOptions = {}): Server {
       jsonResponse(res, 200, {
         status: "ok",
         sessions: pool.size,
-        activeActions: actionExecutor.activeCount,
         pendingSchedules: scheduler.count(),
       });
       return;
@@ -346,7 +334,6 @@ export function startServer(options: ServerOptions = {}): Server {
         daemon: daemon ?? null,
         server: {
           sessions: pool.size,
-          activeActions: actionExecutor.activeCount,
           pendingSchedules: scheduler.count(),
           eventBusListeners: bus.listenerCount(),
         },

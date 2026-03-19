@@ -29,6 +29,11 @@ export const shellTool: Anthropic.Tool = {
           "Working directory for the command (default: current directory). " +
           "Cleaner than 'cd path && cmd' — gives a clear error if the directory doesn't exist.",
       },
+      stream_output: {
+        type: "boolean",
+        description:
+          "Whether to stream the command and its live output to stderr while it runs. Default: true.",
+      },
     },
     required: ["command"],
   },
@@ -49,6 +54,7 @@ export async function runShell(
 ): Promise<ToolResult> {
   const command = input.command as string;
   const timeout = (input.timeout_ms as number) || 120_000;
+  const streamOutput = input.stream_output !== false;
 
   if (!command) {
     return { content: "Error: command is required", is_error: true };
@@ -76,7 +82,9 @@ export async function runShell(
     // Show the command being run (dimmed)
     const dim = process.stderr.isTTY ? "\x1b[2m" : "";
     const reset = process.stderr.isTTY ? "\x1b[0m" : "";
-    process.stderr.write(`${dim}$ ${command}${reset}\n`);
+    if (streamOutput) {
+      process.stderr.write(`${dim}$ ${command}${reset}\n`);
+    }
 
     const proc = spawn("sh", ["-c", command], {
       cwd,
@@ -94,13 +102,13 @@ export async function runShell(
     proc.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       chunks.push(text);
-      process.stderr.write(text);
+      if (streamOutput) process.stderr.write(text);
     });
 
     proc.stderr.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       chunks.push(text);
-      process.stderr.write(text);
+      if (streamOutput) process.stderr.write(text);
     });
 
     proc.on("close", (code) => {

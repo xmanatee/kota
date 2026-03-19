@@ -1,12 +1,12 @@
 /**
- * Advanced E2E tests for delegate, architect mode, and scheduled actions.
+ * Advanced E2E tests for delegate and architect mode.
  *
  * These tests exercise multi-layer agent workflows through the full
  * AgentSession.send() path using mock clients. The LLM is mocked
  * but all tool execution is real.
  *
  * Addresses: NOTES.md "it should also be properly tested somehow" —
- * delegate E2E tests, architect mode tests, scheduled action tests.
+ * delegate E2E tests and architect mode tests.
  */
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -22,8 +22,7 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./model/mock-client.js";
-import { ActionExecutor } from "./scheduler/action-executor.js";
-import { resetScheduler, Scheduler } from "./scheduler/scheduler.js";
+import { resetScheduler } from "./scheduler/scheduler.js";
 import { BufferTransport } from "./transport.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -451,207 +450,5 @@ describe("E2E: architect mode", () => {
 		expect(readFileSync(file1, "utf-8")).toContain("x: number");
 		expect(readFileSync(file2, "utf-8")).toContain("y: number");
 		expect(result).toContain("annotations");
-	});
-});
-
-// ── Scheduled Action E2E Tests ──────────────────────────────────────
-
-describe("E2E: scheduled actions", () => {
-	beforeEach(() => {
-		resetMockIds();
-	});
-
-	afterEach(() => {
-		resetEventBus();
-		resetScheduler();
-	});
-
-	it("ActionExecutor runs a scheduled item's prompt through an agent session", async () => {
-		const [client] = createMockClient([
-			textResponse("The current time is 12:00 PM."),
-		]);
-
-		const executor = new ActionExecutor({
-			sessionOptions: {
-				client,
-				model: "claude-haiku-4-5-20251001",
-				noHistory: true,
-				reflectionEnabled: false,
-			},
-			timeoutMs: 10_000,
-		});
-
-		const item = {
-			id: 1,
-			description: "Time check",
-			triggerAt: new Date().toISOString(),
-			action: "What time is it?",
-			status: "pending" as const,
-			created: new Date().toISOString(),
-		};
-
-		const result = await executor.execute(item);
-
-		expect(result.error).toBeUndefined();
-		expect(result.result).toContain("12:00 PM");
-		expect(result.durationMs).toBeGreaterThanOrEqual(0);
-		expect(result.item.id).toBe(1);
-	});
-
-	it("ActionExecutor handles missing action gracefully", async () => {
-		const [client] = createMockClient([textResponse("unused")]);
-
-		const executor = new ActionExecutor({
-			sessionOptions: {
-				client,
-				model: "claude-haiku-4-5-20251001",
-				noHistory: true,
-			},
-		});
-
-		const item = {
-			id: 2,
-			description: "No action item",
-			triggerAt: new Date().toISOString(),
-			status: "pending" as const,
-			created: new Date().toISOString(),
-			// no action field
-		};
-
-		const result = await executor.execute(item);
-
-		expect(result.error).toBe("No action defined");
-		expect(result.durationMs).toBe(0);
-	});
-
-	it("ActionExecutor respects concurrency limit", async () => {
-		// Create a client that returns a response after a delay
-		const [client] = createMockClient([
-			// First action: calls shell (slow)
-			toolUseResponse("shell", { command: "sleep 0.5 && echo done" }),
-			textResponse("Action 1 done"),
-			// Second action
-			toolUseResponse("shell", { command: "echo fast" }),
-			textResponse("Action 2 done"),
-		]);
-
-		const executor = new ActionExecutor({
-			sessionOptions: {
-				client,
-				model: "claude-haiku-4-5-20251001",
-				noHistory: true,
-				reflectionEnabled: false,
-			},
-			maxConcurrent: 1,
-			timeoutMs: 10_000,
-		});
-
-		const makeItem = (id: number, action: string) => ({
-			id,
-			description: `Action ${id}`,
-			triggerAt: new Date().toISOString(),
-			action,
-			status: "pending" as const,
-			created: new Date().toISOString(),
-		});
-
-		// Start first action (occupies the single slot)
-		const p1 = executor.execute(makeItem(1, "Do slow thing"));
-		expect(executor.activeCount).toBe(1);
-
-		// Try second action while first is running
-		const r2 = await executor.execute(makeItem(2, "Do fast thing"));
-		expect(r2.error).toContain("Max concurrent");
-
-		// Wait for first to complete
-		const r1 = await p1;
-		expect(r1.error).toBeUndefined();
-	});
-
-	it("Scheduler getDue + ActionExecutor pipeline executes due items", async () => {
-		const scheduler = new Scheduler(undefined, null); // in-memory
-
-		// Schedule an item that's already due (past time)
-		const pastTime = new Date(Date.now() - 1000);
-		scheduler.add("Check disk space", pastTime, {
-			action: "Report available disk space",
-		});
-
-		// Verify the item is due
-		const due = scheduler.getDue();
-		expect(due).toHaveLength(1);
-		expect(due[0].description).toBe("Check disk space");
-		expect(due[0].action).toBe("Report available disk space");
-
-		// Execute the due item
-		const [client] = createMockClient([
-			textResponse("Disk space: 50GB available on /dev/sda1"),
-		]);
-
-		const executor = new ActionExecutor({
-			sessionOptions: {
-				client,
-				model: "claude-haiku-4-5-20251001",
-				noHistory: true,
-				reflectionEnabled: false,
-			},
-			timeoutMs: 10_000,
-		});
-
-		// Mark fired and execute
-		scheduler.markFired(due[0].id);
-		const result = await executor.execute(due[0]);
-
-		expect(result.error).toBeUndefined();
-		expect(result.result).toContain("50GB");
-
-		// After marking fired, no more due items
-		expect(scheduler.getDue()).toHaveLength(0);
-
-		// Item status should be 'fired'
-		const item = scheduler.get(due[0].id);
-		expect(item?.status).toBe("fired");
-	});
-
-	it("ActionExecutor with tool-using action completes multi-turn workflow", async () => {
-		const [client, calls] = createMockClient([
-			// Action session: agent runs a shell command, then summarizes
-			toolUseResponse("shell", { command: "echo system-check-ok" }),
-			textResponse("System check passed: all services running."),
-		]);
-
-		const executor = new ActionExecutor({
-			sessionOptions: {
-				client,
-				model: "claude-haiku-4-5-20251001",
-				noHistory: true,
-				reflectionEnabled: false,
-			},
-			timeoutMs: 10_000,
-		});
-
-		const item = {
-			id: 10,
-			description: "System health check",
-			triggerAt: new Date().toISOString(),
-			action: "Run a system health check",
-			status: "pending" as const,
-			created: new Date().toISOString(),
-		};
-
-		const result = await executor.execute(item);
-
-		expect(result.error).toBeUndefined();
-		expect(result.result).toContain("System check passed");
-		expect(result.durationMs).toBeGreaterThanOrEqual(0);
-
-		// Action session made 2 API calls (tool use + final text)
-		expect(calls).toHaveLength(2);
-
-		// The prompt was wrapped with autonomous action context
-		const firstCallMsg = calls[0].messages[0];
-		expect(firstCallMsg.role).toBe("user");
-		expect(firstCallMsg.content).toContain("Autonomous action");
-		expect(firstCallMsg.content).toContain("System health check");
 	});
 });

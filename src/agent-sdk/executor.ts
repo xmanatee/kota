@@ -1,111 +1,197 @@
-/**
- * Agent SDK Executor — runs tasks via @anthropic-ai/claude-agent-sdk.
- *
- * The Agent SDK spawns a Claude Code child process with built-in tools
- * (Read, Write, Edit, Bash, Glob, Grep, WebSearch, etc.). Unlike the
- * ModelClient abstraction (single LLM call), this executes entire agent
- * sessions — Claude Code handles tool execution autonomously.
- *
- * Used as an alternative execution backend: `kota run --provider agent-sdk`.
- */
+import { spawnSync } from "node:child_process";
+import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKPermissionMode,
+  SDKQueryOptions,
+  SDKResultMessage,
+  SDKSystemPrompt,
+} from "./types.js";
 
-import type { SDKMessage, SDKModule, SDKQueryOptions } from "./types.js";
+export type ExecutorWriter = { write(text: string): boolean };
 
 export type ExecutorOptions = {
-	model?: string;
-	cwd?: string;
-	verbose?: boolean;
-	systemPrompt?: string;
-	maxTurns?: number;
-	maxBudgetUsd?: number;
-	allowedTools?: string[];
-	disallowedTools?: string[];
-	permissionMode?: SDKQueryOptions["permissionMode"];
+  model?: string;
+  cwd?: string;
+  verbose?: boolean;
+  systemPrompt?: SDKSystemPrompt;
+  maxTurns?: number;
+  maxBudgetUsd?: number;
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  permissionMode?: SDKPermissionMode;
+  persistSession?: boolean;
+  effort?: SDKQueryOptions["effort"];
+  settingSources?: SDKQueryOptions["settingSources"];
+  pathToClaudeCodeExecutable?: string;
+  abortController?: AbortController;
+  enableFileCheckpointing?: boolean;
+  onMessage?: (message: SDKMessage) => void | Promise<void>;
 };
 
 export type ExecutorResult = {
-	text: string;
-	sessionId?: string;
-	turns: number;
+  text: string;
+  streamedText: string;
+  sessionId?: string;
+  turns: number;
+  totalCostUsd?: number;
+  subtype?: string;
+  isError: boolean;
 };
 
-/** Extract text from an SDK message's content blocks. */
-function extractText(message: SDKMessage): string {
-	if (!message.content) return "";
-	return message.content
-		.filter((b) => b.type === "text" && b.text)
-		.map((b) => b.text as string)
-		.join("");
+function extractTextBlocks(blocks?: Array<{ type?: string; text?: string }>): string {
+  if (!blocks) return "";
+  return blocks
+    .filter((block) => block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text as string)
+    .join("");
 }
 
-/** Dynamically import the Agent SDK. Throws a clear error if not installed. */
-export async function loadSDK(): Promise<SDKModule> {
-	try {
-		return (await import(
-			"@anthropic-ai/claude-agent-sdk"
-		)) as unknown as SDKModule;
-	} catch {
-		throw new Error(
-			"@anthropic-ai/claude-agent-sdk is not installed.\n\n" +
-				"Install it to use the agent-sdk provider:\n" +
-				"  npm install @anthropic-ai/claude-agent-sdk\n\n" +
-				"Or use a different provider:\n" +
-				"  kota run --model claude-sonnet-4-6 ...",
-		);
-	}
+export function extractText(message: SDKMessage): string {
+  if (message.type === "assistant") {
+    if (message.message && typeof message.message === "object") {
+      return extractTextBlocks(
+        (message.message as { content?: Array<{ type?: string; text?: string }> }).content,
+      );
+    }
+    if ("content" in message && Array.isArray(message.content)) {
+      return extractTextBlocks(message.content);
+    }
+    return "";
+  }
+
+  if (
+    "message" in message &&
+    message.message &&
+    typeof message.message === "object" &&
+    !Array.isArray(message.message)
+  ) {
+    return extractTextBlocks((message.message as { content?: Array<{ type?: string; text?: string }> }).content);
+  }
+
+  return "";
 }
 
-/**
- * Execute a task via the Claude Agent SDK.
- *
- * Streams assistant text to the provided writer (defaults to process.stdout).
- * Returns the full text, session ID, and turn count.
- */
+export function getSessionId(message: SDKMessage): string | undefined {
+  return message.session_id || message.sessionId;
+}
+
+function formatStatusMessage(message: SDKMessage): string | null {
+  if (
+    message.type === "auth_status" &&
+    "output" in message &&
+    Array.isArray(message.output) &&
+    message.output.length > 0
+  ) {
+    return message.output.join(" ").trim();
+  }
+  if ("description" in message && typeof message.description === "string" && message.description) {
+    return message.description;
+  }
+  if ("tool_name" in message && typeof message.tool_name === "string" && message.tool_name) {
+    return `${message.tool_name} running`;
+  }
+  if ("message" in message && typeof message.message === "string" && message.message) {
+    return message.message;
+  }
+  const text = extractText(message);
+  return text || null;
+}
+
+export function detectLocalClaudeCodeExecutable(): string | undefined {
+  const explicit = process.env.CLAUDE_CODE_EXECUTABLE?.trim();
+  if (explicit) return explicit;
+
+  const lookupCommand = process.platform === "win32" ? "where" : "which";
+  for (const command of ["claude", "claude-code"]) {
+    const result = spawnSync(lookupCommand, [command], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    if (result?.status === 0) {
+      const candidate = result.stdout.trim();
+      if (candidate) return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+export function buildQueryOptions(options?: ExecutorOptions): SDKQueryOptions {
+  const permissionMode = options?.permissionMode ?? "bypassPermissions";
+  return {
+    model: options?.model,
+    maxTurns: options?.maxTurns,
+    systemPrompt: options?.systemPrompt,
+    allowedTools: options?.allowedTools,
+    disallowedTools: options?.disallowedTools,
+    permissionMode,
+    cwd: options?.cwd ?? process.cwd(),
+    maxBudgetUsd: options?.maxBudgetUsd,
+    persistSession: options?.persistSession,
+    effort: options?.effort,
+    settingSources: options?.settingSources,
+    pathToClaudeCodeExecutable:
+      options?.pathToClaudeCodeExecutable ?? detectLocalClaudeCodeExecutable(),
+    abortController: options?.abortController,
+    enableFileCheckpointing: options?.enableFileCheckpointing,
+    allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
+  };
+}
+
 export async function executeWithAgentSDK(
-	prompt: string,
-	options?: ExecutorOptions,
-	writer?: { write(s: string): boolean },
+  prompt: string,
+  options?: ExecutorOptions,
+  writer?: ExecutorWriter,
 ): Promise<ExecutorResult> {
-	const sdk = await loadSDK();
-	const out = writer ?? process.stdout;
+  const out = writer ?? process.stdout;
+  const queryOptions = buildQueryOptions(options);
 
-	const queryOpts: SDKQueryOptions = {
-		model: options?.model,
-		maxTurns: options?.maxTurns ?? 50,
-		systemPrompt: options?.systemPrompt,
-		allowedTools: options?.allowedTools,
-		disallowedTools: options?.disallowedTools,
-		permissionMode: options?.permissionMode ?? "bypassPermissions",
-		cwd: options?.cwd ?? process.cwd(),
-		maxBudgetUsd: options?.maxBudgetUsd,
-	};
+  const streamedChunks: string[] = [];
+  let resultMessage: SDKResultMessage | undefined;
+  let sessionId: string | undefined;
+  let turns = 0;
 
-	const textChunks: string[] = [];
-	let sessionId: string | undefined;
-	let turns = 0;
+  for await (const message of sdkQuery({ prompt, options: queryOptions })) {
+    await options?.onMessage?.(message);
 
-	for await (const message of sdk.query({ prompt, options: queryOpts })) {
-		if (message.type === "system" && message.sessionId) {
-			sessionId = message.sessionId;
-		}
+    const messageSessionId = getSessionId(message);
+    if (messageSessionId) sessionId = messageSessionId;
 
-		if (message.type === "assistant") {
-			turns++;
-			const text = extractText(message);
-			if (text) {
-				out.write(text);
-				textChunks.push(text);
-			}
-		}
+    if (message.type === "assistant") {
+      turns += 1;
+      const text = extractText(message);
+      if (text) {
+        out.write(text);
+        streamedChunks.push(text);
+      }
+      continue;
+    }
 
-		if (options?.verbose && message.type === "status" && message.message) {
-			process.stderr.write(`[agent-sdk] ${message.message}\n`);
-		}
-	}
+    if (message.type === "result") {
+      resultMessage = message;
+      if (typeof message.num_turns === "number") turns = message.num_turns;
+      continue;
+    }
 
-	return {
-		text: textChunks.join(""),
-		sessionId,
-		turns,
-	};
+    if (options?.verbose) {
+      const statusMessage = formatStatusMessage(message);
+      if (statusMessage) process.stderr.write(`[agent-sdk] ${statusMessage}\n`);
+    }
+  }
+
+  const streamedText = streamedChunks.join("");
+  const text = resultMessage?.result ?? streamedText;
+
+  return {
+    text,
+    streamedText,
+    sessionId,
+    turns,
+    totalCostUsd: resultMessage?.total_cost_usd,
+    subtype: resultMessage?.subtype,
+    isError:
+      resultMessage?.is_error === true ||
+      Boolean(resultMessage?.subtype?.startsWith("error_")),
+  };
 }

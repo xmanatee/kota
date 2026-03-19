@@ -5,12 +5,58 @@
  * Ephemeral: no persistence, no replay. Singleton pattern like Scheduler
  * and TaskStore.
  *
- * Used by: AgentSession (session lifecycle), ActionExecutor (action lifecycle),
+ * Used by: AgentSession (session lifecycle), WorkflowRuntime (workflow lifecycle),
  * Scheduler (schedule fires). Foundation for daemon mode and event-based triggers.
  */
 
 /** Known event payloads. Extend this map to add new typed events. */
 export type BusEvents = {
+  "runtime.idle": {
+    timestamp: string;
+    idleIntervalMs: number;
+  };
+  "runtime.restart_requested": {
+    reason?: string;
+    workflow?: string;
+    runId?: string;
+    requires?: string[];
+  };
+  "workflow.started": {
+    workflow: string;
+    runId: string;
+    triggerEvent: string;
+    definitionPath: string;
+    runDir: string;
+    startedAt: string;
+  };
+  "workflow.completed": {
+    workflow: string;
+    runId: string;
+    status: "success" | "failed" | "interrupted";
+    triggerEvent: string;
+    durationMs: number;
+    definitionPath: string;
+    runDir: string;
+  };
+  "workflow.step.started": {
+    workflow: string;
+    runId: string;
+    stepId: string;
+    stepType: "tool" | "agent" | "emit" | "restart" | "code";
+    runDir: string;
+    definitionPath: string;
+    startedAt: string;
+  };
+  "workflow.step.completed": {
+    workflow: string;
+    runId: string;
+    stepId: string;
+    stepType: "tool" | "agent" | "emit" | "restart" | "code";
+    status: "success" | "failed" | "skipped";
+    durationMs: number;
+    runDir: string;
+    definitionPath: string;
+  };
   "session.start": { sessionId: string; label?: string };
   "session.end": {
     sessionId: string;
@@ -27,13 +73,6 @@ export type BusEvents = {
   "schedule.fire": {
     itemId: number;
     description: string;
-    action?: string;
-  };
-  "action.start": { itemId: number; description: string };
-  "action.complete": {
-    itemId: number;
-    error?: string;
-    durationMs: number;
   };
   "knowledge.create": {
     id: string;

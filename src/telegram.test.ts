@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { partitionDueItems } from "./scheduler/action-executor.js";
 import { resetScheduler, Scheduler } from "./scheduler/scheduler.js";
 import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./telegram.js";
 
@@ -411,44 +410,24 @@ describe("TelegramBot scheduler integration", () => {
     vi.useRealTimers();
   });
 
-  it("Scheduler fires action items separately from notifications", () => {
+  it("Scheduler delivers due reminders through the timer callback", () => {
     vi.useFakeTimers();
 
     const scheduler = new Scheduler(undefined, null);
     const now = new Date();
     scheduler.add("Plain reminder", new Date(now.getTime() - 1000));
-    scheduler.add("Action item", new Date(now.getTime() - 1000), {
-      action: "Do something automatically",
-    });
 
-    const notifications: string[] = [];
-    const actions: string[] = [];
+    const reminders: string[] = [];
 
     scheduler.startTimer(1000, (items) => {
-      const partitioned = partitionDueItems(items);
-      for (const item of partitioned.notifications) notifications.push(item.description);
-      for (const item of partitioned.actions) actions.push(item.description);
+      for (const item of items) reminders.push(item.description);
     });
 
     vi.advanceTimersByTime(1500);
-    expect(notifications).toContain("Plain reminder");
-    expect(actions).toContain("Action item");
+    expect(reminders).toContain("Plain reminder");
 
     scheduler.stopTimer();
     vi.useRealTimers();
-  });
-
-  it("partitionDueItems correctly separates actions from notifications", () => {
-    const items = [
-      { id: 1, description: "Reminder only", triggerAt: new Date().toISOString(), status: "pending" as const, created: new Date().toISOString() },
-      { id: 2, description: "With action", triggerAt: new Date().toISOString(), status: "pending" as const, created: new Date().toISOString(), action: "do stuff" },
-      { id: 3, description: "Another reminder", triggerAt: new Date().toISOString(), status: "pending" as const, created: new Date().toISOString() },
-    ];
-
-    const result = partitionDueItems(items);
-    expect(result.notifications).toHaveLength(2);
-    expect(result.actions).toHaveLength(1);
-    expect(result.actions[0].description).toBe("With action");
   });
 
   it("broadcastToChats sends to all active sessions via sendMessage", async () => {

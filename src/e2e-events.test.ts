@@ -507,9 +507,7 @@ describe("E2E: scheduler → event → handler pipeline", () => {
 		const unsubs = mod.events!(bus);
 
 		// Schedule an already-due item
-		scheduler.add("health-check", new Date(Date.now() - 1000), {
-			action: "Check system health",
-		});
+		scheduler.add("health-check", new Date(Date.now() - 1000));
 
 		const due = scheduler.getDue();
 		expect(due).toHaveLength(1);
@@ -554,8 +552,8 @@ describe("E2E: scheduler → event → handler pipeline", () => {
 		const unsubs = mod.events!(bus);
 
 		const past = new Date(Date.now() - 1000);
-		scheduler.add("task-a", past, { action: "Do A" });
-		scheduler.add("task-b", past, { action: "Do B" });
+		scheduler.add("task-a", past);
+		scheduler.add("task-b", past);
 
 		const due = scheduler.getDue();
 		expect(due).toHaveLength(2);

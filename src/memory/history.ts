@@ -13,7 +13,7 @@ export type ConversationRecord = {
   model: string;
   messageCount: number;
   cwd: string;
-  /** Distinguishes user-initiated conversations from autonomous action sessions. */
+  /** Distinguishes user-initiated conversations from internal non-user sessions. */
   source?: "user" | "action";
 };
 

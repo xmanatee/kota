@@ -1,315 +1,172 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SDKMessage, SDKModule } from "../agent-sdk/types.js";
 import type { CostTracker } from "../cost.js";
 import type { Transport } from "../transport.js";
 
-function makeSDK(messages: SDKMessage[]): SDKModule {
-	return {
-		query: () => ({
-			async *[Symbol.asyncIterator]() {
-				for (const m of messages) yield m;
-			},
-		}),
-	};
-}
+const mockExecuteWithAgentSDK = vi.fn();
 
-function mockTransport(): Transport & {
-	messages: Array<{ type: string; message?: string }>;
-} {
-	const messages: Array<{ type: string; message?: string }> = [];
-	return {
-		messages,
-		emit(event: unknown) {
-			messages.push(event as { type: string; message?: string });
-		},
-		on: vi.fn(),
-		off: vi.fn(),
-	} as unknown as Transport & {
-		messages: Array<{ type: string; message?: string }>;
-	};
-}
-
-// Static mock — hoisted by vitest, stable across worker pools
-const mockLoadSDK = vi.fn<[], Promise<SDKModule>>();
 vi.mock("../agent-sdk/index.js", () => ({
-	loadSDK: (...args: []) => mockLoadSDK(...args),
+  executeWithAgentSDK: (...args: unknown[]) => mockExecuteWithAgentSDK(...args),
 }));
 
-// Import after mock is set up (static mock is hoisted)
 const { runDelegateAgentSDK } = await import("./delegate-agent-sdk.js");
 
+function mockTransport(): Transport & {
+  messages: Array<{ type: string; message?: string; content?: string }>;
+} {
+  const messages: Array<{ type: string; message?: string; content?: string }> =
+    [];
+  return {
+    messages,
+    emit(event: unknown) {
+      messages.push(event as { type: string; message?: string; content?: string });
+    },
+    on: vi.fn(),
+    off: vi.fn(),
+  } as unknown as Transport & {
+    messages: Array<{ type: string; message?: string; content?: string }>;
+  };
+}
+
 describe("delegate-agent-sdk", () => {
-	beforeEach(() => {
-		mockLoadSDK.mockReset();
-	});
+  beforeEach(() => {
+    mockExecuteWithAgentSDK.mockReset();
+  });
 
-	it("returns error when SDK is not installed", async () => {
-		mockLoadSDK.mockRejectedValue(new Error("SDK not installed"));
+  it("streams progress and returns formatted result", async () => {
+    mockExecuteWithAgentSDK.mockImplementation(async (_task, _options, writer) => {
+      writer?.write("Working...");
+      return {
+        text: "Fixed the bug",
+        streamedText: "Working...",
+        sessionId: "sess-12345678",
+        turns: 3,
+        totalCostUsd: 0.02,
+        subtype: "success",
+        isError: false,
+      };
+    });
 
-		const result = await runDelegateAgentSDK("fix bug", "execute", {});
+    const transport = mockTransport();
+    const result = await runDelegateAgentSDK("fix auth bug", "execute", {
+      transport,
+    });
 
-		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("Agent SDK not available");
-	});
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Fixed the bug");
+    expect(result.content).toContain("agent-sdk");
+    expect(transport.messages.some((message) => message.content === "Working...")).toBe(true);
+  });
 
-	it("streams assistant text and returns formatted result", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{ type: "system", sessionId: "sess-abc" },
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "Working on it..." }],
-				},
-				{
-					type: "result",
-					result: "Fixed the bug in auth.ts",
-					num_turns: 3,
-					total_cost_usd: 0.02,
-					subtype: "success",
-				},
-			]),
-		);
+  it("tracks cost through costTracker.addRawCost", async () => {
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Done",
+      streamedText: "",
+      turns: 2,
+      totalCostUsd: 0.15,
+      subtype: "success",
+      isError: false,
+    });
 
-		const transport = mockTransport();
-		const result = await runDelegateAgentSDK("fix auth bug", "execute", {
-			transport,
-		});
+    const addRawCost = vi.fn();
+    const costTracker = { addRawCost } as unknown as CostTracker;
+    await runDelegateAgentSDK("task", "execute", { costTracker });
 
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Fixed the bug in auth.ts");
-		expect(result.content).toContain("agent-sdk");
-	});
+    expect(addRawCost).toHaveBeenCalledWith(0.15);
+  });
 
-	it("reports turn_limit when SDK hits max turns", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{
-					type: "result",
-					result: "Ran out of turns",
-					subtype: "error_max_turns",
-					num_turns: 25,
-				},
-			]),
-		);
+  it("passes explore-mode options to the shared executor", async () => {
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Found it",
+      streamedText: "",
+      turns: 1,
+      subtype: "success",
+      isError: false,
+    });
 
-		const result = await runDelegateAgentSDK(
-			"refactor entire codebase",
-			"execute",
-			{},
-		);
+    await runDelegateAgentSDK("find all API endpoints", "explore", {
+      cwd: "/tmp/project",
+      model: "claude-haiku-4-5-20251001",
+    });
 
-		expect(result.content).toContain("hit turn limit");
-	});
+    const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
+    expect(options).toMatchObject({
+      cwd: "/tmp/project",
+      model: "claude-haiku-4-5-20251001",
+      maxTurns: 15,
+      permissionMode: "bypassPermissions",
+      maxBudgetUsd: 0.5,
+    });
+    expect(options.allowedTools).toContain("Read");
+    expect(options.allowedTools).toContain("Grep");
+    expect(options.allowedTools).not.toContain("Edit");
+    expect(options.allowedTools).not.toContain("Write");
+  });
 
-	it("reports circuit_break on budget exceeded", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{
-					type: "result",
-					result: "Budget exceeded",
-					subtype: "error_max_budget_usd",
-					num_turns: 10,
-					total_cost_usd: 0.5,
-				},
-			]),
-		);
+  it("passes execute-mode options to the shared executor", async () => {
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Done",
+      streamedText: "",
+      turns: 2,
+      subtype: "success",
+      isError: false,
+    });
 
-		const result = await runDelegateAgentSDK("complex task", "execute", {});
+    await runDelegateAgentSDK("fix the type error", "execute", {
+      cwd: "/tmp/project",
+      maxBudgetUsd: 1,
+    });
 
-		expect(result.content).toContain("stopped");
-	});
+    const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
+    expect(options.maxTurns).toBe(25);
+    expect(options.maxBudgetUsd).toBe(1);
+    expect(options.allowedTools).toContain("Edit");
+    expect(options.allowedTools).toContain("Write");
+    expect(options.allowedTools).toContain("Bash");
+  });
 
-	it("reports circuit_break on execution error", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{
-					type: "result",
-					result: "Error occurred",
-					subtype: "error_during_execution",
-					num_turns: 5,
-				},
-			]),
-		);
+  it("reports turn limits from executor subtypes", async () => {
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Ran out of turns",
+      streamedText: "",
+      turns: 25,
+      subtype: "error_max_turns",
+      isError: true,
+    });
 
-		const result = await runDelegateAgentSDK("task", "execute", {});
+    const result = await runDelegateAgentSDK("huge refactor", "execute", {});
+    expect(result.content).toContain("hit turn limit");
+  });
 
-		expect(result.content).toContain("stopped");
-	});
+  it("reports circuit-break conditions from executor subtypes", async () => {
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Budget exceeded",
+      streamedText: "",
+      turns: 10,
+      subtype: "error_max_budget_usd",
+      isError: true,
+    });
 
-	it("tracks cost via costTracker.addRawCost", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{
-					type: "result",
-					result: "Done",
-					total_cost_usd: 0.15,
-					subtype: "success",
-				},
-			]),
-		);
+    const result = await runDelegateAgentSDK("huge refactor", "execute", {});
+    expect(result.content).toContain("stopped");
+  });
 
-		const addRawCost = vi.fn();
-		const costTracker = { addRawCost } as unknown as CostTracker;
-		await runDelegateAgentSDK("task", "execute", { costTracker });
+  it("emits start and done status messages", async () => {
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Done",
+      streamedText: "",
+      turns: 2,
+      sessionId: "sess-abcdef12",
+      subtype: "success",
+      isError: false,
+    });
 
-		expect(addRawCost).toHaveBeenCalledWith(0.15);
-	});
+    const transport = mockTransport();
+    await runDelegateAgentSDK("task", "explore", { transport });
 
-	it("passes correct SDK options for explore mode", async () => {
-		let capturedOpts: unknown;
-		const sdk: SDKModule = {
-			query: (params) => {
-				capturedOpts = params;
-				return {
-					async *[Symbol.asyncIterator]() {
-						yield {
-							type: "result",
-							result: "Found it",
-							subtype: "success",
-						} as SDKMessage;
-					},
-				};
-			},
-		};
-		mockLoadSDK.mockResolvedValue(sdk);
-
-		await runDelegateAgentSDK("find all API endpoints", "explore", {
-			cwd: "/tmp/project",
-			model: "claude-haiku-4-5-20251001",
-		});
-
-		const opts = capturedOpts as {
-			prompt: string;
-			options: Record<string, unknown>;
-		};
-		expect(opts.prompt).toBe("find all API endpoints");
-		expect(opts.options.cwd).toBe("/tmp/project");
-		expect(opts.options.model).toBe("claude-haiku-4-5-20251001");
-		expect(opts.options.permissionMode).toBe("bypassPermissions");
-		expect(opts.options.maxTurns).toBe(15);
-		const allowed = opts.options.allowedTools as string[];
-		expect(allowed).toContain("Read");
-		expect(allowed).toContain("Grep");
-		expect(allowed).not.toContain("Edit");
-		expect(allowed).not.toContain("Write");
-	});
-
-	it("passes correct SDK options for execute mode", async () => {
-		let capturedOpts: unknown;
-		const sdk: SDKModule = {
-			query: (params) => {
-				capturedOpts = params;
-				return {
-					async *[Symbol.asyncIterator]() {
-						yield {
-							type: "result",
-							result: "Done",
-							subtype: "success",
-						} as SDKMessage;
-					},
-				};
-			},
-		};
-		mockLoadSDK.mockResolvedValue(sdk);
-
-		await runDelegateAgentSDK("fix the type error", "execute", {
-			cwd: "/tmp/project",
-			maxBudgetUsd: 1.0,
-		});
-
-		const opts = capturedOpts as { options: Record<string, unknown> };
-		expect(opts.options.maxTurns).toBe(25);
-		expect(opts.options.maxBudgetUsd).toBe(1.0);
-		const allowed = opts.options.allowedTools as string[];
-		expect(allowed).toContain("Edit");
-		expect(allowed).toContain("Write");
-		expect(allowed).toContain("Bash");
-	});
-
-	it("emits status messages to transport", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{ type: "system", sessionId: "sess-xyz" },
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "working" }],
-				},
-				{
-					type: "result",
-					result: "Done",
-					subtype: "success",
-					num_turns: 2,
-				},
-			]),
-		);
-
-		const transport = mockTransport();
-		await runDelegateAgentSDK("task", "explore", { transport });
-
-		const statusMessages = transport.messages.filter(
-			(m) => m.type === "status",
-		);
-		expect(statusMessages.length).toBeGreaterThanOrEqual(2);
-		expect(statusMessages[0].message).toContain("agent-sdk");
-		expect(statusMessages[0].message).toContain("starting");
-		expect(statusMessages[statusMessages.length - 1].message).toContain(
-			"done",
-		);
-	});
-
-	it("uses result text from result message, not accumulated text", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([
-				{
-					type: "assistant",
-					content: [{ type: "text", text: "intermediate thinking" }],
-				},
-				{
-					type: "result",
-					result: "Final answer here",
-					subtype: "success",
-					num_turns: 1,
-				},
-			]),
-		);
-
-		const result = await runDelegateAgentSDK("question", "explore", {});
-
-		expect(result.content).toContain("Final answer here");
-		expect(result.content).not.toContain("intermediate thinking");
-	});
-
-	it("defaults budget to 0.5 USD when not specified", async () => {
-		let capturedOpts: unknown;
-		const sdk: SDKModule = {
-			query: (params) => {
-				capturedOpts = params;
-				return {
-					async *[Symbol.asyncIterator]() {
-						yield {
-							type: "result",
-							result: "ok",
-							subtype: "success",
-						} as SDKMessage;
-					},
-				};
-			},
-		};
-		mockLoadSDK.mockResolvedValue(sdk);
-
-		await runDelegateAgentSDK("task", "execute", {});
-
-		const opts = capturedOpts as { options: Record<string, unknown> };
-		expect(opts.options.maxBudgetUsd).toBe(0.5);
-	});
-
-	it("handles empty result gracefully", async () => {
-		mockLoadSDK.mockResolvedValue(
-			makeSDK([{ type: "result", subtype: "success" }]),
-		);
-
-		const result = await runDelegateAgentSDK("task", "explore", {});
-
-		expect(result.content).toContain("without producing a response");
-	});
+    const statusMessages = transport.messages.filter((message) => message.type === "status");
+    expect(statusMessages.length).toBeGreaterThanOrEqual(2);
+    expect(statusMessages[0].message).toContain("starting");
+    expect(statusMessages[0].message).toContain("agent-sdk");
+    expect(statusMessages[statusMessages.length - 1].message).toContain("done");
+  });
 });

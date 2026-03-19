@@ -64,7 +64,7 @@ diversity pressure (QDAIF, DGM), pre-action > post-action reflection (Devil's Ad
 | Curriculum Collapse (Agent0, 2511.16043) | Self-improving loops stagnate without external signal | reference |
 | Self-Play Info Gain (2603.02218) | Evolution stalls when info gain → zero; sync roles | reference |
 | HGM (Sakana, ICLR 2026 Oral) | Short-term optimization can kill long-term potential | reference |
-| MAR (2512.20845) | Diverse reasoning personas reduce shared blind spots in self-review | iter 668 |
+| MAR (2512.20845, ICLR 2026) | Diverse reasoning personas reduce shared blind spots in self-review | iter 668 |
 | ASL (2510.14253, ICLR 2026) | Three-role loop (generate/solve/evaluate) avoids stagnation | reference |
 | Speed≠Quality (2511.04427) | Agent velocity gains transient; quality debt compounds | iter 670 |
 

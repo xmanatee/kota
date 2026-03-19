@@ -118,40 +118,27 @@ describe("Scheduler", () => {
     expect(fired).toContain("Due now");
   });
 
-  it("adds an item with an action", () => {
-    const trigger = new Date(Date.now() + 60_000);
-    const item = scheduler.add("Check weather", trigger, {
-      action: "Search for weather in NYC and summarize",
-    });
-    expect(item.action).toBe("Search for weather in NYC and summarize");
-    expect(item.description).toBe("Check weather");
-    expect(item.status).toBe("pending");
-  });
-
-  it("adds an item with action and repeat", () => {
+  it("adds an item with repeat configuration", () => {
     const trigger = new Date(Date.now() + 60_000);
     const item = scheduler.add("Hourly report", trigger, {
       repeatMs: 3_600_000,
       repeatLabel: "hourly",
-      action: "Generate status report",
     });
-    expect(item.action).toBe("Generate status report");
     expect(item.repeatMs).toBe(3_600_000);
     expect(item.repeatLabel).toBe("hourly");
   });
 
-  it("action persists through markFired for repeating items", () => {
+  it("repeat configuration persists through markFired for repeating items", () => {
     const past = new Date(Date.now() - 60_000);
     const item = scheduler.add("Recurring action", past, {
       repeatMs: 3_600_000,
       repeatLabel: "hourly",
-      action: "Do the thing",
     });
     scheduler.markFired(item.id);
 
     const updated = scheduler.get(item.id)!;
     expect(updated.status).toBe("pending"); // still pending (repeating)
-    expect(updated.action).toBe("Do the thing"); // action preserved
+    expect(updated.repeatLabel).toBe("hourly");
   });
 
   it("repeating items with past trigger advance to next future occurrence", () => {
@@ -366,13 +353,6 @@ describe("Event-Based Triggers", () => {
       filter: { label: "build-agent" },
     });
     expect(item.triggerFilter).toEqual({ label: "build-agent" });
-  });
-
-  it("creates an event trigger with action", () => {
-    const item = scheduler.addEventTrigger("Run improve", "session.end", {
-      action: "Analyze recent changes",
-    });
-    expect(item.action).toBe("Analyze recent changes");
   });
 
   it("rejects empty eventName", () => {
@@ -599,10 +579,10 @@ describe("Event-Based Triggers", () => {
   });
 
   it("getPendingSummary shows non-repeat event triggers", () => {
-    scheduler.addEventTrigger("One-shot event", "action.complete");
+    scheduler.addEventTrigger("One-shot event", "workflow.completed");
     const summary = scheduler.getPendingSummary();
     expect(summary).toContain("event-triggered");
-    expect(summary).toContain("on action.complete");
+    expect(summary).toContain("on workflow.completed");
     expect(summary).not.toContain("repeat");
   });
 
@@ -650,8 +630,8 @@ describe("Event-Based Triggers", () => {
   });
 
   it("filter coerces non-string payload values to string", () => {
-    scheduler.addEventTrigger("Number match", "action.complete", {
-      filter: { itemId: "42" },
+    scheduler.addEventTrigger("Duration match", "workflow.completed", {
+      filter: { durationMs: "100" },
     });
     const fired: string[] = [];
 
@@ -659,7 +639,15 @@ describe("Event-Based Triggers", () => {
       fired.push(...items.map((i) => i.description));
     });
 
-    bus.emit("action.complete", { itemId: 42, durationMs: 100 });
-    expect(fired).toEqual(["Number match"]);
+    bus.emit("workflow.completed", {
+      workflow: "builder",
+      runId: "r1",
+      status: "success",
+      triggerEvent: "runtime.idle",
+      durationMs: 100,
+      definitionPath: "src/workflows/builder/workflow.ts",
+      runDir: ".kota/runs/r1",
+    });
+    expect(fired).toEqual(["Duration match"]);
   });
 });

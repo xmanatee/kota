@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ModuleStorage } from "../module-storage.js";
 import type { ModuleContext } from "../module-types.js";
-import daemonModule from "./daemon.js";
+import daemonModule, { buildDaemonChildArgs } from "./daemon.js";
 
 const stubCtx: ModuleContext = {
   cwd: "/tmp/test",
@@ -41,10 +41,8 @@ describe("daemonModule", () => {
     const optNames = cmd.options.map((o) => o.long);
     expect(optNames).toContain("--model");
     expect(optNames).toContain("--verbose");
-    expect(optNames).toContain("--idle-prompt");
-    expect(optNames).toContain("--idle-cooldown");
+    expect(optNames).toContain("--idle-interval");
     expect(optNames).toContain("--poll-interval");
-    expect(optNames).toContain("--no-restart");
   });
 
   it("does not register tools, routes, or events", () => {
@@ -55,5 +53,23 @@ describe("daemonModule", () => {
 
   it("has no dependencies", () => {
     expect(daemonModule.dependencies).toBeUndefined();
+  });
+
+  it("builds child daemon args from parsed options", () => {
+    const args = buildDaemonChildArgs({
+      model: "claude-sonnet-4-6",
+      verbose: true,
+      idleInterval: "5",
+      pollInterval: "30",
+    });
+
+    expect(args).toContain("daemon");
+    expect(args).toContain("--idle-interval");
+    expect(args).toContain("5");
+    expect(args).toContain("--poll-interval");
+    expect(args).toContain("30");
+    expect(args).toContain("--model");
+    expect(args).toContain("claude-sonnet-4-6");
+    expect(args).toContain("--verbose");
   });
 });

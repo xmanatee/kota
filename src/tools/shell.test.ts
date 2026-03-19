@@ -51,6 +51,15 @@ describe("shell: successful commands", () => {
     const result = await runShell({ command: "printf 'a\\nb\\nc'" });
     expect(result.content).toBe("a\nb\nc");
   });
+
+  it("can capture output without streaming it to stderr", async () => {
+    const result = await runShell({
+      command: "echo quiet",
+      stream_output: false,
+    });
+    expect(result.content).toBe("quiet");
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("shell: error handling", () => {

@@ -62,10 +62,12 @@ Transport is threaded through `AgentSession` → `streamMessage()` → `runArchi
 Internal pub/sub for cross-module coordination. Decouples modules so they can react to each other without direct imports. Foundation for daemon mode and event-based scheduler triggers.
 
 **Typed events** (defined in `BusEvents`):
+- `runtime.idle` — emitted by `WorkflowRuntime` when the daemon is idle
+- `workflow.started` / `workflow.completed` — emitted around each workflow run
+- `workflow.step.started` / `workflow.step.completed` — emitted around each workflow step
 - `session.start` — emitted when `AgentSession.send()` runs the first prompt
 - `session.end` — emitted when `AgentSession.close()` runs (with duration and error status)
 - `schedule.fire` — emitted when `Scheduler.markFired()` fires an item
-- `action.start` / `action.complete` — emitted by `ActionExecutor` around action execution
 
 **API**:
 - `on(event, handler)` — subscribe, returns unsubscribe function
@@ -503,11 +505,11 @@ Embedded browser chat at `GET /`. Zero-dependency HTML/CSS/JS assembled from 4 m
 
 ### Telegram Bot (`src/telegram.ts`)
 
-Telegram messaging frontend using Bot API over `fetch` (zero deps). ProxyTransport pattern (same as HTTP server). Per-chat sessions with typing indicators, message chunking (4096 char limit), long polling. Commands: `/start`, `/clear`, `/status`. Access control via `allowedChatIds`. Scheduler integration for reminders and autonomous actions. Usage: `kota telegram --token <TOKEN>`.
+Telegram messaging frontend using Bot API over `fetch` (zero deps). ProxyTransport pattern (same as HTTP server). Per-chat sessions with typing indicators, message chunking (4096 char limit), long polling. Commands: `/start`, `/clear`, `/status`. Access control via `allowedChatIds`. Scheduler integration for reminders. Usage: `kota telegram --token <TOKEN>`.
 
 ### Daemon Mode (`src/scheduler/daemon.ts`)
 
-Long-running event-driven runtime hosting event bus, scheduler, and round-robin idle tasks. Self-restart on `dist/cli.js` change (exit 75). State persisted to `~/.kota/daemon-state.json`. Graceful shutdown (30s drain). CLI: `kota daemon [--idle-prompt "..."] [--idle-cooldown 300]`.
+Long-running event-driven runtime hosting the event bus, scheduler, and repo-defined workflows. Each workflow lives in its own directory under `src/workflows/<name>/`, with `workflow.ts` defining the typed steps and co-located markdown files holding prompts or other workflow-specific context. Triggers are ordinary bus events, including `runtime.idle` for spare-cycle work and `workflow.completed` for follow-up workflows. Steps are typed runtime operations (`agent`, `tool`, `emit`, `restart`, `code`) executed against one shared workflow runtime. Each run is serialized under `.kota/runs/<run-id>/` with metadata, workflow snapshots, prompt inputs, and raw SDK events. Workflow follow-ups are persisted across daemon restarts in `.kota/workflow-state.json`, and the daemon only restarts when a workflow explicitly requests it. State persists in the project-local `.kota/daemon-state.json`. CLI: `kota daemon [--idle-interval 30]`.
 
 ### Context Management (`src/context.ts`)
 
@@ -740,7 +742,7 @@ Pure parsing utilities (`parseTime`, `parseRepeat`, `matchesFilter`, `formatRela
 
 **Persistence**: Same project-scoping pattern as TaskStore — `~/.kota/schedules-<hash>.json`. Auto-prunes old fired items (keeps last 20). In-memory mode for tests.
 
-**Schedule tool** (in `management` group): `add` (create reminder with time + optional repeat + optional agent_action), `list` (pending items), `cancel` (by ID). Auto-detected from prompts containing "remind", "schedule", "alarm", etc.
+**Schedule tool** (in `management` group): `add` (create time-based reminder), `on_event` (create event-triggered schedule), `list` (pending items), `cancel` (by ID). Auto-detected from prompts containing "remind", "schedule", "alarm", etc.
 
 **Session warmup**: Overdue and upcoming items appear at session start, so the agent can notify the user about missed reminders.
 
@@ -748,28 +750,7 @@ Pure parsing utilities (`parseTime`, `parseRepeat`, `matchesFilter`, `formatRela
 
 **Repeating items**: After firing, the next trigger time advances by the interval. If multiple intervals were missed, jumps to the next future occurrence rather than firing repeatedly.
 
-**Event-based triggers**: Items can fire when a named event occurs on the EventBus instead of at a time. Created via `addEventTrigger(description, eventName, opts?)` or the `on_event` tool action. The scheduler subscribes to the bus via `connectBus(bus, onFire)` — a wildcard listener checks pending event-triggered items against incoming events. Optional `triggerFilter` does key-value matching on the event payload (string coercion). Repeating event triggers (`repeat: true`) stay pending after firing; one-shot triggers become "fired". `schedule.fire` events are ignored to prevent self-triggering loops. Event-triggered items are excluded from `getDue()` (they don't use time-based polling). This enables automations like "when a session ends, run this prompt."
-
-### Autonomous Scheduled Actions (`src/scheduler/action-executor.ts`)
-
-Transforms KOTA from a reactive tool into a proactive agent. Scheduled items can carry an `action` prompt that KOTA executes autonomously when triggered — no user input needed.
-
-**How it works**:
-1. User schedules an item with `agent_action`: "Check the weather in NYC and save to /tmp/weather.txt"
-2. When the scheduler fires, `ActionExecutor` creates a lightweight agent session with `BufferTransport`
-3. The action prompt is wrapped with context from the schedule description
-4. The agent executes the prompt (using all available tools), collects the result
-5. Results are delivered via SSE notifications (server) or printed to stderr (REPL)
-
-**Concurrency**: Max 3 concurrent actions by default. Actions that exceed the limit are skipped with a notification. Each action has a 120s timeout.
-
-**Server mode**: Due items are partitioned by `partitionDueItems()`:
-- Items without `action` → notification-only (SSE `reminder` event, as before)
-- Items with `action` → `ActionExecutor.execute()` runs asynchronously, delivers `action_started`, `action_result`, or `action_skipped` SSE events
-
-**CLI REPL mode**: Scheduler timer runs between user turns. Due actions execute in the background. Results print to stderr so they don't interfere with the conversation flow.
-
-**Example**: "Every morning at 8am, check Hacker News for AI news and summarize the top 5 stories" — KOTA runs this autonomously and delivers the summary without being prompted.
+**Event-based triggers**: Items can fire when a named event occurs on the EventBus instead of at a time. Created via `addEventTrigger(description, eventName, opts?)` or the `on_event` tool action. The scheduler subscribes to the bus via `connectBus(bus, onFire)` — a wildcard listener checks pending event-triggered items against incoming events. Optional `triggerFilter` does key-value matching on the event payload (string coercion). Repeating event triggers (`repeat: true`) stay pending after firing; one-shot triggers become "fired". `schedule.fire` events are ignored to prevent self-triggering loops. Event-triggered items are excluded from `getDue()` (they don't use time-based polling). Schedules are reminders and event sources only; repo automation belongs in workflows.
 
 ### Persistent Memory (`src/memory/store.ts`)
 
@@ -832,11 +813,11 @@ Split into 4 focused modules under `src/openai/`: `types.ts` (API types), `trans
 
 ### Claude Agent SDK Backend (`src/agent-sdk/`)
 
-Alternative execution backend using `@anthropic-ai/claude-agent-sdk` (optional peer dep). Unlike ModelClient providers (which handle single LLM calls while KOTA manages the agent loop), this delegates entire tasks to Claude Code's full agent runtime — Claude Code handles its own tool execution (Read, Write, Edit, Bash, Glob, Grep, WebSearch), file checkpointing, and context management. Usage: `kota run --provider agent-sdk "task"` or `modelProvider.type: "agent-sdk"` in config. Streams assistant text to stdout. Types in `types.ts` match SDK's public API surface. Dynamic import with graceful error if SDK not installed. Also used as delegate backend (see below). 10 tests.
+Execution backend using packaged `@anthropic-ai/claude-agent-sdk`. Unlike ModelClient providers (single LLM calls while KOTA manages the loop), this delegates entire tasks to Claude Code's full runtime. The shared executor detects a local `claude`/`claude-code` executable when present, otherwise lets the SDK use its built-in executable. It uses the Claude Code preset system prompt plus KOTA project instructions, supports structured run logging, and is used by direct `run`, delegate sub-agents, and the autonomous daemon.
 
 ### Agent SDK Delegate Backend (`src/tools/delegate-agent-sdk.ts`)
 
-Routes delegate sub-agent tasks through Claude Code's full agent runtime instead of the "thin" KOTA tool loop. When the model router selects the `agent-sdk` backend (execute mode + coding/debugging/automation at capable tier), `runDelegateAgentSDK()` calls `loadSDK().query()` with mode-appropriate options: explore gets read-only tools (Read, Glob, Grep, Bash, WebSearch, WebFetch), execute adds Edit+Write. Budget-capped ($0.50 default, configurable via `agentSdkBudgetUsd`). Result and cost from SDK's `ResultMessage` feed back into KOTA's `assembleDelegateResult()` and `CostTracker.addRawCost()`. Graceful fallback: if SDK not installed, returns error prompting thin backend. 12 tests.
+Routes delegate sub-agent tasks through Claude Code's full runtime instead of the "thin" KOTA tool loop. `runDelegateAgentSDK()` now goes through the shared Agent SDK executor with mode-specific system prompts and tool allowlists: explore gets read-only tools (Read, Glob, Grep, Bash, WebSearch, WebFetch), execute adds Edit+Write. Budget-capped ($0.50 default, configurable via `agentSdkBudgetUsd`). Result metadata and raw cost flow back into `assembleDelegateResult()` and `CostTracker.addRawCost()`.
 
 ### Adaptive Model Routing (`src/model/model-router.ts`)
 

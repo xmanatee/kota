@@ -116,61 +116,17 @@ describe("schedule tool", () => {
     expect(result.is_error).toBe(true);
   });
 
-  it("adds with agent_action for autonomous execution", async () => {
-    const result = await runSchedule({
-      action: "add",
-      description: "Weather check",
-      time: "in 30 minutes",
-      agent_action: "Check the weather in NYC and summarize it",
-    });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("Weather check");
-    expect(result.content).toContain("[autonomous]");
-  });
-
-  it("lists items with agent_action showing [autonomous] tag", async () => {
-    await runSchedule({
-      action: "add",
-      description: "Auto task",
-      time: "in 1 hour",
-      agent_action: "Run backup",
-    });
-    await runSchedule({
-      action: "add",
-      description: "Simple reminder",
-      time: "in 2 hours",
-    });
-
-    const result = await runSchedule({ action: "list" });
-    expect(result.content).toContain("[autonomous]");
-    expect(result.content).toContain("Auto task");
-    expect(result.content).toContain("Simple reminder");
-  });
-
-  it("adds with both agent_action and repeat", async () => {
-    const result = await runSchedule({
-      action: "add",
-      description: "Hourly check",
-      time: "in 1 hour",
-      repeat: "hourly",
-      agent_action: "Check system health",
-    });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("hourly");
-    expect(result.content).toContain("[autonomous]");
-  });
-
   // --- on_event action ---
 
   it("creates an event trigger via on_event", async () => {
     const result = await runSchedule({
       action: "on_event",
       description: "Run improve",
-      event: "session.end",
+      event: "workflow.completed",
     });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("Event trigger #1");
-    expect(result.content).toContain("on session.end");
+    expect(result.content).toContain("on workflow.completed");
     expect(result.content).toContain("(once)");
   });
 
@@ -178,7 +134,7 @@ describe("schedule tool", () => {
     const result = await runSchedule({
       action: "on_event",
       description: "Continuous improve",
-      event: "session.end",
+      event: "workflow.completed",
       repeat: "true",
     });
     expect(result.is_error).toBeUndefined();
@@ -189,29 +145,18 @@ describe("schedule tool", () => {
     const result = await runSchedule({
       action: "on_event",
       description: "Build-only",
-      event: "session.end",
-      filter: { label: "build-agent" },
+      event: "workflow.completed",
+      filter: { workflow: "builder" },
       repeat: "true",
     });
     expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("label=build-agent");
-  });
-
-  it("creates event trigger with action", async () => {
-    const result = await runSchedule({
-      action: "on_event",
-      description: "Auto improve",
-      event: "session.end",
-      agent_action: "Run self-improvement analysis",
-    });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("[autonomous]");
+    expect(result.content).toContain("workflow=builder");
   });
 
   it("on_event rejects missing description", async () => {
     const result = await runSchedule({
       action: "on_event",
-      event: "session.end",
+      event: "workflow.completed",
     });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("description");
@@ -230,10 +175,9 @@ describe("schedule tool", () => {
     await runSchedule({
       action: "on_event",
       description: "Event task",
-      event: "session.end",
-      filter: { label: "build" },
+      event: "workflow.completed",
+      filter: { workflow: "builder" },
       repeat: "true",
-      agent_action: "Do stuff",
     });
     await runSchedule({
       action: "add",
@@ -243,10 +187,9 @@ describe("schedule tool", () => {
 
     const result = await runSchedule({ action: "list" });
     expect(result.content).toContain("2 scheduled");
-    expect(result.content).toContain("on session.end");
-    expect(result.content).toContain("label=build");
+    expect(result.content).toContain("on workflow.completed");
+    expect(result.content).toContain("workflow=builder");
     expect(result.content).toContain("(repeat)");
-    expect(result.content).toContain("[autonomous]");
     expect(result.content).toContain("Time task");
   });
 
@@ -254,7 +197,7 @@ describe("schedule tool", () => {
     await runSchedule({
       action: "on_event",
       description: "To cancel",
-      event: "session.end",
+      event: "workflow.completed",
     });
     const result = await runSchedule({ action: "cancel", id: 1 });
     expect(result.is_error).toBeUndefined();

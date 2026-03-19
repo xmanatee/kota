@@ -28,7 +28,6 @@ export type ScheduledItem = {
   triggerAt: string; // ISO datetime
   repeatMs?: number;
   repeatLabel?: string;
-  action?: string; // Agent prompt to execute when triggered
   status: "pending" | "fired" | "cancelled";
   created: string;
   firedAt?: string;
@@ -116,7 +115,7 @@ export class Scheduler {
   add(
     description: string,
     triggerAt: Date,
-    opts?: { repeatMs?: number; repeatLabel?: string; action?: string },
+    opts?: { repeatMs?: number; repeatLabel?: string },
   ): ScheduledItem {
     this.ensureLoaded();
     const item: ScheduledItem = {
@@ -133,9 +132,6 @@ export class Scheduler {
       item.repeatMs = opts.repeatMs;
       item.repeatLabel = opts.repeatLabel;
     }
-    if (opts?.action) {
-      item.action = opts.action;
-    }
     this.items.push(item);
     this.persist();
     return item;
@@ -151,7 +147,6 @@ export class Scheduler {
     opts?: {
       filter?: Record<string, string>;
       repeat?: boolean;
-      action?: string;
     },
   ): ScheduledItem {
     this.ensureLoaded();
@@ -168,7 +163,6 @@ export class Scheduler {
       item.triggerFilter = opts.filter;
     }
     if (opts?.repeat) item.repeat = true;
-    if (opts?.action) item.action = opts.action;
     this.items.push(item);
     this.persist();
     return item;
@@ -216,7 +210,6 @@ export class Scheduler {
     tryEmit("schedule.fire", {
       itemId: item.id,
       description: item.description,
-      action: item.action,
     });
     return item;
   }

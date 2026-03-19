@@ -1,6 +1,9 @@
 import { createInterface } from "node:readline";
 import { Command } from "commander";
-import { executeWithAgentSDK } from "./agent-sdk/index.js";
+import {
+  buildClaudeCodeSystemPrompt,
+  executeWithAgentSDK,
+} from "./agent-sdk/index.js";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { confirmAction, setSkipConfirmations } from "./confirm.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
@@ -9,7 +12,6 @@ import { createModelClient, parseModelString } from "./model/provider-factory.js
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
-import { ActionExecutor, partitionDueItems } from "./scheduler/action-executor.js";
 import { getScheduler, resetScheduler } from "./scheduler/scheduler.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
@@ -86,11 +88,13 @@ program
         console.error("agent-sdk provider requires a prompt. Interactive mode is not supported.");
         process.exit(1);
       }
-      await executeWithAgentSDK(prompt, {
+      const result = await executeWithAgentSDK(prompt, {
         model,
         verbose: opts.verbose || config.verbose || false,
         cwd: process.cwd(),
+        systemPrompt: buildClaudeCodeSystemPrompt(config),
       });
+      if (!result.streamedText && result.text) process.stdout.write(result.text);
       console.log();
       return;
     }
@@ -172,39 +176,10 @@ async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
     prompt: "kota> ",
   });
 
-  // Set up autonomous action execution for scheduled items
-  const actionExecutor = new ActionExecutor({
-    sessionOptions: {
-      model: options.model,
-      verbose: options.verbose,
-      config,
-    },
-  });
-
   const scheduler = getScheduler();
   const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
-    const { actions, notifications } = partitionDueItems(dueItems);
-
-    for (const item of notifications) {
+    for (const item of dueItems) {
       console.error(`\n[kota] ⏰ Reminder: ${item.description}`);
-    }
-
-    for (const item of actions) {
-      if (!actionExecutor.canExecute()) {
-        console.error(`\n[kota] Skipped action "${item.description}" — too many running`);
-        continue;
-      }
-      console.error(`\n[kota] Running autonomous action: "${item.description}"...`);
-      actionExecutor.execute(item).then((result) => {
-        if (result.error) {
-          console.error(`[kota] Action "${item.description}" failed: ${result.error}`);
-        } else {
-          console.error(`[kota] Action "${item.description}" completed (${Math.round(result.durationMs / 1000)}s)`);
-          if (result.result) {
-            console.log(result.result);
-          }
-        }
-      }).catch(() => {});
     }
   });
 
@@ -410,7 +385,13 @@ async function checkPipeMode() {
       if (config.modelProvider?.type === "agent-sdk") {
         const modelSpec = config.model || "claude-sonnet-4-6";
         const { model } = parseModelString(modelSpec);
-        await executeWithAgentSDK(piped, { model, verbose: config.verbose, cwd: process.cwd() });
+        const result = await executeWithAgentSDK(piped, {
+          model,
+          verbose: config.verbose,
+          cwd: process.cwd(),
+          systemPrompt: buildClaudeCodeSystemPrompt(config),
+        });
+        if (!result.streamedText && result.text) process.stdout.write(result.text);
         console.log();
         return true;
       }
