@@ -1,0 +1,189 @@
+import { isAbsolute } from "node:path";
+import type { WorkflowFilterValue } from "./types.js";
+
+export class WorkflowDefinitionError extends Error {
+  constructor(message: string, readonly definitionPath: string) {
+    super(`${definitionPath}: ${message}`);
+    this.name = "WorkflowDefinitionError";
+  }
+}
+
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function expectRelativePath(value: unknown, field: string, definitionPath: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new WorkflowDefinitionError(
+      `${field} must be a non-empty relative path`,
+      definitionPath,
+    );
+  }
+  const trimmed = value.trim();
+  if (isAbsolute(trimmed)) {
+    throw new WorkflowDefinitionError(
+      `${field} must be project-relative, not absolute`,
+      definitionPath,
+    );
+  }
+  return trimmed;
+}
+
+export function expectName(value: unknown, field: string, definitionPath: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new WorkflowDefinitionError(
+      `${field} must be a non-empty string`,
+      definitionPath,
+    );
+  }
+  const trimmed = value.trim();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(trimmed)) {
+    throw new WorkflowDefinitionError(
+      `${field} must match /^[a-z0-9][a-z0-9-]*$/`,
+      definitionPath,
+    );
+  }
+  return trimmed;
+}
+
+export function expectNonEmptyString(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new WorkflowDefinitionError(
+      `${field} must be a non-empty string`,
+      definitionPath,
+    );
+  }
+  return value.trim();
+}
+
+export function expectOptionalString(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  return expectNonEmptyString(value, field, definitionPath);
+}
+
+export function expectOptionalBoolean(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new WorkflowDefinitionError(`${field} must be a boolean`, definitionPath);
+  }
+  return value;
+}
+
+export function expectOptionalInteger(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+  minimum = 0,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || (value as number) < minimum) {
+    throw new WorkflowDefinitionError(
+      `${field} must be an integer >= ${minimum}`,
+      definitionPath,
+    );
+  }
+  return value as number;
+}
+
+export function expectOptionalPositiveNumber(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new WorkflowDefinitionError(
+      `${field} must be a positive number`,
+      definitionPath,
+    );
+  }
+  return value;
+}
+
+export function expectOptionalStringArray(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item.trim())) {
+    throw new WorkflowDefinitionError(
+      `${field} must be an array of non-empty strings`,
+      definitionPath,
+    );
+  }
+  return value.map((item) => item.trim());
+}
+
+export function expectOptionalScalarFilter(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): Record<string, WorkflowFilterValue> | undefined {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) {
+    throw new WorkflowDefinitionError(`${field} must be an object`, definitionPath);
+  }
+  const filter: Record<string, WorkflowFilterValue> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const values = Array.isArray(entry) ? entry : [entry];
+    if (
+      values.length === 0 ||
+      values.some(
+        (current) =>
+          typeof current !== "string" &&
+          typeof current !== "number" &&
+          typeof current !== "boolean",
+      )
+    ) {
+      throw new WorkflowDefinitionError(
+        `${field}.${key} must be a scalar or non-empty array of scalars`,
+        definitionPath,
+      );
+    }
+    filter[key] = Array.isArray(entry)
+      ? [...values]
+      : (entry as WorkflowFilterValue);
+  }
+  return filter;
+}
+
+export function expectOptionalObjectOrFunction(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): Record<string, unknown> | ((...args: never[]) => unknown) | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "function") return value as (...args: never[]) => unknown;
+  if (!isPlainObject(value)) {
+    throw new WorkflowDefinitionError(
+      `${field} must be an object or function`,
+      definitionPath,
+    );
+  }
+  return value;
+}
+
+export function expectOptionalFunction(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): ((...args: never[]) => unknown) | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "function") {
+    throw new WorkflowDefinitionError(`${field} must be a function`, definitionPath);
+  }
+  return value as (...args: never[]) => unknown;
+}
