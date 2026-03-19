@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DONE_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./data/code-wrappers.js";
 
 export type Language = "python" | "node";
+const SETTLE_STDERR_GRACE_MS = 10;
 
 /** Find the best Python binary, preferring a local virtualenv over system python3. */
 export function findPythonBinary(cwd: string): string {
@@ -63,6 +64,7 @@ export class REPLSession {
       let settled = false;
       let interrupted = false;
       let killTimer: ReturnType<typeof setTimeout> | null = null;
+      let successTimer: ReturnType<typeof setTimeout> | null = null;
 
       const settle = (result: { output: string; isError: boolean }) => {
         if (settled) return;
@@ -72,6 +74,7 @@ export class REPLSession {
         proc.removeListener("exit", onExit);
         clearTimeout(timer);
         if (killTimer) clearTimeout(killTimer);
+        if (successTimer) clearTimeout(successTimer);
         if (interrupted && !result.isError) {
           resolve({
             output: `${result.output}\n\n[Interrupted after ${timeoutMs}ms — session state preserved. Variables and imports are still available.]`,
@@ -88,11 +91,15 @@ export class REPLSession {
         if (idx !== -1) {
           const before = stdoutBuf.slice(0, idx).trim();
           if (before) stdoutChunks.push(before);
-          const stderr = stderrChunks.join("").trim();
-          const stdout = stdoutChunks.join("").trim();
-          const parts = [stdout, stderr].filter(Boolean);
-          const output = parts.join("\n") || "(no output)";
-          settle({ output, isError: false });
+          stdoutBuf = stdoutBuf.slice(idx + `${DONE_MARKER}\n`.length);
+          if (successTimer) clearTimeout(successTimer);
+          successTimer = setTimeout(() => {
+            const stderr = stderrChunks.join("").trim();
+            const stdout = stdoutChunks.join("").trim();
+            const parts = [stdout, stderr].filter(Boolean);
+            const output = parts.join("\n") || "(no output)";
+            settle({ output, isError: false });
+          }, SETTLE_STDERR_GRACE_MS);
         }
       };
 
