@@ -19,7 +19,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Keep tasks, docs, and local `AGENTS.md` files aligned with reality when your change affects them.
 - When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly (e.g. `status: done` when placing in `done/`). The test suite validates `status == directory-name` on every run.
 - When moving a task out of `inbox/` (to backlog, ready, doing, done, or dropped), also ensure the file has all required sections: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
-- If exploration uncovers a useful follow-up, capture it lightly in `tasks/inbox/` or enrich an existing open task instead of creating a duplicate.
+- Before creating any new task file, scan all task directories (`inbox/`, `backlog/`, `ready/`, `doing/`, `blocked/`, `done/`, `dropped/`) for an existing task covering the same subject. If one exists, enrich it rather than creating a duplicate. Tasks in `done/` or `dropped/` should not be recreated.
 - If you change behavior, verify the exact behavior you changed while you work.
 - Before committing, run all three checks yourself: `npm run typecheck`, `npm run lint`, and `npm test`. All must pass. Do not rely on the post-step pipeline to catch failures — a lint or type error will fail the run and undo nothing. Biome flags unsorted imports as lint errors; if you add or move imports, sort them or run `npx biome check --write src/` to auto-fix.
 - This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
