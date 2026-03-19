@@ -1,177 +1,24 @@
-/**
- * FileWatcher — reactive filesystem monitoring with event bus integration.
- *
- * Uses fs.watch where available, supplements recursive watching with
- * per-directory watchers, and reconciles with periodic snapshots so missed
- * backend events still surface as "file.changed".
- */
-
 import { type FSWatcher, type WatchEventType, watch } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { getEventBus } from "./event-bus.js";
+import {
+	type ActiveWatcher,
+	collectDirs,
+	collectFileSnapshot,
+	type FileChange,
+	flushPending,
+	isIgnorableFsRace,
+	isUnsupportedRecursiveWatch,
+	MAX_WATCHERS,
+	mapEventType,
+	POLL_INTERVAL_MS,
+	scheduleFlush,
+	settleWatcherStartup,
+	shouldTrackPath,
+	type WatcherInfo,
+} from "./file-watcher-core.js";
 
-export interface FileChange {
-	path: string;
-	type: "create" | "change" | "delete";
-}
-
-export interface WatcherInfo {
-	id: string;
-	path: string;
-	recursive: boolean;
-	extensions: string[] | undefined;
-	changeCount: number;
-	createdAt: string;
-}
-
-interface ActiveWatcher {
-	id: string;
-	rootPath: string;
-	recursive: boolean;
-	extensions: string[] | undefined;
-	fsWatchers: FSWatcher[];
-	watchedDirs: Set<string>;
-	snapshot: Map<string, number>;
-	pollTimer: ReturnType<typeof setInterval> | null;
-	polling: boolean;
-	pending: Map<string, FileChange>;
-	timer: ReturnType<typeof setTimeout> | null;
-	changeCount: number;
-	createdAt: Date;
-}
-
-const DEFAULT_IGNORE = new Set([
-	"node_modules",
-	".git",
-	"dist",
-	"build",
-	".next",
-	"__pycache__",
-	".cache",
-	".turbo",
-]);
-
-const DEBOUNCE_MS = 250;
-const MAX_WATCHERS = 10;
-const WATCHER_SETTLE_MS = 50;
-const POLL_INTERVAL_MS = 500;
-
-function getErrorCode(error: unknown): string | undefined {
-	if (
-		error &&
-		typeof error === "object" &&
-		"code" in error &&
-		typeof (error as { code?: unknown }).code === "string"
-	) {
-		return (error as { code: string }).code;
-	}
-	return undefined;
-}
-
-function isIgnorableFsRace(error: unknown): boolean {
-	const code = getErrorCode(error);
-	return (
-		code === "ENOENT" ||
-		code === "ENOTDIR" ||
-		code === "EPERM" ||
-		code === "EACCES"
-	);
-}
-
-function isUnsupportedRecursiveWatch(error: unknown): boolean {
-	const code = getErrorCode(error);
-	const message =
-		error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-	return (
-		code === "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM" ||
-		message.includes("recursive") ||
-		message.includes("not supported")
-	);
-}
-
-function mapEventType(eventType: WatchEventType): "create" | "change" {
-	return eventType === "rename" ? "create" : "change";
-}
-
-function matchesExtensions(
-	filePath: string,
-	extensions: string[] | undefined,
-): boolean {
-	if (!extensions || extensions.length === 0) return true;
-	return extensions.some((ext) => {
-		const e = ext.startsWith(".") ? ext : `.${ext}`;
-		return filePath.endsWith(e);
-	});
-}
-
-function isIgnored(name: string): boolean {
-	return DEFAULT_IGNORE.has(name) || name.startsWith(".");
-}
-
-function splitPathSegments(filePath: string): string[] {
-	return filePath.split(/[\\/]/);
-}
-
-/** Recursively collect subdirectory paths for explicit directory watchers. */
-async function collectDirs(root: string): Promise<string[]> {
-	const result: string[] = [root];
-	try {
-		const entries = await readdir(root, { withFileTypes: true });
-		for (const entry of entries) {
-			if (entry.isDirectory() && !isIgnored(entry.name)) {
-				const full = join(root, entry.name);
-				result.push(...(await collectDirs(full)));
-			}
-		}
-	} catch (error) {
-		if (!isIgnorableFsRace(error)) throw error;
-	}
-	return result;
-}
-
-async function collectFileSnapshot(
-	root: string,
-	recursive: boolean,
-	extensions: string[] | undefined,
-): Promise<Map<string, number>> {
-	const snapshot = new Map<string, number>();
-
-	async function visit(dir: string): Promise<void> {
-		let entries;
-		try {
-			entries = await readdir(dir, { withFileTypes: true });
-		} catch (error) {
-			if (!isIgnorableFsRace(error)) throw error;
-			return;
-		}
-
-		for (const entry of entries) {
-			if (isIgnored(entry.name)) continue;
-			const fullPath = join(dir, entry.name);
-			const relativePath = relative(root, fullPath);
-
-			if (entry.isDirectory()) {
-				if (recursive) {
-					await visit(fullPath);
-				}
-				continue;
-			}
-
-			if (!matchesExtensions(relativePath, extensions)) continue;
-
-			try {
-				const entryStat = await stat(fullPath);
-				snapshot.set(relativePath, entryStat.mtimeMs);
-			} catch (error) {
-				if (!isIgnorableFsRace(error)) throw error;
-			}
-		}
-	}
-
-	await visit(root);
-	return snapshot;
-}
+export type { FileChange, WatcherInfo };
 
 export class WatcherManager {
 	private watchers = new Map<string, ActiveWatcher>();
@@ -257,12 +104,13 @@ export class WatcherManager {
 
 	private async attachWatchers(active: ActiveWatcher): Promise<void> {
 		const queueChange = (eventType: WatchEventType, relativePath: string) => {
-			if (!this.shouldTrackPath(active, relativePath)) return;
+			if (!shouldTrackPath(active, relativePath)) return;
 
 			const fullPath = join(active.rootPath, relativePath);
 			const relPath = relative(active.rootPath, fullPath);
 
-			this.queuePendingChange(active, relPath, mapEventType(eventType));
+			active.pending.set(relPath, { path: relPath, type: mapEventType(eventType) });
+			scheduleFlush(active, flushPending);
 
 			if (active.recursive && eventType === "rename") {
 				void this.attachRecursiveSubdirectories(active, fullPath, queueChange);
@@ -296,24 +144,6 @@ export class WatcherManager {
 		for (const dir of dirs) {
 			this.attachDirectoryWatcher(active, dir, queueChange);
 		}
-	}
-
-	private shouldTrackPath(active: ActiveWatcher, relativePath: string): boolean {
-		const segments = splitPathSegments(relativePath);
-		if (segments.some((segment) => isIgnored(segment))) return false;
-		return matchesExtensions(relativePath, active.extensions);
-	}
-
-	private queuePendingChange(
-		active: ActiveWatcher,
-		relativePath: string,
-		type: FileChange["type"],
-	): void {
-		active.pending.set(relativePath, {
-			path: relativePath,
-			type,
-		});
-		this.scheduleFlush(active);
 	}
 
 	private attachDirectoryWatcher(
@@ -368,17 +198,20 @@ export class WatcherManager {
 			for (const [path, mtimeMs] of nextSnapshot) {
 				const previousMtimeMs = active.snapshot.get(path);
 				if (previousMtimeMs === undefined) {
-					this.queuePendingChange(active, path, "create");
+					active.pending.set(path, { path, type: "create" });
+					scheduleFlush(active, flushPending);
 					continue;
 				}
 				if (previousMtimeMs !== mtimeMs) {
-					this.queuePendingChange(active, path, "change");
+					active.pending.set(path, { path, type: "change" });
+					scheduleFlush(active, flushPending);
 				}
 			}
 
 			for (const path of active.snapshot.keys()) {
 				if (!nextSnapshot.has(path)) {
-					this.queuePendingChange(active, path, "delete");
+					active.pending.set(path, { path, type: "delete" });
+					scheduleFlush(active, flushPending);
 				}
 			}
 
@@ -386,51 +219,6 @@ export class WatcherManager {
 		} finally {
 			active.polling = false;
 		}
-	}
-
-	private scheduleFlush(active: ActiveWatcher): void {
-		if (active.timer) clearTimeout(active.timer);
-		active.timer = setTimeout(() => this.flush(active), DEBOUNCE_MS);
-	}
-
-	private flush(active: ActiveWatcher): void {
-		if (active.pending.size === 0) return;
-
-		const changes = [...active.pending.values()];
-		active.pending.clear();
-		active.timer = null;
-		active.changeCount += changes.length;
-
-		void this.resolveDeletes(active.rootPath, changes).then((resolved) => {
-			const bus = getEventBus();
-			if (bus) {
-				bus.emit("file.changed", {
-					watchId: active.id,
-					path: active.rootPath,
-					changes: resolved,
-				});
-			}
-		});
-	}
-
-	private async resolveDeletes(
-		rootPath: string,
-		changes: FileChange[],
-	): Promise<FileChange[]> {
-		return Promise.all(
-			changes.map(async (c) => {
-				if (c.type === "create") {
-					try {
-						await stat(join(rootPath, c.path));
-						return c;
-					} catch (error) {
-						if (!isIgnorableFsRace(error)) throw error;
-						return { ...c, type: "delete" as const };
-					}
-				}
-				return c;
-			}),
-		);
 	}
 
 	private handleWatcherBackendError(
@@ -467,8 +255,4 @@ export function getWatcherManager(): WatcherManager {
 export function resetWatcherManager(): void {
 	if (instance) instance.closeAll();
 	instance = undefined;
-}
-
-function settleWatcherStartup(): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, WATCHER_SETTLE_MS));
 }
