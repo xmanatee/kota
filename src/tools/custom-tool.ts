@@ -6,11 +6,20 @@
  * so they share state, installed packages, and environment.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
-import { type Language, sessions } from "../repl-session.js";
+import { sessions } from "../repl-session.js";
+import {
+  type CustomToolDef,
+  getToolPath,
+  getToolsDir,
+  MAX_CUSTOM_TOOLS,
+  normalizeSchema,
+  saveToDisk,
+  validateName,
+} from "./custom-tool-persistence.js";
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
@@ -28,25 +37,9 @@ export function initCustomToolRegistry(register: RegisterFn, deregister: Deregis
 
 export type ToolResult = { content: string; is_error?: boolean };
 
-const MAX_CUSTOM_TOOLS = 20;
-const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,48}[a-z0-9]$/;
-const RESERVED_NAMES = new Set([
-  "shell", "file_read", "file_write", "file_edit", "multi_edit", "find_replace",
-  "grep", "glob", "todo", "repo_map", "delegate", "web_fetch", "web_search",
-  "ask_user", "http_request", "process", "code_exec", "notebook", "files_overview",
-  "enable_tools", "custom_tool", "module_factory", "memory", "schedule", "get_secret",
-]);
+export type { CustomToolDef } from "./custom-tool-persistence.js";
 
 // ─── Internal state ───────────────────────────────────────────────────
-
-export type CustomToolDef = {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-  code: string;
-  language: Language;
-  timeoutMs: number;
-};
 
 const customDefs = new Map<string, CustomToolDef>();
 
@@ -120,57 +113,42 @@ function handleCreate(input: Record<string, unknown>): ToolResult {
   const name = (input.name as string || "").trim();
   const description = (input.description as string || "").trim();
   const code = (input.code as string || "").trim();
-  const language = (input.language as Language) || "python";
+  const language = (input.language as CustomToolDef["language"]) || "python";
   const persist = (input.persist as boolean) || false;
   const rawParams = input.parameters as Record<string, unknown> | undefined;
 
-  // Validate name
   const nameErr = validateName(name);
   if (nameErr) return { content: nameErr, is_error: true };
 
-  // Validate required fields
   if (!description) return { content: "Error: description is required", is_error: true };
   if (!code) return { content: "Error: code is required", is_error: true };
   if (language !== "python" && language !== "node") {
     return { content: `Error: language must be "python" or "node"`, is_error: true };
   }
 
-  // Validate/default parameters schema
   const parameters = normalizeSchema(rawParams);
   if (typeof parameters === "string") return { content: parameters, is_error: true };
 
-  // Check limit
   if (customDefs.size >= MAX_CUSTOM_TOOLS && !customDefs.has(name)) {
     return { content: `Error: maximum ${MAX_CUSTOM_TOOLS} custom tools reached. Remove one first.`, is_error: true };
   }
 
-  // If replacing an existing custom tool, deregister the old one first
   if (customDefs.has(name)) {
     _deregister(name);
     customDefs.delete(name);
   }
 
-  const def: CustomToolDef = {
-    name,
-    description,
-    parameters,
-    code,
-    language,
-    timeoutMs: DEFAULT_TIMEOUT,
-  };
+  const def: CustomToolDef = { name, description, parameters, code, language, timeoutMs: DEFAULT_TIMEOUT };
 
-  // Build the Anthropic tool definition
   const toolDef: Anthropic.Tool = {
     name,
     description,
     input_schema: parameters as Anthropic.Tool.InputSchema,
   };
 
-  // Register in the tool system
   _register(toolDef, buildRunner(def));
   customDefs.set(name, def);
 
-  // Persist if requested
   if (persist) {
     try {
       saveToDisk(def);
@@ -213,7 +191,6 @@ function handleRemove(input: Record<string, unknown>): ToolResult {
   _deregister(name);
   customDefs.delete(name);
 
-  // Also remove from disk if it exists
   const diskPath = getToolPath(name);
   if (existsSync(diskPath)) {
     try {
@@ -248,27 +225,6 @@ function buildRunner(def: CustomToolDef): (input: Record<string, unknown>) => Pr
 
 // ─── Persistence ──────────────────────────────────────────────────────
 
-function getToolsDir(): string {
-  return join(process.cwd(), ".kota", "tools");
-}
-
-function getToolPath(name: string): string {
-  return join(getToolsDir(), `${name}.json`);
-}
-
-function saveToDisk(def: CustomToolDef): void {
-  const dir = getToolsDir();
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const data = {
-    name: def.name,
-    description: def.description,
-    parameters: def.parameters,
-    code: def.code,
-    language: def.language,
-  };
-  writeFileSync(getToolPath(def.name), JSON.stringify(data, null, 2));
-}
-
 /** Load saved custom tools from .kota/tools/. Returns count of tools loaded. */
 export function loadSavedTools(): number {
   const dir = getToolsDir();
@@ -281,7 +237,6 @@ export function loadSavedTools(): number {
       const raw = JSON.parse(readFileSync(join(dir, file), "utf-8"));
       if (!raw.name || !raw.code || !raw.description) continue;
 
-      // Skip if already registered (e.g., daemon mode reuse)
       if (customDefs.has(raw.name)) continue;
 
       const def: CustomToolDef = {
@@ -293,7 +248,6 @@ export function loadSavedTools(): number {
         timeoutMs: DEFAULT_TIMEOUT,
       };
 
-      // Skip if normalizeSchema returned an error string
       if (typeof def.parameters === "string") continue;
 
       const toolDef: Anthropic.Tool = {
@@ -323,37 +277,9 @@ export function resetCustomTools(): void {
   customDefs.clear();
 }
 
-// ─── Validation helpers ───────────────────────────────────────────────
-
-function validateName(name: string): string | null {
-  if (!name) return "Error: name is required";
-  if (!TOOL_NAME_RE.test(name)) {
-    return `Error: name must be snake_case, 3-50 chars (lowercase letters, digits, underscores). Got: "${name}"`;
-  }
-  if (RESERVED_NAMES.has(name)) {
-    return `Error: "${name}" conflicts with a built-in tool name`;
-  }
-  return null;
-}
-
-function normalizeSchema(raw: Record<string, unknown> | undefined): Record<string, unknown> | string {
-  if (!raw) {
-    return { type: "object", properties: {} };
-  }
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    return "Error: parameters must be a JSON Schema object";
-  }
-  if (raw.type !== "object") {
-    return 'Error: parameters.type must be "object"';
-  }
-  if (typeof raw.properties !== "object" || raw.properties === null) {
-    return "Error: parameters must have a properties field";
-  }
-  return raw;
-}
 export const registration = {
-	tool: customToolTool,
-	runner: runCustomTool,
-	risk: "moderate" as const,
-	kind: "action" as const,
+  tool: customToolTool,
+  runner: runCustomTool,
+  risk: "moderate" as const,
+  kind: "action" as const,
 };

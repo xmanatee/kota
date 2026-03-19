@@ -1,7 +1,7 @@
 ---
 id: task-split-custom-tool-ts
 title: Split src/tools/custom-tool.ts — 359 lines, over limit
-status: ready
+status: done
 priority: p3
 area: source
 summary: Split custom-tool.ts (359 lines) into focused modules, each under 300 lines.
