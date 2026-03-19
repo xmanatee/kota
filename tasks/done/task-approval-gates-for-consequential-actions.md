@@ -1,7 +1,7 @@
 ---
 id: task-approval-gates-for-consequential-actions
 title: Add mandatory approval gates for irreversible or consequential actions
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: KOTA currently relies on prompt instructions to prevent dangerous autonomous actions. Hard-coded approval gates in the runtime for irreversible operations would provide structural safety guarantees.

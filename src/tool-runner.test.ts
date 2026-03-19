@@ -11,12 +11,25 @@ vi.mock("./tools/index.js", () => ({
 vi.mock("./context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
 }));
+vi.mock("./guardrails.js", () => ({
+  assess: vi.fn(),
+}));
+vi.mock("./confirm.js", () => ({
+  confirmAction: vi.fn(),
+}));
+vi.mock("./guardrails-audit.js", () => ({
+  getAuditStore: vi.fn(() => null),
+}));
 
+import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
+import { assess } from "./guardrails.js";
 import { executeTool } from "./tools/index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
 const mockTruncate = vi.mocked(truncateToolResult);
+const mockAssess = vi.mocked(assess);
+const mockConfirmAction = vi.mocked(confirmAction);
 
 function toolBlock(
   name: string,
@@ -242,5 +255,60 @@ describe("executeToolCalls", () => {
     expect(results[0].blocks).toHaveLength(2);
     expect(results[0].blocks![0]).toEqual({ type: "text", text: "T:long text" });
     expect(results[0].blocks![1]).toEqual(imageBlock);
+  });
+});
+
+const dangerousAssessment = {
+  tool: "shell",
+  risk: "dangerous" as const,
+  policy: "confirm" as const,
+  reason: "destructive command pattern detected",
+};
+
+const confirmConfig = {
+  policies: { safe: "allow" as const, moderate: "allow" as const, dangerous: "confirm" as const },
+};
+
+describe("guardrails confirm gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTruncate.mockImplementation((text: string) => text);
+  });
+
+  it("blocks a destructive tool call when user rejects confirmation", async () => {
+    mockAssess.mockReturnValue(dangerousAssessment);
+    mockConfirmAction.mockResolvedValue(false);
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "git reset --hard HEAD~1" })],
+      50000,
+      false,
+      undefined,
+      undefined,
+      confirmConfig,
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("requires confirmation");
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
+  it("executes a destructive tool when user approves confirmation", async () => {
+    mockAssess.mockReturnValue(dangerousAssessment);
+    mockConfirmAction.mockResolvedValue(true);
+    mockExecuteTool.mockResolvedValue({ content: "reset done" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "git reset --hard HEAD~1" })],
+      50000,
+      false,
+      undefined,
+      undefined,
+      confirmConfig,
+    );
+
+    expect(results[0].is_error).toBeUndefined();
+    expect(results[0].content).toBe("reset done");
+    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "git reset --hard HEAD~1" });
   });
 });

@@ -1,4 +1,5 @@
 import { getApprovalQueue } from "./approval-queue.js";
+import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import { getAuditStore } from "./guardrails-audit.js";
@@ -79,6 +80,19 @@ export async function executeToolCalls(
               "Use the approval tool to list and approve pending items.",
             is_error: true,
           };
+        }
+        if (assessment.policy === "confirm") {
+          const approved = await confirmAction(
+            `Allow ${block.name}? (${assessment.reason})`,
+          );
+          if (!approved) {
+            return {
+              tool_use_id: block.id,
+              content: `Blocked by guardrails: ${block.name} requires confirmation (${assessment.reason}). ` +
+                "Use ask_user to request explicit human approval, then retry.",
+              is_error: true,
+            };
+          }
         }
       }
 
