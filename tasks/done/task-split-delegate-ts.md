@@ -1,7 +1,7 @@
 ---
 id: task-split-delegate-ts
 title: Split tools/delegate.ts — extract delegation logic from entry
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/tools/delegate.ts is 437 lines, 46% over the 300-line limit. Splitting improves navigability and keeps each file focused.
