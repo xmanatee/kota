@@ -1,7 +1,7 @@
 ---
 id: task-approval-gates-for-consequential-actions
 title: Add mandatory approval gates for irreversible or consequential actions
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: KOTA currently relies on prompt instructions to prevent dangerous autonomous actions. Hard-coded approval gates in the runtime for irreversible operations would provide structural safety guarantees.
@@ -28,6 +28,10 @@ A defined set of action categories (e.g., `destructive`, `external`, `publish`) 
 - At least `destructive` category actions (file delete, git reset) require runtime-level confirmation.
 - Approval can be granted by a human in interactive mode or by a configured policy in headless mode.
 - There is a test showing that a destructive tool call is blocked without approval.
+
+## Plan
+
+The `kind: "action" | "discovery"` field added to all 41 tool registrations provides the filter layer. Approval gates should intercept `action`-kind tools with a `destructive` sub-category at the executor level, before the tool call reaches the agent SDK. Start narrow: identify which existing tools are destructive, annotate them with a `destructive` flag or sub-kind, and add an executor-level gate that calls an `approvalPolicy` handler (no-op in headless, prompt in interactive).
 
 ## References
 
