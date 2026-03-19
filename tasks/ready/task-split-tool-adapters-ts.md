@@ -1,12 +1,12 @@
 ---
 id: task-split-tool-adapters-ts
 title: Split tool-adapters.ts — extract adapter implementations from registry
-status: backlog
+status: ready
 priority: p2
 area: structure
 summary: src/tool-adapters.ts is 423 lines, 41% over the 300-line limit. The file bundles adapter registration, conversion logic, and type helpers in one place.
 created_at: 2026-03-19
-updated_at: 2026-03-19
+updated_at: 2026-03-19T09:07:43Z
 ---
 
 ## Problem
