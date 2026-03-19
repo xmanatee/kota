@@ -1,12 +1,12 @@
 ---
 id: task-split-knowledge-store-ts
 title: Split memory/knowledge-store.ts — extract query or indexing helpers
-status: backlog
+status: ready
 priority: p2
 area: structure
 summary: src/memory/knowledge-store.ts is 415 lines, 38% over the 300-line limit. The file mixes persistence, querying, and indexing concerns.
 created_at: 2026-03-19
-updated_at: 2026-03-19
+updated_at: 2026-03-19T08:38
 ---
 
 ## Problem
