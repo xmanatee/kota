@@ -1,12 +1,12 @@
 ---
 id: task-tool-description-policy
 title: Add "when NOT to use" guidance to tool descriptions
-status: backlog
+status: ready
 priority: p3
 area: tools
 summary: Tool descriptions currently describe what tools do, but not when to avoid them. Adding negative examples reduces unnecessary sub-agent spawning and redundant tool calls.
 created_at: 2026-03-19
-updated_at: 2026-03-19
+updated_at: 2026-03-19T06:35:42
 ---
 
 ## Problem
