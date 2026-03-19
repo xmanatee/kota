@@ -18,6 +18,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - Keep tasks, docs, and local `AGENTS.md` files aligned with reality when your change affects them.
 - When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly (e.g. `status: done` when placing in `done/`). The test suite validates `status == directory-name` on every run.
+- When moving a task file (write new location, delete old), always stage the deletion explicitly: `git rm tasks/<dir>/<file>` or `git add tasks/<dir>/<file>` on the deleted path. Do not only stage the new file — the old copy must also be committed or the deletion will be left dangling in the working tree.
 - When moving a task out of `inbox/` (to backlog, ready, doing, done, or dropped), also ensure the file has all required sections: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - Before creating any new task file, scan all task directories (`inbox/`, `backlog/`, `ready/`, `doing/`, `blocked/`, `done/`, `dropped/`) for an existing task covering the same subject. If one exists, enrich it rather than creating a duplicate. Tasks in `done/` or `dropped/` should not be recreated.
 - If you change behavior, verify the exact behavior you changed while you work.
