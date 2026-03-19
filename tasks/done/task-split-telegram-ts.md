@@ -1,7 +1,7 @@
 ---
 id: task-split-telegram-ts
 title: Split telegram.ts — extract message handlers or client helpers
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/telegram.ts is 382 lines, 27% over the 300-line limit. Splitting improves navigability and keeps each file focused.
