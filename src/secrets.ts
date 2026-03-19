@@ -5,218 +5,17 @@
  * All known secret values are masked in tool output before reaching the LLM context.
  */
 
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir, platform } from "node:os";
-import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import {
+  EnvProvider,
+  escapeRegex,
+  FileProvider,
+  KeychainProvider,
+} from "./secret-providers.js";
 
-export interface SecretProvider {
-  readonly name: string;
-  readonly writable: boolean;
-  get(key: string): string | null;
-  set(key: string, value: string): void;
-  remove(key: string): boolean;
-  list(): string[];
-}
-
-// --- Env Provider ---
-
-export class EnvProvider implements SecretProvider {
-  readonly name = "env";
-  readonly writable = false;
-
-  private envFileCache: Record<string, string> | null = null;
-  private envFilePath: string | null;
-
-  constructor(envFilePath?: string) {
-    this.envFilePath = envFilePath ?? null;
-  }
-
-  get(key: string): string | null {
-    // Check process.env first
-    const envVal = process.env[key];
-    if (envVal !== undefined) return envVal;
-
-    // Then check .env file
-    return this.loadEnvFile()[key] ?? null;
-  }
-
-  set(_key: string, _value: string): void {
-    throw new Error("EnvProvider is read-only");
-  }
-
-  remove(_key: string): boolean {
-    throw new Error("EnvProvider is read-only");
-  }
-
-  list(): string[] {
-    return Object.keys(this.loadEnvFile());
-  }
-
-  private loadEnvFile(): Record<string, string> {
-    if (this.envFileCache) return this.envFileCache;
-    this.envFileCache = {};
-    if (!this.envFilePath || !existsSync(this.envFilePath)) return this.envFileCache;
-
-    const content = readFileSync(this.envFilePath, "utf-8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx < 1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      let value = trimmed.slice(eqIdx + 1).trim();
-      // Strip surrounding quotes
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
-      this.envFileCache[key] = value;
-    }
-    return this.envFileCache;
-  }
-}
-
-// --- File Provider ---
-
-export class FileProvider implements SecretProvider {
-  readonly name: string;
-  readonly writable = true;
-
-  private filePath: string;
-  private data: Record<string, string> | null = null;
-
-  constructor(filePath: string, name?: string) {
-    this.filePath = filePath;
-    this.name = name ?? "file";
-  }
-
-  get(key: string): string | null {
-    return this.load()[key] ?? null;
-  }
-
-  set(key: string, value: string): void {
-    const data = this.load();
-    data[key] = value;
-    this.save(data);
-  }
-
-  remove(key: string): boolean {
-    const data = this.load();
-    if (!(key in data)) return false;
-    delete data[key];
-    this.save(data);
-    return true;
-  }
-
-  list(): string[] {
-    return Object.keys(this.load());
-  }
-
-  private load(): Record<string, string> {
-    if (this.data) return this.data;
-    if (!existsSync(this.filePath)) {
-      this.data = {};
-      return this.data;
-    }
-    try {
-      const raw = readFileSync(this.filePath, "utf-8");
-      const parsed = JSON.parse(raw);
-      this.data = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-        ? parsed
-        : {};
-    } catch {
-      this.data = {};
-    }
-    return this.data as Record<string, string>;
-  }
-
-  private save(data: Record<string, string>): void {
-    this.data = data;
-    const dir = dirname(this.filePath);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(this.filePath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
-  }
-}
-
-// --- Keychain Provider (macOS) ---
-
-const KEYCHAIN_SERVICE = "kota-secrets";
-
-export class KeychainProvider implements SecretProvider {
-  readonly name = "keychain";
-  readonly writable = true;
-
-  private available: boolean | null = null;
-
-  get(key: string): string | null {
-    if (!this.isAvailable()) return null;
-    try {
-      const result = execSync(
-        `security find-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" -w 2>/dev/null`,
-        { encoding: "utf-8", timeout: 5000 },
-      );
-      return result.trim();
-    } catch {
-      return null;
-    }
-  }
-
-  set(key: string, value: string): void {
-    if (!this.isAvailable()) throw new Error("Keychain not available");
-    // Delete existing entry first (ignore errors if it doesn't exist)
-    try {
-      execSync(
-        `security delete-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" 2>/dev/null`,
-        { timeout: 5000 },
-      );
-    } catch { /* ok */ }
-    execSync(
-      `security add-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" -w "${this.escapeArg(value)}"`,
-      { timeout: 5000 },
-    );
-  }
-
-  remove(key: string): boolean {
-    if (!this.isAvailable()) return false;
-    try {
-      execSync(
-        `security delete-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" 2>/dev/null`,
-        { timeout: 5000 },
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  list(): string[] {
-    // macOS keychain doesn't support listing by service easily — return empty
-    return [];
-  }
-
-  isAvailable(): boolean {
-    if (this.available !== null) return this.available;
-    this.available = platform() === "darwin";
-    if (this.available) {
-      try {
-        execSync("security help 2>/dev/null", { timeout: 3000 });
-      } catch {
-        this.available = false;
-      }
-    }
-    return this.available;
-  }
-
-  private escapeArg(s: string): string {
-    if (/[\n\r\0]/.test(s)) {
-      throw new Error("Secret key/value must not contain newlines or null bytes");
-    }
-    return s.replace(/["\\$`]/g, "\\$&");
-  }
-}
-
-// --- SecretStore ---
+export type { SecretProvider } from "./secret-providers.js";
+export { EnvProvider, FileProvider, KeychainProvider } from "./secret-providers.js";
 
 export type SecretScope = "project" | "global";
 
@@ -225,7 +24,7 @@ const PROJECT_DIR = ".kota";
 const SECRETS_FILE = "secrets.json";
 
 export class SecretStore {
-  private providers: SecretProvider[];
+  private providers: (EnvProvider | FileProvider | KeychainProvider)[];
   private projectFileProvider: FileProvider;
   private globalFileProvider: FileProvider;
   /** Cached known values for masking — maps value → name. */
@@ -286,7 +85,6 @@ export class SecretStore {
     const provider = scope === "global" ? this.globalFileProvider : this.projectFileProvider;
     const removed = provider.remove(key);
     if (removed) {
-      // knownSecrets maps value→name, so find by name and delete by value
       for (const [value, name] of this.knownSecrets) {
         if (name === key) {
           this.knownSecrets.delete(value);
@@ -341,17 +139,16 @@ export class SecretStore {
   }
 
   private trackSecret(name: string, value: string): void {
-    if (value.length < 4) return; // Don't mask very short values — too many false positives
+    if (value.length < 4) return;
     if (this.knownSecrets.get(value) === name) return;
     this.knownSecrets.set(value, name);
-    this.maskRegex = null; // Invalidate cached regex
+    this.maskRegex = null;
   }
 
   private getMaskRegex(): RegExp | null {
     if (this.maskRegex) return this.maskRegex;
     if (this.knownSecrets.size === 0) return null;
 
-    // Sort by length descending so longer values match first
     const values = [...this.knownSecrets.keys()]
       .sort((a, b) => b.length - a.length)
       .map(escapeRegex);
@@ -360,7 +157,6 @@ export class SecretStore {
     return this.maskRegex;
   }
 
-  /** Load all known secrets from writable providers for masking. */
   private refreshKnownSecrets(): void {
     for (const provider of this.providers) {
       for (const name of provider.list()) {
@@ -369,10 +165,6 @@ export class SecretStore {
       }
     }
   }
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // --- Singleton ---

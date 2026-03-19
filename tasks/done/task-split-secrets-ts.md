@@ -1,7 +1,7 @@
 ---
 id: task-split-secrets-ts
 title: Split secrets.ts — extract provider implementations or parsing helpers
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/secrets.ts is 393 lines, 31% over the 300-line limit. The file mixes secret resolution, provider implementations, and parsing logic.
