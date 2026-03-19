@@ -1,7 +1,7 @@
 ---
 id: task-split-file-watcher-ts
 title: Split file-watcher.ts — extract watch logic from event dispatch
-status: backlog
+status: ready
 priority: p2
 area: structure
 summary: src/file-watcher.ts is 474 lines, well over the 300-line limit. Splitting improves navigability and keeps each file focused.
