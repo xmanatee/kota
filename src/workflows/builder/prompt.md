@@ -12,6 +12,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 ## Guidance
 
 - Work only inside this repository.
+- **Do not use git worktrees.** Make all changes directly on the main branch. The post-step verification pipeline runs from the project root on main — changes isolated in a worktree will not be visible to it and will cause the run to fail.
 - Aim for materially useful improvements over low-value polish.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - Keep tasks, docs, and local `AGENTS.md` files aligned with reality when your change affects them.
