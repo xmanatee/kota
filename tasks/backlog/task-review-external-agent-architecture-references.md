@@ -1,14 +1,34 @@
 ---
 id: task-review-external-agent-architecture-references
 title: Review external agent architecture references
-status: inbox
+status: backlog
 priority: p2
+area: research
 summary: Triage a set of external agent-related papers, posts, and repos for ideas that could materially improve KOTA.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
-References worth triaging:
+## Problem
+
+Several external agent architecture references have been captured but not reviewed. They may contain ideas applicable to KOTA's runtime, workflow engine, tool system, or prompting strategy.
+
+## Desired Outcome
+
+Each reference is assessed and either:
+- Produces one or more concrete backlog items, or
+- Is explicitly dropped as not applicable.
+
+## Constraints
+
+- Do not add speculative features; only extract concrete, actionable ideas.
+- Keep new tasks focused — prefer enriching existing open tasks over creating duplicates.
+
+## Done When
+
+All references below have been evaluated and the task is moved to done with a brief note on what (if anything) was captured.
+
+## References
 
 - https://glthr.com/XML-fundamental-to-Claude
 - https://www.bengubler.com/posts/2026-02-25-introducing-helm
@@ -23,6 +43,3 @@ References worth triaging:
 - https://github.com/here-build/foundation
 - https://justin.abrah.ms/blog/2026-01-05-wrapping-my-head-around-gas-town.html
 - https://sankalp.bearblog.dev/my-experience-with-claude-code-20-and-how-to-get-better-at-using-coding-agents/
-
-Use triage to decide whether this should become one research task, several
-targeted backlog items, or be dropped as stale.
