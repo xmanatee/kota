@@ -13,7 +13,7 @@ import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { ToolMiddlewareFn } from "./tool-middleware.js";
-import type { ToolResult } from "./tools/index.js";
+import type { ToolResult } from "./tools/tool-result.js";
 
 /** Scoped logger available to modules via ModuleContext. */
 export type ModuleLogger = {

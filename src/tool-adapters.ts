@@ -12,7 +12,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { KotaModule, ToolDef } from "./module-types.js";
-import type { ToolResult } from "./tools/index.js";
+import type { ToolResult } from "./tools/tool-result.js";
 
 // --- External format types ---
 
