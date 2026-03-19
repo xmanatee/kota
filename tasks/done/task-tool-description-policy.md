@@ -1,12 +1,12 @@
 ---
 id: task-tool-description-policy
 title: Add "when NOT to use" guidance to tool descriptions
-status: ready
+status: done
 priority: p3
 area: tools
 summary: Tool descriptions currently describe what tools do, but not when to avoid them. Adding negative examples reduces unnecessary sub-agent spawning and redundant tool calls.
 created_at: 2026-03-19
-updated_at: 2026-03-19T06:35:42
+updated_at: 2026-03-19T06:40:00
 ---
 
 ## Problem
@@ -27,6 +27,22 @@ Each tool definition includes explicit "when NOT to use" guidance. The agent ove
 
 - All tools with known over-use patterns have "when NOT to use" guidance added.
 - At least one before/after example in the task notes shows the guidance prevents a known bad pattern.
+
+## Notes
+
+### Before/After Examples
+
+**delegate (over-use pattern prevented):**
+- Before: agent delegates "find all TypeScript files in src/" to a sub-agent
+- After: "Do NOT use when a single grep, glob, or file_read call would answer the question" → agent uses `glob("**/*.ts", "src/")` directly
+
+**file_read (over-use pattern prevented):**
+- Before: agent calls file_read on 10 files looking for a pattern
+- After: "Do NOT use to search for patterns across files (use grep)" → agent uses grep with the pattern once
+
+**grep used instead of glob (prevented):**
+- Before: agent runs `grep "" --files-with-matches "**/*.ts"` just to list TypeScript files
+- After: "Do NOT use to find files by name or extension only (use glob)" → agent uses glob directly
 
 ## References
 

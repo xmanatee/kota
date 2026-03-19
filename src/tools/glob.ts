@@ -7,7 +7,8 @@ import type { ToolResult } from "./index.js";
 export const globTool: Anthropic.Tool = {
   name: "glob",
   description:
-    "Find files matching a glob pattern. Returns paths sorted by modification time (newest first).",
+    "Find files matching a glob pattern. Returns paths sorted by modification time (newest first). " +
+    "Do NOT use to search file contents by text or pattern (use grep).",
   input_schema: {
     type: "object" as const,
     properties: {

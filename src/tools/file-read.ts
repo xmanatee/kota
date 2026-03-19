@@ -64,7 +64,8 @@ export const fileReadTool: Anthropic.Tool = {
   description:
     "Read a file with line numbers. Supports offset/limit for large files. " +
     "Reads images (PNG, JPEG, GIF, WebP) for visual analysis. " +
-    "Reads PDFs by extracting text (requires pdftotext from poppler-utils).",
+    "Reads PDFs by extracting text (requires pdftotext from poppler-utils). " +
+    "Do NOT use to search for patterns across files (use grep) or to find files by name (use glob).",
   input_schema: {
     type: "object" as const,
     properties: {

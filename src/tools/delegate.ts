@@ -42,7 +42,8 @@ export const delegateTool: Anthropic.Tool = {
     "explore (default): read-only research. " +
     "execute: can modify files and run commands. " +
     "research: deep multi-step research with iterative search and source tracking. " +
-    "Use 'prompt' to override the sub-agent's system prompt with a template from .kota/prompts/.",
+    "Use 'prompt' to override the sub-agent's system prompt with a template from .kota/prompts/. " +
+    "Do NOT use when a single grep, glob, or file_read call would answer the question — delegate only when multi-step reasoning across many files is needed.",
   input_schema: {
     type: "object" as const,
     properties: {
