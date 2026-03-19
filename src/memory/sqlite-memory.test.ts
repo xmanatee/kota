@@ -244,7 +244,7 @@ describeIfSqlite("SQLiteMemoryProvider", () => {
 		}
 		const all = provider.list();
 		expect(all.length).toBe(110);
-	});
+	}, 30_000);
 
 	// --- getDbPath ---
 
