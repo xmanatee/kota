@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-run-store-ts
 title: Split workflow/run-store.ts — extract query and serialization helpers
-status: backlog
+status: ready
 priority: p2
 area: structure
 summary: src/workflow/run-store.ts is 457 lines, over the 300-line limit. The file combines run persistence, querying, and serialization concerns.
