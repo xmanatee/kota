@@ -1,12 +1,12 @@
 ---
 id: task-split-computer-use-ts
 title: Split tools/computer-use.ts — extract action handlers from entry
-status: backlog
+status: ready
 priority: p2
 area: structure
 summary: src/tools/computer-use.ts is 419 lines, 40% over the 300-line limit. Splitting improves navigability and keeps each file focused.
 created_at: 2026-03-19
-updated_at: 2026-03-19
+updated_at: 2026-03-19T09:13:55
 ---
 
 ## Problem
