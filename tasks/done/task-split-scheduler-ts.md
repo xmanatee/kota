@@ -1,7 +1,7 @@
 ---
 id: task-split-scheduler-ts
 title: Split scheduler/scheduler.ts — extract scheduling logic from entry
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/scheduler/scheduler.ts is 371 lines, 24% over the 300-line limit. Splitting improves navigability and keeps each file focused.

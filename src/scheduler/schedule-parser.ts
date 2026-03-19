@@ -1,9 +1,66 @@
 /**
- * Pure parsing and utility functions for the scheduler.
+ * Pure parsing, formatting, and type definitions for the scheduler.
  *
  * Extracted from scheduler.ts so parsing logic is independently
  * testable and reusable without importing the Scheduler class.
  */
+
+export type ScheduledItem = {
+  id: number;
+  description: string;
+  triggerAt: string; // ISO datetime
+  repeatMs?: number;
+  repeatLabel?: string;
+  status: "pending" | "fired" | "cancelled";
+  created: string;
+  firedAt?: string;
+  /** Event name that triggers this item (e.g., "session.end"). */
+  triggerEvent?: string;
+  /** Optional payload filter — all keys must match for the event to trigger. */
+  triggerFilter?: Record<string, string>;
+  /** For event triggers: re-arm after firing (stay pending). */
+  repeat?: boolean;
+};
+
+/** Build a human-readable summary of pending scheduled items. */
+export function getPendingSummary(items: ScheduledItem[]): string | null {
+  const pending = items.filter((i) => i.status === "pending");
+  if (pending.length === 0) return null;
+  const now = new Date();
+
+  const timeBased = pending.filter((i) => !i.triggerEvent);
+  const eventBased = pending.filter((i) => i.triggerEvent);
+
+  const overdue = timeBased.filter((i) => new Date(i.triggerAt) <= now);
+  const upcoming = timeBased.filter((i) => new Date(i.triggerAt) > now);
+
+  const parts: string[] = [];
+  if (overdue.length > 0) {
+    parts.push(
+      `${overdue.length} OVERDUE: ${overdue.map((i) => `"${i.description}"`).join(", ")}`,
+    );
+  }
+  if (upcoming.length > 0) {
+    const preview = upcoming.slice(0, 3).map((i) => {
+      const label = formatRelative(new Date(i.triggerAt), now);
+      return `"${i.description}" (${label})`;
+    });
+    const more = upcoming.length > 3 ? ` (+${upcoming.length - 3} more)` : "";
+    parts.push(`${upcoming.length} upcoming: ${preview.join(", ")}${more}`);
+  }
+  if (eventBased.length > 0) {
+    const preview = eventBased.slice(0, 3).map((i) => {
+      const repeatTag = i.repeat ? ", repeat" : "";
+      return `"${i.description}" (on ${i.triggerEvent}${repeatTag})`;
+    });
+    const more =
+      eventBased.length > 3 ? ` (+${eventBased.length - 3} more)` : "";
+    parts.push(
+      `${eventBased.length} event-triggered: ${preview.join(", ")}${more}`,
+    );
+  }
+  return parts.join("; ");
+}
 
 /**
  * Deterministic hash for project-scoping storage files.
