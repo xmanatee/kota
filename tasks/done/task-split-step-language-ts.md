@@ -1,7 +1,7 @@
 ---
 id: task-split-step-language-ts
 title: Split src/manifest/step-language.ts — extract condition/template helpers
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/manifest/step-language.ts is 307 lines, over the 300-line limit. Splitting improves navigability and keeps each file focused.
