@@ -157,6 +157,81 @@ describe("WorkflowRuntime", () => {
     expect(runIds.length).toBe(2);
   });
 
+  it("supports an explorer -> builder -> improver pipeline", async () => {
+    const bus = new EventBus();
+    const seenWorkflows: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      seenWorkflows.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "inspect",
+              type: "code",
+              run: () => ({ readyCount: 1 }),
+            },
+          ],
+        }),
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflow: "explorer",
+                status: "success",
+              },
+            },
+          ],
+          steps: [
+            {
+              id: "build",
+              type: "emit",
+              event: "builder.done",
+            },
+          ],
+        }),
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflow: "builder",
+                status: ["success", "failed"],
+              },
+            },
+          ],
+          steps: [
+            {
+              id: "improve",
+              type: "emit",
+              event: "improver.done",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(180);
+    await runtime.stop();
+
+    expect(seenWorkflows.slice(0, 3)).toEqual([
+      "explorer",
+      "builder",
+      "improver",
+    ]);
+  });
+
   it("queues improver after failed builder completions but ignores interruptions", async () => {
     const bus = new EventBus();
     const seenWorkflows: string[] = [];

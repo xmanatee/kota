@@ -113,7 +113,7 @@ describe("findInstructionFiles", () => {
 	it("finds AGENTS.md in start directory", () => {
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "agent rules", "utf-8");
 		try {
-			const files = findInstructionFiles(TEST_ROOT);
+			const files = findInstructionFiles(TEST_ROOT, TEST_ROOT);
 			const match = files.find((f) => f.path === join(TEST_ROOT, "AGENTS.md"));
 			expect(match).toBeDefined();
 			expect(match!.content).toBe("agent rules");
@@ -126,7 +126,7 @@ describe("findInstructionFiles", () => {
 	it("finds CLAUDE.md in start directory", () => {
 		writeFileSync(join(TEST_ROOT, "CLAUDE.md"), "claude rules", "utf-8");
 		try {
-			const files = findInstructionFiles(TEST_ROOT);
+			const files = findInstructionFiles(TEST_ROOT, TEST_ROOT);
 			const match = files.find((f) => f.path === join(TEST_ROOT, "CLAUDE.md"));
 			expect(match).toBeDefined();
 			expect(match!.content).toBe("claude rules");
@@ -140,7 +140,7 @@ describe("findInstructionFiles", () => {
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "parent agents", "utf-8");
 		writeFileSync(join(CHILD, "AGENTS.md"), "child agents", "utf-8");
 		try {
-			const files = findInstructionFiles(CHILD);
+			const files = findInstructionFiles(CHILD, TEST_ROOT);
 			const parentIdx = files.findIndex((f) => f.content === "parent agents");
 			const childIdx = files.findIndex((f) => f.content === "child agents");
 			expect(parentIdx).toBeGreaterThanOrEqual(0);
@@ -155,7 +155,7 @@ describe("findInstructionFiles", () => {
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "agents content", "utf-8");
 		writeFileSync(join(TEST_ROOT, "CLAUDE.md"), "claude content", "utf-8");
 		try {
-			const files = findInstructionFiles(TEST_ROOT);
+			const files = findInstructionFiles(TEST_ROOT, TEST_ROOT);
 			const agents = files.find(
 				(f) => f.path === join(TEST_ROOT, "AGENTS.md"),
 			);
@@ -174,7 +174,7 @@ describe("findInstructionFiles", () => {
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "", "utf-8");
 		writeFileSync(join(TEST_ROOT, "CLAUDE.md"), "   ", "utf-8");
 		try {
-			const files = findInstructionFiles(TEST_ROOT);
+			const files = findInstructionFiles(TEST_ROOT, TEST_ROOT);
 			const fromTestDirs = files.filter((f) => f.path.startsWith(TEST_ROOT));
 			expect(fromTestDirs).toHaveLength(0);
 		} finally {
@@ -187,7 +187,7 @@ describe("findInstructionFiles", () => {
 		writeFileSync(join(TEST_ROOT, "CLAUDE.md"), "@AGENTS.md", "utf-8");
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "shared rules", "utf-8");
 		try {
-			const files = findInstructionFiles(TEST_ROOT);
+			const files = findInstructionFiles(TEST_ROOT, TEST_ROOT);
 			const claude = files.find(
 				(f) => f.path === join(TEST_ROOT, "CLAUDE.md"),
 			);
@@ -200,9 +200,8 @@ describe("findInstructionFiles", () => {
 	});
 
 	it("returns empty array when no instruction files exist", () => {
-		const files = findInstructionFiles(GRANDCHILD);
-		const fromTestDirs = files.filter((f) => f.path.startsWith(TEST_ROOT));
-		expect(fromTestDirs).toHaveLength(0);
+		const files = findInstructionFiles(GRANDCHILD, TEST_ROOT);
+		expect(files).toHaveLength(0);
 	});
 
 	it("supports repo-style root AGENTS that reference docs files", () => {
@@ -224,7 +223,7 @@ describe("findInstructionFiles", () => {
 			"utf-8",
 		);
 		try {
-			const files = findInstructionFiles(CHILD);
+			const files = findInstructionFiles(CHILD, TEST_ROOT);
 			const root = files.find((f) => f.path === join(TEST_ROOT, "AGENTS.md"));
 			expect(root).toBeDefined();
 			expect(root!.content).toContain("standards rules");
@@ -235,23 +234,31 @@ describe("findInstructionFiles", () => {
 			rmSync(join(TEST_ROOT, "tasks"), { recursive: true, force: true });
 		}
 	});
+
+	it("does not climb above the declared repo root", () => {
+		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "repo rules", "utf-8");
+		try {
+			const files = findInstructionFiles(CHILD, TEST_ROOT);
+			expect(files.map((file) => file.path)).toEqual([
+				join(TEST_ROOT, "AGENTS.md"),
+			]);
+		} finally {
+			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
+		}
+	});
 });
 
 describe("loadInstructionContext", () => {
 	it("returns empty string when no files found", () => {
-		const result = loadInstructionContext(GRANDCHILD);
-		if (result === "") {
-			expect(result).toBe("");
-		} else {
-			expect(result).toContain("## Project Instructions");
-		}
+		const result = loadInstructionContext(GRANDCHILD, TEST_ROOT);
+		expect(result).toBe("");
 	});
 
 	it("truncates content exceeding 8000 chars", () => {
 		const longContent = "x".repeat(9000);
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), longContent, "utf-8");
 		try {
-			const result = loadInstructionContext(TEST_ROOT);
+			const result = loadInstructionContext(TEST_ROOT, TEST_ROOT);
 			expect(result).toContain("... (truncated)");
 		} finally {
 			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
@@ -262,7 +269,7 @@ describe("loadInstructionContext", () => {
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "agent rules", "utf-8");
 		writeFileSync(join(CHILD, "CLAUDE.md"), "claude rules", "utf-8");
 		try {
-			const result = loadInstructionContext(CHILD);
+			const result = loadInstructionContext(CHILD, TEST_ROOT);
 			expect(result).toContain("## Project Instructions");
 			expect(result).toContain("AGENTS:");
 			expect(result).toContain("CLAUDE:");
@@ -278,7 +285,7 @@ describe("loadInstructionContext", () => {
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "root rules", "utf-8");
 		writeFileSync(join(CHILD, "AGENTS.md"), "child rules", "utf-8");
 		try {
-			const result = loadInstructionContext(CHILD);
+			const result = loadInstructionContext(CHILD, TEST_ROOT);
 			expect(result).toContain("---");
 		} finally {
 			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });

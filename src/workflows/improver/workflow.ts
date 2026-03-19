@@ -6,13 +6,21 @@ import {
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
-  description: "Improve the autonomous development system itself using evidence from recent runs.",
+  description:
+    "Improve the autonomous development system itself using evidence from recent runs.",
   triggers: [
     {
       event: "workflow.completed",
       filter: {
         workflow: "builder",
         status: ["success", "failed"],
+      },
+    },
+    {
+      event: "workflow.completed",
+      filter: {
+        workflow: "explorer",
+        status: "failed",
       },
     },
   ],
@@ -27,6 +35,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
     ...createVerificationAndRestartSteps(
       "improver workflow finished verification build",
+      "improve",
     ),
   ],
 };

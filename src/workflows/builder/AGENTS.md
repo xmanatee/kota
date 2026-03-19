@@ -2,5 +2,6 @@
 
 This directory contains the builder workflow definition and its prompt.
 
-- Builder should ship one cohesive improvement per run while keeping process docs and local directory guides honest.
+- Builder should ship one cohesive task from `tasks/ready/` per run.
+- Builder owns implementation quality, architecture, completeness, and honest task-state updates for the work it executes.
 - Changes here shape the default autonomous development behavior.

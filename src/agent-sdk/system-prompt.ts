@@ -7,10 +7,11 @@ export function buildClaudeCodeSystemPrompt(
   config?: KotaConfig,
   extraInstructions?: string,
   startDir?: string,
+  rootDir?: string,
 ): SDKSystemPrompt {
   const sections = [
-    loadProjectContext(startDir),
-    loadInstructionContext(startDir),
+    loadProjectContext(startDir, rootDir),
+    loadInstructionContext(startDir, rootDir),
     config ? buildUserProfile(config) : "",
     extraInstructions?.trim()
       ? `\n\n## Autonomous Agent Instructions\n\n${extraInstructions.trim()}`

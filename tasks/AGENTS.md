@@ -31,6 +31,10 @@ outstanding work.
 
 - New owner requests should be added as files under `inbox/`.
 - Triage means moving an inbox item to `ready/`, `backlog/`, or `dropped/` and normalizing it into the full task format.
+- When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly.
+- When moving a task file, stage both sides of the move so the old path is actually removed from git.
+- If you start and complete a task in one run, move it directly to `done/` instead of leaving a parallel `doing/` copy behind.
+- When a task leaves `inbox/`, normalize it into the full task format with the required sections.
 - Before creating a new task, scan related open work in `inbox/`, `backlog/`, `ready/`, `doing/`, and `blocked/`.
 - If a related task already exists, prefer updating its context over creating a duplicate.
 - If research or implementation uncovers a genuinely useful follow-up idea, capture it in `inbox/` or enrich an existing task, but do not turn every observation into process overhead.

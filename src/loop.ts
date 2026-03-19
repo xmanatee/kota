@@ -126,9 +126,12 @@ export class AgentSession {
     initProviderRegistry();
     registerDefaultProviders();
 
-    this.projectContext = loadProjectContext();
+    this.projectContext = loadProjectContext(process.cwd(), process.cwd());
     const projectContext = this.projectContext;
-    const instructionContext = loadInstructionContext();
+    const instructionContext = loadInstructionContext(
+      process.cwd(),
+      process.cwd(),
+    );
     this.instructionContext = instructionContext;
     const warmup = buildSessionWarmup();
     const userProfile = options.config ? buildUserProfile(options.config) : "";
@@ -137,7 +140,10 @@ export class AgentSession {
       this.transport.emit({ type: "status", message: "[kota] Loaded project context from .kota.md" });
     }
     if (instructionContext && this.verbose) {
-      this.transport.emit({ type: "status", message: "[kota] Loaded project instructions from AGENTS.md / CLAUDE.md" });
+      this.transport.emit({
+        type: "status",
+        message: "[kota] Loaded repo-local instructions from AGENTS.md / CLAUDE.md",
+      });
     }
     if (userProfile && this.verbose) {
       this.transport.emit({ type: "status", message: "[kota] User profile loaded from config" });

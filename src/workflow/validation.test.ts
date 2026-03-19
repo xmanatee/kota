@@ -237,13 +237,14 @@ describe("workflow validation", () => {
     ).toThrow('restart step "request-restart" must be the final step');
   });
 
-  it("exposes the built-in builder and improver workflows", () => {
+  it("exposes the built-in explorer, builder, and improver workflows", () => {
     const definitions = validateWorkflowDefinitions(
       getBuiltinWorkflowDefinitions(),
       process.cwd(),
     );
 
     expect(definitions.map((definition) => definition.name)).toEqual([
+      "explorer",
       "builder",
       "improver",
     ]);

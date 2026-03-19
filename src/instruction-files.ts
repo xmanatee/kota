@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { resolveScopedSearch } from "./path-scope.js";
 
 const INSTRUCTION_FILENAMES = ["AGENTS.md", "CLAUDE.md"] as const;
 type InstructionType = "AGENTS" | "CLAUDE";
 
-const MAX_CLIMB = 10;
 const MAX_CONTENT_LENGTH = 8_000;
 const MAX_REF_DEPTH = 3;
 const REF_PATTERN = /^@(.+\.md)\s*$/gm;
@@ -40,19 +40,20 @@ export function resolveReferences(
 		if (seen.has(resolved)) return `<!-- circular ref: ${refPath} -->`;
 		if (!existsSync(resolved)) return `<!-- not found: ${refPath} -->`;
 
-		try {
-			const refContent = readFileSync(resolved, "utf-8").trim();
-			if (!refContent) return "";
-			seen.add(resolved);
-			return resolveReferences(
-				refContent,
-				dirname(resolved),
-				depth + 1,
-				seen,
-			);
-		} catch {
-			return `<!-- unreadable: ${refPath} -->`;
-		}
+	try {
+		const refContent = readFileSync(resolved, "utf-8").trim();
+		if (!refContent) return "";
+		seen.add(resolved);
+		return resolveReferences(
+			refContent,
+			dirname(resolved),
+			depth + 1,
+			seen,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Failed to read referenced instruction file "${refPath}": ${message}`);
+	}
 	});
 }
 
@@ -62,29 +63,28 @@ export function resolveReferences(
  */
 export function findInstructionFiles(
 	startDir?: string,
+	rootDir?: string,
 ): InstructionFile[] {
-	const cwd = resolve(startDir || process.cwd());
+	const scope = resolveScopedSearch(startDir, rootDir);
 	const found: InstructionFile[] = [];
-	let dir = cwd;
+	let dir = scope.startDir;
 
-	for (let i = 0; i < MAX_CLIMB; i++) {
+	while (true) {
 		for (const filename of INSTRUCTION_FILENAMES) {
 			const candidate = join(dir, filename);
 			if (!existsSync(candidate)) continue;
 
-			try {
-				const raw = readFileSync(candidate, "utf-8").trim();
-				if (!raw) continue;
-				const content = resolveReferences(raw, dir);
-				found.push({
-					path: candidate,
-					content,
-					type: typeFromFilename(filename),
-				});
-			} catch {
-				// Skip unreadable files
-			}
+			const raw = readFileSync(candidate, "utf-8").trim();
+			if (!raw) continue;
+			const content = resolveReferences(raw, dir);
+			found.push({
+				path: candidate,
+				content,
+				type: typeFromFilename(filename),
+			});
 		}
+
+		if (dir === scope.rootDir) break;
 
 		const parent = dirname(dir);
 		if (parent === dir) break;
@@ -98,8 +98,11 @@ export function findInstructionFiles(
  * Build an instruction context string for system prompt injection.
  * Returns empty string if no instruction files found.
  */
-export function loadInstructionContext(startDir?: string): string {
-	const files = findInstructionFiles(startDir);
+export function loadInstructionContext(
+	startDir?: string,
+	rootDir?: string,
+): string {
+	const files = findInstructionFiles(startDir, rootDir);
 	if (files.length === 0) return "";
 
 	const sections = files.map((f) => {

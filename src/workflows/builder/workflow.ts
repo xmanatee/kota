@@ -1,3 +1,7 @@
+import {
+  getRepoTaskQueueSnapshot,
+  isRepoTaskQueueSnapshot,
+} from "../../repo-tasks.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import {
   BUILTIN_WORKFLOW_MODEL,
@@ -9,11 +13,19 @@ const builderWorkflow: WorkflowDefinitionInput = {
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
   triggers: [
     {
-      event: "runtime.idle",
-      cooldownMs: 30_000,
+      event: "workflow.completed",
+      filter: {
+        workflow: "explorer",
+        status: "success",
+      },
     },
   ],
   steps: [
+    {
+      id: "inspect-ready-queue",
+      type: "code",
+      run: ({ projectDir }) => getRepoTaskQueueSnapshot(projectDir),
+    },
     {
       id: "build",
       type: "agent",
@@ -21,9 +33,13 @@ const builderWorkflow: WorkflowDefinitionInput = {
       model: BUILTIN_WORKFLOW_MODEL,
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
+      when: ({ previousOutput }) =>
+        isRepoTaskQueueSnapshot(previousOutput) &&
+        previousOutput.counts.ready > 0,
     },
     ...createVerificationAndRestartSteps(
       "builder workflow finished verification build",
+      "build",
     ),
   ],
 };

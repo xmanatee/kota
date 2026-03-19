@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
+import { resolveScopedSearch } from "./path-scope.js";
 
 const CONTEXT_FILENAME = ".kota.md";
-const MAX_CLIMB = 10;
 const MAX_CONTENT_LENGTH = 8_000;
 
 type ProjectContextFile = {
@@ -15,30 +15,30 @@ type ProjectContextFile = {
  * Returns them root-first (outermost ancestor first), so more-specific
  * project context appears last and can override general context.
  */
-export function findProjectContextFiles(startDir?: string): ProjectContextFile[] {
-  const cwd = resolve(startDir || process.cwd());
+export function findProjectContextFiles(
+  startDir?: string,
+  rootDir?: string,
+): ProjectContextFile[] {
+  const scope = resolveScopedSearch(startDir, rootDir);
   const found: ProjectContextFile[] = [];
-  let dir = cwd;
+  let dir = scope.startDir;
 
-  for (let i = 0; i < MAX_CLIMB; i++) {
+  while (true) {
     const candidate = join(dir, CONTEXT_FILENAME);
     if (existsSync(candidate)) {
-      try {
-        const content = readFileSync(candidate, "utf-8").trim();
-        if (content) {
-          found.push({ path: candidate, content });
-        }
-      } catch {
-        // Skip unreadable files
+      const content = readFileSync(candidate, "utf-8").trim();
+      if (content) {
+        found.push({ path: candidate, content });
       }
     }
 
+    if (dir === scope.rootDir) break;
+
     const parent = dirname(dir);
-    if (parent === dir) break; // reached filesystem root
+    if (parent === dir) break;
     dir = parent;
   }
 
-  // Reverse so root-level context comes first, project-level last
   return found.reverse();
 }
 
@@ -46,8 +46,8 @@ export function findProjectContextFiles(startDir?: string): ProjectContextFile[]
  * Build a project context string suitable for injection into the system prompt.
  * Returns empty string if no .kota.md files found.
  */
-export function loadProjectContext(startDir?: string): string {
-  const files = findProjectContextFiles(startDir);
+export function loadProjectContext(startDir?: string, rootDir?: string): string {
+  const files = findProjectContextFiles(startDir, rootDir);
   if (files.length === 0) return "";
 
   const sections = files.map((f) => {

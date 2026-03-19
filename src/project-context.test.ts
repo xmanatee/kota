@@ -19,7 +19,7 @@ describe("findProjectContextFiles", () => {
   it("finds .kota.md in the start directory", () => {
     writeFileSync(join(TEST_ROOT, ".kota.md"), "root context", "utf-8");
     try {
-      const files = findProjectContextFiles(TEST_ROOT);
+      const files = findProjectContextFiles(TEST_ROOT, TEST_ROOT);
       expect(files.length).toBeGreaterThanOrEqual(1);
       expect(files.some((f) => f.path === join(TEST_ROOT, ".kota.md"))).toBe(true);
       expect(files.find((f) => f.path === join(TEST_ROOT, ".kota.md"))!.content).toBe("root context");
@@ -32,7 +32,7 @@ describe("findProjectContextFiles", () => {
     writeFileSync(join(TEST_ROOT, ".kota.md"), "parent context", "utf-8");
     writeFileSync(join(CHILD, ".kota.md"), "child context", "utf-8");
     try {
-      const files = findProjectContextFiles(CHILD);
+      const files = findProjectContextFiles(CHILD, TEST_ROOT);
       const parentIdx = files.findIndex((f) => f.content === "parent context");
       const childIdx = files.findIndex((f) => f.content === "child context");
       expect(parentIdx).toBeLessThan(childIdx);
@@ -46,7 +46,7 @@ describe("findProjectContextFiles", () => {
     writeFileSync(join(TEST_ROOT, ".kota.md"), "", "utf-8");
     writeFileSync(join(CHILD, ".kota.md"), "   ", "utf-8");
     try {
-      const files = findProjectContextFiles(CHILD);
+      const files = findProjectContextFiles(CHILD, TEST_ROOT);
       const fromTestRoot = files.filter(
         (f) => f.path === join(TEST_ROOT, ".kota.md") || f.path === join(CHILD, ".kota.md"),
       );
@@ -58,30 +58,34 @@ describe("findProjectContextFiles", () => {
   });
 
   it("returns empty array when no .kota.md files exist", () => {
-    const files = findProjectContextFiles(GRANDCHILD);
-    // May find .kota.md files higher up in the real filesystem, but none from our test dirs
-    const fromTestDirs = files.filter((f) => f.path.startsWith(TEST_ROOT));
-    expect(fromTestDirs).toHaveLength(0);
+    const files = findProjectContextFiles(GRANDCHILD, TEST_ROOT);
+    expect(files).toHaveLength(0);
+  });
+
+  it("does not climb above the declared repo root", () => {
+    writeFileSync(join(TEST_ROOT, ".kota.md"), "repo context", "utf-8");
+    try {
+      const files = findProjectContextFiles(CHILD, TEST_ROOT);
+      expect(files.map((file) => file.path)).toEqual([
+        join(TEST_ROOT, ".kota.md"),
+      ]);
+    } finally {
+      rmSync(join(TEST_ROOT, ".kota.md"), { force: true });
+    }
   });
 });
 
 describe("loadProjectContext", () => {
   it("returns empty string when no files found", () => {
-    const result = loadProjectContext(GRANDCHILD);
-    // No .kota.md in our test dirs — if nothing found at all, empty string
-    if (result === "") {
-      expect(result).toBe("");
-    } else {
-      // May pick up real .kota.md from parent dirs — just check it's formatted
-      expect(result).toContain("## Project Context");
-    }
+    const result = loadProjectContext(GRANDCHILD, TEST_ROOT);
+    expect(result).toBe("");
   });
 
   it("truncates content exceeding 8000 chars", () => {
     const longContent = "x".repeat(9000);
     writeFileSync(join(TEST_ROOT, ".kota.md"), longContent, "utf-8");
     try {
-      const result = loadProjectContext(TEST_ROOT);
+      const result = loadProjectContext(TEST_ROOT, TEST_ROOT);
       expect(result).toContain("... (truncated)");
       // The truncated content should be 8000 chars, not 9000
       const section = result.split("### ").find((s) => s.includes(TEST_ROOT));
@@ -96,7 +100,7 @@ describe("loadProjectContext", () => {
     writeFileSync(join(TEST_ROOT, ".kota.md"), "parent rules", "utf-8");
     writeFileSync(join(CHILD, ".kota.md"), "child rules", "utf-8");
     try {
-      const result = loadProjectContext(CHILD);
+      const result = loadProjectContext(CHILD, TEST_ROOT);
       expect(result).toContain("## Project Context (from .kota.md files)");
       expect(result).toContain("parent rules");
       expect(result).toContain("child rules");

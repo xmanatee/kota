@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockLoadProjectContext = vi.fn((_dir?: string) => "");
-const mockLoadInstructionContext = vi.fn((_dir?: string) => "");
+const mockLoadProjectContext = vi.fn((_dir?: string, _rootDir?: string) => "");
+const mockLoadInstructionContext = vi.fn(
+  (_dir?: string, _rootDir?: string) => "",
+);
 const mockBuildUserProfile = vi.fn((_cfg: unknown) => "");
 
 vi.mock("../project-context.js", () => ({
-  loadProjectContext: (dir?: string) => mockLoadProjectContext(dir),
+  loadProjectContext: (dir?: string, rootDir?: string) =>
+    mockLoadProjectContext(dir, rootDir),
 }));
 
 vi.mock("../instruction-files.js", () => ({
-  loadInstructionContext: (dir?: string) => mockLoadInstructionContext(dir),
+  loadInstructionContext: (dir?: string, rootDir?: string) =>
+    mockLoadInstructionContext(dir, rootDir),
 }));
 
 vi.mock("../config.js", () => ({
@@ -37,17 +41,18 @@ describe("buildClaudeCodeSystemPrompt", () => {
     expect((result as { append?: string }).append).toContain("some rule");
   });
 
-  it("passes startDir to loadInstructionContext and loadProjectContext", () => {
+  it("passes startDir and rootDir to loadInstructionContext and loadProjectContext", () => {
     const dir = "/some/deep/dir";
-    buildClaudeCodeSystemPrompt(undefined, undefined, dir);
-    expect(mockLoadInstructionContext).toHaveBeenCalledWith(dir);
-    expect(mockLoadProjectContext).toHaveBeenCalledWith(dir);
+    const rootDir = "/some/repo";
+    buildClaudeCodeSystemPrompt(undefined, undefined, dir, rootDir);
+    expect(mockLoadInstructionContext).toHaveBeenCalledWith(dir, rootDir);
+    expect(mockLoadProjectContext).toHaveBeenCalledWith(dir, rootDir);
   });
 
-  it("passes undefined startDir when not provided", () => {
+  it("passes undefined startDir and rootDir when not provided", () => {
     buildClaudeCodeSystemPrompt();
-    expect(mockLoadInstructionContext).toHaveBeenCalledWith(undefined);
-    expect(mockLoadProjectContext).toHaveBeenCalledWith(undefined);
+    expect(mockLoadInstructionContext).toHaveBeenCalledWith(undefined, undefined);
+    expect(mockLoadProjectContext).toHaveBeenCalledWith(undefined, undefined);
   });
 
   it("includes extra instructions under autonomous section", () => {

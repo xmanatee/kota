@@ -136,6 +136,7 @@ export async function executeAgentStep(
     agentConfig.config,
     agentPrompt.systemPromptAppend,
     promptDir,
+    agentConfig.projectDir,
   );
   const systemPromptAppend =
     typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
