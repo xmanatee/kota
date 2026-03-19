@@ -5,7 +5,7 @@ export const BUILTIN_WORKFLOW_MODEL = "claude-sonnet-4-6";
 const RESTART_VERIFICATION_STEP_IDS = [
   "verify-typecheck",
   "verify-lint",
-  "verify-workflow-critical",
+  "verify-test",
   "verify-build",
 ] as const;
 
@@ -32,11 +32,11 @@ export function createVerificationAndRestartSteps(
       },
     },
     {
-      id: "verify-workflow-critical",
+      id: "verify-test",
       type: "tool",
       tool: "shell",
       input: {
-        command: "npm run test:workflow-critical",
+        command: "npm test",
         stream_output: false,
       },
     },

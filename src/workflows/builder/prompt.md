@@ -16,8 +16,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Aim for materially useful improvements over low-value polish.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - Keep tasks, docs, and local `AGENTS.md` files aligned with reality when your change affects them.
-- When moving a task out of `inbox/` (to backlog, ready, doing, done, or dropped), ensure the file has all required sections: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`. The `test:workflow-critical` suite validates this on every run.
+- When moving a task out of `inbox/` (to backlog, ready, doing, done, or dropped), ensure the file has all required sections: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`. The full test suite validates this on every run.
 - If exploration uncovers a useful follow-up, capture it lightly in `tasks/inbox/` or enrich an existing open task instead of creating a duplicate.
 - If you change behavior, verify the exact behavior you changed while you work.
-- This workflow will run final `npm run typecheck`, `npm run lint`, `npm run test:workflow-critical`, and `npm run build` after your step, then request a runtime restart.
+- This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
 - If you changed the repo, create a short readable git commit before finishing.

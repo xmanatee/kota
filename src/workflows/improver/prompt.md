@@ -27,5 +27,5 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - If the same problem resists repeated prompt tweaks, fix the protocol, data flow, or validation instead of layering more advice.
 - If research uncovers a useful follow-up, capture it lightly in `tasks/inbox/` or enrich an existing open task instead of creating a duplicate.
 - If you change behavior, validate the exact behavior you changed while you work.
-- This workflow will run final `npm run typecheck`, `npm run lint`, `npm run test:workflow-critical`, and `npm run build` after your step, then request a runtime restart.
+- This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
 - If you changed the repo, create a short readable git commit before finishing.
