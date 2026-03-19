@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setSkipConfirmations } from "./confirm.js";
 import { resetEventBus } from "./event-bus.js";
 import { AgentSession } from "./loop.js";
 import {
@@ -29,6 +30,11 @@ import {
 import { BufferTransport } from "./transport.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
+
+// Tests write files to /tmp which is outside the project directory.
+// Skip confirmations so the confirm gate doesn't auto-reject those writes.
+beforeEach(() => setSkipConfirmations(true));
+afterEach(() => setSkipConfirmations(false));
 
 function createTestSession(
 	responses: Parameters<typeof createMockClient>[0],

@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setSkipConfirmations } from "./confirm.js";
 import { getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { AgentSession } from "./loop.js";
 import {
@@ -49,9 +50,11 @@ function createTestSession(
 describe("E2E: core agent loop", () => {
 	beforeEach(() => {
 		resetMockIds();
+		setSkipConfirmations(true);
 	});
 
 	afterEach(() => {
+		setSkipConfirmations(false);
 		resetEventBus();
 	});
 
