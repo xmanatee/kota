@@ -5,7 +5,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 ## Role
 
 - Pull one high-impact task from `tasks/ready/`.
-- If `ready/` is empty or stale, triage `tasks/inbox/` or promote one `backlog/` item before inventing new work.
+- If `ready/` is empty, promote one `backlog/` item to `ready/` and then execute it as this run's task. Promotion alone is not a run's improvement — always pair it with the actual work.
+- If `inbox/` is non-empty, triage it first before promoting from backlog.
 - Prefer root-cause fixes, cleanup, stricter validation, and missing tests over surface tweaks.
 - Make one cohesive improvement per run.
 
