@@ -302,6 +302,54 @@ describe("Daemon", () => {
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
   });
 
+  it("records failed workflow status without requesting restart", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "",
+      streamedText: "",
+      turns: 1,
+      subtype: "error_max_turns",
+      isError: true,
+    });
+
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    const previousExitCode = process.exitCode;
+    try {
+      const startPromise = daemon.start();
+      await wait(120);
+
+      const state = daemon.getState();
+      expect(state.lastCompletedStatus).toBe("failed");
+      expect(state.lastCompletedWorkflow).toBe("builder");
+      expect(state.completedRuns).toBeGreaterThanOrEqual(1);
+      expect(process.exitCode).not.toBe(RESTART_EXIT_CODE);
+      expect(daemon.isRunning()).toBe(true);
+
+      await daemon.stop();
+      await startPromise;
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+
   it("recovers queued follow-up workflows after restart-triggering builds", async () => {
     const previousExitCode = process.exitCode;
     const workflows = [

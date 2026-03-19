@@ -1,7 +1,7 @@
 ---
 id: task-harden-overnight-autonomous-runs
 title: Harden overnight autonomous runs
-status: ready
+status: done
 priority: p0
 area: workflow
 summary: Tighten failure handling, restart continuity, and log clarity for unattended daemon runs.

@@ -585,7 +585,6 @@ export class WorkflowRuntime {
   }
 
   private logStepStarted(definition: WorkflowDefinition, step: WorkflowStep): void {
-    if (step.type === "tool") return;
     this.log(
       `Starting step "${step.id}" (${step.type}) in workflow "${definition.name}"`,
     );
