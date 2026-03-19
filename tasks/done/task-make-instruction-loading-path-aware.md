@@ -1,7 +1,7 @@
 ---
 id: task-make-instruction-loading-path-aware
 title: Make instruction loading path-aware
-status: backlog
+status: done
 priority: p1
 area: instructions
 summary: Select the most relevant local AGENTS files automatically when work happens in deeper subtrees.

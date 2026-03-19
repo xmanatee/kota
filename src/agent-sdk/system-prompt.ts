@@ -6,10 +6,11 @@ import type { SDKSystemPrompt } from "./types.js";
 export function buildClaudeCodeSystemPrompt(
   config?: KotaConfig,
   extraInstructions?: string,
+  startDir?: string,
 ): SDKSystemPrompt {
   const sections = [
-    loadProjectContext(),
-    loadInstructionContext(),
+    loadProjectContext(startDir),
+    loadInstructionContext(startDir),
     config ? buildUserProfile(config) : "",
     extraInstructions?.trim()
       ? `\n\n## Autonomous Agent Instructions\n\n${extraInstructions.trim()}`

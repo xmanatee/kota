@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
@@ -495,9 +495,11 @@ export class WorkflowRuntime {
       metadata,
       trigger,
     );
+    const promptDir = dirname(resolve(this.projectDir, step.promptPath));
     const systemPrompt = buildClaudeCodeSystemPrompt(
       this.config,
       agentPrompt.systemPromptAppend,
+      promptDir,
     );
     const systemPromptAppend =
       typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
