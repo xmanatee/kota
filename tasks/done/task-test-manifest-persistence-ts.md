@@ -1,7 +1,7 @@
 ---
 id: task-test-manifest-persistence-ts
 title: Add direct unit tests for manifest/persistence.ts
-status: ready
+status: done
 priority: p2
 area: testing
 summary: Write direct unit tests for the manifest persistence layer — saveManifest, loadManifest, deleteManifest, discoverManifestModules — which performs file I/O with no test coverage.

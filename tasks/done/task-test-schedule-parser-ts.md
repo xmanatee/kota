@@ -1,7 +1,7 @@
 ---
 id: task-test-schedule-parser-ts
 title: Add direct unit tests for schedule-parser.ts
-status: ready
+status: done
 priority: p2
 area: testing
 summary: Write direct unit tests for the three pure functions in schedule-parser.ts — getPendingSummary, projectHash, and parseTime — which lack any test coverage.

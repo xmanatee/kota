@@ -1,7 +1,7 @@
 ---
 id: task-test-task-router-ts
 title: Add direct unit tests for task-router.ts
-status: ready
+status: done
 priority: p2
 area: testing
 summary: Write direct unit tests for task-router.ts, which routes task strings to task types using pattern matching. No test coverage exists today.
