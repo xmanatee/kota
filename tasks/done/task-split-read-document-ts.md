@@ -1,7 +1,7 @@
 ---
 id: task-split-read-document-ts
 title: Split src/tools/read-document.ts — 347 lines, over limit
-status: ready
+status: done
 priority: p3
 area: source
 summary: Split read-document.ts (347 lines) into focused modules, each under 300 lines.
