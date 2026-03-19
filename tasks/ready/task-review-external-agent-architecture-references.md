@@ -1,7 +1,7 @@
 ---
 id: task-review-external-agent-architecture-references
 title: Review external agent architecture references
-status: backlog
+status: ready
 priority: p2
 area: research
 summary: Triage a set of external agent-related papers, posts, and repos for ideas that could materially improve KOTA.
