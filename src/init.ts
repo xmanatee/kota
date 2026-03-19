@@ -2,9 +2,9 @@ import { execSync } from "node:child_process";
 import { basename } from "node:path";
 import { getKnowledgeStore } from "./memory/knowledge-store.js";
 import { getMemoryStore } from "./memory/store.js";
+import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 import { getHistoryProvider, getTaskProvider } from "./providers.js";
 import { getScheduler } from "./scheduler/scheduler.js";
-import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 
 const GIT_TIMEOUT = 5000;
 

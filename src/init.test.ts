@@ -34,9 +34,9 @@ vi.mock("./scheduler/scheduler.js", () => ({
 }));
 
 import { buildSessionWarmup } from "./init.js";
-import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 import { getHistory } from "./memory/history.js";
 import { getMemoryStore } from "./memory/store.js";
+import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 import { getScheduler } from "./scheduler/scheduler.js";
 import { getTaskStore } from "./scheduler/task-store.js";
 
