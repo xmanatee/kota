@@ -1,20 +1,16 @@
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
-import {
-  JsonFileError,
-  readOptionalJsonFile,
-  writeJsonFileAtomic,
-} from "../json-file.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { initModuleLogStore } from "../module-log.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowRunStatus,
-} from "../workflow/types.js";
+import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
+import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
+
+export type { DaemonState } from "./daemon-state.js";
 
 export type DaemonConfig = {
   projectDir?: string;
@@ -27,80 +23,11 @@ export type DaemonConfig = {
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
 };
 
-export type DaemonState = {
-  startedAt: string;
-  completedRuns: number;
-  lastCompletedWorkflow?: string;
-  lastCompletedAt?: string;
-  lastCompletedStatus?: WorkflowRunStatus;
-  pid: number;
-};
-
 export const RESTART_EXIT_CODE = 75;
 
 const STATE_FILE = "daemon-state.json";
 const DEFAULT_POLL_INTERVAL = 30_000;
 const SIGNAL_STOP_TIMEOUT_MS = 5_000;
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isWorkflowRunStatus(value: unknown): value is WorkflowRunStatus {
-  return value === "success" || value === "failed" || value === "interrupted";
-}
-
-function assertDaemonState(path: string, value: unknown): asserts value is DaemonState {
-  if (!isPlainObject(value)) {
-    throw new JsonFileError(path, "parse", "invalid daemon state shape");
-  }
-  const completedRuns = value.completedRuns;
-  const pid = value.pid;
-  if (typeof value.startedAt !== "string" || !value.startedAt.trim()) {
-    throw new JsonFileError(path, "parse", "daemon state missing startedAt");
-  }
-  if (
-    typeof completedRuns !== "number" ||
-    !Number.isInteger(completedRuns) ||
-    completedRuns < 0
-  ) {
-    throw new JsonFileError(path, "parse", "daemon state missing completedRuns");
-  }
-  if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0) {
-    throw new JsonFileError(path, "parse", "daemon state missing pid");
-  }
-  if (
-    value.lastCompletedWorkflow !== undefined &&
-    (typeof value.lastCompletedWorkflow !== "string" ||
-      !value.lastCompletedWorkflow.trim())
-  ) {
-    throw new JsonFileError(
-      path,
-      "parse",
-      "daemon state has invalid lastCompletedWorkflow",
-    );
-  }
-  if (
-    value.lastCompletedAt !== undefined &&
-    (typeof value.lastCompletedAt !== "string" || !value.lastCompletedAt.trim())
-  ) {
-    throw new JsonFileError(
-      path,
-      "parse",
-      "daemon state has invalid lastCompletedAt",
-    );
-  }
-  if (
-    value.lastCompletedStatus !== undefined &&
-    !isWorkflowRunStatus(value.lastCompletedStatus)
-  ) {
-    throw new JsonFileError(
-      path,
-      "parse",
-      "daemon state has invalid lastCompletedStatus",
-    );
-  }
-}
 
 export class Daemon {
   private readonly bus: EventBus;

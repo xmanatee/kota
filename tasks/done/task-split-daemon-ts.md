@@ -1,7 +1,7 @@
 ---
 id: task-split-daemon-ts
 title: Split src/scheduler/daemon.ts — extract startup/shutdown helpers
-status: backlog
+status: done
 priority: p2
 area: structure
 summary: src/scheduler/daemon.ts is 311 lines, over the 300-line limit. Splitting improves navigability and keeps each file focused.
