@@ -20,6 +20,9 @@ outstanding work.
 - Inbox items may start as lightweight captures without full frontmatter.
 - Once a task leaves `inbox/`, it must use the full task format.
 - Required frontmatter keys outside `inbox/`: `id`, `title`, `status`, `priority`, `area`, `summary`, `created_at`, `updated_at`.
+  - `id` must equal the filename without the `.md` extension (e.g. file `task-foo-bar.md` → `id: task-foo-bar`).
+  - `priority` must be one of `p0`, `p1`, `p2`, or `p3`.
+  - `status` must equal the containing directory name (e.g. `status: doing` when the file is in `doing/`).
 - Required body sections outside `inbox/`: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - `## Plan` is optional and must stay high-level. Do not put deep implementation detail in tasks.
 - Tasks should read like product or work specs, not coding instructions.
