@@ -88,5 +88,6 @@ export const registration = {
 	tool: approvalTool,
 	runner: runApproval,
 	risk: "safe" as const,
+	kind: "action" as const,
 	group: "management",
 };

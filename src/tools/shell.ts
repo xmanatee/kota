@@ -155,4 +155,5 @@ export const registration = {
 	tool: shellTool,
 	runner: runShell,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

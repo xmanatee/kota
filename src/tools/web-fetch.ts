@@ -189,5 +189,6 @@ export const registration = {
 	tool: webFetchTool,
 	runner: runWebFetch,
 	risk: "moderate" as const,
+	kind: "discovery" as const,
 	group: "web",
 };

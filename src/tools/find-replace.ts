@@ -236,5 +236,6 @@ export const registration = {
 	tool: findReplaceTool,
 	runner: runFindReplace,
 	risk: "moderate" as const,
+	kind: "action" as const,
 	group: "advanced_editing",
 };

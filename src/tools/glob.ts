@@ -75,4 +75,5 @@ export const registration = {
 	tool: globTool,
 	runner: runGlob,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 };

@@ -159,5 +159,6 @@ export const registration: ToolRegistration = {
 	tool: promptTool,
 	runner: runPromptTemplate,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 	group: "management",
 };

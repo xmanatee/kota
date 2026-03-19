@@ -140,5 +140,6 @@ export const registration = {
 	tool: notifyTool,
 	runner: runNotify,
 	risk: "safe" as const,
+	kind: "action" as const,
 	group: "management",
 };

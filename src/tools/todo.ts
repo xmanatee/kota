@@ -185,5 +185,6 @@ export const registration = {
 	tool: todoTool,
 	runner: runTodo,
 	risk: "safe" as const,
+	kind: "action" as const,
 	group: "management",
 };

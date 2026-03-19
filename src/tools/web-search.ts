@@ -286,5 +286,6 @@ export const registration = {
 	tool: webSearchTool,
 	runner: runWebSearch,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 	group: "web",
 };

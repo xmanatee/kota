@@ -142,4 +142,5 @@ export const registration = {
 	tool: grepTool,
 	runner: runGrep,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 };

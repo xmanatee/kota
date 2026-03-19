@@ -176,5 +176,6 @@ export const registration = {
 	tool: notebookTool,
 	runner: runNotebook,
 	risk: "moderate" as const,
+	kind: "action" as const,
 	group: "code",
 };

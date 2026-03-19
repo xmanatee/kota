@@ -55,6 +55,12 @@ export type ToolRegistration = {
   risk: "safe" | "moderate" | "dangerous";
   /** Tool group for progressive disclosure. Undefined = core (always available). */
   group?: string;
+  /**
+   * Capability category for phase-level safety checks.
+   * - discovery: read-only, no side effects (file reads, search, listing)
+   * - action: can modify state (writes, execution, network mutations, orchestration)
+   */
+  kind: "discovery" | "action";
 };
 
 // ─── Core tool registrations ──────────────────────────────────────────
@@ -119,6 +125,11 @@ export function getCoreRegistrations(): readonly ToolRegistration[] {
     _coreRegistrations = registrationImports.map((fn) => fn());
   }
   return _coreRegistrations;
+}
+
+/** Returns the kind of a tool by name, or undefined if not found. */
+export function getToolKind(name: string): "discovery" | "action" | undefined {
+  return getCoreRegistrations().find((r) => r.tool.name === name)?.kind;
 }
 
 // ─── Build runners and tools from registrations (lazy) ───────────────

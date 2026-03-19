@@ -114,5 +114,6 @@ export const registration: ToolRegistration = {
 	tool: auditTool,
 	runner: runAudit,
 	risk: "safe" as const,
+	kind: "action" as const,
 	group: "management",
 };

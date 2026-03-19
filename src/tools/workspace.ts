@@ -138,5 +138,6 @@ export const registration: ToolRegistration = {
   tool: workspaceTool,
   runner: runWorkspace,
   risk: "safe",
+  kind: "action" as const,
   group: "orchestration",
 };

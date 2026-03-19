@@ -328,5 +328,6 @@ export const registration = {
 	tool: httpRequestTool,
 	runner: runHttpRequest,
 	risk: "moderate" as const,
+	kind: "action" as const,
 	group: "web",
 };

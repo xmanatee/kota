@@ -244,4 +244,5 @@ export const registration: ToolRegistration = {
 	tool: agentStatusTool,
 	runner: runAgentStatus,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 };

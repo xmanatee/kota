@@ -143,5 +143,6 @@ export const registration = {
 	tool: clipboardTool,
 	runner: runClipboard,
 	risk: "safe" as const,
+	kind: "action" as const,
 	group: "gui",
 };

@@ -99,5 +99,6 @@ export const registration = {
 	tool: pipeTool,
 	runner: runPipe,
 	risk: "moderate" as const,
+	kind: "action" as const,
 	group: "orchestration",
 };

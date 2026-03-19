@@ -287,4 +287,5 @@ export const registration = {
 	tool: fileEditTool,
 	runner: runFileEdit,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

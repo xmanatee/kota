@@ -139,5 +139,6 @@ export const registration = {
 	tool: multiEditTool,
 	runner: runMultiEdit,
 	risk: "moderate" as const,
+	kind: "action" as const,
 	group: "advanced_editing",
 };

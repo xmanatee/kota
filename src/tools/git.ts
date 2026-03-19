@@ -211,4 +211,5 @@ export const registration = {
 	tool: gitTool,
 	runner: runGit,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

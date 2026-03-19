@@ -142,5 +142,6 @@ export const registration = {
 	tool: batchTool,
 	runner: runBatch,
 	risk: "moderate" as const,
+	kind: "action" as const,
 	group: "orchestration",
 };

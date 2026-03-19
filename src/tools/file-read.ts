@@ -298,4 +298,5 @@ export const registration = {
 	tool: fileReadTool,
 	runner: runFileRead,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 };

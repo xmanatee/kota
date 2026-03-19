@@ -355,4 +355,5 @@ export const registration = {
 	tool: customToolTool,
 	runner: runCustomTool,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

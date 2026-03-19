@@ -170,5 +170,6 @@ export const registration = {
 	tool: screenshotTool,
 	runner: runScreenshot,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 	group: "gui",
 };

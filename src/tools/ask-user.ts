@@ -97,4 +97,5 @@ export const registration = {
 	tool: askUserTool,
 	runner: runAskUser,
 	risk: "safe" as const,
+	kind: "action" as const,
 };

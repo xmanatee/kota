@@ -343,4 +343,5 @@ export const registration = {
 	tool: readDocumentTool,
 	runner: runReadDocument,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 };

@@ -166,5 +166,6 @@ export const registration = {
 	tool: viewImageTool,
 	runner: runViewImage,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 	group: "gui",
 };

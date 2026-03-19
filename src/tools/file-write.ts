@@ -84,4 +84,5 @@ export const registration = {
 	tool: fileWriteTool,
 	runner: runFileWrite,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

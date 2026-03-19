@@ -1,12 +1,12 @@
 ---
 id: task-discovery-action-separation
 title: Separate read-only discovery tools from side-effecting action tools
-status: ready
+status: done
 priority: p2
 area: tools
 summary: KOTA tools mix read-only exploration and side-effecting actions in a flat list. Structurally separating them prevents accidental writes during exploration phases and enables safer sandboxed exploration.
 created_at: 2026-03-19
-updated_at: 2026-03-19T06:23:33
+updated_at: 2026-03-19T06:35:00
 ---
 
 ## Problem

@@ -288,6 +288,14 @@ export async function runDelegate(
     for (const name of toolNames) toolsUsed.add(name);
     const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
     if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}` });
+    if (transport && (mode === "explore" || mode === "research") && toolNames.length > 0) {
+      // Dynamic import avoids circular module evaluation (index.ts imports delegate.ts).
+      const { getToolKind } = await import("./index.js");
+      const unexpected = toolNames.filter((n) => getToolKind(n) === "action");
+      if (unexpected.length > 0) {
+        transport.emit({ type: "status", message: `[kota] delegate(${mode}) action tool(s) in exploration phase: ${unexpected.join(", ")}` });
+      }
+    }
 
     for (const block of response.content) {
       if (block.type === "text") {
@@ -424,4 +432,5 @@ export const registration = {
 	tool: delegateTool,
 	runner: runDelegate,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

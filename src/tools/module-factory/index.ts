@@ -53,4 +53,5 @@ export const registration = {
 	tool: moduleFactoryTool,
 	runner: runModuleFactory,
 	risk: "moderate" as const,
+	kind: "action" as const,
 };

@@ -124,5 +124,6 @@ export const registration = {
 	tool: repoMapTool,
 	runner: runRepoMap,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 	group: "advanced_editing",
 };

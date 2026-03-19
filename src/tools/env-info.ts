@@ -59,4 +59,5 @@ export const registration: ToolRegistration = {
 	tool: envInfoTool,
 	runner: runEnvInfo,
 	risk: "safe" as const,
+	kind: "discovery" as const,
 };

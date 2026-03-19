@@ -133,4 +133,5 @@ export const registration = {
 	tool: checkpointTool,
 	runner: runCheckpoint,
 	risk: "safe" as const,
+	kind: "action" as const,
 };
