@@ -1,12 +1,12 @@
 ---
 id: task-split-server-ts
 title: Split server/server.ts — extract route handlers or middleware helpers
-status: ready
+status: done
 priority: p2
 area: structure
 summary: src/server/server.ts is 398 lines, 33% over the 300-line limit. The file bundles server setup, route registration, and handler implementations together.
 created_at: 2026-03-19
-updated_at: 2026-03-19T09:22:57
+updated_at: 2026-03-19T09:29:00
 ---
 
 ## Problem
