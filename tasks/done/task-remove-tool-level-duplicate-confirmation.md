@@ -1,7 +1,7 @@
 ---
 id: task-remove-tool-level-duplicate-confirmation
 title: Remove duplicate dangerous-command confirmation from shell and process tools
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: shell.ts and process.ts each have their own isDangerous/confirmExecution checks. Guardrails already classifies and confirms dangerous commands at the runner level, making these tool-level checks redundant and causing double prompting in interactive mode.

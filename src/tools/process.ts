@@ -1,6 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type Anthropic from "@anthropic-ai/sdk";
-import { confirmExecution, isDangerous } from "../confirm.js";
 import type { ToolResult } from "./index.js";
 
 export const processTool: Anthropic.Tool = {
@@ -115,13 +114,6 @@ async function startProcess(command: string): Promise<ToolResult> {
   }
 
   purgeStale();
-
-  if (isDangerous(command)) {
-    const confirmed = await confirmExecution(command);
-    if (!confirmed) {
-      return { content: "Command blocked: user declined destructive operation", is_error: true };
-    }
-  }
 
   const running = [...processes.values()].filter((p) => !p.exited);
   if (running.length >= MAX_PROCESSES) {

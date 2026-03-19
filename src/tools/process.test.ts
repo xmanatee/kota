@@ -168,14 +168,6 @@ describe("process tool", () => {
     });
   });
 
-  describe("cross-module: dangerous command blocking", () => {
-    it("blocks dangerous commands in non-TTY environment", async () => {
-      const result = await runProcess({ action: "start", command: "sudo rm -rf /" });
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("blocked");
-    });
-  });
-
   describe("max process limit with mixed states", () => {
     it("allows new process when one exited among max running", async () => {
       // Start 4 long-running + 1 fast (exits quickly)

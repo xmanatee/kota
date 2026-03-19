@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as confirm from "../confirm.js";
 import { runShell } from "./shell.js";
 
 // Suppress stderr output during tests
@@ -141,30 +140,3 @@ describe("shell: output truncation", () => {
   });
 });
 
-describe("shell: dangerous command confirmation", () => {
-  it("blocks dangerous command when user declines", async () => {
-    vi.spyOn(confirm, "isDangerous").mockReturnValue(true);
-    vi.spyOn(confirm, "confirmExecution").mockResolvedValue(false);
-
-    const result = await runShell({ command: "rm -rf /" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("blocked");
-    expect(result.content).toContain("declined");
-
-    vi.restoreAllMocks();
-    // Re-setup stderr spy after restoreAllMocks
-    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-  });
-
-  it("allows dangerous command when user confirms", async () => {
-    vi.spyOn(confirm, "isDangerous").mockReturnValue(true);
-    vi.spyOn(confirm, "confirmExecution").mockResolvedValue(true);
-
-    const result = await runShell({ command: "echo safe-actually" });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toBe("safe-actually");
-
-    vi.restoreAllMocks();
-    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-  });
-});

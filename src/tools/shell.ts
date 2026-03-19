@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { confirmExecution, isDangerous } from "../confirm.js";
 import { enrichWithSourceContext } from "../error-context.js";
 import type { ToolResult } from "./index.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
@@ -63,16 +62,6 @@ export async function runShell(
   const cwd = (input.cwd as string) || process.cwd();
   if (input.cwd && !existsSync(cwd)) {
     return { content: `Error: working directory not found: ${cwd}`, is_error: true };
-  }
-
-  if (isDangerous(command)) {
-    const confirmed = await confirmExecution(command);
-    if (!confirmed) {
-      return {
-        content: "Command blocked: user declined destructive operation",
-        is_error: true,
-      };
-    }
   }
 
   return new Promise((resolve) => {
