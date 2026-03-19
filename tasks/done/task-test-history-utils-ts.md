@@ -1,7 +1,7 @@
 ---
 id: task-test-history-utils-ts
 title: Add direct unit tests for history-utils.ts
-status: inbox
+status: done
 priority: p2
 area: testing
 summary: >
