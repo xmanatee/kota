@@ -1,13 +1,13 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parseSource } from "./registry.js";
 import {
   getNpmVersion,
   installUrl,
   resolveInstalledPackageName,
 } from "./registry-installers.js";
-import { parseSource } from "./registry.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-installers-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);

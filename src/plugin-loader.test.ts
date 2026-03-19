@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ModuleLoader } from "./module-loader.js";
 import { discoverPluginModules } from "./plugin-loader.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
-import { getAllTools, clearCustomTools, executeTool } from "./tools/index.js";
+import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);

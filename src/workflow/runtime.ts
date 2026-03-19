@@ -28,8 +28,8 @@ import type {
   WorkflowToolStep,
 } from "./types.js";
 import {
-  WorkflowDefinitionError,
   validateWorkflowDefinitions,
+  WorkflowDefinitionError,
 } from "./validation.js";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;

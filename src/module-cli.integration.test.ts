@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 import { builtinModules } from "./modules/index.js";
-import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
+import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");

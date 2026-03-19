@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { FailureTracker } from "./tool-runner.js";
 import {
-  getAllTools,
   clearCustomTools,
   executeTool,
+  getAllTools,
   registerTool,
 } from "./tools/index.js";
 

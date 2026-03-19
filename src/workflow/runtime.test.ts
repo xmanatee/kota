@@ -632,7 +632,7 @@ describe("WorkflowRuntime", () => {
     let abortSignal: AbortSignal | null = null;
     mockedExecuteWithAgentSDK.mockImplementation(
       async (_prompt, options) =>
-        await new Promise((resolve, reject) => {
+        await new Promise((_resolve, reject) => {
           abortSignal = options?.abortController?.signal ?? null;
           abortSignal?.addEventListener("abort", () => {
             reject(new DOMException("The operation was aborted.", "AbortError"));

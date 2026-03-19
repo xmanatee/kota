@@ -7,7 +7,7 @@
  * to trigger KOTA automations.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { type EventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { getScheduler, initScheduler, resetScheduler, type Scheduler } from "./scheduler/scheduler.js";
 

@@ -205,7 +205,7 @@ describe("parseIntOption", () => {
 
 describe("--continue validation", () => {
   it("exits with error when no previous conversation exists", () => {
-    const { stderr, exitCode } = runFull(["run", "--continue", "hello"], {
+    const { exitCode } = runFull(["run", "--continue", "hello"], {
       env: { ANTHROPIC_API_KEY: "sk-ant-test", HOME: "/tmp/kota-test-nonexistent" },
     });
     expect(exitCode).toBe(1);

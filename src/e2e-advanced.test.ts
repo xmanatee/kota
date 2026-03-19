@@ -22,7 +22,6 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./model/mock-client.js";
-import { resetScheduler } from "./scheduler/scheduler.js";
 import { BufferTransport } from "./transport.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});

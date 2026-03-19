@@ -4,7 +4,6 @@ import {
 	getToolMiddleware,
 	resetToolMiddleware,
 	type ToolCall,
-	type ToolMiddlewareFn,
 	ToolMiddlewareRegistry,
 } from "./tool-middleware.js";
 import { clearCustomTools, type ToolResult } from "./tools/index.js";
@@ -250,7 +249,7 @@ describe("ModuleLoader middleware integration", () => {
 		await loader.load({
 			name: "audit",
 			onLoad: (ctx) => {
-				ctx.registerMiddleware("audit-log", async (call, next) => {
+				ctx.registerMiddleware("audit-log", async (_call, next) => {
 					const result = await next();
 					return { ...result, content: `[audited] ${result.content}` };
 				});

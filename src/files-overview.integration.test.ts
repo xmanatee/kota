@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { truncateToolResult } from "./context.js";
 import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { FailureTracker } from "./tool-runner.js";
-import { getAllTools, executeTool } from "./tools/index.js";
+import { executeTool, getAllTools } from "./tools/index.js";
 
 let testDir: string;
 

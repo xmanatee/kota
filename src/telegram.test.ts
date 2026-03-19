@@ -205,7 +205,7 @@ describe("TelegramTransport", () => {
   it("flush handles network error on one chunk and still sends others", async () => {
     const transport = new TelegramTransport(123, "tok");
     // Two chunks that exceed the 4096 limit
-    const text = "a".repeat(4000) + "\n" + "b".repeat(4000);
+    const text = `${"a".repeat(4000)}\n${"b".repeat(4000)}`;
     transport.emit({ type: "text", content: text });
 
     let callCount = 0;

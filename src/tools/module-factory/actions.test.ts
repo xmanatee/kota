@@ -6,7 +6,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { initModuleLogStore, resetModuleLogStore } from "../../module-log.js";
 import { clearCustomTools } from "../index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
@@ -47,7 +47,7 @@ afterEach(() => {
 	}
 });
 
-const sampleManifest = {
+const _sampleManifest = {
 	name: "test-mod",
 	version: "1.0.0",
 	description: "A test module",

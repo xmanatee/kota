@@ -303,7 +303,7 @@ describe("process tool", () => {
     it("handles spawn error for nonexistent shell command", async () => {
       // Spawning a nonexistent binary directly (not via sh -c) would trigger error
       // But since we use sh -c, the shell itself runs — the exit code captures failure
-      const result = await runProcess({ action: "start", command: "nonexistent_cmd_xyz_999" });
+      const _result = await runProcess({ action: "start", command: "nonexistent_cmd_xyz_999" });
       // The process will start (shell runs) but the command inside will fail
       await new Promise((r) => setTimeout(r, 600));
       const output = await runProcess({ action: "output", process_id: "p1" });
