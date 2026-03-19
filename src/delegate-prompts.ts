@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { detectProject, getDirectoryOverview } from "./init.js";
+import { detectProject, getDirectoryOverview } from "./project-detection.js";
 import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
 import { fileEditTool, runFileEdit } from "./tools/file-edit.js";
 import { fileReadTool, runFileRead } from "./tools/file-read.js";

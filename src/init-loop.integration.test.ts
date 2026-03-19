@@ -68,7 +68,8 @@ describe("init → loop → context: session startup pipeline", () => {
 
 describe("init → loop: environment detection for non-code workspaces (cross-module)", () => {
   it("detectEnvironment output appears in warmup when no project detected", async () => {
-    const { detectEnvironment, buildSessionWarmup } = await import("./init.js");
+    const { buildSessionWarmup } = await import("./init.js");
+    const { detectEnvironment } = await import("./project-detection.js");
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
