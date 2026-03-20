@@ -273,6 +273,7 @@ describe("WorkflowRuntime budget enforcement", () => {
     runtime.start();
 
     // Manually inject a past-day budget pause to simulate yesterday's budget being hit
+    // biome-ignore lint/complexity/useLiteralKeys: bracket notation required to access private field in test
     runtime["budgetPausedDate"] = "2020-01-01";
 
     // Today's spend is 0, so budget check passes; the stale budgetPausedDate is cleared
