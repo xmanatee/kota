@@ -22,7 +22,6 @@ A `kota workflow trigger <name>` (or similar) CLI command that:
 
 ## Constraints
 
-- Blocked by `task-workflow-cli-inspect` (CLI subcommand structure should be established first)
 - Must not bypass guardrails or permission modes — the queued run follows normal execution rules
 - If the daemon is not running, the queued run should persist and start on next daemon startup
 

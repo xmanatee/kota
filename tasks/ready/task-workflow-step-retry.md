@@ -1,7 +1,7 @@
 ---
 id: task-workflow-step-retry
 title: Add retry-with-backoff to failing workflow steps
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: Agent steps have no retry logic. A transient network error, API rate limit, or brief outage fails the entire workflow run. Adding optional per-step retry with exponential backoff would make the autonomous loop more resilient without changing behavior for non-transient failures.
