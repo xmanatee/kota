@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SDKMessage } from "./agent-sdk/types.js";
-import type { WorkflowRunMetadata } from "./workflow/types.js";
+import { readOptionalJsonFile } from "./json-file.js";
+import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./workflow/types.js";
 
 const DEFAULT_MAX_LEN = 200;
 
@@ -118,5 +119,99 @@ export function buildRunLogs(
       lines.push(...formatAgentMessage(event, maxLen));
     }
     return { stepId: step.id, lines };
+  });
+}
+
+type StepFollowState = { headerPrinted: boolean; linesEmitted: number };
+
+function emitNewStepEvents(
+  runsDir: string,
+  runId: string,
+  stepId: string,
+  state: StepFollowState,
+  maxLen: number,
+): void {
+  const eventsPath = join(runsDir, runId, "steps", `${stepId}.events.jsonl`);
+  const allEvents = readStepEvents(eventsPath);
+  const newEvents = allEvents.slice(state.linesEmitted);
+  for (const event of newEvents) {
+    if (!state.headerPrinted) {
+      console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
+      state.headerPrinted = true;
+    }
+    for (const line of formatAgentMessage(event, maxLen)) {
+      console.log(line);
+    }
+  }
+  state.linesEmitted = allEvents.length;
+}
+
+export async function followRunLogs(
+  runsDir: string,
+  statePath: string,
+  runId: string | undefined,
+  filterStep: string | undefined,
+  maxLen = DEFAULT_MAX_LEN,
+  pollIntervalMs = 500,
+): Promise<void> {
+  // If a completed run is specified, print it synchronously and return.
+  if (runId) {
+    const metadataPath = join(runsDir, runId, "metadata.json");
+    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+    if (metadata && metadata.status !== "running") {
+      const stepLogs = buildRunLogs(runsDir, runId, metadata, filterStep, maxLen);
+      for (const { stepId, lines } of stepLogs) {
+        console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
+        for (const line of lines) console.log(line);
+      }
+      return;
+    }
+  }
+
+  const stepStates = new Map<string, StepFollowState>();
+  let activeRunId = runId;
+  let waitingPrinted = false;
+
+  return new Promise<void>((resolve) => {
+    const cleanup = () => {
+      clearInterval(timer);
+      process.off("SIGINT", cleanup);
+      resolve();
+    };
+
+    process.once("SIGINT", cleanup);
+
+    const timer = setInterval(() => {
+      if (!activeRunId) {
+        const wfState = readOptionalJsonFile<WorkflowRuntimeState>(statePath);
+        if (!wfState?.activeRunId) {
+          if (!waitingPrinted) {
+            console.log("Waiting for an active run...");
+            waitingPrinted = true;
+          }
+          return;
+        }
+        activeRunId = wfState.activeRunId;
+        console.log(`Following run: ${activeRunId}`);
+      }
+
+      const metadataPath = join(runsDir, activeRunId, "metadata.json");
+      const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+      if (!metadata) return;
+
+      const agentSteps = metadata.steps.filter(
+        (s) => s.type === "agent" && (!filterStep || s.id === filterStep),
+      );
+      for (const step of agentSteps) {
+        if (!stepStates.has(step.id)) {
+          stepStates.set(step.id, { headerPrinted: false, linesEmitted: 0 });
+        }
+        emitNewStepEvents(runsDir, activeRunId, step.id, stepStates.get(step.id)!, maxLen);
+      }
+
+      if (metadata.status !== "running") {
+        cleanup();
+      }
+    }, pollIntervalMs);
   });
 }
