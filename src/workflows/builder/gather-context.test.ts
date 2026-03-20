@@ -149,6 +149,39 @@ describe("gatherBuilderContext", () => {
     expect(result.recentRuns.length).toBeLessThanOrEqual(20);
   });
 
+  it("returns costByWorkflow aggregated from recentRuns", () => {
+    const runs = [
+      { id: "run1", workflow: "builder", cost: 0.3 },
+      { id: "run2", workflow: "builder", cost: 0.5 },
+      { id: "run3", workflow: "explorer", cost: 0.2 },
+    ];
+    for (const { id, workflow, cost } of runs) {
+      const runDir = join(projectDir, ".kota", "runs", id);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "metadata.json"), JSON.stringify(makeMetadata(id, workflow, { totalCostUsd: cost })));
+    }
+
+    const ctx = makeContext(projectDir);
+    const result = gatherBuilderContext(ctx);
+
+    expect(result.costByWorkflow.builder).toBeCloseTo(0.8);
+    expect(result.costByWorkflow.explorer).toBeCloseTo(0.2);
+  });
+
+  it("omits workflows with no cost from costByWorkflow", () => {
+    const runId = "run-no-cost";
+    const runDir = join(projectDir, ".kota", "runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    const meta = makeMetadata(runId, "builder");
+    delete (meta as Partial<WorkflowRunMetadata>).totalCostUsd;
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(meta));
+
+    const ctx = makeContext(projectDir);
+    const result = gatherBuilderContext(ctx);
+
+    expect(result.costByWorkflow).not.toHaveProperty("builder");
+  });
+
   it("returns recentlyAttemptedTaskIds as an array (empty when no git repo)", () => {
     const ctx = makeContext(projectDir);
     const result = gatherBuilderContext(ctx);

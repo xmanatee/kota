@@ -10,6 +10,7 @@ Your `previousOutput` contains pre-packaged situational context from the `gather
 - `taskCounts` — task counts by state (inbox, ready, backlog, doing, blocked, done, dropped)
 - `recentRuns` — recent workflow run summaries (last 24h, up to 20) with workflow name, status, duration, cost
 - `recentCommits` — last 10 git commits in short format
+- `costByWorkflow` — total spend (USD) per workflow over the last 24h; use this to gauge run frequency and cost without computing aggregates yourself
 - `runtimeState` — completedRuns total and per-workflow last status/runId
 
 Use this context directly. Do not re-fetch git log, run counts, or task counts via tool calls — they are already available above.

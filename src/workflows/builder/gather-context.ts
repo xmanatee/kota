@@ -1,13 +1,13 @@
 import { join } from "node:path";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import type { WorkflowStepContext } from "../../workflow/types.js";
-import { loadRunsInWindow } from "../../workflow-history.js";
 import {
   buildRuntimeState,
+  computeCostByWorkflow,
   loadRecentCommits,
   loadRecentlyAttemptedTaskIds,
+  loadRecentRuns,
   type RunSummary,
-  summarizeRun,
 } from "../shared.js";
 
 export type { RunSummary };
@@ -17,6 +17,7 @@ export type BuilderContext = {
   recentRuns: RunSummary[];
   recentCommits: string[];
   recentlyAttemptedTaskIds: string[];
+  costByWorkflow: Record<string, number>;
   runtimeState: {
     completedRuns: number;
     workflows: Record<string, { lastStatus?: string; lastRunId?: string }>;
@@ -30,11 +31,11 @@ export function gatherBuilderContext(ctx: WorkflowStepContext): BuilderContext {
   const queue = getRepoTaskQueueSnapshot(projectDir);
   const taskCounts = queue.counts;
 
-  const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-  const recentRuns = loadRunsInWindow(runsDir, cutoffMs).slice(0, 20).map(summarizeRun);
+  const recentRuns = loadRecentRuns(runsDir);
   const recentCommits = loadRecentCommits(projectDir);
   const recentlyAttemptedTaskIds = loadRecentlyAttemptedTaskIds(projectDir);
+  const costByWorkflow = computeCostByWorkflow(recentRuns);
   const runtimeState = buildRuntimeState(readRuntimeState());
 
-  return { taskCounts, recentRuns, recentCommits, recentlyAttemptedTaskIds, runtimeState };
+  return { taskCounts, recentRuns, recentCommits, recentlyAttemptedTaskIds, costByWorkflow, runtimeState };
 }

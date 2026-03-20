@@ -141,6 +141,25 @@ describe("gatherExplorerContext", () => {
     expect(run).not.toHaveProperty("totalCostUsd");
   });
 
+  it("returns costByWorkflow aggregated from recentRuns", () => {
+    const runs = [
+      { id: "run1", workflow: "builder", cost: 0.4 },
+      { id: "run2", workflow: "explorer", cost: 0.1 },
+      { id: "run3", workflow: "explorer", cost: 0.2 },
+    ];
+    for (const { id, workflow, cost } of runs) {
+      const runDir = join(projectDir, ".kota", "runs", id);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "metadata.json"), JSON.stringify(makeMetadata(id, workflow, { totalCostUsd: cost })));
+    }
+
+    const ctx = makeContext(projectDir, null);
+    const result = gatherExplorerContext(ctx);
+
+    expect(result.costByWorkflow.builder).toBeCloseTo(0.4);
+    expect(result.costByWorkflow.explorer).toBeCloseTo(0.3);
+  });
+
   it("returns recentCommits as an array (may be empty in test env without git)", () => {
     const ctx = makeContext(projectDir, null);
     const result = gatherExplorerContext(ctx);

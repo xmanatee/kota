@@ -126,6 +126,25 @@ describe("gatherImproverContext", () => {
     });
   });
 
+  it("returns costByWorkflow aggregated from recentRuns", () => {
+    const runs = [
+      { id: "run1", workflow: "builder", cost: 0.6 },
+      { id: "run2", workflow: "improver", cost: 0.3 },
+      { id: "run3", workflow: "builder", cost: 0.2 },
+    ];
+    for (const { id, workflow, cost } of runs) {
+      const runDir = join(projectDir, ".kota", "runs", id);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "metadata.json"), JSON.stringify(makeMetadata(id, workflow, { totalCostUsd: cost })));
+    }
+
+    const ctx = makeContext(projectDir, {});
+    const result = gatherImproverContext(ctx);
+
+    expect(result.costByWorkflow.builder).toBeCloseTo(0.8);
+    expect(result.costByWorkflow.improver).toBeCloseTo(0.3);
+  });
+
   it("returns empty recentCommits when not in a git repo", () => {
     const ctx = makeContext(projectDir, {});
     const result = gatherImproverContext(ctx);

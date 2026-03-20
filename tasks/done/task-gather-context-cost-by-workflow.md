@@ -1,12 +1,12 @@
 ---
 id: task-gather-context-cost-by-workflow
 title: Add per-workflow daily cost aggregation to gather-context
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: The gather-context step surfaces raw recentRuns with individual costs, but not a pre-aggregated today-total per workflow. Adding a costByWorkflow map lets all three agents make cost-aware decisions without computing aggregates themselves.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T06:38:55Z
 ---
 
 ## Problem

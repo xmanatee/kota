@@ -11,6 +11,7 @@ From `gather-context`:
 - `recentRuns` — workflow run summaries from the last 24h (up to 20), with workflow name, status, duration, cost
 - `recentCommits` — last 10 git commits (one-line format)
 - `recentlyAttemptedTaskIds` — task IDs that appeared in `tasks/done/` or `tasks/doing/` in recent builder commits (de-duplicated). If a task ID here also appears in `tasks/ready/`, it was previously completed or interrupted and re-opened — investigate why before picking it up again.
+- `costByWorkflow` — total spend (USD) per workflow over the last 24h; use this to note cost-per-run trends without computing aggregates yourself
 - `runtimeState` — completedRuns total and per-workflow last status/runId
 
 Use these summaries to orient quickly without making discovery tool calls. You still need to read task files, code, and `.kota/runs/<run-id>/` when you need details beyond these summaries.

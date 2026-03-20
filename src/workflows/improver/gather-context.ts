@@ -1,8 +1,7 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "../../json-file.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "../../workflow/types.js";
-import { loadRunsInWindow } from "../../workflow-history.js";
-import { buildRuntimeState, loadChangedFiles, loadRecentCommits, type RunSummary, summarizeRun } from "../shared.js";
+import { buildRuntimeState, computeCostByWorkflow, loadChangedFiles, loadRecentCommits, loadRecentRuns, type RunSummary, summarizeRun } from "../shared.js";
 
 export type { RunSummary };
 
@@ -11,6 +10,7 @@ export type ImproverContext = {
   changedFiles: string[];
   recentRuns: RunSummary[];
   recentCommits: string[];
+  costByWorkflow: Record<string, number>;
   runtimeState: {
     completedRuns: number;
     workflows: Record<string, { lastStatus?: string; lastRunId?: string }>;
@@ -29,11 +29,11 @@ export function gatherImproverContext(ctx: WorkflowStepContext): ImproverContext
     if (metadata) triggeringRun = summarizeRun(metadata);
   }
 
-  const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-  const recentRuns = loadRunsInWindow(runsDir, cutoffMs).slice(0, 20).map(summarizeRun);
+  const recentRuns = loadRecentRuns(runsDir);
   const recentCommits = loadRecentCommits(projectDir);
   const changedFiles = loadChangedFiles(projectDir);
+  const costByWorkflow = computeCostByWorkflow(recentRuns);
   const runtimeState = buildRuntimeState(readRuntimeState());
 
-  return { triggeringRun, changedFiles, recentRuns, recentCommits, runtimeState };
+  return { triggeringRun, changedFiles, recentRuns, recentCommits, costByWorkflow, runtimeState };
 }

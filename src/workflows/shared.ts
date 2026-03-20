@@ -5,6 +5,7 @@ import type {
   WorkflowRuntimeState,
   WorkflowStepInput,
 } from "../workflow/types.js";
+import { loadRunsInWindow } from "../workflow-history.js";
 
 export const BUILTIN_WORKFLOW_MODEL = "claude-sonnet-4-6";
 export const READY_TASK_TARGET = 2;
@@ -65,6 +66,21 @@ export function loadRecentlyAttemptedTaskIds(projectDir: string): string[] {
   } catch {
     return [];
   }
+}
+
+export function loadRecentRuns(runsDir: string): RunSummary[] {
+  const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+  return loadRunsInWindow(runsDir, cutoffMs).slice(0, 20).map(summarizeRun);
+}
+
+export function computeCostByWorkflow(runs: RunSummary[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const run of runs) {
+    if (run.totalCostUsd != null) {
+      result[run.workflow] = (result[run.workflow] ?? 0) + run.totalCostUsd;
+    }
+  }
+  return result;
 }
 
 export function loadChangedFiles(projectDir: string): string[] {
