@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-live-log-streaming
 title: Stream live step output in the web UI run detail view
-status: doing
+status: done
 priority: p2
 area: web-ui
 summary: The run detail view shows step outputs as static snapshots fetched after the run completes. While a run is active, operators can see nothing in real time. An SSE endpoint for the active run would let the detail view tail live output without polling.
