@@ -1,7 +1,7 @@
 ---
 id: task-workflow-abort-command
 title: Add kota workflow abort command to cancel active run
-status: backlog
+status: ready
 priority: p2
 area: workflow-cli
 summary: The daemon's active run can only be cancelled by stopping the daemon entirely. A dedicated `kota workflow abort` command should abort the current run via the existing abort controller without stopping the daemon or losing the queue.

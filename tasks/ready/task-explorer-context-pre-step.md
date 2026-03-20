@@ -1,7 +1,7 @@
 ---
 id: task-explorer-context-pre-step
 title: Add gather-context pre-step to explorer workflow
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The explorer's inspect-queue step only provides task counts. Add a structured context pre-step (parallel to the improver's gather-context) that packages recent run history, recent git commits, and runtime state so the agent starts with full situational awareness instead of spending tool calls on discovery.
