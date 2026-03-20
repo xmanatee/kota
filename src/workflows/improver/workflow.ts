@@ -3,6 +3,7 @@ import {
   BUILTIN_WORKFLOW_MODEL,
   createVerificationAndRestartSteps,
 } from "../shared.js";
+import { gatherImproverContext } from "./gather-context.js";
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
@@ -25,6 +26,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
   ],
   steps: [
+    {
+      id: "gather-context",
+      type: "code",
+      run: (ctx) => gatherImproverContext(ctx),
+    },
     {
       id: "improve",
       type: "agent",

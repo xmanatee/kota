@@ -1,7 +1,7 @@
 ---
 id: task-improver-context-pre-step
 title: Add structured context pre-step to improver workflow
-status: backlog
+status: done
 priority: p2
 area: workflow
 summary: The improver workflow starts with an unguided agent step that must discover recent run data itself. Adding a code pre-step that captures a structured run summary — similar to the builder's `inspect-ready-queue` — gives the improver a reliable, consistent starting point without tool calls to discover it.
