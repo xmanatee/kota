@@ -39,12 +39,13 @@ function buildExplorerAssessment(
   };
 }
 
-function shouldRunExplorer(previousOutput: unknown): boolean {
+function shouldRunExplorer(stepOutputs: Record<string, unknown>): boolean {
+  const inspectOutput = stepOutputs["inspect-queue"];
   return Boolean(
-    previousOutput &&
-      typeof previousOutput === "object" &&
-      "needsAttention" in previousOutput &&
-      previousOutput.needsAttention === true,
+    inspectOutput &&
+      typeof inspectOutput === "object" &&
+      "needsAttention" in inspectOutput &&
+      inspectOutput.needsAttention === true,
   );
 }
 
@@ -87,7 +88,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: ({ previousOutput }) => shouldRunExplorer(previousOutput),
+      when: ({ stepOutputs }) => shouldRunExplorer(stepOutputs),
     },
     {
       id: "verify-task-files",
