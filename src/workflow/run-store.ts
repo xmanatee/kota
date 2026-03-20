@@ -1,5 +1,7 @@
 import {
   appendFileSync,
+  readdirSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
@@ -129,6 +131,73 @@ export class WorkflowRunStore {
       nextScheduledAt,
     };
     this.writeState(state);
+  }
+
+  pruneRuns(opts?: {
+    retentionDays?: number;
+    minKeepPerWorkflow?: number;
+    dryRun?: boolean;
+  }): string[] {
+    const retentionDays = opts?.retentionDays ?? 7;
+    const minKeepPerWorkflow = opts?.minKeepPerWorkflow ?? 10;
+    const dryRun = opts?.dryRun ?? false;
+
+    let dirs: string[];
+    try {
+      dirs = readdirSync(this.runsDir);
+    } catch {
+      return [];
+    }
+
+    const state = this.readState();
+    const protectedIds = new Set<string>();
+    if (state.activeRunId) protectedIds.add(state.activeRunId);
+
+    type RunEntry = { id: string; workflow: string; startedAtMs: number };
+    const runs: RunEntry[] = [];
+    for (const dir of dirs) {
+      const metaPath = join(this.runsDir, dir, "metadata.json");
+      const meta = readOptionalJsonFile<WorkflowRunMetadata>(metaPath);
+      if (meta?.id && meta.workflow && meta.startedAt) {
+        runs.push({
+          id: meta.id,
+          workflow: meta.workflow,
+          startedAtMs: new Date(meta.startedAt).getTime(),
+        });
+      }
+    }
+
+    const byWorkflow: Record<string, RunEntry[]> = {};
+    for (const run of runs) {
+      if (!byWorkflow[run.workflow]) byWorkflow[run.workflow] = [];
+      byWorkflow[run.workflow].push(run);
+    }
+
+    const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    const toDelete: string[] = [];
+
+    for (const wfRuns of Object.values(byWorkflow)) {
+      wfRuns.sort((a, b) => b.startedAtMs - a.startedAtMs);
+      for (let i = 0; i < wfRuns.length; i++) {
+        const run = wfRuns[i];
+        if (protectedIds.has(run.id)) continue;
+        if (i < minKeepPerWorkflow) continue;
+        if (run.startedAtMs > cutoffMs) continue;
+        toDelete.push(run.id);
+      }
+    }
+
+    if (!dryRun) {
+      for (const id of toDelete) {
+        try {
+          rmSync(join(this.runsDir, id), { recursive: true, force: true });
+        } catch {
+          // pruning errors must not crash callers
+        }
+      }
+    }
+
+    return toDelete;
   }
 
   createRun(

@@ -285,6 +285,27 @@ export function registerWorkflowCommands(program: Command): void {
     });
 
   wfCmd
+    .command("prune")
+    .description("Remove old workflow run directories")
+    .option("--days <n>", "Delete runs older than N days", "7")
+    .option("--min-keep <n>", "Keep at least N runs per workflow", "10")
+    .option("--dry-run", "Show what would be deleted without deleting")
+    .action((opts: { days: string; minKeep: string; dryRun?: boolean }) => {
+      const retentionDays = Number.parseInt(opts.days, 10) || 7;
+      const minKeepPerWorkflow = Number.parseInt(opts.minKeep, 10) || 10;
+      const store = new WorkflowRunStore();
+      const deleted = store.pruneRuns({ retentionDays, minKeepPerWorkflow, dryRun: opts.dryRun });
+      if (deleted.length === 0) {
+        console.log(opts.dryRun ? "Nothing to prune." : "Nothing pruned.");
+      } else if (opts.dryRun) {
+        console.log(`Would delete ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}:`);
+        for (const id of deleted) console.log(`  ${id}`);
+      } else {
+        console.log(`Pruned ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}.`);
+      }
+    });
+
+  wfCmd
     .command("status")
     .description("Show active run, queue, and per-workflow last-run info")
     .action(() => {

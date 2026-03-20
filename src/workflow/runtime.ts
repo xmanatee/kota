@@ -75,6 +75,12 @@ export class WorkflowRuntime {
     this.stopping = false;
     this.dispatchPaused = false;
 
+    try {
+      this.store.pruneRuns();
+    } catch {
+      // pruning errors must not prevent startup
+    }
+
     const interrupted = this.store.recoverInterruptedRun();
     if (interrupted) {
       this.log(
