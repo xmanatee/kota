@@ -1,7 +1,7 @@
 ---
 id: task-workflow-logs-command
 title: Add kota workflow logs command to show full agent conversation
-status: backlog
+status: ready
 priority: p2
 area: workflow-cli
 summary: The kota workflow inspect command shows step summaries with truncated output. Debugging a failed or misbehaving agent step requires digging into raw files under .kota/runs/. A logs subcommand that prints the full message transcript for a given run and step would make debugging significantly faster.
