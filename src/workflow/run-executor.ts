@@ -151,6 +151,7 @@ export function executeWorkflowRun(
           model: deps.model,
           config: deps.config,
           projectDir: deps.projectDir,
+          log: deps.log,
         };
 
         if (!(await shouldRunStep(step, context))) {

@@ -74,6 +74,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       model: BUILTIN_WORKFLOW_MODEL,
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
+      retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ previousOutput }) => shouldRunExplorer(previousOutput),
     },
     {

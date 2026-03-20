@@ -13,6 +13,7 @@ import type {
   WorkflowDefinition,
   WorkflowEmitStep,
   WorkflowRestartStep,
+  WorkflowRetryConfig,
   WorkflowRunMetadata,
   WorkflowRunTrigger,
   WorkflowStep,
@@ -41,9 +42,38 @@ export type AgentStepConfig = {
   model?: string;
   config?: KotaConfig;
   projectDir: string;
+  log?: (message: string) => void;
 };
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  retry: WorkflowRetryConfig,
+  log?: (message: string) => void,
+): Promise<T> {
+  let lastError: unknown;
+  let delayMs = retry.initialDelayMs;
+  for (let attempt = 1; attempt <= retry.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retry.maxAttempts) {
+        log?.(
+          `Attempt ${attempt}/${retry.maxAttempts} failed; retrying in ${delayMs}ms. Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        await sleep(delayMs);
+        delayMs = Math.round(delayMs * retry.backoffFactor);
+      }
+    }
+  }
+  throw lastError;
+}
 
 export async function resolveValue<T>(
   value: T | ((context: WorkflowStepContext) => T | Promise<T>),
@@ -151,9 +181,8 @@ export async function executeAgentStep(
     }, step.timeoutMs);
   }
 
-  let result: Awaited<ReturnType<typeof executeWithAgentSDK>>;
-  try {
-    result = await executeWithAgentSDK(agentPrompt.prompt, {
+  const runAttempt = async () => {
+    const result = await executeWithAgentSDK(agentPrompt.prompt, {
       model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
       cwd: agentConfig.projectDir,
       systemPrompt,
@@ -169,14 +198,21 @@ export async function executeAgentStep(
     }, {
       write: () => true,
     });
+    if (result.isError) {
+      const reason = result.subtype ?? "error";
+      const detail = result.text.trim() || "Agent step returned an error result";
+      throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
+    }
+    return result;
+  };
+
+  let result: Awaited<ReturnType<typeof executeWithAgentSDK>>;
+  try {
+    result = step.retry
+      ? await withRetry(runAttempt, step.retry, agentConfig.log)
+      : await runAttempt();
   } finally {
     clearTimeout(timeoutHandle);
-  }
-
-  if (result.isError) {
-    const reason = result.subtype ?? "error";
-    const detail = result.text.trim() || "Agent step returned an error result";
-    throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
   }
 
   return {

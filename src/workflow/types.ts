@@ -5,6 +5,12 @@ import type {
 import type { BusEvents } from "../event-bus.js";
 import type { ToolResult } from "../tools/index.js";
 
+export type WorkflowRetryConfig = {
+  maxAttempts: number;
+  initialDelayMs: number;
+  backoffFactor: number;
+};
+
 export type WorkflowFilterScalar = string | number | boolean;
 export type WorkflowFilterValue =
   | WorkflowFilterScalar
@@ -104,6 +110,7 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   allowedTools?: string[];
   disallowedTools?: string[];
   settingSources?: SDKSettingSource[];
+  retry?: WorkflowRetryConfig;
 };
 
 export type WorkflowEmitStepInput = WorkflowBaseStep & {
@@ -159,6 +166,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   allowedTools?: string[];
   disallowedTools?: string[];
   settingSources: SDKSettingSource[];
+  retry?: WorkflowRetryConfig;
 };
 
 export type WorkflowEmitStep = WorkflowBaseStep & {

@@ -33,6 +33,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       model: BUILTIN_WORKFLOW_MODEL,
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
+      retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ previousOutput }) =>
         isRepoTaskQueueSnapshot(previousOutput) &&
         previousOutput.counts.ready > 0,
