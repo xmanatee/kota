@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { loadConfig } from "./config.js";
@@ -6,6 +6,7 @@ import { readOptionalJsonFile } from "./json-file.js";
 import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
 import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
+import { ABORT_SIGNAL_FILE } from "./workflow/runtime.js";
 import type { WorkflowRunMetadata } from "./workflow/types.js";
 import { validateWorkflowDefinitions } from "./workflow/validation.js";
 import type { HistoryStats } from "./workflow-history.js";
@@ -398,6 +399,22 @@ export function registerWorkflowCommands(program: Command): void {
     });
 
   wfCmd
+    .command("abort")
+    .description("Abort the currently active workflow run")
+    .action(() => {
+      const store = new WorkflowRunStore();
+      const state = store.readState();
+      if (!state.activeRunId) {
+        console.log("No active run to abort.");
+        return;
+      }
+      const signalPath = join(store.rootDir, ABORT_SIGNAL_FILE);
+      writeFileSync(signalPath, "");
+      console.log(`Abort signal written for run ${state.activeRunId}`);
+      console.log("The daemon will abort the active run on its next cycle.");
+    });
+
+  wfCmd
     .command("status")
     .description("Show active run, queue, and per-workflow last-run info")
     .action(() => {
@@ -405,7 +422,8 @@ export function registerWorkflowCommands(program: Command): void {
       const state = store.readState();
 
       if (state.activeRunId) {
-        console.log(`Active run: ${state.activeRunId}`);
+        const abortPending = existsSync(join(store.rootDir, ABORT_SIGNAL_FILE));
+        console.log(`Active run: ${state.activeRunId}${abortPending ? " (abort pending)" : ""}`);
         console.log(`Workflow:   ${state.activeWorkflow}`);
         if (state.activeStartedAt) {
           const elapsed = Date.now() - new Date(state.activeStartedAt).getTime();

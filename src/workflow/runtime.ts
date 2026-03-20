@@ -1,3 +1,5 @@
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope, EventBus } from "../event-bus.js";
 import { callTelegramApi } from "../telegram-client.js";
@@ -21,6 +23,8 @@ import {
   validateWorkflowDefinitions,
   WorkflowDefinitionError,
 } from "./validation.js";
+
+export const ABORT_SIGNAL_FILE = "abort-request";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;
 
@@ -233,11 +237,26 @@ export class WorkflowRuntime {
   }
 
   private emitIdleEvent(): void {
+    this.checkAbortSignal();
     if (this.stopping || this.activeRunPromise || this.queue.length > 0) return;
     this.runtimeConfig.bus.emit("runtime.idle", {
       timestamp: new Date().toISOString(),
       idleIntervalMs: this.idleIntervalMs,
     });
+  }
+
+  private checkAbortSignal(): void {
+    const signalPath = join(this.projectDir, ".kota", ABORT_SIGNAL_FILE);
+    if (!existsSync(signalPath)) return;
+    try {
+      rmSync(signalPath);
+    } catch {
+      // ignore cleanup errors
+    }
+    if (this.activeAbortController) {
+      this.log("Abort signal received — aborting active run");
+      this.activeAbortController.abort();
+    }
   }
 
   private handleEvent(envelope: BusEnvelope): void {

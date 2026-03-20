@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { WorkflowRuntime } from "./runtime.js";
+import { ABORT_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";
 
 vi.mock("../agent-sdk/index.js", async () => {
@@ -871,6 +871,61 @@ describe("WorkflowRuntime", () => {
     await runtime.stop();
 
     expect(started).toContain("scheduled");
+  });
+
+  it("aborts the active run when abort-request signal file is written", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    mockedExecuteWithAgentSDK.mockImplementation(
+      async (_prompt, options) =>
+        await new Promise((_resolve, reject) => {
+          options?.abortController?.signal.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }),
+    );
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 20,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(50); // let the agent step start
+
+    // Write the abort signal file
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE), "");
+
+    await wait(80); // let the idle timer fire and process the signal
+    await runtime.stop();
+
+    // Signal file should be cleaned up
+    expect(existsSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE))).toBe(false);
+
+    const runsDir = join(projectDir, ".kota", "runs");
+    const [runId] = readdirSync(runsDir);
+    const metadata = JSON.parse(
+      readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+    );
+    expect(metadata.status).toBe("interrupted");
   });
 
   it("aborts the run when runTimeoutMs is exceeded", async () => {
