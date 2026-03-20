@@ -6,6 +6,7 @@ import {
   READY_TASK_TARGET,
   stepSucceeded,
 } from "../shared.js";
+import { autoEscalateBlockedTasks } from "./auto-escalate.js";
 import { gatherExplorerContext } from "./gather-context.js";
 
 const STRATEGIC_REFRESH_MS = 2 * 60 * 60 * 1000;
@@ -67,6 +68,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           readRuntimeState().workflows.explorer?.lastCompletedAt,
         );
       },
+    },
+    {
+      id: "auto-escalate-blocked",
+      type: "code",
+      run: ({ projectDir }) => autoEscalateBlockedTasks(projectDir),
     },
     {
       id: "gather-context",
