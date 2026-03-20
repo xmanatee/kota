@@ -1,0 +1,165 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { executeWithAgentSDK } from "../agent-sdk/index.js";
+import type { AgentStepConfig } from "./step-executor.js";
+import { executeAgentStep } from "./step-executor.js";
+import type {
+  WorkflowAgentStep,
+  WorkflowDefinition,
+  WorkflowRunMetadata,
+  WorkflowRunTrigger,
+} from "./types.js";
+
+vi.mock("../agent-sdk/index.js", async () => {
+  const actual = await vi.importActual("../agent-sdk/index.js");
+  return {
+    ...actual,
+    executeWithAgentSDK: vi.fn(),
+  };
+});
+
+const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
+
+function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep {
+  return {
+    id: "test-step",
+    type: "agent",
+    promptPath: "src/workflows/test/prompt.md",
+    permissionMode: "bypassPermissions",
+    settingSources: [],
+    ...overrides,
+  };
+}
+
+function makeDefinition(): WorkflowDefinition {
+  return {
+    name: "test",
+    enabled: true,
+    definitionPath: "src/workflows/test/workflow.ts",
+    triggers: [],
+    steps: [],
+  };
+}
+
+function makeMetadata(): WorkflowRunMetadata {
+  return {
+    id: "run-1",
+    workflow: "test",
+    definitionPath: "src/workflows/test/workflow.ts",
+    trigger: { event: "runtime.idle", payload: {} },
+    startedAt: new Date().toISOString(),
+    status: "running",
+    runDir: ".kota/runs/run-1",
+    steps: [],
+  };
+}
+
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+
+const SUCCESS_RESULT = {
+  text: "done",
+  streamedText: "",
+  sessionId: "sess-1",
+  turns: 1,
+  totalCostUsd: 0.01,
+  subtype: "success",
+  isError: false,
+};
+
+describe("executeAgentStep timeout", () => {
+  let projectDir: string;
+  let agentConfig: AgentStepConfig;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, "src", "workflows", "test"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "workflows", "test", "prompt.md"),
+      "Test prompt.\n",
+    );
+    agentConfig = { projectDir };
+    mockedExecuteWithAgentSDK.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("completes successfully when step finishes before timeout", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    const abortController = new AbortController();
+    const abortSpy = vi.spyOn(abortController, "abort");
+    const step = makeStep({ timeoutMs: 60_000 });
+
+    const result = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      abortController,
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    expect(result).toMatchObject({ content: "done", turns: 1 });
+    expect(abortSpy).not.toHaveBeenCalled();
+  });
+
+  it("aborts the step after timeoutMs elapses", async () => {
+    const abortController = new AbortController();
+
+    // Mock returns a promise that rejects when aborted
+    mockedExecuteWithAgentSDK.mockImplementation((_prompt, options) => {
+      return new Promise<typeof SUCCESS_RESULT>((_resolve, reject) => {
+        options?.abortController?.signal.addEventListener("abort", () => {
+          reject(options!.abortController!.signal.reason);
+        });
+      });
+    });
+
+    const step = makeStep({ timeoutMs: 20 });
+
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        abortController,
+        () => {},
+        () => {},
+        agentConfig,
+      ),
+    ).rejects.toThrow('Agent step "test-step" timed out after 20ms');
+
+    expect(abortController.signal.aborted).toBe(true);
+  });
+
+  it("does not abort when timeoutMs is undefined", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    const abortController = new AbortController();
+    const abortSpy = vi.spyOn(abortController, "abort");
+    const step = makeStep(); // no timeoutMs
+
+    await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      abortController,
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    expect(abortSpy).not.toHaveBeenCalled();
+  });
+});

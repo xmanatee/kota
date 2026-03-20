@@ -142,22 +142,36 @@ export async function executeAgentStep(
     typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
   writeInputs(systemPromptAppend, agentPrompt.prompt);
 
-  const result = await executeWithAgentSDK(agentPrompt.prompt, {
-    model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
-    cwd: agentConfig.projectDir,
-    systemPrompt,
-    maxTurns: step.maxTurns,
-    maxBudgetUsd: step.maxBudgetUsd,
-    allowedTools: step.allowedTools,
-    disallowedTools: step.disallowedTools,
-    permissionMode: step.permissionMode,
-    persistSession: false,
-    settingSources: step.settingSources,
-    abortController,
-    onMessage: appendMessage,
-  }, {
-    write: () => true,
-  });
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  if (step.timeoutMs !== undefined) {
+    timeoutHandle = setTimeout(() => {
+      abortController.abort(
+        new Error(`Agent step "${step.id}" timed out after ${step.timeoutMs}ms`),
+      );
+    }, step.timeoutMs);
+  }
+
+  let result: Awaited<ReturnType<typeof executeWithAgentSDK>>;
+  try {
+    result = await executeWithAgentSDK(agentPrompt.prompt, {
+      model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
+      cwd: agentConfig.projectDir,
+      systemPrompt,
+      maxTurns: step.maxTurns,
+      maxBudgetUsd: step.maxBudgetUsd,
+      allowedTools: step.allowedTools,
+      disallowedTools: step.disallowedTools,
+      permissionMode: step.permissionMode,
+      persistSession: false,
+      settingSources: step.settingSources,
+      abortController,
+      onMessage: appendMessage,
+    }, {
+      write: () => true,
+    });
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 
   if (result.isError) {
     const reason = result.subtype ?? "error";

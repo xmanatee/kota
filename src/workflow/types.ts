@@ -99,6 +99,7 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
+  timeoutMs?: number;
   permissionMode?: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];
@@ -153,6 +154,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
+  timeoutMs?: number;
   permissionMode: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];

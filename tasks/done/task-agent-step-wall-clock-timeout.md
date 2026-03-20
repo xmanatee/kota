@@ -1,7 +1,7 @@
 ---
 id: task-agent-step-wall-clock-timeout
 title: Add configurable wall-clock timeout for workflow agent steps
-status: ready
+status: done
 priority: p1
 area: workflow
 summary: Agent steps in the workflow runtime have no wall-clock timeout. A stuck LLM call or infinite agent loop will block the runtime indefinitely. Add an optional per-step timeout that aborts via the existing AbortController.
