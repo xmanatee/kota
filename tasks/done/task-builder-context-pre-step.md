@@ -1,12 +1,12 @@
 ---
 id: task-builder-context-pre-step
 title: Add gather-context pre-step to builder workflow
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: The builder workflow has no context pre-step. The improver and explorer both gained structured gather-context steps that give their agents recent run history, recent commits, and runtime state without tool calls. Adding the same to the builder reduces discovery overhead and gives the build agent awareness of what was recently shipped.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T05:35:41Z
 ---
 
 ## Problem

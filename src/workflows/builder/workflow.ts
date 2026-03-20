@@ -7,6 +7,7 @@ import {
   BUILTIN_WORKFLOW_MODEL,
   createVerificationAndRestartSteps,
 } from "../shared.js";
+import { gatherBuilderContext } from "./gather-context.js";
 import {
   isBuilderPreflightResult,
   runBuilderPreflight,
@@ -39,6 +40,14 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir }) => runBuilderPreflight(projectDir),
     },
     {
+      id: "gather-context",
+      type: "code",
+      when: ({ previousOutput }) =>
+        isBuilderPreflightResult(previousOutput) &&
+        previousOutput.validCount > 0,
+      run: (ctx) => gatherBuilderContext(ctx),
+    },
+    {
       id: "build",
       type: "agent",
       promptPath: "src/workflows/builder/prompt.md",
@@ -46,9 +55,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: ({ previousOutput }) =>
-        isBuilderPreflightResult(previousOutput) &&
-        previousOutput.validCount > 0,
+      when: ({ stepOutputs }) =>
+        isBuilderPreflightResult(stepOutputs.preflight) &&
+        (stepOutputs.preflight as { validCount: number }).validCount > 0,
     },
     ...createVerificationAndRestartSteps(
       "builder workflow finished verification build",
