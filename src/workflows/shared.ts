@@ -47,6 +47,26 @@ export function loadRecentCommits(projectDir: string): string[] {
   }
 }
 
+export function loadRecentlyAttemptedTaskIds(projectDir: string): string[] {
+  try {
+    const output = execSync(
+      'git log --grep="^Builder:" --name-only --format="" -- tasks/done/ tasks/doing/',
+      { cwd: projectDir, encoding: "utf-8" },
+    );
+    const taskIds: string[] = [];
+    for (const line of output.split("\n")) {
+      const match = line.trim().match(/^tasks\/(?:done|doing)\/(task-[^/]+)\.md$/);
+      if (match && !taskIds.includes(match[1])) {
+        taskIds.push(match[1]);
+        if (taskIds.length >= 10) break;
+      }
+    }
+    return taskIds;
+  } catch {
+    return [];
+  }
+}
+
 export function loadChangedFiles(projectDir: string): string[] {
   try {
     const output = execSync("git diff --name-only HEAD~1 HEAD", {
