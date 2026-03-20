@@ -7,6 +7,10 @@ import {
   BUILTIN_WORKFLOW_MODEL,
   createVerificationAndRestartSteps,
 } from "../shared.js";
+import {
+  isBuilderPreflightResult,
+  runBuilderPreflight,
+} from "./preflight.js";
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -27,6 +31,14 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir }) => getRepoTaskQueueSnapshot(projectDir),
     },
     {
+      id: "preflight",
+      type: "code",
+      when: ({ previousOutput }) =>
+        isRepoTaskQueueSnapshot(previousOutput) &&
+        previousOutput.counts.ready > 0,
+      run: ({ projectDir }) => runBuilderPreflight(projectDir),
+    },
+    {
       id: "build",
       type: "agent",
       promptPath: "src/workflows/builder/prompt.md",
@@ -35,8 +47,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
       settingSources: ["project"],
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ previousOutput }) =>
-        isRepoTaskQueueSnapshot(previousOutput) &&
-        previousOutput.counts.ready > 0,
+        isBuilderPreflightResult(previousOutput) &&
+        previousOutput.validCount > 0,
     },
     ...createVerificationAndRestartSteps(
       "builder workflow finished verification build",

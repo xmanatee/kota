@@ -1,7 +1,7 @@
 ---
 id: task-builder-preflight-check
 title: Add pre-flight task validation before builder agent run
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: Before spending a full agent run on a task, the builder workflow should validate that the selected ready task is well-formed and actionable. Malformed or incomplete task specs should be rejected early with a clear log message rather than discovered mid-build.

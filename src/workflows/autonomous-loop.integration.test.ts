@@ -61,9 +61,17 @@ function seedFixtureProject(projectDir: string): void {
   writeFileSync(join(projectDir, "src/workflows/builder/prompt.md"), "Build.\n");
   writeFileSync(join(projectDir, "src/workflows/improver/prompt.md"), "Improve.\n");
 
-  // 2 ready tasks so READY_TASK_TARGET (2) is met and builder's ready > 0 is true
-  writeFileSync(join(projectDir, "tasks/ready/task-alpha.md"), "# Task Alpha\n");
-  writeFileSync(join(projectDir, "tasks/ready/task-beta.md"), "# Task Beta\n");
+  // 2 ready tasks — well-formed so they pass builder preflight validation
+  const makeReadyTask = (id: string, title: string) =>
+    `---\nid: ${id}\ntitle: ${title}\nstatus: ready\npriority: p2\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
+  writeFileSync(
+    join(projectDir, "tasks/ready/task-alpha.md"),
+    makeReadyTask("task-alpha", "Task Alpha"),
+  );
+  writeFileSync(
+    join(projectDir, "tasks/ready/task-beta.md"),
+    makeReadyTask("task-beta", "Task Beta"),
+  );
 
   // 4 backlog tasks so BACKLOG_TASK_TARGET (4) is met
   for (let i = 1; i <= 4; i++) {
