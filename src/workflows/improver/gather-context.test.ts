@@ -96,6 +96,49 @@ describe("gatherImproverContext", () => {
     });
   });
 
+  it("returns builtTaskId from claim-task step output in triggering run", () => {
+    const runId = "2026-03-20T00-00-00-000Z-builder-claimtest";
+    const runDir = join(projectDir, ".kota", "runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    const meta = makeMetadata(runId, "builder", {
+      steps: [
+        {
+          id: "claim-task",
+          type: "code",
+          status: "success",
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: 10,
+          output: { chosenTaskId: "task-emit-chosen-id" },
+        },
+      ],
+    });
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(meta));
+
+    const ctx = makeContext(projectDir, { runDir: `.kota/runs/${runId}` });
+    const result = gatherImproverContext(ctx);
+
+    expect(result.builtTaskId).toBe("task-emit-chosen-id");
+  });
+
+  it("returns null builtTaskId when triggering run has no claim-task step", () => {
+    const runId = "2026-03-20T00-00-00-000Z-builder-noClaim";
+    const runDir = join(projectDir, ".kota", "runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(makeMetadata(runId, "builder")));
+
+    const ctx = makeContext(projectDir, { runDir: `.kota/runs/${runId}` });
+    const result = gatherImproverContext(ctx);
+
+    expect(result.builtTaskId).toBeNull();
+  });
+
+  it("returns null builtTaskId when no triggering run", () => {
+    const ctx = makeContext(projectDir, {});
+    const result = gatherImproverContext(ctx);
+    expect(result.builtTaskId).toBeNull();
+  });
+
   it("returns recent runs from the last 24h", () => {
     const runId = "2026-03-20T00-00-00-000Z-explorer-def456";
     const runDir = join(projectDir, ".kota", "runs", runId);

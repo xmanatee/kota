@@ -7,6 +7,7 @@ export type { RunSummary };
 
 export type ImproverContext = {
   triggeringRun: RunSummary | null;
+  builtTaskId: string | null;
   changedFiles: string[];
   recentRuns: RunSummary[];
   recentCommits: string[];
@@ -17,16 +18,27 @@ export type ImproverContext = {
   };
 };
 
+function extractBuiltTaskId(metadata: WorkflowRunMetadata): string | null {
+  const claimStep = metadata.steps.find((s) => s.id === "claim-task");
+  if (!claimStep || !claimStep.output || typeof claimStep.output !== "object") return null;
+  const output = claimStep.output as Record<string, unknown>;
+  return typeof output.chosenTaskId === "string" ? output.chosenTaskId : null;
+}
+
 export function gatherImproverContext(ctx: WorkflowStepContext): ImproverContext {
   const { projectDir, trigger, readRuntimeState } = ctx;
   const runsDir = join(projectDir, ".kota", "runs");
 
   let triggeringRun: RunSummary | null = null;
+  let builtTaskId: string | null = null;
   const runDir = trigger.payload.runDir;
   if (typeof runDir === "string") {
     const metadataPath = join(projectDir, runDir, "metadata.json");
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-    if (metadata) triggeringRun = summarizeRun(metadata);
+    if (metadata) {
+      triggeringRun = summarizeRun(metadata);
+      builtTaskId = extractBuiltTaskId(metadata);
+    }
   }
 
   const recentRuns = loadRecentRuns(runsDir);
@@ -35,5 +47,5 @@ export function gatherImproverContext(ctx: WorkflowStepContext): ImproverContext
   const costByWorkflow = computeCostByWorkflow(recentRuns);
   const runtimeState = buildRuntimeState(readRuntimeState());
 
-  return { triggeringRun, changedFiles, recentRuns, recentCommits, costByWorkflow, runtimeState };
+  return { triggeringRun, builtTaskId, changedFiles, recentRuns, recentCommits, costByWorkflow, runtimeState };
 }

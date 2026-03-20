@@ -14,11 +14,14 @@ From `gather-context`:
 - `costByWorkflow` — total spend (USD) per workflow over the last 24h; use this to note cost-per-run trends without computing aggregates yourself
 - `runtimeState` — completedRuns total and per-workflow last status/runId
 
+From `claim-task`:
+- `chosenTaskId` — the task ID that was pre-claimed for this run; the task file has already been moved to `tasks/doing/`
+
 Use these summaries to orient quickly without making discovery tool calls. You still need to read task files, code, and `.kota/runs/<run-id>/` when you need details beyond these summaries.
 
 ## Role
 
-- Pull one high-impact task from `tasks/ready/`.
+- Work on the task identified by `claim-task.chosenTaskId`. The task file is in `tasks/doing/`.
 - Investigate the chosen task deeply, including the relevant code, existing abstractions, and external references when they help you implement it well.
 - Focus on correct architecture, complete implementation, and honest verification.
 - Make one cohesive improvement per run.

@@ -7,6 +7,7 @@ import {
   BUILTIN_WORKFLOW_MODEL,
   createVerificationAndRestartSteps,
 } from "../shared.js";
+import { claimTask, isClaimTaskResult } from "./claim-task.js";
 import { gatherBuilderContext } from "./gather-context.js";
 import {
   isBuilderPreflightResult,
@@ -48,6 +49,14 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: (ctx) => gatherBuilderContext(ctx),
     },
     {
+      id: "claim-task",
+      type: "code",
+      when: ({ stepOutputs }) =>
+        isBuilderPreflightResult(stepOutputs.preflight) &&
+        (stepOutputs.preflight as { validCount: number }).validCount > 0,
+      run: ({ projectDir }) => claimTask(projectDir),
+    },
+    {
       id: "build",
       type: "agent",
       promptPath: "src/workflows/builder/prompt.md",
@@ -55,9 +64,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: ({ stepOutputs }) =>
-        isBuilderPreflightResult(stepOutputs.preflight) &&
-        (stepOutputs.preflight as { validCount: number }).validCount > 0,
+      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
     },
     ...createVerificationAndRestartSteps(
       "builder workflow finished verification build",
