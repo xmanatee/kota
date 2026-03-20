@@ -17,6 +17,7 @@ export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 
 export type PendingApproval = {
 	id: string;
+	seq?: number;
 	tool: string;
 	input: Record<string, unknown>;
 	risk: RiskLevel;
@@ -27,6 +28,8 @@ export type PendingApproval = {
 	resolvedAt?: string;
 	rejectionReason?: string;
 };
+
+let _enqueueSeq = 0;
 
 export class ApprovalQueue {
 	constructor(private dir: string) {
@@ -42,6 +45,7 @@ export class ApprovalQueue {
 	): PendingApproval {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
+			seq: _enqueueSeq++,
 			tool,
 			input,
 			risk,
@@ -67,7 +71,7 @@ export class ApprovalQueue {
 			.filter((f) => f.endsWith(".json"))
 			.map((f) => JSON.parse(readFileSync(join(this.dir, f), "utf-8")) as PendingApproval)
 			.filter((item) => !status || item.status === status)
-			.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+			.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0));
 	}
 
 	approve(id: string): PendingApproval | null {
