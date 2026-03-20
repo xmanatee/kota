@@ -1,7 +1,7 @@
 ---
 id: task-builder-task-attempt-history
 title: Surface previously-attempted tasks in BuilderContext
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: When a builder run fails or leaves a task incomplete, the next builder pick can unknowingly choose the same task again. Surfacing attempt history in BuilderContext lets the agent avoid re-picking consistently failing tasks and instead surface them as blocked or escalate.
