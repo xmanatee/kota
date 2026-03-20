@@ -116,6 +116,21 @@ export function assertWorkflowRuntimeState(
       throw new JsonFileError(path, "parse", `workflow state has invalid ${key}`);
     }
   }
+  if (value.activeRuns !== undefined) {
+    if (!Array.isArray(value.activeRuns)) {
+      throw new JsonFileError(path, "parse", "workflow state has invalid activeRuns");
+    }
+    for (const entry of value.activeRuns) {
+      if (
+        !isPlainObject(entry) ||
+        typeof entry.runId !== "string" ||
+        typeof entry.workflow !== "string" ||
+        typeof entry.startedAt !== "string"
+      ) {
+        throw new JsonFileError(path, "parse", "workflow state has invalid activeRuns entry");
+      }
+    }
+  }
 }
 
 export function assertWorkflowRunMetadata(

@@ -18,6 +18,7 @@ import {
   writeJsonFile,
 } from "./run-store-helpers.js";
 import type {
+  WorkflowActiveRun,
   WorkflowDefinition,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
@@ -67,6 +68,7 @@ export class WorkflowRunStore {
       completedRuns: state?.completedRuns ?? 0,
       pendingRuns: state?.pendingRuns ?? [],
       workflows: state?.workflows ?? {},
+      ...(state?.activeRuns !== undefined ? { activeRuns: state.activeRuns } : {}),
       ...(state?.activeRunId ? { activeRunId: state.activeRunId } : {}),
       ...(state?.activeWorkflow ? { activeWorkflow: state.activeWorkflow } : {}),
       ...(state?.activeStartedAt ? { activeStartedAt: state.activeStartedAt } : {}),
@@ -80,43 +82,53 @@ export class WorkflowRunStore {
     writeJsonFile(this.statePath, state);
   }
 
-  recoverInterruptedRun(): WorkflowRunMetadata | null {
+  recoverInterruptedRuns(): WorkflowRunMetadata[] {
     const state = this.readState();
-    if (!state.activeRunId || !state.activeWorkflow) return null;
 
-    const metadataPath = join(this.runsDir, state.activeRunId, "metadata.json");
-    const metadata = readOptionalJsonFile<unknown>(metadataPath);
-    if (metadata !== null) {
-      assertWorkflowRunMetadata(metadataPath, metadata);
+    // Collect candidates from new activeRuns format, falling back to legacy fields.
+    const candidates: Array<{ runId: string; workflow: string }> =
+      state.activeRuns && state.activeRuns.length > 0
+        ? state.activeRuns.map((r) => ({ runId: r.runId, workflow: r.workflow }))
+        : state.activeRunId && state.activeWorkflow
+          ? [{ runId: state.activeRunId, workflow: state.activeWorkflow }]
+          : [];
+
+    const recovered: WorkflowRunMetadata[] = [];
+
+    for (const { runId } of candidates) {
+      const metadataPath = join(this.runsDir, runId, "metadata.json");
+      const metadata = readOptionalJsonFile<unknown>(metadataPath);
+      if (metadata !== null) {
+        assertWorkflowRunMetadata(metadataPath, metadata);
+      }
+      if (!metadata || metadata.status !== "running") continue;
+
+      const interrupted: WorkflowRunMetadata = {
+        ...metadata,
+        status: "interrupted",
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - new Date(metadata.startedAt).getTime(),
+      };
+
+      writeJsonFile(metadataPath, interrupted);
+      state.workflows[metadata.workflow] = {
+        ...state.workflows[metadata.workflow],
+        lastRunId: metadata.id,
+        lastStartedAt: metadata.startedAt,
+        lastCompletedAt: interrupted.completedAt,
+        lastStatus: "interrupted",
+      };
+      recovered.push(interrupted);
     }
-    if (!metadata || metadata.status !== "running") {
-      delete state.activeRunId;
-      delete state.activeWorkflow;
-      delete state.activeStartedAt;
-      this.writeState(state);
-      return null;
-    }
 
-    const interrupted: WorkflowRunMetadata = {
-      ...metadata,
-      status: "interrupted",
-      completedAt: new Date().toISOString(),
-      durationMs: Date.now() - new Date(metadata.startedAt).getTime(),
-    };
-
-    writeJsonFile(metadataPath, interrupted);
-    state.workflows[metadata.workflow] = {
-      ...state.workflows[metadata.workflow],
-      lastRunId: metadata.id,
-      lastStartedAt: metadata.startedAt,
-      lastCompletedAt: interrupted.completedAt,
-      lastStatus: "interrupted",
-    };
+    // Clear all active-run tracking.
     delete state.activeRunId;
     delete state.activeWorkflow;
     delete state.activeStartedAt;
+    state.activeRuns = [];
     this.writeState(state);
-    return interrupted;
+
+    return recovered;
   }
 
   setPendingRuns(pendingRuns: WorkflowQueuedRun[]): void {
@@ -158,7 +170,8 @@ export class WorkflowRunStore {
 
     const state = this.readState();
     const protectedIds = new Set<string>();
-    if (state.activeRunId) protectedIds.add(state.activeRunId);
+    for (const run of state.activeRuns ?? []) protectedIds.add(run.runId);
+    if (state.activeRunId) protectedIds.add(state.activeRunId); // legacy fallback
 
     type RunEntry = { id: string; workflow: string; startedAtMs: number };
     const runs: RunEntry[] = [];
@@ -254,9 +267,16 @@ export class WorkflowRunStore {
     writeJsonFile(join(runDirPath, "trigger.json"), trigger);
     writeJsonFile(join(runDirPath, "metadata.json"), metadata);
 
-    state.activeRunId = id;
-    state.activeWorkflow = workflow.name;
-    state.activeStartedAt = metadata.startedAt;
+    const newActiveRun: WorkflowActiveRun = {
+      runId: id,
+      workflow: workflow.name,
+      startedAt: metadata.startedAt,
+    };
+    state.activeRuns = [...(state.activeRuns ?? []), newActiveRun];
+    // Clear legacy single-run fields; activeRuns is now canonical.
+    delete state.activeRunId;
+    delete state.activeWorkflow;
+    delete state.activeStartedAt;
     state.workflows[workflow.name] = {
       ...state.workflows[workflow.name],
       lastRunId: id,
@@ -336,6 +356,10 @@ export class WorkflowRunStore {
           lastCompletedAt: completed.completedAt,
           lastStatus: update.status,
         };
+        currentState.activeRuns = (currentState.activeRuns ?? []).filter(
+          (r) => r.runId !== id,
+        );
+        // Also clear legacy fields in case they reference this run.
         delete currentState.activeRunId;
         delete currentState.activeWorkflow;
         delete currentState.activeStartedAt;

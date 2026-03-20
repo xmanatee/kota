@@ -45,10 +45,19 @@ export type WorkflowRunStatus = "success" | "failed" | "interrupted";
 
 export type WorkflowStepStatus = "success" | "failed" | "skipped";
 
+export type WorkflowActiveRun = {
+  runId: string;
+  workflow: string;
+  startedAt: string;
+};
+
 export type WorkflowRuntimeState = {
+  /** Legacy single-run tracking — kept for backward-compat reading of old state files. */
   activeRunId?: string;
   activeWorkflow?: string;
   activeStartedAt?: string;
+  /** Canonical multi-run tracking. Replaces legacy single-run fields. */
+  activeRuns?: WorkflowActiveRun[];
   completedRuns: number;
   totalCostUsd?: number;
   definitionsLoadedAt?: string;

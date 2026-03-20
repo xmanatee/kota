@@ -184,14 +184,16 @@ export async function followRunLogs(
     const timer = setInterval(() => {
       if (!activeRunId) {
         const wfState = readOptionalJsonFile<WorkflowRuntimeState>(statePath);
-        if (!wfState?.activeRunId) {
+        const firstActiveRunId =
+          wfState?.activeRuns?.[0]?.runId ?? wfState?.activeRunId;
+        if (!firstActiveRunId) {
           if (!waitingPrinted) {
             console.log("Waiting for an active run...");
             waitingPrinted = true;
           }
           return;
         }
-        activeRunId = wfState.activeRunId;
+        activeRunId = firstActiveRunId;
         console.log(`Following run: ${activeRunId}`);
       }
 

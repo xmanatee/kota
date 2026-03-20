@@ -37,6 +37,13 @@ export type WorkflowRuntimeConfig = {
   verbose?: boolean;
   config?: KotaConfig;
   idleIntervalMs?: number;
+  /**
+   * Maximum number of workflows that may run simultaneously.
+   * Different workflows can overlap up to this limit; the same workflow is
+   * always serialised (at most one active instance per workflow name).
+   * Defaults to 1 (no concurrency) so existing deployments are unaffected.
+   */
+  maxConcurrentRuns?: number;
   onLog?: (message: string) => void;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
 };
@@ -45,6 +52,7 @@ export class WorkflowRuntime {
   private readonly projectDir: string;
   private readonly store: WorkflowRunStore;
   private readonly idleIntervalMs: number;
+  private readonly maxConcurrentRuns: number;
   private readonly model?: string;
   private readonly config?: KotaConfig;
   private readonly verbose: boolean;
@@ -55,9 +63,15 @@ export class WorkflowRuntime {
   private queue: WorkflowQueuedRun[] = [];
   private idleTimer: ReturnType<typeof setInterval> | null = null;
   private stopBus: (() => void) | null = null;
-  private activeWorkflowName: string | null = null;
-  private activeAbortController: AbortController | null = null;
-  private activeRunPromise: Promise<void> | null = null;
+  /**
+   * Active runs keyed by workflow name.
+   * Same-workflow serialisation is enforced by never dispatching a workflow
+   * that already has an entry here.
+   */
+  private activeRuns: Map<
+    string,
+    { promise: Promise<void>; abortController: AbortController }
+  > = new Map();
   private dispatchPaused = false;
   private budgetPausedDate: string | null = null;
   private stopping = false;
@@ -71,6 +85,7 @@ export class WorkflowRuntime {
     this.store = new WorkflowRunStore(this.projectDir);
     this.idleIntervalMs =
       runtimeConfig.idleIntervalMs ?? DEFAULT_IDLE_INTERVAL_MS;
+    this.maxConcurrentRuns = runtimeConfig.maxConcurrentRuns ?? 1;
     this.model = runtimeConfig.model;
     this.config = runtimeConfig.config;
     this.verbose = runtimeConfig.verbose ?? false;
@@ -89,10 +104,10 @@ export class WorkflowRuntime {
       // pruning errors must not prevent startup
     }
 
-    const interrupted = this.store.recoverInterruptedRun();
-    if (interrupted) {
+    const interrupted = this.store.recoverInterruptedRuns();
+    for (const run of interrupted) {
       this.log(
-        `Recovered interrupted workflow run ${interrupted.id} for "${interrupted.workflow}"`,
+        `Recovered interrupted workflow run ${run.id} for "${run.workflow}"`,
       );
     }
 
@@ -130,23 +145,30 @@ export class WorkflowRuntime {
     }
     this.scheduleTimers.clear();
 
-    if (!this.activeRunPromise) return;
+    if (this.activeRuns.size === 0) return;
 
-    this.activeAbortController?.abort();
+    for (const { abortController } of this.activeRuns.values()) {
+      abortController.abort();
+    }
+
     const abortTimer = setTimeout(() => {
-      this.activeAbortController?.abort();
+      for (const { abortController } of this.activeRuns.values()) {
+        abortController.abort();
+      }
     }, timeoutMs);
     abortTimer.unref();
 
     try {
-      await this.activeRunPromise;
+      await Promise.all(
+        [...this.activeRuns.values()].map((r) => r.promise),
+      );
     } finally {
       clearTimeout(abortTimer);
     }
   }
 
   isBusy(): boolean {
-    return this.activeRunPromise !== null;
+    return this.activeRuns.size >= this.maxConcurrentRuns;
   }
 
   setDispatchPaused(paused: boolean): void {
@@ -244,7 +266,7 @@ export class WorkflowRuntime {
     this.checkAbortSignal();
     this.checkReloadSignal();
     this.maybeStartNext(); // pick up queued items that were held by pause
-    if (this.stopping || this.activeRunPromise || this.queue.length > 0) return;
+    if (this.stopping || this.activeRuns.size > 0 || this.queue.length > 0) return;
     this.runtimeConfig.bus.emit("runtime.idle", {
       timestamp: new Date().toISOString(),
       idleIntervalMs: this.idleIntervalMs,
@@ -326,9 +348,11 @@ export class WorkflowRuntime {
     } catch {
       // ignore cleanup errors
     }
-    if (this.activeAbortController) {
-      this.log("Abort signal received — aborting active run");
-      this.activeAbortController.abort();
+    if (this.activeRuns.size > 0) {
+      this.log("Abort signal received — aborting active run(s)");
+      for (const { abortController } of this.activeRuns.values()) {
+        abortController.abort();
+      }
     }
   }
 
@@ -340,9 +364,11 @@ export class WorkflowRuntime {
       for (const trigger of definition.triggers) {
         if (trigger.event !== envelope.type) continue;
         if (!matchesFilter(trigger.filter, envelope.payload)) continue;
+        // Shallow-copy the payload so each queued run owns its own object
+        // reference — safeJsonStringify treats shared references as circular.
         this.enqueueRun(definition, trigger, {
           event: envelope.type,
-          payload: envelope.payload,
+          payload: { ...envelope.payload },
         });
       }
     }
@@ -405,12 +431,12 @@ export class WorkflowRuntime {
     this.queue.push(queuedRun);
     this.persistQueue();
     this.log(
-      `${this.activeWorkflowName === definition.name ? "Queued rerun for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}"`,
+      `${this.activeRuns.has(definition.name) ? "Queued rerun for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}"`,
     );
   }
 
   private maybeStartNext(): void {
-    if (this.stopping || this.activeRunPromise || this.dispatchPaused) return;
+    if (this.stopping || this.dispatchPaused) return;
     if (existsSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
 
     const budget = this.config?.dailyBudgetUsd;
@@ -428,21 +454,26 @@ export class WorkflowRuntime {
       }
     }
 
-    const queued = this.pickQueuedRun();
-    if (!queued) return;
+    while (this.activeRuns.size < this.maxConcurrentRuns) {
+      const queued = this.pickQueuedRun();
+      if (!queued) break;
 
-    const definition = this.definitions.find((d) => d.name === queued.workflowName);
-    if (!definition) return;
+      const definition = this.definitions.find((d) => d.name === queued.workflowName);
+      if (!definition) continue;
 
-    this.log(`Dispatching workflow "${queued.workflowName}"`);
-    void this.runWorkflow(definition, queued.trigger);
+      this.log(`Dispatching workflow "${queued.workflowName}"`);
+      void this.runWorkflow(definition, queued.trigger);
+    }
   }
 
   private pickQueuedRun(): WorkflowQueuedRun | null {
     const now = Date.now();
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
-      .filter(({ item }) => item.notBeforeMs <= now)
+      .filter(
+        ({ item }) =>
+          item.notBeforeMs <= now && !this.activeRuns.has(item.workflowName),
+      )
       .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
 
     if (eligible.length === 0) return null;
@@ -468,15 +499,11 @@ export class WorkflowRuntime {
         log: (message) => this.log(message),
       },
       () => {
-        this.activeWorkflowName = null;
-        this.activeAbortController = null;
-        this.activeRunPromise = null;
+        this.activeRuns.delete(definition.name);
         this.maybeStartNext();
       },
     );
-    this.activeWorkflowName = definition.name;
-    this.activeAbortController = abortController;
-    this.activeRunPromise = promise;
+    this.activeRuns.set(definition.name, { promise, abortController });
     await promise;
   }
 

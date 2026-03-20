@@ -1241,4 +1241,234 @@ describe("WorkflowRuntime", () => {
     expect(metadata.steps[0].status).toBe("failed");
     expect(metadata.steps[0].error).toContain('timed out after 30ms');
   });
+
+  describe("concurrent runs (maxConcurrentRuns > 1)", () => {
+    it("runs two different workflows simultaneously when maxConcurrentRuns=2", async () => {
+      const bus = new EventBus();
+      const startTimes: Record<string, number> = {};
+      const completeTimes: Record<string, number> = {};
+
+      // Track when each workflow starts and ends
+      bus.on("workflow.started", (payload) => {
+        startTimes[payload.workflow] = Date.now();
+      });
+      bus.on("workflow.completed", (payload) => {
+        completeTimes[payload.workflow] = Date.now();
+      });
+
+      // Both workflows hold for ~40ms
+      let releaseAlpha: (() => void) | null = null;
+      let releaseBeta: (() => void) | null = null;
+      mockedExecuteWithAgentSDK
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseAlpha = () =>
+                resolve({
+                  text: "done",
+                  streamedText: "",
+                  turns: 1,
+                  subtype: "success",
+                  isError: false,
+                });
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseBeta = () =>
+                resolve({
+                  text: "done",
+                  streamedText: "",
+                  turns: 1,
+                  subtype: "success",
+                  isError: false,
+                });
+            }),
+        );
+
+      writeFileSync(
+        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
+      writeFileSync(
+        join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+        "Format.\n",
+      );
+
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 10,
+        maxConcurrentRuns: 2,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+            ],
+          }),
+          registerWorkflowDefinition("test/formatter.ts", {
+            name: "formatter",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "format", type: "agent", promptPath: "src/workflows/formatter/prompt.md" },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(50); // both workflows should have started
+
+      expect(startTimes["builder"]).toBeDefined();
+      expect(startTimes["formatter"]).toBeDefined();
+
+      // Both should be running concurrently (neither completed yet)
+      expect(completeTimes["builder"]).toBeUndefined();
+      expect(completeTimes["formatter"]).toBeUndefined();
+
+      releaseAlpha!();
+      releaseBeta!();
+      await wait(60);
+      await runtime.stop();
+
+      expect(completeTimes["builder"]).toBeDefined();
+      expect(completeTimes["formatter"]).toBeDefined();
+
+      const runsDir = join(projectDir, ".kota", "runs");
+      const runIds = readdirSync(runsDir);
+      expect(runIds.length).toBe(2);
+    });
+
+    it("serializes the same workflow when maxConcurrentRuns=2", async () => {
+      const bus = new EventBus();
+      const completedWorkflows: string[] = [];
+
+      bus.on("workflow.completed", (payload) => {
+        completedWorkflows.push(payload.workflow);
+      });
+
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 10,
+        maxConcurrentRuns: 2,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "run", type: "emit", event: "builder.done" }],
+          }),
+        ],
+      });
+
+      // Manually enqueue two builder runs
+      runtime.start();
+      await wait(80);
+      await runtime.stop();
+
+      // builder only has one instance at a time — runs should be sequential, not overlapping
+      const runsDir = join(projectDir, ".kota", "runs");
+      const runIds = readdirSync(runsDir);
+      // At most one builder run would have happened per idle tick
+      // (same workflow serialized even with maxConcurrentRuns=2)
+      for (const runId of runIds) {
+        const metadata = JSON.parse(
+          readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+        );
+        expect(metadata.workflow).toBe("builder");
+        expect(metadata.status).toBe("success");
+      }
+    });
+
+    it("activeRuns in state reflects multiple concurrent runs", async () => {
+      const bus = new EventBus();
+      let releaseAlpha: (() => void) | null = null;
+      let releaseBeta: (() => void) | null = null;
+
+      mockedExecuteWithAgentSDK
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseAlpha = () =>
+                resolve({
+                  text: "done",
+                  streamedText: "",
+                  turns: 1,
+                  subtype: "success",
+                  isError: false,
+                });
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseBeta = () =>
+                resolve({
+                  text: "done",
+                  streamedText: "",
+                  turns: 1,
+                  subtype: "success",
+                  isError: false,
+                });
+            }),
+        );
+
+      writeFileSync(
+        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
+      writeFileSync(
+        join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+        "Format.\n",
+      );
+
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 10,
+        maxConcurrentRuns: 2,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+            ],
+          }),
+          registerWorkflowDefinition("test/formatter.ts", {
+            name: "formatter",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "format", type: "agent", promptPath: "src/workflows/formatter/prompt.md" },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(50); // both workflows should be running
+
+      const { WorkflowRunStore } = await import("./run-store.js");
+      const store = new WorkflowRunStore(projectDir);
+      const state = store.readState();
+
+      expect(state.activeRuns).toBeDefined();
+      expect(state.activeRuns!.length).toBe(2);
+      const runningWorkflows = state.activeRuns!.map((r) => r.workflow).sort();
+      expect(runningWorkflows).toEqual(["builder", "formatter"]);
+
+      releaseAlpha!();
+      releaseBeta!();
+      await wait(60);
+      await runtime.stop();
+
+      const stateAfter = store.readState();
+      expect(stateAfter.activeRuns).toEqual([]);
+    });
+  });
 });

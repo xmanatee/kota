@@ -400,18 +400,29 @@ export function registerWorkflowCommands(program: Command): void {
 
   wfCmd
     .command("abort")
-    .description("Abort the currently active workflow run")
+    .description("Abort the currently active workflow run(s)")
     .action(() => {
       const store = new WorkflowRunStore();
       const state = store.readState();
-      if (!state.activeRunId) {
+      const activeRuns =
+        state.activeRuns && state.activeRuns.length > 0
+          ? state.activeRuns
+          : state.activeRunId
+            ? [{ runId: state.activeRunId, workflow: state.activeWorkflow ?? "", startedAt: "" }]
+            : [];
+      if (activeRuns.length === 0) {
         console.log("No active run to abort.");
         return;
       }
       const signalPath = join(store.rootDir, ABORT_SIGNAL_FILE);
       writeFileSync(signalPath, "");
-      console.log(`Abort signal written for run ${state.activeRunId}`);
-      console.log("The daemon will abort the active run on its next cycle.");
+      if (activeRuns.length === 1) {
+        console.log(`Abort signal written for run ${activeRuns[0].runId}`);
+      } else {
+        console.log(`Abort signal written for ${activeRuns.length} active runs:`);
+        for (const r of activeRuns) console.log(`  ${r.runId} (${r.workflow})`);
+      }
+      console.log("The daemon will abort the active run(s) on its next cycle.");
     });
 
   wfCmd
@@ -464,16 +475,24 @@ export function registerWorkflowCommands(program: Command): void {
         console.log("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
       }
 
-      if (state.activeRunId) {
-        const abortPending = existsSync(join(store.rootDir, ABORT_SIGNAL_FILE));
-        console.log(`Active run: ${state.activeRunId}${abortPending ? " (abort pending)" : ""}`);
-        console.log(`Workflow:   ${state.activeWorkflow}`);
-        if (state.activeStartedAt) {
-          const elapsed = Date.now() - new Date(state.activeStartedAt).getTime();
-          console.log(`Running for: ${formatDuration(elapsed)}`);
-        }
-      } else {
+      const activeRuns =
+        state.activeRuns && state.activeRuns.length > 0
+          ? state.activeRuns
+          : state.activeRunId
+            ? [{ runId: state.activeRunId, workflow: state.activeWorkflow ?? "", startedAt: state.activeStartedAt ?? "" }]
+            : [];
+      const abortPending = existsSync(join(store.rootDir, ABORT_SIGNAL_FILE));
+      if (activeRuns.length === 0) {
         console.log("Active run: (none)");
+      } else {
+        for (const run of activeRuns) {
+          console.log(`Active run: ${run.runId}${abortPending ? " (abort pending)" : ""}`);
+          console.log(`Workflow:   ${run.workflow}`);
+          if (run.startedAt) {
+            const elapsed = Date.now() - new Date(run.startedAt).getTime();
+            console.log(`Running for: ${formatDuration(elapsed)}`);
+          }
+        }
       }
 
       console.log();
