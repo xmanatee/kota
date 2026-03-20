@@ -68,6 +68,7 @@ export class WorkflowRunStore {
       ...(state?.activeRunId ? { activeRunId: state.activeRunId } : {}),
       ...(state?.activeWorkflow ? { activeWorkflow: state.activeWorkflow } : {}),
       ...(state?.activeStartedAt ? { activeStartedAt: state.activeStartedAt } : {}),
+      ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
     };
   }
 
@@ -206,11 +207,21 @@ export class WorkflowRunStore {
       },
       finish: (update) => {
         const currentState = this.readState();
+        const totalCostUsd = metadata.steps
+          .filter((s) => s.type === "agent")
+          .reduce((sum, s) => {
+            if (s.output && typeof s.output === "object" && !Array.isArray(s.output)) {
+              const cost = (s.output as Record<string, unknown>).totalCostUsd;
+              if (typeof cost === "number") return sum + cost;
+            }
+            return sum;
+          }, 0);
         const completed: WorkflowRunMetadata = {
           ...metadata,
           status: update.status,
           completedAt: new Date().toISOString(),
           durationMs: update.durationMs,
+          totalCostUsd,
         };
         if (update.error) {
           writeFileSync(join(runDirPath, "error.txt"), update.error, "utf-8");
@@ -219,6 +230,7 @@ export class WorkflowRunStore {
         writeJsonFile(join(runDirPath, "metadata.json"), completed);
 
         currentState.completedRuns += 1;
+        currentState.totalCostUsd = (currentState.totalCostUsd ?? 0) + totalCostUsd;
         currentState.workflows[workflow.name] = {
           ...currentState.workflows[workflow.name],
           lastRunId: id,

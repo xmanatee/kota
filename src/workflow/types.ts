@@ -50,6 +50,7 @@ export type WorkflowRuntimeState = {
   activeWorkflow?: string;
   activeStartedAt?: string;
   completedRuns: number;
+  totalCostUsd?: number;
   pendingRuns: WorkflowQueuedRun[];
   workflows: Record<
     string,
@@ -240,6 +241,7 @@ export type WorkflowRunMetadata = {
   completedAt?: string;
   status: WorkflowRunStatus | "running";
   durationMs?: number;
+  totalCostUsd?: number;
   runDir: string;
   steps: WorkflowStepResult[];
 };

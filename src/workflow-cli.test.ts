@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
-import type { WorkflowRuntimeState } from "./workflow/types.js";
+import type {
+  WorkflowDefinition,
+  WorkflowRuntimeState,
+  WorkflowStepResult,
+} from "./workflow/types.js";
 
 // Isolated test for the trigger command's core logic:
 // cooldown checks and queue writes via WorkflowRunStore.
@@ -102,5 +106,111 @@ describe("workflow trigger command logic", () => {
       const eligibleAt = getEligibleAtMs("builder", cooldownMs, state);
       expect(eligibleAt).toBeLessThan(Date.now());
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cost aggregation via WorkflowRunStore.finish()
+// ---------------------------------------------------------------------------
+
+const minimalWorkflow: WorkflowDefinition = {
+  name: "builder",
+  enabled: true,
+  definitionPath: "src/workflows/builder/workflow.ts",
+  triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+  steps: [],
+};
+
+function makeStepResult(
+  id: string,
+  type: WorkflowStepResult["type"],
+  output?: unknown,
+): WorkflowStepResult {
+  return {
+    id,
+    type,
+    status: "success",
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    durationMs: 100,
+    output,
+  };
+}
+
+describe("WorkflowRunStore cost aggregation", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-wf-cost-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("sets totalCostUsd to 0 when no agent steps exist", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const completed = run.finish({ status: "success", durationMs: 100 });
+    expect(completed.totalCostUsd).toBe(0);
+  });
+
+  it("sums totalCostUsd across agent step outputs", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep(makeStepResult("step1", "agent", { content: "ok", totalCostUsd: 0.01 }));
+    run.recordStep(makeStepResult("step2", "agent", { content: "ok", totalCostUsd: 0.02 }));
+    const completed = run.finish({ status: "success", durationMs: 200 });
+    expect(completed.totalCostUsd).toBeCloseTo(0.03);
+  });
+
+  it("ignores cost from non-agent steps", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.05 }));
+    run.recordStep(makeStepResult("s2", "code", { result: "done" }));
+    run.recordStep(makeStepResult("s3", "tool", { content: "ok", totalCostUsd: 99 }));
+    const completed = run.finish({ status: "success", durationMs: 300 });
+    expect(completed.totalCostUsd).toBeCloseTo(0.05);
+  });
+
+  it("treats agent steps with no cost output as zero", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep(makeStepResult("s1", "agent", { content: "ok" }));
+    run.recordStep(makeStepResult("s2", "agent", { content: "ok", totalCostUsd: 0.03 }));
+    const completed = run.finish({ status: "success", durationMs: 200 });
+    expect(completed.totalCostUsd).toBeCloseTo(0.03);
+  });
+
+  it("accumulates totalCostUsd in runtime state across multiple runs", () => {
+    const trigger = { event: "test", payload: {} };
+
+    const run1 = store.createRun(minimalWorkflow, trigger);
+    run1.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.10 }));
+    run1.finish({ status: "success", durationMs: 100 });
+
+    const run2 = store.createRun(minimalWorkflow, trigger);
+    run2.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.20 }));
+    run2.finish({ status: "success", durationMs: 100 });
+
+    const state = store.readState();
+    expect(state.totalCostUsd).toBeCloseTo(0.30);
+  });
+
+  it("treats existing run files without totalCostUsd as zero when accumulating", () => {
+    // Simulate state already having totalCostUsd from a prior run
+    store.setPendingRuns([]); // ensure state file exists with defaults
+    const state = store.readState();
+    expect(state.totalCostUsd).toBeUndefined();
+
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.05 }));
+    run.finish({ status: "success", durationMs: 100 });
+
+    const updated = store.readState();
+    expect(updated.totalCostUsd).toBeCloseTo(0.05);
   });
 });

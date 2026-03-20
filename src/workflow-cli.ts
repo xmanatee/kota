@@ -81,21 +81,23 @@ export function registerWorkflowCommands(program: Command): void {
       const wfWidth = 12;
       const stWidth = 4;
       const durWidth = 8;
+      const costWidth = 8;
       const dateWidth = 18;
 
       console.log(
-        `${"ID".padEnd(idWidth)} ${"Workflow".padEnd(wfWidth)} ${"St".padEnd(stWidth)} ${"Duration".padEnd(durWidth)} ${"Started".padEnd(dateWidth)} Trigger`,
+        `${"ID".padEnd(idWidth)} ${"Workflow".padEnd(wfWidth)} ${"St".padEnd(stWidth)} ${"Duration".padEnd(durWidth)} ${"Cost".padEnd(costWidth)} ${"Started".padEnd(dateWidth)} Trigger`,
       );
-      console.log("-".repeat(110));
+      console.log("-".repeat(120));
 
       for (const r of page) {
         const id = r.id.padEnd(idWidth);
         const wf = r.workflow.padEnd(wfWidth);
         const st = statusIcon(r.status).padEnd(stWidth);
         const dur = (r.durationMs != null ? formatDuration(r.durationMs) : "…").padEnd(durWidth);
+        const cost = (r.totalCostUsd != null ? `$${r.totalCostUsd.toFixed(3)}` : "—").padEnd(costWidth);
         const started = formatDate(r.startedAt).padEnd(dateWidth);
         const trigger = r.trigger.event;
-        console.log(`${id} ${wf} ${st} ${dur} ${started} ${trigger}`);
+        console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}`);
       }
     });
 
@@ -141,6 +143,9 @@ export function registerWorkflowCommands(program: Command): void {
       }
       if (metadata.durationMs != null) {
         console.log(`Duration: ${formatDuration(metadata.durationMs)}`);
+      }
+      if (metadata.totalCostUsd != null) {
+        console.log(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`);
       }
       if (errorText !== null) {
         console.log(`\nError:\n${errorText}`);
@@ -343,5 +348,8 @@ export function registerWorkflowCommands(program: Command): void {
 
       console.log();
       console.log(`Total completed runs: ${state.completedRuns}`);
+      if (state.totalCostUsd != null) {
+        console.log(`Total cost:           $${state.totalCostUsd.toFixed(4)}`);
+      }
     });
 }
