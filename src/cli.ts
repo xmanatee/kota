@@ -18,6 +18,7 @@ import { createModelClient, parseModelString } from "./model/provider-factory.js
 import { ModuleLoader } from "./module-loader.js";
 import { builtinModules } from "./modules/index.js";
 import { discoverPluginModules } from "./plugin-loader.js";
+import { registerWorkflowCommands } from "./workflow-cli.js";
 
 export { parseIntOption } from "./cli-history.js";
 
@@ -161,6 +162,7 @@ program
   });
 
 registerHistoryCommands(program);
+registerWorkflowCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

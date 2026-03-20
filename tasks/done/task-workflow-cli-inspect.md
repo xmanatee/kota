@@ -1,7 +1,7 @@
 ---
 id: task-workflow-cli-inspect
 title: Add kota workflow CLI subcommand for run inspection
-status: ready
+status: done
 priority: p2
 area: cli
 summary: Add a `kota workflow` subcommand that lists recent runs, shows status and step results, and displays the current runtime queue — giving operators visibility into the autonomous system from the terminal.
