@@ -20,6 +20,7 @@ import {
 import { handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowRunDetail,
+  handleWorkflowRunStream,
   handleWorkflowRuns,
   handleWorkflowStatus,
 } from "./workflow-routes.js";
@@ -283,6 +284,12 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/workflow/runs") {
       handleWorkflowRuns(res, url);
+      return;
+    }
+
+    const workflowRunStreamMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/stream$/);
+    if (req.method === "GET" && workflowRunStreamMatch) {
+      handleWorkflowRunStream(res, workflowRunStreamMatch[1]);
       return;
     }
 

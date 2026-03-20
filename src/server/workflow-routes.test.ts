@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import {
   handleWorkflowRunDetail,
+  handleWorkflowRunStream,
   handleWorkflowRuns,
   handleWorkflowStatus,
   listRunMetadata,
@@ -228,6 +229,28 @@ describe("workflow-routes", () => {
       expect(body.id).toBe("run-detail-001");
       expect(body.workflow).toBe("builder");
       expect(Array.isArray(body.steps)).toBe(true);
+    });
+  });
+
+  describe("handleWorkflowRunStream", () => {
+    it("returns 400 for path traversal attempt", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRunStream(res, "../etc/passwd", store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 404 for unknown run ID", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRunStream(res, "nonexistent-run", store);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 404 for completed run", () => {
+      writeRunMetadata(runsDir, "run-done-001", "builder", "success");
+      const { res, result } = mockResponse();
+      handleWorkflowRunStream(res, "run-done-001", store);
+      expect(result.status).toBe(404);
+      expect((result.body as Record<string, unknown>).error).toMatch(/not active/);
     });
   });
 
