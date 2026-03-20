@@ -51,6 +51,7 @@ export type WorkflowRuntimeState = {
   activeStartedAt?: string;
   completedRuns: number;
   totalCostUsd?: number;
+  definitionsLoadedAt?: string;
   pendingRuns: WorkflowQueuedRun[];
   workflows: Record<
     string,

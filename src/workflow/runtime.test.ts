@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
+import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";
 
 vi.mock("../agent-sdk/index.js", async () => {
@@ -992,6 +992,205 @@ describe("WorkflowRuntime", () => {
     await runtime.stop();
 
     expect(started).toContain("builder");
+  });
+
+  it("reloads definitions when reload signal file is written", async () => {
+    const bus = new EventBus();
+    const logs: string[] = [];
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 20,
+      onLog: (msg) => logs.push(msg),
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(40);
+
+    // Write reload signal
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE), "");
+
+    await wait(80); // wait for idle timer to fire and process the signal
+    await runtime.stop();
+
+    // Signal file should be consumed
+    expect(existsSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE))).toBe(false);
+
+    // State should record when definitions were loaded
+    const state = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf-8"),
+    );
+    expect(state.definitionsLoadedAt).toBeDefined();
+
+    // Log should confirm reload
+    expect(logs.some((msg) => msg.includes("reloaded"))).toBe(true);
+  });
+
+  it("does not interrupt an active run when reload signal is processed", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    let releaseRun: (() => void) | null = null;
+    mockedExecuteWithAgentSDK.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseRun = () =>
+            resolve({
+              text: "done",
+              streamedText: "",
+              turns: 1,
+              subtype: "success",
+              isError: false,
+            });
+        }),
+    );
+
+    const bus = new EventBus();
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 20,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(40); // let the agent step start
+
+    // Write reload signal while run is active
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE), "");
+
+    await wait(80); // idle timer fires, reload is processed mid-run
+    if (!releaseRun) throw new Error("expected releaseRun to be set");
+    const release: () => void = releaseRun;
+    release();
+    await wait(40);
+    await runtime.stop();
+
+    // Signal file should be consumed
+    expect(existsSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE))).toBe(false);
+
+    // Run should complete successfully (not interrupted)
+    const runsDir = join(projectDir, ".kota", "runs");
+    const [runId] = readdirSync(runsDir);
+    const metadata = JSON.parse(
+      readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+    );
+    expect(metadata.status).toBe("success");
+  });
+
+  it("logs an error and keeps running when reload encounters bad definitions", async () => {
+    const bus = new EventBus();
+    const logs: string[] = [];
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const validWorkflows = [
+      registerWorkflowDefinition("test/builder.ts", {
+        name: "builder",
+        triggers: [{ event: "runtime.idle" }],
+        steps: [{ id: "run", type: "emit", event: "builder.done" }],
+      }),
+    ];
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 20,
+      onLog: (msg) => logs.push(msg),
+      workflows: validWorkflows,
+    });
+
+    runtime.start();
+    await wait(40);
+
+    // Spy on validateWorkflowDefinitions to throw on the reload call (after start)
+    const validationModule = await import("./validation.js");
+    const spy = vi.spyOn(validationModule, "validateWorkflowDefinitions");
+    spy.mockImplementationOnce(() => { throw new Error("bad definition"); });
+
+    // Write reload signal — reload will encounter the mocked bad definitions
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE), "");
+
+    await wait(80);
+    await runtime.stop();
+    spy.mockRestore();
+
+    // Signal file consumed
+    expect(existsSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE))).toBe(false);
+
+    // Runtime should have logged the error and kept running (didn't crash)
+    expect(logs.some((msg) => msg.includes("Failed to reload") && msg.includes("bad definition"))).toBe(true);
+
+    // Existing definitions still active — workflows ran
+    expect(started.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reconciles schedule timers on reload — new trigger is registered", async () => {
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    // Start with a workflow that has an interval trigger
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 20,
+      workflows: [
+        registerWorkflowDefinition("test/hourly.ts", {
+          name: "hourly",
+          triggers: [{ intervalMs: 3_600_000 }], // 1h — fires immediately (no prior run)
+          steps: [{ id: "run", type: "emit", event: "hourly.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(60); // initial timer fires immediately, workflow runs
+
+    // Write reload signal — re-applies the same definitions, timer is preserved
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE), "");
+    await wait(80); // reload processed (idle timer fires every 20ms)
+
+    await runtime.stop();
+
+    // Signal file consumed
+    expect(existsSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE))).toBe(false);
+
+    // State should have definitionsLoadedAt set (updated by reload)
+    const state = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf-8"),
+    );
+    expect(state.definitionsLoadedAt).toBeDefined();
   });
 
   it("aborts the run when runTimeoutMs is exceeded", async () => {

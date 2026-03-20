@@ -6,7 +6,7 @@ import { readOptionalJsonFile } from "./json-file.js";
 import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
 import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
-import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE } from "./workflow/runtime.js";
+import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE } from "./workflow/runtime.js";
 import type { WorkflowRunMetadata } from "./workflow/types.js";
 import { validateWorkflowDefinitions } from "./workflow/validation.js";
 import type { HistoryStats } from "./workflow-history.js";
@@ -443,6 +443,16 @@ export function registerWorkflowCommands(program: Command): void {
     });
 
   wfCmd
+    .command("reload")
+    .description("Signal the daemon to reload workflow definitions without restarting")
+    .action(() => {
+      const store = new WorkflowRunStore();
+      const reloadPath = join(store.rootDir, RELOAD_SIGNAL_FILE);
+      writeFileSync(reloadPath, "");
+      console.log("Reload signal written. The daemon will reload definitions on its next cycle.");
+    });
+
+  wfCmd
     .command("status")
     .description("Show active run, queue, and per-workflow last-run info")
     .action(() => {
@@ -524,6 +534,9 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(`Today's spend:        $${dailySpend.toFixed(4)} / $${dailyBudget.toFixed(4)}${budgetStatus}`);
       } else if (dailySpend > 0) {
         console.log(`Today's spend:        $${dailySpend.toFixed(4)}`);
+      }
+      if (state.definitionsLoadedAt) {
+        console.log(`Definitions loaded:   ${formatDate(state.definitionsLoadedAt)}`);
       }
     });
 }

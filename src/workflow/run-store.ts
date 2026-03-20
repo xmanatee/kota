@@ -71,6 +71,7 @@ export class WorkflowRunStore {
       ...(state?.activeWorkflow ? { activeWorkflow: state.activeWorkflow } : {}),
       ...(state?.activeStartedAt ? { activeStartedAt: state.activeStartedAt } : {}),
       ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
+      ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
     };
   }
 
@@ -121,6 +122,12 @@ export class WorkflowRunStore {
   setPendingRuns(pendingRuns: WorkflowQueuedRun[]): void {
     const state = this.readState();
     state.pendingRuns = pendingRuns;
+    this.writeState(state);
+  }
+
+  setDefinitionsLoadedAt(loadedAt: string): void {
+    const state = this.readState();
+    state.definitionsLoadedAt = loadedAt;
     this.writeState(state);
   }
 

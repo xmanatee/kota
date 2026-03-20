@@ -26,6 +26,7 @@ import {
 
 export const ABORT_SIGNAL_FILE = "abort-request";
 export const PAUSE_SIGNAL_FILE = "dispatch-paused";
+export const RELOAD_SIGNAL_FILE = "definitions-reload-request";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;
 
@@ -167,7 +168,9 @@ export class WorkflowRuntime {
 
   private loadDefinitions(): WorkflowDefinition[] {
     const definitions = this.workflowInputs ?? getBuiltinWorkflowDefinitions();
-    return validateWorkflowDefinitions(definitions, this.projectDir);
+    const validated = validateWorkflowDefinitions(definitions, this.projectDir);
+    this.store.setDefinitionsLoadedAt(new Date().toISOString());
+    return validated;
   }
 
   private setupScheduleTriggers(): void {
@@ -239,12 +242,80 @@ export class WorkflowRuntime {
 
   private emitIdleEvent(): void {
     this.checkAbortSignal();
+    this.checkReloadSignal();
     this.maybeStartNext(); // pick up queued items that were held by pause
     if (this.stopping || this.activeRunPromise || this.queue.length > 0) return;
     this.runtimeConfig.bus.emit("runtime.idle", {
       timestamp: new Date().toISOString(),
       idleIntervalMs: this.idleIntervalMs,
     });
+  }
+
+  private checkReloadSignal(): void {
+    const signalPath = join(this.projectDir, ".kota", RELOAD_SIGNAL_FILE);
+    if (!existsSync(signalPath)) return;
+    try {
+      rmSync(signalPath);
+    } catch {
+      // ignore cleanup errors
+    }
+    try {
+      const newDefinitions = this.loadDefinitions();
+      this.reconcileScheduleTriggers(newDefinitions);
+      this.definitions = newDefinitions;
+      this.log(`Workflow definitions reloaded (${newDefinitions.length} definition(s))`);
+    } catch (err) {
+      this.log(`Failed to reload workflow definitions: ${(err as Error).message}`);
+    }
+  }
+
+  private reconcileScheduleTriggers(newDefinitions: WorkflowDefinition[]): void {
+    // Build the set of keys the new definitions want
+    const newKeys = new Set<string>();
+    for (const definition of newDefinitions) {
+      if (!definition.enabled) continue;
+      for (let i = 0; i < definition.triggers.length; i++) {
+        const trigger = definition.triggers[i];
+        if (!trigger.schedule && trigger.intervalMs == null) continue;
+        newKeys.add(`${definition.name}:${i}`);
+      }
+    }
+
+    // Cancel timers that are no longer needed
+    for (const [key, { timer }] of this.scheduleTimers) {
+      if (!newKeys.has(key)) {
+        clearTimeout(timer);
+        this.scheduleTimers.delete(key);
+      }
+    }
+
+    // Set up timers for new keys (existing ones keep firing on their current schedule)
+    const state = this.store.readState();
+    for (const definition of newDefinitions) {
+      if (!definition.enabled) continue;
+      for (let i = 0; i < definition.triggers.length; i++) {
+        const trigger = definition.triggers[i];
+        if (!trigger.schedule && trigger.intervalMs == null) continue;
+        const key = `${definition.name}:${i}`;
+        if (this.scheduleTimers.has(key)) continue;
+
+        let nextFireMs: number;
+        if (trigger.intervalMs != null) {
+          const lastCompleted = state.workflows[definition.name]?.lastCompletedAt;
+          if (lastCompleted) {
+            const due = new Date(lastCompleted).getTime() + trigger.intervalMs;
+            nextFireMs = due > Date.now() ? due : Date.now();
+          } else {
+            nextFireMs = Date.now();
+          }
+        } else {
+          const next = getNextCronTime(trigger.schedule!, new Date());
+          if (!next) continue;
+          nextFireMs = next.getTime();
+        }
+        this.scheduleNextFire(key, definition, trigger, nextFireMs);
+      }
+    }
   }
 
   private checkAbortSignal(): void {

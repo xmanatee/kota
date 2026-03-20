@@ -1,7 +1,7 @@
 ---
 id: task-workflow-definition-reload
 title: Reload workflow definitions without daemon restart
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: Workflow definitions are loaded once at daemon startup. Changing a built-in workflow or adding a new one requires restarting the daemon. A `kota workflow reload` command (or SIGHUP handler) should re-validate and re-apply definitions in the running runtime.
