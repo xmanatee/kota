@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
+import { VALID_MODEL_IDS } from "./validation-steps.js";
 
 describe("workflow validation", () => {
   let projectDir: string;
@@ -235,6 +236,88 @@ describe("workflow validation", () => {
         projectDir,
       ),
     ).toThrow('restart step "request-restart" must be the final step');
+  });
+
+  it("rejects unknown model IDs in agent steps", () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/workflows/builder/prompt.md",
+                model: "gpt-4-turbo",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow('steps[0].model: unknown model "gpt-4-turbo"');
+  });
+
+  it("accepts known model IDs in agent steps", () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    for (const model of VALID_MODEL_IDS) {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/builder.ts", {
+              name: "builder",
+              triggers: [{ event: "runtime.idle" }],
+              steps: [
+                {
+                  id: "build",
+                  type: "agent",
+                  promptPath: "src/workflows/builder/prompt.md",
+                  model,
+                },
+              ],
+            }),
+          ],
+          projectDir,
+        ),
+      ).not.toThrow();
+    }
+  });
+
+  it("accepts agent steps without a model field", () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/workflows/builder/prompt.md",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
   });
 
   it("exposes the built-in explorer, builder, and improver workflows", () => {

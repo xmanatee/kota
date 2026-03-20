@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-model-config
 title: Validate per-step model IDs in workflow definitions
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: The `model?` field on agent step definitions already exists and the runtime already uses it. What's missing is validation that rejects unknown model IDs at load time with a clear error.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T03:16:00Z
 ---
 
 ## Problem

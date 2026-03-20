@@ -32,6 +32,11 @@ const VALID_PERMISSION_MODES = new Set([
   "dontAsk",
   "bypassPermissions",
 ]);
+export const VALID_MODEL_IDS = new Set([
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+]);
 
 export function validateToolStep(
   step: WorkflowToolStepInput,
@@ -107,11 +112,19 @@ export function validateAgentStep(
     }
   }
 
+  const model = expectOptionalString(step.model, `steps[${index}].model`, definitionPath);
+  if (model !== undefined && !VALID_MODEL_IDS.has(model)) {
+    throw new WorkflowDefinitionError(
+      `steps[${index}].model: unknown model "${model}"`,
+      definitionPath,
+    );
+  }
+
   return {
     id: expectName(step.id, `steps[${index}].id`, definitionPath),
     type: "agent",
     promptPath,
-    model: expectOptionalString(step.model, `steps[${index}].model`, definitionPath),
+    model,
     maxTurns: expectOptionalInteger(
       step.maxTurns,
       `steps[${index}].maxTurns`,
