@@ -301,7 +301,7 @@ export function registerWorkflowCommands(program: Command): void {
         ? ` (eligible at ${new Date(notBeforeMs).toLocaleTimeString()})`
         : "";
       console.log(`Queued workflow "${name}"${notBeforeStr}.`);
-      if (state.activeRunId) {
+      if (state.activeRuns && state.activeRuns.length > 0) {
         console.log("Daemon is busy — run will start after current run finishes.");
       }
     });
