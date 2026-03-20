@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-cost-panel
 title: Add cost summary panel to web UI
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: The web UI has panels for workflows and tasks but no visibility into spend. A cost panel showing per-workflow totals and a rolling daily burn rate would close the observability gap and surface runaway spend early.

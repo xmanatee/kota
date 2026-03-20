@@ -15,6 +15,7 @@ export const WEB_UI_JS = /* js */ `
   const $historyList = document.getElementById("history-list");
   const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
+  const $costList = document.getElementById("cost-summary-list");
   const $runDetail = document.getElementById("run-detail");
   const $inputArea = document.getElementById("input-area");
   const $health = document.getElementById("health-status");
@@ -468,6 +469,50 @@ export const WEB_UI_JS = /* js */ `
     }
   }
 
+  // --- Cost summary panel ---
+
+  function renderCost(totals) {
+    $costList.innerHTML = "";
+    var workflows = Object.keys(totals).sort();
+    if (workflows.length === 0) {
+      $costList.innerHTML = '<div class="run-empty">No runs in last 24h</div>';
+      return;
+    }
+    var grand = 0;
+    for (var i = 0; i < workflows.length; i++) {
+      var wf = workflows[i];
+      var amt = totals[wf];
+      grand += amt;
+      var row = document.createElement("div");
+      row.className = "cost-row";
+      row.innerHTML = '<span class="cost-workflow">' + escapeHtml(wf) + '</span>' +
+        '<span class="cost-amount">$' + amt.toFixed(3) + '</span>';
+      $costList.appendChild(row);
+    }
+    var total = document.createElement("div");
+    total.className = "cost-row cost-total";
+    total.innerHTML = '<span class="cost-workflow">total</span>' +
+      '<span class="cost-amount">$' + grand.toFixed(3) + '</span>';
+    $costList.appendChild(total);
+  }
+
+  async function refreshCost() {
+    try {
+      var res = await fetch(API + "/api/workflow/runs?limit=200");
+      if (!res.ok) return;
+      var data = await res.json();
+      var cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      var totals = {};
+      for (var i = 0; i < (data.runs || []).length; i++) {
+        var r = data.runs[i];
+        if (new Date(r.startedAt).getTime() < cutoff) continue;
+        if (r.totalCostUsd == null) continue;
+        totals[r.workflow] = (totals[r.workflow] || 0) + r.totalCostUsd;
+      }
+      renderCost(totals);
+    } catch {}
+  }
+
   async function refreshWorkflows() {
     try {
       var statusRes = await fetch(API + "/api/workflow/status");
@@ -486,10 +531,12 @@ export const WEB_UI_JS = /* js */ `
   refreshHistory();
   refreshWorkflows();
   refreshTasks();
+  refreshCost();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   setInterval(refreshWorkflows, 5000);
   setInterval(refreshTasks, 5000);
+  setInterval(refreshCost, 5000);
   $input.focus();
 })();
 `;

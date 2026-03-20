@@ -316,6 +316,40 @@ body {
   font-style: italic;
 }
 
+/* Cost summary panel */
+#cost-summary-list {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+.cost-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 12px;
+  font-size: 12px;
+}
+.cost-workflow {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.cost-amount {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-left: 8px;
+}
+.cost-total {
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  padding-top: 4px;
+  font-weight: 600;
+}
+.cost-total .cost-amount { color: var(--text); }
+
 /* Run detail panel */
 #run-detail {
   display: none;

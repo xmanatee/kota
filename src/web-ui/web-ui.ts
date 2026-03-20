@@ -37,6 +37,10 @@ ${WEB_UI_CSS}
       <h3>Workflows</h3>
       <div id="workflow-runs-list"></div>
     </div>
+    <div class="sidebar-section">
+      <h3>Cost (24h)</h3>
+      <div id="cost-summary-list"></div>
+    </div>
     <div class="sidebar-footer">
       <span id="health-status">●</span>
       <button id="toggle-sidebar" class="icon-btn" title="Toggle sidebar">☰</button>
