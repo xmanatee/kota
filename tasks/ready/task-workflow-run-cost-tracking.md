@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-cost-tracking
 title: Aggregate and surface per-run and historical workflow cost
-status: backlog
+status: ready
 priority: p3
 area: workflow
 summary: Each agent step records totalCostUsd in its metadata, but there is no aggregated view of per-run cost or historical cost trends. Surface this in run metadata and the CLI inspect command.

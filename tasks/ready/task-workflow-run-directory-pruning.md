@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-directory-pruning
 title: Prune old workflow run directories automatically
-status: backlog
+status: ready
 priority: p3
 area: workflow
 summary: The .kota/runs/ directory grows unboundedly as workflow runs accumulate. Add a pruning step that removes run directories older than a configurable retention window, keeping disk use bounded for long-running daemons.

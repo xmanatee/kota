@@ -1,7 +1,7 @@
 ---
 id: task-workflow-manual-queue
 title: Allow manually queuing a workflow run from the CLI
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: Add a `kota workflow trigger <name>` command to manually enqueue a workflow run, useful for debugging autonomous behavior or forcing a cycle without waiting for a natural trigger event.
