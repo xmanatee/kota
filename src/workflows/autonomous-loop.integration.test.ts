@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -92,6 +93,12 @@ function seedFixtureProject(projectDir: string): void {
       },
     }),
   );
+
+  // Initialize a git repo so that claimTask can use `git mv` to stage task moves atomically.
+  execSync("git init && git add tasks/ready/", { cwd: projectDir });
+  execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
+    cwd: projectDir,
+  });
 }
 
 describe("autonomous workflow loop integration", () => {

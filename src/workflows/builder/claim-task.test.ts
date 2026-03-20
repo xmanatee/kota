@@ -1,8 +1,19 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { claimTask, isClaimTaskResult } from "./claim-task.js";
+
+vi.mock("node:child_process", () => ({
+  execSync: vi.fn((cmd: string) => {
+    // Simulate git mv: rename the file on disk
+    const mvMatch = cmd.match(/^git mv "(.+)" "(.+)"$/);
+    if (mvMatch) {
+      renameSync(mvMatch[1], mvMatch[2]);
+    }
+    return Buffer.from("");
+  }),
+}));
 
 function makeTaskContent(id: string, priority: string, status = "ready"): string {
   return `---

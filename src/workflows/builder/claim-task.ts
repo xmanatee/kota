@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 const PRIORITY_ORDER = ["p0", "p1", "p2", "p3"] as const;
@@ -50,10 +51,11 @@ export function claimTask(projectDir: string): ClaimTaskResult | null {
   const doingDir = join(projectDir, "tasks", "doing");
   const dstPath = join(doingDir, chosenFile);
 
-  const content = readFileSync(srcPath, "utf-8");
+  execSync(`git mv "${srcPath}" "${dstPath}"`, { cwd: projectDir });
+  const content = readFileSync(dstPath, "utf-8");
   const updated = content.replace(/^status:\s*ready$/m, "status: doing");
   writeFileSync(dstPath, updated, "utf-8");
-  unlinkSync(srcPath);
+  execSync(`git add "${dstPath}"`, { cwd: projectDir });
 
   const chosenTaskId = basename(chosenFile, ".md");
   return { chosenTaskId };
