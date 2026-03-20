@@ -30,6 +30,10 @@ ${WEB_UI_CSS}
       <div id="history-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Approvals</h3>
+      <div id="approval-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Tasks</h3>
       <div id="task-queue-list"></div>
     </div>

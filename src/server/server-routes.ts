@@ -8,6 +8,11 @@ import type { RouteRegistration } from "../module-types.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import { NullTransport, type Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
+import {
+  handleApproveApproval,
+  handleListApprovals,
+  handleRejectApproval,
+} from "./approval-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,
@@ -269,6 +274,25 @@ export function buildRequestHandler(ctx: ServerContext) {
       handleEventTrigger(req, res, ctx.bus, eventName).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/approvals") {
+      handleListApprovals(res);
+      return;
+    }
+
+    const approvalActionMatch = path.match(/^\/api\/approvals\/([^/]+)\/(approve|reject)$/);
+    if (req.method === "POST" && approvalActionMatch) {
+      const approvalId = approvalActionMatch[1];
+      const action = approvalActionMatch[2];
+      if (action === "approve") {
+        handleApproveApproval(res, approvalId);
+      } else {
+        handleRejectApproval(req, res, approvalId).catch((err) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+        });
+      }
       return;
     }
 

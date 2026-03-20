@@ -14,6 +14,7 @@ export const WEB_UI_JS = /* js */ `
   const $newChat = document.getElementById("new-chat");
   const $sessionList = document.getElementById("session-list");
   const $historyList = document.getElementById("history-list");
+  const $approvalList = document.getElementById("approval-list");
   const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
   const $costList = document.getElementById("cost-summary-list");
@@ -477,6 +478,67 @@ export const WEB_UI_JS = /* js */ `
     }
   }
 
+  // --- Approval panel ---
+
+  function renderApprovals(approvals) {
+    $approvalList.innerHTML = "";
+    if (!approvals.length) {
+      $approvalList.innerHTML = '<div class="run-empty">No pending approvals</div>';
+      return;
+    }
+    for (var i = 0; i < approvals.length; i++) {
+      var a = approvals[i];
+      var ageMs = Date.now() - new Date(a.createdAt).getTime();
+      var item = document.createElement("div");
+      item.className = "approval-item";
+      item.innerHTML =
+        '<div class="approval-header">' +
+        '<span class="approval-risk ' + escapeHtml(a.risk) + '">' + escapeHtml(a.risk) + '</span>' +
+        '<span class="approval-tool">' + escapeHtml(a.tool) + '</span>' +
+        '<span class="run-meta">' + fmtDuration(ageMs) + '</span>' +
+        '</div>' +
+        '<div class="approval-reason">' + escapeHtml(a.reason) + '</div>' +
+        '<div class="approval-actions">' +
+        '<button class="approval-btn approval-approve" data-id="' + escapeHtml(a.id) + '">\u2713 Approve</button>' +
+        '<button class="approval-btn approval-reject" data-id="' + escapeHtml(a.id) + '">\u2717 Reject</button>' +
+        '</div>';
+      $approvalList.appendChild(item);
+    }
+    var approveBtns = $approvalList.querySelectorAll(".approval-approve");
+    var rejectBtns = $approvalList.querySelectorAll(".approval-reject");
+    for (var j = 0; j < approveBtns.length; j++) {
+      (function(btn) {
+        btn.onclick = async function() {
+          btn.disabled = true;
+          try {
+            await fetch(API + "/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", { method: "POST" });
+            refreshApprovals();
+          } catch { btn.disabled = false; }
+        };
+      })(approveBtns[j]);
+    }
+    for (var k = 0; k < rejectBtns.length; k++) {
+      (function(btn) {
+        btn.onclick = async function() {
+          btn.disabled = true;
+          try {
+            await fetch(API + "/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/reject", { method: "POST" });
+            refreshApprovals();
+          } catch { btn.disabled = false; }
+        };
+      })(rejectBtns[k]);
+    }
+  }
+
+  async function refreshApprovals() {
+    try {
+      var res = await fetch(API + "/api/approvals");
+      if (!res.ok) return;
+      var data = await res.json();
+      renderApprovals(data.approvals || []);
+    } catch {}
+  }
+
   // --- Task queue panel ---
 
   function renderTasks(counts, doing) {
@@ -639,11 +701,13 @@ export const WEB_UI_JS = /* js */ `
   refreshWorkflows();
   refreshTasks();
   refreshCost();
+  refreshApprovals();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   setInterval(refreshWorkflows, 5000);
   setInterval(refreshTasks, 5000);
   setInterval(refreshCost, 5000);
+  setInterval(refreshApprovals, 5000);
   $input.focus();
 })();
 `;

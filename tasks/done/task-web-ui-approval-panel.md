@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-approval-panel
 title: Add approval queue panel to web UI
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: The approval queue exists and has a CLI interface, but pending approvals are invisible in the web UI. Adding a panel that lists pending approvals and lets users approve or reject them closes the loop for autonomous runs that require human sign-off.

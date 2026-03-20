@@ -1,0 +1,169 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApprovalQueue } from "../approval-queue.js";
+import {
+	handleApproveApproval,
+	handleListApprovals,
+	handleRejectApproval,
+} from "./approval-routes.js";
+
+function makeQueue(): ApprovalQueue {
+	const dir = join(tmpdir(), `kota-approvals-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+	return new ApprovalQueue(dir);
+}
+
+function mockResponse() {
+	const result = { status: 0, body: null as unknown };
+	const res = {
+		setHeader: vi.fn(),
+		writeHead: (s: number) => {
+			result.status = s;
+		},
+		end: (data: string) => {
+			result.body = JSON.parse(data);
+		},
+		on: vi.fn(),
+	} as unknown as ServerResponse;
+	return { res, result };
+}
+
+function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
+	const buf = Buffer.from(JSON.stringify(body));
+	let dataHandler: ((chunk: Buffer) => void) | null = null;
+	let endHandler: (() => void) | null = null;
+	const req = {
+		headers: { "content-type": "application/json" },
+		on: (event: string, cb: (data?: Buffer) => void) => {
+			if (event === "data") dataHandler = cb as (chunk: Buffer) => void;
+			if (event === "end") endHandler = cb as () => void;
+			if (event === "error") {
+				/* noop */
+			}
+			// emit synchronously after both handlers registered
+			if (dataHandler && endHandler) {
+				dataHandler(buf);
+				endHandler();
+				dataHandler = null;
+				endHandler = null;
+			}
+		},
+	};
+	return req as unknown as IncomingMessage;
+}
+
+describe("approval-routes", () => {
+	let queue: ApprovalQueue;
+
+	beforeEach(() => {
+		queue = makeQueue();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	describe("handleListApprovals", () => {
+		it("returns empty list when no pending approvals", () => {
+			const { res, result } = mockResponse();
+			handleListApprovals(res, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: unknown[] };
+			expect(body.approvals).toEqual([]);
+		});
+
+		it("returns pending approvals", () => {
+			queue.enqueue("shell", { command: "rm -rf /tmp/foo" }, "dangerous", "cleanup script");
+			queue.enqueue("git", { args: ["push", "--force"] }, "dangerous", "force push");
+
+			const { res, result } = mockResponse();
+			handleListApprovals(res, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: Array<{ tool: string; status: string }> };
+			expect(body.approvals).toHaveLength(2);
+			expect(body.approvals[0].tool).toBe("shell");
+			expect(body.approvals[0].status).toBe("pending");
+			expect(body.approvals[1].tool).toBe("git");
+		});
+
+		it("does not return non-pending approvals", () => {
+			const item = queue.enqueue("shell", { command: "echo hi" }, "safe", "safe echo");
+			queue.approve(item.id);
+
+			const { res, result } = mockResponse();
+			handleListApprovals(res, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: unknown[] };
+			expect(body.approvals).toHaveLength(0);
+		});
+	});
+
+	describe("handleApproveApproval", () => {
+		it("approves a pending item and returns it", () => {
+			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
+
+			const { res, result } = mockResponse();
+			handleApproveApproval(res, item.id, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approval: { id: string; status: string } };
+			expect(body.approval.id).toBe(item.id);
+			expect(body.approval.status).toBe("approved");
+		});
+
+		it("returns 404 for unknown id", () => {
+			const { res, result } = mockResponse();
+			handleApproveApproval(res, "nonexistent", queue);
+			expect(result.status).toBe(404);
+		});
+
+		it("returns 404 when item is not pending", () => {
+			const item = queue.enqueue("shell", { command: "echo" }, "safe", "already approved");
+			queue.approve(item.id);
+
+			const { res, result } = mockResponse();
+			handleApproveApproval(res, item.id, queue);
+			expect(result.status).toBe(404);
+		});
+	});
+
+	describe("handleRejectApproval", () => {
+		it("rejects a pending item and returns it", async () => {
+			const item = queue.enqueue("git", { args: ["reset", "--hard"] }, "dangerous", "reset");
+
+			const { res, result } = mockResponse();
+			await handleRejectApproval(mockRequest(), res, item.id, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approval: { id: string; status: string } };
+			expect(body.approval.id).toBe(item.id);
+			expect(body.approval.status).toBe("rejected");
+		});
+
+		it("passes rejection reason from request body", async () => {
+			const item = queue.enqueue("shell", { command: "reboot" }, "dangerous", "system reboot");
+
+			const { res, result } = mockResponse();
+			await handleRejectApproval(mockRequest({ reason: "not now" }), res, item.id, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approval: { rejectionReason: string } };
+			expect(body.approval.rejectionReason).toBe("not now");
+		});
+
+		it("rejects without reason when body is empty", async () => {
+			const item = queue.enqueue("shell", { command: "echo" }, "safe", "simple command");
+
+			const { res, result } = mockResponse();
+			await handleRejectApproval(mockRequest({}), res, item.id, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approval: { status: string; rejectionReason?: string } };
+			expect(body.approval.status).toBe("rejected");
+			expect(body.approval.rejectionReason).toBeUndefined();
+		});
+
+		it("returns 404 for unknown id", async () => {
+			const { res, result } = mockResponse();
+			await handleRejectApproval(mockRequest(), res, "nonexistent", queue);
+			expect(result.status).toBe(404);
+		});
+	});
+});
