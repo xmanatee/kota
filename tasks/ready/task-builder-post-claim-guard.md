@@ -1,7 +1,7 @@
 ---
 id: task-builder-post-claim-guard
 title: Guard builder against running on a task not in doing state
-status: backlog
+status: ready
 priority: p3
 area: workflow
 summary: After the claim-task step runs, the builder proceeds directly to the build agent without verifying the task is truly in doing/. A lightweight post-claim check that aborts the run early if the task file is missing or in the wrong state would prevent wasted agent runs on already-resolved tasks.
