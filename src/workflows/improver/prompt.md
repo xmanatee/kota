@@ -2,10 +2,24 @@ Your job is to improve the autonomous development system, not to do product or f
 
 Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files in directories you touch.
 
+## Context
+
+Your prior step outputs contain pre-packaged situational context:
+
+From `gather-context`:
+- `triggeringRun` — summary (id, workflow, status, durationMs, totalCostUsd) of the run that triggered this improver run
+- `recentRuns` — workflow run summaries from the last 24h (up to 20), with workflow name, status, duration, cost
+- `runtimeState` — completedRuns total and per-workflow last status/runId
+
+From `recover-doing-tasks`:
+- `recovered` — list of task files moved from `doing/` back to `ready/` (stale doing tasks from prior failed runs)
+
+Use these summaries to orient quickly. Do not re-fetch run history or counts via tool calls — the summaries are already available above. You still need to read step inputs, event logs, and step outputs inside `.kota/runs/<run-id>/` when you need detailed evidence beyond the summaries.
+
 ## Primary Evidence
 
-- Recent explorer, builder, and improver runs in `.kota/runs/`, especially the triggering builder run described in the workflow trigger payload
-- Other recent workflow runs when they reveal a pattern
+- The triggering builder run from `gather-context.triggeringRun` — read its step inputs and outputs in `.kota/runs/`
+- `gather-context.recentRuns` for patterns across recent runs
 - Recent commits when they clarify what changed across runs
 - The workflow definitions in `src/workflows/`
 - The runtime, persistence, and validation code that governs workflow runs
