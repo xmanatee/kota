@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import type { AgentStepConfig } from "./step-executor.js";
-import { executeAgentStep, withRetry } from "./step-executor.js";
+import { buildAgentPrompt, executeAgentStep, withRetry } from "./step-executor.js";
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
@@ -234,6 +234,81 @@ describe("executeAgentStep timeout", () => {
     ).rejects.toThrow("one-shot error");
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("buildAgentPrompt", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-build-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, "src", "workflows", "test"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "workflows", "test", "prompt.md"),
+      "Test prompt.\n",
+    );
+  });
+
+  it("omits prior step outputs section when all outputs are empty", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      {},
+    );
+    expect(prompt).not.toContain("Prior step outputs:");
+  });
+
+  it("omits skipped steps from prior step outputs", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      { "some-step": { skipped: true } },
+    );
+    expect(prompt).not.toContain("Prior step outputs:");
+  });
+
+  it("injects non-skipped prior step outputs into prompt", () => {
+    const output = { counts: { ready: 3 }, actionableCount: 3 };
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      { "inspect-ready-queue": output },
+    );
+    expect(prompt).toContain("Prior step outputs:");
+    expect(prompt).toContain('<step id="inspect-ready-queue">');
+    expect(prompt).toContain('"ready": 3');
+  });
+
+  it("injects multiple prior step outputs in order", () => {
+    const outputs = {
+      "gather-context": { recentRuns: [] },
+      "inspect-queue": { counts: { ready: 2 } },
+    };
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      outputs,
+    );
+    const gatherIdx = prompt.indexOf('<step id="gather-context">');
+    const inspectIdx = prompt.indexOf('<step id="inspect-queue">');
+    expect(gatherIdx).toBeGreaterThan(-1);
+    expect(inspectIdx).toBeGreaterThan(-1);
+    expect(gatherIdx).toBeLessThan(inspectIdx);
   });
 });
 

@@ -110,6 +110,7 @@ export function buildAgentPrompt(
   metadata: WorkflowRunMetadata,
   trigger: WorkflowRunTrigger,
   projectDir: string,
+  priorStepOutputs: Record<string, unknown>,
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
     resolve(projectDir, step.promptPath),
@@ -130,6 +131,22 @@ export function buildAgentPrompt(
     "```json",
     JSON.stringify(trigger.payload, null, 2),
     "```",
+  ];
+
+  const meaningfulOutputs = Object.entries(priorStepOutputs).filter(
+    ([, v]) =>
+      v !== null &&
+      typeof v === "object" &&
+      !("skipped" in (v as object)),
+  );
+  if (meaningfulOutputs.length > 0) {
+    lines.push("", "Prior step outputs:");
+    for (const [id, output] of meaningfulOutputs) {
+      lines.push(`<step id="${id}">`, JSON.stringify(output, null, 2), "</step>");
+    }
+  }
+
+  lines.push(
     "",
     "Use the workflow instructions in your system prompt.",
     "Work directly instead of narrating intent.",
@@ -137,7 +154,7 @@ export function buildAgentPrompt(
     "If you leave a textual summary, keep it brief and factual.",
     "Write any run-specific artifacts under the run directory when useful.",
     "Finish this step fully, then stop.",
-  ];
+  );
   return {
     systemPromptAppend: promptBody,
     prompt: lines.join("\n"),
@@ -153,6 +170,7 @@ export async function executeAgentStep(
   appendMessage: (message: SDKMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
+  priorStepOutputs: Record<string, unknown> = {},
 ): Promise<WorkflowStepOutput> {
   const agentPrompt = buildAgentPrompt(
     definition,
@@ -160,6 +178,7 @@ export async function executeAgentStep(
     metadata,
     trigger,
     agentConfig.projectDir,
+    priorStepOutputs,
   );
   const promptDir = dirname(resolve(agentConfig.projectDir, step.promptPath));
   const systemPrompt = buildClaudeCodeSystemPrompt(
@@ -299,6 +318,7 @@ export async function executeStep(
       appendMessage,
       writeInputs,
       agentConfig,
+      context.stepOutputs,
     );
   }
   if (step.type === "emit") return executeEmitStep(step, context);
