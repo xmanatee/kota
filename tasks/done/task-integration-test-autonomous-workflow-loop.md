@@ -1,7 +1,7 @@
 ---
 id: task-integration-test-autonomous-workflow-loop
 title: Integration test the explorer → builder → improver workflow handoff
-status: ready
+status: done
 priority: p2
 area: testing
 summary: Add an integration test that exercises the full autonomous loop — explorer run, builder pickup, improver feedback — against a minimal fixture repo, verifying state transitions and run artifacts.
