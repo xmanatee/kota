@@ -10,7 +10,7 @@ From `gather-context`:
 - `taskCounts` — task counts by state (inbox, backlog, ready, doing, blocked, done, dropped)
 - `recentRuns` — workflow run summaries from the last 24h (up to 20), with workflow name, status, duration, cost
 - `recentCommits` — last 10 git commits (one-line format)
-- `recentlyAttemptedTaskIds` — task IDs from the last 10 builder commits (tasks that were recently worked on). Use this to deprioritize tasks already completed recently, or to move a task to `blocked/` if it has been attempted multiple times without success.
+- `recentlyAttemptedTaskIds` — task IDs that appeared in `tasks/done/` or `tasks/doing/` in recent builder commits (de-duplicated). If a task ID here also appears in `tasks/ready/`, it was previously completed or interrupted and re-opened — investigate why before picking it up again.
 - `runtimeState` — completedRuns total and per-workflow last status/runId
 
 Use these summaries to orient quickly without making discovery tool calls. You still need to read task files, code, and `.kota/runs/<run-id>/` when you need details beyond these summaries.
