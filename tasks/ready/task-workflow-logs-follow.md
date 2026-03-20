@@ -1,7 +1,7 @@
 ---
 id: task-workflow-logs-follow
 title: Add --follow flag to kota workflow logs for live run monitoring
-status: backlog
+status: ready
 priority: p3
 area: workflow-cli
 summary: >
