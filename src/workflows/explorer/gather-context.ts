@@ -17,20 +17,21 @@ export type ExplorerContext = {
 };
 
 export function gatherExplorerContext(ctx: WorkflowStepContext): ExplorerContext {
-  const { projectDir, previousOutput, readRuntimeState } = ctx;
+  const { projectDir, stepOutputs, readRuntimeState } = ctx;
   const runsDir = join(projectDir, ".kota", "runs");
 
+  const inspectOutput = stepOutputs["inspect-queue"];
   const needsAttention = Boolean(
-    previousOutput &&
-      typeof previousOutput === "object" &&
-      "needsAttention" in previousOutput &&
-      (previousOutput as Record<string, unknown>).needsAttention === true,
+    inspectOutput &&
+      typeof inspectOutput === "object" &&
+      "needsAttention" in inspectOutput &&
+      (inspectOutput as Record<string, unknown>).needsAttention === true,
   );
   const taskCounts =
-    previousOutput &&
-    typeof previousOutput === "object" &&
-    "counts" in previousOutput
-      ? ((previousOutput as Record<string, unknown>).counts as Record<string, number>)
+    inspectOutput &&
+    typeof inspectOutput === "object" &&
+    "counts" in inspectOutput
+      ? ((inspectOutput as Record<string, unknown>).counts as Record<string, number>)
       : {};
 
   const recentRuns = loadRecentRuns(runsDir);

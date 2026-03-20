@@ -24,7 +24,7 @@ function makeMetadata(id: string, workflow: string, overrides: Partial<WorkflowR
 
 function makeContext(
   projectDir: string,
-  previousOutput: unknown = null,
+  inspectOutput: unknown = null,
   state?: Partial<WorkflowRuntimeState>,
 ): WorkflowStepContext {
   const runtimeState: WorkflowRuntimeState = {
@@ -46,8 +46,8 @@ function makeContext(
       runDirPath: join(projectDir, ".kota/runs/test-run"),
     },
     trigger: { event: "runtime.idle", payload: {} },
-    previousOutput,
-    stepOutputs: {},
+    previousOutput: null,
+    stepOutputs: inspectOutput != null ? { "inspect-queue": inspectOutput } : {},
     stepResults: {},
     stepOutputList: [],
     runTool: async () => ({ content: "" }),
@@ -73,7 +73,7 @@ describe("gatherExplorerContext", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("sets needsAttention=true when previousOutput indicates it", () => {
+  it("sets needsAttention=true when inspect-queue output indicates it", () => {
     const ctx = makeContext(projectDir, {
       needsAttention: true,
       counts: { inbox: 1, ready: 0, backlog: 0, doing: 0, blocked: 0, done: 0, dropped: 0 },
@@ -82,7 +82,7 @@ describe("gatherExplorerContext", () => {
     expect(result.needsAttention).toBe(true);
   });
 
-  it("sets needsAttention=false when previousOutput does not indicate it", () => {
+  it("sets needsAttention=false when inspect-queue output does not indicate it", () => {
     const ctx = makeContext(projectDir, {
       needsAttention: false,
       counts: { inbox: 0, ready: 3, backlog: 5, doing: 0, blocked: 0, done: 10, dropped: 1 },
@@ -91,20 +91,20 @@ describe("gatherExplorerContext", () => {
     expect(result.needsAttention).toBe(false);
   });
 
-  it("sets needsAttention=false when previousOutput is null", () => {
+  it("sets needsAttention=false when inspect-queue output is absent", () => {
     const ctx = makeContext(projectDir, null);
     const result = gatherExplorerContext(ctx);
     expect(result.needsAttention).toBe(false);
   });
 
-  it("extracts taskCounts from previousOutput", () => {
+  it("extracts taskCounts from inspect-queue output", () => {
     const counts = { inbox: 2, ready: 1, backlog: 3, doing: 0, blocked: 1, done: 50, dropped: 2 };
     const ctx = makeContext(projectDir, { needsAttention: true, counts });
     const result = gatherExplorerContext(ctx);
     expect(result.taskCounts).toEqual(counts);
   });
 
-  it("returns empty taskCounts when previousOutput has none", () => {
+  it("returns empty taskCounts when inspect-queue output is absent", () => {
     const ctx = makeContext(projectDir, null);
     const result = gatherExplorerContext(ctx);
     expect(result.taskCounts).toEqual({});
@@ -133,7 +133,7 @@ describe("gatherExplorerContext", () => {
     delete (meta as Partial<WorkflowRunMetadata>).totalCostUsd;
     writeFileSync(join(runDir, "metadata.json"), JSON.stringify(meta));
 
-    const ctx = makeContext(projectDir, { runDir: `.kota/runs/${runId}` });
+    const ctx = makeContext(projectDir, null);
     const result = gatherExplorerContext(ctx);
     const run = result.recentRuns.find((r) => r.id === runId);
     expect(run).toBeDefined();
