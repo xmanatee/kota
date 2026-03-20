@@ -13,6 +13,7 @@ import {
   isBuilderPreflightResult,
   runBuilderPreflight,
 } from "./preflight.js";
+import { verifyClaim } from "./verify-claim.js";
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -55,6 +56,15 @@ const builderWorkflow: WorkflowDefinitionInput = {
         isBuilderPreflightResult(stepOutputs.preflight) &&
         (stepOutputs.preflight as { validCount: number }).validCount > 0,
       run: ({ projectDir }) => claimTask(projectDir),
+    },
+    {
+      id: "verify-claim",
+      type: "code",
+      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
+      run: ({ projectDir, stepOutputs }) => {
+        const claim = stepOutputs["claim-task"] as { chosenTaskId: string };
+        return verifyClaim(projectDir, claim.chosenTaskId);
+      },
     },
     {
       id: "build",
