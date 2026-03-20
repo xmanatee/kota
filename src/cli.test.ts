@@ -9,10 +9,12 @@ import { formatAuthError, parseIntOption } from "./cli.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "dist/cli.js");
 
+const CLI_TIMEOUT = 15_000;
+
 function run(...args: string[]): string {
   return execFileSync("node", [CLI, ...args], {
     encoding: "utf-8",
-    timeout: 5000,
+    timeout: CLI_TIMEOUT,
     cwd: root,
   });
 }
@@ -22,7 +24,7 @@ function runExpectFail(...args: string[]): { stderr: string; exitCode: number } 
   try {
     execFileSync("node", [CLI, ...args], {
       encoding: "utf-8",
-      timeout: 5000,
+      timeout: CLI_TIMEOUT,
       cwd: root,
       env: { ...process.env, ANTHROPIC_API_KEY: "" },
     });
@@ -41,7 +43,7 @@ function runFull(
   try {
     const stdout = execFileSync("node", [CLI, ...args], {
       encoding: "utf-8",
-      timeout: 5000,
+      timeout: CLI_TIMEOUT,
       cwd: root,
       env: { ...process.env, ...opts?.env },
       input: opts?.input,

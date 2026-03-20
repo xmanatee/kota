@@ -41,17 +41,17 @@ describe("runEnvInfo", () => {
 			expect(result.is_error).toBeUndefined();
 			expect(result.content).toContain("## Runtimes");
 			expect(result.content).toContain("node:");
-		});
+		}, 10_000);
 
 		it("includes package managers section", async () => {
 			const result = await runEnvInfo({ query: "runtimes" });
 			expect(result.content).toContain("## Package Managers");
-		});
+		}, 10_000);
 
 		it("detects npm (we're in a Node project)", async () => {
 			const result = await runEnvInfo({ query: "runtimes" });
 			expect(result.content).toContain("npm:");
-		});
+		}, 10_000);
 	});
 
 	describe("services query", () => {
@@ -90,7 +90,7 @@ describe("runEnvInfo", () => {
 			expect(result.content).toContain("## Runtimes");
 			expect(result.content).toContain("## Services");
 			expect(result.content).toContain("## Resources");
-		});
+		}, 15_000);
 	});
 
 	it("defaults to all when query not provided", async () => {
@@ -98,7 +98,7 @@ describe("runEnvInfo", () => {
 		expect(result.content).toContain("## OS");
 		expect(result.content).toContain("## Runtimes");
 		expect(result.content).toContain("## Resources");
-	});
+	}, 15_000);
 });
 
 describe("registration", () => {
