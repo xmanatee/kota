@@ -110,6 +110,61 @@ describe("workflow trigger command logic", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Causal chain: triggeredByRunId
+// ---------------------------------------------------------------------------
+
+describe("WorkflowRunStore causal chain", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-wf-causal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  const workflow: WorkflowDefinition = {
+    name: "builder",
+    enabled: true,
+    definitionPath: "src/workflows/builder/workflow.ts",
+    triggers: [{ event: "workflow.completed", cooldownMs: 0 }],
+    steps: [],
+  };
+
+  it("sets triggeredByRunId when trigger payload contains runId", () => {
+    const parentRunId = "2026-01-01T00-00-00-000Z-explorer-abc123";
+    const run = store.createRun(workflow, {
+      event: "workflow.completed",
+      payload: { runId: parentRunId, workflow: "explorer", status: "success" },
+    });
+    expect(run.metadata.triggeredByRunId).toBe(parentRunId);
+  });
+
+  it("omits triggeredByRunId when trigger payload has no runId", () => {
+    const run = store.createRun(workflow, {
+      event: "runtime.idle",
+      payload: {},
+    });
+    expect(run.metadata.triggeredByRunId).toBeUndefined();
+  });
+
+  it("omits triggeredByRunId when payload runId is not a string", () => {
+    const run = store.createRun(workflow, {
+      event: "workflow.completed",
+      payload: { runId: 42 },
+    });
+    expect(run.metadata.triggeredByRunId).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Cost aggregation via WorkflowRunStore.finish()
 // ---------------------------------------------------------------------------
 

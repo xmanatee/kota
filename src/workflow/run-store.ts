@@ -228,11 +228,15 @@ export class WorkflowRunStore {
     ensureDir(runDirPath);
     ensureDir(join(runDirPath, "steps"));
 
+    const triggeredByRunId =
+      typeof trigger.payload.runId === "string" ? trigger.payload.runId : undefined;
+
     const metadata: WorkflowRunMetadata = {
       id,
       workflow: workflow.name,
       definitionPath: workflow.definitionPath,
       trigger,
+      ...(triggeredByRunId !== undefined && { triggeredByRunId }),
       startedAt: new Date().toISOString(),
       status: "running",
       runDir: relative(this.projectDir, runDirPath),

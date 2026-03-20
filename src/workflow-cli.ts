@@ -99,7 +99,9 @@ export function registerWorkflowCommands(program: Command): void {
         const dur = (r.durationMs != null ? formatDuration(r.durationMs) : "…").padEnd(durWidth);
         const cost = (r.totalCostUsd != null ? `$${r.totalCostUsd.toFixed(3)}` : "—").padEnd(costWidth);
         const started = formatDate(r.startedAt).padEnd(dateWidth);
-        const trigger = r.trigger.event;
+        const trigger = r.triggeredByRunId
+          ? `${r.trigger.event} ← ${r.triggeredByRunId}`
+          : r.trigger.event;
         console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}`);
       }
     });

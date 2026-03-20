@@ -1,7 +1,7 @@
 ---
 id: task-run-causal-chain
 title: Store triggering run ID in workflow run metadata for causal traceability
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: When a workflow run is triggered by a `workflow.completed` event from another run, record the triggering run's ID in the child run's metadata. This makes the explorer→builder→improver causal chain queryable from stored run data.
