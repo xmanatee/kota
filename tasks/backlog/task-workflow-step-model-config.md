@@ -1,37 +1,30 @@
 ---
 id: task-workflow-step-model-config
-title: Allow per-step model override in workflow definitions
+title: Validate per-step model IDs in workflow definitions
 status: backlog
 priority: p3
 area: workflow
-summary: Let workflow authors specify a model override per step so cheap/fast steps can use smaller models (e.g., Haiku) while critical steps keep the default capable model. Reduces cost and latency without sacrificing quality where it matters.
+summary: The `model?` field on agent step definitions already exists and the runtime already uses it. What's missing is validation that rejects unknown model IDs at load time with a clear error.
 created_at: 2026-03-20
 updated_at: 2026-03-20
 ---
 
 ## Problem
 
-Every workflow step currently uses the same model. Simple steps (e.g., a triage pass, a format check, a short summarization) could use a cheaper/faster model without meaningful quality loss, but there is no way to express this in the workflow definition.
+`WorkflowAgentStepInput` already has a `model?: string` field and `step-executor.ts` already passes it to the agent SDK (`step.model ?? agentConfig.model ?? DEFAULT_MODEL`). However, `validation-steps.ts` only runs `expectOptionalString` on the field — it accepts any string. An invalid model ID silently falls through to the SDK, which fails at runtime rather than at workflow load time.
 
 ## Desired Outcome
 
-Workflow step definitions accept an optional `model` field:
-
-```ts
-{ type: "agent", model: "claude-haiku-4-5-20251001", prompt: "..." }
-```
-
-The runtime passes the override to the agent executor. If unset, the default model applies.
+- Validation rejects unknown model IDs with a clear error at workflow load time.
+- Known valid model IDs are defined in one place (e.g., a constant list or pulled from the model layer).
 
 ## Constraints
 
-- The model/ layer already abstracts model selection; wire the override through there rather than adding new abstraction
-- Validation should reject unknown model IDs at workflow load time
-- Cost tracking (task-workflow-run-cost-tracking) should capture the actual model used per step
+- Do not re-implement the model field type or runtime wiring — both already exist and work.
+- Validation should fail fast with a message like: `steps[N].model: unknown model "foo"`.
+- Cost tracking (task-workflow-run-cost-tracking) should capture the actual model used per step once it lands.
 
 ## Done When
 
-- Workflow schema accepts `model` on agent step definitions
-- Runtime passes the model override to the agent executor
-- Validation rejects unknown model IDs with a clear error
-- Existing workflows without the field are unaffected
+- Workflow validation rejects unknown model IDs with a clear error
+- Existing workflows using `BUILTIN_WORKFLOW_MODEL` and workflows without the field are unaffected
