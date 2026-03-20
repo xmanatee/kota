@@ -27,6 +27,10 @@ The builder claims a task via `claim-task` (which moves it to `doing/`), then ru
 - Do not duplicate the recovery logic from the improver's `recover-doing-tasks`; this step only observes and reports, it does not move files.
 - Keep the step lightweight — file existence checks only, no heavy I/O.
 
+## Context
+
+Observed in run `2026-03-20T09-56-41-923Z-builder-ojxj4n`: the builder claimed `task-web-ui-approval-panel` (which had already been completed by a prior run and committed to `done/`), `verify-claim` passed (the task file was in `doing/`), and the run then failed tests. This shows that `claim-task` can pull already-done tasks back into `doing/` when the agent's context is stale. A `check-task-outcome` step would surface this immediately in the run output rather than requiring manual log inspection.
+
 ## Done When
 
 - A `check-task-outcome` step exists in the builder workflow after `build`.
