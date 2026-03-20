@@ -1,0 +1,387 @@
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Command } from "commander";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { findTask, listTasksForStates, registerTaskCommands, slugify } from "./task-cli.js";
+
+vi.mock("node:child_process", () => ({
+  execSync: vi.fn(),
+}));
+
+function makeProjectDir(): string {
+  const dir = join(
+    tmpdir(),
+    `kota-task-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  mkdirSync(dir, { recursive: true });
+  // Resolve symlinks (macOS /var -> /private/var) so process.cwd() and tmpdir() agree
+  return realpathSync(dir);
+}
+
+function writeTaskFile(
+  projectDir: string,
+  state: string,
+  id: string,
+  extra: Record<string, string> = {},
+): void {
+  const dir = join(projectDir, "tasks", state);
+  mkdirSync(dir, { recursive: true });
+  const fm = {
+    id,
+    title: `Title for ${id}`,
+    status: state,
+    priority: "p2",
+    area: "test",
+    summary: "A test task.",
+    created_at: "2026-03-20",
+    updated_at: "2026-03-20",
+    ...extra,
+  };
+  const frontmatter = Object.entries(fm)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+  const content = `---\n${frontmatter}\n---\n\n## Problem\n\nTest.\n\n## Desired Outcome\n\nWorks.\n\n## Constraints\n\nNone.\n\n## Done When\n\n- Done.\n`;
+  writeFileSync(join(dir, `${id}.md`), content);
+}
+
+function captureOutput(fn: () => void): string {
+  const lines: string[] = [];
+  const spy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+    lines.push(String(data));
+    return true;
+  });
+  const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
+    lines.push(args.join(" ") + "\n");
+  });
+  try {
+    fn();
+  } finally {
+    spy.mockRestore();
+    logSpy.mockRestore();
+  }
+  return lines.join("");
+}
+
+function makeProgram(): Command {
+  const program = new Command();
+  program.exitOverride();
+  registerTaskCommands(program);
+  return program;
+}
+
+describe("slugify", () => {
+  it("converts title to kebab slug", () => {
+    expect(slugify("Add search filter")).toBe("add-search-filter");
+  });
+
+  it("strips non-alphanumeric characters", () => {
+    expect(slugify("Fix: auth/redirect!")).toBe("fix-authredirect");
+  });
+
+  it("truncates at 50 characters", () => {
+    const long = "a".repeat(60);
+    expect(slugify(long).length).toBe(50);
+  });
+
+  it("returns empty string for whitespace-only input", () => {
+    expect(slugify("   ")).toBe("");
+  });
+});
+
+describe("listTasksForStates", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("returns empty array when no tasks exist", () => {
+    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    expect(result).toEqual([]);
+  });
+
+  it("returns tasks from requested states", () => {
+    writeTaskFile(projectDir, "ready", "task-a");
+    writeTaskFile(projectDir, "backlog", "task-b");
+
+    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("task-a");
+    expect(result[0].state).toBe("ready");
+  });
+
+  it("returns tasks across multiple states", () => {
+    writeTaskFile(projectDir, "ready", "task-a");
+    writeTaskFile(projectDir, "doing", "task-b");
+
+    const result = listTasksForStates(join(projectDir, "tasks"), ["ready", "doing"]);
+    expect(result).toHaveLength(2);
+    const ids = result.map((t) => t.id);
+    expect(ids).toContain("task-a");
+    expect(ids).toContain("task-b");
+  });
+
+  it("skips AGENTS.md files", () => {
+    const dir = join(projectDir, "tasks", "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "AGENTS.md"), "# Agents");
+    writeTaskFile(projectDir, "ready", "task-real");
+
+    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("task-real");
+  });
+
+  it("returns id and priority from frontmatter", () => {
+    writeTaskFile(projectDir, "ready", "task-x", { priority: "p1", title: "My Task" });
+    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    expect(result[0].priority).toBe("p1");
+    expect(result[0].title).toBe("My Task");
+  });
+});
+
+describe("findTask", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("returns null when task does not exist", () => {
+    const result = findTask(join(projectDir, "tasks"), "task-missing");
+    expect(result).toBeNull();
+  });
+
+  it("finds task in any state", () => {
+    writeTaskFile(projectDir, "backlog", "task-foo");
+    const result = findTask(join(projectDir, "tasks"), "task-foo");
+    expect(result).not.toBeNull();
+    expect(result?.state).toBe("backlog");
+  });
+
+  it("returns the task content", () => {
+    writeTaskFile(projectDir, "ready", "task-bar");
+    const result = findTask(join(projectDir, "tasks"), "task-bar");
+    expect(result?.content).toContain("id: task-bar");
+  });
+});
+
+describe("kota task list", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("prints 'No tasks found.' when queue is empty", async () => {
+    const program = makeProgram();
+    const output = captureOutput(() => {
+      program.parse(["node", "kota", "task", "list"]);
+    });
+    expect(output).toContain("No tasks found.");
+  });
+
+  it("lists tasks from open states by default", async () => {
+    writeTaskFile(projectDir, "ready", "task-alpha", { title: "Alpha task", priority: "p1" });
+    writeTaskFile(projectDir, "doing", "task-beta", { title: "Beta task", priority: "p2" });
+
+    const program = makeProgram();
+    const output = captureOutput(() => {
+      program.parse(["node", "kota", "task", "list"]);
+    });
+    expect(output).toContain("task-alpha");
+    expect(output).toContain("task-beta");
+    expect(output).toContain("Alpha task");
+  });
+
+  it("filters to specific state with --state", async () => {
+    writeTaskFile(projectDir, "ready", "task-ready-one");
+    writeTaskFile(projectDir, "backlog", "task-backlog-one");
+
+    const program = makeProgram();
+    const output = captureOutput(() => {
+      program.parse(["node", "kota", "task", "list", "--state", "ready"]);
+    });
+    expect(output).toContain("task-ready-one");
+    expect(output).not.toContain("task-backlog-one");
+  });
+});
+
+describe("kota task show", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("prints full task content", () => {
+    writeTaskFile(projectDir, "doing", "task-show-me");
+    const program = makeProgram();
+    const output = captureOutput(() => {
+      program.parse(["node", "kota", "task", "show", "task-show-me"]);
+    });
+    expect(output).toContain("id: task-show-me");
+    expect(output).toContain("## Problem");
+  });
+
+  it("exits with error for unknown task", () => {
+    const program = makeProgram();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
+    try {
+      expect(() => program.parse(["node", "kota", "task", "show", "task-nonexistent"])).toThrow(
+        "process.exit:1",
+      );
+    } finally {
+      errSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+});
+
+describe("kota task move", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("moves task file and updates status frontmatter", async () => {
+    writeTaskFile(projectDir, "ready", "task-mover", { status: "ready" });
+    mkdirSync(join(projectDir, "tasks", "doing"), { recursive: true });
+
+    const { execSync: mockExec } = await import("node:child_process");
+    vi.mocked(mockExec).mockImplementation((_cmd: unknown) => {
+      const cmd = String(_cmd);
+      if (cmd.includes("git mv")) {
+        const src = join(projectDir, "tasks", "ready", "task-mover.md");
+        const dst = join(projectDir, "tasks", "doing", "task-mover.md");
+        const content = readFileSync(src, "utf-8");
+        writeFileSync(dst, content);
+        rmSync(src);
+      }
+      return Buffer.from("");
+    });
+
+    const program = makeProgram();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      program.parse(["node", "kota", "task", "move", "task-mover", "doing"]);
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    expect(existsSync(join(projectDir, "tasks", "ready", "task-mover.md"))).toBe(false);
+    expect(existsSync(join(projectDir, "tasks", "doing", "task-mover.md"))).toBe(true);
+    const content = readFileSync(join(projectDir, "tasks", "doing", "task-mover.md"), "utf-8");
+    expect(content).toMatch(/^status: doing$/m);
+  });
+
+  it("prints message when task is already in target state", () => {
+    writeTaskFile(projectDir, "ready", "task-already");
+
+    const program = makeProgram();
+    const output = captureOutput(() => {
+      program.parse(["node", "kota", "task", "move", "task-already", "ready"]);
+    });
+    expect(output).toContain("already in");
+  });
+});
+
+describe("kota task add", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+    mkdirSync(join(projectDir, "tasks", "inbox"), { recursive: true });
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("creates a new inbox task file", () => {
+    const program = makeProgram();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      program.parse(["node", "kota", "task", "add", "Add search filter"]);
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    const filePath = join(projectDir, "tasks", "inbox", "task-add-search-filter.md");
+    expect(existsSync(filePath)).toBe(true);
+    const content = readFileSync(filePath, "utf-8");
+    expect(content).toContain("id: task-add-search-filter");
+    expect(content).toContain("title: Add search filter");
+    expect(content).toContain("status: inbox");
+  });
+
+  it("reports the created task ID", () => {
+    const program = makeProgram();
+    const output = captureOutput(() => {
+      program.parse(["node", "kota", "task", "add", "Fix the login bug"]);
+    });
+    expect(output).toContain("task-fix-the-login-bug");
+  });
+
+  it("errors if task file already exists", () => {
+    writeFileSync(
+      join(projectDir, "tasks", "inbox", "task-duplicate.md"),
+      "---\nid: task-duplicate\n---\n",
+    );
+
+    const program = makeProgram();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
+    try {
+      expect(() => program.parse(["node", "kota", "task", "add", "duplicate"])).toThrow(
+        "process.exit:1",
+      );
+    } finally {
+      errSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+});
