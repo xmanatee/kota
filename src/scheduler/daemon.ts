@@ -4,6 +4,7 @@ import { type EventBus, initEventBus } from "../event-bus.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { initModuleLogStore } from "../module-log.js";
 import { CliTransport, type Transport } from "../transport.js";
+import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
@@ -42,6 +43,7 @@ export class Daemon {
   private stopBus: (() => void) | null = null;
   private stopWorkflowListener: (() => void) | null = null;
   private stopRestartListener: (() => void) | null = null;
+  private stopFailureAlert: (() => void) | null = null;
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -114,6 +116,12 @@ export class Daemon {
       },
     );
 
+    this.stopFailureAlert = subscribeWorkflowFailureAlert(
+      this.bus,
+      this.projectDir,
+      (message) => this.log(message),
+    );
+
     this.workflows.start();
 
     this.shutdownHandler = () => {
@@ -161,6 +169,10 @@ export class Daemon {
     if (this.stopRestartListener) {
       this.stopRestartListener();
       this.stopRestartListener = null;
+    }
+    if (this.stopFailureAlert) {
+      this.stopFailureAlert();
+      this.stopFailureAlert = null;
     }
 
     if (this.shutdownHandler) {

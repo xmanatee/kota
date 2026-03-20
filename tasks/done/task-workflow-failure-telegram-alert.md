@@ -1,7 +1,7 @@
 ---
 id: task-workflow-failure-telegram-alert
 title: Send Telegram alert on workflow failure
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: When a workflow run completes with status "failed" or "interrupted", send a Telegram notification if a bot token and chat ID are configured. Closes a visibility gap for unattended overnight runs.
