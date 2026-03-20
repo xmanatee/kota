@@ -1,7 +1,7 @@
 ---
 id: task-builder-failed-task-recovery
 title: Recover stuck tasks when builder run fails
-status: backlog
+status: done
 priority: p3
 area: workflow
 summary: When a builder run fails or is interrupted with a task in `tasks/doing/`, the task stays stuck there and the ready queue shrinks. The improver (which fires on builder failure) or a dedicated recovery step should detect and move abandoned doing/ tasks back to ready/ or blocked/.

@@ -228,9 +228,9 @@ describe("followRunLogs", () => {
 
     writeFileSync(
       join(runsDir, RUN_ID, "steps", `${STEP_ID}.events.jsonl`),
-      [assistantEvent, { type: "assistant", message: { content: [{ type: "text", text: "Second message" }] } }]
+      `${[assistantEvent, { type: "assistant", message: { content: [{ type: "text", text: "Second message" }] } }]
         .map((e) => JSON.stringify(e))
-        .join("\n") + "\n",
+        .join("\n")}\n`,
       "utf-8",
     );
     await new Promise<void>((r) => setTimeout(r, 60));

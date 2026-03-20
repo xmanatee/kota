@@ -4,6 +4,7 @@ import {
   createVerificationAndRestartSteps,
 } from "../shared.js";
 import { gatherImproverContext } from "./gather-context.js";
+import { recoverDoingTasks } from "./recover-doing-tasks.js";
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
@@ -30,6 +31,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
       id: "gather-context",
       type: "code",
       run: (ctx) => gatherImproverContext(ctx),
+    },
+    {
+      id: "recover-doing-tasks",
+      type: "code",
+      run: (ctx) => recoverDoingTasks(ctx),
     },
     {
       id: "improve",
