@@ -25,6 +25,7 @@ All three workflow prompts receive `recentRuns` with individual `totalCostUsd` v
 - Aggregate over the same 24h window already used for `recentRuns`.
 - Workflows with no runs today should appear with a value of 0 or be omitted — be consistent across all three.
 - Do not duplicate the aggregation logic: compute it once in `shared.ts` using the same `recentRuns` array.
+- Also extract the repeated `loadRunsInWindow(runsDir, cutoffMs).slice(0, 20).map(summarizeRun)` pattern into a `loadRecentRuns(runsDir: string): RunSummary[]` helper in `shared.ts`. All three gather-context files share this identical 3-line block — consolidating it removes the last remaining duplication.
 
 ## Done When
 
