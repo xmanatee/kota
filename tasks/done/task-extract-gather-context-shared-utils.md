@@ -1,12 +1,12 @@
 ---
 id: task-extract-gather-context-shared-utils
 title: Extract shared utilities from gather-context files
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: RunSummary, summarizeRun, loadRecentCommits, and runtimeState aggregation are copy-pasted across all three workflow gather-context files. Extract them into src/workflows/shared.ts to eliminate ~60 lines of duplication.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T05:50:00Z
 ---
 
 ## Problem

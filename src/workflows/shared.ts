@@ -1,5 +1,8 @@
+import { execSync } from "node:child_process";
 import type {
   WorkflowPredicate,
+  WorkflowRunMetadata,
+  WorkflowRuntimeState,
   WorkflowStepInput,
 } from "../workflow/types.js";
 
@@ -13,6 +16,54 @@ const RESTART_VERIFICATION_STEP_IDS = [
   "verify-test",
   "verify-build",
 ] as const;
+
+export type RunSummary = {
+  id: string;
+  workflow: string;
+  status: string;
+  durationMs?: number;
+  totalCostUsd?: number;
+};
+
+export function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
+  return {
+    id: metadata.id,
+    workflow: metadata.workflow,
+    status: metadata.status,
+    ...(metadata.durationMs != null ? { durationMs: metadata.durationMs } : {}),
+    ...(metadata.totalCostUsd != null ? { totalCostUsd: metadata.totalCostUsd } : {}),
+  };
+}
+
+export function loadRecentCommits(projectDir: string): string[] {
+  try {
+    const output = execSync("git log --oneline -10", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    });
+    return output.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export function buildRuntimeState(state: WorkflowRuntimeState): {
+  completedRuns: number;
+  workflows: Record<string, { lastStatus?: string; lastRunId?: string }>;
+} {
+  return {
+    completedRuns: state.completedRuns,
+    workflows: Object.fromEntries(
+      Object.entries(state.workflows).map(([name, entry]) => [
+        name,
+        {
+          ...(entry.lastStatus ? { lastStatus: entry.lastStatus } : {}),
+          ...(entry.lastRunId ? { lastRunId: entry.lastRunId } : {}),
+        },
+      ]),
+    ),
+  };
+}
 
 export function stepSucceeded(stepId: string): WorkflowPredicate {
   return ({ stepResults }) => stepResults[stepId]?.status === "success";
