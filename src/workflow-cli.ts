@@ -8,6 +8,8 @@ import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 import type { WorkflowRunMetadata } from "./workflow/types.js";
 import { validateWorkflowDefinitions } from "./workflow/validation.js";
+import type { HistoryStats } from "./workflow-history.js";
+import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 import { buildRunLogs } from "./workflow-logs.js";
 
 function formatDuration(ms: number): string {
@@ -304,6 +306,77 @@ export function registerWorkflowCommands(program: Command): void {
       } else {
         console.log(`Pruned ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}.`);
       }
+    });
+
+  wfCmd
+    .command("history")
+    .description("Show aggregate run stats grouped by workflow")
+    .option("-w, --workflow <name>", "Filter to a single workflow")
+    .option("--days <n>", "Time window in days", "7")
+    .action((opts: { workflow?: string; days: string }) => {
+      const days = Number.parseInt(opts.days, 10) || 7;
+      const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const store = new WorkflowRunStore();
+      const runs = loadRunsInWindow(store.runsDir, cutoffMs);
+      const filtered = opts.workflow ? runs.filter((r) => r.workflow === opts.workflow) : runs;
+
+      if (filtered.length === 0) {
+        console.log(`No runs found in the last ${days} day${days === 1 ? "" : "s"}.`);
+        return;
+      }
+
+      const wfNames = opts.workflow
+        ? [opts.workflow]
+        : [...new Set(filtered.map((r) => r.workflow))].sort();
+
+      const nameWidth = Math.max(...wfNames.map((n) => n.length), 8);
+      const col = (s: string, w: number) => s.padEnd(w);
+      const header = `${col("Workflow", nameWidth)}  ${"Runs".padStart(5)}  ${"OK".padStart(4)}  ${"Fail".padStart(4)}  ${"Int".padStart(3)}  ${"Rate".padStart(6)}  ${"TotalCost".padStart(10)}  ${"AvgCost".padStart(8)}  ${"AvgDur".padStart(8)}  ${"P95Dur".padStart(8)}`;
+      const sep = "-".repeat(header.length);
+      console.log(header);
+      console.log(sep);
+
+      const allStats: HistoryStats[] = [];
+      for (const name of wfNames) {
+        const wfRuns = filtered.filter((r) => r.workflow === name);
+        const s = computeHistoryStats(wfRuns);
+        allStats.push(s);
+        const avgDur = s.avgDurationMs != null ? formatDuration(Math.round(s.avgDurationMs)) : "—";
+        const p95Dur = s.p95DurationMs != null ? formatDuration(s.p95DurationMs) : "—";
+        console.log(
+          `${col(name, nameWidth)}  ${String(s.total).padStart(5)}  ${String(s.successes).padStart(4)}  ${String(s.failures).padStart(4)}  ${String(s.interrupted).padStart(3)}  ${`${s.successRate.toFixed(1)}%`.padStart(6)}  ${`$${s.totalCostUsd.toFixed(3)}`.padStart(10)}  ${`$${s.avgCostUsd.toFixed(3)}`.padStart(8)}  ${avgDur.padStart(8)}  ${p95Dur.padStart(8)}`,
+        );
+      }
+
+      if (wfNames.length > 1) {
+        const totals = allStats.reduce(
+          (acc, s) => ({
+            total: acc.total + s.total,
+            successes: acc.successes + s.successes,
+            failures: acc.failures + s.failures,
+            interrupted: acc.interrupted + s.interrupted,
+            totalCostUsd: acc.totalCostUsd + s.totalCostUsd,
+          }),
+          { total: 0, successes: 0, failures: 0, interrupted: 0, totalCostUsd: 0 },
+        );
+        const totalRate = totals.total > 0 ? (totals.successes / totals.total) * 100 : 0;
+        const totalAvgCost = totals.total > 0 ? totals.totalCostUsd / totals.total : 0;
+        const allDurations = filtered
+          .filter((r) => r.status !== "running" && r.durationMs != null)
+          .map((r) => r.durationMs as number)
+          .sort((a, b) => a - b);
+        const totalAvgDur = allDurations.length > 0
+          ? formatDuration(Math.round(allDurations.reduce((a, b) => a + b, 0) / allDurations.length))
+          : "—";
+        const totalP95Dur = allDurations.length > 0
+          ? formatDuration(allDurations[Math.ceil(0.95 * allDurations.length) - 1])
+          : "—";
+        console.log(sep);
+        console.log(
+          `${col("TOTAL", nameWidth)}  ${String(totals.total).padStart(5)}  ${String(totals.successes).padStart(4)}  ${String(totals.failures).padStart(4)}  ${String(totals.interrupted).padStart(3)}  ${`${totalRate.toFixed(1)}%`.padStart(6)}  ${`$${totals.totalCostUsd.toFixed(3)}`.padStart(10)}  ${`$${totalAvgCost.toFixed(3)}`.padStart(8)}  ${totalAvgDur.padStart(8)}  ${totalP95Dur.padStart(8)}`,
+        );
+      }
+      console.log(`\n(${days}-day window, ${filtered.filter((r) => r.status !== "running").length} completed runs)`);
     });
 
   wfCmd

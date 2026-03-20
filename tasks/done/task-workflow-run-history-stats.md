@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-history-stats
 title: Add aggregate run history stats to kota workflow CLI
-status: ready
+status: done
 priority: p3
 area: workflow-cli
 summary: Add a `kota workflow history` subcommand to show aggregate metrics (run count, success rate, avg/total cost, avg duration) filterable by workflow name and time window.
