@@ -22,9 +22,9 @@ updated_at: 2026-03-20
 
 ## Constraints
 
-- Blocked by `task-workflow-cli-inspect` (CLI must exist first)
 - Cost sum should only cover agent steps; code and tool steps contribute zero
 - No breaking changes to the metadata schema — existing run files without `totalCostUsd` should be treated as unknown/zero
+- `kota workflow list` and `kota workflow status` already exist in `src/workflow-cli.ts`; extend them rather than creating new commands
 
 ## Done When
 

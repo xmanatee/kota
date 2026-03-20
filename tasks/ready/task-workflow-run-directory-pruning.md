@@ -21,7 +21,6 @@ Every workflow run writes artifacts to `.kota/runs/<run-id>/`. Over weeks of aut
 
 ## Constraints
 
-- Blocked by `task-workflow-cli-inspect` (CLI surface should be established first).
 - Never delete the current active run or any pending/queued run.
 - Retain at least the N most recent runs per workflow regardless of age (configurable, default: 10).
 - Pruning errors must not crash the daemon.
