@@ -47,6 +47,18 @@ export function loadRecentCommits(projectDir: string): string[] {
   }
 }
 
+export function loadChangedFiles(projectDir: string): string[] {
+  try {
+    const output = execSync("git diff --name-only HEAD~1 HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    });
+    return output.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export function buildRuntimeState(state: WorkflowRuntimeState): {
   completedRuns: number;
   workflows: Record<string, { lastStatus?: string; lastRunId?: string }>;

@@ -8,6 +8,7 @@ Your prior step outputs contain pre-packaged situational context:
 
 From `gather-context`:
 - `triggeringRun` — summary (id, workflow, status, durationMs, totalCostUsd) of the run that triggered this improver run
+- `changedFiles` — list of files modified in the most recent commit (from `git diff --name-only HEAD~1 HEAD`); use this to focus review on what actually changed
 - `recentRuns` — workflow run summaries from the last 24h (up to 20), with workflow name, status, duration, cost
 - `recentCommits` — last 10 git commits (one-line format)
 - `runtimeState` — completedRuns total and per-workflow last status/runId

@@ -132,6 +132,12 @@ describe("gatherImproverContext", () => {
     expect(Array.isArray(result.recentCommits)).toBe(true);
   });
 
+  it("returns changedFiles as an array (empty when not in a git repo with history)", () => {
+    const ctx = makeContext(projectDir, {});
+    const result = gatherImproverContext(ctx);
+    expect(Array.isArray(result.changedFiles)).toBe(true);
+  });
+
   it("omits durationMs and totalCostUsd when not present", () => {
     const runId = "2026-03-20T00-00-00-000Z-builder-noCost";
     const runDir = join(projectDir, ".kota", "runs", runId);

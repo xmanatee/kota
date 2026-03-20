@@ -1,7 +1,7 @@
 ---
 id: task-improver-gather-context-changed-files
 title: Add changed-files list from triggering run to ImproverContext
-status: backlog
+status: done
 priority: p2
 area: workflow
 summary: The improver fires after a builder run but must re-read the codebase to figure out what changed. Adding a changedFiles list (from git diff --name-only) to ImproverContext lets the improver immediately focus review on the actual changed files without discovery overhead.
