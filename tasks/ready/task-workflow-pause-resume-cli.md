@@ -1,7 +1,7 @@
 ---
 id: task-workflow-pause-resume-cli
 title: Add kota workflow pause/resume commands for operator control
-status: backlog
+status: ready
 priority: p3
 area: workflow-cli
 summary: The workflow runtime supports pausing dispatch via `setDispatchPaused`, but there is no CLI command for operators to pause and resume the workflow queue without stopping the daemon. Add `kota workflow pause` and `kota workflow resume`.
