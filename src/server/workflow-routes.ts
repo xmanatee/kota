@@ -32,6 +32,7 @@ export function listRunMetadata(
   store: WorkflowRunStore,
   limit: number,
   offset: number,
+  since?: number,
 ): WorkflowRunMetadata[] {
   let dirs: string[];
   try {
@@ -41,11 +42,14 @@ export function listRunMetadata(
   }
   const runs: WorkflowRunMetadata[] = [];
   for (const dir of dirs) {
-    if (runs.length >= offset + limit) break;
+    if (since === undefined && runs.length >= offset + limit) break;
     const metadataPath = join(store.runsDir, dir, "metadata.json");
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-    if (metadata) runs.push(metadata);
+    if (!metadata) continue;
+    if (since !== undefined && new Date(metadata.startedAt).getTime() < since) break;
+    runs.push(metadata);
   }
+  if (since !== undefined) return runs;
   return runs.slice(offset, offset + limit);
 }
 
@@ -67,6 +71,16 @@ export function handleWorkflowRuns(
   url: URL,
   store = new WorkflowRunStore(),
 ): void {
+  const rawSince = url.searchParams.get("since");
+  const since =
+    rawSince !== null && !Number.isNaN(Number(rawSince)) ? Number(rawSince) : undefined;
+
+  if (since !== undefined) {
+    const runs = listRunMetadata(store, 0, 0, since);
+    jsonResponse(res, 200, { runs: runs.map(toSummary), since });
+    return;
+  }
+
   const rawLimit = url.searchParams.has("limit")
     ? Number.parseInt(url.searchParams.get("limit")!, 10)
     : 20;

@@ -498,14 +498,13 @@ export const WEB_UI_JS = /* js */ `
 
   async function refreshCost() {
     try {
-      var res = await fetch(API + "/api/workflow/runs?limit=200");
+      var since = Date.now() - 24 * 60 * 60 * 1000;
+      var res = await fetch(API + "/api/workflow/runs?since=" + since);
       if (!res.ok) return;
       var data = await res.json();
-      var cutoff = Date.now() - 24 * 60 * 60 * 1000;
       var totals = {};
       for (var i = 0; i < (data.runs || []).length; i++) {
         var r = data.runs[i];
-        if (new Date(r.startedAt).getTime() < cutoff) continue;
         if (r.totalCostUsd == null) continue;
         totals[r.workflow] = (totals[r.workflow] || 0) + r.totalCostUsd;
       }

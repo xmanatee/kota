@@ -180,6 +180,29 @@ describe("workflow-routes", () => {
       const body = result.body as { limit: number };
       expect(body.limit).toBe(200);
     });
+
+    it("returns all runs newer than since timestamp", () => {
+      const now = Date.now();
+      // Directory names must be time-ordered (they sort lexicographically)
+      writeRunMetadata(runsDir, "2025-01-01T00-00-00-000Z-builder-old", "builder", "success", {
+        startedAt: new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      });
+      writeRunMetadata(runsDir, "2025-02-01T00-00-00-000Z-explorer-new", "explorer", "success", {
+        startedAt: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
+      });
+
+      const { res, result } = mockResponse();
+      const since = now - 24 * 60 * 60 * 1000;
+      handleWorkflowRuns(
+        res,
+        new URL(`http://localhost/api/workflow/runs?since=${since}`),
+        store,
+      );
+      const body = result.body as { runs: { id: string }[]; since: number };
+      expect(body.runs).toHaveLength(1);
+      expect(body.runs[0].id).toBe("2025-02-01T00-00-00-000Z-explorer-new");
+      expect(body.since).toBe(since);
+    });
   });
 
   describe("handleWorkflowRunDetail", () => {
