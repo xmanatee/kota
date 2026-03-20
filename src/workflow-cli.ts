@@ -7,6 +7,7 @@ import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 import type { WorkflowRunMetadata } from "./workflow/types.js";
 import { validateWorkflowDefinitions } from "./workflow/validation.js";
+import { buildRunLogs } from "./workflow-logs.js";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -159,6 +160,54 @@ export function registerWorkflowCommands(program: Command): void {
             const trimmed = summary.length > 120 ? `${summary.slice(0, 120)}…` : summary;
             console.log(`      Output: ${trimmed}`);
           }
+        }
+      }
+    });
+
+  wfCmd
+    .command("logs <run-id>")
+    .description("Print agent conversation transcript for a run")
+    .option("--step <step-id>", "Show only the named step")
+    .action((runId: string, opts: { step?: string }) => {
+      const store = new WorkflowRunStore();
+      let resolvedId = runId;
+      if (!runId.includes("Z-")) {
+        try {
+          const dirs = readdirSync(store.runsDir).sort().reverse();
+          const match = dirs.find((d) => d.startsWith(runId));
+          if (!match) {
+            console.error(`Run "${runId}" not found.`);
+            process.exit(1);
+          }
+          resolvedId = match;
+        } catch {
+          console.error(`Run "${runId}" not found.`);
+          process.exit(1);
+        }
+      }
+
+      const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
+      const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+      if (!metadata) {
+        console.error(`Run "${resolvedId}" not found.`);
+        process.exit(1);
+      }
+
+      const stepLogs = buildRunLogs(store.runsDir, resolvedId, metadata, opts.step);
+
+      if (stepLogs.length === 0) {
+        console.log(opts.step
+          ? `No agent step "${opts.step}" found in run "${resolvedId}".`
+          : "No agent steps in this run.");
+        return;
+      }
+
+      for (const { stepId, lines } of stepLogs) {
+        console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
+        if (lines.length === 0) {
+          console.log("  (no events)");
+        } else {
+          for (const line of lines) console.log(line);
         }
       }
     });
