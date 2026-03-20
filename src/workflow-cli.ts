@@ -2,8 +2,11 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { readOptionalJsonFile } from "./json-file.js";
+import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
+import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 import type { WorkflowRunMetadata } from "./workflow/types.js";
+import { validateWorkflowDefinitions } from "./workflow/validation.js";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -157,6 +160,73 @@ export function registerWorkflowCommands(program: Command): void {
             console.log(`      Output: ${trimmed}`);
           }
         }
+      }
+    });
+
+  wfCmd
+    .command("trigger <name>")
+    .description("Manually enqueue a workflow run")
+    .option("--force", "Ignore cooldown and enqueue immediately")
+    .action((name: string, opts: { force?: boolean }) => {
+      const store = new WorkflowRunStore();
+      const definitions = validateWorkflowDefinitions(
+        getBuiltinWorkflowDefinitions(),
+        process.cwd(),
+      );
+
+      const definition = definitions.find((d) => d.name === name);
+      if (!definition) {
+        const names = definitions.map((d) => d.name).join(", ");
+        console.error(`Unknown workflow "${name}". Available: ${names}`);
+        process.exit(1);
+      }
+
+      if (!definition.enabled) {
+        console.error(`Workflow "${name}" is disabled.`);
+        process.exit(1);
+      }
+
+      const state = store.readState();
+
+      const alreadyQueued = state.pendingRuns.some(
+        (r) => r.workflowName === name,
+      );
+      if (alreadyQueued) {
+        console.error(`Workflow "${name}" is already queued.`);
+        process.exit(1);
+      }
+
+      const cooldownMs = definition.triggers[0]?.cooldownMs ?? 0;
+      const eligibleAtMs = getEligibleAtMs(name, cooldownMs, state);
+      const now = Date.now();
+
+      if (eligibleAtMs > now && !opts.force) {
+        const remaining = Math.ceil((eligibleAtMs - now) / 1000);
+        console.error(
+          `Workflow "${name}" is in cooldown (${remaining}s remaining). Use --force to override.`,
+        );
+        process.exit(1);
+      }
+
+      const notBeforeMs = opts.force ? now : eligibleAtMs;
+      const trigger = { event: "manual", payload: { triggeredAt: new Date().toISOString() } };
+      state.pendingRuns = [
+        ...state.pendingRuns,
+        {
+          workflowName: name,
+          trigger,
+          enqueuedAtMs: now,
+          notBeforeMs,
+        },
+      ];
+      store.setPendingRuns(state.pendingRuns);
+
+      const notBeforeStr = notBeforeMs > now
+        ? ` (eligible at ${new Date(notBeforeMs).toLocaleTimeString()})`
+        : "";
+      console.log(`Queued workflow "${name}"${notBeforeStr}.`);
+      if (state.activeRunId) {
+        console.log("Daemon is busy — run will start after current run finishes.");
       }
     });
 
