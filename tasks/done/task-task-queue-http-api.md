@@ -1,7 +1,7 @@
 ---
 id: task-task-queue-http-api
 title: Expose task queue state via HTTP API and web UI panel
-status: ready
+status: done
 priority: p2
 area: server
 summary: Add a GET /api/tasks endpoint returning task counts by state and the current doing task, then surface this in the web UI alongside the workflow panel.

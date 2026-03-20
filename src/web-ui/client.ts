@@ -13,6 +13,7 @@ export const WEB_UI_JS = /* js */ `
   const $newChat = document.getElementById("new-chat");
   const $sessionList = document.getElementById("session-list");
   const $historyList = document.getElementById("history-list");
+  const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
   const $health = document.getElementById("health-status");
   const $sidebar = document.getElementById("sidebar");
@@ -287,6 +288,54 @@ export const WEB_UI_JS = /* js */ `
     $sidebar.classList.toggle("collapsed");
   };
 
+  // --- Task queue panel ---
+
+  function renderTasks(counts, doing) {
+    $taskList.innerHTML = "";
+    var countsEl = document.createElement("div");
+    countsEl.className = "task-counts";
+    var labels = [
+      ["doing", counts.doing],
+      ["ready", counts.ready],
+      ["blocked", counts.blocked],
+      ["backlog", counts.backlog],
+      ["inbox", counts.inbox],
+    ];
+    for (var i = 0; i < labels.length; i++) {
+      var label = labels[i][0];
+      var count = labels[i][1];
+      if (!count) continue;
+      var span = document.createElement("span");
+      span.className = "task-count-item task-state-" + label;
+      span.textContent = label + ": " + count;
+      countsEl.appendChild(span);
+    }
+    if (countsEl.childNodes.length === 0) {
+      countsEl.textContent = "No open tasks";
+      countsEl.className = "run-empty";
+    }
+    $taskList.appendChild(countsEl);
+
+    for (var j = 0; j < doing.length; j++) {
+      var t = doing[j];
+      var item = document.createElement("div");
+      item.className = "run-item";
+      item.innerHTML = '<span class="run-badge running">▶</span>' +
+        '<span class="run-name">' + escapeHtml(t.title) + '</span>' +
+        '<span class="run-meta">' + escapeHtml(t.priority) + '</span>';
+      $taskList.appendChild(item);
+    }
+  }
+
+  async function refreshTasks() {
+    try {
+      var res = await fetch(API + "/api/tasks");
+      if (!res.ok) return;
+      var data = await res.json();
+      renderTasks(data.counts || {}, data.doing || []);
+    } catch {}
+  }
+
   // --- Workflow runs panel ---
 
   function fmtDuration(ms) {
@@ -352,9 +401,11 @@ export const WEB_UI_JS = /* js */ `
   refreshSessions();
   refreshHistory();
   refreshWorkflows();
+  refreshTasks();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   setInterval(refreshWorkflows, 5000);
+  setInterval(refreshTasks, 5000);
   $input.focus();
 })();
 `;

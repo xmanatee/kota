@@ -17,6 +17,7 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
+import { handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowRunDetail,
   handleWorkflowRuns,
@@ -267,6 +268,11 @@ export function buildRequestHandler(ctx: ServerContext) {
       handleEventTrigger(req, res, ctx.bus, eventName).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/tasks") {
+      handleTaskStatus(res);
       return;
     }
 

@@ -30,6 +30,10 @@ ${WEB_UI_CSS}
       <div id="history-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Tasks</h3>
+      <div id="task-queue-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Workflows</h3>
       <div id="workflow-runs-list"></div>
     </div>
