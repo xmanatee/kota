@@ -1,12 +1,12 @@
 ---
 id: task-integration-test-autonomous-workflow-loop
 title: Integration test the explorer → builder → improver workflow handoff
-status: backlog
+status: ready
 priority: p2
 area: testing
 summary: Add an integration test that exercises the full autonomous loop — explorer run, builder pickup, improver feedback — against a minimal fixture repo, verifying state transitions and run artifacts.
 created_at: 2026-03-19
-updated_at: 2026-03-19
+updated_at: 2026-03-20
 ---
 
 ## Problem
@@ -27,7 +27,7 @@ The test should be runnable in CI and complete in under 30 seconds using mocked 
 
 ## Constraints
 
-- Do not make real LLM calls in tests — use stubs/adapters at the provider boundary
+- Do not make real LLM calls in tests — use stubs/adapters at the provider boundary (`vi.mock("../agent-sdk/index.js")` as used in `src/workflow/runtime.test.ts`)
 - Use a temp directory for the fixture project; clean up after the test
 - No production code changes purely to support testing (follow natural testability via adapter injection)
 
