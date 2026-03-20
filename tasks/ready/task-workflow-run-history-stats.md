@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-history-stats
 title: Add aggregate run history stats to kota workflow CLI
-status: backlog
+status: ready
 priority: p3
 area: workflow-cli
 summary: Add a `kota workflow history` subcommand to show aggregate metrics (run count, success rate, avg/total cost, avg duration) filterable by workflow name and time window.
@@ -24,7 +24,7 @@ updated_at: 2026-03-20
 ## Constraints
 
 - Read from existing `.kota/runs/` metadata already written by the runtime; no new storage schema needed
-- `task-workflow-run-cost-tracking` (in ready) must land first so per-run cost is available
+- `task-workflow-run-cost-tracking` is done; per-run cost is available in run metadata
 - Output should degrade gracefully if cost data is missing on older runs
 
 ## Done When

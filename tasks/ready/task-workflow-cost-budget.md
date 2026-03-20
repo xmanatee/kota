@@ -1,7 +1,7 @@
 ---
 id: task-workflow-cost-budget
 title: Enforce configurable daily cost budget for autonomous workflow runs
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The workflow runtime has no spending limit. A misconfigured cron trigger or runaway workflow can accumulate unbounded API costs. Add a configurable daily budget that pauses dispatch and notifies via Telegram when the limit is reached.
