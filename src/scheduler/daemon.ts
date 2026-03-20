@@ -4,6 +4,7 @@ import { type EventBus, initEventBus } from "../event-bus.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { initModuleLogStore } from "../module-log.js";
 import { CliTransport, type Transport } from "../transport.js";
+import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
@@ -44,6 +45,7 @@ export class Daemon {
   private stopWorkflowListener: (() => void) | null = null;
   private stopRestartListener: (() => void) | null = null;
   private stopFailureAlert: (() => void) | null = null;
+  private stopApprovalNotification: (() => void) | null = null;
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -122,6 +124,11 @@ export class Daemon {
       (message) => this.log(message),
     );
 
+    this.stopApprovalNotification = subscribeApprovalNotification(
+      this.bus,
+      (message) => this.log(message),
+    );
+
     this.workflows.start();
 
     this.shutdownHandler = () => {
@@ -173,6 +180,10 @@ export class Daemon {
     if (this.stopFailureAlert) {
       this.stopFailureAlert();
       this.stopFailureAlert = null;
+    }
+    if (this.stopApprovalNotification) {
+      this.stopApprovalNotification();
+      this.stopApprovalNotification = null;
     }
 
     if (this.shutdownHandler) {

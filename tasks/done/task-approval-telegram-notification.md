@@ -1,12 +1,12 @@
 ---
 id: task-approval-telegram-notification
 title: Notify operator via Telegram when a tool call is queued for approval
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: The approval queue fires an `approval.requested` event but nothing subscribes to it. Operators must poll `kota approval list` to know there is a pending item. Add a Telegram notification on approval request, following the pattern of `failure-alert.ts`.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T03:10:00Z
 ---
 
 ## Problem
