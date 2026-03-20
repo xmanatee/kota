@@ -3,12 +3,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
-    poolOptions: {
-      forks: {
-        // Many tests spawn subprocesses (Python REPL, CLI binary, MCP servers).
-        // Capping at 8 prevents resource starvation under full parallel load.
-        maxForks: 8,
-      },
-    },
+    // Many tests spawn subprocesses (Python REPL, CLI binary, MCP servers).
+    // Capping at 8 prevents resource starvation under full parallel load.
+    maxForks: 8,
   },
 });
