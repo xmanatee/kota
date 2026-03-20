@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-detail-web-ui
 title: Show workflow run detail view in web UI
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: Clicking a workflow run in the web UI sidebar should display a detail panel with step-by-step breakdown, cost, timing, and status — replacing the chat area or appearing inline.
