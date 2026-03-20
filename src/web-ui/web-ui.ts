@@ -29,6 +29,10 @@ ${WEB_UI_CSS}
       <h3>History</h3>
       <div id="history-list"></div>
     </div>
+    <div class="sidebar-section">
+      <h3>Workflows</h3>
+      <div id="workflow-runs-list"></div>
+    </div>
     <div class="sidebar-footer">
       <span id="health-status">●</span>
       <button id="toggle-sidebar" class="icon-btn" title="Toggle sidebar">☰</button>

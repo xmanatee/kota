@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-http-api
 title: Expose workflow run status via HTTP API and web UI panel
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: The web UI is a chat interface with no visibility into autonomous workflow activity. Adding HTTP endpoints for run status and a lightweight workflow panel in the web UI would let users monitor active and recent runs without the CLI.

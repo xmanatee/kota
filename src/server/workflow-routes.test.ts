@@ -1,0 +1,229 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import type { ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WorkflowRunStore } from "../workflow/run-store.js";
+import {
+  handleWorkflowRunDetail,
+  handleWorkflowRuns,
+  handleWorkflowStatus,
+  listRunMetadata,
+} from "./workflow-routes.js";
+
+function makeProjectDir(): string {
+  const dir = join(
+    tmpdir(),
+    `kota-wf-routes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  mkdirSync(join(dir, ".kota", "runs"), { recursive: true });
+  return dir;
+}
+
+function writeRunMetadata(
+  runsDir: string,
+  id: string,
+  workflow: string,
+  status: string,
+  overrides: Record<string, unknown> = {},
+): void {
+  const runDir = join(runsDir, id);
+  mkdirSync(runDir, { recursive: true });
+  const metadata = {
+    id,
+    workflow,
+    definitionPath: `src/workflows/${workflow}/workflow.ts`,
+    trigger: { event: "runtime.idle", payload: {} },
+    startedAt: new Date(1700000000000).toISOString(),
+    status,
+    completedAt: new Date(1700001000000).toISOString(),
+    durationMs: 1000,
+    totalCostUsd: 0.05,
+    runDir: `.kota/runs/${id}`,
+    steps: [
+      {
+        id: "step-1",
+        type: "agent",
+        status: "success",
+        startedAt: new Date(1700000000000).toISOString(),
+        completedAt: new Date(1700001000000).toISOString(),
+        durationMs: 1000,
+      },
+    ],
+    ...overrides,
+  };
+  writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+}
+
+function mockResponse() {
+  const result = { status: 0, body: null as unknown };
+  const res = {
+    setHeader: vi.fn(),
+    writeHead: (s: number) => {
+      result.status = s;
+    },
+    end: (data: string) => {
+      result.body = JSON.parse(data);
+    },
+    on: vi.fn(),
+  } as unknown as ServerResponse;
+  return { res, result };
+}
+
+describe("workflow-routes", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let runsDir: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    store = new WorkflowRunStore(projectDir);
+    runsDir = join(projectDir, ".kota", "runs");
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  describe("handleWorkflowStatus", () => {
+    it("returns 200 with empty state when no runs exist", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowStatus(res, store);
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({
+        activeRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        workflows: {},
+      });
+    });
+
+    it("reflects active runs and queue from state", () => {
+      const stateFile = join(projectDir, ".kota", "workflow-state.json");
+      writeFileSync(
+        stateFile,
+        JSON.stringify({
+          completedRuns: 3,
+          pendingRuns: [
+            {
+              workflowName: "builder",
+              trigger: { event: "schedule", payload: {} },
+              enqueuedAtMs: 1,
+              notBeforeMs: 1,
+            },
+          ],
+          workflows: {},
+          activeRuns: [
+            { runId: "run-abc", workflow: "builder", startedAt: new Date().toISOString() },
+          ],
+        }),
+      );
+
+      const { res, result } = mockResponse();
+      handleWorkflowStatus(res, store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(body.completedRuns).toBe(3);
+      expect(body.queueLength).toBe(1);
+      expect(Array.isArray(body.activeRuns)).toBe(true);
+      expect((body.activeRuns as unknown[]).length).toBe(1);
+    });
+  });
+
+  describe("handleWorkflowRuns", () => {
+    it("returns empty list when no runs exist", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRuns(res, new URL("http://localhost/api/workflow/runs"), store);
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ runs: [], limit: 20, offset: 0 });
+    });
+
+    it("returns run summaries without step data", () => {
+      writeRunMetadata(runsDir, "run-001", "builder", "success");
+      writeRunMetadata(runsDir, "run-002", "explorer", "failed");
+
+      const { res, result } = mockResponse();
+      handleWorkflowRuns(res, new URL("http://localhost/api/workflow/runs"), store);
+      expect(result.status).toBe(200);
+      const body = result.body as { runs: unknown[] };
+      expect(body.runs).toHaveLength(2);
+      const run = body.runs[0] as Record<string, unknown>;
+      expect(run).toHaveProperty("id");
+      expect(run).toHaveProperty("workflow");
+      expect(run).toHaveProperty("status");
+      expect(run).toHaveProperty("startedAt");
+      expect(run).toHaveProperty("durationMs");
+      expect(run).toHaveProperty("totalCostUsd");
+      expect(run).not.toHaveProperty("steps");
+    });
+
+    it("respects limit and offset", () => {
+      for (let i = 1; i <= 5; i++) {
+        writeRunMetadata(runsDir, `run-00${i}`, "builder", "success");
+      }
+
+      const { res, result } = mockResponse();
+      handleWorkflowRuns(
+        res,
+        new URL("http://localhost/api/workflow/runs?limit=2&offset=1"),
+        store,
+      );
+      const body = result.body as { runs: unknown[]; limit: number; offset: number };
+      expect(body.runs).toHaveLength(2);
+      expect(body.limit).toBe(2);
+      expect(body.offset).toBe(1);
+    });
+
+    it("caps limit at 200", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRuns(res, new URL("http://localhost/api/workflow/runs?limit=999"), store);
+      const body = result.body as { limit: number };
+      expect(body.limit).toBe(200);
+    });
+  });
+
+  describe("handleWorkflowRunDetail", () => {
+    it("returns 404 for unknown run ID", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRunDetail(res, "nonexistent-run", store);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 400 for path traversal attempt", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRunDetail(res, "../etc/passwd", store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns full metadata including steps", () => {
+      writeRunMetadata(runsDir, "run-detail-001", "builder", "success");
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunDetail(res, "run-detail-001", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(body.id).toBe("run-detail-001");
+      expect(body.workflow).toBe("builder");
+      expect(Array.isArray(body.steps)).toBe(true);
+    });
+  });
+
+  describe("listRunMetadata", () => {
+    it("returns runs sorted newest first", () => {
+      writeRunMetadata(runsDir, "2025-01-01-run-aaa", "builder", "success");
+      writeRunMetadata(runsDir, "2025-02-01-run-bbb", "explorer", "success");
+      writeRunMetadata(runsDir, "2025-03-01-run-ccc", "builder", "failed");
+
+      const runs = listRunMetadata(store, 10, 0);
+      expect(runs).toHaveLength(3);
+      expect(runs[0].id).toBe("2025-03-01-run-ccc");
+      expect(runs[2].id).toBe("2025-01-01-run-aaa");
+    });
+
+    it("returns empty array when runs dir is missing", () => {
+      rmSync(join(projectDir, ".kota", "runs"), { recursive: true });
+      const runs = listRunMetadata(store, 10, 0);
+      expect(runs).toEqual([]);
+    });
+  });
+});

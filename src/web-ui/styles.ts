@@ -269,6 +269,53 @@ body {
 }
 .welcome p { font-size: 14px; line-height: 1.8; }
 
+/* Workflow runs panel */
+#workflow-runs-list {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+.run-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: var(--radius);
+  margin-bottom: 1px;
+}
+.run-badge {
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.run-badge.success { color: #4caf50; }
+.run-badge.failed { color: #f44336; }
+.run-badge.interrupted { color: #ff9800; }
+.run-badge.running { color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.run-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.run-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.run-empty {
+  padding: 4px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   #sidebar { position: fixed; z-index: 10; height: 100%; }

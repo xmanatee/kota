@@ -13,6 +13,7 @@ export const WEB_UI_JS = /* js */ `
   const $newChat = document.getElementById("new-chat");
   const $sessionList = document.getElementById("session-list");
   const $historyList = document.getElementById("history-list");
+  const $workflowList = document.getElementById("workflow-runs-list");
   const $health = document.getElementById("health-status");
   const $sidebar = document.getElementById("sidebar");
   const $toggleSidebar = document.getElementById("toggle-sidebar");
@@ -286,13 +287,74 @@ export const WEB_UI_JS = /* js */ `
     $sidebar.classList.toggle("collapsed");
   };
 
+  // --- Workflow runs panel ---
+
+  function fmtDuration(ms) {
+    if (!ms) return "";
+    if (ms < 1000) return ms + "ms";
+    if (ms < 60000) return (ms / 1000).toFixed(1) + "s";
+    return Math.floor(ms / 60000) + "m" + Math.floor((ms % 60000) / 1000) + "s";
+  }
+
+  function renderWorkflows(activeRuns, recentRuns) {
+    $workflowList.innerHTML = "";
+    var shown = 0;
+
+    for (var i = 0; i < activeRuns.length; i++) {
+      var run = activeRuns[i];
+      var elapsed = Date.now() - new Date(run.startedAt).getTime();
+      var item = document.createElement("div");
+      item.className = "run-item";
+      item.innerHTML = '<span class="run-badge running">▶</span>' +
+        '<span class="run-name">' + escapeHtml(run.workflow) + '</span>' +
+        '<span class="run-meta">' + fmtDuration(elapsed) + '</span>';
+      $workflowList.appendChild(item);
+      shown++;
+    }
+
+    var activeIds = {};
+    for (var j = 0; j < activeRuns.length; j++) activeIds[activeRuns[j].runId] = true;
+
+    for (var k = 0; k < recentRuns.length && shown < 10; k++) {
+      var r = recentRuns[k];
+      if (r.status === "running" || activeIds[r.id]) continue;
+      var badgeClass = r.status === "success" ? "success" : r.status === "failed" ? "failed" : "interrupted";
+      var icon = r.status === "success" ? "✓" : r.status === "failed" ? "✗" : "⚡";
+      var meta = (r.durationMs ? fmtDuration(r.durationMs) : "") + (r.totalCostUsd != null ? " $" + r.totalCostUsd.toFixed(3) : "");
+      var ri = document.createElement("div");
+      ri.className = "run-item";
+      ri.innerHTML = '<span class="run-badge ' + badgeClass + '">' + icon + '</span>' +
+        '<span class="run-name">' + escapeHtml(r.workflow) + '</span>' +
+        '<span class="run-meta">' + meta.trim() + '</span>';
+      $workflowList.appendChild(ri);
+      shown++;
+    }
+
+    if (shown === 0) {
+      $workflowList.innerHTML = '<div class="run-empty">No recent runs</div>';
+    }
+  }
+
+  async function refreshWorkflows() {
+    try {
+      var statusRes = await fetch(API + "/api/workflow/status");
+      var runsRes = await fetch(API + "/api/workflow/runs?limit=10");
+      if (!statusRes.ok || !runsRes.ok) return;
+      var statusData = await statusRes.json();
+      var runsData = await runsRes.json();
+      renderWorkflows(statusData.activeRuns || [], runsData.runs || []);
+    } catch {}
+  }
+
   // --- Init ---
   showWelcome();
   checkHealth();
   refreshSessions();
   refreshHistory();
+  refreshWorkflows();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
+  setInterval(refreshWorkflows, 5000);
   $input.focus();
 })();
 `;

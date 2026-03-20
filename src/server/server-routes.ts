@@ -17,6 +17,11 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
+import {
+  handleWorkflowRunDetail,
+  handleWorkflowRuns,
+  handleWorkflowStatus,
+} from "./workflow-routes.js";
 
 export type ServerContext = {
   port: number;
@@ -262,6 +267,22 @@ export function buildRequestHandler(ctx: ServerContext) {
       handleEventTrigger(req, res, ctx.bus, eventName).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/workflow/status") {
+      handleWorkflowStatus(res);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/workflow/runs") {
+      handleWorkflowRuns(res, url);
+      return;
+    }
+
+    const workflowRunMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)$/);
+    if (req.method === "GET" && workflowRunMatch) {
+      handleWorkflowRunDetail(res, workflowRunMatch[1]);
       return;
     }
 
