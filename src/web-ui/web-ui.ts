@@ -43,6 +43,7 @@ ${WEB_UI_CSS}
     </div>
   </aside>
   <main id="chat-area">
+    <div id="run-detail"></div>
     <div id="messages"></div>
     <div id="input-area">
       <textarea id="input" placeholder="Message KOTA..." rows="1"></textarea>

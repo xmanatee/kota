@@ -15,6 +15,8 @@ export const WEB_UI_JS = /* js */ `
   const $historyList = document.getElementById("history-list");
   const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
+  const $runDetail = document.getElementById("run-detail");
+  const $inputArea = document.getElementById("input-area");
   const $health = document.getElementById("health-status");
   const $sidebar = document.getElementById("sidebar");
   const $toggleSidebar = document.getElementById("toggle-sidebar");
@@ -279,7 +281,7 @@ export const WEB_UI_JS = /* js */ `
 
   $newChat.onclick = () => {
     sessionId = null;
-    $messages.innerHTML = "";
+    showChat();
     showWelcome();
     refreshSessions();
   };
@@ -287,6 +289,84 @@ export const WEB_UI_JS = /* js */ `
   $toggleSidebar.onclick = () => {
     $sidebar.classList.toggle("collapsed");
   };
+
+  // --- Run detail panel ---
+
+  function showChat() {
+    $runDetail.classList.remove("visible");
+    $messages.style.display = "";
+    $inputArea.style.display = "";
+  }
+
+  async function showRunDetail(runId) {
+    $messages.style.display = "none";
+    $inputArea.style.display = "none";
+    $runDetail.innerHTML = '<div style="color:var(--text-muted);padding:24px">Loading\u2026</div>';
+    $runDetail.classList.add("visible");
+    try {
+      var res = await fetch(API + "/api/workflow/runs/" + encodeURIComponent(runId));
+      if (!res.ok) {
+        $runDetail.innerHTML = '<div style="color:#f44336;padding:24px">Run not found</div>';
+        return;
+      }
+      var run = await res.json();
+      renderRunDetail(run);
+    } catch (err) {
+      $runDetail.innerHTML = '<div style="color:#f44336;padding:24px">Error: ' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  function renderRunDetail(run) {
+    var badgeClass = run.status === "success" ? "success" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "interrupted";
+    var icon = run.status === "success" ? "\\u2713" : run.status === "failed" ? "\\u2717" : run.status === "running" ? "\\u25b6" : "\\u26a1";
+    var duration = run.durationMs ? fmtDuration(run.durationMs) : (run.status === "running" ? fmtDuration(Date.now() - new Date(run.startedAt).getTime()) : "\\u2014");
+    var cost = run.totalCostUsd != null ? "$" + run.totalCostUsd.toFixed(4) : "\\u2014";
+    var started = new Date(run.startedAt).toLocaleString();
+    var completed = run.completedAt ? new Date(run.completedAt).toLocaleString() : "\\u2014";
+    var html = '<div class="run-detail-header">';
+    html += '<button class="run-detail-back" id="run-detail-back">\\u2190 Back</button>';
+    html += '<div class="run-detail-title"><span class="run-badge ' + badgeClass + '">' + icon + '</span>' + escapeHtml(run.workflow) + '</div>';
+    html += '<div class="run-detail-meta">';
+    html += '<span>ID: <code>' + escapeHtml(run.id) + '</code></span>';
+    html += '<span>Status: ' + escapeHtml(run.status) + '</span>';
+    html += '<span>Duration: ' + duration + '</span>';
+    html += '<span>Cost: ' + cost + '</span>';
+    html += '<span>Started: ' + escapeHtml(started) + '</span>';
+    html += '<span>Completed: ' + escapeHtml(completed) + '</span>';
+    html += '</div></div>';
+    html += '<div class="run-detail-steps">';
+    var steps = run.steps || [];
+    if (steps.length === 0) {
+      html += '<div class="run-empty">No steps recorded</div>';
+    } else {
+      for (var i = 0; i < steps.length; i++) {
+        var step = steps[i];
+        var sb = step.status === "success" ? "success" : step.status === "failed" ? "failed" : step.status === "running" ? "running" : "interrupted";
+        var si = step.status === "success" ? "\\u2713" : step.status === "failed" ? "\\u2717" : step.status === "running" ? "\\u25b6" : "\\u26a1";
+        var sm = step.durationMs ? fmtDuration(step.durationMs) : "";
+        var outputText = "";
+        if (step.output != null) {
+          var raw = typeof step.output === "string" ? step.output : JSON.stringify(step.output, null, 2);
+          outputText = raw.length > 300 ? raw.slice(0, 300) + "\\u2026" : raw;
+        } else if (step.error) {
+          outputText = "Error: " + step.error;
+        }
+        html += '<div class="step-row">';
+        html += '<div class="step-row-header">';
+        html += '<span class="run-badge ' + sb + '">' + si + '</span>';
+        html += '<span class="step-row-name">' + escapeHtml(step.id) + '</span>';
+        html += '<span class="step-row-meta">' + escapeHtml(sm) + '</span>';
+        html += '</div>';
+        if (outputText) {
+          html += '<div class="step-row-output">' + escapeHtml(outputText) + '</div>';
+        }
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    $runDetail.innerHTML = html;
+    document.getElementById("run-detail-back").onclick = showChat;
+  }
 
   // --- Task queue panel ---
 
@@ -354,9 +434,11 @@ export const WEB_UI_JS = /* js */ `
       var elapsed = Date.now() - new Date(run.startedAt).getTime();
       var item = document.createElement("div");
       item.className = "run-item";
+      item.style.cursor = "pointer";
       item.innerHTML = '<span class="run-badge running">▶</span>' +
         '<span class="run-name">' + escapeHtml(run.workflow) + '</span>' +
         '<span class="run-meta">' + fmtDuration(elapsed) + '</span>';
+      item.onclick = (function(id) { return function() { showRunDetail(id); }; })(run.runId);
       $workflowList.appendChild(item);
       shown++;
     }
@@ -372,9 +454,11 @@ export const WEB_UI_JS = /* js */ `
       var meta = (r.durationMs ? fmtDuration(r.durationMs) : "") + (r.totalCostUsd != null ? " $" + r.totalCostUsd.toFixed(3) : "");
       var ri = document.createElement("div");
       ri.className = "run-item";
+      ri.style.cursor = "pointer";
       ri.innerHTML = '<span class="run-badge ' + badgeClass + '">' + icon + '</span>' +
         '<span class="run-name">' + escapeHtml(r.workflow) + '</span>' +
         '<span class="run-meta">' + meta.trim() + '</span>';
+      ri.onclick = (function(id) { return function() { showRunDetail(id); }; })(r.id);
       $workflowList.appendChild(ri);
       shown++;
     }
