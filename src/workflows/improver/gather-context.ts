@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "../../json-file.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "../../workflow/types.js";
@@ -14,11 +15,24 @@ export type RunSummary = {
 export type ImproverContext = {
   triggeringRun: RunSummary | null;
   recentRuns: RunSummary[];
+  recentCommits: string[];
   runtimeState: {
     completedRuns: number;
     workflows: Record<string, { lastStatus?: string; lastRunId?: string }>;
   };
 };
+
+function loadRecentCommits(projectDir: string): string[] {
+  try {
+    const output = execSync("git log --oneline -10", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    });
+    return output.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
 function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
   return {
@@ -44,6 +58,7 @@ export function gatherImproverContext(ctx: WorkflowStepContext): ImproverContext
 
   const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
   const recentRuns = loadRunsInWindow(runsDir, cutoffMs).slice(0, 20).map(summarizeRun);
+  const recentCommits = loadRecentCommits(projectDir);
 
   const state = readRuntimeState();
   const runtimeState = {
@@ -59,5 +74,5 @@ export function gatherImproverContext(ctx: WorkflowStepContext): ImproverContext
     ),
   };
 
-  return { triggeringRun, recentRuns, runtimeState };
+  return { triggeringRun, recentRuns, recentCommits, runtimeState };
 }
