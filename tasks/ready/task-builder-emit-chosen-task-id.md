@@ -1,12 +1,12 @@
 ---
 id: task-builder-emit-chosen-task-id
 title: Emit chosen task ID from builder build step output
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The builder picks one task from ready/ but does not record which task it chose in its run metadata or step outputs. The improver must guess from git commits. Emitting the chosen task ID in a step output would let the improver review code changes against the task's Done When criteria and help identify builder regressions.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T07:13:56Z
 ---
 
 ## Problem
