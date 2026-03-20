@@ -9,7 +9,7 @@ Your prior step outputs contain pre-packaged situational context:
 From `gather-context`:
 - `triggeringRun` — summary (id, workflow, status, durationMs, totalCostUsd) of the run that triggered this improver run
 - `builtTaskId` — the task ID the triggering builder run worked on (from its `claim-task` step output); null if not available. Use this to read the task file and check the implementation against its `## Done When` criteria.
-- `changedFiles` — list of files modified in the most recent commit (from `git diff --name-only HEAD~1 HEAD`); use this to focus review on what actually changed
+- `changedFiles` — list of files modified in commits since the triggering run started; use this to focus review on what actually changed
 - `recentRuns` — workflow run summaries from the last 24h (up to 20), with workflow name, status, duration, cost
 - `recentCommits` — last 10 git commits (one-line format)
 - `costByWorkflow` — total spend (USD) per workflow over the last 24h; use this to identify high-cost workflows without computing aggregates yourself

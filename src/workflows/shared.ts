@@ -83,13 +83,18 @@ export function computeCostByWorkflow(runs: RunSummary[]): Record<string, number
   return result;
 }
 
-export function loadChangedFiles(projectDir: string): string[] {
+export function loadChangedFiles(projectDir: string, since?: string): string[] {
   try {
-    const output = execSync("git diff --name-only HEAD~1 HEAD", {
-      cwd: projectDir,
-      encoding: "utf-8",
-    });
-    return output.trim().split("\n").filter(Boolean);
+    const output = since
+      ? execSync(`git log --name-only --format="" --after=${since}`, {
+          cwd: projectDir,
+          encoding: "utf-8",
+        })
+      : execSync("git diff --name-only HEAD~1 HEAD", {
+          cwd: projectDir,
+          encoding: "utf-8",
+        });
+    return [...new Set(output.trim().split("\n").filter(Boolean))];
   } catch {
     return [];
   }

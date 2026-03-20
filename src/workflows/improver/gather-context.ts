@@ -18,6 +18,15 @@ export type ImproverContext = {
   };
 };
 
+// Run IDs use format YYYY-MM-DDTHH-MM-SS-mmmZ-workflow-hash
+// Convert back to ISO 8601 so git --after can parse it
+function parseSinceTimestamp(runId: unknown): string | undefined {
+  if (typeof runId !== "string") return undefined;
+  const match = runId.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/);
+  if (!match) return undefined;
+  return `${match[1]}T${match[2]}:${match[3]}:${match[4]}.${match[5]}Z`;
+}
+
 function extractBuiltTaskId(metadata: WorkflowRunMetadata): string | null {
   const claimStep = metadata.steps.find((s) => s.id === "claim-task");
   if (!claimStep || !claimStep.output || typeof claimStep.output !== "object") return null;
@@ -43,7 +52,8 @@ export function gatherImproverContext(ctx: WorkflowStepContext): ImproverContext
 
   const recentRuns = loadRecentRuns(runsDir);
   const recentCommits = loadRecentCommits(projectDir);
-  const changedFiles = loadChangedFiles(projectDir);
+  const sinceTimestamp = parseSinceTimestamp(trigger.payload.runId);
+  const changedFiles = loadChangedFiles(projectDir, sinceTimestamp);
   const costByWorkflow = computeCostByWorkflow(recentRuns);
   const runtimeState = buildRuntimeState(readRuntimeState());
 
