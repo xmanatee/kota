@@ -118,6 +118,15 @@ export function executeWorkflowRun(
   const startedAt = Date.now();
   const abortController = new AbortController();
 
+  let runTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  if (definition.runTimeoutMs !== undefined) {
+    runTimeoutHandle = setTimeout(() => {
+      abortController.abort(
+        new Error(`Workflow "${definition.name}" run timed out after ${definition.runTimeoutMs}ms`),
+      );
+    }, definition.runTimeoutMs);
+  }
+
   deps.bus.emit("workflow.started", {
     workflow: definition.name,
     runId: run.metadata.id,
@@ -270,6 +279,7 @@ export function executeWorkflowRun(
         `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,
       );
     } finally {
+      clearTimeout(runTimeoutHandle);
       onComplete();
     }
   })();

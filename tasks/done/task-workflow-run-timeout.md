@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-timeout
 title: Add workflow-level run timeout to bound stuck runs
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: Steps have per-step timeoutMs, but there is no overall run-level timeout. An agent step that hangs or runs unboundedly can block the runtime indefinitely. Add a runTimeoutMs option to WorkflowDefinitionInput that aborts the active run if it exceeds the limit.

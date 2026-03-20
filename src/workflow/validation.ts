@@ -212,6 +212,12 @@ export function validateWorkflowDefinitions(
         "enabled",
         definitionPath,
       ) ?? true,
+      runTimeoutMs: expectOptionalInteger(
+        definition.runTimeoutMs,
+        "runTimeoutMs",
+        definitionPath,
+        1,
+      ),
       definitionPath,
       triggers: definition.triggers.map((trigger, triggerIndex) =>
         validateTrigger(trigger, definitionPath, triggerIndex),

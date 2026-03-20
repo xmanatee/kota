@@ -753,4 +753,53 @@ describe("WorkflowRuntime", () => {
     expect(metadata.status).toBe("interrupted");
     expect(metadata.steps[0].status).toBe("failed");
   });
+
+  it("aborts the run when runTimeoutMs is exceeded", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    mockedExecuteWithAgentSDK.mockImplementation(
+      async (_prompt, options) =>
+        await new Promise((_resolve, reject) => {
+          options?.abortController?.signal.addEventListener("abort", () => {
+            reject(options!.abortController!.signal.reason);
+          });
+        }),
+    );
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          runTimeoutMs: 30,
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(150);
+    await runtime.stop();
+
+    const runsDir = join(projectDir, ".kota", "runs");
+    const [runId] = readdirSync(runsDir);
+    const metadata = JSON.parse(
+      readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+    );
+    expect(metadata.status).toBe("interrupted");
+    expect(metadata.steps[0].status).toBe("failed");
+    expect(metadata.steps[0].error).toContain('timed out after 30ms');
+  });
 });

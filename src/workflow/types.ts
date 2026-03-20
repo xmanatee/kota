@@ -141,6 +141,7 @@ export type WorkflowDefinitionInput = {
   name: string;
   description?: string;
   enabled?: boolean;
+  runTimeoutMs?: number;
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -197,6 +198,7 @@ export type WorkflowDefinition = {
   name: string;
   description?: string;
   enabled: boolean;
+  runTimeoutMs?: number;
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];
