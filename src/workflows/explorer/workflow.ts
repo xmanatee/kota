@@ -6,6 +6,7 @@ import {
   READY_TASK_TARGET,
   stepSucceeded,
 } from "../shared.js";
+import { gatherExplorerContext } from "./gather-context.js";
 
 const STRATEGIC_REFRESH_MS = 2 * 60 * 60 * 1000;
 
@@ -66,6 +67,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           readRuntimeState().workflows.explorer?.lastCompletedAt,
         );
       },
+    },
+    {
+      id: "gather-context",
+      type: "code",
+      run: (ctx) => gatherExplorerContext(ctx),
     },
     {
       id: "explore",
