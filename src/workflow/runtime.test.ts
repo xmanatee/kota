@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { ABORT_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
+import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";
 
 vi.mock("../agent-sdk/index.js", async () => {
@@ -926,6 +926,72 @@ describe("WorkflowRuntime", () => {
       readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
     );
     expect(metadata.status).toBe("interrupted");
+  });
+
+  it("does not dispatch new runs when pause signal file exists", async () => {
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    // Write pause signal before starting
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toHaveLength(0);
+  });
+
+  it("resumes dispatch when pause signal file is removed", async () => {
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    // Write pause signal before starting
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    const pausePath = join(projectDir, ".kota", PAUSE_SIGNAL_FILE);
+    writeFileSync(pausePath, "");
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 20,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(40); // paused — no runs start
+
+    rmSync(pausePath);
+    await wait(80); // idle timer fires, dispatch resumes
+    await runtime.stop();
+
+    expect(started).toContain("builder");
   });
 
   it("aborts the run when runTimeoutMs is exceeded", async () => {

@@ -25,6 +25,7 @@ import {
 } from "./validation.js";
 
 export const ABORT_SIGNAL_FILE = "abort-request";
+export const PAUSE_SIGNAL_FILE = "dispatch-paused";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;
 
@@ -238,6 +239,7 @@ export class WorkflowRuntime {
 
   private emitIdleEvent(): void {
     this.checkAbortSignal();
+    this.maybeStartNext(); // pick up queued items that were held by pause
     if (this.stopping || this.activeRunPromise || this.queue.length > 0) return;
     this.runtimeConfig.bus.emit("runtime.idle", {
       timestamp: new Date().toISOString(),
@@ -338,6 +340,7 @@ export class WorkflowRuntime {
 
   private maybeStartNext(): void {
     if (this.stopping || this.activeRunPromise || this.dispatchPaused) return;
+    if (existsSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
 
     const budget = this.config?.dailyBudgetUsd;
     if (budget != null) {

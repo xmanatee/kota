@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { loadConfig } from "./config.js";
@@ -6,7 +6,7 @@ import { readOptionalJsonFile } from "./json-file.js";
 import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
 import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
-import { ABORT_SIGNAL_FILE } from "./workflow/runtime.js";
+import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE } from "./workflow/runtime.js";
 import type { WorkflowRunMetadata } from "./workflow/types.js";
 import { validateWorkflowDefinitions } from "./workflow/validation.js";
 import type { HistoryStats } from "./workflow-history.js";
@@ -415,11 +415,44 @@ export function registerWorkflowCommands(program: Command): void {
     });
 
   wfCmd
+    .command("pause")
+    .description("Pause dispatching new workflow runs (current run completes normally)")
+    .action(() => {
+      const store = new WorkflowRunStore();
+      const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
+      if (existsSync(pausePath)) {
+        console.log("Dispatch is already paused.");
+        return;
+      }
+      writeFileSync(pausePath, "");
+      console.log("Dispatch paused. Run `kota workflow resume` to re-enable.");
+    });
+
+  wfCmd
+    .command("resume")
+    .description("Resume dispatching new workflow runs")
+    .action(() => {
+      const store = new WorkflowRunStore();
+      const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
+      if (!existsSync(pausePath)) {
+        console.log("Dispatch is not paused.");
+        return;
+      }
+      rmSync(pausePath);
+      console.log("Dispatch resumed.");
+    });
+
+  wfCmd
     .command("status")
     .description("Show active run, queue, and per-workflow last-run info")
     .action(() => {
       const store = new WorkflowRunStore();
       const state = store.readState();
+
+      const paused = existsSync(join(store.rootDir, PAUSE_SIGNAL_FILE));
+      if (paused) {
+        console.log("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
+      }
 
       if (state.activeRunId) {
         const abortPending = existsSync(join(store.rootDir, ABORT_SIGNAL_FILE));
