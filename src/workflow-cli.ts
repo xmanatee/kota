@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
+import { loadConfig } from "./config.js";
 import { readOptionalJsonFile } from "./json-file.js";
 import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
 import { getEligibleAtMs } from "./workflow/run-executor.js";
@@ -367,10 +368,20 @@ export function registerWorkflowCommands(program: Command): void {
         }
       }
 
+      const config = loadConfig();
+      const dailySpend = store.getDailySpendUsd();
+      const dailyBudget = config.dailyBudgetUsd;
+
       console.log();
       console.log(`Total completed runs: ${state.completedRuns}`);
       if (state.totalCostUsd != null) {
         console.log(`Total cost:           $${state.totalCostUsd.toFixed(4)}`);
+      }
+      if (dailyBudget != null) {
+        const budgetStatus = dailySpend >= dailyBudget ? " ⚠ budget reached" : "";
+        console.log(`Today's spend:        $${dailySpend.toFixed(4)} / $${dailyBudget.toFixed(4)}${budgetStatus}`);
+      } else if (dailySpend > 0) {
+        console.log(`Today's spend:        $${dailySpend.toFixed(4)}`);
       }
     });
 }

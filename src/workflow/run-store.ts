@@ -200,6 +200,24 @@ export class WorkflowRunStore {
     return toDelete;
   }
 
+  getDailySpendUsd(): number {
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    let dirs: string[];
+    try {
+      dirs = readdirSync(this.runsDir);
+    } catch {
+      return 0;
+    }
+    let total = 0;
+    for (const dir of dirs) {
+      const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
+      if (meta?.completedAt && typeof meta.totalCostUsd === "number") {
+        if (meta.completedAt.slice(0, 10) === todayUtc) total += meta.totalCostUsd;
+      }
+    }
+    return total;
+  }
+
   createRun(
     workflow: WorkflowDefinition,
     trigger: WorkflowRunTrigger,

@@ -1,5 +1,6 @@
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope, EventBus } from "../event-bus.js";
+import { callTelegramApi } from "../telegram-client.js";
 import { getNextCronTime } from "./cron.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import {
@@ -52,6 +53,7 @@ export class WorkflowRuntime {
   private activeAbortController: AbortController | null = null;
   private activeRunPromise: Promise<void> | null = null;
   private dispatchPaused = false;
+  private budgetPausedDate: string | null = null;
   private stopping = false;
   private scheduleTimers: Map<
     string,
@@ -318,6 +320,21 @@ export class WorkflowRuntime {
   private maybeStartNext(): void {
     if (this.stopping || this.activeRunPromise || this.dispatchPaused) return;
 
+    const budget = this.config?.dailyBudgetUsd;
+    if (budget != null) {
+      const todayUtc = new Date().toISOString().slice(0, 10);
+      if (this.budgetPausedDate) {
+        if (this.budgetPausedDate === todayUtc) return;
+        this.budgetPausedDate = null;
+      }
+      const dailySpend = this.store.getDailySpendUsd();
+      if (dailySpend >= budget) {
+        this.budgetPausedDate = todayUtc;
+        this.sendBudgetAlert(dailySpend, budget);
+        return;
+      }
+    }
+
     const queued = this.pickQueuedRun();
     if (!queued) return;
 
@@ -368,6 +385,24 @@ export class WorkflowRuntime {
     this.activeAbortController = abortController;
     this.activeRunPromise = promise;
     await promise;
+  }
+
+  private sendBudgetAlert(dailySpend: number, budget: number): void {
+    this.log(`Daily budget of $${budget.toFixed(4)} reached ($${dailySpend.toFixed(4)} spent). Dispatch paused until tomorrow (UTC).`);
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    if (!token || !chatId) return;
+    const text = [
+      "Daily cost budget reached.",
+      `Spent: $${dailySpend.toFixed(4)}`,
+      `Budget: $${budget.toFixed(4)}`,
+      "Workflow dispatch paused until tomorrow (UTC).",
+    ].join("\n");
+    void callTelegramApi(token, "sendMessage", { chat_id: chatId, text }).catch(
+      (err: unknown) => {
+        this.log(`Failed to send budget alert: ${(err as Error).message}`);
+      },
+    );
   }
 
   private log(message: string): void {

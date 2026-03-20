@@ -1,0 +1,327 @@
+import {
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { executeWithAgentSDK } from "../agent-sdk/index.js";
+import { EventBus } from "../event-bus.js";
+import { callTelegramApi } from "../telegram-client.js";
+import { WorkflowRunStore } from "./run-store.js";
+import { WorkflowRuntime } from "./runtime.js";
+import { registerWorkflowDefinition } from "./validation.js";
+
+vi.mock("../agent-sdk/index.js", async () => {
+  const actual = await vi.importActual("../agent-sdk/index.js");
+  return { ...actual, executeWithAgentSDK: vi.fn() };
+});
+
+vi.mock("../telegram-client.js", () => ({
+  callTelegramApi: vi.fn(),
+}));
+
+const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
+const mockedCallTelegramApi = vi.mocked(callTelegramApi);
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function writeRunMetadata(
+  runsDir: string,
+  id: string,
+  totalCostUsd: number,
+  completedAt: string,
+): void {
+  const dir = join(runsDir, id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "metadata.json"),
+    JSON.stringify({
+      id,
+      workflow: "builder",
+      definitionPath: "test/builder.ts",
+      trigger: { event: "runtime.idle", payload: {} },
+      startedAt: completedAt,
+      completedAt,
+      status: "success",
+      durationMs: 1000,
+      runDir: `.kota/runs/${id}`,
+      steps: [],
+      totalCostUsd,
+    }),
+    "utf-8",
+  );
+}
+
+describe("WorkflowRunStore.getDailySpendUsd", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-budget-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("returns 0 when no runs exist", () => {
+    const store = new WorkflowRunStore(projectDir);
+    expect(store.getDailySpendUsd()).toBe(0);
+  });
+
+  it("sums costs of today's completed runs", () => {
+    const store = new WorkflowRunStore(projectDir);
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    writeRunMetadata(store.runsDir, "run-1", 0.25, `${todayUtc}T10:00:00.000Z`);
+    writeRunMetadata(store.runsDir, "run-2", 0.10, `${todayUtc}T11:00:00.000Z`);
+    expect(store.getDailySpendUsd()).toBeCloseTo(0.35);
+  });
+
+  it("excludes runs from a previous day", () => {
+    const store = new WorkflowRunStore(projectDir);
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    writeRunMetadata(store.runsDir, "run-today", 0.50, `${todayUtc}T08:00:00.000Z`);
+    writeRunMetadata(store.runsDir, "run-yesterday", 1.00, "2020-01-01T10:00:00.000Z");
+    expect(store.getDailySpendUsd()).toBeCloseTo(0.50);
+  });
+
+  it("excludes runs missing totalCostUsd", () => {
+    const store = new WorkflowRunStore(projectDir);
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const dir = join(store.runsDir, "run-no-cost");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "metadata.json"),
+      JSON.stringify({
+        id: "run-no-cost",
+        workflow: "builder",
+        definitionPath: "test/builder.ts",
+        trigger: { event: "runtime.idle", payload: {} },
+        startedAt: `${todayUtc}T09:00:00.000Z`,
+        completedAt: `${todayUtc}T09:01:00.000Z`,
+        status: "success",
+        durationMs: 1000,
+        runDir: ".kota/runs/run-no-cost",
+        steps: [],
+      }),
+      "utf-8",
+    );
+    expect(store.getDailySpendUsd()).toBe(0);
+  });
+});
+
+describe("WorkflowRuntime budget enforcement", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-budget-rt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    mockedExecuteWithAgentSDK.mockReset();
+    mockedCallTelegramApi.mockReset();
+    mockedCallTelegramApi.mockResolvedValue({ ok: true, result: {} } as never);
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "test-chat";
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_ALERT_CHAT_ID;
+  });
+
+  it("pauses dispatch and sends Telegram alert when daily budget is reached", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build something useful.\n",
+    );
+
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      sessionId: "sess-1",
+      turns: 1,
+      totalCostUsd: 0.5,
+      subtype: "success",
+      isError: false,
+    });
+
+    // Pre-seed spend: 1.0 already spent today (matches the budget exactly)
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    writeRunMetadata(store.runsDir, "prior-run", 1.0, `${todayUtc}T06:00:00.000Z`);
+
+    const logs: string[] = [];
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 10,
+      onLog: (msg) => logs.push(msg),
+      config: { dailyBudgetUsd: 1.0 },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    // Already at 1.0 vs budget 1.0 — dispatch should be paused before first run
+    const runsDir = join(projectDir, ".kota", "runs");
+    const runIds = readdirSync(runsDir).filter((d) => d !== "prior-run");
+    expect(runIds).toHaveLength(0);
+
+    expect(logs.some((l) => l.includes("budget"))).toBe(true);
+    await wait(20);
+    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
+      "test-token",
+      "sendMessage",
+      expect.objectContaining({ chat_id: "test-chat" }),
+    );
+    const callBody = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    expect(callBody.text).toContain("budget");
+    expect(callBody.text).toContain("1.0000");
+  });
+
+  it("does not pause dispatch when spend is below budget", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build something useful.\n",
+    );
+
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0.1,
+      subtype: "success",
+      isError: false,
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 10,
+      config: { dailyBudgetUsd: 5.0 },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets budget pause automatically on UTC day rollover", async () => {
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+
+    const started: string[] = [];
+    const bus = new EventBus();
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      config: { dailyBudgetUsd: 1.0 },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+
+    // Manually inject a past-day budget pause to simulate yesterday's budget being hit
+    runtime["budgetPausedDate"] = "2020-01-01";
+
+    // Today's spend is 0, so budget check passes; the stale budgetPausedDate is cleared
+    await wait(60);
+    await runtime.stop();
+
+    expect(started.length).toBeGreaterThan(0);
+    expect(started[0]).toBe("builder");
+  });
+
+  it("behaves normally when no dailyBudgetUsd is configured", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 100.0,
+      subtype: "success",
+      isError: false,
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalled();
+    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+  });
+});

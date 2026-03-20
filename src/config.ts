@@ -55,6 +55,9 @@ export type KotaConfig = {
 
   /** TTL for pending approval items in milliseconds. Default: 86400000 (24 hours). */
   approvalTtlMs?: number;
+
+  /** Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded. */
+  dailyBudgetUsd?: number;
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -141,6 +144,7 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
   }
 
   if (typeof raw.approvalTtlMs === "number" && raw.approvalTtlMs > 0) out.approvalTtlMs = raw.approvalTtlMs;
+  if (typeof raw.dailyBudgetUsd === "number" && raw.dailyBudgetUsd > 0) out.dailyBudgetUsd = raw.dailyBudgetUsd;
 
   if (typeof raw.modelTiers === "object" && raw.modelTiers !== null && !Array.isArray(raw.modelTiers)) {
     const tiers: ModelTiers = {};
