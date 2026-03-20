@@ -237,7 +237,7 @@ export function handleWorkflowRunStream(
     }
   }
 
-  poll();
   const intervalId = setInterval(poll, 500);
+  poll();
   res.on("close", () => clearInterval(intervalId));
 }

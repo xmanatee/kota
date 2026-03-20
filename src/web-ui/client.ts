@@ -398,7 +398,8 @@ export const WEB_UI_JS = /* js */ `
 
     fetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/stream")
       .then(function(res) {
-        if (!res.ok || cancelled) return;
+        if (!res.ok) { showRunDetail(runId); return; }
+        if (cancelled) return;
         reader = res.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
