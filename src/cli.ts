@@ -3,6 +3,7 @@ import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
 } from "./agent-sdk/index.js";
+import { registerApprovalCommands } from "./approval-cli.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -163,6 +164,7 @@ program
 
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
+registerApprovalCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

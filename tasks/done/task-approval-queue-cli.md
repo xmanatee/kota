@@ -1,12 +1,12 @@
 ---
 id: task-approval-queue-cli
 title: Add kota approval CLI commands for operator queue management
-status: ready
+status: done
 priority: p2
 area: cli
 summary: The approval queue routes dangerous tool calls for human review, but there is no CLI for operators to list, approve, or reject pending items. Add `kota approval list/approve/reject` so operators can act on the queue from the terminal.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-20T02:47:00Z
 ---
 
 ## Problem
