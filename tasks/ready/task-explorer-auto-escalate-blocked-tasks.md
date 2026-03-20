@@ -1,7 +1,7 @@
 ---
 id: task-explorer-auto-escalate-blocked-tasks
 title: Explorer auto-escalates repeatedly-attempted ready tasks to blocked
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: When the builder repeatedly attempts the same task without committing progress, the explorer should detect this pattern and move the task to blocked with a note, preventing future builder cycles from wasting cost on it.
