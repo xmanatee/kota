@@ -121,6 +121,15 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
+  setWorkflowNextScheduledAt(name: string, nextScheduledAt: string): void {
+    const state = this.readState();
+    state.workflows[name] = {
+      ...state.workflows[name],
+      nextScheduledAt,
+    };
+    this.writeState(state);
+  }
+
   createRun(
     workflow: WorkflowDefinition,
     trigger: WorkflowRunTrigger,

@@ -17,15 +17,23 @@ export type WorkflowFilterValue =
   | readonly WorkflowFilterScalar[];
 
 export type WorkflowTriggerInput = {
-  event: keyof BusEvents | string;
+  event?: keyof BusEvents | string;
   filter?: Record<string, WorkflowFilterValue>;
   cooldownMs?: number;
+  /** Standard 5-field cron expression (MIN HOUR DOM MONTH DOW). */
+  schedule?: string;
+  /** Interval in milliseconds. Fires immediately on first run, then every N ms. */
+  intervalMs?: number;
 };
 
 export type WorkflowTrigger = {
   event: string;
   filter?: Record<string, WorkflowFilterValue>;
   cooldownMs: number;
+  /** Standard 5-field cron expression, if this is a schedule trigger. */
+  schedule?: string;
+  /** Interval in milliseconds, if this is an interval trigger. */
+  intervalMs?: number;
 };
 
 export type WorkflowRunTrigger = {
@@ -50,6 +58,7 @@ export type WorkflowRuntimeState = {
       lastStartedAt?: string;
       lastCompletedAt?: string;
       lastStatus?: WorkflowRunStatus;
+      nextScheduledAt?: string;
     }
   >;
 };

@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cron-triggers
 title: Support cron-based workflow triggers
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: All workflow triggers are event-based. There is no way to trigger a workflow on a time-based schedule (e.g. "every day at midnight"). Adding a cron trigger type would let workflows run on fixed schedules without relying on the idle event and its cooldown heuristics.
 created_at: 2026-03-20
-updated_at: 2026-03-20T02:19:27Z
+updated_at: 2026-03-20T02:33:00Z
 ---
 
 ## Problem

@@ -1,5 +1,6 @@
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope, EventBus } from "../event-bus.js";
+import { getNextCronTime } from "./cron.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import {
   executeWorkflowRun,
@@ -13,6 +14,7 @@ import type {
   WorkflowQueuedRun,
   WorkflowRunTrigger,
   WorkflowRuntimeState,
+  WorkflowTrigger,
 } from "./types.js";
 import {
   validateWorkflowDefinitions,
@@ -51,6 +53,10 @@ export class WorkflowRuntime {
   private activeRunPromise: Promise<void> | null = null;
   private dispatchPaused = false;
   private stopping = false;
+  private scheduleTimers: Map<
+    string,
+    { timer: ReturnType<typeof setTimeout>; nextFireMs: number }
+  > = new Map();
 
   constructor(private readonly runtimeConfig: WorkflowRuntimeConfig) {
     this.projectDir = runtimeConfig.projectDir ?? process.cwd();
@@ -83,6 +89,7 @@ export class WorkflowRuntime {
       this.handleEvent(envelope);
     });
 
+    this.setupScheduleTriggers();
     this.maybeStartNext();
 
     this.idleTimer = setInterval(() => {
@@ -104,6 +111,10 @@ export class WorkflowRuntime {
       this.stopBus();
       this.stopBus = null;
     }
+    for (const { timer } of this.scheduleTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.scheduleTimers.clear();
 
     if (!this.activeRunPromise) return;
 
@@ -144,6 +155,73 @@ export class WorkflowRuntime {
   private loadDefinitions(): WorkflowDefinition[] {
     const definitions = this.workflowInputs ?? getBuiltinWorkflowDefinitions();
     return validateWorkflowDefinitions(definitions, this.projectDir);
+  }
+
+  private setupScheduleTriggers(): void {
+    const state = this.store.readState();
+    for (const definition of this.definitions) {
+      if (!definition.enabled) continue;
+      for (let i = 0; i < definition.triggers.length; i++) {
+        const trigger = definition.triggers[i];
+        if (!trigger.schedule && trigger.intervalMs == null) continue;
+
+        const key = `${definition.name}:${i}`;
+        let nextFireMs: number;
+
+        if (trigger.intervalMs != null) {
+          const lastCompleted =
+            state.workflows[definition.name]?.lastCompletedAt;
+          if (lastCompleted) {
+            const due =
+              new Date(lastCompleted).getTime() + trigger.intervalMs;
+            nextFireMs = due > Date.now() ? due : Date.now();
+          } else {
+            nextFireMs = Date.now();
+          }
+        } else {
+          const next = getNextCronTime(trigger.schedule!, new Date());
+          if (!next) continue;
+          nextFireMs = next.getTime();
+        }
+
+        this.scheduleNextFire(key, definition, trigger, nextFireMs);
+      }
+    }
+  }
+
+  private scheduleNextFire(
+    key: string,
+    definition: WorkflowDefinition,
+    trigger: WorkflowTrigger,
+    nextFireMs: number,
+  ): void {
+    const delay = Math.max(0, nextFireMs - Date.now());
+    const timer = setTimeout(() => {
+      if (this.stopping) return;
+      const now = Date.now();
+      this.enqueueRun(definition, trigger, {
+        event: "schedule",
+        payload: { scheduledAt: new Date(now).toISOString() },
+      });
+      this.maybeStartNext();
+
+      let nextMs: number;
+      if (trigger.intervalMs != null) {
+        nextMs = now + trigger.intervalMs;
+      } else {
+        const next = getNextCronTime(trigger.schedule!, new Date(now));
+        if (!next) return;
+        nextMs = next.getTime();
+      }
+      this.scheduleNextFire(key, definition, trigger, nextMs);
+    }, delay);
+    timer.unref();
+
+    this.scheduleTimers.set(key, { timer, nextFireMs });
+    this.store.setWorkflowNextScheduledAt(
+      definition.name,
+      new Date(nextFireMs).toISOString(),
+    );
   }
 
   private emitIdleEvent(): void {

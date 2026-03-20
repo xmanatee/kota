@@ -754,6 +754,125 @@ describe("WorkflowRuntime", () => {
     expect(metadata.steps[0].status).toBe("failed");
   });
 
+  it("fires interval-based schedule trigger immediately on first run", async () => {
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10_000,
+      workflows: [
+        registerWorkflowDefinition("test/daily.ts", {
+          name: "daily",
+          // 1h interval — no prior runs, so fires immediately (delay = 0)
+          triggers: [{ intervalMs: 3_600_000 }],
+          steps: [
+            {
+              id: "run",
+              type: "emit",
+              event: "daily.done",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toContain("daily");
+  });
+
+  it("persists nextScheduledAt for interval triggers in workflow state", async () => {
+    const bus = new EventBus();
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10_000,
+      workflows: [
+        registerWorkflowDefinition("test/hourly.ts", {
+          name: "hourly",
+          triggers: [{ intervalMs: 3_600_000 }],
+          steps: [
+            {
+              id: "run",
+              type: "emit",
+              event: "hourly.done",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(20);
+    await runtime.stop();
+
+    const state = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf-8"),
+    );
+    expect(state.workflows.hourly?.nextScheduledAt).toBeDefined();
+    const nextMs = new Date(state.workflows.hourly.nextScheduledAt).getTime();
+    expect(nextMs).toBeGreaterThan(Date.now());
+  });
+
+  it("fires interval trigger immediately if last run was before the interval", async () => {
+    // Pre-seed state with a lastCompletedAt 2 hours ago (interval is 1 hour)
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    writeFileSync(
+      join(projectDir, ".kota", "workflow-state.json"),
+      JSON.stringify({
+        completedRuns: 1,
+        pendingRuns: [],
+        workflows: {
+          scheduled: {
+            lastCompletedAt: twoHoursAgo,
+            lastStatus: "success",
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10_000,
+      workflows: [
+        registerWorkflowDefinition("test/scheduled.ts", {
+          name: "scheduled",
+          triggers: [{ intervalMs: 3_600_000 }],
+          steps: [
+            {
+              id: "run",
+              type: "emit",
+              event: "scheduled.done",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toContain("scheduled");
+  });
+
   it("aborts the run when runTimeoutMs is exceeded", async () => {
     writeFileSync(
       join(projectDir, "src", "workflows", "builder", "prompt.md"),

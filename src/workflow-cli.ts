@@ -315,18 +315,29 @@ export function registerWorkflowCommands(program: Command): void {
         console.log();
         console.log("Per-workflow last run:");
         const nameWidth = Math.max(...wfNames.map((n) => n.length), 10);
-        console.log(
-          `  ${"Workflow".padEnd(nameWidth)} ${"Status".padEnd(12)} ${"Completed".padEnd(22)} Last Run ID`,
-        );
-        console.log(`  ${"-".repeat(nameWidth + 12 + 22 + 42 + 4)}`);
+        const hasScheduled = wfNames.some((n) => state.workflows[n].nextScheduledAt);
+        const schedWidth = 22;
+        const header = hasScheduled
+          ? `  ${"Workflow".padEnd(nameWidth)} ${"Status".padEnd(12)} ${"Completed".padEnd(22)} ${"Next Run".padEnd(schedWidth)} Last Run ID`
+          : `  ${"Workflow".padEnd(nameWidth)} ${"Status".padEnd(12)} ${"Completed".padEnd(22)} Last Run ID`;
+        const sepLen = nameWidth + 12 + 22 + (hasScheduled ? schedWidth + 1 : 0) + 42 + 4;
+        console.log(header);
+        console.log(`  ${"-".repeat(sepLen)}`);
         for (const name of wfNames) {
           const wf = state.workflows[name];
           const st = wf.lastStatus ? `${statusIcon(wf.lastStatus)} ${wf.lastStatus}` : "(none)";
           const completed = wf.lastCompletedAt ? formatDate(wf.lastCompletedAt) : "(none)";
           const runId = wf.lastRunId || "(none)";
-          console.log(
-            `  ${name.padEnd(nameWidth)} ${st.padEnd(12)} ${completed.padEnd(22)} ${runId}`,
-          );
+          if (hasScheduled) {
+            const nextRun = wf.nextScheduledAt ? formatDate(wf.nextScheduledAt) : "(none)";
+            console.log(
+              `  ${name.padEnd(nameWidth)} ${st.padEnd(12)} ${completed.padEnd(22)} ${nextRun.padEnd(schedWidth)} ${runId}`,
+            );
+          } else {
+            console.log(
+              `  ${name.padEnd(nameWidth)} ${st.padEnd(12)} ${completed.padEnd(22)} ${runId}`,
+            );
+          }
         }
       }
 
