@@ -1,7 +1,7 @@
 ---
 id: task-workflow-concurrent-runs
 title: Allow different workflows to run concurrently
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The runtime serializes all workflow runs globally. Allowing two different workflows (e.g., explorer and improver) to run simultaneously would cut the idle time between cycles and improve overall throughput.

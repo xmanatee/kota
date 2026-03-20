@@ -1,7 +1,7 @@
 ---
 id: task-kota-task-cli
 title: Add kota task subcommand for queue inspection and management
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: The task queue is managed entirely through file operations today. A kota task subcommand would let human operators inspect queue state, move tasks between states, and add inbox items without manually editing markdown files.
