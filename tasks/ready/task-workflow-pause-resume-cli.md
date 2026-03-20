@@ -21,9 +21,9 @@ updated_at: 2026-03-20
 
 ## Constraints
 
-- Pause/resume state should survive daemon restarts (store in daemon state or `.kota/` state file)
-- Use the existing event bus or daemon IPC mechanism rather than inventing a new channel
-- Do not expose or change `setDispatchPaused` directly; the CLI signal should go through the daemon's public interface
+- Pause/resume state should survive daemon restarts; persist a `dispatchPaused` field in `DaemonState` (see `src/scheduler/daemon-state.ts`) and write it to `daemon-state.json` on change
+- There is no out-of-process IPC. Follow the file-based pattern used by `ApprovalQueue` (`src/approval-queue.ts`): the CLI writes a signal file to `.kota/`, the daemon polls or reads it on each dispatch cycle
+- Do not expose or change `setDispatchPaused` directly; the CLI signal should flow through the daemon's state file so it works regardless of whether the daemon is running
 
 ## Done When
 
