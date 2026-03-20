@@ -52,6 +52,9 @@ export type KotaConfig = {
 
   /** Model tier mapping for adaptive routing. Keys: fast, balanced, capable. */
   modelTiers?: ModelTiers;
+
+  /** TTL for pending approval items in milliseconds. Default: 86400000 (24 hours). */
+  approvalTtlMs?: number;
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -136,6 +139,8 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (typeof src.apiKey === "string" && src.apiKey) mp.apiKey = src.apiKey;
     if (mp.type || mp.baseUrl) out.modelProvider = mp;
   }
+
+  if (typeof raw.approvalTtlMs === "number" && raw.approvalTtlMs > 0) out.approvalTtlMs = raw.approvalTtlMs;
 
   if (typeof raw.modelTiers === "object" && raw.modelTiers !== null && !Array.isArray(raw.modelTiers)) {
     const tiers: ModelTiers = {};

@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { tryEmit } from "./event-bus.js";
 import type { RiskLevel } from "./guardrails.js";
 
-export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 
 export type PendingApproval = {
 	id: string;
@@ -89,6 +89,22 @@ export class ApprovalQueue {
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "" });
 		return item;
+	}
+
+	expireStale(ttlMs: number): PendingApproval[] {
+		const cutoff = new Date(Date.now() - ttlMs).toISOString();
+		const expired: PendingApproval[] = [];
+		for (const item of this.list("pending")) {
+			if (item.createdAt < cutoff) {
+				item.status = "expired";
+				item.resolvedAt = new Date().toISOString();
+				item.rejectionReason = "expired";
+				writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
+				tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: false, reason: "expired" });
+				expired.push(item);
+			}
+		}
+		return expired;
 	}
 
 	count(status?: ApprovalStatus): number {

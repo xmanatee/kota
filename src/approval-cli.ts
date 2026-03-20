@@ -1,6 +1,19 @@
 import type { Command } from "commander";
 import { getApprovalQueue } from "./approval-queue.js";
+import { loadConfig } from "./config.js";
 import { executeTool } from "./tools/index.js";
+
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+
+function formatAge(createdAt: string): string {
+  const ageMs = Date.now() - new Date(createdAt).getTime();
+  const minutes = Math.floor(ageMs / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(ageMs / 3_600_000);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(ageMs / 86_400_000);
+  return `${days}d ago`;
+}
 
 export function registerApprovalCommands(program: Command): void {
   const approvalCmd = program
@@ -11,7 +24,10 @@ export function registerApprovalCommands(program: Command): void {
     .command("list")
     .description("List all pending approval items")
     .action(() => {
+      const config = loadConfig();
+      const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
       const queue = getApprovalQueue();
+      queue.expireStale(ttlMs);
       const items = queue.list("pending");
       if (items.length === 0) {
         console.log("No pending approvals.");
@@ -20,7 +36,7 @@ export function registerApprovalCommands(program: Command): void {
       console.log(`${items.length} pending approval(s):\n`);
       for (const item of items) {
         const inputSummary = JSON.stringify(item.input).slice(0, 80);
-        console.log(`  [${item.id}] ${item.tool}`);
+        console.log(`  [${item.id}] ${item.tool}  (${formatAge(item.createdAt)})`);
         console.log(`    Input:  ${inputSummary}`);
         console.log(`    Risk:   ${item.risk}`);
         console.log(`    Reason: ${item.reason}`);

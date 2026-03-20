@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -111,6 +111,58 @@ describe("ApprovalQueue", () => {
 	it("stores source in enqueued item", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", "session-123");
 		expect(item.source).toBe("session-123");
+	});
+
+	describe("expireStale", () => {
+		function backdate(id: string, ageMs: number): void {
+			const stored = queue.get(id)!;
+			stored.createdAt = new Date(Date.now() - ageMs).toISOString();
+			writeFileSync(join(dir, `${id}.json`), JSON.stringify(stored, null, 2));
+		}
+
+		it("expires pending items older than ttl", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			backdate(item.id, 2000);
+
+			const expired = queue.expireStale(1000);
+			expect(expired).toHaveLength(1);
+			expect(expired[0].status).toBe("expired");
+			expect(expired[0].rejectionReason).toBe("expired");
+			expect(expired[0].resolvedAt).toBeDefined();
+		});
+
+		it("does not expire items within ttl", () => {
+			queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			const expired = queue.expireStale(60_000);
+			expect(expired).toHaveLength(0);
+		});
+
+		it("does not expire already-resolved items", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			queue.reject(item.id);
+			backdate(item.id, 2000);
+
+			const expired = queue.expireStale(1000);
+			expect(expired).toHaveLength(0);
+			expect(queue.get(item.id)!.status).toBe("rejected");
+		});
+
+		it("expired items persist in queue with expired status", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			backdate(item.id, 2000);
+
+			queue.expireStale(1000);
+			expect(queue.get(item.id)!.status).toBe("expired");
+		});
+
+		it("expired items are excluded from pending list", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			backdate(item.id, 2000);
+
+			queue.expireStale(1000);
+			expect(queue.list("pending")).toHaveLength(0);
+			expect(queue.list("expired")).toHaveLength(1);
+		});
 	});
 });
 

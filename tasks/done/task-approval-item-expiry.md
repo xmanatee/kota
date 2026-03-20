@@ -1,7 +1,7 @@
 ---
 id: task-approval-item-expiry
 title: Auto-expire stale pending approval items
-status: ready
+status: done
 priority: p2
 area: approval
 summary: Pending approval items in the queue have no expiry. A tool call queued days ago could be inadvertently approved long after context is lost. Add configurable expiry so old pending items are auto-rejected with a clear reason.
