@@ -1,7 +1,7 @@
 ---
 id: task-builder-task-outcome-step
 title: Add post-build outcome step to verify task completion
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: After the builder's build agent step finishes, there is no explicit check that the claimed task was actually moved to done/. Adding a code step that verifies the task file state and emits an outcome record would close the feedback loop and improve recovery visibility.

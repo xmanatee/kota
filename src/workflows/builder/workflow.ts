@@ -7,6 +7,7 @@ import {
   BUILTIN_WORKFLOW_MODEL,
   createVerificationAndRestartSteps,
 } from "../shared.js";
+import { checkTaskOutcome } from "./check-task-outcome.js";
 import { claimTask, isClaimTaskResult } from "./claim-task.js";
 import { gatherBuilderContext } from "./gather-context.js";
 import {
@@ -75,6 +76,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
       settingSources: ["project"],
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
+    },
+    {
+      id: "check-task-outcome",
+      type: "code",
+      continueOnFailure: true,
+      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
+      run: ({ projectDir, stepOutputs }) => {
+        const claim = stepOutputs["claim-task"] as { chosenTaskId: string };
+        return checkTaskOutcome(projectDir, claim.chosenTaskId);
+      },
     },
     ...createVerificationAndRestartSteps(
       "builder workflow finished verification build",
