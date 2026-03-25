@@ -1,12 +1,12 @@
 ---
 id: task-builder-task-outcome-step
 title: Add post-build outcome step to verify task completion
-status: backlog
+status: ready
 priority: p3
 area: workflow
 summary: After the builder's build agent step finishes, there is no explicit check that the claimed task was actually moved to done/. Adding a code step that verifies the task file state and emits an outcome record would close the feedback loop and improve recovery visibility.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-25
 ---
 
 ## Problem
@@ -23,7 +23,7 @@ The builder claims a task via `claim-task` (which moves it to `doing/`), then ru
 
 ## Constraints
 
-- Depends on `continueOnFailure` being implemented (task-workflow-step-failure-strategy) so this step runs even when build fails.
+- `continueOnFailure` is now implemented (hardened in d192277). This step depends on that capability.
 - Do not duplicate the recovery logic from the improver's `recover-doing-tasks`; this step only observes and reports, it does not move files.
 - Keep the step lightweight — file existence checks only, no heavy I/O.
 
