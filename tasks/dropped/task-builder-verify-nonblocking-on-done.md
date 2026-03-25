@@ -1,7 +1,7 @@
 ---
 id: task-builder-verify-nonblocking-on-done
 title: Treat verify failures as warnings when builder task is already done
-status: backlog
+status: dropped
 priority: p2
 area: workflow
 summary: When the builder completes a task (task moves to done/) but a post-build verify step fails due to a flaky or unrelated test, the run is marked failed even though the work was delivered. The check-task-outcome result should be used to make verify failures non-blocking when the task is already resolved.
