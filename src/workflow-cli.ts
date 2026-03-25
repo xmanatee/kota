@@ -169,7 +169,11 @@ export function registerWorkflowCommands(program: Command): void {
           const dur = formatDuration(step.durationMs);
           const icon = step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
           const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : "";
-          console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${suffix}`);
+          const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
+          const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
+            ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
+            : "";
+          console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${cost}${suffix}`);
           if (step.error) {
             console.log(`      Error: ${step.error}`);
           }

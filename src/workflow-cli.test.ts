@@ -269,3 +269,77 @@ describe("WorkflowRunStore cost aggregation", () => {
     expect(updated.totalCostUsd).toBeCloseTo(0.05);
   });
 });
+
+// ---------------------------------------------------------------------------
+// workflow show: per-step cost display
+// ---------------------------------------------------------------------------
+
+describe("workflow show step cost display", () => {
+  it("appends cost to agent steps with totalCostUsd in output", () => {
+    const step = {
+      id: "build",
+      type: "agent" as const,
+      status: "success" as const,
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: 5000,
+      output: { content: "done", totalCostUsd: 1.791 },
+    };
+    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
+    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
+      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
+      : "";
+    expect(cost).toBe(" $1.791");
+  });
+
+  it("omits cost for non-agent steps", () => {
+    const step: WorkflowStepResult = {
+      id: "code-step",
+      type: "code",
+      status: "success",
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: 100,
+      output: { totalCostUsd: 99 },
+    };
+    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
+    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
+      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
+      : "";
+    expect(cost).toBe("");
+  });
+
+  it("omits cost for agent steps without totalCostUsd", () => {
+    const step = {
+      id: "build",
+      type: "agent" as const,
+      status: "success" as const,
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: 5000,
+      output: { content: "done" },
+    };
+    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
+    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
+      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
+      : "";
+    expect(cost).toBe("");
+  });
+
+  it("omits cost for agent steps with null output", () => {
+    const step = {
+      id: "build",
+      type: "agent" as const,
+      status: "success" as const,
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: 5000,
+      output: null,
+    };
+    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
+    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
+      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
+      : "";
+    expect(cost).toBe("");
+  });
+});

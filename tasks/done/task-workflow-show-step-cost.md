@@ -1,12 +1,12 @@
 ---
 id: task-workflow-show-step-cost
 title: Show per-step cost in kota workflow show
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: kota workflow show displays total run cost but not per-step cost. Agent steps already store their cost in output.totalCostUsd. Surfacing this in the step listing makes it easy to identify which steps are expensive.
 created_at: 2026-03-25
-updated_at: 2026-03-25
+updated_at: 2026-03-26
 ---
 
 ## Problem
