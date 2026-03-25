@@ -306,19 +306,26 @@ describe("HTTP Server E2E", () => {
     it("rejects second request while session is busy", async () => {
       const sid = await createSession();
 
+      let signalInFlight!: () => void;
+      const inFlight = new Promise<void>((res) => { signalInFlight = res; });
+      let resolveFirst!: () => void;
+      const firstDone = new Promise<void>((res) => { resolveFirst = res; });
+
       mockSendFn = async (msg, transport) => {
         transport?.emit({ type: "text", content: msg });
-        await new Promise((r) => setTimeout(r, 200));
+        signalInFlight();
+        await firstDone;
         return msg;
       };
 
       const firstPromise = httpReq({ method: "POST", path: "/api/chat", body: { session_id: sid, message: "first" } });
-      await new Promise((r) => setTimeout(r, 50));
+      await inFlight; // wait until first request is inside the handler (session.busy is true)
 
       const second = await httpReq({ method: "POST", path: "/api/chat", body: { session_id: sid, message: "second" } });
       expect(second.status).toBe(409);
       expect(JSON.parse(second.body).error).toContain("busy");
 
+      resolveFirst();
       await firstPromise;
     });
 
