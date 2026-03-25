@@ -13,8 +13,11 @@ import {
 import { WorkflowRunStore } from "./run-store.js";
 import type {
   RegisteredWorkflowDefinitionInput,
+  WorkflowAgentBackoffSignal,
+  WorkflowAgentBackoffState,
   WorkflowDefinition,
   WorkflowQueuedRun,
+  WorkflowRunExecutionResult,
   WorkflowRunTrigger,
   WorkflowRuntimeState,
   WorkflowTrigger,
@@ -29,6 +32,15 @@ export const PAUSE_SIGNAL_FILE = "dispatch-paused";
 export const RELOAD_SIGNAL_FILE = "definitions-reload-request";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;
+const MAX_AGENT_BACKOFF_MS = 6 * 60 * 60 * 1000;
+const AGENT_BACKOFF_FACTORS: Record<
+  WorkflowAgentBackoffState["kind"],
+  { initialDelayMs: number; backoffFactor: number }
+> = {
+  rate_limit: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
+  auth: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
+  provider: { initialDelayMs: 5 * 60 * 1000, backoffFactor: 2 },
+};
 
 export type WorkflowRuntimeConfig = {
   bus: EventBus;
@@ -70,7 +82,7 @@ export class WorkflowRuntime {
    */
   private activeRuns: Map<
     string,
-    { promise: Promise<void>; abortController: AbortController }
+    { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController }
   > = new Map();
   private dispatchPaused = false;
   private budgetPausedDate: string | null = null;
@@ -113,6 +125,12 @@ export class WorkflowRuntime {
 
     this.definitions = this.loadDefinitions();
     this.restorePendingQueue();
+    const activeAgentBackoff = this.getActiveAgentBackoff();
+    if (activeAgentBackoff) {
+      this.log(
+        `Agent dispatch backoff active until ${new Date(activeAgentBackoff.until).toLocaleString()} (${activeAgentBackoff.kind})`,
+      );
+    }
 
     this.stopBus = this.runtimeConfig.bus.on("*", (envelope) => {
       this.handleEvent(envelope);
@@ -186,6 +204,76 @@ export class WorkflowRuntime {
       ...state,
       queueLength: this.queue.length,
     };
+  }
+
+  private workflowUsesAgent(definition: WorkflowDefinition): boolean {
+    return definition.steps.some((step) => step.type === "agent");
+  }
+
+  private getActiveAgentBackoff(): WorkflowAgentBackoffState | null {
+    const state = this.store.readState();
+    const backoff = state.agentBackoff;
+    if (!backoff) return null;
+
+    const untilMs = new Date(backoff.until).getTime();
+    if (untilMs > Date.now()) return backoff;
+
+    this.store.setAgentBackoff(null);
+    this.log(`Agent dispatch backoff expired (${backoff.kind})`);
+    return null;
+  }
+
+  private dropQueuedAgentWorkflows(): number {
+    const nextQueue = this.queue.filter((item) => {
+      const definition = this.definitions.find((candidate) => candidate.name === item.workflowName);
+      return !definition || !this.workflowUsesAgent(definition);
+    });
+    const removed = this.queue.length - nextQueue.length;
+    if (removed > 0) {
+      this.queue = nextQueue;
+      this.persistQueue();
+    }
+    return removed;
+  }
+
+  private applyAgentBackoff(signal: WorkflowAgentBackoffSignal): void {
+    const current = this.getActiveAgentBackoff();
+    const policy = AGENT_BACKOFF_FACTORS[signal.kind];
+    const nextFailureCount =
+      current && current.kind === signal.kind ? current.failureCount + 1 : 1;
+    const delayMs = Math.min(
+      MAX_AGENT_BACKOFF_MS,
+      Math.round(policy.initialDelayMs * policy.backoffFactor ** (nextFailureCount - 1)),
+    );
+    const backoff: WorkflowAgentBackoffState = {
+      kind: signal.kind,
+      failureCount: nextFailureCount,
+      until: new Date(Date.now() + delayMs).toISOString(),
+      updatedAt: new Date().toISOString(),
+      reason: signal.reason,
+    };
+    this.store.setAgentBackoff(backoff);
+    const dropped = this.dropQueuedAgentWorkflows();
+    this.log(
+      `Agent dispatch backed off until ${new Date(backoff.until).toLocaleString()} (${backoff.kind}, attempt ${backoff.failureCount})`,
+    );
+    if (dropped > 0) {
+      this.log(`Dropped ${dropped} queued agent workflow run(s) during backoff`);
+    }
+  }
+
+  private clearAgentBackoff(): void {
+    const backoff = this.getActiveAgentBackoff();
+    if (!backoff) return;
+    this.store.setAgentBackoff(null);
+    this.log(`Cleared agent dispatch backoff after successful agent run (${backoff.kind})`);
+  }
+
+  private shouldSuppressAgentWorkflow(
+    definition: WorkflowDefinition,
+  ): WorkflowAgentBackoffState | null {
+    if (!this.workflowUsesAgent(definition)) return null;
+    return this.getActiveAgentBackoff();
   }
 
   private loadDefinitions(): WorkflowDefinition[] {
@@ -378,12 +466,18 @@ export class WorkflowRuntime {
 
   private restorePendingQueue(): void {
     const state = this.store.readState();
+    const activeAgentBackoff = this.getActiveAgentBackoff();
     const validNames = new Set(
       this.definitions
         .filter((definition) => definition.enabled)
         .map((definition) => definition.name),
     );
-    this.queue = state.pendingRuns.filter((item) => validNames.has(item.workflowName));
+    this.queue = state.pendingRuns.filter((item) => {
+      if (!validNames.has(item.workflowName)) return false;
+      if (!activeAgentBackoff) return true;
+      const definition = this.definitions.find((candidate) => candidate.name === item.workflowName);
+      return !definition || !this.workflowUsesAgent(definition);
+    });
     this.persistQueue();
     if (this.queue.length > 0) {
       this.log(`Recovered ${this.queue.length} queued workflow run(s)`);
@@ -399,6 +493,16 @@ export class WorkflowRuntime {
     triggerConfig: WorkflowDefinition["triggers"][number],
     trigger: WorkflowRunTrigger,
   ): void {
+    const activeAgentBackoff = this.shouldSuppressAgentWorkflow(definition);
+    if (activeAgentBackoff) {
+      if (trigger.event !== "runtime.idle") {
+        this.log(
+          `Skipped workflow "${definition.name}" from event "${trigger.event}" during agent backoff (${activeAgentBackoff.kind} until ${new Date(activeAgentBackoff.until).toLocaleTimeString()})`,
+        );
+      }
+      return;
+    }
+
     const existingIndex = this.queue.findIndex(
       (queued) => queued.workflowName === definition.name,
     );
@@ -468,11 +572,18 @@ export class WorkflowRuntime {
 
   private pickQueuedRun(): WorkflowQueuedRun | null {
     const now = Date.now();
+    const activeAgentBackoff = this.getActiveAgentBackoff();
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
       .filter(
-        ({ item }) =>
-          item.notBeforeMs <= now && !this.activeRuns.has(item.workflowName),
+        ({ item }) => {
+          if (item.notBeforeMs > now || this.activeRuns.has(item.workflowName)) {
+            return false;
+          }
+          if (!activeAgentBackoff) return true;
+          const definition = this.definitions.find((candidate) => candidate.name === item.workflowName);
+          return !definition || !this.workflowUsesAgent(definition);
+        },
       )
       .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
 
@@ -487,24 +598,33 @@ export class WorkflowRuntime {
     definition: WorkflowDefinition,
     trigger: WorkflowRunTrigger,
   ): Promise<void> {
-    const { promise, abortController } = executeWorkflowRun(
-      definition,
-      trigger,
-      {
-        projectDir: this.projectDir,
-        bus: this.runtimeConfig.bus,
-        store: this.store,
-        model: this.model,
-        config: this.config,
-        log: (message) => this.log(message),
-      },
-      () => {
-        this.activeRuns.delete(definition.name);
-        this.maybeStartNext();
-      },
-    );
+    const { promise, abortController } = executeWorkflowRun(definition, trigger, {
+      projectDir: this.projectDir,
+      bus: this.runtimeConfig.bus,
+      store: this.store,
+      model: this.model,
+      config: this.config,
+      log: (message) => this.log(message),
+    });
     this.activeRuns.set(definition.name, { promise, abortController });
-    await promise;
+
+    try {
+      const result = await promise;
+      if (result.agentBackoff) {
+        this.applyAgentBackoff(result.agentBackoff);
+        return;
+      }
+      if (
+        this.workflowUsesAgent(definition) &&
+        (result.metadata.status === "success" ||
+          result.metadata.status === "completed-with-warnings")
+      ) {
+        this.clearAgentBackoff();
+      }
+    } finally {
+      this.activeRuns.delete(definition.name);
+      this.maybeStartNext();
+    }
   }
 
   private sendBudgetAlert(dailySpend: number, budget: number): void {

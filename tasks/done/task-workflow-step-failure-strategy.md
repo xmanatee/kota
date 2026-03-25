@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-failure-strategy
 title: Add per-step failure strategy to control run abort behavior
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: Currently any step failure aborts the entire run. Adding a continueOnFailure option to step definitions lets optional steps (e.g., informational lint checks or non-critical notifications) fail without stopping the workflow, improving resilience for multi-step pipelines.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-25
 ---
 
 ## Problem

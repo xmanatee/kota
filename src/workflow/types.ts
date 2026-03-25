@@ -11,6 +11,21 @@ export type WorkflowRetryConfig = {
   backoffFactor: number;
 };
 
+export type WorkflowAgentBackoffKind = "rate_limit" | "auth" | "provider";
+
+export type WorkflowAgentBackoffState = {
+  kind: WorkflowAgentBackoffKind;
+  failureCount: number;
+  until: string;
+  updatedAt: string;
+  reason: string;
+};
+
+export type WorkflowAgentBackoffSignal = {
+  kind: WorkflowAgentBackoffKind;
+  reason: string;
+};
+
 export type WorkflowFilterScalar = string | number | boolean;
 export type WorkflowFilterValue =
   | WorkflowFilterScalar
@@ -41,7 +56,11 @@ export type WorkflowRunTrigger = {
   payload: Record<string, unknown>;
 };
 
-export type WorkflowRunStatus = "success" | "failed" | "interrupted";
+export type WorkflowRunStatus =
+  | "success"
+  | "failed"
+  | "interrupted"
+  | "completed-with-warnings";
 
 export type WorkflowStepStatus = "success" | "failed" | "skipped";
 
@@ -61,6 +80,7 @@ export type WorkflowRuntimeState = {
   completedRuns: number;
   totalCostUsd?: number;
   definitionsLoadedAt?: string;
+  agentBackoff?: WorkflowAgentBackoffState;
   pendingRuns: WorkflowQueuedRun[];
   workflows: Record<
     string,
@@ -111,6 +131,7 @@ export type WorkflowPredicate = (
 type WorkflowBaseStep = {
   id: string;
   when?: WorkflowPredicate;
+  continueOnFailure?: boolean;
 };
 
 export type WorkflowToolStepInput = WorkflowBaseStep & {
@@ -240,6 +261,12 @@ export type WorkflowStepResult = {
   durationMs: number;
   output?: unknown;
   error?: string;
+  continueOnFailure?: boolean;
+};
+
+export type WorkflowRunExecutionResult = {
+  metadata: WorkflowRunMetadata;
+  agentBackoff?: WorkflowAgentBackoffSignal;
 };
 
 export type WorkflowRunMetadata = {

@@ -32,7 +32,7 @@ export type BusEvents = {
   "workflow.completed": {
     workflow: string;
     runId: string;
-    status: "success" | "failed" | "interrupted";
+    status: "success" | "failed" | "interrupted" | "completed-with-warnings";
     triggerEvent: string;
     durationMs: number;
     definitionPath: string;

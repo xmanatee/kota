@@ -74,6 +74,20 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
   });
 
+  it("accepts active agent backoff state", () => {
+    const state = {
+      ...validState,
+      agentBackoff: {
+        kind: "rate_limit",
+        failureCount: 2,
+        until: "2026-01-01T02:00:00.000Z",
+        updatedAt: "2026-01-01T01:30:00.000Z",
+        reason: "Agent step failed: You've hit your limit",
+      },
+    };
+    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
+  });
+
   it("accepts pending runs with valid queued run entries", () => {
     const state = {
       ...validState,
@@ -178,6 +192,21 @@ describe("assertWorkflowRuntimeState", () => {
     ).toThrow(JsonFileError);
   });
 
+  it("throws when agentBackoff is malformed", () => {
+    expect(() =>
+      assertWorkflowRuntimeState(path, {
+        ...validState,
+        agentBackoff: {
+          kind: "rate_limit",
+          failureCount: 0,
+          until: "2026-01-01T02:00:00.000Z",
+          updatedAt: "2026-01-01T01:30:00.000Z",
+          reason: "",
+        },
+      }),
+    ).toThrow(JsonFileError);
+  });
+
   it("throws when activeRunId is empty string", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, { ...validState, activeRunId: "   " }),
@@ -218,7 +247,12 @@ describe("assertWorkflowRunMetadata", () => {
   });
 
   it("accepts completed metadata with terminal statuses", () => {
-    for (const status of ["success", "failed", "interrupted"] as const) {
+    for (const status of [
+      "success",
+      "failed",
+      "interrupted",
+      "completed-with-warnings",
+    ] as const) {
       expect(() =>
         assertWorkflowRunMetadata(path, { ...validMetadata, status }),
       ).not.toThrow();

@@ -19,6 +19,7 @@ import {
 } from "./run-store-helpers.js";
 import type {
   WorkflowActiveRun,
+  WorkflowAgentBackoffState,
   WorkflowDefinition,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
@@ -74,6 +75,7 @@ export class WorkflowRunStore {
       ...(state?.activeStartedAt ? { activeStartedAt: state.activeStartedAt } : {}),
       ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
       ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
+      ...(state?.agentBackoff ? { agentBackoff: state.agentBackoff } : {}),
     };
   }
 
@@ -140,6 +142,16 @@ export class WorkflowRunStore {
   setDefinitionsLoadedAt(loadedAt: string): void {
     const state = this.readState();
     state.definitionsLoadedAt = loadedAt;
+    this.writeState(state);
+  }
+
+  setAgentBackoff(backoff: WorkflowAgentBackoffState | null): void {
+    const state = this.readState();
+    if (backoff) {
+      state.agentBackoff = backoff;
+    } else {
+      delete state.agentBackoff;
+    }
     this.writeState(state);
   }
 

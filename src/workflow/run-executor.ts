@@ -11,12 +11,14 @@ import {
 import type { WorkflowRunStore } from "./run-store.js";
 import {
   type AgentStepConfig,
+  AgentStepRuntimeError,
   executeStep,
   shouldRunStep,
 } from "./step-executor.js";
 import type {
   WorkflowDefinition,
   WorkflowFilterValue,
+  WorkflowRunExecutionResult,
   WorkflowRunMetadata,
   WorkflowRunStatus,
   WorkflowRunTrigger,
@@ -112,8 +114,7 @@ export function executeWorkflowRun(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
   deps: RunExecutorDeps,
-  onComplete: () => void,
-): { promise: Promise<void>; abortController: AbortController } {
+): { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController } {
   const run = deps.store.createRun(definition, trigger);
   const startedAt = Date.now();
   const abortController = new AbortController();
@@ -137,11 +138,13 @@ export function executeWorkflowRun(
   });
   deps.log(`Starting workflow "${definition.name}" (${run.metadata.id})`);
 
-  const promise = (async () => {
+  const promise = (async (): Promise<WorkflowRunExecutionResult> => {
     const stepOutputsById: Record<string, unknown> = {};
     const stepResultsById: Record<string, WorkflowStepResult> = {};
     const stepOutputs: unknown[] = [];
     let previousOutput: unknown = null;
+    let hadWarnings = false;
+    let agentBackoff: WorkflowRunExecutionResult["agentBackoff"];
 
     try {
       for (const step of definition.steps) {
@@ -231,6 +234,12 @@ export function executeWorkflowRun(
           deps.log(`Completed step "${completed.id}" (${completed.type}) in workflow "${definition.name}" [${logDetails.join(", ")}]`);
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
+          if (!agentBackoff && err instanceof AgentStepRuntimeError) {
+            agentBackoff = {
+              kind: err.kind,
+              reason: err.message,
+            };
+          }
           const failed: WorkflowStepResult = {
             id: step.id,
             type: step.type,
@@ -239,6 +248,7 @@ export function executeWorkflowRun(
             completedAt: new Date().toISOString(),
             durationMs: Date.now() - stepStartedAt,
             error: err.message,
+            ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
           };
           run.recordStep(failed);
           stepResultsById[step.id] = failed;
@@ -247,21 +257,36 @@ export function executeWorkflowRun(
             buildStepCompletedPayload(run.metadata, failed),
           );
           deps.log(`Failed step "${failed.id}" (${failed.type}) in workflow "${definition.name}": ${failed.error ?? "unknown error"}`);
+          if (step.continueOnFailure) {
+            hadWarnings = true;
+            continue;
+          }
           throw err;
         }
       }
 
+      const finalStatus = hadWarnings ? "completed-with-warnings" : "success";
       const completed = run.finish({
-        status: "success",
+        status: finalStatus,
         durationMs: Date.now() - startedAt,
       });
       deps.bus.emit(
         "workflow.completed",
-        buildWorkflowCompletedPayload(completed, "success"),
+        buildWorkflowCompletedPayload(completed, finalStatus),
       );
       deps.log(`Completed workflow "${definition.name}" (${completed.id})`);
+      return {
+        metadata: completed,
+        ...(agentBackoff ? { agentBackoff } : {}),
+      };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
+      if (!agentBackoff && err instanceof AgentStepRuntimeError) {
+        agentBackoff = {
+          kind: err.kind,
+          reason: err.message,
+        };
+      }
       const status: WorkflowRunStatus =
         abortController.signal.aborted || err.name === "AbortError"
           ? "interrupted"
@@ -278,9 +303,12 @@ export function executeWorkflowRun(
       deps.log(
         `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,
       );
+      return {
+        metadata: completed,
+        ...(agentBackoff ? { agentBackoff } : {}),
+      };
     } finally {
       clearTimeout(runTimeoutHandle);
-      onComplete();
     }
   })();
 

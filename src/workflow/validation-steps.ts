@@ -15,6 +15,7 @@ import type {
 import {
   expectName,
   expectNonEmptyString,
+  expectOptionalBoolean,
   expectOptionalFunction,
   expectOptionalInteger,
   expectOptionalObjectOrFunction,
@@ -57,6 +58,11 @@ export function validateToolStep(
       `steps[${index}].when`,
       definitionPath,
     ) as WorkflowToolStep["when"],
+    continueOnFailure: expectOptionalBoolean(
+      step.continueOnFailure,
+      `steps[${index}].continueOnFailure`,
+      definitionPath,
+    ),
   };
 }
 
@@ -153,6 +159,11 @@ export function validateAgentStep(
       `steps[${index}].when`,
       definitionPath,
     ) as WorkflowAgentStep["when"],
+    continueOnFailure: expectOptionalBoolean(
+      step.continueOnFailure,
+      `steps[${index}].continueOnFailure`,
+      definitionPath,
+    ),
   };
 }
 
@@ -175,6 +186,11 @@ export function validateEmitStep(
       `steps[${index}].when`,
       definitionPath,
     ) as WorkflowEmitStep["when"],
+    continueOnFailure: expectOptionalBoolean(
+      step.continueOnFailure,
+      `steps[${index}].continueOnFailure`,
+      definitionPath,
+    ),
   };
 }
 
@@ -210,6 +226,11 @@ export function validateRestartStep(
       `steps[${index}].when`,
       definitionPath,
     ) as WorkflowRestartStep["when"],
+    continueOnFailure: expectOptionalBoolean(
+      step.continueOnFailure,
+      `steps[${index}].continueOnFailure`,
+      definitionPath,
+    ),
   };
 }
 
@@ -234,5 +255,10 @@ export function validateCodeStep(
       `steps[${index}].when`,
       definitionPath,
     ) as WorkflowCodeStep["when"],
+    continueOnFailure: expectOptionalBoolean(
+      step.continueOnFailure,
+      `steps[${index}].continueOnFailure`,
+      definitionPath,
+    ),
   };
 }

@@ -8,6 +8,7 @@ import type { SDKMessage } from "../agent-sdk/types.js";
 import type { KotaConfig } from "../config.js";
 import type { ToolResult } from "../tools/index.js";
 import type {
+  WorkflowAgentBackoffKind,
   WorkflowAgentStep,
   WorkflowCodeStep,
   WorkflowDefinition,
@@ -47,8 +48,58 @@ export type AgentStepConfig = {
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 
+export class AgentStepRuntimeError extends Error {
+  constructor(
+    message: string,
+    readonly kind: WorkflowAgentBackoffKind,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = "AgentStepRuntimeError";
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function classifyAgentRuntimeFailure(
+  text: string,
+): { kind: WorkflowAgentBackoffKind; retryable: boolean } | null {
+  const normalized = text.toLowerCase();
+
+  if (
+    normalized.includes("you've hit your limit") ||
+    normalized.includes("hit your limit") ||
+    normalized.includes("rate limit") ||
+    normalized.includes("quota")
+  ) {
+    return { kind: "rate_limit", retryable: false };
+  }
+
+  if (
+    normalized.includes("not logged in") ||
+    normalized.includes("please run /login") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("authentication")
+  ) {
+    return { kind: "auth", retryable: false };
+  }
+
+  if (
+    normalized.includes("network error") ||
+    normalized.includes("timed out") ||
+    normalized.includes("timeout") ||
+    normalized.includes("econn") ||
+    normalized.includes("enotfound") ||
+    normalized.includes("spawn ") ||
+    normalized.includes("broken pipe") ||
+    normalized.includes("connection reset")
+  ) {
+    return { kind: "provider", retryable: true };
+  }
+
+  return null;
 }
 
 export async function withRetry<T>(
@@ -62,6 +113,12 @@ export async function withRetry<T>(
     try {
       return await fn();
     } catch (error) {
+      if (
+        (error instanceof Error && error.name === "AbortError") ||
+        (error instanceof AgentStepRuntimeError && !error.retryable)
+      ) {
+        throw error;
+      }
       lastError = error;
       if (attempt < retry.maxAttempts) {
         log?.(
@@ -201,28 +258,56 @@ export async function executeAgentStep(
   }
 
   const runAttempt = async () => {
-    const result = await executeWithAgentSDK(agentPrompt.prompt, {
-      model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
-      cwd: agentConfig.projectDir,
-      systemPrompt,
-      maxTurns: step.maxTurns,
-      maxBudgetUsd: step.maxBudgetUsd,
-      allowedTools: step.allowedTools,
-      disallowedTools: step.disallowedTools,
-      permissionMode: step.permissionMode,
-      persistSession: false,
-      settingSources: step.settingSources,
-      abortController,
-      onMessage: appendMessage,
-    }, {
-      write: () => true,
-    });
-    if (result.isError) {
-      const reason = result.subtype ?? "error";
-      const detail = result.text.trim() || "Agent step returned an error result";
-      throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
+    try {
+      const result = await executeWithAgentSDK(agentPrompt.prompt, {
+        model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
+        cwd: agentConfig.projectDir,
+        systemPrompt,
+        maxTurns: step.maxTurns,
+        maxBudgetUsd: step.maxBudgetUsd,
+        allowedTools: step.allowedTools,
+        disallowedTools: step.disallowedTools,
+        permissionMode: step.permissionMode,
+        persistSession: false,
+        settingSources: step.settingSources,
+        abortController,
+        onMessage: appendMessage,
+      }, {
+        write: () => true,
+      });
+      if (result.isError) {
+        const reason = result.subtype ?? "error";
+        const detail = result.text.trim() || "Agent step returned an error result";
+        const classified = classifyAgentRuntimeFailure(detail);
+        if (classified) {
+          throw new AgentStepRuntimeError(
+            `Agent step "${step.id}" failed (${reason}): ${detail}`,
+            classified.kind,
+            classified.retryable,
+          );
+        }
+        throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
+      }
+      return result;
+    } catch (error) {
+      if (
+        error instanceof AgentStepRuntimeError ||
+        (error instanceof Error && error.name === "AbortError") ||
+        abortController.signal.aborted
+      ) {
+        throw error;
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      const classified = classifyAgentRuntimeFailure(detail);
+      if (classified) {
+        throw new AgentStepRuntimeError(
+          `Agent step "${step.id}" failed: ${detail}`,
+          classified.kind,
+          classified.retryable,
+        );
+      }
+      throw error;
     }
-    return result;
   };
 
   let result: Awaited<ReturnType<typeof executeWithAgentSDK>>;

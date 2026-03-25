@@ -86,7 +86,12 @@ describe("assertDaemonState", () => {
   });
 
   it("accepts all valid lastCompletedStatus values", () => {
-    for (const status of ["success", "failed", "interrupted"] as const) {
+    for (const status of [
+      "success",
+      "failed",
+      "interrupted",
+      "completed-with-warnings",
+    ] as const) {
       const s = { ...validState, lastCompletedStatus: status };
       expect(() => assertDaemonState("/p", s)).not.toThrow();
     }

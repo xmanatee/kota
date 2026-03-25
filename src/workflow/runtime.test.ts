@@ -293,6 +293,87 @@ describe("WorkflowRuntime", () => {
     expect(seenWorkflows).toEqual(["improver"]);
   });
 
+  it("backs off agent workflows after a quota failure and drops stale follow-up runs", async () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    writeFileSync(
+      join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+      "Improve.\n",
+    );
+
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "You've hit your limit · resets 2am (Europe/London)",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0,
+      subtype: "success",
+      isError: true,
+    });
+
+    const bus = new EventBus();
+    const seenWorkflows: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      seenWorkflows.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "explore",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+            },
+          ],
+        }),
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflow: "explorer",
+                status: "failed",
+              },
+            },
+          ],
+          steps: [
+            {
+              id: "improve",
+              type: "agent",
+              promptPath: "src/workflows/formatter/prompt.md",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(120);
+    await runtime.stop();
+
+    expect(seenWorkflows).toEqual(["explorer"]);
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+
+    const state = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf-8"),
+    ) as {
+      agentBackoff?: { kind: string; failureCount: number };
+      pendingRuns: unknown[];
+    };
+    expect(state.agentBackoff?.kind).toBe("rate_limit");
+    expect(state.agentBackoff?.failureCount).toBe(1);
+    expect(state.pendingRuns).toEqual([]);
+  });
+
   it("supports code steps that call KOTA tools before agent steps", async () => {
     writeFileSync(
       join(projectDir, "src", "workflows", "builder", "prompt.md"),

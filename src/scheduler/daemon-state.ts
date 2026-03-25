@@ -15,7 +15,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isWorkflowRunStatus(value: unknown): value is WorkflowRunStatus {
-  return value === "success" || value === "failed" || value === "interrupted";
+  return (
+    value === "success" ||
+    value === "failed" ||
+    value === "interrupted" ||
+    value === "completed-with-warnings"
+  );
 }
 
 export function assertDaemonState(path: string, value: unknown): asserts value is DaemonState {

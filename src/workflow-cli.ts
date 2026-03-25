@@ -35,6 +35,7 @@ function statusIcon(status: string): string {
     case "interrupted": return "⚡";
     case "running": return "▶";
     case "skipped": return "–";
+    case "completed-with-warnings": return "⚠";
     default: return "?";
   }
 }
@@ -161,8 +162,9 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(`\nSteps (${metadata.steps.length}):`);
         for (const step of metadata.steps) {
           const dur = formatDuration(step.durationMs);
-          const icon = statusIcon(step.status);
-          console.log(`  ${icon} ${step.id} [${step.type}] ${dur}`);
+          const icon = step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
+          const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : "";
+          console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${suffix}`);
           if (step.error) {
             console.log(`      Error: ${step.error}`);
           }
@@ -553,6 +555,11 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(`Today's spend:        $${dailySpend.toFixed(4)} / $${dailyBudget.toFixed(4)}${budgetStatus}`);
       } else if (dailySpend > 0) {
         console.log(`Today's spend:        $${dailySpend.toFixed(4)}`);
+      }
+      if (state.agentBackoff) {
+        console.log(
+          `Agent backoff:        ${state.agentBackoff.kind} until ${formatDate(state.agentBackoff.until)} (attempt ${state.agentBackoff.failureCount})`,
+        );
       }
       if (state.definitionsLoadedAt) {
         console.log(`Definitions loaded:   ${formatDate(state.definitionsLoadedAt)}`);

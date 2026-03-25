@@ -4,6 +4,7 @@ import {
   writeJsonFileAtomic,
 } from "../json-file.js";
 import type {
+  WorkflowAgentBackoffState,
   WorkflowDefinition,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
@@ -29,7 +30,32 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 }
 
 function isWorkflowRunStatus(value: unknown): value is WorkflowRunStatus {
-  return value === "success" || value === "failed" || value === "interrupted";
+  return (
+    value === "success" ||
+    value === "failed" ||
+    value === "interrupted" ||
+    value === "completed-with-warnings"
+  );
+}
+
+function isWorkflowAgentBackoffState(
+  value: unknown,
+): value is WorkflowAgentBackoffState {
+  return (
+    isPlainObject(value) &&
+    (value.kind === "rate_limit" ||
+      value.kind === "auth" ||
+      value.kind === "provider") &&
+    typeof value.failureCount === "number" &&
+    Number.isInteger(value.failureCount) &&
+    value.failureCount > 0 &&
+    typeof value.until === "string" &&
+    value.until.trim().length > 0 &&
+    typeof value.updatedAt === "string" &&
+    value.updatedAt.trim().length > 0 &&
+    typeof value.reason === "string" &&
+    value.reason.trim().length > 0
+  );
 }
 
 function isWorkflowRunTrigger(value: unknown): value is WorkflowRunTrigger {
@@ -77,6 +103,16 @@ export function assertWorkflowRuntimeState(
   }
   if (!isPlainObject(value.workflows)) {
     throw new JsonFileError(path, "parse", "workflow state has invalid workflows");
+  }
+  if (
+    value.agentBackoff !== undefined &&
+    !isWorkflowAgentBackoffState(value.agentBackoff)
+  ) {
+    throw new JsonFileError(
+      path,
+      "parse",
+      "workflow state has invalid agentBackoff",
+    );
   }
   for (const [workflowName, entry] of Object.entries(value.workflows)) {
     if (!isPlainObject(entry)) {
@@ -207,7 +243,12 @@ export function formatRunId(workflowName: string): string {
 
 function summarizeStep(step: WorkflowStep): Record<string, unknown> {
   if (step.type === "tool") {
-    return { id: step.id, type: step.type, tool: step.tool };
+    return {
+      id: step.id,
+      type: step.type,
+      tool: step.tool,
+      ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+    };
   }
   if (step.type === "agent") {
     return {
@@ -221,15 +262,30 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
       settingSources: step.settingSources,
+      ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
   }
   if (step.type === "emit") {
-    return { id: step.id, type: step.type, event: step.event };
+    return {
+      id: step.id,
+      type: step.type,
+      event: step.event,
+      ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+    };
   }
   if (step.type === "restart") {
-    return { id: step.id, type: step.type, requires: step.requires };
+    return {
+      id: step.id,
+      type: step.type,
+      requires: step.requires,
+      ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+    };
   }
-  return { id: step.id, type: step.type };
+  return {
+    id: step.id,
+    type: step.type,
+    ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+  };
 }
 
 export function buildWorkflowSnapshot(workflow: WorkflowDefinition): WorkflowSnapshot {
