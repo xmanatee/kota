@@ -1,7 +1,7 @@
 ---
 id: task-workflow-retry
 title: Add workflow run retry from last failed step
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: Failed workflow runs cannot be retried without re-running from scratch. A retry command that resumes from the first failed step (reusing prior step outputs) would reduce cost and cycle time when transient failures occur.

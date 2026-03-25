@@ -275,6 +275,7 @@ export type WorkflowRunMetadata = {
   definitionPath: string;
   trigger: WorkflowRunTrigger;
   triggeredByRunId?: string;
+  retryOf?: string;
   startedAt: string;
   completedAt?: string;
   status: WorkflowRunStatus | "running";

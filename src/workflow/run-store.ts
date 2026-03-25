@@ -262,6 +262,8 @@ export class WorkflowRunStore {
 
     const triggeredByRunId =
       typeof trigger.payload.runId === "string" ? trigger.payload.runId : undefined;
+    const retryOf =
+      typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
 
     const metadata: WorkflowRunMetadata = {
       id,
@@ -269,6 +271,7 @@ export class WorkflowRunStore {
       definitionPath: workflow.definitionPath,
       trigger,
       ...(triggeredByRunId !== undefined && { triggeredByRunId }),
+      ...(retryOf !== undefined && { retryOf }),
       startedAt: new Date().toISOString(),
       status: "running",
       runDir: relative(this.projectDir, runDirPath),

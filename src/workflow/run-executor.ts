@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
+import { readOptionalJsonFile } from "../json-file.js";
 import { executeTool } from "../tools/index.js";
 import {
   buildStepCompletedPayload,
@@ -60,6 +61,23 @@ export function getEligibleAtMs(
   const lastCompletedAt = state.workflows[workflowName]?.lastCompletedAt;
   if (!lastCompletedAt || cooldownMs <= 0) return Date.now();
   return new Date(lastCompletedAt).getTime() + cooldownMs;
+}
+
+/**
+ * Returns the index of the first definition step that should be re-executed on retry.
+ * Steps before this index are replayed from the original run's recorded results.
+ */
+export function findRetryFromIndex(
+  originalSteps: WorkflowStepResult[],
+  definitionSteps: ReadonlyArray<{ id: string }>,
+): number {
+  for (let i = 0; i < definitionSteps.length; i++) {
+    const stepId = definitionSteps[i].id;
+    const result = originalSteps.find((s) => s.id === stepId);
+    if (!result) return i;
+    if (result.status === "failed" && !result.continueOnFailure) return i;
+  }
+  return definitionSteps.length;
 }
 
 export function createStepContext(
@@ -146,8 +164,40 @@ export function executeWorkflowRun(
     let hadWarnings = false;
     let agentBackoff: WorkflowRunExecutionResult["agentBackoff"];
 
+    // For retry runs: pre-populate state from the original run's successful steps.
+    const retryOfId = typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
+    let retryFromIndex = 0;
+    if (retryOfId) {
+      const originalMetaPath = join(deps.store.runsDir, retryOfId, "metadata.json");
+      const originalMeta = readOptionalJsonFile<WorkflowRunMetadata>(originalMetaPath);
+      if (originalMeta) {
+        retryFromIndex = findRetryFromIndex(originalMeta.steps, definition.steps);
+        const replayedAt = new Date().toISOString();
+        for (let i = 0; i < retryFromIndex; i++) {
+          const defStep = definition.steps[i];
+          const result = originalMeta.steps.find((s) => s.id === defStep.id);
+          if (!result) { retryFromIndex = i; break; }
+          const replayed: WorkflowStepResult = { ...result, startedAt: replayedAt, completedAt: replayedAt, durationMs: 0 };
+          run.recordStep(replayed);
+          stepResultsById[defStep.id] = replayed;
+          if (result.status === "success") {
+            stepOutputsById[defStep.id] = result.output;
+            stepOutputs.push(result.output);
+            previousOutput = result.output;
+          } else if (result.status === "skipped") {
+            stepOutputsById[defStep.id] = { skipped: true };
+            stepOutputs.push({ skipped: true });
+          } else if (result.status === "failed" && result.continueOnFailure) {
+            hadWarnings = true;
+          }
+        }
+      }
+    }
+
     try {
-      for (const step of definition.steps) {
+      for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
+        if (stepIdx < retryFromIndex) continue;
+        const step = definition.steps[stepIdx];
         const context = createStepContext(
           run.metadata,
           trigger,

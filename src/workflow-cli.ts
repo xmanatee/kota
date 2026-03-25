@@ -101,7 +101,9 @@ export function registerWorkflowCommands(program: Command): void {
         const dur = (r.durationMs != null ? formatDuration(r.durationMs) : "…").padEnd(durWidth);
         const cost = (r.totalCostUsd != null ? `$${r.totalCostUsd.toFixed(3)}` : "—").padEnd(costWidth);
         const started = formatDate(r.startedAt).padEnd(dateWidth);
-        const trigger = r.triggeredByRunId
+        const trigger = r.retryOf
+          ? `retry ← ${r.retryOf}`
+          : r.triggeredByRunId
           ? `${r.trigger.event} ← ${r.triggeredByRunId}`
           : r.trigger.event;
         console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}`);
@@ -143,6 +145,9 @@ export function registerWorkflowCommands(program: Command): void {
       console.log(`Run:      ${metadata.id}`);
       console.log(`Workflow: ${metadata.workflow}`);
       console.log(`Status:   ${statusIcon(metadata.status)} ${metadata.status}`);
+      if (metadata.retryOf) {
+        console.log(`Retry of: ${metadata.retryOf}`);
+      }
       console.log(`Trigger:  ${metadata.trigger.event}`);
       console.log(`Started:  ${new Date(metadata.startedAt).toLocaleString()}`);
       if (metadata.completedAt) {
@@ -306,6 +311,75 @@ export function registerWorkflowCommands(program: Command): void {
       if (state.activeRuns && state.activeRuns.length > 0) {
         console.log("Daemon is busy — run will start after current run finishes.");
       }
+    });
+
+  wfCmd
+    .command("retry <run-id>")
+    .description("Retry a failed workflow run, replaying successful steps and re-executing from the first failure")
+    .action((runId: string) => {
+      const store = new WorkflowRunStore();
+
+      let resolvedId = runId;
+      if (!runId.includes("Z-")) {
+        try {
+          const dirs = readdirSync(store.runsDir).sort().reverse();
+          const match = dirs.find((d) => d.startsWith(runId));
+          if (!match) {
+            console.error(`Run "${runId}" not found.`);
+            process.exit(1);
+          }
+          resolvedId = match;
+        } catch {
+          console.error(`Run "${runId}" not found.`);
+          process.exit(1);
+        }
+      }
+
+      const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
+      const original = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+      if (!original) {
+        console.error(`Run "${resolvedId}" not found.`);
+        process.exit(1);
+      }
+
+      if (original.status === "running") {
+        console.error(`Run "${resolvedId}" is still running. Cannot retry an active run.`);
+        process.exit(1);
+      }
+
+      if (original.status === "success" || original.status === "completed-with-warnings") {
+        console.error(`Run "${resolvedId}" completed successfully. Nothing to retry.`);
+        process.exit(1);
+      }
+
+      const definitions = validateWorkflowDefinitions(
+        getBuiltinWorkflowDefinitions(),
+        process.cwd(),
+      );
+      const definition = definitions.find((d) => d.name === original.workflow);
+      if (!definition) {
+        console.error(`Workflow "${original.workflow}" is no longer defined.`);
+        process.exit(1);
+      }
+
+      const state = store.readState();
+      const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === original.workflow);
+      if (alreadyQueued) {
+        console.error(`Workflow "${original.workflow}" is already queued.`);
+        process.exit(1);
+      }
+
+      const now = Date.now();
+      const trigger = {
+        event: "retry",
+        payload: { retryOf: resolvedId, triggeredAt: new Date().toISOString() },
+      };
+      state.pendingRuns = [
+        ...state.pendingRuns,
+        { workflowName: original.workflow, trigger, enqueuedAtMs: now, notBeforeMs: now },
+      ];
+      store.setPendingRuns(state.pendingRuns);
+      console.log(`Queued retry of "${original.workflow}" (original run: ${resolvedId}).`);
     });
 
   wfCmd
