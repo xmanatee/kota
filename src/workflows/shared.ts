@@ -157,6 +157,7 @@ export function createVerificationAndRestartSteps(
       input: {
         command: "npm test",
         stream_output: false,
+        timeout_ms: 300_000,
       },
     },
     {
