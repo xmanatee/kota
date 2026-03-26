@@ -142,6 +142,52 @@ describe("ExtensionLoader", () => {
     expect(discoveredRoutes[0].path).toBe("/api/test");
   });
 
+  it("collects workflow definitions from extensions and exposes via getWorkflows", async () => {
+    const loader = new ExtensionLoader({});
+
+    await loader.load({
+      name: "workflow-provider",
+      workflows: [
+        {
+          name: "workflow-provider/my-job",
+          triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
+          steps: [{ id: "noop", type: "code", run: () => {} }],
+        },
+      ],
+    });
+
+    const workflows = loader.getWorkflows();
+    expect(workflows).toHaveLength(1);
+    expect(workflows[0].name).toBe("workflow-provider/my-job");
+    expect(workflows[0].definitionPath).toBe("extensions/workflow-provider");
+  });
+
+  it("exposes contributed workflows via ctx.getWorkflows()", async () => {
+    const loader = new ExtensionLoader({});
+
+    await loader.load({
+      name: "wf-ext",
+      workflows: [
+        {
+          name: "wf-ext/heartbeat",
+          triggers: [{ intervalMs: 300_000 }],
+          steps: [{ id: "noop", type: "code", run: () => {} }],
+        },
+      ],
+    });
+
+    let discoveredWorkflows: any[] = [];
+    await loader.load({
+      name: "wf-consumer",
+      onLoad: (ctx) => {
+        discoveredWorkflows = ctx.getWorkflows();
+      },
+    });
+
+    expect(discoveredWorkflows).toHaveLength(1);
+    expect(discoveredWorkflows[0].name).toBe("wf-ext/heartbeat");
+  });
+
   it("calls onUnload in reverse order during unloadAll", async () => {
     const unloadOrder: string[] = [];
     const loader = new ExtensionLoader({});

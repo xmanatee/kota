@@ -28,6 +28,7 @@ describe("vercel-adapter module", () => {
       storage: new ExtensionStorage("/tmp", "vercel-adapter"),
       registerGroup: () => {},
       getRoutes: () => [],
+      getWorkflows: () => [],
       getModuleConfig: () => undefined,
       log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getSecret: () => null,

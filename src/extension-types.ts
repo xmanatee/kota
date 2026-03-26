@@ -15,6 +15,7 @@ import type { EventBus } from "./event-bus.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "./workflow/types.js";
 
 /** Scoped logger available to modules via ExtensionContext. */
 export type ExtensionLogger = {
@@ -76,6 +77,8 @@ export type ExtensionContext = {
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
   /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
   getRoutes: () => RouteRegistration[];
+  /** Get workflow definitions contributed by all loaded extensions. */
+  getWorkflows: () => RegisteredWorkflowDefinitionInput[];
   /** Get this module's config section from the KOTA config. */
   getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
   /** Scoped logger — messages prefixed with `[module:<name>]`. */
@@ -144,6 +147,15 @@ export type KotaExtension = {
    * Must return an array of unsubscribe functions for cleanup.
    */
   events?: (bus: EventBus) => (() => void)[];
+
+  /**
+   * Workflow definitions this extension contributes.
+   * Contributed workflows are registered alongside built-in workflows and support
+   * the same trigger types: event, cron schedule, interval, and runtime.idle.
+   * Use workflows to express hook-like reactions, heartbeat jobs, and scheduled
+   * automation instead of subscribing to the event bus directly.
+   */
+  workflows?: WorkflowDefinitionInput[];
 
   /**
    * Skills this extension contributes — named, file-backed guidance blocks.

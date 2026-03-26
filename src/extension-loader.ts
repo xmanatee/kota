@@ -9,6 +9,7 @@ import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExte
 import { getProviderRegistry } from "./providers.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { executeTool, registerTool } from "./tools/index.js";
+import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
 
 export type ExtensionLoaderOptions = {
   /** Skip tool registration — only load modules for command/route discovery. */
@@ -23,6 +24,7 @@ export class ExtensionLoader {
   private moduleRegistry = new Map<string, KotaExtension>();
   private moduleToolCounts = new Map<string, number>();
   private promptSections = new Map<string, string>();
+  private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private bus: EventBus | null = null;
   private verbose: boolean;
   private config: KotaConfig;
@@ -66,6 +68,7 @@ export class ExtensionLoader {
       moduleEventUnsubs: this.moduleEventUnsubs,
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
+      getWorkflows: () => this.getWorkflows(),
       sessionFactory: this.sessionFactory,
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ExtensionLoader.MAX_TOOL_CALL_DEPTH) {
@@ -106,6 +109,12 @@ export class ExtensionLoader {
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }
       this.moduleToolCounts.set(mod.name, tools.length);
+    }
+
+    if (mod.workflows && !this.commandsOnly) {
+      for (const def of mod.workflows) {
+        this.contributedWorkflows.push({ ...def, definitionPath: `extensions/${mod.name}` });
+      }
     }
 
     if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
@@ -178,6 +187,10 @@ export class ExtensionLoader {
     } finally {
       this.collectingRoutes = false;
     }
+  }
+
+  getWorkflows(): RegisteredWorkflowDefinitionInput[] {
+    return this.contributedWorkflows;
   }
 
   connectEvents(bus: EventBus): void {

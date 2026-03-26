@@ -217,6 +217,7 @@ function makeCtx(storage?: ReturnType<typeof makeMockStorage>) {
 		storage: storage ?? makeMockStorage(),
 		registerGroup: () => {},
 		getRoutes: () => [],
+		getWorkflows: () => [],
 		getModuleConfig: () => undefined,
 		log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 		getSecret: () => null,

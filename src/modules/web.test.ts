@@ -10,6 +10,7 @@ const stubCtx: ExtensionContext = {
   storage: new ExtensionStorage("/tmp/test", "web"),
   registerGroup: () => {},
   getRoutes: () => [],
+  getWorkflows: () => [],
   getModuleConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,

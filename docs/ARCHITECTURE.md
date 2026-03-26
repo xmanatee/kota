@@ -47,9 +47,12 @@ adding a parallel surface.
   Extensions can contribute skills and agents via `KotaExtension`. Workflow
   agent steps reference built-in agents by name (`agentName: "builder"`) and
   inherit prompt path, model, and tool policy from the agent definition.
-- Scheduler events, hook-like reactions, cron triggers, heartbeat work, and
+- ~~Scheduler events, hook-like reactions, cron triggers, heartbeat work, and
   standing orders should remain one `workflow` surface instead of growing a
-  second hook engine.
+  second hook engine.~~ Done: `KotaExtension` now declares automation via
+  `workflows` instead of direct bus subscriptions. Workflows support event,
+  cron, interval, and idle triggers — covering hooks, heartbeats, and schedules
+  in one surface. See `docs/WORKFLOWS.md`.
 - History, memory, working memory, knowledge, and run artifacts should be
   treated as stores inside one runtime state subsystem, not as many separate
   product-level concepts.
