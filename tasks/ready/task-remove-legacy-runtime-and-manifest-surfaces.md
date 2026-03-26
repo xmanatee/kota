@@ -1,7 +1,7 @@
 ---
 id: task-remove-legacy-runtime-and-manifest-surfaces
 title: Remove legacy runtime state fields and duplicate manifest-era surfaces
-status: backlog
+status: ready
 priority: p1
 area: runtime
 summary: KOTA still carries legacy workflow state fields and manifest-era naming that no longer matches the desired architecture. Remove the old surfaces directly instead of preserving duplicate terminology and state shapes.

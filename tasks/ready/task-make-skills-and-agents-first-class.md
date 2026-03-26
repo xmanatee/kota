@@ -1,7 +1,7 @@
 ---
 id: task-make-skills-and-agents-first-class
 title: Make skills and agent definitions first-class runtime concepts
-status: backlog
+status: ready
 priority: p1
 area: architecture
 summary: Repo instructions, prompt sections, workflow prompts, and ad hoc delegate prompts currently overlap. Add one first-class skill surface and one first-class agent definition surface so explorer, builder, improver, and future specialists all use the same model.
