@@ -1,12 +1,13 @@
 ---
 id: task-enforce-builder-verification-before-commit
 title: Enforce builder verification before commit
-status: doing
+status: done
 priority: p2
 area: workflow
 summary: Builder currently relies on prompt guidance to run checks before committing. Verification failures can surface after a commit lands. Make "verified before commit" structural so this cannot be bypassed accidentally.
 created_at: 2026-03-25
 updated_at: 2026-03-26
+resolved_at: 2026-03-26
 ---
 
 ## Problem
