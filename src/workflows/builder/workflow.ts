@@ -2,19 +2,25 @@ import {
   getRepoTaskQueueSnapshot,
   isRepoTaskQueueSnapshot,
 } from "../../repo-tasks.js";
-import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import {
-  BUILTIN_WORKFLOW_MODEL,
-  createVerificationAndRestartSteps,
-} from "../shared.js";
+import type { WorkflowDefinitionInput, WorkflowStepContext } from "../../workflow/types.js";
+import { BUILTIN_WORKFLOW_MODEL, stepSucceeded } from "../shared.js";
 import { checkTaskOutcome } from "./check-task-outcome.js";
 import { claimTask, isClaimTaskResult } from "./claim-task.js";
+import { commitBuilderChanges } from "./commit.js";
 import { gatherBuilderContext } from "./gather-context.js";
-import {
-  isBuilderPreflightResult,
-  runBuilderPreflight,
-} from "./preflight.js";
+import { isBuilderPreflightResult, runBuilderPreflight } from "./preflight.js";
 import { verifyClaim } from "./verify-claim.js";
+
+const VERIFY_STEP_IDS = [
+  "verify-typecheck",
+  "verify-lint",
+  "verify-test",
+  "verify-build",
+] as const;
+
+function allVerifyStepsPassed({ stepResults }: WorkflowStepContext): boolean {
+  return VERIFY_STEP_IDS.every((id) => stepResults[id]?.status === "success");
+}
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -87,10 +93,49 @@ const builderWorkflow: WorkflowDefinitionInput = {
         return checkTaskOutcome(projectDir, claim.chosenTaskId);
       },
     },
-    ...createVerificationAndRestartSteps(
-      "builder workflow finished verification build",
-      "build",
-    ),
+    {
+      id: "verify-typecheck",
+      type: "tool",
+      tool: "shell",
+      when: stepSucceeded("build"),
+      input: { command: "npm run typecheck", stream_output: false },
+    },
+    {
+      id: "verify-lint",
+      type: "tool",
+      tool: "shell",
+      when: stepSucceeded("build"),
+      input: { command: "npm run lint", stream_output: false },
+    },
+    {
+      id: "verify-test",
+      type: "tool",
+      tool: "shell",
+      when: stepSucceeded("build"),
+      input: { command: "npm test", stream_output: false, timeout_ms: 300_000 },
+    },
+    {
+      id: "verify-build",
+      type: "tool",
+      tool: "shell",
+      when: stepSucceeded("build"),
+      input: { command: "npm run build", stream_output: false },
+    },
+    {
+      // Structural gate: commits staged changes only when all verification steps pass.
+      // The agent stages changes but does not commit; this step is the sole commit point.
+      id: "commit",
+      type: "code",
+      when: allVerifyStepsPassed,
+      run: ({ projectDir, workflow }) => commitBuilderChanges(projectDir, workflow.runDirPath),
+    },
+    {
+      id: "request-restart",
+      type: "restart",
+      when: stepSucceeded("build"),
+      reason: "builder workflow finished verification build",
+      requires: [...VERIFY_STEP_IDS],
+    },
   ],
 };
 
