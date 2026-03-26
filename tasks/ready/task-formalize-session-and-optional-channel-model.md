@@ -1,7 +1,7 @@
 ---
 id: task-formalize-session-and-optional-channel-model
 title: Formalize sessions as core and channels as optional extensions
-status: backlog
+status: ready
 priority: p1
 area: session
 summary: KOTA already has CLI, server, Telegram, and autonomous execution paths, but the concepts are not explicit. Make `session` a first-class core runtime concept and treat `channel` as an optional interaction extension for CLI, web, Telegram, and future surfaces.

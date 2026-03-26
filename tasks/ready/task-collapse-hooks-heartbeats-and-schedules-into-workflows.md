@@ -1,7 +1,7 @@
 ---
 id: task-collapse-hooks-heartbeats-and-schedules-into-workflows
 title: Collapse hooks, heartbeat work, and schedules into the workflow surface
-status: backlog
+status: ready
 priority: p1
 area: workflow
 summary: KOTA already has event triggers, cron triggers, idle triggers, and an internal event bus. Keep workflows as the single automation surface and express hook-like reactions, standing orders, and heartbeat jobs as workflow triggers instead of adding another public automation model.
