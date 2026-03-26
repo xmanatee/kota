@@ -121,9 +121,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
         completedRuns: 1,
         pendingRuns: [],
         workflows: {},
-        activeRunId: activeId,
-        activeWorkflow: "builder",
-        activeStartedAt: new Date(now - 30 * DAY_MS).toISOString(),
+        activeRuns: [{ runId: activeId, workflow: "builder", startedAt: new Date(now - 30 * DAY_MS).toISOString() }],
       }),
     );
 

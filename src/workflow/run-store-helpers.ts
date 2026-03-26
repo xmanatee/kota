@@ -146,12 +146,6 @@ export function assertWorkflowRuntimeState(
       );
     }
   }
-  for (const key of ["activeRunId", "activeWorkflow", "activeStartedAt"] as const) {
-    const current = value[key];
-    if (current !== undefined && (typeof current !== "string" || !current.trim())) {
-      throw new JsonFileError(path, "parse", `workflow state has invalid ${key}`);
-    }
-  }
   if (value.activeRuns !== undefined) {
     if (!Array.isArray(value.activeRuns)) {
       throw new JsonFileError(path, "parse", "workflow state has invalid activeRuns");

@@ -71,11 +71,6 @@ export type WorkflowActiveRun = {
 };
 
 export type WorkflowRuntimeState = {
-  /** Legacy single-run tracking — kept for backward-compat reading of old state files. */
-  activeRunId?: string;
-  activeWorkflow?: string;
-  activeStartedAt?: string;
-  /** Canonical multi-run tracking. Replaces legacy single-run fields. */
   activeRuns?: WorkflowActiveRun[];
   completedRuns: number;
   totalCostUsd?: number;

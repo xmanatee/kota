@@ -201,7 +201,7 @@ describe("followRunLogs", () => {
     writeEvents([assistantEvent]);
     writeFileSync(
       statePath,
-      JSON.stringify({ activeRunId: RUN_ID, completedRuns: 0, pendingRuns: [], workflows: {} }),
+      JSON.stringify({ activeRuns: [{ runId: RUN_ID, workflow: "builder", startedAt: new Date().toISOString() }], completedRuns: 0, pendingRuns: [], workflows: {} }),
       "utf-8",
     );
 

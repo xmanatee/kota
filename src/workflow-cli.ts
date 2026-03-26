@@ -484,12 +484,7 @@ export function registerWorkflowCommands(program: Command): void {
     .action(() => {
       const store = new WorkflowRunStore();
       const state = store.readState();
-      const activeRuns =
-        state.activeRuns && state.activeRuns.length > 0
-          ? state.activeRuns
-          : state.activeRunId
-            ? [{ runId: state.activeRunId, workflow: state.activeWorkflow ?? "", startedAt: "" }]
-            : [];
+      const activeRuns = state.activeRuns ?? [];
       if (activeRuns.length === 0) {
         console.log("No active run to abort.");
         return;
@@ -555,12 +550,7 @@ export function registerWorkflowCommands(program: Command): void {
         console.log("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
       }
 
-      const activeRuns =
-        state.activeRuns && state.activeRuns.length > 0
-          ? state.activeRuns
-          : state.activeRunId
-            ? [{ runId: state.activeRunId, workflow: state.activeWorkflow ?? "", startedAt: state.activeStartedAt ?? "" }]
-            : [];
+      const activeRuns = state.activeRuns ?? [];
       const abortPending = existsSync(join(store.rootDir, ABORT_SIGNAL_FILE));
       if (activeRuns.length === 0) {
         console.log("Active run: (none)");

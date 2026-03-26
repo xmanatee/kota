@@ -48,16 +48,6 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, validState)).not.toThrow();
   });
 
-  it("accepts state with optional active fields", () => {
-    const state = {
-      ...validState,
-      activeRunId: "run-1",
-      activeWorkflow: "builder",
-      activeStartedAt: "2026-01-01T00:00:00.000Z",
-    };
-    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
-  });
-
   it("accepts state with workflow entries including all optional fields", () => {
     const state = {
       ...validState,
@@ -207,23 +197,6 @@ describe("assertWorkflowRuntimeState", () => {
     ).toThrow(JsonFileError);
   });
 
-  it("throws when activeRunId is empty string", () => {
-    expect(() =>
-      assertWorkflowRuntimeState(path, { ...validState, activeRunId: "   " }),
-    ).toThrow(JsonFileError);
-  });
-
-  it("throws when activeWorkflow is not a string", () => {
-    expect(() =>
-      assertWorkflowRuntimeState(path, { ...validState, activeWorkflow: 99 }),
-    ).toThrow(JsonFileError);
-  });
-
-  it("throws when activeStartedAt is empty string", () => {
-    expect(() =>
-      assertWorkflowRuntimeState(path, { ...validState, activeStartedAt: "" }),
-    ).toThrow(JsonFileError);
-  });
 });
 
 // ---------------------------------------------------------------------------
