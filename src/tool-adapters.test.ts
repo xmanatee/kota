@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KotaModule, ToolDef } from "./module-types.js";
+import type { KotaExtension, ToolDef } from "./extension-types.js";
 import {
   adaptExport,
   extractJsonSchema,
@@ -13,8 +13,8 @@ import {
   zodDefToJsonSchema,
 } from "./tool-adapters.js";
 
-/** Helper to get tools as array from a KotaModule (tests always produce static arrays). */
-function toolsOf(mod: KotaModule): ToolDef[] {
+/** Helper to get tools as array from a KotaExtension (tests always produce static arrays). */
+function toolsOf(mod: KotaExtension): ToolDef[] {
   return Array.isArray(mod.tools) ? mod.tools : [];
 }
 
@@ -365,7 +365,7 @@ describe("zodDefToJsonSchema", () => {
 });
 
 describe("adaptExport", () => {
-  it("passes through native KotaModule format", () => {
+  it("passes through native KotaExtension format", () => {
     const plugin = {
       name: "native",
       tools: [
@@ -441,7 +441,7 @@ describe("adaptExport", () => {
     expect(toolsOf(plugin)[1].tool.name).toBe("openai_tool");
   });
 
-  it("adapts a KotaModule with simple-format tools array", async () => {
+  it("adapts a KotaExtension with simple-format tools array", async () => {
     const exported = {
       name: "hybrid",
       tools: [
@@ -621,7 +621,7 @@ describe("error paths", () => {
       expect(() => adaptExport(exported, "all-bad.js")).toThrow();
     });
 
-    it("KotaModule with mixed valid/invalid tools keeps the valid ones", () => {
+    it("KotaExtension with mixed valid/invalid tools keeps the valid ones", () => {
       const exported = {
         name: "mixed-plugin",
         tools: [

@@ -12,6 +12,8 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ExtensionStorage } from "../extension-storage.js";
+import type { ExtensionContext, KotaExtension } from "../extension-types.js";
 import type { WorkingMemoryEntry } from "../memory/working-memory.js";
 import {
 	clearAll,
@@ -22,13 +24,11 @@ import {
 	removeEntry,
 	setEntry,
 } from "../memory/working-memory.js";
-import type { ModuleStorage } from "../module-storage.js";
-import type { KotaModule, ModuleContext } from "../module-types.js";
 import type { ToolResult } from "../tools/index.js";
 
 const STORAGE_KEY = "entries";
 
-function savePersistent(storage: ModuleStorage): void {
+function savePersistent(storage: ExtensionStorage): void {
 	const entries = getPersistentEntries();
 	if (entries.length === 0) {
 		storage.delete(STORAGE_KEY);
@@ -40,7 +40,7 @@ function savePersistent(storage: ModuleStorage): void {
 	);
 }
 
-function loadPersistent(storage: ModuleStorage): number {
+function loadPersistent(storage: ExtensionStorage): number {
 	const raw = storage.getJSON<Array<{ key: string; value: string; updatedAt: number }>>(STORAGE_KEY);
 	if (!raw || !Array.isArray(raw)) return 0;
 	const entries: WorkingMemoryEntry[] = raw.map((e) => ({
@@ -86,7 +86,7 @@ const workingMemoryTool: Anthropic.Tool = {
 	},
 };
 
-function makeRunner(ctx: ModuleContext) {
+function makeRunner(ctx: ExtensionContext) {
 	return async (input: Record<string, unknown>): Promise<ToolResult> => {
 		const action = input.action as Action;
 		const key = input.key as string | undefined;
@@ -138,7 +138,7 @@ function makeRunner(ctx: ModuleContext) {
 	};
 }
 
-const workingMemoryModule: KotaModule = {
+const workingMemoryModule: KotaExtension = {
 	name: "working-memory",
 	version: "2.0.0",
 	description: "Agent-controlled scratchpad visible in the system prompt every turn",

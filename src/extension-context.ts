@@ -1,8 +1,8 @@
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
-import { getModuleLogStore } from "./module-log.js";
-import { ModuleStorage } from "./module-storage.js";
-import type { CreateSessionOptions, ModuleContext, ModuleEventProxy, ModuleSession, RouteRegistration } from "./module-types.js";
+import { getModuleLogStore } from "./extension-log.js";
+import { ExtensionStorage } from "./extension-storage.js";
+import type { CreateSessionOptions, ExtensionContext, ExtensionEventProxy, ExtensionSession, RouteRegistration } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
@@ -10,26 +10,26 @@ import { getToolMiddleware } from "./tool-middleware.js";
 import { getRegisteredTools } from "./tools/index.js";
 import type { ToolResult } from "./tools/tool-result.js";
 
-export interface ModuleContextParams {
+export interface ExtensionContextParams {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
-  moduleStorages: Map<string, ModuleStorage>;
+  moduleStorages: Map<string, ExtensionStorage>;
   moduleEventUnsubs: Map<string, Array<() => void>>;
   getBus: () => EventBus | null;
   getRoutes: () => RouteRegistration[];
-  sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null;
+  sessionFactory: ((opts: CreateSessionOptions) => ExtensionSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }
 
 function getOrCreateStorage(
   moduleName: string,
   cwd: string,
-  moduleStorages: Map<string, ModuleStorage>,
-): ModuleStorage {
+  moduleStorages: Map<string, ExtensionStorage>,
+): ExtensionStorage {
   let storage = moduleStorages.get(moduleName);
   if (!storage) {
-    storage = new ModuleStorage(cwd, moduleName);
+    storage = new ExtensionStorage(cwd, moduleName);
     moduleStorages.set(moduleName, storage);
   }
   return storage;
@@ -39,7 +39,7 @@ function createEventProxy(
   moduleName: string | undefined,
   getBus: () => EventBus | null,
   moduleEventUnsubs: Map<string, Array<() => void>>,
-): ModuleEventProxy {
+): ExtensionEventProxy {
   const trackUnsub = (unsub: () => void) => {
     if (!moduleName) return;
     const existing = moduleEventUnsubs.get(moduleName) ?? [];
@@ -68,11 +68,11 @@ function createEventProxy(
   };
 }
 
-export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleContext {
+export function createExtensionContext(params: ExtensionContextParams, moduleName?: string): ExtensionContext {
   const { cwd, verbose, config, moduleStorages, moduleEventUnsubs, getBus, getRoutes, sessionFactory, callTool } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
-    : new ModuleStorage(cwd, "_default");
+    : new ExtensionStorage(cwd, "_default");
   const prefix = moduleName ? `[module:${moduleName}]` : "[module]";
   const log = {
     info: (msg: string, data?: unknown) => {
@@ -114,7 +114,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       return getRegisteredTools().map((t) => t.name);
     },
     events: createEventProxy(moduleName, getBus, moduleEventUnsubs),
-    createSession: (opts?: CreateSessionOptions): ModuleSession => {
+    createSession: (opts?: CreateSessionOptions): ExtensionSession => {
       if (!sessionFactory) {
         throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");
       }

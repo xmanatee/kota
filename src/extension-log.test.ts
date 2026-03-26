@@ -6,7 +6,7 @@ import {
 	initModuleLogStore,
 	ModuleLogStore,
 	resetModuleLogStore,
-} from "./module-log.js";
+} from "./extension-log.js";
 
 const tmpBase = join(process.env.TMPDIR || "/tmp", "kota-log-test");
 

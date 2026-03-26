@@ -11,7 +11,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { manifestToModule } from "./execution.js";
 import type { ModuleManifest } from "./types.js";
 import { validateManifest } from "./validation.js";
@@ -65,13 +65,13 @@ export function deleteManifest(moduleName: string, cwd?: string): boolean {
 
 /**
  * Discover all manifest-based modules saved to `.kota/modules/`.
- * Returns KotaModule[] ready for ModuleLoader.loadAll().
+ * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
  */
-export function discoverManifestModules(cwd?: string): KotaModule[] {
+export function discoverManifestModules(cwd?: string): KotaExtension[] {
 	const dir = getModulesDir(cwd);
 	if (!existsSync(dir)) return [];
 
-	const modules: KotaModule[] = [];
+	const modules: KotaExtension[] = [];
 	for (const entry of readdirSync(dir)) {
 		const manifestPath = join(dir, entry, "manifest.json");
 		if (!existsSync(manifestPath)) continue;

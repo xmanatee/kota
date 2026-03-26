@@ -1,5 +1,5 @@
 /**
- * KotaModule protocol — the standard unit of functionality in KOTA.
+ * KotaExtension protocol — the standard unit of functionality in KOTA.
  *
  * A module can register tools, CLI commands, HTTP routes, and event
  * subscriptions. Built-in features and third-party extensions use the
@@ -11,20 +11,20 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
-import type { ModuleStorage } from "./module-storage.js";
+import type { ExtensionStorage } from "./extension-storage.js";
 import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
 
-/** Scoped logger available to modules via ModuleContext. */
-export type ModuleLogger = {
+/** Scoped logger available to modules via ExtensionContext. */
+export type ExtensionLogger = {
   info: (msg: string, data?: unknown) => void;
   warn: (msg: string, data?: unknown) => void;
   error: (msg: string, data?: unknown) => void;
   debug: (msg: string, data?: unknown) => void;
 };
 
-/** Event proxy available to modules via ModuleContext. */
-export type ModuleEventProxy = {
+/** Event proxy available to modules via ExtensionContext. */
+export type ExtensionEventProxy = {
   /** Emit an event on the bus. No-op if bus not available. */
   emit(event: string, payload: Record<string, unknown>): void;
   /** Subscribe to an event. Returns unsubscribe function. No-op if bus not available. */
@@ -34,7 +34,7 @@ export type ModuleEventProxy = {
 };
 
 /** Minimal session interface returned by ctx.createSession(). */
-export type ModuleSession = {
+export type ExtensionSession = {
   /** Send a prompt and get the response text. */
   send(prompt: string): Promise<string>;
   /** Close the session and release resources. */
@@ -65,12 +65,12 @@ export type RouteRegistration = {
 };
 
 /** Context provided to modules during initialization. */
-export type ModuleContext = {
+export type ExtensionContext = {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
   /** Scoped file-based storage for this module (`.kota/modules/<name>/`). */
-  storage: ModuleStorage;
+  storage: ExtensionStorage;
   /** Register a custom tool group with optional auto-detect regex. */
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
   /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
@@ -78,15 +78,15 @@ export type ModuleContext = {
   /** Get this module's config section from the KOTA config. */
   getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
   /** Scoped logger — messages prefixed with `[module:<name>]`. */
-  log: ModuleLogger;
+  log: ExtensionLogger;
   /** Get a secret value by name. Returns null if not found or store not initialized. */
   getSecret: (key: string) => string | null;
   /** List names of all currently registered tools. */
   listTools: () => string[];
   /** Event proxy for emitting and subscribing to bus events. */
-  events: ModuleEventProxy;
+  events: ExtensionEventProxy;
   /** Create an agent session without importing core types. */
-  createSession: (options?: CreateSessionOptions) => ModuleSession;
+  createSession: (options?: CreateSessionOptions) => ExtensionSession;
   /** Register this module as a provider for a service type (e.g., "memory", "knowledge"). */
   registerProvider: (type: string, provider: unknown) => void;
   /** Get the active provider for a service type. Returns null if none registered. */
@@ -98,7 +98,7 @@ export type ModuleContext = {
 };
 
 /**
- * KotaModule — the pluggable unit of KOTA functionality.
+ * KotaExtension — the pluggable unit of KOTA functionality.
  *
  * Modules extend KOTA's capabilities through a declarative protocol:
  * - `tools` — register agent tools
@@ -109,7 +109,7 @@ export type ModuleContext = {
  * Built-in modules ship with KOTA but use the same protocol as external ones.
  * The core without any modules loaded still functions as a basic agent.
  */
-export type KotaModule = {
+export type KotaExtension = {
   /** Unique module identifier (e.g. "memory", "telegram", "web"). */
   name: string;
   /** Semver version string. */
@@ -121,22 +121,22 @@ export type KotaModule = {
 
   /**
    * Tools this module provides. Registered during load.
-   * Can be a static array or a factory that receives ModuleContext,
+   * Can be a static array or a factory that receives ExtensionContext,
    * allowing tool runners to access module services via closure.
    */
-  tools?: ToolDef[] | ((ctx: ModuleContext) => ToolDef[]);
+  tools?: ToolDef[] | ((ctx: ExtensionContext) => ToolDef[]);
 
   /**
    * CLI commands this module adds. Called once at load time.
    * Returned commands are added to the main program — they appear in `kota --help`.
    */
-  commands?: (ctx: ModuleContext) => Command[];
+  commands?: (ctx: ExtensionContext) => Command[];
 
   /**
    * HTTP routes this module adds. Called when the server starts.
    * Routes are matched by method + path in the HTTP request handler.
    */
-  routes?: (ctx: ModuleContext) => RouteRegistration[];
+  routes?: (ctx: ExtensionContext) => RouteRegistration[];
 
   /**
    * Event subscriptions. Called once when events are connected.
@@ -150,19 +150,19 @@ export type KotaModule = {
    * Enables modules to teach the agent how to use their capabilities.
    * Called once after load; return null/undefined to skip.
    */
-  promptSection?: (ctx: ModuleContext) => string | undefined;
+  promptSection?: (ctx: ExtensionContext) => string | undefined;
 
   /** Called after the module is loaded and tools are registered. */
-  onLoad?: (ctx: ModuleContext) => Promise<void> | void;
+  onLoad?: (ctx: ExtensionContext) => Promise<void> | void;
 
   /** Called on shutdown — clean up resources, close connections. */
   onUnload?: () => Promise<void> | void;
 };
 
-/** Resolve tools from a KotaModule — handles both static array and factory function forms. */
-export function resolveModuleTools(
-  mod: KotaModule,
-  ctx?: ModuleContext,
+/** Resolve tools from a KotaExtension — handles both static array and factory function forms. */
+export function resolveExtensionTools(
+  mod: KotaExtension,
+  ctx?: ExtensionContext,
 ): ToolDef[] {
   if (!mod.tools) return [];
   if (typeof mod.tools === "function") {

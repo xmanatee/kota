@@ -8,16 +8,16 @@
  * Data is stored in `.kota/memory.db`.
  */
 
+import type { ExtensionContext, KotaExtension } from "../extension-types.js";
 import { SQLiteMemoryProvider } from "../memory/sqlite-memory.js";
-import type { KotaModule, ModuleContext } from "../module-types.js";
 
-const sqliteMemoryModule: KotaModule = {
+const sqliteMemoryModule: KotaExtension = {
 	name: "sqlite-memory",
 	version: "1.0.0",
 	description: "SQLite-backed memory provider — SQL-powered search, no size limits",
 	dependencies: ["memory"],
 
-	onLoad: (ctx: ModuleContext) => {
+	onLoad: (ctx: ExtensionContext) => {
 		const provider = new SQLiteMemoryProvider(ctx.storage.getDir());
 		ctx.registerProvider("memory", provider);
 		ctx.log.info("SQLite memory provider registered");

@@ -4,6 +4,8 @@ import { buildUserProfile, type KotaConfig } from "./config.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { tryEmit } from "./event-bus.js";
+import { ExtensionLoader } from "./extension-loader.js";
+import { initModuleLogStore } from "./extension-log.js";
 import { initChangeTracker } from "./file-changes.js";
 import { type GuardrailsConfig, getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
 import { initAuditStore } from "./guardrails-audit.js";
@@ -15,8 +17,6 @@ import type { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
 import { AnthropicModelClient, type ModelClient } from "./model/model-client.js";
 import type { ModelTiers } from "./model/model-router.js";
-import { ModuleLoader } from "./module-loader.js";
-import { initModuleLogStore } from "./module-log.js";
 import { loadProjectContext } from "./project-context.js";
 import { initProviderRegistry, registerDefaultProviders } from "./providers.js";
 import { initScheduler } from "./scheduler/scheduler.js";
@@ -72,7 +72,7 @@ export class AgentSession {
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker: VerifyTracker;
   private mcpManager: McpManager | null = null;
-  private moduleLoader: ModuleLoader;
+  private moduleLoader: ExtensionLoader;
   private transport: Transport;
   private sigintHandler: () => void;
   private closed = false;
@@ -202,7 +202,7 @@ export class AgentSession {
       transport: this.transport,
     });
 
-    this.moduleLoader = new ModuleLoader(options.config || {}, this.verbose);
+    this.moduleLoader = new ExtensionLoader(options.config || {}, this.verbose);
     setModuleInfoProvider(() =>
       this.moduleLoader.getLoadedModules().map((name) => ({
         name,

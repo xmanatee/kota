@@ -2,8 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleLoader } from "./module-loader.js";
-import { discoverPluginModules } from "./plugin-loader.js";
+import { discoverExtensions } from "./extension-discovery.js";
+import { ExtensionLoader } from "./extension-loader.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
@@ -19,16 +19,16 @@ function writePlugin(dir: string, name: string, code: string): void {
   writeFileSync(join(pluginDir, name), code);
 }
 
-describe("discoverPluginModules", () => {
+describe("discoverExtensions", () => {
   let tmpDir: string;
-  let loader: ModuleLoader;
+  let loader: ExtensionLoader;
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
-    loader = new ModuleLoader({}, false);
+    loader = new ExtensionLoader({}, false);
   });
 
   afterEach(async () => {
@@ -37,7 +37,7 @@ describe("discoverPluginModules", () => {
   });
 
   it("discovers nothing when .kota/plugins/ does not exist", async () => {
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     expect(modules).toEqual([]);
   });
 
@@ -56,7 +56,7 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     expect(modules).toHaveLength(1);
     expect(modules[0].name).toBe("hello-plugin");
 
@@ -84,7 +84,7 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.analysis).toEqual(["custom_analyzer"]);
@@ -113,14 +113,14 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
 
     const filtered = filterTools(getAllTools());
     expect(filtered.some((t) => t.name === "always_available")).toBe(true);
   });
 
-  it("calls onLoad with ModuleContext", async () => {
+  it("calls onLoad with ExtensionContext", async () => {
     writePlugin(tmpDir, "lifecycle.mjs", `
       let loaded = false;
       export default {
@@ -128,7 +128,7 @@ describe("discoverPluginModules", () => {
         onLoad: (ctx) => {
           loaded = true;
           if (!ctx.cwd || typeof ctx.verbose !== "boolean" || typeof ctx.registerGroup !== "function") {
-            throw new Error("Invalid ModuleContext");
+            throw new Error("Invalid ExtensionContext");
           }
         },
         tools: [{
@@ -142,7 +142,7 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
     const result = await executeTool("check_loaded", {});
     expect(result.content).toBe("yes");
@@ -160,7 +160,7 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
     expect(loader.getModuleCount()).toBe(1);
 
@@ -176,19 +176,19 @@ describe("discoverPluginModules", () => {
       export default { tools: [] };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     // adaptExport logs an error and the module is skipped
     expect(modules).toHaveLength(0);
   });
 
-  it("rejects duplicate plugin names via ModuleLoader", async () => {
+  it("rejects duplicate plugin names via ExtensionLoader", async () => {
     writePlugin(tmpDir, "a.mjs", `export default { name: "dupe" };`);
     writePlugin(tmpDir, "b.mjs", `export default { name: "dupe" };`);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     expect(modules).toHaveLength(2);
 
-    // ModuleLoader rejects the duplicate — first loads, second errors silently
+    // ExtensionLoader rejects the duplicate — first loads, second errors silently
     await loader.loadAll(modules);
     expect(loader.getModuleCount()).toBe(1);
   });
@@ -198,7 +198,7 @@ describe("discoverPluginModules", () => {
     writePlugin(tmpDir, "a-first.mjs", `export default { name: "a-first" };`);
     writePlugin(tmpDir, "m-middle.mjs", `export default { name: "m-middle" };`);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     expect(modules.map((m) => m.name)).toEqual(["a-first", "m-middle", "z-last"]);
   });
 
@@ -209,12 +209,12 @@ describe("discoverPluginModules", () => {
     writeFileSync(join(pluginDir, "data.json"), "{}");
     writePlugin(tmpDir, "real.mjs", `export default { name: "real" };`);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     expect(modules).toHaveLength(1);
     expect(modules[0].name).toBe("real");
   });
 
-  it("cleans up tools on ModuleLoader.unloadAll", async () => {
+  it("cleans up tools on ExtensionLoader.unloadAll", async () => {
     writePlugin(tmpDir, "cleanup.mjs", `
       export default {
         name: "cleanup-plugin",
@@ -230,7 +230,7 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.temp_group).toEqual(["temp_tool"]);
@@ -244,7 +244,7 @@ describe("discoverPluginModules", () => {
     expect(result2.is_error).toBe(true);
   });
 
-  it("registerGroup from ModuleContext creates groups with auto-detect pattern", async () => {
+  it("registerGroup from ExtensionContext creates groups with auto-detect pattern", async () => {
     writePlugin(tmpDir, "custom-group.mjs", `
       export default {
         name: "custom-group-plugin",
@@ -274,7 +274,7 @@ describe("discoverPluginModules", () => {
       };
     `);
 
-    const modules = await discoverPluginModules(tmpDir);
+    const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.email).toContain("send_email");

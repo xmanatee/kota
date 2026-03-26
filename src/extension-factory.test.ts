@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaExtension, ToolDef } from "./extension-types.js";
 import {
 	deleteManifest,
 	discoverManifestModules,
@@ -17,10 +18,9 @@ import {
 	saveManifest,
 	validateManifest,
 } from "./manifest/index.js";
-import type { KotaModule, ToolDef } from "./module-types.js";
 
-/** Helper to get tools as array from a KotaModule. */
-function toolsOf(mod: KotaModule): ToolDef[] {
+/** Helper to get tools as array from a KotaExtension. */
+function toolsOf(mod: KotaExtension): ToolDef[] {
   return Array.isArray(mod.tools) ? mod.tools : [];
 }
 
@@ -407,7 +407,7 @@ describe("validateManifest", () => {
 // ─── manifestToModule ─────────────────────────────────────────────────
 
 describe("manifestToModule", () => {
-	it("creates a KotaModule from a minimal manifest", () => {
+	it("creates a KotaExtension from a minimal manifest", () => {
 		const mod = manifestToModule({ name: "simple" });
 		expect(mod.name).toBe("simple");
 		expect(mod.version).toBe("1.0.0");
@@ -415,7 +415,7 @@ describe("manifestToModule", () => {
 		expect(mod.promptSection).toBeUndefined();
 	});
 
-	it("creates a KotaModule with tools", () => {
+	it("creates a KotaExtension with tools", () => {
 		const mod = manifestToModule({
 			name: "with-tools",
 			tools: [{
@@ -429,7 +429,7 @@ describe("manifestToModule", () => {
 		expect(typeof toolsOf(mod)[0].runner).toBe("function");
 	});
 
-	it("creates a KotaModule with prompt section", () => {
+	it("creates a KotaExtension with prompt section", () => {
 		const mod = manifestToModule({
 			name: "with-prompt",
 			promptSection: "Use this module for testing.",

@@ -1,18 +1,18 @@
 /**
  * Plugin discovery — finds user-authored plugins in `.kota/plugins/` and
- * `.kota/packages/`, adapts their exports to KotaModule format, and returns
- * them for loading through ModuleLoader.
+ * `.kota/packages/`, adapts their exports to KotaExtension format, and returns
+ * them for loading through ExtensionLoader.
  *
  * After the plugin→module unification (iter 447), plugins are simply modules
- * discovered from disk. ModuleLoader handles all lifecycle (load, unload,
+ * discovered from disk. ExtensionLoader handles all lifecycle (load, unload,
  * reload, dependencies, tool registration).
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { KotaExtension } from "./extension-types.js";
 import { discoverManifestModules } from "./manifest/index.js";
-import type { KotaModule } from "./module-types.js";
 import { adaptExport } from "./tool-adapters.js";
 
 const PLUGIN_DIR = ".kota/plugins";
@@ -20,11 +20,11 @@ const PACKAGES_DIR = ".kota/packages";
 
 /**
  * Discover plugin modules from `.kota/plugins/` and `.kota/packages/`.
- * Returns KotaModule[] ready for ModuleLoader.loadAll().
+ * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
  */
-export async function discoverPluginModules(cwd?: string, verbose = false): Promise<KotaModule[]> {
+export async function discoverExtensions(cwd?: string, verbose = false): Promise<KotaExtension[]> {
   const base = cwd || process.cwd();
-  const modules: KotaModule[] = [];
+  const modules: KotaExtension[] = [];
 
   // 1. File-based plugins from .kota/plugins/
   const pluginDir = resolve(base, PLUGIN_DIR);
@@ -60,15 +60,15 @@ export async function discoverPluginModules(cwd?: string, verbose = false): Prom
   return modules;
 }
 
-/** Import a single plugin file and adapt its export to KotaModule. */
-async function importPlugin(absPath: string, displayName: string): Promise<KotaModule> {
+/** Import a single plugin file and adapt its export to KotaExtension. */
+async function importPlugin(absPath: string, displayName: string): Promise<KotaExtension> {
   const url = pathToFileURL(absPath).href;
   const mod = await import(url);
   return adaptExport(mod.default ?? mod, displayName);
 }
 
 /** Discover npm packages from .kota/packages/node_modules/. */
-async function discoverNpmPackages(cwd: string): Promise<KotaModule[]> {
+async function discoverNpmPackages(cwd: string): Promise<KotaExtension[]> {
   const pkgJsonPath = resolve(cwd, PACKAGES_DIR, "package.json");
   if (!existsSync(pkgJsonPath)) return [];
 
@@ -83,7 +83,7 @@ async function discoverNpmPackages(cwd: string): Promise<KotaModule[]> {
   const nodeModules = resolve(cwd, PACKAGES_DIR, "node_modules");
   if (!existsSync(nodeModules)) return [];
 
-  const modules: KotaModule[] = [];
+  const modules: KotaExtension[] = [];
   for (const pkgName of Object.keys(deps).sort()) {
     try {
       const mod = await importNpmPackage(nodeModules, pkgName);
@@ -96,8 +96,8 @@ async function discoverNpmPackages(cwd: string): Promise<KotaModule[]> {
   return modules;
 }
 
-/** Import a single npm package and adapt its export to KotaModule. */
-async function importNpmPackage(nodeModules: string, pkgName: string): Promise<KotaModule> {
+/** Import a single npm package and adapt its export to KotaExtension. */
+async function importNpmPackage(nodeModules: string, pkgName: string): Promise<KotaExtension> {
   const pkgDir = join(nodeModules, ...pkgName.split("/"));
   const pkgJsonPath = join(pkgDir, "package.json");
   if (!existsSync(pkgJsonPath)) {

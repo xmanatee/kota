@@ -2,6 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
+import { discoverExtensions } from "./extension-discovery.js";
+import type { ExtensionLoader } from "./extension-loader.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { GuardrailsConfig } from "./guardrails.js";
 import { resetAuditStore } from "./guardrails-audit.js";
@@ -10,9 +12,7 @@ import { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
 import type { ModelClient } from "./model/model-client.js";
 import type { ModelTiers } from "./model/model-router.js";
-import type { ModuleLoader } from "./module-loader.js";
-import { builtinModules } from "./modules/index.js";
-import { discoverPluginModules } from "./plugin-loader.js";
+import { builtinExtensions } from "./modules/index.js";
 import { resetProviderRegistry } from "./providers.js";
 import type { SessionStateMachine } from "./session-state.js";
 import { resetGroups } from "./tool-groups.js";
@@ -56,7 +56,7 @@ export interface AgentLoopState {
   projectContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
-  moduleLoader: ModuleLoader;
+  moduleLoader: ExtensionLoader;
   closed: boolean;
 }
 
@@ -86,9 +86,9 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
     }
   }
 
-  const pluginModules = await discoverPluginModules(undefined, state.verbose);
+  const pluginModules = await discoverExtensions(undefined, state.verbose);
   for (const { name } of listManifestModules()) markModuleLoaded(name);
-  await state.moduleLoader.loadAll([...builtinModules, ...pluginModules]);
+  await state.moduleLoader.loadAll([...builtinExtensions, ...pluginModules]);
 
   const modulePromptSections = state.moduleLoader.getPromptSections();
   if (modulePromptSections) {

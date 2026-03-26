@@ -5,6 +5,7 @@ explain structure, standards, current priorities, and how work moves through
 the repo.
 
 @docs/STANDARDS.md
+@docs/ARCHITECTURE.md
 
 @tasks/AGENTS.md
 

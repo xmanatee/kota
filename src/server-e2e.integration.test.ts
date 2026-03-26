@@ -37,8 +37,8 @@ vi.mock("./loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
-import { ModuleLoader } from "./module-loader.js";
-import { builtinModules } from "./modules/index.js";
+import { ExtensionLoader } from "./extension-loader.js";
+import { builtinExtensions } from "./modules/index.js";
 import { startServer } from "./server/server.js";
 
 let server: Server;
@@ -111,8 +111,8 @@ async function createSession(): Promise<string> {
 beforeAll(async () => {
   const origLog = console.log;
   console.log = () => {};
-  const loader = new ModuleLoader({} as any, false, { commandsOnly: true });
-  await loader.loadAll(builtinModules);
+  const loader = new ExtensionLoader({} as any, false, { commandsOnly: true });
+  await loader.loadAll(builtinExtensions);
   const moduleRoutes = loader.getRoutes();
   server = startServer({ port: 0, config: {} as any, moduleRoutes });
   const port = await waitForPort(server);

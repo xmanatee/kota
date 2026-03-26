@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { Command } from "commander";
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { Daemon, RESTART_EXIT_CODE } from "../scheduler/daemon.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
@@ -86,7 +86,7 @@ async function runDaemonSupervisor(
   }
 }
 
-const daemonModule: KotaModule = {
+const daemonModule: KotaExtension = {
   name: "daemon",
   version: "1.0.0",
   description: "Long-running KOTA process with scheduler and code-defined workflows",

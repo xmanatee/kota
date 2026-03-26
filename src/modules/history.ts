@@ -5,13 +5,13 @@
  * Enables the agent to search and read past conversations.
  */
 
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
 } from "../tools/conversation-recall.js";
 
-const historyModule: KotaModule = {
+const historyModule: KotaExtension = {
 	name: "history",
 	version: "1.0.0",
 	description:

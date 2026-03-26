@@ -6,13 +6,13 @@
  * timeout with doubled timeout_ms. Session-scoped stats reset on unload.
  */
 
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { createRetryMiddleware, resetRetryStats } from "../tool-retry.js";
 
 const MIDDLEWARE_NAME = "tool-retry";
 const PRIORITY = 20; // After cache (10), before custom middleware (100+)
 
-const toolRetryModule: KotaModule = {
+const toolRetryModule: KotaExtension = {
 	name: "tool-retry",
 	version: "1.0.0",
 	description: "Retries transient tool failures with exponential backoff",

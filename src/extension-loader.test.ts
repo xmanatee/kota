@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus, initEventBus, resetEventBus } from "./event-bus.js";
-import { ModuleLoader } from "./module-loader.js";
-import type { KotaModule } from "./module-types.js";
+import { ExtensionLoader } from "./extension-loader.js";
+import type { KotaExtension } from "./extension-types.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
@@ -16,7 +16,7 @@ function makeTool(name: string) {
   };
 }
 
-describe("ModuleLoader", () => {
+describe("ExtensionLoader", () => {
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
@@ -30,8 +30,8 @@ describe("ModuleLoader", () => {
   });
 
   it("loads a module with tools", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
+    const loader = new ExtensionLoader({});
+    const mod: KotaExtension = {
       name: "test-mod",
       tools: [makeTool("test_tool")],
     };
@@ -46,8 +46,8 @@ describe("ModuleLoader", () => {
   });
 
   it("registers tools into groups via group field", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
+    const loader = new ExtensionLoader({});
+    const mod: KotaExtension = {
       name: "grouped-mod",
       tools: [{ ...makeTool("grouped_tool"), group: "test_group" }],
     };
@@ -65,7 +65,7 @@ describe("ModuleLoader", () => {
   });
 
   it("rejects duplicate module names", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "dup" });
     await expect(loader.load({ name: "dup" })).rejects.toThrow(
       'Duplicate module name: "dup"',
@@ -73,25 +73,25 @@ describe("ModuleLoader", () => {
   });
 
   it("rejects modules with missing dependencies", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
+    const loader = new ExtensionLoader({});
+    const mod: KotaExtension = {
       name: "dependent",
       dependencies: ["missing-dep"],
     };
     await expect(loader.load(mod)).rejects.toThrow(
-      'Module "dependent" requires "missing-dep" which is not loaded',
+      'Extension "dependent" requires "missing-dep" which is not loaded',
     );
   });
 
   it("loads dependencies before dependents via loadAll", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     const loadOrder: string[] = [];
 
-    const dep: KotaModule = {
+    const dep: KotaExtension = {
       name: "base",
       onLoad: () => { loadOrder.push("base"); },
     };
-    const dependent: KotaModule = {
+    const dependent: KotaExtension = {
       name: "ext",
       dependencies: ["base"],
       onLoad: () => { loadOrder.push("ext"); },
@@ -103,9 +103,9 @@ describe("ModuleLoader", () => {
     expect(loader.getLoadedModules()).toEqual(["base", "ext"]);
   });
 
-  it("calls onLoad with ModuleContext including getRoutes", async () => {
+  it("calls onLoad with ExtensionContext including getRoutes", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({ model: "test-model" }, true);
+    const loader = new ExtensionLoader({ model: "test-model" }, true);
     await loader.load({ name: "ctx-test", onLoad });
 
     expect(onLoad).toHaveBeenCalledOnce();
@@ -119,7 +119,7 @@ describe("ModuleLoader", () => {
 
   it("getRoutes in context returns routes from all loaded modules", async () => {
     const handler = vi.fn();
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "route-provider",
@@ -144,7 +144,7 @@ describe("ModuleLoader", () => {
 
   it("calls onUnload in reverse order during unloadAll", async () => {
     const unloadOrder: string[] = [];
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.loadAll([
       { name: "first", onUnload: () => { unloadOrder.push("first"); } },
@@ -158,7 +158,7 @@ describe("ModuleLoader", () => {
   });
 
   it("cleans up tools on unloadAll", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "cleanup-mod",
       tools: [makeTool("cleanup_tool")],
@@ -174,7 +174,7 @@ describe("ModuleLoader", () => {
 
   it("collects CLI commands from modules", async () => {
     const { Command } = await import("commander");
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "cmd-mod",
@@ -190,7 +190,7 @@ describe("ModuleLoader", () => {
 
   it("collects HTTP routes from modules", async () => {
     const handler = vi.fn();
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "route-mod",
@@ -208,7 +208,7 @@ describe("ModuleLoader", () => {
   it("connects and disconnects event subscriptions", async () => {
     const bus = new EventBus();
     const received: string[] = [];
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "event-mod",
@@ -230,7 +230,7 @@ describe("ModuleLoader", () => {
   });
 
   it("handles module load errors gracefully in loadAll", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loader.loadAll([
@@ -244,14 +244,14 @@ describe("ModuleLoader", () => {
     // Bad module failed, good module loaded
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "bad-mod" failed to load: boom'),
+      expect.stringContaining('Extension "bad-mod" failed to load: boom'),
     );
     errSpy.mockRestore();
   });
 
   it("commandsOnly mode skips tool registration and onLoad", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    const loader = new ExtensionLoader({}, false, { commandsOnly: true });
     const { Command } = await import("commander");
 
     await loader.load({
@@ -277,7 +277,7 @@ describe("ModuleLoader", () => {
   });
 
   it("handles onUnload errors gracefully", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loader.load({
@@ -287,13 +287,13 @@ describe("ModuleLoader", () => {
 
     await loader.unloadAll();
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "bad-unload" unload error: cleanup failed'),
+      expect.stringContaining('Extension "bad-unload" unload error: cleanup failed'),
     );
     errSpy.mockRestore();
   });
 
   it("unloads a single module and deregisters its tools", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "mod-a",
       tools: [makeTool("tool_a")],
@@ -317,12 +317,12 @@ describe("ModuleLoader", () => {
   });
 
   it("unload returns false for unknown module", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     expect(await loader.unload("nonexistent")).toBe(false);
   });
 
   it("unload rejects when dependents exist", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "base" });
     await loader.load({ name: "child", dependencies: ["base"] });
 
@@ -335,7 +335,7 @@ describe("ModuleLoader", () => {
     const bus = new EventBus();
     const unloadCalled = vi.fn();
     const received: string[] = [];
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "evt-mod",
@@ -358,7 +358,7 @@ describe("ModuleLoader", () => {
 
   it("reloads a module — re-registers tools and calls onLoad again", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "reload-mod",
@@ -381,14 +381,14 @@ describe("ModuleLoader", () => {
   });
 
   it("reload returns false for unknown module", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     expect(await loader.reload("nonexistent")).toBe(false);
   });
 
   it("reload reconnects events when bus is available", async () => {
     const bus = new EventBus();
     const received: string[] = [];
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "evt-reload",
@@ -407,7 +407,7 @@ describe("ModuleLoader", () => {
   });
 
   it("getDependents returns correct dependents", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "core" });
     await loader.load({ name: "ext-a", dependencies: ["core"] });
     await loader.load({ name: "ext-b", dependencies: ["core"] });
@@ -434,7 +434,7 @@ describe("scheduler module integration", () => {
 
   it("registers the schedule tool via module protocol", async () => {
     const { default: schedulerModule } = await import("./modules/scheduler.js");
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load(schedulerModule);
     expect(loader.getLoadedModules()).toEqual(["scheduler"]);
@@ -450,7 +450,7 @@ describe("scheduler module integration", () => {
 
   it("schedule tool is hidden until management group is enabled", async () => {
     const { default: schedulerModule } = await import("./modules/scheduler.js");
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load(schedulerModule);
 
     const before = filterTools(getAllTools());
@@ -477,7 +477,7 @@ describe("memory module integration", () => {
 
   it("registers the memory tool via module protocol", async () => {
     const { default: memoryModule } = await import("./modules/memory.js");
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load(memoryModule);
     expect(loader.getLoadedModules()).toEqual(["memory"]);
@@ -493,7 +493,7 @@ describe("memory module integration", () => {
 
   it("memory tool is hidden until management group is enabled", async () => {
     const { default: memoryModule } = await import("./modules/memory.js");
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load(memoryModule);
 
     const before = filterTools(getAllTools());
@@ -519,7 +519,7 @@ describe("getRoutes reentrancy guard", () => {
   });
 
   it("returns empty array instead of infinite recursion when routes() calls ctx.getRoutes()", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     const handler = vi.fn();
 
     // Module A provides a route normally
@@ -548,7 +548,7 @@ describe("getRoutes reentrancy guard", () => {
   });
 
   it("allows getRoutes() after a previous call completes", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     const handler = vi.fn();
 
     await loader.load({
@@ -566,7 +566,7 @@ describe("getRoutes reentrancy guard", () => {
   });
 
   it("resets guard even if routes() throws", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const handler = vi.fn();
 
@@ -604,9 +604,9 @@ describe("Module SDK — storage, config, promptSection", () => {
     resetGroups();
   });
 
-  it("provides scoped storage via ModuleContext", async () => {
+  it("provides scoped storage via ExtensionContext", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({}, false);
+    const loader = new ExtensionLoader({}, false);
     await loader.load({ name: "storage-mod", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
@@ -617,7 +617,7 @@ describe("Module SDK — storage, config, promptSection", () => {
   it("each module gets its own isolated storage", async () => {
     const onLoadA = vi.fn();
     const onLoadB = vi.fn();
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "mod-a", onLoad: onLoadA });
     await loader.load({ name: "mod-b", onLoad: onLoadB });
 
@@ -630,7 +630,7 @@ describe("Module SDK — storage, config, promptSection", () => {
 
   it("getModuleConfig returns the module's config section", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({
+    const loader = new ExtensionLoader({
       modules: {
         "my-mod": { apiKey: "secret", retries: 3 },
       },
@@ -644,7 +644,7 @@ describe("Module SDK — storage, config, promptSection", () => {
 
   it("getModuleConfig returns undefined when no config exists", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "no-config", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
@@ -652,20 +652,20 @@ describe("Module SDK — storage, config, promptSection", () => {
   });
 
   it("collects promptSection from modules", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "helper-mod",
       promptSection: () => "Use the helper tool for quick lookups.",
     });
 
     const sections = loader.getPromptSections();
-    expect(sections).toContain("## Module Capabilities");
+    expect(sections).toContain("## Extension Capabilities");
     expect(sections).toContain("### helper-mod");
     expect(sections).toContain("Use the helper tool for quick lookups.");
   });
 
   it("skips promptSection that returns undefined", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "silent-mod",
       promptSection: () => undefined,
@@ -676,7 +676,7 @@ describe("Module SDK — storage, config, promptSection", () => {
 
   it("handles promptSection errors gracefully", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "bad-prompt",
       promptSection: () => { throw new Error("prompt boom"); },
@@ -684,13 +684,13 @@ describe("Module SDK — storage, config, promptSection", () => {
 
     expect(loader.getPromptSections()).toBe("");
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "bad-prompt" promptSection failed'),
+      expect.stringContaining('Extension "bad-prompt" promptSection failed'),
     );
     errSpy.mockRestore();
   });
 
   it("collects multiple prompt sections in load order", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "mod-a",
       promptSection: () => "Section A content.",
@@ -709,7 +709,7 @@ describe("Module SDK — storage, config, promptSection", () => {
   });
 
   it("removes prompt section on module unload", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "removable",
       promptSection: () => "Removable content.",
@@ -721,31 +721,31 @@ describe("Module SDK — storage, config, promptSection", () => {
     expect(loader.getPromptSections()).toBe("");
   });
 
-  it("getModuleStorage returns storage for loaded module", async () => {
-    const loader = new ModuleLoader({});
+  it("getExtensionStorage returns storage for loaded module", async () => {
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "stored-mod" });
 
-    const storage = loader.getModuleStorage("stored-mod");
+    const storage = loader.getExtensionStorage("stored-mod");
     expect(storage).toBeDefined();
     expect(storage!.getDir()).toContain("stored-mod");
   });
 
-  it("getModuleStorage returns undefined for unknown module", () => {
-    const loader = new ModuleLoader({});
-    expect(loader.getModuleStorage("unknown")).toBeUndefined();
+  it("getExtensionStorage returns undefined for unknown module", () => {
+    const loader = new ExtensionLoader({});
+    expect(loader.getExtensionStorage("unknown")).toBeUndefined();
   });
 
   it("cleans up storage references on unloadAll", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({ name: "cleanup-storage" });
-    expect(loader.getModuleStorage("cleanup-storage")).toBeDefined();
+    expect(loader.getExtensionStorage("cleanup-storage")).toBeDefined();
 
     await loader.unloadAll();
-    expect(loader.getModuleStorage("cleanup-storage")).toBeUndefined();
+    expect(loader.getExtensionStorage("cleanup-storage")).toBeUndefined();
   });
 
   it("commandsOnly mode skips promptSection collection", async () => {
-    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    const loader = new ExtensionLoader({}, false, { commandsOnly: true });
     await loader.load({
       name: "skip-prompt",
       promptSection: () => "Should not appear.",
@@ -769,7 +769,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("invokes a registered tool and returns its result", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "tool-provider",
       tools: [makeTool("helper_tool")],
@@ -787,7 +787,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("returns error for unknown tool", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     let capturedCtx: any;
     await loader.load({
       name: "caller",
@@ -800,7 +800,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("returns error when tool runner throws", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "throwing-mod",
       tools: [{
@@ -825,7 +825,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("enforces recursion depth limit", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     let capturedCtx: any;
 
     await loader.load({
@@ -849,7 +849,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("resets depth counter after successful call", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "tool-mod",
       tools: [makeTool("simple_tool")],
@@ -871,7 +871,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("passes input to the tool runner", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     await loader.load({
       name: "echo-mod",
       tools: [{
@@ -895,7 +895,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("allows chained tool calls within depth limit", async () => {
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     // Tool A calls Tool B, which returns a result
     await loader.load({
@@ -935,7 +935,7 @@ describe("ctx.callTool — direct tool invocation", () => {
 
   it("callTool works from event handlers via captured context", async () => {
     const bus = new EventBus();
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
     let eventResult: any;
 
     await loader.load({
@@ -979,7 +979,7 @@ describe("module event bus integration", () => {
   it("connectEvents wires module event subscriptions to the singleton bus", async () => {
     const bus = initEventBus();
     const received: string[] = [];
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "bus-mod",
@@ -1001,7 +1001,7 @@ describe("module event bus integration", () => {
   it("module events are cleaned up on unloadAll", async () => {
     const bus = initEventBus();
     const received: string[] = [];
-    const loader = new ModuleLoader({});
+    const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "cleanup-evt",

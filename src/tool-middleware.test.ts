@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleLoader } from "./module-loader.js";
+import { ExtensionLoader } from "./extension-loader.js";
 import {
 	getToolMiddleware,
 	resetToolMiddleware,
@@ -233,7 +233,7 @@ describe("singleton", () => {
 	});
 });
 
-describe("ModuleLoader middleware integration", () => {
+describe("ExtensionLoader middleware integration", () => {
 	beforeEach(() => {
 		clearCustomTools();
 		resetToolMiddleware();
@@ -245,7 +245,7 @@ describe("ModuleLoader middleware integration", () => {
 	});
 
 	it("module registers middleware via ctx.registerMiddleware", async () => {
-		const loader = new ModuleLoader({});
+		const loader = new ExtensionLoader({});
 		await loader.load({
 			name: "audit",
 			onLoad: (ctx) => {
@@ -261,7 +261,7 @@ describe("ModuleLoader middleware integration", () => {
 	});
 
 	it("module middleware is cleaned up on unload", async () => {
-		const loader = new ModuleLoader({});
+		const loader = new ExtensionLoader({});
 		await loader.load({
 			name: "temp-mod",
 			onLoad: (ctx) => {
@@ -274,7 +274,7 @@ describe("ModuleLoader middleware integration", () => {
 	});
 
 	it("unloadAll clears all module middleware", async () => {
-		const loader = new ModuleLoader({});
+		const loader = new ExtensionLoader({});
 		await loader.load({
 			name: "mod-a",
 			onLoad: (ctx) => {
@@ -293,7 +293,7 @@ describe("ModuleLoader middleware integration", () => {
 	});
 
 	it("module middleware with priority controls execution order", async () => {
-		const loader = new ModuleLoader({});
+		const loader = new ExtensionLoader({});
 		const order: string[] = [];
 
 		await loader.load({

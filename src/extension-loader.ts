@@ -1,26 +1,26 @@
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
-import { createModuleContext, type ModuleContextParams } from "./module-context.js";
-import { topoSort } from "./module-deps.js";
-import { getModuleDependents, type LifecycleState, reloadModule, unloadAllModules, unloadModule } from "./module-lifecycle.js";
-import type { ModuleStorage } from "./module-storage.js";
-import type { CreateSessionOptions, KotaModule, ModuleContext, ModuleSession, RouteRegistration, ToolDef } from "./module-types.js";
+import { createExtensionContext, type ExtensionContextParams } from "./extension-context.js";
+import { topoSort } from "./extension-deps.js";
+import { getModuleDependents, type LifecycleState, reloadModule, unloadAllModules, unloadModule } from "./extension-lifecycle.js";
+import type { ExtensionStorage } from "./extension-storage.js";
+import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { executeTool, registerTool } from "./tools/index.js";
 
-export type ModuleLoaderOptions = {
+export type ExtensionLoaderOptions = {
   /** Skip tool registration — only load modules for command/route discovery. */
   commandsOnly?: boolean;
 };
 
-export class ModuleLoader {
-  private modules: KotaModule[] = [];
+export class ExtensionLoader {
+  private modules: KotaExtension[] = [];
   private eventUnsubs: (() => void)[] = [];
   private moduleEventUnsubs = new Map<string, (() => void)[]>();
-  private moduleStorages = new Map<string, ModuleStorage>();
-  private moduleRegistry = new Map<string, KotaModule>();
+  private moduleStorages = new Map<string, ExtensionStorage>();
+  private moduleRegistry = new Map<string, KotaExtension>();
   private moduleToolCounts = new Map<string, number>();
   private promptSections = new Map<string, string>();
   private bus: EventBus | null = null;
@@ -29,18 +29,18 @@ export class ModuleLoader {
   private cwd: string;
   private commandsOnly: boolean;
   private collectingRoutes = false;
-  private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
+  private sessionFactory: ((opts: CreateSessionOptions) => ExtensionSession) | null = null;
   private toolCallDepth = 0;
   private static MAX_TOOL_CALL_DEPTH = 10;
 
-  constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
+  constructor(config: KotaConfig, verbose = false, options?: ExtensionLoaderOptions) {
     this.config = config;
     this.verbose = verbose;
     this.cwd = process.cwd();
     this.commandsOnly = options?.commandsOnly ?? false;
   }
 
-  setSessionFactory(factory: (opts: CreateSessionOptions) => ModuleSession): void {
+  setSessionFactory(factory: (opts: CreateSessionOptions) => ExtensionSession): void {
     this.sessionFactory = factory;
   }
 
@@ -57,8 +57,8 @@ export class ModuleLoader {
     };
   }
 
-  private createContext(moduleName?: string): ModuleContext {
-    const params: ModuleContextParams = {
+  private createContext(moduleName?: string): ExtensionContext {
+    const params: ExtensionContextParams = {
       cwd: this.cwd,
       verbose: this.verbose,
       config: this.config,
@@ -68,8 +68,8 @@ export class ModuleLoader {
       getRoutes: () => this.getRoutes(),
       sessionFactory: this.sessionFactory,
       callTool: async (name, input) => {
-        if (this.toolCallDepth >= ModuleLoader.MAX_TOOL_CALL_DEPTH) {
-          return { content: `Tool call depth limit exceeded (max ${ModuleLoader.MAX_TOOL_CALL_DEPTH})`, is_error: true };
+        if (this.toolCallDepth >= ExtensionLoader.MAX_TOOL_CALL_DEPTH) {
+          return { content: `Tool call depth limit exceeded (max ${ExtensionLoader.MAX_TOOL_CALL_DEPTH})`, is_error: true };
         }
         this.toolCallDepth++;
         try {
@@ -79,10 +79,10 @@ export class ModuleLoader {
         }
       },
     };
-    return createModuleContext(params, moduleName);
+    return createExtensionContext(params, moduleName);
   }
 
-  async load(mod: KotaModule): Promise<void> {
+  async load(mod: KotaExtension): Promise<void> {
     if (this.modules.some((m) => m.name === mod.name)) {
       throw new Error(`Duplicate module name: "${mod.name}"`);
     }
@@ -90,7 +90,7 @@ export class ModuleLoader {
     if (mod.dependencies) {
       for (const dep of mod.dependencies) {
         if (!this.modules.some((m) => m.name === dep)) {
-          throw new Error(`Module "${mod.name}" requires "${dep}" which is not loaded`);
+          throw new Error(`Extension "${mod.name}" requires "${dep}" which is not loaded`);
         }
       }
     }
@@ -116,7 +116,7 @@ export class ModuleLoader {
         if (section) this.promptSections.set(mod.name, section);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" promptSection failed: ${msg}`);
+        console.error(`[kota] Extension "${mod.name}" promptSection failed: ${msg}`);
       }
     }
 
@@ -124,23 +124,23 @@ export class ModuleLoader {
     this.moduleRegistry.set(mod.name, mod);
     if (this.verbose) {
       const tc = this.moduleToolCounts.get(mod.name) ?? 0;
-      console.error(`[kota] Module "${mod.name}" loaded (${tc} tools)`);
+      console.error(`[kota] Extension "${mod.name}" loaded (${tc} tools)`);
     }
   }
 
-  async loadAll(modules: KotaModule[]): Promise<void> {
+  async loadAll(modules: KotaExtension[]): Promise<void> {
     const sorted = topoSort(modules);
     for (const mod of sorted) {
       try {
         await this.load(mod);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" failed to load: ${msg}`);
+        console.error(`[kota] Extension "${mod.name}" failed to load: ${msg}`);
       }
     }
     this.activateConfiguredProviders();
     if (this.modules.length > 0 && this.verbose) {
-      console.error(`[kota] Modules: ${this.modules.length} loaded, ${this.getToolCount()} tool(s)`);
+      console.error(`[kota] Extensions: ${this.modules.length} loaded, ${this.getToolCount()} tool(s)`);
     }
   }
 
@@ -152,7 +152,7 @@ export class ModuleLoader {
           commands.push(...mod.commands(this.createContext(mod.name)));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${mod.name}" command registration failed: ${msg}`);
+          console.error(`[kota] Extension "${mod.name}" command registration failed: ${msg}`);
         }
       }
     }
@@ -170,7 +170,7 @@ export class ModuleLoader {
             routes.push(...mod.routes(this.createContext(mod.name)));
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Module "${mod.name}" route registration failed: ${msg}`);
+            console.error(`[kota] Extension "${mod.name}" route registration failed: ${msg}`);
           }
         }
       }
@@ -187,7 +187,7 @@ export class ModuleLoader {
     }
   }
 
-  private connectModuleEvents(mod: KotaModule, bus: EventBus): void {
+  private connectModuleEvents(mod: KotaExtension, bus: EventBus): void {
     if (mod.events) {
       try {
         const unsubs = mod.events(bus);
@@ -195,7 +195,7 @@ export class ModuleLoader {
         this.moduleEventUnsubs.set(mod.name, unsubs);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" event subscription failed: ${msg}`);
+        console.error(`[kota] Extension "${mod.name}" event subscription failed: ${msg}`);
       }
     }
   }
@@ -206,10 +206,10 @@ export class ModuleLoader {
     for (const [name, section] of this.promptSections) {
       parts.push(`\n### ${name}\n${section}`);
     }
-    return `\n\n## Module Capabilities\n${parts.join("\n")}`;
+    return `\n\n## Extension Capabilities\n${parts.join("\n")}`;
   }
 
-  getModuleStorage(moduleName: string): ModuleStorage | undefined {
+  getExtensionStorage(moduleName: string): ExtensionStorage | undefined {
     return this.moduleStorages.get(moduleName);
   }
 

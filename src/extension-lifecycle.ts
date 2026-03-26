@@ -1,22 +1,22 @@
 import type { EventBus } from "./event-bus.js";
-import type { ModuleStorage } from "./module-storage.js";
-import type { KotaModule } from "./module-types.js";
+import type { ExtensionStorage } from "./extension-storage.js";
+import type { KotaExtension } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { deregisterModuleTools } from "./tools/index.js";
 
 export interface LifecycleState {
-  modules: KotaModule[];
+  modules: KotaExtension[];
   eventUnsubs: Array<() => void>;
   moduleEventUnsubs: Map<string, Array<() => void>>;
-  moduleStorages: Map<string, ModuleStorage>;
+  moduleStorages: Map<string, ExtensionStorage>;
   moduleToolCounts: Map<string, number>;
   promptSections: Map<string, string>;
-  moduleRegistry: Map<string, KotaModule>;
+  moduleRegistry: Map<string, KotaExtension>;
   verbose: boolean;
 }
 
-export function getModuleDependents(moduleName: string, modules: KotaModule[]): string[] {
+export function getModuleDependents(moduleName: string, modules: KotaExtension[]): string[] {
   return modules
     .filter((m) => m.dependencies?.includes(moduleName))
     .map((m) => m.name);
@@ -49,7 +49,7 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
       await mod.onUnload();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Module "${moduleName}" unload error: ${msg}`);
+      console.error(`[kota] Extension "${moduleName}" unload error: ${msg}`);
     }
   }
 
@@ -60,7 +60,7 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
   state.moduleToolCounts.delete(moduleName);
   state.modules.splice(idx, 1);
 
-  if (state.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
+  if (state.verbose) console.error(`[kota] Extension "${moduleName}" unloaded`);
   return true;
 }
 
@@ -68,8 +68,8 @@ export async function reloadModule(
   moduleName: string,
   state: LifecycleState,
   bus: EventBus | null,
-  loadFn: (mod: KotaModule) => Promise<void>,
-  connectEventsFn: (mod: KotaModule, bus: EventBus) => void,
+  loadFn: (mod: KotaExtension) => Promise<void>,
+  connectEventsFn: (mod: KotaExtension, bus: EventBus) => void,
 ): Promise<boolean> {
   const mod = state.moduleRegistry.get(moduleName);
   if (!mod) return false;
@@ -82,7 +82,7 @@ export async function reloadModule(
 
   if (bus) connectEventsFn(mod, bus);
 
-  if (state.verbose) console.error(`[kota] Module "${moduleName}" reloaded`);
+  if (state.verbose) console.error(`[kota] Extension "${moduleName}" reloaded`);
   return true;
 }
 
@@ -96,7 +96,7 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
         await mod.onUnload();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" unload error: ${msg}`);
+        console.error(`[kota] Extension "${mod.name}" unload error: ${msg}`);
       }
     }
   }

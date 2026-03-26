@@ -1,12 +1,12 @@
 ---
 id: task-unify-extension-surface-around-extensions
 title: Unify modules, plugins, and manifests into one extension surface
-status: ready
+status: done
 priority: p0
 area: architecture
 summary: KOTA currently exposes overlapping extension stories through modules, plugins, and manifest modules. Collapse them into one `extension` model that can contribute tools, skills, agents, workflows, channels, and internal services.
 created_at: 2026-03-26
-updated_at: 2026-03-26
+updated_at: 2026-03-26T00:42:00Z
 ---
 
 ## Problem

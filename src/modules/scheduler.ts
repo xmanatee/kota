@@ -1,14 +1,14 @@
 /**
  * Scheduler module — timed reminders, recurring tasks, and event-triggered automations.
  *
- * Extracted from the hardcoded tool list using the KotaModule protocol.
+ * Extracted from the hardcoded tool list using the KotaExtension protocol.
  * Registers the `schedule` tool in the `management` group.
  */
 
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { runSchedule, scheduleTool } from "../tools/schedule.js";
 
-const schedulerModule: KotaModule = {
+const schedulerModule: KotaExtension = {
   name: "scheduler",
   version: "1.0.0",
   description: "Timed reminders, recurring tasks, and event-triggered automations",

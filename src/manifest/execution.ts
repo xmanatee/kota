@@ -1,12 +1,12 @@
 /**
- * Manifest execution — converts manifests to KotaModules and runs
+ * Manifest execution — converts manifests to KotaExtensions and runs
  * event handlers, step pipelines, and named scripts.
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
-import { getModuleLogStore } from "../module-log.js";
-import type { KotaModule, ToolDef } from "../module-types.js";
+import { getModuleLogStore } from "../extension-log.js";
+import type { KotaExtension, ToolDef } from "../extension-types.js";
 import type { Language } from "../repl-session.js";
 import { sessions } from "../repl-session.js";
 import { executeTool, type ToolResult } from "../tools/index.js";
@@ -48,9 +48,9 @@ function buildToolRunner(
 	};
 }
 
-// ─── Manifest → KotaModule conversion ────────────────────────────────
+// ─── Manifest → KotaExtension conversion ────────────────────────────────
 
-export function manifestToModule(manifest: ModuleManifest): KotaModule {
+export function manifestToModule(manifest: ModuleManifest): KotaExtension {
 	const tools: ToolDef[] = (manifest.tools || []).map((t) => ({
 		tool: {
 			name: t.name,
@@ -64,7 +64,7 @@ export function manifestToModule(manifest: ModuleManifest): KotaModule {
 		group: t.group,
 	}));
 
-	const mod: KotaModule = {
+	const mod: KotaExtension = {
 		name: manifest.name,
 		version: manifest.version || "1.0.0",
 		description: manifest.description,

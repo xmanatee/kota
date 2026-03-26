@@ -1,7 +1,7 @@
 /**
  * Vercel adapter module — Vercel AI SDK Data Stream Protocol integration.
  *
- * Extracts the Vercel AI SDK chat handling from server.ts into a KotaModule,
+ * Extracts the Vercel AI SDK chat handling from server.ts into a KotaExtension,
  * completing the modular architecture plan. Registers a dedicated HTTP route
  * for Vercel AI SDK formatted requests at POST /api/chat/vercel.
  *
@@ -10,8 +10,8 @@
  * sends the full messages array on every request.
  */
 
+import type { KotaExtension } from "../extension-types.js";
 import { AgentSession } from "../loop.js";
-import type { KotaModule } from "../module-types.js";
 import { CORS_HEADERS, jsonResponse, readBody, setCors } from "../server/session-pool.js";
 import {
   DATA_STREAM_HEADERS,
@@ -19,7 +19,7 @@ import {
   extractLastUserMessage,
 } from "../vercel-ai-stream.js";
 
-const vercelAdapterModule: KotaModule = {
+const vercelAdapterModule: KotaExtension = {
   name: "vercel-adapter",
   version: "1.0.0",
   description: "Vercel AI SDK Data Stream Protocol integration for HTTP chat",

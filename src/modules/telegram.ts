@@ -1,17 +1,17 @@
 /**
  * Telegram module — makes KOTA accessible via Telegram messaging.
  *
- * First module to register a CLI command via the KotaModule protocol,
+ * First module to register a CLI command via the KotaExtension protocol,
  * proving the `commands` part of the module system works end-to-end.
  * The actual bot logic lives in src/telegram.ts; this module wires
  * it into the CLI as `kota telegram`.
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { TelegramBot } from "../telegram.js";
 
-const telegramModule: KotaModule = {
+const telegramModule: KotaExtension = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",

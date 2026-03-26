@@ -1,14 +1,14 @@
 /**
  * Memory module — persistent memory across sessions.
  *
- * First built-in module extracted using the KotaModule protocol.
+ * First built-in module extracted using the KotaExtension protocol.
  * Registers the `memory` tool in the `management` group.
  */
 
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { memoryTool, runMemory } from "../tools/memory.js";
 
-const memoryModule: KotaModule = {
+const memoryModule: KotaExtension = {
   name: "memory",
   version: "1.0.0",
   description: "Persistent memory across sessions (save/search/list/update/delete)",

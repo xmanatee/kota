@@ -2,6 +2,7 @@
  * Module Factory — CRUD action handlers (create, list, remove, info).
  */
 
+import { resolveExtensionTools } from "../../extension-types.js";
 import {
 	deleteManifest,
 	listManifestModules,
@@ -11,7 +12,6 @@ import {
 	saveManifest,
 	validateManifest,
 } from "../../manifest/index.js";
-import { resolveModuleTools } from "../../module-types.js";
 import type { ToolResult } from "../index.js";
 import { deregisterModuleTools, registerTool } from "../index.js";
 import {
@@ -64,9 +64,9 @@ export function handleCreate(
 		removeLoadedModule(manifest.name);
 	}
 
-	// Convert to KotaModule and register tools
+	// Convert to KotaExtension and register tools
 	const mod = manifestToModule(manifest);
-	const tools = resolveModuleTools(mod);
+	const tools = resolveExtensionTools(mod);
 	if (tools.length > 0) {
 		for (const def of tools) {
 			try {

@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
+import { initModuleLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
-import { initModuleLogStore } from "../module-log.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";

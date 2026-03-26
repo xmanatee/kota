@@ -1,12 +1,12 @@
-import type { KotaModule } from "./module-types.js";
+import type { KotaExtension } from "./extension-types.js";
 
 /** Topological sort by dependencies. Modules with unresolvable deps are appended at the end. */
-export function topoSort(modules: KotaModule[]): KotaModule[] {
+export function topoSort(modules: KotaExtension[]): KotaExtension[] {
   const byName = new Map(modules.map((m) => [m.name, m]));
   const visited = new Set<string>();
-  const result: KotaModule[] = [];
+  const result: KotaExtension[] = [];
 
-  function visit(mod: KotaModule): void {
+  function visit(mod: KotaExtension): void {
     if (visited.has(mod.name)) return;
     visited.add(mod.name);
     if (mod.dependencies) {

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ModuleStorage } from "../module-storage.js";
-import type { ModuleContext } from "../module-types.js";
+import { ExtensionStorage } from "../extension-storage.js";
+import type { ExtensionContext } from "../extension-types.js";
 import registryModule from "./registry.js";
 
-const stubCtx: ModuleContext = {
+const stubCtx: ExtensionContext = {
   cwd: "/tmp/test",
   verbose: false,
-  config: {} as ModuleContext["config"],
-  storage: new ModuleStorage("/tmp/test", "registry"),
+  config: {} as ExtensionContext["config"],
+  storage: new ExtensionStorage("/tmp/test", "registry"),
   registerGroup: () => {},
   getRoutes: () => [],
   getModuleConfig: () => undefined,

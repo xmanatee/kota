@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initModuleLogStore, resetModuleLogStore } from "../module-log.js";
+import { initModuleLogStore, resetModuleLogStore } from "../extension-log.js";
 import { clearCustomTools } from "./index.js";
 import {
 	getLoadedManifestModuleCount,

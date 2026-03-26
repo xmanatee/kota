@@ -1,13 +1,13 @@
 /**
  * Web module — HTTP API server with SSE streaming and embedded web UI.
  *
- * Extracts the serve CLI command from cli.ts into a KotaModule,
+ * Extracts the serve CLI command from cli.ts into a KotaExtension,
  * continuing the modular architecture plan. The actual server logic
  * lives in src/server.ts; this module wires it into the CLI as `kota serve`.
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { startServer } from "../server/server.js";
 
 function parseIntOption(value: string, name: string): number {
@@ -19,7 +19,7 @@ function parseIntOption(value: string, name: string): number {
   return n;
 }
 
-const webModule: KotaModule = {
+const webModule: KotaExtension = {
   name: "web",
   version: "1.0.0",
   description: "HTTP API server with SSE streaming and embedded web UI",
@@ -46,7 +46,7 @@ const webModule: KotaModule = {
           process.exit(1);
         }
 
-        // Collect routes from all loaded modules via ModuleContext
+        // Collect routes from all loaded modules via ExtensionContext
         const moduleRoutes = ctx.getRoutes();
 
         startServer({

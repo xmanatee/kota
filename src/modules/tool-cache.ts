@@ -6,13 +6,13 @@
  * Session-scoped — cache resets when the module unloads.
  */
 
-import type { KotaModule } from "../module-types.js";
+import type { KotaExtension } from "../extension-types.js";
 import { createCacheMiddleware, getToolCache, resetToolCache } from "../tool-cache.js";
 
 const MIDDLEWARE_NAME = "tool-result-cache";
 const PRIORITY = 10; // Run early — before logging/audit middleware
 
-const toolCacheModule: KotaModule = {
+const toolCacheModule: KotaExtension = {
 	name: "tool-cache",
 	version: "1.0.0",
 	description: "Caches deterministic read tool results, invalidates on mutations",

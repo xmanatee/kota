@@ -1,5 +1,5 @@
 /**
- * ModuleStorage — scoped file-based storage for modules.
+ * ExtensionStorage — scoped file-based storage for modules.
  *
  * Each module gets its own isolated directory under `.kota/modules/<name>/`.
  * Supports JSON objects, raw text, and markdown files.
@@ -16,7 +16,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-export class ModuleStorage {
+export class ExtensionStorage {
 	private dir: string;
 
 	constructor(baseDir: string, moduleName: string) {

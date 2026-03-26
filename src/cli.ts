@@ -13,12 +13,12 @@ import {
 } from "./cli-history.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
+import { discoverExtensions } from "./extension-discovery.js";
+import { ExtensionLoader } from "./extension-loader.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
-import { ModuleLoader } from "./module-loader.js";
-import { builtinModules } from "./modules/index.js";
-import { discoverPluginModules } from "./plugin-loader.js";
+import { builtinExtensions } from "./modules/index.js";
 import { registerTaskCommands } from "./task-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
 
@@ -210,9 +210,9 @@ async function main() {
   if (wasPiped) return;
 
   const config = loadConfig();
-  const loader = new ModuleLoader(config, false, { commandsOnly: true });
-  const pluginModules = await discoverPluginModules(undefined, false);
-  await loader.loadAll([...builtinModules, ...pluginModules]);
+  const loader = new ExtensionLoader(config, false, { commandsOnly: true });
+  const pluginModules = await discoverExtensions(undefined, false);
+  await loader.loadAll([...builtinExtensions, ...pluginModules]);
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }
