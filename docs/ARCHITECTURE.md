@@ -38,11 +38,15 @@ adding a parallel surface.
   `extension` model.~~ Done: `KotaExtension` is now the single extension
   protocol. All loading paths (built-ins, plugins, npm packages, manifests)
   go through `ExtensionLoader`. See `src/extension-types.ts`.
-- Module `promptSection`, repo instruction files, and workflow-only guidance
-  should collapse into a single `skill` model.
-- `explorer`, `builder`, and `improver` should remain workflows, but their
-  worker identity should be first-class `agent` definitions instead of prompt
-  files plus ad hoc conventions.
+- ~~Module `promptSection`, repo instruction files, and workflow-only guidance
+  should collapse into a single `skill` model. `explorer`, `builder`, and
+  `improver` should remain workflows, but their worker identity should be
+  first-class `agent` definitions instead of prompt files plus ad hoc
+  conventions.~~ Done: `SkillDef` and `AgentDef` are now first-class types in
+  `src/agent-types.ts`. Built-in agents are declared in `src/agents/index.ts`.
+  Extensions can contribute skills and agents via `KotaExtension`. Workflow
+  agent steps reference built-in agents by name (`agentName: "builder"`) and
+  inherit prompt path, model, and tool policy from the agent definition.
 - Scheduler events, hook-like reactions, cron triggers, heartbeat work, and
   standing orders should remain one `workflow` surface instead of growing a
   second hook engine.

@@ -3,7 +3,7 @@ import {
   isRepoTaskQueueSnapshot,
 } from "../../repo-tasks.js";
 import type { WorkflowDefinitionInput, WorkflowStepContext } from "../../workflow/types.js";
-import { BUILTIN_WORKFLOW_MODEL, stepSucceeded } from "../shared.js";
+import { stepSucceeded } from "../shared.js";
 import { checkTaskOutcome } from "./check-task-outcome.js";
 import { claimTask, isClaimTaskResult } from "./claim-task.js";
 import { commitBuilderChanges } from "./commit.js";
@@ -76,10 +76,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "build",
       type: "agent",
-      promptPath: "src/workflows/builder/prompt.md",
-      model: BUILTIN_WORKFLOW_MODEL,
-      permissionMode: "bypassPermissions",
-      settingSources: ["project"],
+      agentName: "builder",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
     },

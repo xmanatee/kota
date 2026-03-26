@@ -1,8 +1,5 @@
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import {
-  BUILTIN_WORKFLOW_MODEL,
-  createVerificationAndRestartSteps,
-} from "../shared.js";
+import { createVerificationAndRestartSteps } from "../shared.js";
 import { gatherImproverContext } from "./gather-context.js";
 import { recoverDoingTasks } from "./recover-doing-tasks.js";
 
@@ -40,10 +37,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       id: "improve",
       type: "agent",
-      promptPath: "src/workflows/improver/prompt.md",
-      model: BUILTIN_WORKFLOW_MODEL,
-      permissionMode: "bypassPermissions",
-      settingSources: ["project"],
+      agentName: "improver",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
     },
     ...createVerificationAndRestartSteps(

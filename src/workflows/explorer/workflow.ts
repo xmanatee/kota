@@ -2,7 +2,6 @@ import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import {
   BACKLOG_TASK_TARGET,
-  BUILTIN_WORKFLOW_MODEL,
   READY_TASK_TARGET,
   stepSucceeded,
 } from "../shared.js";
@@ -83,10 +82,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
     {
       id: "explore",
       type: "agent",
-      promptPath: "src/workflows/explorer/prompt.md",
-      model: BUILTIN_WORKFLOW_MODEL,
-      permissionMode: "bypassPermissions",
-      settingSources: ["project"],
+      agentName: "explorer",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ stepOutputs }) => shouldRunExplorer(stepOutputs),
     },

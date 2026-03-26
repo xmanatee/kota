@@ -7,7 +7,6 @@ import type {
 } from "../workflow/types.js";
 import { loadRunsInWindow } from "../workflow-history.js";
 
-export const BUILTIN_WORKFLOW_MODEL = "claude-sonnet-4-6";
 export const READY_TASK_TARGET = 2;
 export const BACKLOG_TASK_TARGET = 4;
 

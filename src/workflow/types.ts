@@ -142,7 +142,17 @@ export type WorkflowToolStepInput = WorkflowBaseStep & {
 
 export type WorkflowAgentStepInput = WorkflowBaseStep & {
   type: "agent";
-  promptPath: string;
+  /**
+   * Name of a registered AgentDef. Provides promptPath, model, permissionMode,
+   * and settingSources as defaults; step-level fields override them.
+   * Either agentName or promptPath must be provided.
+   */
+  agentName?: string;
+  /**
+   * Path to the prompt markdown file (relative to project root).
+   * Required when agentName is not set; overrides agent def promptPath when set.
+   */
+  promptPath?: string;
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
@@ -199,6 +209,8 @@ export type WorkflowToolStep = WorkflowBaseStep & {
 
 export type WorkflowAgentStep = WorkflowBaseStep & {
   type: "agent";
+  /** Name of the agent definition used, if the step was configured via agentName. */
+  agentName?: string;
   promptPath: string;
   model?: string;
   maxTurns?: number;

@@ -9,6 +9,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
+import type { AgentDef, SkillDef } from "./agent-types.js";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import type { ExtensionStorage } from "./extension-storage.js";
@@ -145,10 +146,24 @@ export type KotaExtension = {
   events?: (bus: EventBus) => (() => void)[];
 
   /**
+   * Skills this extension contributes — named, file-backed guidance blocks.
+   * Skills are the preferred way to teach the agent about extension capabilities.
+   * Use promptSection for inline (non-file) guidance.
+   */
+  skills?: SkillDef[];
+
+  /**
+   * Agent definitions this extension contributes.
+   * Registered agents can be referenced by name in workflow agent steps.
+   */
+  agents?: AgentDef[];
+
+  /**
    * System prompt section this module contributes.
    * Returned string is appended to the system prompt under a heading.
    * Enables modules to teach the agent how to use their capabilities.
    * Called once after load; return null/undefined to skip.
+   * Prefer skills for file-backed guidance.
    */
   promptSection?: (ctx: ExtensionContext) => string | undefined;
 
