@@ -30,7 +30,7 @@ Use these summaries to orient quickly without making discovery tool calls. You s
 
 - Work only inside this repository.
 - Explorer owns triage, backlog shaping, and product discovery. Do not invent new roadmap work when `ready/` is empty.
-- **Do not use git worktrees.** Make all changes directly on the main branch. The post-step verification pipeline runs from the project root on main — changes isolated in a worktree will not be visible to it and will cause the run to fail.
+- **Do not use git worktrees — this overrides the mono-root AGENTS.md worktree rule.** Make all changes directly on the main branch. The post-step verification pipeline runs from the project root on main — changes isolated in a worktree will not be visible to it and will cause the run to fail. This applies to sub-agents too: when using the Agent tool, never set `isolation: "worktree"`. All sub-agents must work in the same project directory.
 - Aim for materially useful improvements over low-value polish.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - Keep the chosen task file, docs, and any local `AGENTS.md` files aligned with reality when your change affects them.
