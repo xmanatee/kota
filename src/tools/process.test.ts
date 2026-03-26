@@ -5,6 +5,18 @@ afterEach(() => {
   clearProcesses();
 });
 
+/** Poll getOutput until the process shows "exited" or maxWaitMs is reached. */
+async function waitForExit(processId: string, maxWaitMs = 5000): Promise<string> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    const r = await runProcess({ action: "output", process_id: processId });
+    if (r.content?.includes("exited")) return r.content;
+    await new Promise((res) => setTimeout(res, 50));
+  }
+  const r = await runProcess({ action: "output", process_id: processId });
+  return r.content ?? "";
+}
+
 describe("process tool", () => {
   describe("start action", () => {
     it("starts a background process and returns its ID", async () => {
@@ -54,7 +66,7 @@ describe("process tool", () => {
   describe("output action", () => {
     it("returns output from a running process", async () => {
       await runProcess({ action: "start", command: "echo line1 && echo line2 && echo line3" });
-      await new Promise((r) => setTimeout(r, 300));
+      await waitForExit("p1");
       const result = await runProcess({ action: "output", process_id: "p1", lines: 10 });
       expect(result.is_error).toBeUndefined();
       expect(result.content).toContain("line1");
@@ -70,7 +82,7 @@ describe("process tool", () => {
 
     it("shows exit status for completed processes", async () => {
       await runProcess({ action: "start", command: "echo done" });
-      await new Promise((r) => setTimeout(r, 300));
+      await waitForExit("p1");
       const result = await runProcess({ action: "output", process_id: "p1" });
       expect(result.content).toContain("exited");
     });
@@ -94,7 +106,7 @@ describe("process tool", () => {
 
     it("reports already-exited processes", async () => {
       await runProcess({ action: "start", command: "echo fast" });
-      await new Promise((r) => setTimeout(r, 300));
+      await waitForExit("p1");
       const result = await runProcess({ action: "signal", process_id: "p1" });
       expect(result.content).toContain("already exited");
     });
@@ -115,7 +127,7 @@ describe("process tool", () => {
     it("lists running and exited processes", async () => {
       await runProcess({ action: "start", command: "sleep 60" });
       await runProcess({ action: "start", command: "echo quick" });
-      await new Promise((r) => setTimeout(r, 300));
+      await waitForExit("p2");
       const result = await runProcess({ action: "list" });
       expect(result.content).toContain("p1");
       expect(result.content).toContain("p2");
@@ -135,7 +147,7 @@ describe("process tool", () => {
   describe("stderr capture", () => {
     it("captures stderr with prefix", async () => {
       await runProcess({ action: "start", command: "echo err >&2" });
-      await new Promise((r) => setTimeout(r, 300));
+      await waitForExit("p1");
       const result = await runProcess({ action: "output", process_id: "p1" });
       expect(result.content).toContain("[stderr]");
       expect(result.content).toContain("err");
@@ -147,7 +159,7 @@ describe("process tool", () => {
       // Generate 510 lines — first 10 should be evicted
       const cmd = "for i in $(seq 1 510); do echo line_$i; done";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 1500));
+      await waitForExit("p1", 10000);
       const result = await runProcess({ action: "output", process_id: "p1", lines: 500 });
       // line_1 through line_10 should be evicted; line_11+ and exit msg remain
       expect(result.content).not.toContain("line_1\n");
@@ -163,7 +175,7 @@ describe("process tool", () => {
       // Use python3 to avoid slow bash loop with seq subprocesses
       const cmd = "python3 -c \"for _ in range(250): print('X'*100)\"";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 1500));
+      await waitForExit("p1", 10000);
       const result = await runProcess({ action: "output", process_id: "p1", lines: 500 });
       expect(result.content).toContain("truncated");
     });
@@ -177,7 +189,7 @@ describe("process tool", () => {
       }
       await runProcess({ action: "start", command: "echo fast" });
       // Wait for the fast one to exit
-      await new Promise((r) => setTimeout(r, 600));
+      await waitForExit("p5");
       // Now only 4 are active, so a 6th start should succeed
       const result = await runProcess({ action: "start", command: "sleep 30" });
       expect(result.is_error).toBeUndefined();
@@ -188,7 +200,7 @@ describe("process tool", () => {
   describe("output lines clamping", () => {
     it("clamps requested lines to valid range", async () => {
       await runProcess({ action: "start", command: "for i in $(seq 1 5); do echo line_$i; done" });
-      await new Promise((r) => setTimeout(r, 600));
+      await waitForExit("p1");
       // Request 0 lines — should clamp to 1
       const r1 = await runProcess({ action: "output", process_id: "p1", lines: 0 });
       // Should still return some content (at least the exit line)
@@ -204,7 +216,6 @@ describe("process tool", () => {
       const longLine = "B".repeat(120);
       // Use a long-running process so last buffer line is the long echo, not exit message
       await runProcess({ action: "start", command: `echo ${longLine} && sleep 30` });
-      await new Promise((r) => setTimeout(r, 600));
       const result = await runProcess({ action: "list" });
       // The "last:" line should be truncated with ...
       const lastMatch = result.content!.match(/last: (.+)/);
@@ -219,8 +230,8 @@ describe("process tool", () => {
       // printf with explicit newlines to produce blank lines
       const cmd = "printf 'line1\\n\\nline3\\n'";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      const content = await waitForExit("p1");
+      const result = { content };
       // The blank line between line1 and line3 should be preserved
       const lines = result.content!.split("\n");
       const outputStart = lines.findIndex((l: string) => l.includes("line1"));
@@ -240,27 +251,24 @@ describe("process tool", () => {
       // This forces the shell to produce output that may arrive in separate chunks
       const cmd = "printf 'partial'; printf '_complete\\n'";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
+      const output = await waitForExit("p1");
       // The two printf calls should be joined into one line
-      expect(result.content).toContain("partial_complete");
+      expect(output).toContain("partial_complete");
     });
 
     it("flushes partial stdout line on process exit", async () => {
       // printf without trailing newline — data stays in partial buffer until close
       const cmd = "printf 'no-newline-at-end'";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
-      expect(result.content).toContain("no-newline-at-end");
+      const output = await waitForExit("p1");
+      expect(output).toContain("no-newline-at-end");
     });
 
     it("flushes partial stderr line on process exit", async () => {
       const cmd = "printf 'stderr-no-nl' >&2";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
-      expect(result.content).toContain("[stderr] stderr-no-nl");
+      const output = await waitForExit("p1");
+      expect(output).toContain("[stderr] stderr-no-nl");
     });
   });
 
@@ -285,7 +293,7 @@ describe("process tool", () => {
       expect(r1.is_error).toBeUndefined();
       expect(r1.content).toContain("SIGTERM");
       // Wait for exit
-      await new Promise((r) => setTimeout(r, 400));
+      await waitForExit("p1");
       // Second signal to already-exited process should report exited
       const r2 = await runProcess({ action: "signal", process_id: "p1", signal: "SIGKILL" });
       expect(r2.content).toContain("already exited");
@@ -296,12 +304,11 @@ describe("process tool", () => {
     it("handles spawn error for nonexistent shell command", async () => {
       // Spawning a nonexistent binary directly (not via sh -c) would trigger error
       // But since we use sh -c, the shell itself runs — the exit code captures failure
-      const _result = await runProcess({ action: "start", command: "nonexistent_cmd_xyz_999" });
+      await runProcess({ action: "start", command: "nonexistent_cmd_xyz_999" });
       // The process will start (shell runs) but the command inside will fail
-      await new Promise((r) => setTimeout(r, 600));
-      const output = await runProcess({ action: "output", process_id: "p1" });
+      const output = await waitForExit("p1");
       // Should show either an error message or a non-zero exit code
-      expect(output.content).toMatch(/exited|error/i);
+      expect(output).toMatch(/exited|error/i);
     });
   });
 
@@ -309,12 +316,11 @@ describe("process tool", () => {
     it("captures both streams in order received", async () => {
       const cmd = "echo out1; echo err1 >&2; echo out2; echo err2 >&2";
       await runProcess({ action: "start", command: cmd });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1", lines: 50 });
-      expect(result.content).toContain("out1");
-      expect(result.content).toContain("out2");
-      expect(result.content).toContain("[stderr] err1");
-      expect(result.content).toContain("[stderr] err2");
+      const output = await waitForExit("p1");
+      expect(output).toContain("out1");
+      expect(output).toContain("out2");
+      expect(output).toContain("[stderr] err1");
+      expect(output).toContain("[stderr] err2");
     });
   });
 
@@ -330,7 +336,7 @@ describe("process tool", () => {
     it("retains long-running process output after exit", async () => {
       // Start a process that exits quickly
       await runProcess({ action: "start", command: "echo crash-output" });
-      await new Promise((r) => setTimeout(r, 300));
+      await waitForExit("p1");
       // Manually backdate startedAt to simulate a long-running process (>10min)
       // but exitedAt is recent — purgeStale should NOT remove it
       const result1 = await runProcess({ action: "output", process_id: "p1" });
@@ -348,19 +354,17 @@ describe("process tool", () => {
     it("preserves error exitCode of -1 after close fires", async () => {
       // Start a command that fails — the shell runs but the command inside fails
       await runProcess({ action: "start", command: "exit 42" });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1" });
+      const output = await waitForExit("p1");
       // Should show exit code 42, not null
-      expect(result.content).toContain("exited (code 42)");
-      expect(result.content).toContain("[process exited with code 42]");
+      expect(output).toContain("exited (code 42)");
+      expect(output).toContain("[process exited with code 42]");
     });
 
     it("shows correct exit code in output buffer message", async () => {
       await runProcess({ action: "start", command: "exit 7" });
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1" });
-      expect(result.content).toContain("[process exited with code 7]");
-      expect(result.content).not.toContain("code null");
+      const output = await waitForExit("p1");
+      expect(output).toContain("[process exited with code 7]");
+      expect(output).not.toContain("code null");
     });
   });
 
@@ -368,7 +372,7 @@ describe("process tool", () => {
     it("reports when signal was not delivered to dead process", async () => {
       // Start a process that exits immediately
       await runProcess({ action: "start", command: "echo quick-exit" });
-      await new Promise((r) => setTimeout(r, 600));
+      await waitForExit("p1");
       // The process has exited — should get "already exited" message
       const result = await runProcess({ action: "signal", process_id: "p1" });
       expect(result.content).toContain("already exited");
@@ -385,9 +389,8 @@ describe("process tool", () => {
       // Second cleanup — should be a no-op (killing flag set)
       cleanupProcesses();
       // Process should still terminate normally
-      await new Promise((r) => setTimeout(r, 600));
-      const result = await runProcess({ action: "output", process_id: "p1" });
-      expect(result.content).toMatch(/exited/);
+      const output = await waitForExit("p1");
+      expect(output).toMatch(/exited/);
     });
   });
 

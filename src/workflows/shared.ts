@@ -14,6 +14,7 @@ export const BACKLOG_TASK_TARGET = 4;
 const RESTART_VERIFICATION_STEP_IDS = [
   "verify-typecheck",
   "verify-lint",
+  "verify-test",
   "verify-build",
 ] as const;
 
@@ -153,7 +154,6 @@ export function createVerificationAndRestartSteps(
       type: "tool",
       tool: "shell",
       when,
-      continueOnFailure: true,
       input: {
         command: "npm test",
         stream_output: false,

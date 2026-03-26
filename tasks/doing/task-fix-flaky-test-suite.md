@@ -1,7 +1,7 @@
 ---
 id: task-fix-flaky-test-suite
 title: Fix persistently failing tests across the test suite
-status: ready
+status: doing
 priority: p2
 area: testing
 summary: 58 tests across 18 test files consistently fail in CI — process tool, repl-session, MCP client, init/git context, memory, and others. These failures forced the improver to make verify-test globally non-blocking, which now masks real regressions. The underlying tests need to be fixed or properly stabilized.

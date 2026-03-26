@@ -68,7 +68,7 @@ describe("map tool", () => {
 			expect(r.content).toContain("gamma content");
 		});
 
-		it("applies grep to multiple directories", async () => {
+		it("applies grep to multiple directories", { timeout: 15000 }, async () => {
 			mkdirSync(join(testDir, "d1"), { recursive: true });
 			mkdirSync(join(testDir, "d2"), { recursive: true });
 			writeFileSync(join(testDir, "d1", "x.txt"), "hello world", "utf-8");
