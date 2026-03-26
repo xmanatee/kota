@@ -1,7 +1,7 @@
 ---
 id: task-builder-failed-task-recovery
 title: Finish builder task recovery for interrupted and repeated failures
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: Builder task recovery is only partially implemented. The improver currently requeues `doing/` tasks only when the triggering builder status is `failed`, not `interrupted`, and it never escalates repeatedly failing work to `blocked/`.
