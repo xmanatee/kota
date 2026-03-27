@@ -24,6 +24,11 @@ function extractPriority(content: string): string {
   return match?.[1] ?? "p3";
 }
 
+function extractCreatedAt(content: string): string {
+  const match = content.match(/^created_at:\s*(\S+)/m);
+  return match?.[1] ?? "";
+}
+
 export function parseLastAttemptRunId(content: string): string | null {
   const historyStart = content.indexOf("## Attempt History");
   if (historyStart === -1) return null;
@@ -82,6 +87,7 @@ export function claimTask(projectDir: string, now = new Date()): ClaimTaskResult
     file: string;
     content: string;
     priorityRank: number;
+    createdAt: string;
     lastAttempt: Date | null;
     inCooldown: boolean;
   };
@@ -97,6 +103,7 @@ export function claimTask(projectDir: string, now = new Date()): ClaimTaskResult
       file,
       content,
       priorityRank: effectiveRank,
+      createdAt: extractCreatedAt(content),
       lastAttempt,
       inCooldown: isInCooldown(content, projectDir, now),
     };
@@ -109,7 +116,11 @@ export function claimTask(projectDir: string, now = new Date()): ClaimTaskResult
   if (eligible.length > 0) {
     let best = eligible[0];
     for (const t of eligible) {
-      if (t.priorityRank < best.priorityRank) best = t;
+      if (t.priorityRank < best.priorityRank) {
+        best = t;
+      } else if (t.priorityRank === best.priorityRank && t.createdAt < best.createdAt) {
+        best = t;
+      }
     }
     chosenFile = best.file;
   } else {

@@ -15,7 +15,7 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
-function makeTaskContent(id: string, priority: string, status = "ready"): string {
+function makeTaskContent(id: string, priority: string, status = "ready", createdAt = "2026-03-20"): string {
   return `---
 id: ${id}
 title: Test task ${id}
@@ -23,7 +23,7 @@ status: ${status}
 priority: ${priority}
 area: workflow
 summary: A test task.
-created_at: 2026-03-20
+created_at: ${createdAt}
 updated_at: 2026-03-20
 ---
 
@@ -112,6 +112,13 @@ describe("claimTask", () => {
     writeFileSync(join(readyDir, "task-p0.md"), makeTaskContent("task-p0", "p0"));
     const result = claimTask(projectDir);
     expect(result?.chosenTaskId).toBe("task-p0");
+  });
+
+  it("breaks priority ties by created_at, preferring older tasks", () => {
+    writeFileSync(join(readyDir, "task-newer.md"), makeTaskContent("task-newer", "p2", "ready", "2026-03-22"));
+    writeFileSync(join(readyDir, "task-older.md"), makeTaskContent("task-older", "p2", "ready", "2026-03-20"));
+    const result = claimTask(projectDir);
+    expect(result?.chosenTaskId).toBe("task-older");
   });
 
   it("leaves other ready tasks untouched", () => {
