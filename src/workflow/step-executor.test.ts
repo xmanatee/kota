@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import type { AgentStepConfig } from "./step-executor.js";
-import { buildAgentPrompt, executeAgentStep, withRetry } from "./step-executor.js";
+import { buildAgentPrompt, executeAgentStep, executeToolStep, withRetry } from "./step-executor.js";
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
   WorkflowRunMetadata,
   WorkflowRunTrigger,
+  WorkflowToolStep,
 } from "./types.js";
 
 vi.mock("../agent-sdk/index.js", async () => {
@@ -363,5 +364,46 @@ describe("withRetry", () => {
     expect(logs[0]).toContain("retrying in 100ms");
     expect(logs[1]).toContain("retrying in 300ms");
     vi.useRealTimers();
+  });
+});
+
+describe("executeToolStep retry", () => {
+  it("retries on failure and succeeds on second attempt", async () => {
+    let calls = 0;
+    const context = {
+      runTool: vi.fn().mockImplementation(async () => {
+        calls++;
+        if (calls === 1) throw new Error("transient");
+        return { content: "ok" };
+      }),
+    } as unknown as Parameters<typeof executeToolStep>[1];
+
+    const step: WorkflowToolStep = {
+      id: "verify-test",
+      type: "tool",
+      tool: "shell",
+      input: { command: "npm test" },
+      retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
+    };
+
+    const result = await executeToolStep(step, context);
+    expect(result).toMatchObject({ content: "ok" });
+    expect(calls).toBe(2);
+  });
+
+  it("does not retry when retry config is absent", async () => {
+    const context = {
+      runTool: vi.fn().mockRejectedValue(new Error("fail")),
+    } as unknown as Parameters<typeof executeToolStep>[1];
+
+    const step: WorkflowToolStep = {
+      id: "verify-test",
+      type: "tool",
+      tool: "shell",
+      input: { command: "npm test" },
+    };
+
+    await expect(executeToolStep(step, context)).rejects.toThrow("fail");
+    expect(context.runTool).toHaveBeenCalledTimes(1);
   });
 });

@@ -133,6 +133,7 @@ export type WorkflowToolStepInput = WorkflowBaseStep & {
   type: "tool";
   tool: string;
   input?: WorkflowValueResolver<Record<string, unknown>>;
+  retry?: WorkflowRetryConfig;
 };
 
 export type WorkflowAgentStepInput = WorkflowBaseStep & {
@@ -200,6 +201,7 @@ export type WorkflowToolStep = WorkflowBaseStep & {
   type: "tool";
   tool: string;
   input?: WorkflowValueResolver<Record<string, unknown>>;
+  retry?: WorkflowRetryConfig;
 };
 
 export type WorkflowAgentStep = WorkflowBaseStep & {

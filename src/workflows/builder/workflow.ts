@@ -119,6 +119,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       tool: "shell",
       when: stepSucceeded("build"),
       input: { command: "npm test", stream_output: false, timeout_ms: 300_000 },
+      retry: { maxAttempts: 2, initialDelayMs: 10_000, backoffFactor: 1 },
     },
     {
       id: "verify-build",

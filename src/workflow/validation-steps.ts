@@ -64,6 +64,7 @@ export function validateToolStep(
       `steps[${index}].continueOnFailure`,
       definitionPath,
     ),
+    retry: step.retry,
   };
 }
 
@@ -200,6 +201,7 @@ export function validateAgentStep(
       `steps[${index}].continueOnFailure`,
       definitionPath,
     ),
+    retry: step.retry,
   };
 }
 

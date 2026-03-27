@@ -158,7 +158,8 @@ export async function executeToolStep(
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error(`Tool step "${step.id}" resolved to a non-object input`);
   }
-  return context.runTool(step.tool, input);
+  const run = () => context.runTool(step.tool, input);
+  return step.retry ? withRetry(run, step.retry) : run();
 }
 
 export function buildAgentPrompt(
