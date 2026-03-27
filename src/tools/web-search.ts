@@ -9,8 +9,6 @@ import {
   type SearchResult,
 } from "./web-search-helpers.js";
 
-export { isRateLimited, parseBraveResults, parseSearchResults } from "./web-search-helpers.js";
-
 export const webSearchTool: Anthropic.Tool = {
   name: "web_search",
   description:

@@ -11,8 +11,6 @@ import {
 } from "./file-edit-helpers.js";
 import type { ToolResult } from "./index.js";
 
-export { buildNotFoundMessage, normalizeWhitespace, tryWhitespaceMatch } from "./file-edit-helpers.js";
-
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",
   description:

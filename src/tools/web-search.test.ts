@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isRateLimited, parseBraveResults, parseSearchResults, runWebSearch } from "./web-search.js";
+import { isRateLimited, parseBraveResults, parseSearchResults } from "./web-search-helpers.js";
+import { runWebSearch } from "./web-search.js";
 
 describe("isRateLimited", () => {
   it("detects CAPTCHA pages", () => {
