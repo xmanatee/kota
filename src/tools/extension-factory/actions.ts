@@ -1,5 +1,5 @@
 /**
- * Module Factory — CRUD action handlers (create, list, remove, info).
+ * Extension Factory — CRUD action handlers (create, list, remove, info).
  */
 
 import { resolveExtensionTools } from "../../extension-types.js";
@@ -53,7 +53,7 @@ export function handleCreate(
 		!isModuleLoaded(manifest.name)
 	) {
 		return {
-			content: `Error: maximum ${MAX_MANIFEST_MODULES} custom modules reached. Remove one first.`,
+			content: `Error: maximum ${MAX_MANIFEST_MODULES} custom extensions reached. Remove one first.`,
 			is_error: true,
 		};
 	}
@@ -90,7 +90,7 @@ export function handleCreate(
 		addLoadedModule(manifest.name);
 		return {
 			content:
-				`Module "${manifest.name}" created (session-only — failed to persist: ${msg}). ` +
+				`Extension "${manifest.name}" created (session-only — failed to persist: ${msg}). ` +
 				`${tools.length} tool(s) registered.`,
 		};
 	}
@@ -100,7 +100,7 @@ export function handleCreate(
 	const toolNames = tools.map((t) => t.tool.name).join(", ") || "none";
 	return {
 		content:
-			`Module "${manifest.name}" created and saved.\n` +
+			`Extension "${manifest.name}" created and saved.\n` +
 			`Tools: ${toolNames}\n` +
 			`Version: ${manifest.version || "1.0.0"}`,
 	};
@@ -114,7 +114,7 @@ export function handleList(): ToolResult {
 	if (saved.length === 0 && loadedModuleCount() === 0) {
 		return {
 			content:
-				"No custom modules. Use module_factory(create, manifest: {...}) to create one.",
+				"No custom extensions. Use extension_factory(create, manifest: {...}) to create one.",
 		};
 	}
 
@@ -131,7 +131,7 @@ export function handleList(): ToolResult {
 		);
 	}
 
-	// Show session-only modules (created but not persisted)
+	// Show session-only extensions (created but not persisted)
 	for (const name of loadedModuleNames()) {
 		if (!seen.has(name)) {
 			lines.push(`- ${name} [session-only]: (not persisted to disk)`);
@@ -139,7 +139,7 @@ export function handleList(): ToolResult {
 	}
 
 	return {
-		content: `Custom modules (${lines.length}):\n${lines.join("\n")}`,
+		content: `Custom extensions (${lines.length}):\n${lines.join("\n")}`,
 	};
 }
 
@@ -158,7 +158,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 
 	if (!wasLoaded && !wasOnDisk) {
 		return {
-			content: `Error: no custom module named "${name}"`,
+			content: `Error: no custom extension named "${name}"`,
 			is_error: true,
 		};
 	}
@@ -169,7 +169,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 	}
 
 	return {
-		content: `Module "${name}" removed.${wasLoaded ? " Tools deregistered." : ""}${wasOnDisk ? " Manifest deleted from disk." : ""}`,
+		content: `Extension "${name}" removed.${wasLoaded ? " Tools deregistered." : ""}${wasOnDisk ? " Manifest deleted from disk." : ""}`,
 	};
 }
 
@@ -187,18 +187,18 @@ export function handleInfo(name: string | undefined): ToolResult {
 	if (!manifest) {
 		if (isModuleLoaded(name)) {
 			return {
-				content: `Module "${name}" is loaded (session-only, not persisted to disk).`,
+				content: `Extension "${name}" is loaded (session-only, not persisted to disk).`,
 			};
 		}
 		return {
-			content: `Error: no custom module named "${name}"`,
+			content: `Error: no custom extension named "${name}"`,
 			is_error: true,
 		};
 	}
 
 	const loaded = isModuleLoaded(name);
 	const parts: string[] = [
-		`Module: ${manifest.name}`,
+		`Extension: ${manifest.name}`,
 		`Version: ${manifest.version || "1.0.0"}`,
 		`Description: ${manifest.description || "(none)"}`,
 		`Status: ${loaded ? "active" : "saved (loads on restart)"}`,
@@ -226,4 +226,3 @@ export function handleInfo(name: string | undefined): ToolResult {
 
 	return { content: parts.join("\n") };
 }
-

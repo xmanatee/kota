@@ -28,7 +28,7 @@ describe("vercel-adapter module", () => {
       registerGroup: () => {},
       getRoutes: () => [],
       getContributedWorkflows: () => [],
-      getModuleConfig: () => undefined,
+      getExtensionConfig: () => undefined,
       log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getSecret: () => null,
       listTools: () => [],

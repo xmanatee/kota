@@ -624,7 +624,7 @@ describe("Module SDK — storage, config, skills", () => {
     expect(storageB.getDir()).toContain("mod-b");
   });
 
-  it("getModuleConfig returns the module's config section", async () => {
+  it("getExtensionConfig returns the module's config section", async () => {
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({
       modules: {
@@ -634,17 +634,17 @@ describe("Module SDK — storage, config, skills", () => {
     await loader.load({ name: "my-mod", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
-    const config = ctx.getModuleConfig();
+    const config = ctx.getExtensionConfig();
     expect(config).toEqual({ apiKey: "secret", retries: 3 });
   });
 
-  it("getModuleConfig returns undefined when no config exists", async () => {
+  it("getExtensionConfig returns undefined when no config exists", async () => {
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({});
     await loader.load({ name: "no-config", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
-    expect(ctx.getModuleConfig()).toBeUndefined();
+    expect(ctx.getExtensionConfig()).toBeUndefined();
   });
 
   it("collects skill content from modules", async () => {

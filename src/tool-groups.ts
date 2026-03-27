@@ -24,7 +24,7 @@ export const CORE_TOOL_NAMES = new Set([
   "env_info",
   "custom_tool",
   "checkpoint",
-  "module_factory",
+  "extension_factory",
   "read_document",
 ]);
 

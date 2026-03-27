@@ -2,7 +2,7 @@
 
 This directory contains manifest-defined execution, validation, persistence, and step handling for agent-authored modules.
 
-- Manifest modules provide a declarative way for agents to create persistent custom tools via JSON (`module_factory`).
+- Manifest modules provide a declarative way for agents to create persistent custom tools via JSON (`extension_factory`).
 - The manifest format supports `tools`, `name`, `version`, `description`, and `dependencies`.
 - `eventHandlers` and `scripts` (manifest-era automation paths) have been removed; use contributed workflows and tools instead.
 - `steps.ts` provides step pipeline utilities (`evaluateCondition`, `resolveStepInput`) shared with the `pipe` tool.

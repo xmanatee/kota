@@ -1,7 +1,7 @@
 ---
 id: task-remove-public-module-terminology
 title: Remove remaining public module terminology from extension-facing APIs
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: The public concept model is now `extension`, but user-facing surfaces still expose `module_factory`, `getModuleConfig`, and module-oriented wording. Finish the public rename so docs, prompts, tools, and extension APIs all speak one language.

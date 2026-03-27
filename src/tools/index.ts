@@ -13,6 +13,7 @@ import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
 import { registration as envInfo } from "./env-info.js";
+import { registration as extensionFactory } from "./extension-factory/index.js";
 import { registration as fileEdit } from "./file-edit.js";
 import { registration as fileRead } from "./file-read.js";
 import { registration as fileWatch } from "./file-watch.js";
@@ -24,7 +25,6 @@ import { registration as glob } from "./glob.js";
 import { registration as grep } from "./grep.js";
 import { registration as httpRequest } from "./http-request.js";
 import { registration as map } from "./map.js";
-import { registration as moduleFactory } from "./module-factory/index.js";
 import { registration as multiEdit } from "./multi-edit.js";
 import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
@@ -65,7 +65,7 @@ export type ToolRegistration = {
 
 // ─── Core tool registrations ──────────────────────────────────────────
 // Adding a new tool? Export a `registration` from the tool file and add it here.
-// Risk and group metadata live in the tool file — no need to edit guardrails or module-factory.
+// Risk and group metadata live in the tool file — no need to edit guardrails or extension-factory.
 //
 // Lazy initialization: some tool files have circular import chains through
 // this module (e.g., delegate.ts → context.ts → tools/index.ts → delegate.ts).
@@ -101,7 +101,7 @@ const registrationImports = [
   () => filesOverview,
   () => customTool,
   () => checkpoint,
-  () => moduleFactory,
+  () => extensionFactory,
   () => notify,
   () => screenshot,
   () => readDocument,

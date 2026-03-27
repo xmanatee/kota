@@ -80,7 +80,7 @@ export function createExtensionContext(params: ExtensionContextParams, moduleNam
     },
     getRoutes,
     getContributedWorkflows,
-    getModuleConfig: <T = Record<string, unknown>>(): T | undefined => {
+    getExtensionConfig: <T = Record<string, unknown>>(): T | undefined => {
       if (!moduleName) return undefined;
       return config.modules?.[moduleName] as T | undefined;
     },

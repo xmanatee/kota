@@ -21,7 +21,7 @@ import { resetAgentStatusProviders } from "./tools/agent-status.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
-import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory/index.js";
+import { markModuleLoaded, resetExtensionFactory } from "./tools/extension-factory/index.js";
 import { cleanupProcesses } from "./tools/process.js";
 import type { Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
@@ -135,7 +135,7 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
   cleanupProcesses();
   cleanupSessions();
   resetCustomTools();
-  resetModuleFactory();
+  resetExtensionFactory();
   resetChangeTracker();
   resetGroups();
   resetProviderRegistry();

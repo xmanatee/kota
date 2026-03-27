@@ -37,7 +37,7 @@ describe("getAllTools", () => {
       "git", "grep", "glob", "todo", "repo_map", "delegate", "env_info", "web_fetch",
       "web_search", "ask_user", "http_request", "process",
       "code_exec", "confirm", "find_replace", "notebook", "files_overview",
-      "custom_tool", "checkpoint", "module_factory", "notify", "screenshot",
+      "custom_tool", "checkpoint", "extension_factory", "notify", "screenshot",
       "read_document", "clipboard", "computer_use", "sqlite", "view_image",
       "batch", "pipe", "map", "workspace", "file_watch", "prompt_template",
     ]);

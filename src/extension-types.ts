@@ -75,7 +75,7 @@ export type ExtensionContext = {
   /** Get workflow definitions contributed by loaded extensions. */
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   /** Get this extension's config section from the KOTA config. */
-  getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
+  getExtensionConfig: <T = Record<string, unknown>>() => T | undefined;
   /** Scoped logger — messages prefixed with `[extension:<name>]`. */
   log: ExtensionLogger;
   /** Get a secret value by name. Returns null if not found or store not initialized. */

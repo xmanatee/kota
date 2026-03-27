@@ -1,6 +1,6 @@
 /**
- * Edge-case tests for module-factory split modules.
- * Covers gaps not addressed by the existing module-factory.test.ts.
+ * Edge-case tests for extension-factory split modules.
+ * Covers gaps not addressed by the existing extension-factory.test.ts.
  */
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -19,7 +19,7 @@ import {
 	loadedModuleNames,
 	markModuleLoaded,
 	removeLoadedModule,
-	resetModuleFactory,
+	resetExtensionFactory,
 } from "./state.js";
 
 let originalCwd: string;
@@ -38,7 +38,7 @@ beforeEach(() => {
 afterEach(() => {
 	process.chdir(originalCwd);
 	clearCustomTools();
-	resetModuleFactory();
+	resetExtensionFactory();
 	try {
 		rmSync(tmpDir, { recursive: true });
 	} catch {
@@ -199,7 +199,7 @@ describe("handleList — edge cases", () => {
 		expect(result.content).toContain("real-mod");
 		expect(result.content).toContain("phantom-mod");
 		expect(result.content).toContain("session-only");
-		expect(result.content).toContain("Custom modules (2)");
+		expect(result.content).toContain("Custom extensions (2)");
 	});
 });
 

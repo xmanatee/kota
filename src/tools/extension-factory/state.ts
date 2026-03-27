@@ -35,7 +35,7 @@ export function getLoadedManifestModuleCount(): number {
 }
 
 /** Clear state. For testing. */
-export function resetModuleFactory(): void {
+export function resetExtensionFactory(): void {
 	loadedManifestModules.clear();
 }
 

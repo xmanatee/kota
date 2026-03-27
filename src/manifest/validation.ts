@@ -20,7 +20,7 @@ const BUILTIN_MODULE_NAMES = new Set([
 	"registry",
 ]);
 
-// Lazy to avoid circular dependency (tools/module-factory.ts → here → tools/index.ts → tools/module-factory.ts).
+// Lazy to avoid circular dependency (tools/extension-factory.ts → here → tools/index.ts → tools/extension-factory.ts).
 let _builtinToolNames: Set<string> | null = null;
 function getBuiltinToolNames(): Set<string> {
 	if (!_builtinToolNames) {
