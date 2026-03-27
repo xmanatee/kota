@@ -1,7 +1,7 @@
 ---
 id: task-split-tools-web-search-and-file-edit
 title: Split tools/web-search.ts and tools/file-edit.ts — both at 291 lines
-status: backlog
+status: done
 priority: p2
 area: refactor
 summary: tools/web-search.ts and tools/file-edit.ts are both 291 lines, just under the 300-line limit. Each should be split before they grow over. Both have helper/utility logic that can be extracted alongside the main tool runner.
