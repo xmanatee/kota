@@ -85,14 +85,7 @@ const myExtension: KotaExtension = {
 };
 ```
 
-Use `workflows` instead of the `events` field for user-visible automation. The
-`events` field is for low-level internal plumbing; `workflows` is for observable,
-managed jobs.
-
 ## What Not to Do
 
-- Do not subscribe to the internal bus (`events` on `KotaExtension`) to drive
-  user-visible automation. Use `workflows` instead so the job is observable and
-  manageable.
 - Do not add a second scheduling or hook engine. All automation, regardless of
   its trigger shape, should go through the workflow surface.

@@ -10,10 +10,9 @@ describe("vercel-adapter module", () => {
     expect(vercelAdapterModule.description).toBeTruthy();
   });
 
-  it("has no tools, commands, or events", () => {
+  it("has no tools or commands", () => {
     expect(vercelAdapterModule.tools).toBeUndefined();
     expect(vercelAdapterModule.commands).toBeUndefined();
-    expect(vercelAdapterModule.events).toBeUndefined();
   });
 
   it("registers routes", () => {
@@ -33,7 +32,7 @@ describe("vercel-adapter module", () => {
       log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getSecret: () => null,
       listTools: () => [],
-      events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+      events: { emit: () => {} },
       createSession: () => ({ send: async () => "", close: () => {} }),
       registerProvider: () => {},
       getProvider: () => null,

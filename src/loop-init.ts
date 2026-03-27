@@ -101,7 +101,7 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
   }
 
   const bus = getEventBus();
-  if (bus) state.moduleLoader.connectEvents(bus);
+  if (bus) state.moduleLoader.setBus(bus);
 
   state.initialized = true;
   if (state.stateMachine.canTransition("ready")) {

@@ -19,7 +19,7 @@ const stubCtx: ExtensionContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
-  events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+  events: { emit: () => {} },
   createSession: () => ({ send: async () => "", close: () => {} }),
   registerProvider: () => {},
   getProvider: () => null,
@@ -50,10 +50,9 @@ describe("daemonModule", () => {
     expect(optNames).toContain("--poll-interval");
   });
 
-  it("does not register tools, routes, or events", () => {
+  it("does not register tools or routes", () => {
     expect(daemonModule.tools).toBeUndefined();
     expect(daemonModule.routes).toBeUndefined();
-    expect(daemonModule.events).toBeUndefined();
   });
 
   it("has no dependencies", () => {

@@ -15,7 +15,7 @@ const stubCtx: ExtensionContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
-  events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+  events: { emit: () => {} },
   createSession: () => ({ send: async () => "", close: () => {} }),
   registerProvider: () => {},
   getProvider: () => null,
@@ -46,10 +46,9 @@ describe("registryModule", () => {
     expect(subNames).toContain("update");
   });
 
-  it("does not register tools, routes, or events", () => {
+  it("does not register tools or routes", () => {
     expect(registryModule.tools).toBeUndefined();
     expect(registryModule.routes).toBeUndefined();
-    expect(registryModule.events).toBeUndefined();
   });
 
   it("has no dependencies", () => {

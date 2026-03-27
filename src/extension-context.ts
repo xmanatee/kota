@@ -16,7 +16,6 @@ export interface ExtensionContextParams {
   verbose: boolean;
   config: KotaConfig;
   moduleStorages: Map<string, ExtensionStorage>;
-  moduleEventUnsubs: Map<string, Array<() => void>>;
   getBus: () => EventBus | null;
   getRoutes: () => RouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
@@ -38,40 +37,17 @@ function getOrCreateStorage(
 }
 
 function createEventProxy(
-  moduleName: string | undefined,
   getBus: () => EventBus | null,
-  moduleEventUnsubs: Map<string, Array<() => void>>,
 ): ExtensionEventProxy {
-  const trackUnsub = (unsub: () => void) => {
-    if (!moduleName) return;
-    const existing = moduleEventUnsubs.get(moduleName) ?? [];
-    existing.push(unsub);
-    moduleEventUnsubs.set(moduleName, existing);
-  };
-
   return {
     emit: (event: string, payload: Record<string, unknown>) => {
       getBus()?.emit(event, payload);
-    },
-    on: (event: string, handler: (payload: Record<string, unknown>) => void) => {
-      const bus = getBus();
-      if (!bus) return () => {};
-      const unsub = bus.on(event, handler);
-      trackUnsub(unsub);
-      return unsub;
-    },
-    once: (event: string, handler: (payload: Record<string, unknown>) => void) => {
-      const bus = getBus();
-      if (!bus) return () => {};
-      const unsub = bus.once(event, handler);
-      trackUnsub(unsub);
-      return unsub;
     },
   };
 }
 
 export function createExtensionContext(params: ExtensionContextParams, moduleName?: string): ExtensionContext {
-  const { cwd, verbose, config, moduleStorages, moduleEventUnsubs, getBus, getRoutes, getContributedWorkflows, sessionFactory, callTool } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedWorkflows, sessionFactory, callTool } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ExtensionStorage(cwd, "_default");
@@ -116,7 +92,7 @@ export function createExtensionContext(params: ExtensionContextParams, moduleNam
     listTools: (): string[] => {
       return getRegisteredTools().map((t) => t.name);
     },
-    events: createEventProxy(moduleName, getBus, moduleEventUnsubs),
+    events: createEventProxy(getBus),
     createSession: (opts?: CreateSessionOptions): ExtensionSession => {
       if (!sessionFactory) {
         throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");

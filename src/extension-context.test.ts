@@ -309,7 +309,7 @@ describe("resolveExtensionTools", () => {
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
-    events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+    events: { emit: () => {} },
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,
@@ -344,15 +344,13 @@ describe("resolveExtensionTools", () => {
 // ── ctx.events ──────────────────────────────────────────────────────────
 
 describe("ExtensionContext.events", () => {
-  it("provides emit/on/once methods", async () => {
+  it("provides emit method", async () => {
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({});
     await loader.load({ name: "events-test", onLoad });
 
     const ctx: ExtensionContext = onLoad.mock.calls[0][0];
     expect(typeof ctx.events.emit).toBe("function");
-    expect(typeof ctx.events.on).toBe("function");
-    expect(typeof ctx.events.once).toBe("function");
   });
 
   it("emit is no-op when bus is not connected", async () => {
@@ -365,19 +363,7 @@ describe("ExtensionContext.events", () => {
     ctx.events.emit("test.event", { value: 1 });
   });
 
-  it("on returns dummy unsub when bus is not connected", async () => {
-    const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
-    await loader.load({ name: "no-bus-on", onLoad });
-
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
-    const unsub = ctx.events.on("test.event", () => {});
-    expect(typeof unsub).toBe("function");
-    // Should not throw
-    unsub();
-  });
-
-  it("emits events to the bus after connectEvents", async () => {
+  it("emits events to the bus", async () => {
     const bus = initEventBus();
     const received: unknown[] = [];
     bus.on("custom.event", (payload) => received.push(payload));
@@ -385,7 +371,7 @@ describe("ExtensionContext.events", () => {
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({});
     await loader.load({ name: "emitter", onLoad });
-    loader.connectEvents(bus);
+    loader.setBus(bus);
 
     const ctx: ExtensionContext = onLoad.mock.calls[0][0];
     ctx.events.emit("custom.event", { key: "value" });
@@ -394,82 +380,7 @@ describe("ExtensionContext.events", () => {
     expect(received[0]).toEqual({ key: "value" });
   });
 
-  it("subscribes to events via ctx.events.on", async () => {
-    const bus = initEventBus();
-    const received: unknown[] = [];
-
-    const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
-    await loader.load({ name: "subscriber", onLoad });
-    loader.connectEvents(bus);
-
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
-    ctx.events.on("my.event", (payload) => received.push(payload));
-
-    bus.emit("my.event", { data: 42 });
-    expect(received).toHaveLength(1);
-    expect(received[0]).toEqual({ data: 42 });
-  });
-
-  it("ctx.events.once auto-unsubscribes after first call", async () => {
-    const bus = initEventBus();
-    const received: unknown[] = [];
-
-    const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
-    await loader.load({ name: "once-sub", onLoad });
-    loader.connectEvents(bus);
-
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
-    ctx.events.once("one-shot", (payload) => received.push(payload));
-
-    bus.emit("one-shot", { n: 1 });
-    bus.emit("one-shot", { n: 2 });
-    expect(received).toHaveLength(1);
-    expect(received[0]).toEqual({ n: 1 });
-  });
-
-  it("unsubscribes via returned function", async () => {
-    const bus = initEventBus();
-    const received: unknown[] = [];
-
-    const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
-    await loader.load({ name: "unsub-test", onLoad });
-    loader.connectEvents(bus);
-
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
-    const unsub = ctx.events.on("track.me", (p) => received.push(p));
-
-    bus.emit("track.me", { a: 1 });
-    expect(received).toHaveLength(1);
-
-    unsub();
-    bus.emit("track.me", { a: 2 });
-    expect(received).toHaveLength(1); // still 1 — unsubscribed
-  });
-
-  it("cleans up event subscriptions on module unload", async () => {
-    const bus = initEventBus();
-    const received: unknown[] = [];
-
-    const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
-    await loader.load({ name: "cleanup-mod", onLoad });
-    loader.connectEvents(bus);
-
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
-    ctx.events.on("cleanup.test", (p) => received.push(p));
-
-    bus.emit("cleanup.test", { before: true });
-    expect(received).toHaveLength(1);
-
-    await loader.unload("cleanup-mod");
-    bus.emit("cleanup.test", { after: true });
-    expect(received).toHaveLength(1); // subscription was cleaned up
-  });
-
-  it("tool runner can use ctx.events via closure", async () => {
+  it("tool runner can use ctx.events.emit via closure", async () => {
     const bus = initEventBus();
     const emitted: unknown[] = [];
     bus.on("tool.ran", (p) => emitted.push(p));
@@ -489,7 +400,7 @@ describe("ExtensionContext.events", () => {
         },
       }],
     });
-    loader.connectEvents(bus);
+    loader.setBus(bus);
 
     const result = await executeTool("event_emitter_tool", {});
     expect(result.content).toBe("emitted");

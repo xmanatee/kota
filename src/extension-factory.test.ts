@@ -201,10 +201,6 @@ describe("manifestToModule", () => {
 		expect(toolsOf(mod)[0].group).toBe("my-group");
 	});
 
-	it("module has no events function", () => {
-		const mod = manifestToModule({ name: "no-events" });
-		expect(mod.events).toBeUndefined();
-	});
 });
 
 // ─── resolveStepInput ──────────────────────────────────────────────────

@@ -15,7 +15,7 @@ const stubCtx: ExtensionContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
-  events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+  events: { emit: () => {} },
   createSession: () => ({ send: async () => "", close: () => {} }),
   registerProvider: () => {},
   getProvider: () => null,
@@ -46,10 +46,9 @@ describe("telegramModule", () => {
     expect(optNames).toContain("--allowed-chats");
   });
 
-  it("does not register tools, routes, or events", () => {
+  it("does not register tools or routes", () => {
     expect(telegramModule.tools).toBeUndefined();
     expect(telegramModule.routes).toBeUndefined();
-    expect(telegramModule.events).toBeUndefined();
   });
 
   it("has no dependencies", () => {

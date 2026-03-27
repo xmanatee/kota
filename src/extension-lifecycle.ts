@@ -1,4 +1,3 @@
-import type { EventBus } from "./event-bus.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { KotaExtension } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
@@ -7,8 +6,6 @@ import { deregisterModuleTools } from "./tools/index.js";
 
 export interface LifecycleState {
   modules: KotaExtension[];
-  eventUnsubs: Array<() => void>;
-  moduleEventUnsubs: Map<string, Array<() => void>>;
   moduleStorages: Map<string, ExtensionStorage>;
   moduleToolCounts: Map<string, number>;
   moduleRegistry: Map<string, KotaExtension>;
@@ -33,15 +30,6 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
   }
 
   const mod = state.modules[idx];
-  const unsubs = state.moduleEventUnsubs.get(moduleName);
-  if (unsubs) {
-    for (const unsub of unsubs) unsub();
-    const toRemove = new Set(unsubs);
-    for (let i = state.eventUnsubs.length - 1; i >= 0; i--) {
-      if (toRemove.has(state.eventUnsubs[i])) state.eventUnsubs.splice(i, 1);
-    }
-    state.moduleEventUnsubs.delete(moduleName);
-  }
 
   if (mod.onUnload) {
     try {
@@ -65,9 +53,7 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
 export async function reloadModule(
   moduleName: string,
   state: LifecycleState,
-  bus: EventBus | null,
   loadFn: (mod: KotaExtension) => Promise<void>,
-  connectEventsFn: (mod: KotaExtension, bus: EventBus) => void,
 ): Promise<boolean> {
   const mod = state.moduleRegistry.get(moduleName);
   if (!mod) return false;
@@ -78,16 +64,11 @@ export async function reloadModule(
 
   await loadFn(mod);
 
-  if (bus) connectEventsFn(mod, bus);
-
   if (state.verbose) console.error(`[kota] Extension "${moduleName}" reloaded`);
   return true;
 }
 
 export async function unloadAllModules(state: LifecycleState): Promise<void> {
-  for (const unsub of state.eventUnsubs) unsub();
-  state.eventUnsubs.splice(0);
-
   for (const mod of [...state.modules].reverse()) {
     if (mod.onUnload) {
       try {
@@ -101,7 +82,6 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
 
   for (const mod of [...state.modules]) deregisterModuleTools(mod.name);
   state.modules.splice(0);
-  state.moduleEventUnsubs.clear();
   state.moduleRegistry.clear();
   state.moduleStorages.clear();
   state.moduleToolCounts.clear();

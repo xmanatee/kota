@@ -20,8 +20,6 @@ export type ExtensionLoaderOptions = {
 
 export class ExtensionLoader {
   private modules: KotaExtension[] = [];
-  private eventUnsubs: (() => void)[] = [];
-  private moduleEventUnsubs = new Map<string, (() => void)[]>();
   private moduleStorages = new Map<string, ExtensionStorage>();
   private moduleRegistry = new Map<string, KotaExtension>();
   private moduleToolCounts = new Map<string, number>();
@@ -55,8 +53,6 @@ export class ExtensionLoader {
   private get lifecycleState(): LifecycleState {
     return {
       modules: this.modules,
-      eventUnsubs: this.eventUnsubs,
-      moduleEventUnsubs: this.moduleEventUnsubs,
       moduleStorages: this.moduleStorages,
       moduleToolCounts: this.moduleToolCounts,
       moduleRegistry: this.moduleRegistry,
@@ -70,7 +66,6 @@ export class ExtensionLoader {
       verbose: this.verbose,
       config: this.config,
       moduleStorages: this.moduleStorages,
-      moduleEventUnsubs: this.moduleEventUnsubs,
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
       getContributedWorkflows: () => this.getContributedWorkflows(),
@@ -200,24 +195,8 @@ export class ExtensionLoader {
     return this.contributedWorkflows;
   }
 
-  connectEvents(bus: EventBus): void {
+  setBus(bus: EventBus): void {
     this.bus = bus;
-    for (const mod of this.modules) {
-      this.connectModuleEvents(mod, bus);
-    }
-  }
-
-  private connectModuleEvents(mod: KotaExtension, bus: EventBus): void {
-    if (mod.events) {
-      try {
-        const unsubs = mod.events(bus);
-        this.eventUnsubs.push(...unsubs);
-        this.moduleEventUnsubs.set(mod.name, unsubs);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Extension "${mod.name}" event subscription failed: ${msg}`);
-      }
-    }
   }
 
   getSkillsPrompt(): string {
@@ -237,9 +216,7 @@ export class ExtensionLoader {
     return reloadModule(
       moduleName,
       this.lifecycleState,
-      this.bus,
       (mod) => this.load(mod),
-      (mod, bus) => this.connectModuleEvents(mod, bus),
     );
   }
 

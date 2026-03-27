@@ -15,7 +15,7 @@ const stubCtx: ExtensionContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
-  events: { emit: () => {}, on: () => () => {}, once: () => () => {} },
+  events: { emit: () => {} },
   createSession: () => ({ send: async () => "", close: () => {} }),
   registerProvider: () => {},
   getProvider: () => null,
@@ -45,10 +45,9 @@ describe("webModule", () => {
     expect(optNames).toContain("--verbose");
   });
 
-  it("does not register tools, routes, or events", () => {
+  it("does not register tools or routes", () => {
     expect(webModule.tools).toBeUndefined();
     expect(webModule.routes).toBeUndefined();
-    expect(webModule.events).toBeUndefined();
   });
 
   it("has no dependencies", () => {

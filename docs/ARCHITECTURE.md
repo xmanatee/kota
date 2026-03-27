@@ -43,8 +43,8 @@ adding a parallel surface.
   been removed.
 - Workflows are the documented public automation surface, and workflow triggers
   now cover event, cron, interval, and idle work. Manifest-era `eventHandlers`
-  and `scripts` have been removed from the manifest format; direct extension
-  event subscriptions remain but should migrate to contributed workflows.
+  and `scripts` have been removed. The `events` direct-subscription field has
+  been removed from `KotaExtension`; automation uses contributed workflows.
 - History, memory, working memory, knowledge, and run artifacts should be
   treated as stores inside one runtime state subsystem, not as many separate
   product-level concepts.

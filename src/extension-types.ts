@@ -11,7 +11,6 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
 import type { AgentDef, SkillDef } from "./agent-types.js";
 import type { KotaConfig } from "./config.js";
-import type { EventBus } from "./event-bus.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
@@ -29,10 +28,6 @@ export type ExtensionLogger = {
 export type ExtensionEventProxy = {
   /** Emit an event on the bus. No-op if bus not available. */
   emit(event: string, payload: Record<string, unknown>): void;
-  /** Subscribe to an event. Returns unsubscribe function. No-op if bus not available. */
-  on(event: string, handler: (payload: Record<string, unknown>) => void): () => void;
-  /** Subscribe once, auto-unsubscribe after first call. Returns unsubscribe function. */
-  once(event: string, handler: (payload: Record<string, unknown>) => void): () => void;
 };
 
 /** Minimal session interface returned by ctx.createSession(). */
@@ -108,7 +103,7 @@ export type ExtensionContext = {
  * - `tools` — register agent tools
  * - `commands` — add CLI subcommands (appear in `kota --help`)
  * - `routes` — add HTTP endpoints (available when server runs)
- * - `events` — subscribe to the event bus
+ * - `workflows` — contribute automation (event, cron, interval, idle)
  *
  * Built-in modules ship with KOTA but use the same protocol as external ones.
  * The core without any modules loaded still functions as a basic agent.
@@ -141,12 +136,6 @@ export type KotaExtension = {
    * Routes are matched by method + path in the HTTP request handler.
    */
   routes?: (ctx: ExtensionContext) => RouteRegistration[];
-
-  /**
-   * Event subscriptions. Called once when events are connected.
-   * Must return an array of unsubscribe functions for cleanup.
-   */
-  events?: (bus: EventBus) => (() => void)[];
 
   /**
    * Workflow definitions this extension contributes.

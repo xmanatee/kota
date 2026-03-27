@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus, initEventBus, resetEventBus } from "./event-bus.js";
+import { EventBus } from "./event-bus.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import type { KotaExtension } from "./extension-types.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
@@ -254,30 +254,6 @@ describe("ExtensionLoader", () => {
     expect(routes[0]).toEqual({ method: "GET", path: "/api/test", handler });
   });
 
-  it("connects and disconnects event subscriptions", async () => {
-    const bus = new EventBus();
-    const received: string[] = [];
-    const loader = new ExtensionLoader({});
-
-    await loader.load({
-      name: "event-mod",
-      events: (b) => [
-        b.on("session.start", (payload) => {
-          received.push(payload.sessionId);
-        }),
-      ],
-    });
-
-    loader.connectEvents(bus);
-    bus.emit("session.start", { sessionId: "s1" });
-    expect(received).toEqual(["s1"]);
-
-    // After unload, events should be disconnected
-    await loader.unloadAll();
-    bus.emit("session.start", { sessionId: "s2" });
-    expect(received).toEqual(["s1"]); // s2 NOT received
-  });
-
   it("handles module load errors gracefully in loadAll", async () => {
     const loader = new ExtensionLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -380,29 +356,17 @@ describe("ExtensionLoader", () => {
     );
   });
 
-  it("unload calls onUnload and disconnects events", async () => {
-    const bus = new EventBus();
+  it("unload calls onUnload", async () => {
     const unloadCalled = vi.fn();
-    const received: string[] = [];
     const loader = new ExtensionLoader({});
 
     await loader.load({
       name: "evt-mod",
       onUnload: unloadCalled,
-      events: (b) => [
-        b.on("session.start", (p) => { received.push(p.sessionId); }),
-      ],
     });
-
-    loader.connectEvents(bus);
-    bus.emit("session.start", { sessionId: "before" });
-    expect(received).toEqual(["before"]);
 
     await loader.unload("evt-mod");
     expect(unloadCalled).toHaveBeenCalledOnce();
-
-    bus.emit("session.start", { sessionId: "after" });
-    expect(received).toEqual(["before"]); // not received after unload
   });
 
   it("reloads a module — re-registers tools and calls onLoad again", async () => {
@@ -432,27 +396,6 @@ describe("ExtensionLoader", () => {
   it("reload returns false for unknown module", async () => {
     const loader = new ExtensionLoader({});
     expect(await loader.reload("nonexistent")).toBe(false);
-  });
-
-  it("reload reconnects events when bus is available", async () => {
-    const bus = new EventBus();
-    const received: string[] = [];
-    const loader = new ExtensionLoader({});
-
-    await loader.load({
-      name: "evt-reload",
-      events: (b) => [
-        b.on("session.start", (p) => { received.push(p.sessionId); }),
-      ],
-    });
-
-    loader.connectEvents(bus);
-    bus.emit("session.start", { sessionId: "s1" });
-    expect(received).toEqual(["s1"]);
-
-    await loader.reload("evt-reload");
-    bus.emit("session.start", { sessionId: "s2" });
-    expect(received).toEqual(["s1", "s2"]);
   });
 
   it("getDependents returns correct dependents", async () => {
@@ -1002,61 +945,3 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 });
 
-describe("module event bus integration", () => {
-  beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-    resetEventBus();
-  });
-
-  afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-    resetEventBus();
-  });
-
-  it("connectEvents wires module event subscriptions to the singleton bus", async () => {
-    const bus = initEventBus();
-    const received: string[] = [];
-    const loader = new ExtensionLoader({});
-
-    await loader.load({
-      name: "bus-mod",
-      events: (b) => [
-        b.on("session.start", (p) => { received.push(p.sessionId); }),
-      ],
-    });
-
-    // Before connectEvents — bus exists but module isn't wired
-    bus.emit("session.start", { sessionId: "before-connect" });
-    expect(received).toEqual([]);
-
-    // After connectEvents — module receives events
-    loader.connectEvents(bus);
-    bus.emit("session.start", { sessionId: "after-connect" });
-    expect(received).toEqual(["after-connect"]);
-  });
-
-  it("module events are cleaned up on unloadAll", async () => {
-    const bus = initEventBus();
-    const received: string[] = [];
-    const loader = new ExtensionLoader({});
-
-    await loader.load({
-      name: "cleanup-evt",
-      events: (b) => [
-        b.on("session.end", (p) => { received.push(p.sessionId); }),
-      ],
-    });
-
-    loader.connectEvents(bus);
-    bus.emit("session.end", { sessionId: "s1", durationMs: 100 });
-    expect(received).toEqual(["s1"]);
-
-    await loader.unloadAll();
-    bus.emit("session.end", { sessionId: "s2", durationMs: 200 });
-    expect(received).toEqual(["s1"]); // not received after cleanup
-  });
-});
