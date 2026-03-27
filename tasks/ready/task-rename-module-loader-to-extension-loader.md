@@ -1,7 +1,7 @@
 ---
 id: task-rename-module-loader-to-extension-loader
 title: Rename module* → extension* in session internals and tool registry
-status: backlog
+status: ready
 priority: p2
 area: cleanup
 summary: >
@@ -10,7 +10,7 @@ summary: >
   `pluginModules` — despite the public surface having moved to "extension".
   Renaming these to match closes the gap noted in docs/ARCHITECTURE.md.
 created_at: 2026-03-27T12:40:00Z
-updated_at: 2026-03-27T12:40:00Z
+updated_at: 2026-03-27T12:52:00Z
 ---
 
 ## Problem
