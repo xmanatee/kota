@@ -18,6 +18,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling.
 - `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
+- `run-executor-step.ts` — `executeWorkflowStep` (single non-parallel step execution) and `buildSkippedResult` (skipped step handling with child-skipping for parallel steps).
 - `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.
 - `step-context.ts` — `createStepContext` and step context helpers.
 - `step-executor.ts` / `step-executor-agent.ts` / `step-executor-parallel.ts` — Step dispatch by type.

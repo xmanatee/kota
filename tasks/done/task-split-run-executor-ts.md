@@ -1,7 +1,7 @@
 ---
 id: task-split-run-executor-ts
 title: Split run-executor.ts — extract single-step execution into run-executor-step.ts
-status: ready
+status: done
 priority: p2
 area: code-quality
 summary: run-executor.ts is 287 lines and at the 300-line limit. The single-step execution handler (try/catch block, event emission, agentBackoff classification, and skipped-step logic) is a cohesive unit that can move to a new run-executor-step.ts, leaving run-executor.ts focused on the workflow loop and parallel group dispatch.

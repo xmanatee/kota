@@ -5,14 +5,14 @@ import {
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
 } from "./event-payloads.js";
+import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus } from "./run-types.js";
 import { createStepContext } from "./step-context.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
-  executeStep,
   shouldRunStep,
 } from "./step-executor.js";
 import { executeParallelStepGroup } from "./step-executor-parallel.js";
@@ -67,6 +67,8 @@ export function executeWorkflowRun(
     const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
     let previousOutput = retryState.previousOutput;
     let hadWarnings = retryState.hadWarnings;
+    const acc = { stepOutputsById, stepResultsById, stepOutputs };
+    const stepDeps = { bus: deps.bus, log: deps.log };
 
     try {
       for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
@@ -91,37 +93,7 @@ export function executeWorkflowRun(
         };
 
         if (!(await shouldRunStep(step, context))) {
-          const skipped: WorkflowStepResult = {
-            id: step.id,
-            type: step.type,
-            status: "skipped",
-            startedAt: new Date(stepStartedAt).toISOString(),
-            completedAt: new Date().toISOString(),
-            durationMs: Date.now() - stepStartedAt,
-          };
-          run.recordStep(skipped);
-          stepOutputsById[step.id] = { skipped: true };
-          stepResultsById[step.id] = skipped;
-          stepOutputs.push({ skipped: true });
-          if (step.type === "parallel") {
-            const skippedAt = new Date(stepStartedAt).toISOString();
-            for (const childStep of step.steps) {
-              const childSkipped: WorkflowStepResult = {
-                id: childStep.id,
-                type: childStep.type,
-                status: "skipped",
-                startedAt: skippedAt,
-                completedAt: skippedAt,
-                durationMs: 0,
-              };
-              stepOutputsById[childStep.id] = { skipped: true };
-              stepResultsById[childStep.id] = childSkipped;
-            }
-          }
-          deps.bus.emit(
-            "workflow.step.completed",
-            buildStepCompletedPayload(run.metadata, skipped),
-          );
+          buildSkippedResult(step, stepStartedAt, acc, (r) => run.recordStep(r), deps.bus, run.metadata);
           continue;
         }
 
@@ -162,78 +134,13 @@ export function executeWorkflowRun(
           continue;
         }
 
-        try {
-          const output = await executeStep(
-            definition,
-            step,
-            run.metadata,
-            trigger,
-            context,
-            abortController,
-            (message) => run.appendAgentMessage(step.id, message),
-            (systemPromptAppend, prompt) =>
-              run.writeAgentInputs(step.id, systemPromptAppend, prompt),
-            agentConfig,
-          );
-
-          const completed: WorkflowStepResult = {
-            id: step.id,
-            type: step.type,
-            status: "success",
-            startedAt: new Date(stepStartedAt).toISOString(),
-            completedAt: new Date().toISOString(),
-            durationMs: Date.now() - stepStartedAt,
-            output,
-          };
-          run.recordStep(completed);
-          stepOutputsById[step.id] = output;
-          stepResultsById[step.id] = completed;
-          stepOutputs.push(output);
-          previousOutput = output;
-
-          deps.bus.emit(
-            "workflow.step.completed",
-            buildStepCompletedPayload(run.metadata, completed),
-          );
-          const logDetails: string[] = [`${completed.durationMs}ms`];
-          if (completed.type === "agent" && completed.output && typeof completed.output === "object") {
-            const o = completed.output as { turns?: unknown; totalCostUsd?: unknown; subtype?: unknown };
-            if (typeof o.turns === "number") logDetails.push(`${o.turns} turn(s)`);
-            if (typeof o.totalCostUsd === "number") logDetails.push(`$${o.totalCostUsd.toFixed(2)}`);
-            if (typeof o.subtype === "string" && o.subtype) logDetails.push(o.subtype);
-          }
-          deps.log(`Completed step "${completed.id}" (${completed.type}) in workflow "${definition.name}" [${logDetails.join(", ")}]`);
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          if (!agentBackoff && err instanceof AgentStepRuntimeError) {
-            agentBackoff = {
-              kind: err.kind,
-              reason: err.message,
-            };
-          }
-          const failed: WorkflowStepResult = {
-            id: step.id,
-            type: step.type,
-            status: "failed",
-            startedAt: new Date(stepStartedAt).toISOString(),
-            completedAt: new Date().toISOString(),
-            durationMs: Date.now() - stepStartedAt,
-            error: err.message,
-            ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
-          };
-          run.recordStep(failed);
-          stepResultsById[step.id] = failed;
-          deps.bus.emit(
-            "workflow.step.completed",
-            buildStepCompletedPayload(run.metadata, failed),
-          );
-          deps.log(`Failed step "${failed.id}" (${failed.type}) in workflow "${definition.name}": ${failed.error ?? "unknown error"}`);
-          if (step.continueOnFailure) {
-            hadWarnings = true;
-            continue;
-          }
-          throw err;
-        }
+        const { completed, agentBackoff: stepBackoff, thrownError } = await executeWorkflowStep(
+          definition, step, run, trigger, context, abortController, agentConfig, acc, stepDeps, stepStartedAt,
+        );
+        if (stepBackoff && !agentBackoff) agentBackoff = stepBackoff;
+        if (completed.status === "success") previousOutput = completed.output;
+        else if (completed.continueOnFailure) { hadWarnings = true; }
+        else if (thrownError) throw thrownError;
       }
 
       const finalStatus = hadWarnings ? "completed-with-warnings" : "success";
