@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
-import { initModuleLogStore, resetModuleLogStore } from "../../extension-log.js";
+import { initExtensionLogStore, resetExtensionLogStore } from "../../extension-log.js";
 import { clearCustomTools } from "../index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
 import { handleLogs } from "./logs.js";
@@ -275,17 +275,17 @@ describe("handleInfo — edge cases", () => {
 
 describe("handleLogs — edge cases", () => {
 	it("shows data field in log entries", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = initExtensionLogStore(tmpDir);
 		store.append("data-mod", "info", "with data", { key: "value" });
 
 		const result = handleLogs({ name: "data-mod" });
 		expect(result.content).toContain("with data");
 		expect(result.content).toContain('"key":"value"');
-		resetModuleLogStore();
+		resetExtensionLogStore();
 	});
 
 	it("combines level and keyword filters", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = initExtensionLogStore(tmpDir);
 		store.append("filter-mod", "info", "info about weather");
 		store.append("filter-mod", "error", "error about weather");
 		store.append("filter-mod", "info", "info about sports");
@@ -299,11 +299,11 @@ describe("handleLogs — edge cases", () => {
 		expect(result.content).not.toContain("error about weather");
 		expect(result.content).not.toContain("sports");
 		expect(result.content).toContain("1 entries");
-		resetModuleLogStore();
+		resetExtensionLogStore();
 	});
 
 	it("shows filter description when no entries match", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = initExtensionLogStore(tmpDir);
 		store.append("some-mod", "info", "hello");
 
 		const result = handleLogs({
@@ -314,17 +314,17 @@ describe("handleLogs — edge cases", () => {
 		expect(result.content).toContain("No log entries");
 		expect(result.content).toContain('level=error');
 		expect(result.content).toContain('keyword="crash"');
-		resetModuleLogStore();
+		resetExtensionLogStore();
 	});
 
 	it("default limit is 30", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = initExtensionLogStore(tmpDir);
 		for (let i = 0; i < 50; i++) {
 			store.append("many-logs", "info", `msg-${i}`);
 		}
 
 		const result = handleLogs({ name: "many-logs" });
 		expect(result.content).toContain("30 entries");
-		resetModuleLogStore();
+		resetExtensionLogStore();
 	});
 });

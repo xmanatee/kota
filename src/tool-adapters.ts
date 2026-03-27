@@ -154,18 +154,18 @@ export function adaptExport(exported: unknown, fileName: string): KotaExtension 
 
   if (isOpenAIFormat(obj)) {
     const tool = fromOpenAI(obj as unknown as OpenAIFunctionTool);
-    const name = moduleNameFromFile(fileName);
+    const name = extensionNameFromFile(fileName);
     return { name, tools: [tool] };
   }
 
   if (isSimpleFormat(obj)) {
     const tool = fromSimple(obj as unknown as SimpleTool);
-    const name = (obj.name as string) || moduleNameFromFile(fileName);
+    const name = (obj.name as string) || extensionNameFromFile(fileName);
     return { name, tools: [tool] };
   }
 
   if (isVercelAIFormat(obj)) {
-    const name = moduleNameFromFile(fileName);
+    const name = extensionNameFromFile(fileName);
     const tool = fromVercelAI(obj as unknown as VercelAITool, name);
     return { name, tools: [tool] };
   }
@@ -177,7 +177,7 @@ export function adaptExport(exported: unknown, fileName: string): KotaExtension 
     const tools = entries.map(([key, val]) =>
       fromVercelAI(val as unknown as VercelAITool, key),
     );
-    return { name: moduleNameFromFile(fileName), tools };
+    return { name: extensionNameFromFile(fileName), tools };
   }
 
   throw new Error(
@@ -202,7 +202,7 @@ function adaptArray(arr: unknown[], fileName: string): KotaExtension {
     fileName,
   );
 
-  return { name: moduleNameFromFile(fileName), tools };
+  return { name: extensionNameFromFile(fileName), tools };
 }
 
 function adaptToolArray(items: Record<string, unknown>[], fileName: string): ToolDef[] {
@@ -233,6 +233,6 @@ function adaptToolArray(items: Record<string, unknown>[], fileName: string): Too
   return tools;
 }
 
-function moduleNameFromFile(fileName: string): string {
+function extensionNameFromFile(fileName: string): string {
   return fileName.replace(/\.(js|mjs|ts)$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
 }

@@ -48,7 +48,7 @@ export async function discoverExtensions(cwd?: string, verbose = false): Promise
   const npmModules = await discoverNpmPackages(base);
   modules.push(...npmModules);
 
-  // 3. Manifest-based modules from .kota/modules/*/manifest.json
+  // 3. Manifest-based extensions from .kota/extensions/*/manifest.json
   const manifestModules = discoverManifestModules(base);
   modules.push(...manifestModules);
 

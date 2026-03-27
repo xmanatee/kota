@@ -16,19 +16,19 @@ import { manifestToModule } from "./execution.js";
 import type { ModuleManifest } from "./types.js";
 import { validateManifest } from "./validation.js";
 
-function getModulesDir(cwd?: string): string {
-	return join(cwd || process.cwd(), ".kota", "modules");
+function getExtensionsDir(cwd?: string): string {
+	return join(cwd || process.cwd(), ".kota", "extensions");
 }
 
-function getManifestPath(moduleName: string, cwd?: string): string {
-	return join(getModulesDir(cwd), moduleName, "manifest.json");
+function getManifestPath(extensionName: string, cwd?: string): string {
+	return join(getExtensionsDir(cwd), extensionName, "manifest.json");
 }
 
 export function saveManifest(
 	manifest: ModuleManifest,
 	cwd?: string,
 ): string {
-	const dir = join(getModulesDir(cwd), manifest.name);
+	const dir = join(getExtensionsDir(cwd), manifest.name);
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	const path = join(dir, "manifest.json");
 	writeFileSync(path, JSON.stringify(manifest, null, 2), "utf-8");
@@ -36,10 +36,10 @@ export function saveManifest(
 }
 
 export function loadManifest(
-	moduleName: string,
+	extensionName: string,
 	cwd?: string,
 ): ModuleManifest | null {
-	const path = getManifestPath(moduleName, cwd);
+	const path = getManifestPath(extensionName, cwd);
 	if (!existsSync(path)) return null;
 	try {
 		return JSON.parse(readFileSync(path, "utf-8")) as ModuleManifest;
@@ -48,8 +48,8 @@ export function loadManifest(
 	}
 }
 
-export function deleteManifest(moduleName: string, cwd?: string): boolean {
-	const dir = join(getModulesDir(cwd), moduleName);
+export function deleteManifest(extensionName: string, cwd?: string): boolean {
+	const dir = join(getExtensionsDir(cwd), extensionName);
 	if (!existsSync(dir)) return false;
 	const manifestPath = join(dir, "manifest.json");
 	if (!existsSync(manifestPath)) return false;
@@ -64,11 +64,11 @@ export function deleteManifest(moduleName: string, cwd?: string): boolean {
 }
 
 /**
- * Discover all manifest-based modules saved to `.kota/modules/`.
+ * Discover all manifest-based extensions saved to `.kota/extensions/`.
  * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
  */
 export function discoverManifestModules(cwd?: string): KotaExtension[] {
-	const dir = getModulesDir(cwd);
+	const dir = getExtensionsDir(cwd);
 	if (!existsSync(dir)) return [];
 
 	const modules: KotaExtension[] = [];
@@ -95,11 +95,11 @@ export function discoverManifestModules(cwd?: string): KotaExtension[] {
 	return modules;
 }
 
-/** List all saved manifest module names. */
+/** List all saved manifest extension names. */
 export function listManifestModules(
 	cwd?: string,
 ): { name: string; manifest: ModuleManifest }[] {
-	const dir = getModulesDir(cwd);
+	const dir = getExtensionsDir(cwd);
 	if (!existsSync(dir)) return [];
 
 	const results: { name: string; manifest: ModuleManifest }[] = [];

@@ -10,7 +10,7 @@ import { createServer, type Server } from "node:http";
 import type { KotaConfig } from "../config.js";
 import { loadConfig } from "../config.js";
 import { initEventBus, resetEventBus } from "../event-bus.js";
-import { initModuleLogStore } from "../extension-log.js";
+import { initExtensionLogStore } from "../extension-log.js";
 import type { RouteRegistration } from "../extension-types.js";
 import { AgentSession, type LoopOptions } from "../loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
@@ -35,7 +35,7 @@ export function startServer(options: ServerOptions = {}): Server {
 
   const bus = initEventBus();
   initScheduler(process.cwd());
-  initModuleLogStore(process.cwd());
+  initExtensionLogStore(process.cwd());
   const scheduler = getScheduler();
 
   const hub = new NotificationHub();

@@ -607,7 +607,7 @@ describe("Module SDK — storage, config, skills", () => {
 
     const ctx = onLoad.mock.calls[0][0];
     expect(ctx.storage).toBeDefined();
-    expect(ctx.storage.getDir()).toContain(".kota/modules/storage-mod");
+    expect(ctx.storage.getDir()).toContain(".kota/extensions/storage-mod");
   });
 
   it("each module gets its own isolated storage", async () => {

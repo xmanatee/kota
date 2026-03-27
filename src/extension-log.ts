@@ -1,9 +1,9 @@
 /**
- * ModuleLogStore — persistent, queryable log storage for modules.
+ * ExtensionLogStore — persistent, queryable log storage for extensions.
  *
- * Each module gets a JSONL log file at `.kota/modules/<name>/logs.jsonl`.
- * Enables observability of autonomous module operations: scheduled actions,
- * event handlers, scripts, and module lifecycle.
+ * Each extension gets a JSONL log file at `.kota/extensions/<name>/logs.jsonl`.
+ * Enables observability of autonomous extension operations: scheduled actions,
+ * event handlers, scripts, and extension lifecycle.
  */
 
 import {
@@ -21,13 +21,13 @@ export type LogLevel = "info" | "warn" | "error" | "debug";
 export type LogEntry = {
 	ts: string;
 	level: LogLevel;
-	module: string;
+	extension: string;
 	msg: string;
 	data?: unknown;
 };
 
 export type LogQueryOptions = {
-	module?: string;
+	extension?: string;
 	level?: LogLevel;
 	since?: string;
 	keyword?: string;
@@ -37,20 +37,20 @@ export type LogQueryOptions = {
 const MAX_ENTRIES = 1000;
 const PRUNE_TO = 750;
 
-export class ModuleLogStore {
+export class ExtensionLogStore {
 	private baseDir: string;
 
 	constructor(baseDir: string) {
-		this.baseDir = join(baseDir, ".kota", "modules");
+		this.baseDir = join(baseDir, ".kota", "extensions");
 	}
 
-	append(module: string, level: LogLevel, msg: string, data?: unknown): void {
-		const dir = join(this.baseDir, module);
+	append(extension: string, level: LogLevel, msg: string, data?: unknown): void {
+		const dir = join(this.baseDir, extension);
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 		const entry: LogEntry = {
 			ts: new Date().toISOString(),
 			level,
-			module,
+			extension,
 			msg,
 		};
 		if (data !== undefined) entry.data = data;
@@ -63,11 +63,11 @@ export class ModuleLogStore {
 		const limit = opts.limit ?? 50;
 		let entries: LogEntry[];
 
-		if (opts.module) {
-			entries = this.readLog(opts.module);
+		if (opts.extension) {
+			entries = this.readLog(opts.extension);
 		} else {
 			entries = [];
-			for (const mod of this.modules()) {
+			for (const mod of this.extensions()) {
 				entries.push(...this.readLog(mod));
 			}
 		}
@@ -92,27 +92,27 @@ export class ModuleLogStore {
 		return entries.slice(0, limit);
 	}
 
-	tail(module: string, count = 20): LogEntry[] {
-		const entries = this.readLog(module);
+	tail(extension: string, count = 20): LogEntry[] {
+		const entries = this.readLog(extension);
 		return entries.slice(-count);
 	}
 
-	modules(): string[] {
+	extensions(): string[] {
 		if (!existsSync(this.baseDir)) return [];
 		return readdirSync(this.baseDir).filter((d) =>
 			existsSync(join(this.baseDir, d, "logs.jsonl")),
 		);
 	}
 
-	clear(module: string): boolean {
-		const path = join(this.baseDir, module, "logs.jsonl");
+	clear(extension: string): boolean {
+		const path = join(this.baseDir, extension, "logs.jsonl");
 		if (!existsSync(path)) return false;
 		unlinkSync(path);
 		return true;
 	}
 
-	private readLog(module: string): LogEntry[] {
-		const path = join(this.baseDir, module, "logs.jsonl");
+	private readLog(extension: string): LogEntry[] {
+		const path = join(this.baseDir, extension, "logs.jsonl");
 		if (!existsSync(path)) return [];
 		try {
 			const content = readFileSync(path, "utf-8");
@@ -146,17 +146,17 @@ export class ModuleLogStore {
 
 // ─── Singleton ────────────────────────────────────────────────────────
 
-let _store: ModuleLogStore | null = null;
+let _store: ExtensionLogStore | null = null;
 
-export function initModuleLogStore(baseDir: string): ModuleLogStore {
-	_store = new ModuleLogStore(baseDir);
+export function initExtensionLogStore(baseDir: string): ExtensionLogStore {
+	_store = new ExtensionLogStore(baseDir);
 	return _store;
 }
 
-export function getModuleLogStore(): ModuleLogStore | null {
+export function getExtensionLogStore(): ExtensionLogStore | null {
 	return _store;
 }
 
-export function resetModuleLogStore(): void {
+export function resetExtensionLogStore(): void {
 	_store = null;
 }

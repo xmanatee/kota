@@ -95,6 +95,6 @@ Extensions register custom backends via `registerProvider(type, provider)`.
 ## Extension Storage
 
 Extensions get isolated file-based storage through `ExtensionContext.storage`
-(under `.kota/modules/<name>/`). This is for private extension data, not shared
+(under `.kota/extensions/<name>/`). This is for private extension data, not shared
 agent state. Prefer the shared stores above when data should be visible across
 extensions or sessions.

@@ -363,7 +363,7 @@ describe("manifest persistence", () => {
 	it("deleteManifest preserves other files in module directory", () => {
 		saveManifest(sampleManifest, tmpDir);
 		// Simulate module storage file
-		const storageFile = join(tmpDir, ".kota", "modules", "test-mod", "data.json");
+		const storageFile = join(tmpDir, ".kota", "extensions", "test-mod", "data.json");
 		writeFileSync(storageFile, '{"key":"value"}');
 		deleteManifest("test-mod", tmpDir);
 		// data.json should still exist
@@ -382,7 +382,7 @@ describe("manifest persistence", () => {
 	it("discoverManifestModules skips invalid manifests", () => {
 		saveManifest(sampleManifest, tmpDir);
 		// Write an invalid manifest
-		const badDir = join(tmpDir, ".kota", "modules", "bad-mod");
+		const badDir = join(tmpDir, ".kota", "extensions", "bad-mod");
 		mkdirSync(badDir, { recursive: true });
 		writeFileSync(join(badDir, "manifest.json"), "not json");
 		const modules = discoverManifestModules(tmpDir);

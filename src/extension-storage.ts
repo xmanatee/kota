@@ -1,9 +1,9 @@
 /**
- * ExtensionStorage — scoped file-based storage for modules.
+ * ExtensionStorage — scoped file-based storage for extensions.
  *
- * Each module gets its own isolated directory under `.kota/modules/<name>/`.
+ * Each extension gets its own isolated directory under `.kota/extensions/<name>/`.
  * Supports JSON objects, raw text, and markdown files.
- * This enables truly self-contained modules that own their data.
+ * This enables truly self-contained extensions that own their data.
  */
 
 import {
@@ -19,8 +19,8 @@ import { join } from "node:path";
 export class ExtensionStorage {
 	private dir: string;
 
-	constructor(baseDir: string, moduleName: string) {
-		this.dir = join(baseDir, ".kota", "modules", moduleName);
+	constructor(baseDir: string, extensionName: string) {
+		this.dir = join(baseDir, ".kota", "extensions", extensionName);
 	}
 
 	/** Get the storage directory path (creates it lazily on first write). */

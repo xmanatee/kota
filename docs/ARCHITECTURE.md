@@ -13,13 +13,18 @@ adding a parallel surface.
 - `agent` = a named worker with a role, model defaults, skill set, tool scope,
   and write boundaries. `explorer`, `builder`, and `improver` are built-in
   agents.
+- `daemon` = the long-lived runtime host. When running, it owns workflows,
+  channels, sessions, stores, extension runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
   autonomous agent steps both run in sessions.
 - `workflow` = a deterministic trigger plus ordered steps. Hooks, cron jobs,
   standing orders, and autonomous loops are all workflows.
-- `channel` = an optional interaction surface that maps external input/output to
-  sessions. CLI, web, and Telegram are channels. Channels are not required for
-  autonomous workflows.
+- `client` = an operator or user-facing app that talks to the daemon's control
+  API. Daemon-backed CLI mode, native desktop apps, web apps, and mobile apps
+  are clients.
+- `channel` = a daemon-owned interaction surface that maps external input/output
+  to sessions. Channels are not the same thing as clients: a client may inspect
+  or control the daemon without being the transport that owns a conversation.
 - `extension` = the only package and integration unit. An extension can
   contribute tools, skills, agents, workflows, channels, and internal services.
 - `store` = a typed persistence unit in the runtime state subsystem. Store types
@@ -32,8 +37,10 @@ adding a parallel surface.
 - Add a new action: add a `tool`.
 - Add reusable repo guidance: add a `skill`.
 - Add a specialist worker: add an `agent`.
+- Add a long-lived runtime host capability: extend the `daemon`.
 - Add automation: add a `workflow`.
-- Add a human or external interface: add a `channel`.
+- Add an operator or user-facing app: add a `client`.
+- Add an external interaction transport: add a `channel`.
 - Add or ship an integration: add an `extension`.
 
 ## Current To Target
@@ -43,8 +50,7 @@ adding a parallel surface.
   session internals, tool registry, and the `src/extensions/` directory are now
   extension-named. Public config (`config.extensions`) and log prefixes (`[extension:...]`)
   now use extension terminology. Internal implementation still carries some old `module`
-  naming (`.kota/modules`, `ModuleLogStore`). The module→extension migration is
-  not fully complete for internal storage and logging internals.
+  naming is now complete for extension-private storage and logging internals.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.
@@ -56,6 +62,11 @@ adding a parallel surface.
   documented as stores in one runtime state subsystem (`docs/STORES.md`).
   They remain separate implementations sharing a provider registry, but the
   public model treats them as typed stores rather than many parallel products.
+- The daemon/client split is not fully formalized yet. Today the workflow
+  daemon and the HTTP/session server are still separate runtime entry points,
+  and some clients still inspect `.kota/` state directly. The target model is:
+  daemon as source of truth, clients speaking one daemon API, and channels owned
+  by the daemon instead of parallel runtimes.
 
 ## Protocol Boundaries
 
@@ -63,6 +74,10 @@ adding a parallel surface.
 - `skill` protocol: scoped guidance entry point plus optional assets.
 - `agent` protocol: role, defaults, skill list, tool policy, and ownership
   scope.
+- `daemon` protocol: lifecycle, ownership of runtime state, extension loading,
+  and control-plane hosting.
+- `client` protocol: daemon discovery, capability-scoped control calls, and
+  event subscription.
 - `workflow` protocol: trigger, steps, retry/backoff, checks, and restart
   semantics.
 - `channel` protocol: session routing, inbound/outbound transport, and operator
@@ -87,10 +102,15 @@ lifecycle for every agent run — interactive or autonomous. Every path through
 KOTA runs in a session. The `SessionStateMachine` enforces explicit lifecycle
 states (idle → initializing → ready → thinking → acting → reflecting → closed).
 
+The daemon should be the source of truth for live sessions when it is running.
+Clients should query or control the daemon instead of reading session state
+from `.kota/` files directly.
+
 `channel` is optional. Channels manage pools of sessions on behalf of external
-users (web, Telegram). Each channel holds one `ChannelSession` per user/chat,
-using `ProxyTransport` to route agent output to the right sink per request.
-Autonomous workflow execution and CLI runs do NOT use channels.
+users (Telegram, daemon-backed web chat, future connectors). They live inside
+the daemon and route traffic to sessions. Clients such as a native macOS app,
+CLI daemon mode, web dashboard, or mobile app are not channels unless they also
+own message routing for sessions.
 
 `ChannelSession` and `ChannelAdapter` are defined in `src/channel.ts` and used
 by both the HTTP server (`ManagedSession`) and the Telegram bot. This is the
@@ -108,6 +128,9 @@ shared channel session model — new channels should use the same types.
 - Keep workflow-provided context thin. If an agent can discover something
   cheaply and reliably from the repo, the runtime should not inject it by
   default.
+- Prefer one daemon control protocol over platform-specific side channels.
+- Keep native UI wrappers thin. The macOS app should be a client of the daemon,
+  not a second runtime host.
 
 ## External Anchors
 

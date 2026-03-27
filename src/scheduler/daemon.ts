@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
-import { initModuleLogStore } from "../extension-log.js";
+import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
@@ -55,7 +55,7 @@ export class Daemon {
     this.bus = initEventBus();
     initTaskStore(this.projectDir);
     initScheduler(this.projectDir);
-    initModuleLogStore(this.projectDir);
+    initExtensionLogStore(this.projectDir);
 
     this.workflows = new WorkflowRuntime({
       bus: this.bus,

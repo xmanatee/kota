@@ -173,13 +173,13 @@ export async function executeTool(
 // --- Custom tool registry for extensibility ---
 
 const customToolNames = new Set<string>();
-/** Maps module name → set of tool names it registered. */
-const moduleToolOwners = new Map<string, Set<string>>();
+/** Maps extension name → set of tool names it registered. */
+const extensionToolOwners = new Map<string, Set<string>>();
 
 export function registerTool(
   tool: Anthropic.Tool,
   runner: ToolRunner,
-  moduleName?: string,
+  extensionName?: string,
 ): void {
   ensureInit();
   if (runners[tool.name]) {
@@ -188,11 +188,11 @@ export function registerTool(
   tools.push(tool);
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
-  if (moduleName) {
-    let owned = moduleToolOwners.get(moduleName);
+  if (extensionName) {
+    let owned = extensionToolOwners.get(extensionName);
     if (!owned) {
       owned = new Set();
-      moduleToolOwners.set(moduleName, owned);
+      extensionToolOwners.set(extensionName, owned);
     }
     owned.add(tool.name);
   }
@@ -206,19 +206,19 @@ export function deregisterTool(name: string): boolean {
   tools.splice(idx, 1);
   delete runners[name];
   customToolNames.delete(name);
-  // Remove from module ownership tracking
-  for (const [mod, owned] of moduleToolOwners) {
+  // Remove from extension ownership tracking
+  for (const [ext, owned] of extensionToolOwners) {
     if (owned.delete(name) && owned.size === 0) {
-      moduleToolOwners.delete(mod);
+      extensionToolOwners.delete(ext);
     }
   }
   return true;
 }
 
 /** Remove all tools registered by a specific extension. */
-export function deregisterExtensionTools(moduleName: string): void {
+export function deregisterExtensionTools(extensionName: string): void {
   ensureInit();
-  const owned = moduleToolOwners.get(moduleName);
+  const owned = extensionToolOwners.get(extensionName);
   if (!owned) return;
   for (const name of owned) {
     const idx = tools.findIndex((t) => t.name === name);
@@ -226,7 +226,7 @@ export function deregisterExtensionTools(moduleName: string): void {
     delete runners[name];
     customToolNames.delete(name);
   }
-  moduleToolOwners.delete(moduleName);
+  extensionToolOwners.delete(extensionName);
 }
 
 export function getRegisteredTools(): Anthropic.Tool[] {
@@ -242,7 +242,7 @@ export function clearCustomTools(): void {
     delete runners[name];
   }
   customToolNames.clear();
-  moduleToolOwners.clear();
+  extensionToolOwners.clear();
 }
 
 // Inject registry functions into custom-tool module (breaks circular dependency)

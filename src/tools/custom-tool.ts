@@ -19,7 +19,7 @@ import {
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
-type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
+type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, extensionName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 let _register: RegisterFn;

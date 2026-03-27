@@ -139,7 +139,7 @@ describe("ExtensionStorage", () => {
 
   it("getDir() returns the storage directory path", () => {
     const storage = new ExtensionStorage(tmpBase, "my-mod");
-    expect(storage.getDir()).toBe(join(tmpBase, ".kota", "modules", "my-mod"));
+    expect(storage.getDir()).toBe(join(tmpBase, ".kota", "extensions", "my-mod"));
   });
 
   it("sanitizes keys with special characters", () => {

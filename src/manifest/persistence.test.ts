@@ -28,7 +28,7 @@ describe("manifest persistence edge cases", () => {
 	it("saveManifest creates nested directory structure", () => {
 		const path = saveManifest(minimal, tmpDir);
 		expect(existsSync(path)).toBe(true);
-		expect(path).toContain(join(".kota", "modules", "test-mod", "manifest.json"));
+		expect(path).toContain(join(".kota", "extensions", "test-mod", "manifest.json"));
 	});
 
 	it("saveManifest overwrites existing manifest", () => {
@@ -40,14 +40,14 @@ describe("manifest persistence edge cases", () => {
 	});
 
 	it("loadManifest returns null for malformed JSON", () => {
-		const dir = join(tmpDir, ".kota", "modules", "bad-json");
+		const dir = join(tmpDir, ".kota", "extensions", "bad-json");
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(join(dir, "manifest.json"), "{invalid json");
 		expect(loadManifest("bad-json", tmpDir)).toBeNull();
 	});
 
 	it("deleteManifest returns false when directory exists but no manifest.json", () => {
-		const dir = join(tmpDir, ".kota", "modules", "no-manifest");
+		const dir = join(tmpDir, ".kota", "extensions", "no-manifest");
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(join(dir, "data.txt"), "some data");
 		expect(deleteManifest("no-manifest", tmpDir)).toBe(false);
@@ -56,21 +56,21 @@ describe("manifest persistence edge cases", () => {
 	it("deleteManifest cleans up empty directory after removing manifest", () => {
 		saveManifest(minimal, tmpDir);
 		deleteManifest("test-mod", tmpDir);
-		expect(existsSync(join(tmpDir, ".kota", "modules", "test-mod"))).toBe(false);
+		expect(existsSync(join(tmpDir, ".kota", "extensions", "test-mod"))).toBe(false);
 	});
 
 	it("deleteManifest preserves directory when other files exist", () => {
 		saveManifest(minimal, tmpDir);
-		const extraFile = join(tmpDir, ".kota", "modules", "test-mod", "storage.db");
+		const extraFile = join(tmpDir, ".kota", "extensions", "test-mod", "storage.db");
 		writeFileSync(extraFile, "data");
 		deleteManifest("test-mod", tmpDir);
 		expect(existsSync(extraFile)).toBe(true);
-		expect(existsSync(join(tmpDir, ".kota", "modules", "test-mod"))).toBe(true);
+		expect(existsSync(join(tmpDir, ".kota", "extensions", "test-mod"))).toBe(true);
 	});
 
 	it("discoverManifestModules skips directories without manifest.json", () => {
 		saveManifest(minimal, tmpDir);
-		const emptyDir = join(tmpDir, ".kota", "modules", "empty-mod");
+		const emptyDir = join(tmpDir, ".kota", "extensions", "empty-mod");
 		mkdirSync(emptyDir, { recursive: true });
 		const modules = discoverManifestModules(tmpDir);
 		expect(modules).toHaveLength(1);
@@ -81,7 +81,7 @@ describe("manifest persistence edge cases", () => {
 		// Save a valid one
 		saveManifest(minimal, tmpDir);
 		// Write an invalid one (name too short)
-		const badDir = join(tmpDir, ".kota", "modules", "x");
+		const badDir = join(tmpDir, ".kota", "extensions", "x");
 		mkdirSync(badDir, { recursive: true });
 		writeFileSync(join(badDir, "manifest.json"), JSON.stringify({ name: "x" }));
 		const modules = discoverManifestModules(tmpDir);

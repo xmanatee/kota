@@ -5,7 +5,7 @@ import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { createExtensionContext, type ExtensionContextParams } from "./extension-context.js";
 import { topoSort } from "./extension-deps.js";
-import { getModuleDependents, type LifecycleState, reloadModule, unloadAllModules, unloadModule } from "./extension-lifecycle.js";
+import { getExtensionDependents, type LifecycleState, reloadExtension, unloadAllModules, unloadExtension } from "./extension-lifecycle.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
@@ -60,12 +60,12 @@ export class ExtensionLoader {
     };
   }
 
-  private createContext(moduleName?: string): ExtensionContext {
+  private createContext(extensionName?: string): ExtensionContext {
     const params: ExtensionContextParams = {
       cwd: this.cwd,
       verbose: this.verbose,
       config: this.config,
-      moduleStorages: this.extensionStorages,
+      extensionStorages: this.extensionStorages,
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
       getContributedWorkflows: () => this.getContributedWorkflows(),
@@ -82,7 +82,7 @@ export class ExtensionLoader {
         }
       },
     };
-    return createExtensionContext(params, moduleName);
+    return createExtensionContext(params, extensionName);
   }
 
   async load(mod: KotaExtension): Promise<void> {
@@ -204,24 +204,24 @@ export class ExtensionLoader {
     return `\n\n## Extension Capabilities\n${this.skillContents.join("\n\n")}`;
   }
 
-  getExtensionStorage(moduleName: string): ExtensionStorage | undefined {
-    return this.extensionStorages.get(moduleName);
+  getExtensionStorage(extensionName: string): ExtensionStorage | undefined {
+    return this.extensionStorages.get(extensionName);
   }
 
-  async unload(moduleName: string): Promise<boolean> {
-    return unloadModule(moduleName, this.lifecycleState);
+  async unload(extensionName: string): Promise<boolean> {
+    return unloadExtension(extensionName, this.lifecycleState);
   }
 
-  async reload(moduleName: string): Promise<boolean> {
-    return reloadModule(
-      moduleName,
+  async reload(extensionName: string): Promise<boolean> {
+    return reloadExtension(
+      extensionName,
       this.lifecycleState,
       (mod) => this.load(mod),
     );
   }
 
-  getDependents(moduleName: string): string[] {
-    return getModuleDependents(moduleName, this.extensions);
+  getDependents(extensionName: string): string[] {
+    return getExtensionDependents(extensionName, this.extensions);
   }
 
   async unloadAll(): Promise<void> {

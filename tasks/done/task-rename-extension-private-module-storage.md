@@ -1,7 +1,7 @@
 ---
 id: task-rename-extension-private-module-storage
 title: Rename extension-private module storage and logging surfaces
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Extension-private storage and logging still use module-era names like `.kota/modules`, `ModuleLogStore`, and `moduleName`; finish that internal rename so the extension model is consistent end to end.

@@ -4,7 +4,7 @@ import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { tryEmit } from "./event-bus.js";
 import { ExtensionLoader } from "./extension-loader.js";
-import { initModuleLogStore } from "./extension-log.js";
+import { initExtensionLogStore } from "./extension-log.js";
 import type { CreateSessionOptions, ExtensionSession } from "./extension-types.js";
 import { initChangeTracker } from "./file-changes.js";
 import { getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
@@ -60,7 +60,7 @@ export function initAgentSession(
 
   initTaskStore(process.cwd());
   initScheduler(process.cwd());
-  initModuleLogStore(process.cwd());
+  initExtensionLogStore(process.cwd());
   initAuditStore(process.cwd());
   initChangeTracker();
   initProviderRegistry();
