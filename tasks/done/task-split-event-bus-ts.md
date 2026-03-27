@@ -1,12 +1,12 @@
 ---
 id: task-split-event-bus-ts
 title: Split event-bus.ts — extract BusEvents catalog into event-bus-types.ts
-status: ready
+status: done
 priority: p2
 area: refactor
 summary: event-bus.ts is 257 lines with ~110 lines of BusEvents type catalog at the top followed by the EventBus class and singleton functions. Extracting the type catalog gives consumers a lightweight import path and keeps the class file focused.
 created_at: 2026-03-27T12:06:24Z
-updated_at: 2026-03-27T12:06:24Z
+updated_at: 2026-03-27T12:34:00Z
 ---
 
 ## Problem
