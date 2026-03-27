@@ -3,21 +3,19 @@ import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope, EventBus } from "../event-bus.js";
 import { callTelegramApi } from "../telegram-client.js";
-import { getNextCronTime } from "./cron.js";
+import { AgentBackoffManager } from "./agent-backoff.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type {
   RegisteredWorkflowDefinitionInput,
-  WorkflowAgentBackoffSignal,
-  WorkflowAgentBackoffState,
   WorkflowDefinition,
   WorkflowQueuedRun,
   WorkflowRunExecutionResult,
   WorkflowRunTrigger,
   WorkflowRuntimeState,
-  WorkflowTrigger,
 } from "./types.js";
 import {
   validateWorkflowDefinitions,
@@ -29,15 +27,6 @@ export const PAUSE_SIGNAL_FILE = "dispatch-paused";
 export const RELOAD_SIGNAL_FILE = "definitions-reload-request";
 
 const DEFAULT_IDLE_INTERVAL_MS = 30_000;
-const MAX_AGENT_BACKOFF_MS = 6 * 60 * 60 * 1000;
-const AGENT_BACKOFF_FACTORS: Record<
-  WorkflowAgentBackoffState["kind"],
-  { initialDelayMs: number; backoffFactor: number }
-> = {
-  rate_limit: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
-  auth: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
-  provider: { initialDelayMs: 5 * 60 * 1000, backoffFactor: 2 },
-};
 
 export type WorkflowRuntimeConfig = {
   bus: EventBus;
@@ -67,6 +56,8 @@ export class WorkflowRuntime {
   private readonly verbose: boolean;
   private readonly onLog?: (message: string) => void;
   private readonly workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
+  private readonly backoff: AgentBackoffManager;
+  private readonly scheduleTriggers: ScheduleTriggerManager;
 
   private definitions: WorkflowDefinition[] = [];
   private queue: WorkflowQueuedRun[] = [];
@@ -84,10 +75,6 @@ export class WorkflowRuntime {
   private dispatchPaused = false;
   private budgetPausedDate: string | null = null;
   private stopping = false;
-  private scheduleTimers: Map<
-    string,
-    { timer: ReturnType<typeof setTimeout>; nextFireMs: number }
-  > = new Map();
 
   constructor(private readonly runtimeConfig: WorkflowRuntimeConfig) {
     this.projectDir = runtimeConfig.projectDir ?? process.cwd();
@@ -100,6 +87,21 @@ export class WorkflowRuntime {
     this.verbose = runtimeConfig.verbose ?? false;
     this.onLog = runtimeConfig.onLog;
     this.workflowInputs = runtimeConfig.workflows;
+    this.backoff = new AgentBackoffManager(
+      this.store,
+      () => this.queue,
+      (q) => { this.queue = q; },
+      () => this.persistQueue(),
+      () => this.definitions,
+      (def) => this.workflowUsesAgent(def),
+      (msg) => this.log(msg),
+    );
+    this.scheduleTriggers = new ScheduleTriggerManager(
+      this.store,
+      () => this.stopping,
+      (def, trigger, run) => this.enqueueRun(def, trigger, run),
+      () => this.maybeStartNext(),
+    );
   }
 
   start(): void {
@@ -122,7 +124,7 @@ export class WorkflowRuntime {
 
     this.definitions = this.loadDefinitions();
     this.restorePendingQueue();
-    const activeAgentBackoff = this.getActiveAgentBackoff();
+    const activeAgentBackoff = this.backoff.getActive();
     if (activeAgentBackoff) {
       this.log(
         `Agent dispatch backoff active until ${new Date(activeAgentBackoff.until).toLocaleString()} (${activeAgentBackoff.kind})`,
@@ -133,7 +135,7 @@ export class WorkflowRuntime {
       this.handleEvent(envelope);
     });
 
-    this.setupScheduleTriggers();
+    this.scheduleTriggers.setup(this.definitions);
     this.maybeStartNext();
 
     this.idleTimer = setInterval(() => {
@@ -155,10 +157,7 @@ export class WorkflowRuntime {
       this.stopBus();
       this.stopBus = null;
     }
-    for (const { timer } of this.scheduleTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.scheduleTimers.clear();
+    this.scheduleTriggers.clearAll();
 
     if (this.activeRuns.size === 0) return;
 
@@ -211,144 +210,11 @@ export class WorkflowRuntime {
     return definition.steps.some((step) => step.type === "agent");
   }
 
-  private getActiveAgentBackoff(): WorkflowAgentBackoffState | null {
-    const state = this.store.readState();
-    const backoff = state.agentBackoff;
-    if (!backoff) return null;
-
-    const untilMs = new Date(backoff.until).getTime();
-    if (untilMs > Date.now()) return backoff;
-
-    this.store.setAgentBackoff(null);
-    this.log(`Agent dispatch backoff expired (${backoff.kind})`);
-    return null;
-  }
-
-  private dropQueuedAgentWorkflows(): number {
-    const nextQueue = this.queue.filter((item) => {
-      const definition = this.definitions.find((candidate) => candidate.name === item.workflowName);
-      return !definition || !this.workflowUsesAgent(definition);
-    });
-    const removed = this.queue.length - nextQueue.length;
-    if (removed > 0) {
-      this.queue = nextQueue;
-      this.persistQueue();
-    }
-    return removed;
-  }
-
-  private applyAgentBackoff(signal: WorkflowAgentBackoffSignal): void {
-    const current = this.getActiveAgentBackoff();
-    const policy = AGENT_BACKOFF_FACTORS[signal.kind];
-    const nextFailureCount =
-      current && current.kind === signal.kind ? current.failureCount + 1 : 1;
-    const delayMs = Math.min(
-      MAX_AGENT_BACKOFF_MS,
-      Math.round(policy.initialDelayMs * policy.backoffFactor ** (nextFailureCount - 1)),
-    );
-    const backoff: WorkflowAgentBackoffState = {
-      kind: signal.kind,
-      failureCount: nextFailureCount,
-      until: new Date(Date.now() + delayMs).toISOString(),
-      updatedAt: new Date().toISOString(),
-      reason: signal.reason,
-    };
-    this.store.setAgentBackoff(backoff);
-    const dropped = this.dropQueuedAgentWorkflows();
-    this.log(
-      `Agent dispatch backed off until ${new Date(backoff.until).toLocaleString()} (${backoff.kind}, attempt ${backoff.failureCount})`,
-    );
-    if (dropped > 0) {
-      this.log(`Dropped ${dropped} queued agent workflow run(s) during backoff`);
-    }
-  }
-
-  private clearAgentBackoff(): void {
-    const backoff = this.getActiveAgentBackoff();
-    if (!backoff) return;
-    this.store.setAgentBackoff(null);
-    this.log(`Cleared agent dispatch backoff after successful agent run (${backoff.kind})`);
-  }
-
-  private shouldSuppressAgentWorkflow(
-    definition: WorkflowDefinition,
-  ): WorkflowAgentBackoffState | null {
-    if (!this.workflowUsesAgent(definition)) return null;
-    return this.getActiveAgentBackoff();
-  }
-
   private loadDefinitions(): WorkflowDefinition[] {
     const definitions = this.workflowInputs ?? getBuiltinWorkflowDefinitions();
     const validated = validateWorkflowDefinitions(definitions, this.projectDir);
     this.store.setDefinitionsLoadedAt(new Date().toISOString());
     return validated;
-  }
-
-  private setupScheduleTriggers(): void {
-    const state = this.store.readState();
-    for (const definition of this.definitions) {
-      if (!definition.enabled) continue;
-      for (let i = 0; i < definition.triggers.length; i++) {
-        const trigger = definition.triggers[i];
-        if (!trigger.schedule && trigger.intervalMs == null) continue;
-
-        const key = `${definition.name}:${i}`;
-        let nextFireMs: number;
-
-        if (trigger.intervalMs != null) {
-          const lastCompleted =
-            state.workflows[definition.name]?.lastCompletedAt;
-          if (lastCompleted) {
-            const due =
-              new Date(lastCompleted).getTime() + trigger.intervalMs;
-            nextFireMs = due > Date.now() ? due : Date.now();
-          } else {
-            nextFireMs = Date.now();
-          }
-        } else {
-          const next = getNextCronTime(trigger.schedule!, new Date());
-          if (!next) continue;
-          nextFireMs = next.getTime();
-        }
-
-        this.scheduleNextFire(key, definition, trigger, nextFireMs);
-      }
-    }
-  }
-
-  private scheduleNextFire(
-    key: string,
-    definition: WorkflowDefinition,
-    trigger: WorkflowTrigger,
-    nextFireMs: number,
-  ): void {
-    const delay = Math.max(0, nextFireMs - Date.now());
-    const timer = setTimeout(() => {
-      if (this.stopping) return;
-      const now = Date.now();
-      this.enqueueRun(definition, trigger, {
-        event: "schedule",
-        payload: { scheduledAt: new Date(now).toISOString() },
-      });
-      this.maybeStartNext();
-
-      let nextMs: number;
-      if (trigger.intervalMs != null) {
-        nextMs = now + trigger.intervalMs;
-      } else {
-        const next = getNextCronTime(trigger.schedule!, new Date(now));
-        if (!next) return;
-        nextMs = next.getTime();
-      }
-      this.scheduleNextFire(key, definition, trigger, nextMs);
-    }, delay);
-    timer.unref();
-
-    this.scheduleTimers.set(key, { timer, nextFireMs });
-    this.store.setWorkflowNextScheduledAt(
-      definition.name,
-      new Date(nextFireMs).toISOString(),
-    );
   }
 
   private emitIdleEvent(): void {
@@ -372,60 +238,11 @@ export class WorkflowRuntime {
     }
     try {
       const newDefinitions = this.loadDefinitions();
-      this.reconcileScheduleTriggers(newDefinitions);
+      this.scheduleTriggers.reconcile(newDefinitions);
       this.definitions = newDefinitions;
       this.log(`Workflow definitions reloaded (${newDefinitions.length} definition(s))`);
     } catch (err) {
       this.log(`Failed to reload workflow definitions: ${(err as Error).message}`);
-    }
-  }
-
-  private reconcileScheduleTriggers(newDefinitions: WorkflowDefinition[]): void {
-    // Build the set of keys the new definitions want
-    const newKeys = new Set<string>();
-    for (const definition of newDefinitions) {
-      if (!definition.enabled) continue;
-      for (let i = 0; i < definition.triggers.length; i++) {
-        const trigger = definition.triggers[i];
-        if (!trigger.schedule && trigger.intervalMs == null) continue;
-        newKeys.add(`${definition.name}:${i}`);
-      }
-    }
-
-    // Cancel timers that are no longer needed
-    for (const [key, { timer }] of this.scheduleTimers) {
-      if (!newKeys.has(key)) {
-        clearTimeout(timer);
-        this.scheduleTimers.delete(key);
-      }
-    }
-
-    // Set up timers for new keys (existing ones keep firing on their current schedule)
-    const state = this.store.readState();
-    for (const definition of newDefinitions) {
-      if (!definition.enabled) continue;
-      for (let i = 0; i < definition.triggers.length; i++) {
-        const trigger = definition.triggers[i];
-        if (!trigger.schedule && trigger.intervalMs == null) continue;
-        const key = `${definition.name}:${i}`;
-        if (this.scheduleTimers.has(key)) continue;
-
-        let nextFireMs: number;
-        if (trigger.intervalMs != null) {
-          const lastCompleted = state.workflows[definition.name]?.lastCompletedAt;
-          if (lastCompleted) {
-            const due = new Date(lastCompleted).getTime() + trigger.intervalMs;
-            nextFireMs = due > Date.now() ? due : Date.now();
-          } else {
-            nextFireMs = Date.now();
-          }
-        } else {
-          const next = getNextCronTime(trigger.schedule!, new Date());
-          if (!next) continue;
-          nextFireMs = next.getTime();
-        }
-        this.scheduleNextFire(key, definition, trigger, nextFireMs);
-      }
     }
   }
 
@@ -467,7 +284,7 @@ export class WorkflowRuntime {
 
   private restorePendingQueue(): void {
     const state = this.store.readState();
-    const activeAgentBackoff = this.getActiveAgentBackoff();
+    const activeAgentBackoff = this.backoff.getActive();
     const validNames = new Set(
       this.definitions
         .filter((definition) => definition.enabled)
@@ -494,7 +311,7 @@ export class WorkflowRuntime {
     triggerConfig: WorkflowDefinition["triggers"][number],
     trigger: WorkflowRunTrigger,
   ): void {
-    const activeAgentBackoff = this.shouldSuppressAgentWorkflow(definition);
+    const activeAgentBackoff = this.backoff.shouldSuppress(definition);
     if (activeAgentBackoff) {
       if (trigger.event !== "runtime.idle") {
         this.log(
@@ -573,19 +390,19 @@ export class WorkflowRuntime {
 
   private pickQueuedRun(): WorkflowQueuedRun | null {
     const now = Date.now();
-    const activeAgentBackoff = this.getActiveAgentBackoff();
+    const activeAgentBackoff = this.backoff.getActive();
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
-      .filter(
-        ({ item }) => {
-          if (item.notBeforeMs > now || this.activeRuns.has(item.workflowName)) {
-            return false;
-          }
-          if (!activeAgentBackoff) return true;
-          const definition = this.definitions.find((candidate) => candidate.name === item.workflowName);
-          return !definition || !this.workflowUsesAgent(definition);
-        },
-      )
+      .filter(({ item }) => {
+        if (item.notBeforeMs > now || this.activeRuns.has(item.workflowName)) {
+          return false;
+        }
+        if (!activeAgentBackoff) return true;
+        const definition = this.definitions.find(
+          (candidate) => candidate.name === item.workflowName,
+        );
+        return !definition || !this.workflowUsesAgent(definition);
+      })
       .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
 
     if (eligible.length === 0) return null;
@@ -612,7 +429,7 @@ export class WorkflowRuntime {
     try {
       const result = await promise;
       if (result.agentBackoff) {
-        this.applyAgentBackoff(result.agentBackoff);
+        this.backoff.apply(result.agentBackoff);
         return;
       }
       if (
@@ -620,7 +437,7 @@ export class WorkflowRuntime {
         (result.metadata.status === "success" ||
           result.metadata.status === "completed-with-warnings")
       ) {
-        this.clearAgentBackoff();
+        this.backoff.clear();
       }
     } finally {
       this.activeRuns.delete(definition.name);
