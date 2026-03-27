@@ -1,7 +1,7 @@
 ---
 id: task-split-step-executor-agent-ts
 title: Split workflow/step-executor-agent.ts — extract retry logic into step-executor-retry.ts
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: step-executor-agent.ts is 288 lines and approaching the 300-line limit. The retry and backoff group (AgentStepRuntimeError, DEFAULT_MODEL, sleep, withRetry, classifyAgentRuntimeFailure) forms a cohesive unit that can move to a new step-executor-retry.ts, leaving buildAgentPrompt and executeAgentStep as the focused agent execution surface.

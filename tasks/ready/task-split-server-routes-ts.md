@@ -1,7 +1,7 @@
 ---
 id: task-split-server-routes-ts
 title: Split server/server-routes.ts — extract event and daemon handlers
-status: backlog
+status: ready
 priority: p2
 area: refactor
 summary: server/server-routes.ts is 292 lines, 8 from the limit. The readDaemonState helper and handleEventTrigger handler are self-contained and can be extracted into co-located route files, leaving buildRequestHandler as a pure dispatcher.

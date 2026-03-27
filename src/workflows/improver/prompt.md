@@ -48,4 +48,4 @@ Use these summaries to orient quickly. Do not re-fetch run history, git log, or 
 - Do not optimize for shaving one or two iterations if that harms work quality, ambition, or strategic range.
 - If you change behavior, validate the exact behavior you changed while you work.
 - This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
-- If you changed the repo, create a short readable git commit before finishing.
+- If you changed the repo: stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt` (the run directory is shown in the session context), and do **not** run `git commit`. The workflow commits your staged changes only after all verification steps pass — committing directly bypasses the structural verification gate.
