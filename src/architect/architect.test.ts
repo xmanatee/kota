@@ -26,7 +26,8 @@ vi.mock("../tools/index.js", () => ({
 }));
 
 import { enableGroup, resetGroups } from "../tool-groups.js";
-import { runArchitectPass, runEditorLoop } from "./architect.js";
+import { runArchitectPass } from "./architect.js";
+import { runEditorLoop } from "./architect-editor.js";
 
 // --- Helpers ---
 

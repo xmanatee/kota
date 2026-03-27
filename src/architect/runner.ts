@@ -5,7 +5,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { CostTracker } from "../cost.js";
 import type { ModelClient } from "../model/model-client.js";
 import type { Transport } from "../transport.js";
-import { runArchitectPass, runEditorLoop } from "./architect.js";
+import { runArchitectPass } from "./architect.js";
+import { runEditorLoop } from "./architect-editor.js";
 
 export type ArchitectStepConfig = {
   client: ModelClient;

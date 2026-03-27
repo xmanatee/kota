@@ -7,7 +7,7 @@ import {
   TOOL_GROUPS,
 } from "../tool-groups.js";
 import { getAllTools } from "../tools/index.js";
-import { EDITOR_TOOL_SET } from "./architect.js";
+import { EDITOR_TOOL_SET } from "./architect-editor.js";
 
 /**
  * Cross-module integration tests: tool-groups × architect

@@ -7,6 +7,9 @@ const { mockArchitectPass, mockEditorLoop } = vi.hoisted(() => ({
 
 vi.mock("./architect.js", () => ({
   runArchitectPass: mockArchitectPass,
+}));
+
+vi.mock("./architect-editor.js", () => ({
   runEditorLoop: mockEditorLoop,
 }));
 

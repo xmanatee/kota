@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VerifyTracker } from "../verify-tracker.js";
-import type { EditorResult } from "./architect.js";
+import type { EditorResult } from "./architect-editor.js";
 import type { ArchitectStepResult } from "./runner.js";
 
 describe("architect × verify-tracker integration", () => {

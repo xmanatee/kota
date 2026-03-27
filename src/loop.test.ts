@@ -84,6 +84,9 @@ vi.mock("./verify-tracker.js", async (importOriginal) => {
 });
 vi.mock("./architect/architect.js", () => ({
   runArchitectPass: mockArchitectPass,
+}));
+
+vi.mock("./architect/architect-editor.js", () => ({
   runEditorLoop: mockEditorLoop,
 }));
 

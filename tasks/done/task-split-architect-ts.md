@@ -1,7 +1,7 @@
 ---
 id: task-split-architect-ts
 title: Split architect.ts — extract editor loop into architect-editor.ts
-status: ready
+status: done
 priority: p2
 area: refactor
 summary: architect.ts is 272 lines mixing the architect (planner) pass and the editor (executor) loop. Extracting the editor loop and its types/constants into architect-editor.ts gives each role its own file and keeps both under 300 lines.
