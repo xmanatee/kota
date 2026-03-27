@@ -1,7 +1,7 @@
 ---
 id: task-split-guardrails-ts
 title: Split guardrails.ts — extract risk classification into guardrails-classify.ts
-status: backlog
+status: ready
 priority: p2
 area: code-quality
 summary: guardrails.ts is 282 lines and approaching the 300-line limit. The risk classification group (safeTools, moderateTools, DANGEROUS_*_PATTERNS, extractCommand, isDangerousCommand, isDangerousCode, isOutsideProject, classifyRisk) is cohesive and self-contained. Moving it to a new guardrails-classify.ts leaves guardrails.ts focused on policy resolution, assessment, config, and the public surface.
