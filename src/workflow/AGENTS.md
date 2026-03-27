@@ -23,4 +23,5 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `step-validators/` — Per-step-type validator modules (agent, code, emit, restart, tool, parallel).
 - `run-store.ts` — `WorkflowRunStore`: directory management, list/load/delete runs. Re-exports `ActiveWorkflowRunHandle`.
 - `active-run-handle.ts` — `ActiveWorkflowRunHandle` and `createActiveRunHandle`: append messages, record steps, finish runs.
-- `run-store-helpers.ts` — Validation/assertion helpers, file IO utilities, snapshot and summary builders.
+- `run-store-helpers.ts` — Runtime-state validation/assertion helpers, snapshot and summary builders. Re-exports from `run-io.ts`.
+- `run-io.ts` — Generic file IO utilities: `ensureDir`, `safeJsonStringify`, `writeJsonFile`, `formatRunId`.
