@@ -1,33 +1,30 @@
 ---
 id: task-split-server-routes-ts
-title: Split server/server-routes.ts (377 lines) into focused route modules
+title: Split server/server-routes.ts — extract event and daemon handlers
 status: done
 priority: p2
-area: server
-summary: server-routes.ts has grown to 377 lines handling session, history, status, and daemon-state routes alongside a mix of server utility functions. The workflow, approval, and task routes are already extracted; the remaining handlers in server-routes.ts should be split into logical route files (e.g. session-routes.ts, history-routes.ts) following the same pattern.
+area: refactor
+summary: server/server-routes.ts is 292 lines, 8 from the limit. The readDaemonState helper and handleEventTrigger handler are self-contained and can be extracted into co-located route files, leaving buildRequestHandler as a pure dispatcher.
 created_at: 2026-03-27
 updated_at: 2026-03-27
 ---
 
 ## Problem
 
-`src/server/server-routes.ts` is 377 lines. Workflow, approval, and task routes have already
-been extracted to their own files, but session management, history, daemon state, and SSE
-handlers remain in the main routes file.
+`src/server/server-routes.ts` is 292 lines — 8 lines from the 300-line limit. It mixes top-level helper functions (`readDaemonState`, `handleEventTrigger`) with the main `buildRequestHandler` dispatcher. As routes are added, it will cross the limit.
 
 ## Desired Outcome
 
-Route handlers are split into focused files (session-routes.ts, history-routes.ts, or similar)
-matching the existing pattern of approval-routes.ts, workflow-routes.ts, and task-routes.ts.
-server-routes.ts becomes a thin orchestrator that registers the extracted handlers.
+Extract `readDaemonState` into `src/server/daemon-routes.ts` and `handleEventTrigger` into `src/server/event-routes.ts`. Import both back into `server-routes.ts`. The main file becomes a pure dispatcher and drops to ~240 lines.
 
 ## Constraints
 
-- Follow the existing route-file pattern (approval-routes.ts, workflow-routes.ts, task-routes.ts)
-- Do not change route paths, middleware, or handler logic during the split
+- Public exports (`ServerContext`, `buildRequestHandler`, `readDaemonState`) must remain importable from `server-routes.ts` (re-export if needed).
+- All existing tests must continue to pass.
 
 ## Done When
 
-- No file in the affected area exceeds 300 lines.
-- All existing tests pass.
-- Type checking and lint pass.
+- `src/server/daemon-routes.ts` exports `readDaemonState`.
+- `src/server/event-routes.ts` exports `handleEventTrigger`.
+- `server-routes.ts` is measurably reduced (under 250 lines).
+- All tests pass.

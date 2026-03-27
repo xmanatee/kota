@@ -1,6 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
 import type { EventBus } from "../event-bus.js";
 import type { RouteRegistration } from "../extension-types.js";
 import type { AgentSession } from "../loop.js";
@@ -12,11 +10,12 @@ import {
   handleListApprovals,
   handleRejectApproval,
 } from "./approval-routes.js";
+import { readDaemonState } from "./daemon-routes.js";
+import { handleEventTrigger } from "./event-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,
-  readBody,
   type SessionPool,
   SseTransport,
   setCors,
@@ -40,6 +39,8 @@ import {
   handleWorkflowRuns,
 } from "./workflow-run-routes.js";
 
+export { readDaemonState };
+
 export type ServerContext = {
   port: number;
   pool: SessionPool;
@@ -49,53 +50,6 @@ export type ServerContext = {
   moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
 };
-
-export function readDaemonState(): { running: boolean; state: Record<string, unknown> } | null {
-  const statePath = join(process.cwd(), ".kota", "daemon-state.json");
-  if (!existsSync(statePath)) return null;
-  try {
-    const state = JSON.parse(readFileSync(statePath, "utf-8"));
-    let running = false;
-    if (state.pid && typeof state.pid === "number") {
-      try {
-        process.kill(state.pid, 0);
-        running = true;
-      } catch {
-        running = false;
-      }
-    }
-    return { running, state };
-  } catch {
-    return null;
-  }
-}
-
-async function handleEventTrigger(
-  req: IncomingMessage,
-  res: ServerResponse,
-  eventBus: EventBus,
-  eventName: string,
-): Promise<void> {
-  if (!eventName || eventName.length > 256) {
-    jsonResponse(res, 400, { error: "Event name must be 1-256 characters" });
-    return;
-  }
-
-  let payload: Record<string, unknown>;
-  try {
-    payload = await readBody(req);
-  } catch (err) {
-    jsonResponse(res, 400, { error: (err as Error).message });
-    return;
-  }
-
-  eventBus.emit(eventName, payload);
-  jsonResponse(res, 200, {
-    ok: true,
-    event: eventName,
-    listeners: eventBus.listenerCount(eventName) + eventBus.listenerCount("*"),
-  });
-}
 
 export function buildRequestHandler(ctx: ServerContext) {
   return function handleRequest(req: IncomingMessage, res: ServerResponse): void {
