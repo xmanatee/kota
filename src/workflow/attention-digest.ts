@@ -75,6 +75,22 @@ function detectAttentionItems(
     });
   }
 
+  const readyCount = countRepoTasks(projectDir, "ready");
+  if (readyCount === 0) {
+    items.push({
+      label: "Empty ready queue",
+      detail: "Builder has nothing to pull.",
+    });
+  }
+
+  const backlogCount = countRepoTasks(projectDir, "backlog");
+  if (backlogCount === 0) {
+    items.push({
+      label: "Empty backlog",
+      detail: "No reserves for explorer to promote.",
+    });
+  }
+
   return items;
 }
 

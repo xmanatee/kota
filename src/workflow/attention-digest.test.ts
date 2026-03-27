@@ -116,6 +116,8 @@ describe("subscribeAttentionDigest", () => {
   });
 
   it("does not send digest at 10 completions when nothing warrants attention", async () => {
+    makeTaskDir(projectDir, "ready", 1);
+    makeTaskDir(projectDir, "backlog", 1);
     emitCompletions(10);
     await Promise.resolve();
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
@@ -136,6 +138,8 @@ describe("subscribeAttentionDigest", () => {
   });
 
   it("does not send digest at 10 completions when builder failures < 3", async () => {
+    makeTaskDir(projectDir, "ready", 1);
+    makeTaskDir(projectDir, "backlog", 1);
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
@@ -178,9 +182,41 @@ describe("subscribeAttentionDigest", () => {
     expect(body.text).toContain("2 blocked tasks");
   });
 
+  it("sends digest when ready queue is empty", async () => {
+    makeTaskDir(projectDir, "backlog", 1);
+    // ready dir intentionally not created (count == 0)
+    emitCompletions(10);
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    expect(body.text).toContain("Empty ready queue");
+    expect(body.text).toContain("Builder has nothing to pull");
+  });
+
+  it("sends digest when backlog is empty", async () => {
+    makeTaskDir(projectDir, "ready", 1);
+    // backlog dir intentionally not created (count == 0)
+    emitCompletions(10);
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    expect(body.text).toContain("Empty backlog");
+    expect(body.text).toContain("No reserves for explorer to promote");
+  });
+
+  it("does not send empty-queue items when ready and backlog are populated", async () => {
+    makeTaskDir(projectDir, "ready", 2);
+    makeTaskDir(projectDir, "backlog", 1);
+    emitCompletions(10);
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+  });
+
   it("includes multiple attention items in one digest", async () => {
     makeTaskDir(projectDir, "doing", 3);
     makeTaskDir(projectDir, "blocked", 2);
+    makeTaskDir(projectDir, "ready", 1);
+    makeTaskDir(projectDir, "backlog", 1);
 
     emitCompletions(10);
     await Promise.resolve();
