@@ -133,4 +133,28 @@ export const STYLES_CHAT_CSS = `
   margin-bottom: 12px;
 }
 .welcome p { font-size: 14px; line-height: 1.8; }
+
+/* History view bar */
+#history-view-bar {
+  display: none;
+  padding: 10px 24px;
+  max-width: 848px;
+  width: 100%;
+  margin: 0 auto;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+}
+#history-view-bar button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+}
+#history-view-bar button:hover { border-color: var(--accent); color: var(--accent); }
 `;

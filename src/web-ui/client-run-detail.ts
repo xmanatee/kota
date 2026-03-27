@@ -15,6 +15,9 @@ export const CLIENT_RUN_DETAIL_JS = `
     $runDetail.classList.remove("visible");
     $messages.style.display = "";
     $inputArea.style.display = "";
+    $historyViewBar.style.display = "none";
+    historyViewId = null;
+    refreshHistory();
   }
 
   async function showRunDetail(runId) {

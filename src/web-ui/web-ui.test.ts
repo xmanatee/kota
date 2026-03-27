@@ -82,6 +82,20 @@ describe("getWebUI", () => {
     expect(html).toContain("768px");
   });
 
+  it("includes history view bar element", () => {
+    expect(html).toContain('id="history-view-bar"');
+  });
+
+  it("includes loadHistoryView function calling GET /api/history/:id", () => {
+    expect(html).toContain("loadHistoryView");
+    expect(html).toContain("/api/history/");
+    expect(html).toContain("encodeURIComponent(id)");
+  });
+
+  it("includes historyViewId state for active history item tracking", () => {
+    expect(html).toContain("historyViewId");
+  });
+
   it("is deterministic — same output on repeated calls", () => {
     expect(getWebUI()).toBe(html);
   });

@@ -106,6 +106,45 @@ export const CLIENT_CHAT_JS = `
     }
   }
 
+  // --- History view ---
+
+  async function loadHistoryView(id) {
+    historyViewId = id;
+    closeStream();
+    $runDetail.classList.remove("visible");
+    $messages.style.display = "";
+    $inputArea.style.display = "none";
+    $historyViewBar.innerHTML = '<button id="history-back-btn">\\u2190 Back to chat</button><span>Read-only view</span>';
+    $historyViewBar.style.display = "flex";
+    document.getElementById("history-back-btn").onclick = showChat;
+    $messages.innerHTML = '<div class="message status">Loading\\u2026</div>';
+
+    try {
+      const res = await fetch(API + "/api/history/" + encodeURIComponent(id));
+      if (!res.ok) {
+        $messages.innerHTML = '<div class="message error">Could not load conversation</div>';
+        refreshHistory();
+        return;
+      }
+      const data = await res.json();
+      $messages.innerHTML = "";
+      for (const msg of (data.messages || [])) {
+        if (msg.role === "user" || msg.role === "assistant") {
+          const text = typeof msg.content === "string"
+            ? msg.content
+            : (msg.content || []).filter(b => b.type === "text").map(b => b.text || "").join("\\n");
+          if (text) addMessage(msg.role, text);
+        }
+      }
+      if (!$messages.querySelector(".message")) {
+        addMessage("status", "No messages in this conversation");
+      }
+    } catch (err) {
+      $messages.innerHTML = '<div class="message error">Error: ' + escapeHtml(err.message) + '</div>';
+    }
+    refreshHistory();
+  }
+
   // --- Auto-resize textarea ---
   function autoResize() {
     $input.style.height = "auto";

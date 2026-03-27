@@ -54,6 +54,7 @@ ${WEB_UI_CSS}
   <main id="chat-area">
     <div id="run-detail"></div>
     <div id="messages"></div>
+    <div id="history-view-bar"></div>
     <div id="input-area">
       <textarea id="input" placeholder="Message KOTA..." rows="1"></textarea>
       <button id="send" title="Send">→</button>

@@ -65,11 +65,12 @@ export const CLIENT_SESSIONS_JS = `
     $historyList.innerHTML = "";
     for (const c of convos) {
       const div = document.createElement("div");
-      div.className = "history-item";
+      div.className = "history-item" + (c.id === historyViewId ? " active" : "");
       const label = document.createElement("span");
       label.textContent = c.title || c.id.slice(0, 12);
       label.title = new Date(c.updatedAt).toLocaleString();
       div.appendChild(label);
+      div.onclick = () => loadHistoryView(c.id);
       $historyList.appendChild(div);
     }
   }

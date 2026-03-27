@@ -102,6 +102,7 @@ body {
 }
 .session-item:hover, .history-item:hover { background: var(--border); }
 .session-item.active { background: var(--accent); color: #fff; }
+.history-item.active { background: var(--accent); color: #fff; }
 .session-item .delete-btn, .history-item .delete-btn {
   opacity: 0;
   background: none;

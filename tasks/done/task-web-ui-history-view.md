@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-history-view
 title: Make history items in web UI clickable to view conversation
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: The sidebar history panel renders conversation titles but clicking does nothing. The API already supports GET /api/history/:id returning full message content. Clicking a history entry should display the conversation in the main chat area as a read-only view.
