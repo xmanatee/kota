@@ -4,9 +4,9 @@ title: Split architect.ts — extract editor loop into architect-editor.ts
 status: ready
 priority: p2
 area: refactor
-summary: architect.ts is 272 lines mixing the architect (planner) pass and the editor (executor) loop. Extracting the editor loop and its types/constants into architect-editor.ts gives each role its own file and keeps both under 150 lines.
+summary: architect.ts is 272 lines mixing the architect (planner) pass and the editor (executor) loop. Extracting the editor loop and its types/constants into architect-editor.ts gives each role its own file and keeps both under 300 lines.
 created_at: 2026-03-27T12:20:00Z
-updated_at: 2026-03-27T12:20:00Z
+updated_at: 2026-03-27T12:35:56Z
 ---
 
 ## Problem
@@ -34,6 +34,6 @@ Extract the editor loop into `src/architect/architect-editor.ts`:
 
 - `architect-editor.ts` exists with the editor loop and its types
 - `architect.ts` contains only the architect pass and shared utilities
-- Both files are under 150 lines
+- Both files are under 300 lines (architect.ts will be ~90 lines; architect-editor.ts will be ~200 lines)
 - All imports across the codebase compile without errors
 - Tests pass
