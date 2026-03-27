@@ -8,11 +8,15 @@ import type { SDKMessage } from "../agent-sdk/types.js";
 import type { KotaConfig } from "../config.js";
 import type { ToolResult } from "../tools/index.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
+import {
+  AgentStepRuntimeError,
+  classifyAgentRuntimeFailure,
+  DEFAULT_MODEL,
+  withRetry,
+} from "./step-executor-retry.js";
 import type {
-  WorkflowAgentBackoffKind,
   WorkflowAgentStep,
   WorkflowDefinition,
-  WorkflowRetryConfig,
   WorkflowRunTrigger,
 } from "./types.js";
 
@@ -33,91 +37,12 @@ export type AgentStepConfig = {
   log?: (message: string) => void;
 };
 
-export const DEFAULT_MODEL = "claude-sonnet-4-6";
-
-export class AgentStepRuntimeError extends Error {
-  constructor(
-    message: string,
-    readonly kind: WorkflowAgentBackoffKind,
-    readonly retryable: boolean,
-  ) {
-    super(message);
-    this.name = "AgentStepRuntimeError";
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  retry: WorkflowRetryConfig,
-  log?: (message: string) => void,
-): Promise<T> {
-  let lastError: unknown;
-  let delayMs = retry.initialDelayMs;
-  for (let attempt = 1; attempt <= retry.maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (
-        (error instanceof Error && error.name === "AbortError") ||
-        (error instanceof AgentStepRuntimeError && !error.retryable)
-      ) {
-        throw error;
-      }
-      lastError = error;
-      if (attempt < retry.maxAttempts) {
-        log?.(
-          `Attempt ${attempt}/${retry.maxAttempts} failed; retrying in ${delayMs}ms. Error: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        await sleep(delayMs);
-        delayMs = Math.round(delayMs * retry.backoffFactor);
-      }
-    }
-  }
-  throw lastError;
-}
-
-function classifyAgentRuntimeFailure(
-  text: string,
-): { kind: WorkflowAgentBackoffKind; retryable: boolean } | null {
-  const normalized = text.toLowerCase();
-
-  if (
-    normalized.includes("you've hit your limit") ||
-    normalized.includes("hit your limit") ||
-    normalized.includes("rate limit") ||
-    normalized.includes("quota")
-  ) {
-    return { kind: "rate_limit", retryable: false };
-  }
-
-  if (
-    normalized.includes("not logged in") ||
-    normalized.includes("please run /login") ||
-    normalized.includes("unauthorized") ||
-    normalized.includes("authentication")
-  ) {
-    return { kind: "auth", retryable: false };
-  }
-
-  if (
-    normalized.includes("network error") ||
-    normalized.includes("timed out") ||
-    normalized.includes("timeout") ||
-    normalized.includes("econn") ||
-    normalized.includes("enotfound") ||
-    normalized.includes("spawn ") ||
-    normalized.includes("broken pipe") ||
-    normalized.includes("connection reset")
-  ) {
-    return { kind: "provider", retryable: true };
-  }
-
-  return null;
-}
+export {
+  AgentStepRuntimeError,
+  classifyAgentRuntimeFailure,
+  DEFAULT_MODEL,
+  withRetry,
+};
 
 export function buildAgentPrompt(
   definition: WorkflowDefinition,

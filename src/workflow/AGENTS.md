@@ -22,6 +22,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.
 - `step-context.ts` — `createStepContext` and step context helpers.
 - `step-executor.ts` / `step-executor-agent.ts` / `step-executor-parallel.ts` — Step dispatch by type.
+- `step-executor-retry.ts` — Retry/backoff primitives: `AgentStepRuntimeError`, `DEFAULT_MODEL`, `withRetry`, `classifyAgentRuntimeFailure`.
 - `validation.ts` / `validation-primitives.ts` — Workflow definition validation orchestration and shared primitives.
 - `validation-trigger.ts` — `validateTrigger` and trigger-type-specific validation helpers.
 - `validation-steps.ts` — Thin re-export barrel for `step-validators/`.
