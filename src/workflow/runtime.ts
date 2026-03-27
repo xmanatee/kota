@@ -6,13 +6,12 @@ import { callTelegramApi } from "../telegram-client.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { executeWorkflowRun } from "./run-executor.js";
-import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
+import { matchesFilter } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinition,
-  WorkflowQueuedRun,
   WorkflowRunExecutionResult,
   WorkflowRunTrigger,
   WorkflowRuntimeState,
@@ -21,6 +20,7 @@ import {
   validateWorkflowDefinitions,
   WorkflowDefinitionError,
 } from "./validation.js";
+import { WorkflowQueueManager } from "./workflow-queue.js";
 
 export const ABORT_SIGNAL_FILE = "abort-request";
 export const PAUSE_SIGNAL_FILE = "dispatch-paused";
@@ -60,7 +60,7 @@ export class WorkflowRuntime {
   private readonly scheduleTriggers: ScheduleTriggerManager;
 
   private definitions: WorkflowDefinition[] = [];
-  private queue: WorkflowQueuedRun[] = [];
+  private readonly wfQueue: WorkflowQueueManager;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
   private stopBus: (() => void) | null = null;
   /**
@@ -89,17 +89,26 @@ export class WorkflowRuntime {
     this.workflowInputs = runtimeConfig.workflows;
     this.backoff = new AgentBackoffManager(
       this.store,
-      () => this.queue,
-      (q) => { this.queue = q; },
-      () => this.persistQueue(),
+      () => this.wfQueue.getRuns(),
+      (q) => { this.wfQueue.setRuns(q); },
+      () => this.wfQueue.persist(),
       () => this.definitions,
       (def) => this.workflowUsesAgent(def),
       (msg) => this.log(msg),
     );
+    this.wfQueue = new WorkflowQueueManager({
+      store: this.store,
+      getActiveBackoff: () => this.backoff.getActive(),
+      shouldSuppressBackoff: (def) => this.backoff.shouldSuppress(def),
+      workflowUsesAgent: (def) => this.workflowUsesAgent(def),
+      isActiveRun: (name) => this.activeRuns.has(name),
+      getDefinitions: () => this.definitions,
+      log: (msg) => this.log(msg),
+    });
     this.scheduleTriggers = new ScheduleTriggerManager(
       this.store,
       () => this.stopping,
-      (def, trigger, run) => this.enqueueRun(def, trigger, run),
+      (def, trigger, run) => this.wfQueue.enqueue(def, trigger, run),
       () => this.maybeStartNext(),
     );
   }
@@ -123,7 +132,7 @@ export class WorkflowRuntime {
     }
 
     this.definitions = this.loadDefinitions();
-    this.restorePendingQueue();
+    this.wfQueue.restorePending();
     const activeAgentBackoff = this.backoff.getActive();
     if (activeAgentBackoff) {
       this.log(
@@ -202,7 +211,7 @@ export class WorkflowRuntime {
     const state = this.store.readState();
     return {
       ...state,
-      queueLength: this.queue.length,
+      queueLength: this.wfQueue.length,
     };
   }
 
@@ -221,7 +230,7 @@ export class WorkflowRuntime {
     this.checkAbortSignal();
     this.checkReloadSignal();
     this.maybeStartNext(); // pick up queued items that were held by pause
-    if (this.stopping || this.activeRuns.size > 0 || this.queue.length > 0) return;
+    if (this.stopping || this.activeRuns.size > 0 || this.wfQueue.length > 0) return;
     this.runtimeConfig.bus.emit("runtime.idle", {
       timestamp: new Date().toISOString(),
       idleIntervalMs: this.idleIntervalMs,
@@ -272,7 +281,7 @@ export class WorkflowRuntime {
         if (!matchesFilter(trigger.filter, envelope.payload)) continue;
         // Shallow-copy the payload so each queued run owns its own object
         // reference — safeJsonStringify treats shared references as circular.
-        this.enqueueRun(definition, trigger, {
+        this.wfQueue.enqueue(definition, trigger, {
           event: envelope.type,
           payload: { ...envelope.payload },
         });
@@ -280,81 +289,6 @@ export class WorkflowRuntime {
     }
 
     this.maybeStartNext();
-  }
-
-  private restorePendingQueue(): void {
-    const state = this.store.readState();
-    const activeAgentBackoff = this.backoff.getActive();
-    const validNames = new Set(
-      this.definitions
-        .filter((definition) => definition.enabled)
-        .map((definition) => definition.name),
-    );
-    this.queue = state.pendingRuns.filter((item) => {
-      if (!validNames.has(item.workflowName)) return false;
-      if (!activeAgentBackoff) return true;
-      const definition = this.definitions.find((candidate) => candidate.name === item.workflowName);
-      return !definition || !this.workflowUsesAgent(definition);
-    });
-    this.persistQueue();
-    if (this.queue.length > 0) {
-      this.log(`Recovered ${this.queue.length} queued workflow run(s)`);
-    }
-  }
-
-  private persistQueue(): void {
-    this.store.setPendingRuns(this.queue);
-  }
-
-  private enqueueRun(
-    definition: WorkflowDefinition,
-    triggerConfig: WorkflowDefinition["triggers"][number],
-    trigger: WorkflowRunTrigger,
-  ): void {
-    const activeAgentBackoff = this.backoff.shouldSuppress(definition);
-    if (activeAgentBackoff) {
-      if (trigger.event !== "runtime.idle") {
-        this.log(
-          `Skipped workflow "${definition.name}" from event "${trigger.event}" during agent backoff (${activeAgentBackoff.kind} until ${new Date(activeAgentBackoff.until).toLocaleTimeString()})`,
-        );
-      }
-      return;
-    }
-
-    const existingIndex = this.queue.findIndex(
-      (queued) => queued.workflowName === definition.name,
-    );
-    const state = this.store.readState();
-    const queuedRun: WorkflowQueuedRun = {
-      workflowName: definition.name,
-      trigger,
-      enqueuedAtMs:
-        existingIndex >= 0
-          ? this.queue[existingIndex].enqueuedAtMs
-          : Date.now(),
-      notBeforeMs: getEligibleAtMs(definition.name, triggerConfig.cooldownMs, state),
-    };
-
-    if (existingIndex >= 0) {
-      this.queue[existingIndex] = {
-        ...queuedRun,
-        notBeforeMs: Math.max(
-          this.queue[existingIndex].notBeforeMs,
-          queuedRun.notBeforeMs,
-        ),
-      };
-      this.log(
-        `Updated queued workflow "${definition.name}" with event "${trigger.event}"`,
-      );
-      this.persistQueue();
-      return;
-    }
-
-    this.queue.push(queuedRun);
-    this.persistQueue();
-    this.log(
-      `${this.activeRuns.has(definition.name) ? "Queued rerun for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}"`,
-    );
   }
 
   private maybeStartNext(): void {
@@ -377,7 +311,7 @@ export class WorkflowRuntime {
     }
 
     while (this.activeRuns.size < this.maxConcurrentRuns) {
-      const queued = this.pickQueuedRun();
+      const queued = this.wfQueue.pick();
       if (!queued) break;
 
       const definition = this.definitions.find((d) => d.name === queued.workflowName);
@@ -386,30 +320,6 @@ export class WorkflowRuntime {
       this.log(`Dispatching workflow "${queued.workflowName}"`);
       void this.runWorkflow(definition, queued.trigger);
     }
-  }
-
-  private pickQueuedRun(): WorkflowQueuedRun | null {
-    const now = Date.now();
-    const activeAgentBackoff = this.backoff.getActive();
-    const eligible = this.queue
-      .map((item, index) => ({ item, index }))
-      .filter(({ item }) => {
-        if (item.notBeforeMs > now || this.activeRuns.has(item.workflowName)) {
-          return false;
-        }
-        if (!activeAgentBackoff) return true;
-        const definition = this.definitions.find(
-          (candidate) => candidate.name === item.workflowName,
-        );
-        return !definition || !this.workflowUsesAgent(definition);
-      })
-      .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
-
-    if (eligible.length === 0) return null;
-    const picked = eligible[0];
-    this.queue.splice(picked.index, 1);
-    this.persistQueue();
-    return picked.item;
   }
 
   private async runWorkflow(

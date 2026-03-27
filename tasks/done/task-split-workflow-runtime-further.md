@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-runtime-further
 title: Further split workflow/runtime.ts (472 lines) — extract queue management
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: runtime.ts is still 472 lines after extracting agent-backoff.ts and schedule-triggers.ts. The queue management logic (enqueueRun, pickQueuedRun, restorePendingQueue, persistQueue, ~95 lines) is a cohesive concern that could move to a WorkflowQueueManager, bringing runtime.ts closer to the 300-line target.
