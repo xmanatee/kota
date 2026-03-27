@@ -18,4 +18,6 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `validation.ts` / `validation-primitives.ts` — Workflow definition validation orchestration and shared primitives.
 - `validation-steps.ts` — Thin re-export barrel for `step-validators/`.
 - `step-validators/` — Per-step-type validator modules (agent, code, emit, restart, tool, parallel).
-- `run-store.ts` / `run-store-helpers.ts` — Persisted run state read/write.
+- `run-store.ts` — `WorkflowRunStore`: directory management, list/load/delete runs. Re-exports `ActiveWorkflowRunHandle`.
+- `active-run-handle.ts` — `ActiveWorkflowRunHandle` and `createActiveRunHandle`: append messages, record steps, finish runs.
+- `run-store-helpers.ts` — Validation/assertion helpers, file IO utilities, snapshot and summary builders.
