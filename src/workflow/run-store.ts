@@ -156,6 +156,30 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
+  reconcileWorkflowBudgetPauses(
+    definitions: readonly Pick<WorkflowDefinition, "name" | "dailyBudgetUsd">[],
+  ): string[] {
+    const state = this.readState();
+    const knownDefinitions = new Map(
+      definitions.map((definition) => [definition.name, definition]),
+    );
+    const cleared: string[] = [];
+
+    for (const [name, workflowState] of Object.entries(state.workflows)) {
+      if (!workflowState.budgetPausedUntil) continue;
+      const definition = knownDefinitions.get(name);
+      if (definition?.dailyBudgetUsd != null) continue;
+      delete workflowState.budgetPausedUntil;
+      cleared.push(name);
+    }
+
+    if (cleared.length > 0) {
+      this.writeState(state);
+    }
+
+    return cleared;
+  }
+
   pruneRuns(opts?: {
     retentionDays?: number;
     minKeepPerWorkflow?: number;

@@ -58,7 +58,13 @@ function nextUtcMidnightIso(now = new Date()): string {
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
   const definitions = state.workflowInputs ?? getBuiltinWorkflowDefinitions();
   const validated = validateWorkflowDefinitions(definitions, state.projectDir);
+  const clearedBudgetPauses = state.store.reconcileWorkflowBudgetPauses(validated);
   state.store.setDefinitionsLoadedAt(new Date().toISOString());
+  if (clearedBudgetPauses.length > 0) {
+    state.log(
+      `Cleared stale workflow budget pause(s): ${clearedBudgetPauses.join(", ")}`,
+    );
+  }
   return validated;
 }
 

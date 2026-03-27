@@ -134,6 +134,30 @@ describe("WorkflowRunStore.getDailySpendUsd", () => {
     );
     expect(store.getDailySpendUsd()).toBe(0);
   });
+
+  it("clears stale per-workflow pauses for workflows that no longer declare a budget", () => {
+    const store = new WorkflowRunStore(projectDir);
+    store.setWorkflowBudgetPauseUntil("explorer", "2999-01-01T00:00:00.000Z");
+    store.setWorkflowBudgetPauseUntil("builder", "2999-01-01T00:00:00.000Z");
+
+    const cleared = store.reconcileWorkflowBudgetPauses([
+      registerWorkflowDefinition("test/explorer.ts", {
+        name: "explorer",
+        triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+        steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
+      }),
+      registerWorkflowDefinition("test/builder.ts", {
+        name: "builder",
+        dailyBudgetUsd: 5.0,
+        triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+        steps: [{ id: "build", type: "emit", event: "builder.done" }],
+      }),
+    ]);
+
+    expect(cleared).toEqual(["explorer"]);
+    expect(store.readState().workflows.explorer?.budgetPausedUntil).toBeUndefined();
+    expect(store.readState().workflows.builder?.budgetPausedUntil).toBe("2999-01-01T00:00:00.000Z");
+  });
 });
 
 describe("WorkflowRuntime budget enforcement", () => {
@@ -350,6 +374,35 @@ describe("WorkflowRuntime budget enforcement", () => {
 
     expect(store.getWorkflowBudgetPauseUntil("builder")).toBeNull();
     expect(store.readState().workflows.builder?.budgetPausedUntil).toBeUndefined();
+  });
+
+  it("clears stale workflow budget pauses during runtime startup when current definitions are uncapped", async () => {
+    const store = new WorkflowRunStore(projectDir);
+    store.setWorkflowBudgetPauseUntil("explorer", "2999-01-01T00:00:00.000Z");
+
+    const logs: string[] = [];
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 10,
+      onLog: (message) => logs.push(message),
+      workflows: [
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [{ id: "run", type: "emit", event: "explorer.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(30);
+    await runtime.stop();
+
+    expect(store.readState().workflows.explorer?.budgetPausedUntil).toBeUndefined();
+    expect(
+      logs.some((message) => message.includes("Cleared stale workflow budget pause(s): explorer")),
+    ).toBe(true);
   });
 
   it("allows a workflow to run when only another workflow's budget is exhausted", async () => {
