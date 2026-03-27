@@ -1,25 +1,27 @@
 ---
 id: task-collapse-hooks-heartbeats-and-schedules-into-workflows
 title: Collapse hooks, heartbeat work, and schedules into the workflow surface
-status: done
+status: backlog
 priority: p1
 area: workflow
-summary: KOTA already has event triggers, cron triggers, idle triggers, and an internal event bus. Keep workflows as the single automation surface and express hook-like reactions, standing orders, and heartbeat jobs as workflow triggers instead of adding another public automation model.
+summary: Workflow triggers now cover event, cron, interval, and idle work, but extensions and manifests can still wire direct event-bus reactions outside the workflow model. Finish collapsing those lower-level paths so workflows are the one public automation surface.
 created_at: 2026-03-26
 updated_at: 2026-03-26
 ---
 
 ## Problem
 
-KOTA already has the ingredients for automation:
+KOTA already has the ingredients for automation and much of the shape is in
+place:
 
 - workflow triggers
 - cron and idle scheduling
 - the internal event bus
 
-There is pressure to add repo-facing hooks and heartbeat-style automation, but
-doing that as a separate engine would duplicate workflows and reintroduce the
-same conceptual sprawl.
+But lower-level direct event subscription paths still exist in the extension and
+manifest layers. That means the repo-facing architecture still has more than one
+real automation path even though the docs say workflows are the one public
+surface.
 
 ## Desired Outcome
 
@@ -41,6 +43,8 @@ same conceptual sprawl.
 - Public docs explain one automation surface, not several overlapping ones.
 - Any repo-facing hook or heartbeat feature lands as a workflow extension, not
   as a parallel runtime concept.
+- Direct extension/manifests event plumbing no longer acts as a parallel
+  automation surface.
 
 ## References
 

@@ -34,25 +34,17 @@ adding a parallel surface.
 
 ## Current To Target
 
-- ~~`KotaModule`, plugins, and manifest modules should collapse into one
-  `extension` model.~~ Done: `KotaExtension` is now the single extension
-  protocol. All loading paths (built-ins, plugins, npm packages, manifests)
-  go through `ExtensionLoader`. See `src/extension-types.ts`.
-- ~~Module `promptSection`, repo instruction files, and workflow-only guidance
-  should collapse into a single `skill` model. `explorer`, `builder`, and
-  `improver` should remain workflows, but their worker identity should be
-  first-class `agent` definitions instead of prompt files plus ad hoc
-  conventions.~~ Done: `SkillDef` and `AgentDef` are now first-class types in
-  `src/agent-types.ts`. Built-in agents are declared in `src/agents/index.ts`.
-  Extensions can contribute skills and agents via `KotaExtension`. Workflow
-  agent steps reference built-in agents by name (`agentName: "builder"`) and
-  inherit prompt path, model, and tool policy from the agent definition.
-- ~~Scheduler events, hook-like reactions, cron triggers, heartbeat work, and
-  standing orders should remain one `workflow` surface instead of growing a
-  second hook engine.~~ Done: `KotaExtension` now declares automation via
-  `workflows` instead of direct bus subscriptions. Workflows support event,
-  cron, interval, and idle triggers — covering hooks, heartbeats, and schedules
-  in one surface. See `docs/WORKFLOWS.md`.
+- `KotaModule`, plugins, and manifest modules have mostly collapsed into the
+  `extension` model, but the code still carries old module-oriented naming in a
+  few public interfaces and comments. The loading surface is largely unified;
+  the remaining work is cleanup and direct renaming.
+- `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
+  agents, but skills are not yet the one real reusable guidance path.
+  `promptSection` still survives as a parallel extension-level prompt surface.
+- Workflows are the documented public automation surface, and workflow triggers
+  now cover event, cron, interval, and idle work. But direct extension event
+  subscriptions and manifest event-handler/script conversion still exist as
+  lower-level parallel paths that should be collapsed or hidden.
 - History, memory, working memory, knowledge, and run artifacts should be
   treated as stores inside one runtime state subsystem, not as many separate
   product-level concepts.
