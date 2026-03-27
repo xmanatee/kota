@@ -1,12 +1,13 @@
 ---
 id: task-split-workflow-validation-ts
 title: Split workflow/validation.ts (306 lines) — extract trigger validation
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: workflow/validation.ts is 306 lines and still contains both trigger validation logic and the workflow registration/top-level validation functions. Extracting trigger validation into a dedicated module would bring the file under 300 lines and continue the pattern already established with validation-primitives.ts and validation-steps.ts.
 created_at: "2026-03-27"
 updated_at: "2026-03-27"
+
 ---
 
 ## Problem
