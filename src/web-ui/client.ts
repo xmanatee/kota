@@ -20,6 +20,7 @@ export const WEB_UI_JS = /* js */ `
   const $approvalList = document.getElementById("approval-list");
   const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
+  const $workflowControls = document.getElementById("workflow-controls");
   const $costList = document.getElementById("cost-summary-list");
   const $runDetail = document.getElementById("run-detail");
   const $inputArea = document.getElementById("input-area");
@@ -651,6 +652,59 @@ export const WEB_UI_JS = /* js */ `
     } catch {}
   }
 
+  // --- Workflow controls ---
+
+  function renderWorkflowControls(paused, workflowNames) {
+    $workflowControls.innerHTML = "";
+    var row = document.createElement("div");
+    row.className = "wf-controls";
+
+    var pauseBtn = document.createElement("button");
+    pauseBtn.className = "wf-ctrl-btn " + (paused ? "resume" : "pause");
+    pauseBtn.textContent = paused ? "▶ Resume" : "⏸ Pause";
+    pauseBtn.onclick = async function() {
+      pauseBtn.disabled = true;
+      try {
+        await fetch(API + (paused ? "/api/workflow/resume" : "/api/workflow/pause"), { method: "POST" });
+        await refreshWorkflows();
+      } finally {
+        pauseBtn.disabled = false;
+      }
+    };
+    row.appendChild(pauseBtn);
+
+    for (var i = 0; i < workflowNames.length; i++) {
+      (function(name) {
+        var btn = document.createElement("button");
+        btn.className = "wf-ctrl-btn trigger";
+        btn.textContent = "▶ " + name;
+        btn.title = "Trigger " + name;
+        btn.onclick = async function() {
+          btn.disabled = true;
+          try {
+            var r = await fetch(API + "/api/workflow/trigger", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: name }),
+            });
+            if (!r.ok) {
+              var d = await r.json();
+              btn.title = d.error || "Error";
+            } else {
+              btn.title = "Queued!";
+            }
+            await refreshWorkflows();
+          } finally {
+            btn.disabled = false;
+          }
+        };
+        row.appendChild(btn);
+      })(workflowNames[i]);
+    }
+
+    $workflowControls.appendChild(row);
+  }
+
   // --- Workflow runs panel ---
 
   function fmtDuration(ms) {
@@ -754,6 +808,8 @@ export const WEB_UI_JS = /* js */ `
       var statusData = await statusRes.json();
       var runsData = await runsRes.json();
       renderWorkflows(statusData.activeRuns || [], runsData.runs || []);
+      var wfNames = Object.keys(statusData.workflows || {}).sort();
+      renderWorkflowControls(!!statusData.paused, wfNames);
     } catch {}
   }
 

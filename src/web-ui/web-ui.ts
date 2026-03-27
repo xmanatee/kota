@@ -39,6 +39,7 @@ ${WEB_UI_CSS}
     </div>
     <div class="sidebar-section">
       <h3>Workflows</h3>
+      <div id="workflow-controls"></div>
       <div id="workflow-runs-list"></div>
     </div>
     <div class="sidebar-section">

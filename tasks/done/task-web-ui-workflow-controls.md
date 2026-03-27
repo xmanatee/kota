@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-workflow-controls
 title: Add workflow controls to the web UI (pause, resume, trigger)
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: The web UI is read-only for workflow state. Pause, resume, and manual-trigger actions exist in the CLI and HTTP API but are not exposed in the UI. Adding these controls would let operators manage workflow execution without terminal access.

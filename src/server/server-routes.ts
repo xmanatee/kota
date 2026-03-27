@@ -24,10 +24,13 @@ import {
 } from "./session-pool.js";
 import { handleTaskStatus } from "./task-routes.js";
 import {
+  handleWorkflowPause,
+  handleWorkflowResume,
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
   handleWorkflowStatus,
+  handleWorkflowTrigger,
 } from "./workflow-routes.js";
 
 export type ServerContext = {
@@ -303,6 +306,23 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/workflow/status") {
       handleWorkflowStatus(res);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/workflow/pause") {
+      handleWorkflowPause(res);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/workflow/resume") {
+      handleWorkflowResume(res);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/workflow/trigger") {
+      handleWorkflowTrigger(req, res).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 

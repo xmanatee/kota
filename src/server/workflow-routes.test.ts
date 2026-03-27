@@ -1,14 +1,17 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import type { ServerResponse } from "node:http";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import {
+  handleWorkflowPause,
+  handleWorkflowResume,
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
   handleWorkflowStatus,
+  handleWorkflowTrigger,
   listRunMetadata,
 } from "./workflow-routes.js";
 
@@ -96,7 +99,15 @@ describe("workflow-routes", () => {
         queueLength: 0,
         completedRuns: 0,
         workflows: {},
+        paused: false,
       });
+    });
+
+    it("reflects paused state when pause signal file exists", () => {
+      writeFileSync(join(projectDir, ".kota", "dispatch-paused"), "");
+      const { res, result } = mockResponse();
+      handleWorkflowStatus(res, store);
+      expect((result.body as Record<string, unknown>).paused).toBe(true);
     });
 
     it("reflects active runs and queue from state", () => {
@@ -128,6 +139,91 @@ describe("workflow-routes", () => {
       expect(body.queueLength).toBe(1);
       expect(Array.isArray(body.activeRuns)).toBe(true);
       expect((body.activeRuns as unknown[]).length).toBe(1);
+    });
+  });
+
+  describe("handleWorkflowPause", () => {
+    it("creates pause signal file and returns paused true", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowPause(res, store);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).paused).toBe(true);
+      expect(existsSync(join(projectDir, ".kota", "dispatch-paused"))).toBe(true);
+    });
+
+    it("returns already true when already paused", () => {
+      writeFileSync(join(projectDir, ".kota", "dispatch-paused"), "");
+      const { res, result } = mockResponse();
+      handleWorkflowPause(res, store);
+      expect((result.body as Record<string, unknown>).already).toBe(true);
+    });
+  });
+
+  describe("handleWorkflowResume", () => {
+    it("removes pause signal file and returns paused false", () => {
+      writeFileSync(join(projectDir, ".kota", "dispatch-paused"), "");
+      const { res, result } = mockResponse();
+      handleWorkflowResume(res, store);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).paused).toBe(false);
+      expect(existsSync(join(projectDir, ".kota", "dispatch-paused"))).toBe(false);
+    });
+
+    it("returns already true when not paused", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowResume(res, store);
+      expect((result.body as Record<string, unknown>).already).toBe(true);
+    });
+  });
+
+  describe("handleWorkflowTrigger", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const json = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: unknown) => void) => {
+          if (event === "data") cb(Buffer.from(json));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("enqueues a workflow run and returns ok", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).ok).toBe(true);
+      const state = store.readState();
+      expect(state.pendingRuns).toHaveLength(1);
+      expect(state.pendingRuns[0].workflowName).toBe("builder");
+      expect(state.pendingRuns[0].trigger.event).toBe("manual");
+    });
+
+    it("returns 400 for missing name", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({}), res, store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 400 for invalid name characters", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "../etc/passwd" }), res, store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 409 when workflow already queued", async () => {
+      const state = store.readState();
+      state.pendingRuns = [{
+        workflowName: "builder",
+        trigger: { event: "manual", payload: {} },
+        enqueuedAtMs: Date.now(),
+        notBeforeMs: Date.now(),
+      }];
+      store.setPendingRuns(state.pendingRuns);
+
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store);
+      expect(result.status).toBe(409);
     });
   });
 
