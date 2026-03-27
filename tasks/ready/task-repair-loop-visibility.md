@@ -1,7 +1,7 @@
 ---
 id: task-repair-loop-visibility
 title: Surface repair loop iterations in kota workflow show
-status: backlog
+status: ready
 priority: p3
 area: workflow
 summary: The post-check repair loop records iteration data (attempt count, failures, per-iteration cost) in run metadata, but kota workflow show does not render it. Operators cannot see how many repairs ran, what failed, or what they cost without reading raw JSON.

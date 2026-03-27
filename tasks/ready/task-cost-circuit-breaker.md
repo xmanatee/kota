@@ -1,7 +1,7 @@
 ---
 id: task-cost-circuit-breaker
 title: Add cost circuit-breaker to auto-pause on spend limit
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The attention digest warns when 24h spend exceeds a threshold, but the runtime keeps running. A circuit-breaker should write the dispatch-paused signal file when a hard limit is crossed, stopping autonomous execution until the operator manually resumes.
