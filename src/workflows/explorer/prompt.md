@@ -23,6 +23,7 @@ Use this context directly. Do not re-fetch git log, run counts, task counts, or 
 - Research online when it helps identify meaningful capabilities, bottlenecks, reliability gaps, or good implementation directions.
 - Keep task descriptions brief, outcome-focused, and useful. Tasks are specs, not implementation scripts.
 - Every non-inbox task body must include all four required sections in order: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`. Omitting any section causes the test suite to fail.
+- `## Done When` criteria must be achievable given the scope of `## Desired Outcome`. If the Desired Outcome specifies extracting X lines from a Y-line file and X < Y - 300, the Done When must not promise "file is under 300 lines" — it should promise the structural outcome (the new module exists, the file is measurably reduced). Fix any such inconsistency when triaging or creating tasks.
 
 ## Guidance
 
