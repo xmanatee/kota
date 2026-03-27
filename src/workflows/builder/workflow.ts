@@ -106,9 +106,19 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       continueOnFailure: true,
       when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
-      run: ({ projectDir, stepOutputs }) => {
+      run: ({ projectDir, stepOutputs, stepResults, workflow }) => {
         const claim = stepOutputs["claim-task"] as { chosenTaskId: string };
-        return checkTaskOutcome(projectDir, claim.chosenTaskId);
+        const buildResult = stepResults["build"];
+        const summary = buildResult?.error
+          ? buildResult.error.split("\n")[0].slice(0, 120)
+          : buildResult?.status === "success"
+            ? "build agent completed but task not moved to done"
+            : "build step did not run";
+        return checkTaskOutcome(projectDir, claim.chosenTaskId, {
+          runId: workflow.runId,
+          summary,
+          date: new Date().toISOString().slice(0, 10),
+        });
       },
     },
     {

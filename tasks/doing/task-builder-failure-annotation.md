@@ -1,7 +1,7 @@
 ---
 id: task-builder-failure-annotation
 title: Auto-annotate task files with builder failure summaries
-status: ready
+status: doing
 priority: p2
 area: workflow
 summary: When the builder determines a task was not completed (via check-task-outcome), it leaves the task in doing/ or moves it back to ready/. There is no persistent record in the task file itself of what was attempted or why it failed. Adding a timestamped failure note to the task file body gives the explorer and future builder runs concrete evidence about difficult tasks.
