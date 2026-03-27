@@ -21,6 +21,11 @@ Route handlers are split into focused files (session-routes.ts, history-routes.t
 matching the existing pattern of approval-routes.ts, workflow-routes.ts, and task-routes.ts.
 server-routes.ts becomes a thin orchestrator that registers the extracted handlers.
 
+## Constraints
+
+- Follow the existing route-file pattern (approval-routes.ts, workflow-routes.ts, task-routes.ts)
+- Do not change route paths, middleware, or handler logic during the split
+
 ## Done When
 
 - No file in the affected area exceeds 300 lines.

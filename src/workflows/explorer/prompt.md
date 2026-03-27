@@ -22,6 +22,7 @@ Use this context directly. Do not re-fetch git log, run counts, task counts, or 
 - Maintain a strong, relevant, deduplicated task queue for future builder runs.
 - Research online when it helps identify meaningful capabilities, bottlenecks, reliability gaps, or good implementation directions.
 - Keep task descriptions brief, outcome-focused, and useful. Tasks are specs, not implementation scripts.
+- Every non-inbox task body must include all four required sections in order: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`. Omitting any section causes the test suite to fail.
 
 ## Guidance
 
