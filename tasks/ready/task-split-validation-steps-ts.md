@@ -1,7 +1,7 @@
 ---
 id: task-split-validation-steps-ts
 title: Split workflow/validation-steps.ts (417 lines) into step-type modules
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: validation-steps.ts validates each workflow step type (agent, code, tool, emit, restart, parallel) in a single 417-line file. Extract each step-type validator into its own module under workflow/step-validators/ and re-export from an index, leaving validation-steps.ts as a thin barrel or removing it entirely.

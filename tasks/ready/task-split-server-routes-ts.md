@@ -1,7 +1,7 @@
 ---
 id: task-split-server-routes-ts
 title: Split server/server-routes.ts (377 lines) into focused route modules
-status: backlog
+status: ready
 priority: p2
 area: server
 summary: server-routes.ts has grown to 377 lines handling session, history, status, and daemon-state routes alongside a mix of server utility functions. The workflow, approval, and task routes are already extracted; the remaining handlers in server-routes.ts should be split into logical route files (e.g. session-routes.ts, history-routes.ts) following the same pattern.
