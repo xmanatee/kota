@@ -10,13 +10,19 @@ export function registerRunListCommands(wfCmd: Command): void {
     .description("List recent workflow runs")
     .option("-n, --limit <n>", "Number of runs to show", "20")
     .option("-w, --workflow <name>", "Filter by workflow name")
+    .option("-s, --status <status>", "Filter by run status (success, failed, interrupted, completed-with-warnings, running)")
     .action((opts) => {
+      const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
+      if (opts.status && !validStatuses.includes(opts.status)) {
+        console.error(`Unknown status "${opts.status}". Valid values: ${validStatuses.join(", ")}`);
+        process.exit(1);
+      }
       const limit = Number.parseInt(opts.limit, 10) || 20;
       const store = new WorkflowRunStore();
       const runs = listRuns(store, limit * 3); // over-fetch to allow filtering
-      const filtered = opts.workflow
-        ? runs.filter((r) => r.workflow === opts.workflow)
-        : runs;
+      const filtered = runs
+        .filter((r) => !opts.workflow || r.workflow === opts.workflow)
+        .filter((r) => !opts.status || r.status === opts.status);
       const page = filtered.slice(0, limit);
 
       if (page.length === 0) {

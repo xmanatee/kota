@@ -1,7 +1,7 @@
 ---
 id: task-workflow-list-status-filter
 title: Add --status filter to kota workflow list
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: kota workflow list already supports --workflow to filter by name. Adding --status would allow operators to quickly find all failed or interrupted runs across all workflows (e.g. kota workflow list --status failed). Low complexity, high daily utility for debugging.
