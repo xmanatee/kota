@@ -123,9 +123,9 @@ That means:
 
 ## Migration Direction
 
-1. Formalize the daemon API and its ownership boundaries.
-2. Move live status/control off file scraping and onto the daemon API.
-3. Split CLI into standalone mode and daemon-client mode.
+1. ✓ Formalize the daemon API and its ownership boundaries.
+2. ✓ Move live status/control off file scraping and onto the daemon API.
+3. ✓ Split CLI into standalone mode and daemon-client mode.
 4. Make the web/server surface daemon-backed instead of a parallel runtime.
 5. Add thin native/web/mobile clients on top of the same protocol.
 

@@ -64,6 +64,8 @@ adding a parallel surface.
 - The daemon now exposes a loopback HTTP+JSON control API (`DaemonControlServer`
   in `src/scheduler/daemon-control.ts`). Live daemon and workflow status come
   from this API; the server no longer reads `.kota/` files for live control.
+  The CLI operates in daemon-client mode when the daemon is running (control
+  commands route to the daemon API) and falls back to standalone mode otherwise.
   The daemon/client split is partially formalized: the daemon is the live state
   owner, clients talk to the daemon API, but the HTTP/session server and daemon
   are still separate runtime entry points. The next step is making the server
