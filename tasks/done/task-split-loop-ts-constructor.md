@@ -1,7 +1,7 @@
 ---
 id: task-split-loop-ts-constructor
 title: Split loop.ts — extract constructor body into loop-constructor.ts
-status: ready
+status: done
 priority: p2
 area: structure
 summary: loop.ts is 301 lines, just over the 300-line limit. The constructor is ~163 lines and mixes service initialization, system prompt building, context restoration, and tool configuration. Extracting this into a helper brings loop.ts well under the limit.

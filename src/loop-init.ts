@@ -58,6 +58,7 @@ export interface AgentLoopState {
   modelTiers: ModelTiers | undefined;
   moduleLoader: ExtensionLoader;
   closed: boolean;
+  sigintHandler: () => void;
 }
 
 export async function runInitExtensions(state: AgentLoopState): Promise<void> {
