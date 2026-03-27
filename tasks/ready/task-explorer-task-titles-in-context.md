@@ -1,7 +1,7 @@
 ---
 id: task-explorer-task-titles-in-context
 title: Include task titles and summaries in explorer gather-context output
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The explorer's gather-context step provides task counts but not task content. When the explorer agent decides what to create or modify, it must read task files explicitly via tool calls. Including a brief snapshot of ready and backlog task titles and summaries in the pre-packaged context would reduce redundant tool reads and help the explorer avoid creating duplicate tasks.

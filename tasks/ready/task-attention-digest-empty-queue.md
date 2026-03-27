@@ -1,7 +1,7 @@
 ---
 id: task-attention-digest-empty-queue
 title: Add empty ready/backlog conditions to attention digest
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: The attention digest alerts on builder failures, budget pressure, stalled doing tasks, and blocked tasks, but does not alert when the ready or backlog queue drops to zero. An empty ready queue means the builder has nothing to pull; an empty backlog means the explorer has no reserves. These are actionable operational signals worth surfacing.
