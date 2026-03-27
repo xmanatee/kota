@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
-import { executeWorkflowRun, findRetryFromIndex } from "./run-executor.js";
+import { executeWorkflowRun } from "./run-executor.js";
+import { findRetryFromIndex } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition, WorkflowRunMetadata, WorkflowRunTrigger, WorkflowStepResult } from "./types.js";
 

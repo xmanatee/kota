@@ -1,31 +1,25 @@
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
-import { readOptionalJsonFile } from "../json-file.js";
-import { executeTool } from "../tools/index.js";
 import {
   buildStepCompletedPayload,
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
 } from "./event-payloads.js";
+import { buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
+import { createStepContext } from "./step-context.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
-  executeCodeStep,
   executeStep,
   shouldRunStep,
 } from "./step-executor.js";
+import { executeParallelStepGroup } from "./step-executor-parallel.js";
 import type {
   WorkflowDefinition,
-  WorkflowFilterValue,
   WorkflowRunExecutionResult,
-  WorkflowRunMetadata,
   WorkflowRunStatus,
   WorkflowRunTrigger,
-  WorkflowRuntimeState,
-  WorkflowStepContext,
   WorkflowStepResult,
 } from "./types.js";
 
@@ -37,97 +31,6 @@ export type RunExecutorDeps = {
   config?: KotaConfig;
   log: (message: string) => void;
 };
-
-export function matchesFilter(
-  filter: Record<string, WorkflowFilterValue> | undefined,
-  payload: Record<string, unknown>,
-): boolean {
-  if (!filter) return true;
-  for (const [key, expected] of Object.entries(filter)) {
-    const actual = payload[key];
-    if (Array.isArray(expected)) {
-      if (!expected.includes(actual as string | number | boolean)) return false;
-      continue;
-    }
-    if (actual !== expected) return false;
-  }
-  return true;
-}
-
-export function getEligibleAtMs(
-  workflowName: string,
-  cooldownMs: number,
-  state: WorkflowRuntimeState,
-): number {
-  const lastCompletedAt = state.workflows[workflowName]?.lastCompletedAt;
-  if (!lastCompletedAt || cooldownMs <= 0) return Date.now();
-  return new Date(lastCompletedAt).getTime() + cooldownMs;
-}
-
-/**
- * Returns the index of the first definition step that should be re-executed on retry.
- * Steps before this index are replayed from the original run's recorded results.
- */
-export function findRetryFromIndex(
-  originalSteps: WorkflowStepResult[],
-  definitionSteps: ReadonlyArray<{ id: string }>,
-): number {
-  for (let i = 0; i < definitionSteps.length; i++) {
-    const stepId = definitionSteps[i].id;
-    const result = originalSteps.find((s) => s.id === stepId);
-    if (!result) return i;
-    if (result.status === "failed" && !result.continueOnFailure) return i;
-  }
-  return definitionSteps.length;
-}
-
-export function createStepContext(
-  metadata: WorkflowRunMetadata,
-  trigger: WorkflowRunTrigger,
-  previousOutput: unknown,
-  stepOutputsById: Record<string, unknown>,
-  stepResultsById: Record<string, WorkflowStepResult>,
-  stepOutputList: unknown[],
-  deps: Pick<RunExecutorDeps, "projectDir" | "bus" | "store">,
-): WorkflowStepContext {
-  const runDirPath = resolve(deps.projectDir, metadata.runDir);
-  return {
-    projectDir: deps.projectDir,
-    workflow: {
-      name: metadata.workflow,
-      definitionPath: metadata.definitionPath,
-      runId: metadata.id,
-      runDir: metadata.runDir,
-      runDirPath,
-    },
-    trigger,
-    previousOutput,
-    stepOutputs: stepOutputsById,
-    stepResults: stepResultsById,
-    stepOutputList,
-    runTool: async (name, input) => {
-      const result = await executeTool(name, input);
-      if (result.is_error) {
-        throw new Error(result.content);
-      }
-      return result;
-    },
-    emit: (event, payload) => {
-      deps.bus.emit(event, payload);
-    },
-    requestRestart: (reason) => {
-      deps.bus.emit("runtime.restart_requested", {
-        reason,
-        workflow: metadata.workflow,
-        runId: metadata.id,
-      });
-    },
-    readPrompt: (promptPath) => {
-      return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");
-    },
-    readRuntimeState: () => deps.store.readState(),
-  };
-}
 
 export function executeWorkflowRun(
   definition: WorkflowDefinition,
@@ -158,53 +61,17 @@ export function executeWorkflowRun(
   deps.log(`Starting workflow "${definition.name}" (${run.metadata.id})`);
 
   const promise = (async (): Promise<WorkflowRunExecutionResult> => {
-    const stepOutputsById: Record<string, unknown> = {};
-    const stepResultsById: Record<string, WorkflowStepResult> = {};
-    const stepOutputs: unknown[] = [];
-    let previousOutput: unknown = null;
-    let hadWarnings = false;
     let agentBackoff: WorkflowRunExecutionResult["agentBackoff"];
-
-    // For retry runs: pre-populate state from the original run's successful steps.
     const retryOfId = typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
-    let retryFromIndex = 0;
-    if (retryOfId) {
-      const originalMetaPath = join(deps.store.runsDir, retryOfId, "metadata.json");
-      const originalMeta = readOptionalJsonFile<WorkflowRunMetadata>(originalMetaPath);
-      if (originalMeta) {
-        retryFromIndex = findRetryFromIndex(originalMeta.steps, definition.steps);
-        const replayedAt = new Date().toISOString();
-        for (let i = 0; i < retryFromIndex; i++) {
-          const defStep = definition.steps[i];
-          const result = originalMeta.steps.find((s) => s.id === defStep.id);
-          if (!result) { retryFromIndex = i; break; }
-          const replayed: WorkflowStepResult = { ...result, startedAt: replayedAt, completedAt: replayedAt, durationMs: 0 };
-          run.recordStep(replayed);
-          stepResultsById[defStep.id] = replayed;
-          if (result.status === "success") {
-            stepOutputsById[defStep.id] = result.output;
-            stepOutputs.push(result.output);
-            previousOutput = result.output;
-            if (result.type === "parallel") {
-              const inner = result.output as { steps?: WorkflowStepResult[] } | null;
-              for (const childResult of inner?.steps ?? []) {
-                stepResultsById[childResult.id] = childResult;
-                if (childResult.status === "success") {
-                  stepOutputsById[childResult.id] = childResult.output;
-                } else if (childResult.status === "skipped") {
-                  stepOutputsById[childResult.id] = { skipped: true };
-                }
-              }
-            }
-          } else if (result.status === "skipped") {
-            stepOutputsById[defStep.id] = { skipped: true };
-            stepOutputs.push({ skipped: true });
-          } else if (result.status === "failed" && result.continueOnFailure) {
-            hadWarnings = true;
-          }
-        }
-      }
-    }
+    const retryState = buildRetryInitialState(
+      retryOfId,
+      definition.steps,
+      (result) => run.recordStep(result),
+      deps.store.runsDir,
+    );
+    const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
+    let previousOutput = retryState.previousOutput;
+    let hadWarnings = retryState.hadWarnings;
 
     try {
       for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
@@ -270,94 +137,18 @@ export function executeWorkflowRun(
         deps.log(`Starting step "${step.id}" (${step.type}) in workflow "${definition.name}"`);
 
         if (step.type === "parallel") {
-          const childStartedAt = new Date(stepStartedAt).toISOString();
-          const childResults = await Promise.allSettled(
-            step.steps.map(async (childStep) => {
-              if (!(await shouldRunStep(childStep, context))) {
-                return { childStep, skipped: true, output: null as unknown };
-              }
-              const output = await executeCodeStep(childStep, context);
-              return { childStep, skipped: false, output };
-            }),
-          );
-
-          let groupFailed = false;
-          const innerStepResults: WorkflowStepResult[] = [];
-          const childCompletedAt = new Date().toISOString();
-
-          for (let i = 0; i < step.steps.length; i++) {
-            const childStep = step.steps[i];
-            const result = childResults[i];
-            if (result.status === "fulfilled") {
-              if (result.value.skipped) {
-                const childResult: WorkflowStepResult = {
-                  id: childStep.id,
-                  type: "code",
-                  status: "skipped",
-                  startedAt: childStartedAt,
-                  completedAt: childCompletedAt,
-                  durationMs: 0,
-                };
-                innerStepResults.push(childResult);
-                stepResultsById[childStep.id] = childResult;
-                stepOutputsById[childStep.id] = { skipped: true };
-              } else {
-                const childResult: WorkflowStepResult = {
-                  id: childStep.id,
-                  type: "code",
-                  status: "success",
-                  startedAt: childStartedAt,
-                  completedAt: childCompletedAt,
-                  durationMs: 0,
-                  output: result.value.output,
-                };
-                innerStepResults.push(childResult);
-                stepResultsById[childStep.id] = childResult;
-                stepOutputsById[childStep.id] = result.value.output;
-              }
-            } else {
-              const err =
-                result.reason instanceof Error
-                  ? result.reason
-                  : new Error(String(result.reason));
-              const childResult: WorkflowStepResult = {
-                id: childStep.id,
-                type: "code",
-                status: "failed",
-                startedAt: childStartedAt,
-                completedAt: childCompletedAt,
-                durationMs: 0,
-                error: err.message,
-                ...(childStep.continueOnFailure ? { continueOnFailure: true } : {}),
-              };
-              innerStepResults.push(childResult);
-              stepResultsById[childStep.id] = childResult;
-              if (childStep.continueOnFailure) {
-                hadWarnings = true;
-              } else {
-                groupFailed = true;
-              }
-            }
-          }
-
-          const groupOutput = { steps: innerStepResults };
-          const groupResult: WorkflowStepResult = {
-            id: step.id,
-            type: "parallel",
-            status: groupFailed ? "failed" : "success",
-            startedAt: new Date(stepStartedAt).toISOString(),
-            completedAt: new Date().toISOString(),
-            durationMs: Date.now() - stepStartedAt,
-            output: groupOutput,
-            ...(step.continueOnFailure && groupFailed ? { continueOnFailure: true } : {}),
-          };
-
+          const { groupResult, innerResults, hadNewWarnings, groupFailed } =
+            await executeParallelStepGroup(step, context, stepStartedAt);
           run.recordStep(groupResult);
-          stepOutputsById[step.id] = groupOutput;
+          stepOutputsById[step.id] = groupResult.output;
           stepResultsById[step.id] = groupResult;
-          stepOutputs.push(groupOutput);
-          previousOutput = groupOutput;
-
+          for (const child of innerResults) {
+            stepResultsById[child.id] = child;
+            stepOutputsById[child.id] =
+              child.status === "success" ? child.output : { skipped: true };
+          }
+          stepOutputs.push(groupResult.output);
+          previousOutput = groupResult.output;
           deps.bus.emit(
             "workflow.step.completed",
             buildStepCompletedPayload(run.metadata, groupResult),
@@ -365,19 +156,14 @@ export function executeWorkflowRun(
           deps.log(
             `Completed step "${step.id}" (parallel) in workflow "${definition.name}" [${groupResult.durationMs}ms]`,
           );
-
           if (groupFailed) {
-            if (step.continueOnFailure) {
-              hadWarnings = true;
-              continue;
-            }
-            const failedChildren = innerStepResults.filter(
-              (r) => r.status === "failed" && !r.continueOnFailure,
-            );
+            if (step.continueOnFailure) { hadWarnings = true; continue; }
+            const failedChildren = innerResults.filter((r) => r.status === "failed" && !r.continueOnFailure);
             throw new Error(
               `Parallel group "${step.id}" failed: ${failedChildren.map((r) => `${r.id}: ${r.error ?? "unknown"}`).join("; ")}`,
             );
           }
+          if (hadNewWarnings) hadWarnings = true;
           continue;
         }
 

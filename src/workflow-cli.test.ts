@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readOptionalJsonFile } from "./json-file.js";
-import { getEligibleAtMs } from "./workflow/run-executor.js";
+import { getEligibleAtMs } from "./workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 import type {
   WorkflowDefinition,

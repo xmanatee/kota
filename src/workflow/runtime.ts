@@ -5,11 +5,8 @@ import type { BusEnvelope, EventBus } from "../event-bus.js";
 import { callTelegramApi } from "../telegram-client.js";
 import { getNextCronTime } from "./cron.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
-import {
-  executeWorkflowRun,
-  getEligibleAtMs,
-  matchesFilter,
-} from "./run-executor.js";
+import { executeWorkflowRun } from "./run-executor.js";
+import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type {
   RegisteredWorkflowDefinitionInput,

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { readOptionalJsonFile } from "../json-file.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
-import { getEligibleAtMs } from "../workflow/run-executor.js";
+import { getEligibleAtMs } from "../workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../workflow/types.js";
 import { validateWorkflowDefinitions } from "../workflow/validation.js";

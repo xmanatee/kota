@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-run-executor-ts
 title: Split workflow/run-executor.ts (506 lines) into focused modules
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: workflow/run-executor.ts is 506 lines. The small filter/timing/retry utilities and the step context builder are good candidates to extract, leaving executeWorkflowRun and its close collaborators in the main file.
