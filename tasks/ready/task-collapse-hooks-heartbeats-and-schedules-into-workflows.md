@@ -1,12 +1,12 @@
 ---
 id: task-collapse-hooks-heartbeats-and-schedules-into-workflows
 title: Collapse hooks, heartbeat work, and schedules into the workflow surface
-status: backlog
+status: ready
 priority: p1
 area: workflow
 summary: Workflow triggers now cover event, cron, interval, and idle work, but extensions and manifests can still wire direct event-bus reactions outside the workflow model. Finish collapsing those lower-level paths so workflows are the one public automation surface.
 created_at: 2026-03-26
-updated_at: 2026-03-26
+updated_at: 2026-03-27
 ---
 
 ## Problem
