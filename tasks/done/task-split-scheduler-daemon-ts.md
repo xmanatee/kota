@@ -1,7 +1,7 @@
 ---
 id: task-split-scheduler-daemon-ts
 title: Split scheduler/daemon.ts — extract subscription lifecycle into daemon-subscriptions.ts
-status: ready
+status: done
 priority: p2
 area: refactor
 summary: scheduler/daemon.ts is 296 lines, at the 300-line limit. The subscription setup/teardown block in Daemon.start() and Daemon.stop() (8 separate stop-handle fields, ~80 lines) forms a natural cohesive unit that can move to daemon-subscriptions.ts, making Daemon.start/stop cleaner.

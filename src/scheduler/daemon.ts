@@ -4,13 +4,10 @@ import { type EventBus, initEventBus } from "../event-bus.js";
 import { initModuleLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { CliTransport, type Transport } from "../transport.js";
-import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
-import { subscribeAttentionDigest } from "../workflow/attention-digest.js";
-import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
-import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
+import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
 
@@ -42,14 +39,7 @@ export class Daemon {
   private readonly projectDir: string;
 
   private state: DaemonState;
-  private stopSchedulerTimer: (() => void) | null = null;
-  private stopBus: (() => void) | null = null;
-  private stopWorkflowListener: (() => void) | null = null;
-  private stopRestartListener: (() => void) | null = null;
-  private stopFailureAlert: (() => void) | null = null;
-  private stopApprovalNotification: (() => void) | null = null;
-  private stopAttentionDigest: (() => void) | null = null;
-  private stopTelegramStatusPoll: (() => void) | null = null;
+  private unsubscribe: (() => void) | null = null;
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -96,65 +86,31 @@ export class Daemon {
     this.log("Daemon starting...");
     this.saveState();
 
-    const scheduler = getScheduler();
-    this.stopBus = scheduler.connectBus(this.bus, (items) => {
-      this.handleDueItems(items);
-    });
-
     const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
-    this.stopSchedulerTimer = scheduler.startTimer(pollMs, (items) => {
-      this.handleDueItems(items);
-    });
-
-    this.stopWorkflowListener = this.bus.on("workflow.completed", (payload) => {
-      this.state.completedRuns += 1;
-      this.state.lastCompletedWorkflow = payload.workflow;
-      this.state.lastCompletedAt = new Date().toISOString();
-      this.state.lastCompletedStatus = payload.status;
-      this.saveState();
-      this.maybeRestart();
-    });
-
-    this.stopRestartListener = this.bus.on(
-      "runtime.restart_requested",
-      (payload) => {
-        this.requestRestart(payload.reason ?? "workflow requested restart");
-      },
-    );
-
-    this.stopFailureAlert = subscribeWorkflowFailureAlert(
-      this.bus,
-      this.projectDir,
-      (message) => this.log(message),
-    );
-
-    this.stopApprovalNotification = subscribeApprovalNotification(
-      this.bus,
-      (message) => this.log(message),
-    );
-
     const runsDir = join(this.stateDir, "runs");
-    this.stopAttentionDigest = subscribeAttentionDigest(
-      this.bus,
-      this.projectDir,
-      runsDir,
-      (message) => this.log(message),
-    );
 
-    const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-    const telegramChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-    if (telegramToken && telegramChatId) {
-      this.stopTelegramStatusPoll = startTelegramStatusPoll(
-        telegramToken,
-        telegramChatId,
-        () => ({
-          runtimeState: this.workflows.getState(),
-          dispatchPaused: this.workflows.isDispatchPaused(),
-          runsDir,
-        }),
-        (message) => this.log(message),
-      );
-    }
+    this.unsubscribe = subscribeDaemon({
+      bus: this.bus,
+      projectDir: this.projectDir,
+      runsDir,
+      pollIntervalMs: pollMs,
+      onDueItems: (items) => this.handleDueItems(items),
+      onWorkflowCompleted: (payload) => {
+        this.state.completedRuns += 1;
+        this.state.lastCompletedWorkflow = payload.workflow;
+        this.state.lastCompletedAt = new Date().toISOString();
+        this.state.lastCompletedStatus = payload.status;
+        this.saveState();
+        this.maybeRestart();
+      },
+      onRestartRequested: (reason) => this.requestRestart(reason),
+      onLog: (message) => this.log(message),
+      getTelegramState: () => ({
+        runtimeState: this.workflows.getState(),
+        dispatchPaused: this.workflows.isDispatchPaused(),
+        runsDir,
+      }),
+    });
 
     this.workflows.start();
 
@@ -167,7 +123,7 @@ export class Daemon {
     this.log(`Daemon running (pid ${process.pid})`);
     this.log(`  Scheduler poll: ${pollMs}ms`);
     this.log(`  Workflows: ${this.workflows.getDefinitionCount()}`);
-    this.log(`  Pending schedules: ${scheduler.count()}`);
+    this.log(`  Pending schedules: ${getScheduler().count()}`);
 
     await new Promise<void>((resolve) => {
       const keepAlive = setInterval(() => {
@@ -188,38 +144,8 @@ export class Daemon {
 
     await this.workflows.stop(timeoutMs);
 
-    if (this.stopSchedulerTimer) {
-      this.stopSchedulerTimer();
-      this.stopSchedulerTimer = null;
-    }
-    if (this.stopBus) {
-      this.stopBus();
-      this.stopBus = null;
-    }
-    if (this.stopWorkflowListener) {
-      this.stopWorkflowListener();
-      this.stopWorkflowListener = null;
-    }
-    if (this.stopRestartListener) {
-      this.stopRestartListener();
-      this.stopRestartListener = null;
-    }
-    if (this.stopFailureAlert) {
-      this.stopFailureAlert();
-      this.stopFailureAlert = null;
-    }
-    if (this.stopApprovalNotification) {
-      this.stopApprovalNotification();
-      this.stopApprovalNotification = null;
-    }
-    if (this.stopAttentionDigest) {
-      this.stopAttentionDigest();
-      this.stopAttentionDigest = null;
-    }
-    if (this.stopTelegramStatusPoll) {
-      this.stopTelegramStatusPoll();
-      this.stopTelegramStatusPoll = null;
-    }
+    this.unsubscribe?.();
+    this.unsubscribe = null;
 
     if (this.shutdownHandler) {
       process.removeListener("SIGINT", this.shutdownHandler);
