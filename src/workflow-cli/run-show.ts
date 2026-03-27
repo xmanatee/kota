@@ -94,14 +94,18 @@ export function registerRunShowCommand(wfCmd: Command): void {
           const icon = step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
           const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : "";
           const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
-          const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
-            ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
-            : "";
+          const repairSummary = extractRepairSummary(step.output);
+          const agentCost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
+            ? stepOutput.totalCostUsd
+            : null;
+          const totalStepCost = agentCost !== null
+            ? agentCost + (repairSummary?.totalCostUsd ?? 0)
+            : null;
+          const cost = totalStepCost !== null ? ` $${totalStepCost.toFixed(3)}` : "";
           console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${cost}${suffix}`);
           if (step.error) {
             console.log(`      Error: ${step.error}`);
           }
-          const repairSummary = extractRepairSummary(step.output);
           if (repairSummary) {
             console.log(`      ${formatRepairLine(repairSummary)}`);
           }
