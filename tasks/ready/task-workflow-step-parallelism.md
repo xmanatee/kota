@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-parallelism
 title: Support parallel step execution within a workflow run
-status: backlog
+status: ready
 priority: p3
 area: workflow
 summary: Workflow steps execute sequentially today. Steps that are logically independent (e.g., parallel gather-context sub-queries) cannot run concurrently. Adding a `parallel` step group type would allow independent steps to overlap and reduce total run time for multi-step workflows.
 created_at: 2026-03-20
-updated_at: 2026-03-20
+updated_at: 2026-03-27
 ---
 
 ## Problem
