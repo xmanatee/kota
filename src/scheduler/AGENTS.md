@@ -13,3 +13,5 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 - `scheduler.ts` — `Scheduler` singleton; timer and bus connection logic.
 - `task-store.ts` — task persistence and lookup.
 - `task-store-types.ts` — `Task`, `TaskPriority`, `TaskStatus`, and `TaskFileData` type declarations.
+- `task-router.ts` — `routeTask`, `formatTaskHint`; exported `TaskType` and `TaskRoute` types.
+- `task-router-data.ts` — `TASK_PATTERNS`, `STRATEGIES`, `GROUP_RECOMMENDATIONS`, and `PatternEntry` type; static data only.

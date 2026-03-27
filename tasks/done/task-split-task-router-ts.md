@@ -1,7 +1,7 @@
 ---
 id: task-split-task-router-ts
 title: Split scheduler/task-router.ts — extract pattern data into task-router-data.ts
-status: ready
+status: done
 priority: p2
 area: scheduler
 summary: task-router.ts is 276 lines and approaching the 300-line limit. TASK_PATTERNS, STRATEGIES, and GROUP_RECOMMENDATIONS are large static data tables that can move to a new task-router-data.ts, leaving only the routing logic and types in task-router.ts.
