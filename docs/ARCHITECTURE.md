@@ -45,12 +45,11 @@ adding a parallel surface.
 
 ## Current To Target
 
-- `KotaModule`, plugins, and manifest modules have mostly collapsed into the
-  `extension` model. Public interfaces (`extension_factory`, `getExtensionConfig`),
-  session internals, tool registry, and the `src/extensions/` directory are now
-  extension-named. Public config (`config.extensions`) and log prefixes (`[extension:...]`)
-  now use extension terminology. Internal implementation still carries some old `module`
-  naming is now complete for extension-private storage and logging internals.
+- The module→extension migration is complete. All surfaces — public interfaces
+  (`extension_factory`, `getExtensionConfig`), session internals, tool registry,
+  directory paths (`src/extensions/`), config fields (`config.extensions`), log
+  prefixes (`[extension:...]`), and extension-private storage and logging
+  internals — now use extension terminology.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.
