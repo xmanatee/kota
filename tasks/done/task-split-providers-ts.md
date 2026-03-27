@@ -1,7 +1,7 @@
 ---
 id: task-split-providers-ts
 title: Split providers.ts — extract provider interfaces into provider-types.ts
-status: ready
+status: done
 priority: p2
 area: core
 summary: providers.ts is 265 lines and mixes four provider interfaces (MemoryProvider, KnowledgeProvider, TaskProvider, HistoryProvider) with the ProviderRegistry class and its accessor functions. Extracting the interfaces into provider-types.ts gives each concern its own file.

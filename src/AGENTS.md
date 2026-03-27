@@ -16,6 +16,8 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `guardrails-classify.ts` — risk classification: tool lists, pattern constants, and `classifyRisk`.
 - `file-changes.ts` — `ChangeTracker` class and singleton utilities: records original file content before first modification and supports undo within a session.
 - `file-diff.ts` — `simpleDiff` utility: line-based diff formatter for agent context display.
+- `provider-types.ts` — the four provider interfaces: `MemoryProvider`, `KnowledgeProvider`, `TaskProvider`, `HistoryProvider`.
+- `providers.ts` — `ProviderRegistry` class, singleton accessors, and convenience getters; re-exports interfaces from `provider-types.ts`.
 
 ## AgentLoopState Cast Pattern
 

@@ -1,131 +1,24 @@
-/**
- * Provider interfaces and registry — enables swappable backends for core services.
- *
- * Modules can register alternative implementations of MemoryProvider, KnowledgeProvider,
- * TaskProvider, HistoryProvider, etc. The agent resolves the active provider from the
- * registry, falling back to the built-in implementation if no custom provider is configured.
- *
- * Follows the same pattern as SecretProvider (src/secrets.ts) but generalized.
- */
+/** Provider registry — swappable backends for core services. See provider-types.ts for interfaces. */
 
-import type Anthropic from "@anthropic-ai/sdk";
-import type { ConversationData, ConversationRecord } from "./memory/history.js";
 import { getHistory } from "./memory/history.js";
-import type { KnowledgeEntry, SearchFilters } from "./memory/knowledge-store.js";
 import { getKnowledgeStore } from "./memory/knowledge-store.js";
-import type { Memory } from "./memory/store.js";
 import { getMemoryStore } from "./memory/store.js";
-import type { Task, TaskPriority, TaskStatus } from "./scheduler/task-store.js";
+import type {
+	HistoryProvider,
+	KnowledgeProvider,
+	MemoryProvider,
+	TaskProvider,
+} from "./provider-types.js";
 import { getTaskStore } from "./scheduler/task-store.js";
 
-// --- Provider interfaces ---
-
-/** Interface for persistent memory storage (save/search/list/update/delete). */
-export interface MemoryProvider {
-	save(content: string, tags?: string[]): string;
-	search(query: string, options?: { tag?: string; since?: string }): Memory[];
-	list(): Memory[];
-	update(
-		id: string,
-		updates: { content?: string; tags?: string[] },
-	): boolean;
-	delete(id: string): boolean;
-}
-
-/** Interface for structured knowledge storage (CRUD + search over entries). */
-export interface KnowledgeProvider {
-	create(opts: {
-		title: string;
-		content: string;
-		type?: string;
-		tags?: string[];
-		status?: string;
-		scope?: "project" | "global";
-		meta?: Record<string, string>;
-	}): string;
-	read(id: string): KnowledgeEntry | null;
-	update(
-		id: string,
-		changes: {
-			title?: string;
-			content?: string;
-			type?: string;
-			tags?: string[];
-			status?: string;
-			meta?: Record<string, string>;
-		},
-	): boolean;
-	delete(id: string): boolean;
-	search(query: string, filters?: SearchFilters): KnowledgeEntry[];
-	list(filters?: SearchFilters): KnowledgeEntry[];
-	count(type?: string): number;
-}
-
-/** Interface for persistent task storage (add/update/list/get/clear). */
-export interface TaskProvider {
-	add(
-		task: string,
-		opts?: {
-			parent_id?: number;
-			priority?: TaskPriority;
-			blocked_by?: number[];
-			notes?: string;
-		},
-	): Task;
-	update(
-		id: number,
-		changes: {
-			status?: TaskStatus;
-			priority?: TaskPriority;
-			blocked_by?: number[];
-			notes?: string;
-		},
-	): Task;
-	list(): Task[];
-	active(): Task[];
-	get(id: number): Task | undefined;
-	clear(): void;
-	archiveCompleted(): number;
-	getActiveSummary(): string | null;
-	isEmpty(): boolean;
-	count(): number;
-}
-
-/** Interface for conversation history storage (create/save/load/list/find/remove). */
-export interface HistoryProvider {
-	create(model: string, cwd: string, source?: "user" | "action"): string;
-	save(
-		id: string,
-		messages: Anthropic.MessageParam[],
-		compactionCount: number,
-		lastInputTokens: number,
-	): void;
-	load(id: string): ConversationData | null;
-	list(opts?: {
-		search?: string;
-		limit?: number;
-		cwd?: string;
-		source?: "user" | "action";
-	}): ConversationRecord[];
-	getMostRecent(cwd?: string): ConversationRecord | null;
-	findByPrefix(idOrPrefix: string): ConversationRecord | null;
-	remove(id: string): boolean;
-	cleanup(): number;
-}
-
-// --- Provider registry ---
+export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "./provider-types.js";
 
 type ProviderEntry = {
 	name: string;
 	provider: unknown;
 };
 
-/**
- * Registry for swappable service providers.
- *
- * Each service type (e.g., "memory", "knowledge") can have multiple registered
- * providers. One is marked active; the rest are available for switching via config.
- */
+/** Registry for swappable service providers. Each service type can have multiple providers; one is active. */
 export class ProviderRegistry {
 	/** Map from service type → array of registered providers. */
 	private providers = new Map<string, ProviderEntry[]>();
@@ -200,8 +93,6 @@ export class ProviderRegistry {
 	}
 }
 
-// --- Singleton ---
-
 let registry: ProviderRegistry | null = null;
 
 export function initProviderRegistry(): ProviderRegistry {
@@ -225,8 +116,6 @@ export function registerDefaultProviders(cwd?: string): void {
 	registry.register("task", "default", getTaskStore());
 	registry.register("history", "default", getHistory());
 }
-
-// --- Convenience getters with fallback ---
 
 /** Get the active memory provider, falling back to the built-in MemoryStore. */
 export function getMemoryProvider(): MemoryProvider {
