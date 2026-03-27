@@ -15,10 +15,10 @@ import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
+import { builtinExtensions } from "./extensions/index.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
-import { builtinExtensions } from "./modules/index.js";
 import { registerTaskCommands } from "./task-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
 

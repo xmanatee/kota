@@ -19,7 +19,7 @@ const schedulerModule: KotaExtension = {
       group: "management",
     },
   ],
-  skills: [{ name: "scheduler", promptPath: "src/modules/skills/scheduler.md" }],
+  skills: [{ name: "scheduler", promptPath: "src/extensions/skills/scheduler.md" }],
 };
 
 export default schedulerModule;

@@ -155,7 +155,7 @@ const workingMemoryModule: KotaExtension = {
 		if (count > 0) ctx.log.info(`Restored ${count} persistent working memory entries`);
 	},
 
-	skills: [{ name: "working-memory", promptPath: "src/modules/skills/working-memory.md" }],
+	skills: [{ name: "working-memory", promptPath: "src/extensions/skills/working-memory.md" }],
 };
 
 export default workingMemoryModule;

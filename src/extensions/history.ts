@@ -23,7 +23,7 @@ const historyModule: KotaExtension = {
 			group: "management",
 		},
 	],
-	skills: [{ name: "history", promptPath: "src/modules/skills/history.md" }],
+	skills: [{ name: "history", promptPath: "src/extensions/skills/history.md" }],
 };
 
 export default historyModule;

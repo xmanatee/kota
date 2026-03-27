@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExtensionLoader } from "./extension-loader.js";
 import type { KotaExtension } from "./extension-types.js";
-import { builtinExtensions } from "./modules/index.js";
+import { builtinExtensions } from "./extensions/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 

@@ -38,7 +38,7 @@ vi.mock("./loop.js", () => {
 });
 
 import { ExtensionLoader } from "./extension-loader.js";
-import { builtinExtensions } from "./modules/index.js";
+import { builtinExtensions } from "./extensions/index.js";
 import { startServer } from "./server/server.js";
 
 let server: Server;

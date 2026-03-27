@@ -20,7 +20,7 @@ const knowledgeModule: KotaExtension = {
 			group: "management",
 		},
 	],
-	skills: [{ name: "knowledge", promptPath: "src/modules/skills/knowledge.md" }],
+	skills: [{ name: "knowledge", promptPath: "src/extensions/skills/knowledge.md" }],
 };
 
 export default knowledgeModule;

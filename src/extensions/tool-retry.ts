@@ -27,7 +27,7 @@ const toolRetryModule: KotaExtension = {
 		resetRetryStats();
 	},
 
-	skills: [{ name: "tool-retry", promptPath: "src/modules/skills/tool-retry.md" }],
+	skills: [{ name: "tool-retry", promptPath: "src/extensions/skills/tool-retry.md" }],
 };
 
 export default toolRetryModule;

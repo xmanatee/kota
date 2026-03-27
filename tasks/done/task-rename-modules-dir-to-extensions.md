@@ -1,7 +1,7 @@
 ---
 id: task-rename-modules-dir-to-extensions
 title: Rename src/modules/ directory to src/extensions/
-status: ready
+status: done
 priority: p2
 area: cleanup
 summary: The src/modules/ directory contains built-in KotaExtension implementations but is still named after the old "module" concept. Renaming it to src/extensions/ completes the terminology shift started by the module→extension rename work.

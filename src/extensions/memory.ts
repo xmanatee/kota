@@ -19,7 +19,7 @@ const memoryModule: KotaExtension = {
       group: "management",
     },
   ],
-  skills: [{ name: "memory", promptPath: "src/modules/skills/memory.md" }],
+  skills: [{ name: "memory", promptPath: "src/extensions/skills/memory.md" }],
 };
 
 export default memoryModule;

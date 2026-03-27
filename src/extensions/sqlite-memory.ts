@@ -23,7 +23,7 @@ const sqliteMemoryModule: KotaExtension = {
 		ctx.log.info("SQLite memory provider registered");
 	},
 
-	skills: [{ name: "sqlite-memory", promptPath: "src/modules/skills/sqlite-memory.md" }],
+	skills: [{ name: "sqlite-memory", promptPath: "src/extensions/skills/sqlite-memory.md" }],
 };
 
 export default sqliteMemoryModule;

@@ -177,7 +177,7 @@ const secretsModule: KotaExtension = {
     return [cmd];
   },
 
-  skills: [{ name: "secrets", promptPath: "src/modules/skills/secrets.md" }],
+  skills: [{ name: "secrets", promptPath: "src/extensions/skills/secrets.md" }],
 
   onLoad: (ctx) => {
     initSecretStore(ctx.cwd);

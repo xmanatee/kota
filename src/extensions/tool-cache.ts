@@ -28,7 +28,7 @@ const toolCacheModule: KotaExtension = {
 		resetToolCache();
 	},
 
-	skills: [{ name: "tool-cache", promptPath: "src/modules/skills/tool-cache.md" }],
+	skills: [{ name: "tool-cache", promptPath: "src/extensions/skills/tool-cache.md" }],
 };
 
 export default toolCacheModule;
