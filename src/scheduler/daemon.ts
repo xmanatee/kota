@@ -8,6 +8,7 @@ import { subscribeApprovalNotification } from "../workflow/approval-notification
 import { subscribeAttentionDigest } from "../workflow/attention-digest.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
+import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -48,6 +49,7 @@ export class Daemon {
   private stopFailureAlert: (() => void) | null = null;
   private stopApprovalNotification: (() => void) | null = null;
   private stopAttentionDigest: (() => void) | null = null;
+  private stopTelegramStatusPoll: (() => void) | null = null;
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -139,6 +141,21 @@ export class Daemon {
       (message) => this.log(message),
     );
 
+    const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+    const telegramChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    if (telegramToken && telegramChatId) {
+      this.stopTelegramStatusPoll = startTelegramStatusPoll(
+        telegramToken,
+        telegramChatId,
+        () => ({
+          runtimeState: this.workflows.getState(),
+          dispatchPaused: this.workflows.isDispatchPaused(),
+          runsDir,
+        }),
+        (message) => this.log(message),
+      );
+    }
+
     this.workflows.start();
 
     this.shutdownHandler = () => {
@@ -198,6 +215,10 @@ export class Daemon {
     if (this.stopAttentionDigest) {
       this.stopAttentionDigest();
       this.stopAttentionDigest = null;
+    }
+    if (this.stopTelegramStatusPoll) {
+      this.stopTelegramStatusPoll();
+      this.stopTelegramStatusPoll = null;
     }
 
     if (this.shutdownHandler) {

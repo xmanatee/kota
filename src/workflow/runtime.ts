@@ -189,6 +189,10 @@ export class WorkflowRuntime {
     return this.activeRuns.size >= this.maxConcurrentRuns;
   }
 
+  isDispatchPaused(): boolean {
+    return this.dispatchPaused || existsSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE));
+  }
+
   setDispatchPaused(paused: boolean): void {
     this.dispatchPaused = paused;
     if (!paused) this.maybeStartNext();
