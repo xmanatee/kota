@@ -1,7 +1,7 @@
 ---
 id: task-split-run-store-helpers-ts
 title: Split workflow/run-store-helpers.ts (317 lines) — extract IO utilities
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: workflow/run-store-helpers.ts is 317 lines combining runtime-state validation/assertions, file IO utilities, and snapshot/summary builders. Extract the IO utilities into a focused module so each file stays under 300 lines.
