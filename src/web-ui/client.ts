@@ -349,6 +349,25 @@ export const WEB_UI_JS = /* js */ `
     html += '<span>Started: ' + escapeHtml(started) + '</span>';
     html += '<span>Completed: ' + escapeHtml(completed) + '</span>';
     html += '</div></div>';
+    var completedMap = {};
+    var allSteps = run.steps || [];
+    for (var ci = 0; ci < allSteps.length; ci++) {
+      completedMap[allSteps[ci].id] = allSteps[ci].status;
+    }
+    if (run.workflowSteps && run.workflowSteps.length > 0) {
+      html += '<div class="step-progress" id="step-progress">';
+      for (var wi = 0; wi < run.workflowSteps.length; wi++) {
+        var ws = run.workflowSteps[wi];
+        var wstatus = completedMap[ws.id] || "pending";
+        var wbadge = wstatus === "success" ? "success" : wstatus === "failed" ? "failed" : wstatus === "skipped" ? "interrupted" : "pending";
+        var wicon = wstatus === "success" ? "\\u2713" : wstatus === "failed" ? "\\u2717" : wstatus === "skipped" ? "\\u2014" : "\\u25cb";
+        html += '<div class="step-progress-item" id="sp-' + escapeHtml(ws.id) + '">';
+        html += '<span class="run-badge ' + wbadge + '" id="sp-badge-' + escapeHtml(ws.id) + '">' + wicon + '</span>';
+        html += '<span class="step-progress-name">' + escapeHtml(ws.id) + '</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
     html += '<div class="run-detail-steps" id="run-detail-steps">';
     var steps = run.steps || [];
     if (steps.length === 0 && run.status !== "running") {
@@ -439,6 +458,10 @@ export const WEB_UI_JS = /* js */ `
 
   function handleStreamEvent(eventName, payload, stepsContainer, runId) {
     if (eventName === "step_started") {
+      var spBadge = document.getElementById("sp-badge-" + payload.stepId);
+      var spItem = document.getElementById("sp-" + payload.stepId);
+      if (spBadge) { spBadge.className = "run-badge running"; spBadge.textContent = "\u25b6"; }
+      if (spItem) spItem.classList.add("active");
       var existingRow = document.getElementById("step-row-" + payload.stepId);
       if (!existingRow) {
         var row = document.createElement("div");
@@ -465,6 +488,15 @@ export const WEB_UI_JS = /* js */ `
         toolEl.textContent = (toolEl.textContent || "") + (toolEl.textContent ? "\\n" : "") + "[" + payload.tool + "]";
       }
     } else if (eventName === "step_completed") {
+      var spBadge2 = document.getElementById("sp-badge-" + payload.stepId);
+      var spItem2 = document.getElementById("sp-" + payload.stepId);
+      if (spBadge2) {
+        var spStatus = payload.status === "success" ? "success" : payload.status === "skipped" ? "interrupted" : "failed";
+        var spIcon = payload.status === "success" ? "\\u2713" : payload.status === "skipped" ? "\\u2014" : "\\u2717";
+        spBadge2.className = "run-badge " + spStatus;
+        spBadge2.textContent = spIcon;
+      }
+      if (spItem2) spItem2.classList.remove("active");
       var badge = document.getElementById("step-badge-" + payload.stepId);
       if (badge) {
         badge.className = "run-badge " + (payload.status === "success" ? "success" : "failed");

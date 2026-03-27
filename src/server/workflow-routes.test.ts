@@ -230,6 +230,40 @@ describe("workflow-routes", () => {
       expect(body.workflow).toBe("builder");
       expect(Array.isArray(body.steps)).toBe(true);
     });
+
+    it("includes workflowSteps from workflow.json when present", () => {
+      writeRunMetadata(runsDir, "run-detail-002", "builder", "success");
+      writeFileSync(
+        join(runsDir, "run-detail-002", "workflow.json"),
+        JSON.stringify({
+          name: "builder",
+          steps: [
+            { id: "gather-context", type: "code" },
+            { id: "build", type: "agent" },
+          ],
+        }),
+      );
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunDetail(res, "run-detail-002", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(Array.isArray(body.workflowSteps)).toBe(true);
+      const ws = body.workflowSteps as Array<{ id: string; type: string }>;
+      expect(ws).toHaveLength(2);
+      expect(ws[0]).toEqual({ id: "gather-context", type: "code" });
+      expect(ws[1]).toEqual({ id: "build", type: "agent" });
+    });
+
+    it("omits workflowSteps when workflow.json is absent", () => {
+      writeRunMetadata(runsDir, "run-detail-003", "builder", "success");
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunDetail(res, "run-detail-003", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(body.workflowSteps).toBeUndefined();
+    });
   });
 
   describe("handleWorkflowRunStream", () => {

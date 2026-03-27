@@ -350,6 +350,37 @@ body {
 }
 .cost-total .cost-amount { color: var(--text); }
 
+/* Step progress panel */
+.step-progress {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+}
+.step-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--assistant-bg);
+  font-size: 12px;
+}
+.step-progress-item.active {
+  background: rgba(108, 99, 255, 0.15);
+  outline: 1px solid var(--accent);
+}
+.step-progress-name {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.run-badge.pending { color: var(--text-muted); }
+
 /* Run detail panel */
 #run-detail {
   display: none;

@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-active-run-step-view
 title: Show active step progress in web UI run detail view
-status: backlog
+status: done
 priority: p2
 area: web-ui
 summary: The run detail page shows logs but not which step is currently executing. Adding a step-progress section — listing all steps with status icons (pending / running / done / failed) and highlighting the active step — would let operators know at a glance where a run is in its lifecycle without reading raw logs.

@@ -103,13 +103,17 @@ export function handleWorkflowRunDetail(
     jsonResponse(res, 400, { error: "Invalid run ID" });
     return;
   }
-  const metadataPath = join(store.runsDir, runId, "metadata.json");
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+  const runDir = join(store.runsDir, runId);
+  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(join(runDir, "metadata.json"));
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
   }
-  jsonResponse(res, 200, metadata);
+  const workflowDef = readOptionalJsonFile<{ steps?: Array<{ id: string; type: string }> }>(
+    join(runDir, "workflow.json"),
+  );
+  const workflowSteps = workflowDef?.steps?.map((s) => ({ id: s.id, type: s.type }));
+  jsonResponse(res, 200, { ...metadata, ...(workflowSteps && { workflowSteps }) });
 }
 
 export function handleWorkflowRunStream(
