@@ -7,6 +7,7 @@
  * Scheduler integration delivers reminders and action results to active chats.
  */
 
+import type { ChannelSession } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import { AgentSession, type LoopOptions } from "./loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler/scheduler.js";
@@ -26,12 +27,6 @@ export { callTelegramApi, splitMessage, TelegramTransport };
 
 // --- Chat session management ---
 
-type ChatSession = {
-  agent: AgentSession;
-  proxy: ProxyTransport;
-  lastActive: number;
-};
-
 export type TelegramBotOptions = {
   token: string;
   model?: string;
@@ -45,7 +40,7 @@ export type TelegramBotOptions = {
 
 export class TelegramBot {
   private token: string;
-  private sessions = new Map<number, ChatSession>();
+  private sessions = new Map<number, ChannelSession>();
   private busyChats = new Set<number>();
   private running = false;
   private offset = 0;
@@ -212,7 +207,7 @@ export class TelegramBot {
     }
   }
 
-  private getOrCreateSession(chatId: number): ChatSession {
+  private getOrCreateSession(chatId: number): ChannelSession {
     let session = this.sessions.get(chatId);
     if (session) return session;
 

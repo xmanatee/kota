@@ -8,6 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { ServerResponse } from "node:http";
+import type { ChannelSession } from "../channel.js";
 import type { AgentSession } from "../loop.js";
 import { type AgentEvent, ProxyTransport, type Transport } from "../transport.js";
 
@@ -41,12 +42,10 @@ export class SseTransport implements Transport {
   }
 }
 
-export type ManagedSession = {
+/** HTTP server session — extends ChannelSession with pool-management fields. */
+export type ManagedSession = ChannelSession & {
   id: string;
-  agent: AgentSession;
-  proxy: ProxyTransport;
   busy: boolean;
-  lastActive: number;
 };
 
 const DEFAULT_MAX_SESSIONS = 10;

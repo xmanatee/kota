@@ -63,14 +63,19 @@ adding a parallel surface.
 
 ## Sessions And Channels
 
-`session` is core. KOTA already has persistent interactive sessions, server
-sessions, Telegram chats, and autonomous agent-step sessions.
+`session` is core. `AgentSession` owns the conversation, context, tools, and
+lifecycle for every agent run — interactive or autonomous. Every path through
+KOTA runs in a session. The `SessionStateMachine` enforces explicit lifecycle
+states (idle → initializing → ready → thinking → acting → reflecting → closed).
 
-`channel` should be optional. Claude Code's core model centers on project
-instructions, hooks, skills, and sub-agents, not on channels. OpenClaw adds
-channels because it is a multi-transport gateway. KOTA should treat channels as
-extensions for interactive surfaces, not as a mandatory abstraction for every
-runtime path.
+`channel` is optional. Channels manage pools of sessions on behalf of external
+users (web, Telegram). Each channel holds one `ChannelSession` per user/chat,
+using `ProxyTransport` to route agent output to the right sink per request.
+Autonomous workflow execution and CLI runs do NOT use channels.
+
+`ChannelSession` and `ChannelAdapter` are defined in `src/channel.ts` and used
+by both the HTTP server (`ManagedSession`) and the Telegram bot. This is the
+shared channel session model — new channels should use the same types.
 
 ## Migration Principles
 

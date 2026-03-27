@@ -2,8 +2,8 @@ import { spawn } from "node:child_process";
 import { Command } from "commander";
 import type { KotaExtension } from "../extension-types.js";
 import { Daemon, RESTART_EXIT_CODE } from "../scheduler/daemon.js";
-import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
+import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 
