@@ -1,12 +1,12 @@
 ---
 id: task-add-daemon-sse-event-stream
 title: Add SSE live event stream to the daemon control API
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: The daemon control API is purely poll-based today. DAEMON-CLIENTS.md calls for SSE for live status, run events, and streamed agent output. Adding a /events SSE endpoint would let CLI, web, and native clients receive real-time workflow events without polling.
 created_at: 2026-03-27T22:00:00Z
-updated_at: 2026-03-27T22:00:00Z
+updated_at: 2026-03-27T21:48:29Z
 ---
 
 ## Problem

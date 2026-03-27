@@ -1,42 +1,36 @@
 ---
 id: task-complete-daemon-backed-live-workflow-surface
-title: Complete the daemon-backed live workflow surface
+title: Route workflow trigger through daemon API
 status: ready
 priority: p1
 area: runtime
-summary: The daemon control API exists, but workflow triggering and some live run inspection paths still bypass it and touch `.kota/` directly. Finish the boundary so live workflow control and inspection are daemon-backed end to end.
+summary: Control commands (status, pause, resume, abort, reload) now use the daemon API. The remaining gap is workflow triggering — `kota workflow trigger` and the HTTP server's `POST /api/workflow/trigger` still write to `.kota/workflow-state.json` directly instead of routing through the daemon when it is running.
 created_at: 2026-03-27T21:30:00Z
-updated_at: 2026-03-27T21:30:00Z
+updated_at: 2026-03-27T21:48:29Z
 ---
 
 ## Problem
 
-KOTA now has a real daemon control API, but the live boundary is still split.
-`POST /api/workflow/trigger` still writes to `.kota/workflow-state.json`, and
-some run inspection paths still read `.kota/runs/` directly even when the
-daemon is running.
-
-That leaves the daemon as only a partial source of truth and keeps the client
-story fuzzier than the architecture intends.
+`kota workflow trigger` uses `WorkflowRunStore` directly, writing to
+`.kota/workflow-state.json` regardless of whether a daemon is running. The
+HTTP server's `POST /api/workflow/trigger` route does the same. The daemon
+never sees or validates these enqueue requests, so it can't enforce cooldowns,
+de-dupe, or emit queue-change events consistently.
 
 ## Desired Outcome
 
-Live workflow trigger, status, and run inspection behavior go through the
-daemon when it is running. Durable run artifacts stay on disk as evidence, but
-clients no longer bypass the daemon for live workflow control or live run
-inspection.
+Both `kota workflow trigger` and `POST /api/workflow/trigger` detect a running
+daemon and route through its control API. Standalone mode (no daemon) continues
+to write to `.kota/workflow-state.json` as today.
 
 ## Constraints
 
-- Keep standalone non-daemon flows possible where they are explicitly intended.
+- Keep standalone non-daemon flows working where explicitly intended (`kota run` is standalone by design).
 - Do not add a second live control protocol or a parallel server path.
-- Preserve `.kota/` files as persistence and audit evidence rather than deleting
-  them.
+- Preserve `.kota/` files as persistence and audit evidence.
 
 ## Done When
 
-- Workflow trigger uses the daemon API when targeting a running daemon.
-- Live workflow/run inspection paths stop bypassing the daemon for state the
-  daemon already owns.
-- The daemon/client boundary is documented honestly and consistently.
-- Tests cover the daemon-backed live workflow paths.
+- `kota workflow trigger` calls the daemon control API when a daemon is reachable, falls back to direct file write when offline.
+- `POST /api/workflow/trigger` in `server-routes.ts` routes through the daemon when running (same pattern as other control commands).
+- Tests cover the daemon-backed trigger path.
