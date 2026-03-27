@@ -10,7 +10,7 @@ import {
   handleListApprovals,
   handleRejectApproval,
 } from "./approval-routes.js";
-import { readDaemonState } from "./daemon-routes.js";
+import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
@@ -38,8 +38,6 @@ import {
   handleWorkflowRunStream,
   handleWorkflowRuns,
 } from "./workflow-run-routes.js";
-
-export { readDaemonState };
 
 export type ServerContext = {
   port: number;
@@ -174,17 +172,23 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/workflow/status") {
-      handleWorkflowStatus(res);
+      handleWorkflowStatus(res).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
     if (req.method === "POST" && path === "/api/workflow/pause") {
-      handleWorkflowPause(res);
+      handleWorkflowPause(res).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
     if (req.method === "POST" && path === "/api/workflow/resume") {
-      handleWorkflowResume(res);
+      handleWorkflowResume(res).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
@@ -213,14 +217,17 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/daemon/status") {
-      const daemon = readDaemonState();
-      jsonResponse(res, 200, {
-        daemon: daemon ?? null,
-        server: {
-          sessions: ctx.pool.size,
-          pendingSchedules: ctx.scheduler.count(),
-          eventBusListeners: ctx.bus.listenerCount(),
-        },
+      queryDaemonStatus().then((daemon) => {
+        jsonResponse(res, 200, {
+          daemon: daemon ?? null,
+          server: {
+            sessions: ctx.pool.size,
+            pendingSchedules: ctx.scheduler.count(),
+            eventBusListeners: ctx.bus.listenerCount(),
+          },
+        });
+      }).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
     }

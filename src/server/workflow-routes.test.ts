@@ -1,9 +1,11 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkflowLiveStatus } from "../scheduler/daemon-control.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
+import type { DaemonControlClient } from "./daemon-client.js";
 import {
   handleWorkflowPause,
   handleWorkflowResume,
@@ -76,6 +78,26 @@ function mockResponse() {
   return { res, result };
 }
 
+function mockClient(overrides: Partial<{
+  getWorkflowStatus: () => Promise<WorkflowLiveStatus | null>;
+  pause: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
+  resume: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
+}>): DaemonControlClient {
+  return {
+    getWorkflowStatus: vi.fn().mockResolvedValue({
+      activeRuns: [],
+      queueLength: 0,
+      completedRuns: 0,
+      workflows: {},
+      paused: false,
+    }),
+    pause: vi.fn().mockResolvedValue({ ok: true, paused: true }),
+    resume: vi.fn().mockResolvedValue({ ok: true, paused: false }),
+    getDaemonStatus: vi.fn().mockResolvedValue(null),
+    ...overrides,
+  } as unknown as DaemonControlClient;
+}
+
 describe("workflow-routes", () => {
   let projectDir: string;
   let store: WorkflowRunStore;
@@ -92,9 +114,9 @@ describe("workflow-routes", () => {
   });
 
   describe("handleWorkflowStatus", () => {
-    it("returns 200 with empty state when no runs exist", () => {
+    it("returns empty state when daemon not running (null client)", async () => {
       const { res, result } = mockResponse();
-      handleWorkflowStatus(res, store);
+      await handleWorkflowStatus(res, null);
       expect(result.status).toBe(200);
       expect(result.body).toMatchObject({
         activeRuns: [],
@@ -105,75 +127,104 @@ describe("workflow-routes", () => {
       });
     });
 
-    it("reflects paused state when pause signal file exists", () => {
-      writeFileSync(join(projectDir, ".kota", "dispatch-paused"), "");
+    it("returns empty state when daemon unreachable (client returns null)", async () => {
+      const client = mockClient({ getWorkflowStatus: async () => null });
       const { res, result } = mockResponse();
-      handleWorkflowStatus(res, store);
-      expect((result.body as Record<string, unknown>).paused).toBe(true);
+      await handleWorkflowStatus(res, client);
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ activeRuns: [], queueLength: 0 });
     });
 
-    it("reflects active runs and queue from state", () => {
-      const stateFile = join(projectDir, ".kota", "workflow-state.json");
-      writeFileSync(
-        stateFile,
-        JSON.stringify({
-          completedRuns: 3,
-          pendingRuns: [
-            {
-              workflowName: "builder",
-              trigger: { event: "schedule", payload: {} },
-              enqueuedAtMs: 1,
-              notBeforeMs: 1,
-            },
-          ],
-          workflows: {},
-          activeRuns: [
-            { runId: "run-abc", workflow: "builder", startedAt: new Date().toISOString() },
-          ],
-        }),
-      );
-
+    it("returns live status from daemon", async () => {
+      const liveStatus: WorkflowLiveStatus = {
+        activeRuns: [{ runId: "run-abc", workflow: "builder", startedAt: new Date().toISOString() }],
+        queueLength: 1,
+        completedRuns: 3,
+        workflows: {},
+        paused: false,
+      };
+      const client = mockClient({ getWorkflowStatus: async () => liveStatus });
       const { res, result } = mockResponse();
-      handleWorkflowStatus(res, store);
+      await handleWorkflowStatus(res, client);
       expect(result.status).toBe(200);
       const body = result.body as Record<string, unknown>;
       expect(body.completedRuns).toBe(3);
       expect(body.queueLength).toBe(1);
-      expect(Array.isArray(body.activeRuns)).toBe(true);
       expect((body.activeRuns as unknown[]).length).toBe(1);
+    });
+
+    it("reflects paused state from daemon", async () => {
+      const client = mockClient({
+        getWorkflowStatus: async () => ({
+          activeRuns: [],
+          queueLength: 0,
+          completedRuns: 0,
+          workflows: {},
+          paused: true,
+        }),
+      });
+      const { res, result } = mockResponse();
+      await handleWorkflowStatus(res, client);
+      expect((result.body as Record<string, unknown>).paused).toBe(true);
     });
   });
 
   describe("handleWorkflowPause", () => {
-    it("creates pause signal file and returns paused true", () => {
+    it("returns 503 when daemon not running (null client)", async () => {
       const { res, result } = mockResponse();
-      handleWorkflowPause(res, store);
-      expect(result.status).toBe(200);
-      expect((result.body as Record<string, unknown>).paused).toBe(true);
-      expect(existsSync(join(projectDir, ".kota", "dispatch-paused"))).toBe(true);
+      await handleWorkflowPause(res, null);
+      expect(result.status).toBe(503);
     });
 
-    it("returns already true when already paused", () => {
-      writeFileSync(join(projectDir, ".kota", "dispatch-paused"), "");
+    it("returns 503 when daemon unreachable (client returns null)", async () => {
+      const client = mockClient({ pause: async () => null });
       const { res, result } = mockResponse();
-      handleWorkflowPause(res, store);
+      await handleWorkflowPause(res, client);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns paused true from daemon", async () => {
+      const client = mockClient({ pause: async () => ({ ok: true, paused: true }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowPause(res, client);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).paused).toBe(true);
+    });
+
+    it("passes through already flag from daemon", async () => {
+      const client = mockClient({ pause: async () => ({ ok: true, paused: true, already: true }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowPause(res, client);
       expect((result.body as Record<string, unknown>).already).toBe(true);
     });
   });
 
   describe("handleWorkflowResume", () => {
-    it("removes pause signal file and returns paused false", () => {
-      writeFileSync(join(projectDir, ".kota", "dispatch-paused"), "");
+    it("returns 503 when daemon not running (null client)", async () => {
       const { res, result } = mockResponse();
-      handleWorkflowResume(res, store);
-      expect(result.status).toBe(200);
-      expect((result.body as Record<string, unknown>).paused).toBe(false);
-      expect(existsSync(join(projectDir, ".kota", "dispatch-paused"))).toBe(false);
+      await handleWorkflowResume(res, null);
+      expect(result.status).toBe(503);
     });
 
-    it("returns already true when not paused", () => {
+    it("returns 503 when daemon unreachable (client returns null)", async () => {
+      const client = mockClient({ resume: async () => null });
       const { res, result } = mockResponse();
-      handleWorkflowResume(res, store);
+      await handleWorkflowResume(res, client);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns paused false from daemon", async () => {
+      const client = mockClient({ resume: async () => ({ ok: true, paused: false }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowResume(res, client);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).paused).toBe(false);
+    });
+
+    it("passes through already flag from daemon", async () => {
+      const client = mockClient({ resume: async () => ({ ok: true, paused: false, already: true }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowResume(res, client);
       expect((result.body as Record<string, unknown>).already).toBe(true);
     });
   });
@@ -282,7 +333,6 @@ describe("workflow-routes", () => {
 
     it("returns all runs newer than since timestamp", () => {
       const now = Date.now();
-      // Directory names must be time-ordered (they sort lexicographically)
       writeRunMetadata(runsDir, "2025-01-01T00-00-00-000Z-builder-old", "builder", "success", {
         startedAt: new Date(now - 48 * 60 * 60 * 1000).toISOString(),
       });

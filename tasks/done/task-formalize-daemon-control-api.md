@@ -1,7 +1,7 @@
 ---
 id: task-formalize-daemon-control-api
 title: Formalize the daemon control API as the live source of truth
-status: ready
+status: done
 priority: p1
 area: runtime
 summary: KOTA has a daemon, a server, and several status/control routes, but no single formal daemon API. Define and implement the daemon-owned HTTP+JSON+SSE control surface so clients stop scraping .kota state directly.

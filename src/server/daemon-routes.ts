@@ -1,22 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import type { DaemonLiveStatus } from "../scheduler/daemon-control.js";
+import { DaemonControlClient } from "./daemon-client.js";
 
-export function readDaemonState(): { running: boolean; state: Record<string, unknown> } | null {
-  const statePath = join(process.cwd(), ".kota", "daemon-state.json");
-  if (!existsSync(statePath)) return null;
-  try {
-    const state = JSON.parse(readFileSync(statePath, "utf-8"));
-    let running = false;
-    if (state.pid && typeof state.pid === "number") {
-      try {
-        process.kill(state.pid, 0);
-        running = true;
-      } catch {
-        running = false;
-      }
-    }
-    return { running, state };
-  } catch {
-    return null;
-  }
+export async function queryDaemonStatus(stateDir?: string): Promise<DaemonLiveStatus | null> {
+  const client = DaemonControlClient.fromStateDir(stateDir);
+  if (!client) return null;
+  return client.getDaemonStatus();
 }

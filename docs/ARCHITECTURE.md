@@ -61,11 +61,13 @@ adding a parallel surface.
   documented as stores in one runtime state subsystem (`docs/STORES.md`).
   They remain separate implementations sharing a provider registry, but the
   public model treats them as typed stores rather than many parallel products.
-- The daemon/client split is not fully formalized yet. Today the workflow
-  daemon and the HTTP/session server are still separate runtime entry points,
-  and some clients still inspect `.kota/` state directly. The target model is:
-  daemon as source of truth, clients speaking one daemon API, and channels owned
-  by the daemon instead of parallel runtimes.
+- The daemon now exposes a loopback HTTP+JSON control API (`DaemonControlServer`
+  in `src/scheduler/daemon-control.ts`). Live daemon and workflow status come
+  from this API; the server no longer reads `.kota/` files for live control.
+  The daemon/client split is partially formalized: the daemon is the live state
+  owner, clients talk to the daemon API, but the HTTP/session server and daemon
+  are still separate runtime entry points. The next step is making the server
+  daemon-backed instead of a parallel runtime. See `docs/DAEMON-API.md`.
 
 ## Protocol Boundaries
 

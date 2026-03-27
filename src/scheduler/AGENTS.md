@@ -8,6 +8,7 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 ## Key Modules
 
 - `daemon.ts` — `Daemon` class; orchestration, state management, and public API.
+- `daemon-control.ts` — `DaemonControlServer` class and `DaemonControlHandle` interface; the loopback HTTP control API embedded in the running daemon.
 - `daemon-subscriptions.ts` — `subscribeDaemon`; sets up all event/bus/scheduler subscriptions and returns a single `unsubscribe()` function.
 - `daemon-state.ts` — `DaemonState` type and assertion helper.
 - `scheduler.ts` — `Scheduler` singleton; timer and bus connection logic.

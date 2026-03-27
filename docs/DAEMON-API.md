@@ -1,0 +1,142 @@
+# Daemon Control API
+
+When the KOTA daemon is running, it exposes a loopback HTTP control API. This
+is the canonical live source of truth for daemon status, workflow state, and
+workflow control.
+
+## Discovery
+
+The daemon writes its control address to `.kota/daemon-control.json`:
+
+```json
+{
+  "port": 49251,
+  "pid": 12345,
+  "startedAt": "2026-03-27T12:00:00.000Z"
+}
+```
+
+Clients discover the address by reading this file. If the file does not exist,
+or if the HTTP request fails, the daemon is not running.
+
+Use `DaemonControlClient.fromStateDir()` from `src/server/daemon-client.ts` to
+get a ready-to-use client in TypeScript.
+
+## Protocol
+
+All endpoints are HTTP + JSON, served on `127.0.0.1` (loopback only). No
+authentication is required because the API is loopback-local.
+
+## Endpoints
+
+### GET /status
+
+Returns the full live daemon status including workflow state.
+
+**Response:**
+
+```json
+{
+  "running": true,
+  "pid": 12345,
+  "startedAt": "2026-03-27T12:00:00.000Z",
+  "completedRuns": 42,
+  "lastCompletedWorkflow": "builder",
+  "lastCompletedAt": "2026-03-27T11:59:00.000Z",
+  "lastCompletedStatus": "success",
+  "workflow": {
+    "activeRuns": [
+      { "runId": "2026-03-27T...", "workflow": "builder", "startedAt": "..." }
+    ],
+    "queueLength": 0,
+    "completedRuns": 42,
+    "workflows": {
+      "builder": {
+        "lastRunId": "...",
+        "lastStartedAt": "...",
+        "lastCompletedAt": "...",
+        "lastStatus": "success"
+      }
+    },
+    "paused": false
+  }
+}
+```
+
+### GET /workflow/status
+
+Returns live workflow runtime state only.
+
+**Response:**
+
+```json
+{
+  "activeRuns": [],
+  "queueLength": 0,
+  "completedRuns": 42,
+  "workflows": {},
+  "paused": false
+}
+```
+
+### POST /workflow/pause
+
+Pauses workflow dispatch. The daemon stops starting new workflow runs until
+resumed.
+
+**Response:**
+
+```json
+{ "ok": true, "paused": true }
+```
+
+If already paused:
+
+```json
+{ "ok": true, "paused": true, "already": true }
+```
+
+### POST /workflow/resume
+
+Resumes workflow dispatch.
+
+**Response:**
+
+```json
+{ "ok": true, "paused": false }
+```
+
+If already running (not paused):
+
+```json
+{ "ok": true, "paused": false, "already": true }
+```
+
+## Server Routes Backed By Daemon API
+
+The KOTA HTTP server (`kota serve`) proxies these routes to the daemon control
+API when the daemon is running:
+
+| Server route              | Daemon endpoint         |
+|---------------------------|-------------------------|
+| GET /api/daemon/status    | GET /status             |
+| GET /api/workflow/status  | GET /workflow/status    |
+| POST /api/workflow/pause  | POST /workflow/pause    |
+| POST /api/workflow/resume | POST /workflow/resume   |
+
+When the daemon is not running, `/api/daemon/status` returns `{ daemon: null }`.
+The workflow status routes return empty state. Pause and resume return 503.
+
+Queuing a workflow (`POST /api/workflow/trigger`) writes directly to the
+persistent run queue in `.kota/workflow-state.json`, which the daemon polls.
+Run artifacts in `.kota/runs/` are durable evidence and are read directly by
+the server for run listing and streaming.
+
+## Source Of Truth Boundary
+
+When the daemon is running:
+
+- Use the daemon control API for live status and control (not `.kota/` files).
+- `.kota/` files are persistence and audit evidence, not the live control surface.
+- Run artifacts (`.kota/runs/`) are durable records that are valid to read
+  directly; they are not live control state.

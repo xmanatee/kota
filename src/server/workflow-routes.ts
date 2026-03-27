@@ -1,51 +1,60 @@
-import { existsSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
+import type { WorkflowLiveStatus } from "../scheduler/daemon-control.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowQueuedRun } from "../workflow/run-types.js";
+import { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
-const PAUSE_SIGNAL = "dispatch-paused";
+const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
+  activeRuns: [],
+  queueLength: 0,
+  completedRuns: 0,
+  workflows: {},
+  paused: false,
+};
 
-export function handleWorkflowStatus(
+export async function handleWorkflowStatus(
   res: ServerResponse,
-  store = new WorkflowRunStore(),
-): void {
-  const state = store.readState();
-  const paused = existsSync(join(store.rootDir, PAUSE_SIGNAL));
-  jsonResponse(res, 200, {
-    activeRuns: state.activeRuns ?? [],
-    queueLength: state.pendingRuns.length,
-    completedRuns: state.completedRuns,
-    workflows: state.workflows,
-    paused,
-  });
-}
-
-export function handleWorkflowPause(
-  res: ServerResponse,
-  store = new WorkflowRunStore(),
-): void {
-  const pausePath = join(store.rootDir, PAUSE_SIGNAL);
-  if (existsSync(pausePath)) {
-    jsonResponse(res, 200, { ok: true, paused: true, already: true });
+  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 200, EMPTY_WORKFLOW_STATUS);
     return;
   }
-  writeFileSync(pausePath, "");
-  jsonResponse(res, 200, { ok: true, paused: true });
+  const status = await client.getWorkflowStatus();
+  jsonResponse(res, 200, status ?? EMPTY_WORKFLOW_STATUS);
 }
 
-export function handleWorkflowResume(
+export async function handleWorkflowPause(
   res: ServerResponse,
-  store = new WorkflowRunStore(),
-): void {
-  const pausePath = join(store.rootDir, PAUSE_SIGNAL);
-  if (!existsSync(pausePath)) {
-    jsonResponse(res, 200, { ok: true, paused: false, already: true });
+  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
-  rmSync(pausePath);
-  jsonResponse(res, 200, { ok: true, paused: false });
+  const result = await client.pause();
+  if (!result) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  jsonResponse(res, 200, result);
+}
+
+export async function handleWorkflowResume(
+  res: ServerResponse,
+  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
+  const result = await client.resume();
+  if (!result) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  jsonResponse(res, 200, result);
 }
 
 export async function handleWorkflowTrigger(

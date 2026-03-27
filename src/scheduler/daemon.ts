@@ -1,3 +1,4 @@
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
@@ -6,11 +7,13 @@ import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
+import { DaemonControlServer } from "./daemon-control.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
 
+export type { DaemonControlAddress } from "./daemon-control.js";
 export type { DaemonState } from "./daemon-state.js";
 
 export type DaemonConfig = {
@@ -27,6 +30,7 @@ export type DaemonConfig = {
 export const RESTART_EXIT_CODE = 75;
 
 const STATE_FILE = "daemon-state.json";
+const CONTROL_FILE = "daemon-control.json";
 const DEFAULT_POLL_INTERVAL = 30_000;
 const SIGNAL_STOP_TIMEOUT_MS = 5_000;
 
@@ -37,6 +41,7 @@ export class Daemon {
   private readonly stateDir: string;
   private readonly workflows: WorkflowRuntime;
   private readonly projectDir: string;
+  private readonly controlServer: DaemonControlServer;
 
   private state: DaemonState;
   private unsubscribe: (() => void) | null = null;
@@ -75,6 +80,30 @@ export class Daemon {
     };
     this.state.pid = process.pid;
     this.state.startedAt = new Date().toISOString();
+
+    this.controlServer = new DaemonControlServer({
+      getDaemonLiveState: () => ({ ...this.state, running: this.isRunning() }),
+      getWorkflowLiveStatus: () => {
+        const wfState = this.workflows.getState();
+        return {
+          activeRuns: wfState.activeRuns ?? [],
+          queueLength: wfState.queueLength,
+          completedRuns: wfState.completedRuns,
+          workflows: wfState.workflows,
+          paused: this.workflows.isDispatchPaused(),
+        };
+      },
+      pauseWorkflowDispatch: () => {
+        const already = this.workflows.isDispatchPaused();
+        if (!already) this.workflows.setDispatchPaused(true);
+        return { already };
+      },
+      resumeWorkflowDispatch: () => {
+        const already = !this.workflows.isDispatchPaused();
+        if (!already) this.workflows.setDispatchPaused(false);
+        return { already };
+      },
+    });
   }
 
   async start(): Promise<void> {
@@ -85,6 +114,21 @@ export class Daemon {
 
     this.log("Daemon starting...");
     this.saveState();
+
+    // Register signal handlers before any awaits so callers can observe them immediately.
+    this.shutdownHandler = () => {
+      void this.stop(SIGNAL_STOP_TIMEOUT_MS);
+    };
+    process.on("SIGINT", this.shutdownHandler);
+    process.on("SIGTERM", this.shutdownHandler);
+
+    const controlPort = await this.controlServer.start();
+    writeJsonFileAtomic(join(this.stateDir, CONTROL_FILE), {
+      port: controlPort,
+      pid: process.pid,
+      startedAt: this.state.startedAt,
+    });
+    this.log(`Control API on http://127.0.0.1:${controlPort}`);
 
     const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
     const runsDir = join(this.stateDir, "runs");
@@ -114,12 +158,6 @@ export class Daemon {
 
     this.workflows.start();
 
-    this.shutdownHandler = () => {
-      void this.stop(SIGNAL_STOP_TIMEOUT_MS);
-    };
-    process.on("SIGINT", this.shutdownHandler);
-    process.on("SIGTERM", this.shutdownHandler);
-
     this.log(`Daemon running (pid ${process.pid})`);
     this.log(`  Scheduler poll: ${pollMs}ms`);
     this.log(`  Workflows: ${this.workflows.getDefinitionCount()}`);
@@ -143,6 +181,16 @@ export class Daemon {
     this.log("Daemon shutting down...");
 
     await this.workflows.stop(timeoutMs);
+    await this.controlServer.stop();
+
+    const controlPath = join(this.stateDir, CONTROL_FILE);
+    if (existsSync(controlPath)) {
+      try {
+        rmSync(controlPath);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
 
     this.unsubscribe?.();
     this.unsubscribe = null;
