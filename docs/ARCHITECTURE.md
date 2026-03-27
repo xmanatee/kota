@@ -22,6 +22,10 @@ adding a parallel surface.
   autonomous workflows.
 - `extension` = the only package and integration unit. An extension can
   contribute tools, skills, agents, workflows, channels, and internal services.
+- `store` = a typed persistence unit in the runtime state subsystem. Store types
+  are: history (conversation records), memory (agent notes), knowledge
+  (structured reference entries), working memory (session scratchpad), and run
+  artifacts (workflow execution evidence). See `docs/STORES.md`.
 
 ## Single Way
 
@@ -45,9 +49,10 @@ adding a parallel surface.
   now cover event, cron, interval, and idle work. Manifest-era `eventHandlers`
   and `scripts` have been removed. The `events` direct-subscription field has
   been removed from `KotaExtension`; automation uses contributed workflows.
-- History, memory, working memory, knowledge, and run artifacts should be
-  treated as stores inside one runtime state subsystem, not as many separate
-  product-level concepts.
+- History, memory, working memory, knowledge, and run artifacts are now
+  documented as stores in one runtime state subsystem (`docs/STORES.md`).
+  They remain separate implementations sharing a provider registry, but the
+  public model treats them as typed stores rather than many parallel products.
 
 ## Protocol Boundaries
 
