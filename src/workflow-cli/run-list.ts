@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { HistoryStats } from "../workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "../workflow-history.js";
@@ -55,6 +56,19 @@ export function registerRunListCommands(wfCmd: Command): void {
           ? `${r.trigger.event} ← ${r.triggeredByRunId}`
           : r.trigger.event;
         console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}`);
+      }
+
+      const definitions = getBuiltinWorkflowDefinitions();
+      const budgeted = definitions.filter((d) => d.dailyBudgetUsd != null);
+      if (budgeted.length > 0) {
+        console.log("\nToday's budget utilization:");
+        for (const def of budgeted) {
+          const spend = store.getDailySpendUsd(def.name);
+          const budget = def.dailyBudgetUsd as number;
+          const pct = Math.min(100, (spend / budget) * 100).toFixed(1);
+          const status = spend >= budget ? " [PAUSED]" : "";
+          console.log(`  ${def.name}: $${spend.toFixed(3)} / $${budget.toFixed(3)} (${pct}%)${status}`);
+        }
       }
     });
 

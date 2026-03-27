@@ -82,6 +82,16 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
     const definition = state.definitions.find((d) => d.name === queued.workflowName);
     if (!definition) continue;
 
+    if (definition.dailyBudgetUsd != null) {
+      const wfSpend = state.store.getDailySpendUsd(definition.name);
+      if (wfSpend >= definition.dailyBudgetUsd) {
+        state.log(
+          `Daily budget of $${definition.dailyBudgetUsd.toFixed(4)} reached for workflow "${definition.name}" ($${wfSpend.toFixed(4)} spent today). Skipping run.`,
+        );
+        continue;
+      }
+    }
+
     state.log(`Dispatching workflow "${queued.workflowName}"`);
     void runWorkflow(state, definition, queued.trigger);
   }

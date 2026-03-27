@@ -138,6 +138,8 @@ export type WorkflowDefinitionInput = {
   description?: string;
   enabled?: boolean;
   runTimeoutMs?: number;
+  /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
+  dailyBudgetUsd?: number;
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -209,6 +211,8 @@ export type WorkflowDefinition = {
   description?: string;
   enabled: boolean;
   runTimeoutMs?: number;
+  /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
+  dailyBudgetUsd?: number;
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

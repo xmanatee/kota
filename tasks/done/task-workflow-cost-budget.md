@@ -1,35 +1,36 @@
 ---
 id: task-workflow-cost-budget
-title: Enforce configurable daily cost budget for autonomous workflow runs
+title: Add per-workflow daily cost budget with auto-pause
 status: done
 priority: p2
-area: workflow
-summary: The workflow runtime has no spending limit. A misconfigured cron trigger or runaway workflow can accumulate unbounded API costs. Add a configurable daily budget that pauses dispatch and notifies via Telegram when the limit is reached.
-created_at: 2026-03-20
-updated_at: 2026-03-20
+area: workflows
+summary: Builder runs cost ~$6.50/day and improver ~$3.30/day with no enforcement mechanism. Operators need a way to set daily spend limits per workflow so runaway autonomous cycles don't accumulate unbounded cost.
+created_at: 2026-03-27T16:12:00Z
+updated_at: 2026-03-27T16:23:00Z
 ---
 
 ## Problem
 
-KOTA runs autonomously with cron and interval triggers. Each workflow run incurs API cost (tracked per-step as `totalCostUsd`), but there is no ceiling. A misconfigured trigger, a looping step, or simply higher-than-expected usage can silently drive up spend. Operators only discover this after the fact when reviewing billing.
+Autonomous workflows (builder, improver, explorer) run on idle triggers and accumulate cost with no upper bound. Today's observed spend ($6.5 builder + $3.3 improver + $2.5 explorer = $12.3/day) requires the operator to manually monitor `kota workflow list` or run cost summaries. There is no automatic brake.
 
 ## Desired Outcome
 
-- A `dailyBudgetUsd` field in `.kota/config.json` sets the maximum API spend per calendar day (UTC).
-- The workflow runtime tracks cumulative cost across runs for the current day. When the budget is reached, dispatch is paused automatically and a Telegram notification is sent.
-- `kota workflow status` shows today's spend and the configured budget.
-- Dispatch resumes automatically at the start of the next UTC day (daily reset), or operators can force-resume with `kota workflow resume`.
+- A `dailyBudgetUsd` field on workflow definitions (or in kota config) that sets a per-workflow daily spend cap.
+- Before starting a new workflow run, the runtime checks total spend for that workflow in the last 24h against its budget.
+- If the budget is exceeded, the run is skipped and a log message notes the reason.
+- `kota workflow list` or `kota workflow status` surfaces budget utilization alongside run counts.
 
 ## Constraints
 
-- Depends on per-run cost aggregation being stored in run metadata (see task-workflow-run-cost-tracking).
-- Daily spend is computed by summing completed run costs since UTC midnight; no separate ledger file needed.
-- If no budget is configured, the system behaves as today (unlimited).
-- Budget enforcement must not affect runs already in progress — only new dispatch is blocked.
+- Budget enforcement is best-effort (it reads completed run costs, not in-progress spend).
+- If cost data is unavailable for a run, treat it conservatively (count as $0, do not block).
+- Do not block the current run if budget data cannot be read — log a warning and proceed.
+- Default: no budget (current behavior preserved unless configured).
+- Budget config should live close to the workflow definition, not scattered across env files.
 
 ## Done When
 
-- Dispatch pauses when cumulative daily cost exceeds `dailyBudgetUsd`.
-- Telegram notification sent at pause time with spend and budget figures.
-- `kota workflow status` reflects today's spend vs budget.
-- Tests cover budget threshold detection and automatic daily reset.
+- `dailyBudgetUsd` can be set per workflow in the workflow definition or manifest config.
+- A workflow run that would exceed the daily budget is skipped with a log message.
+- `kota workflow list` shows today's spend vs. budget for each workflow that has a budget set.
+- `npm run typecheck` and `npm test` pass.

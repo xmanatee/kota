@@ -10,6 +10,7 @@ import {
   expectName,
   expectOptionalBoolean,
   expectOptionalInteger,
+  expectOptionalPositiveNumber,
   expectOptionalString,
   expectRelativePath,
   WorkflowDefinitionError,
@@ -207,6 +208,11 @@ export function validateWorkflowDefinitions(
         "runTimeoutMs",
         definitionPath,
         1,
+      ),
+      dailyBudgetUsd: expectOptionalPositiveNumber(
+        definition.dailyBudgetUsd,
+        "dailyBudgetUsd",
+        definitionPath,
       ),
       definitionPath,
       triggers: definition.triggers.map((trigger, triggerIndex) =>

@@ -35,6 +35,7 @@ function writeRunMetadata(
   id: string,
   totalCostUsd: number,
   completedAt: string,
+  workflow = "builder",
 ): void {
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
@@ -42,8 +43,8 @@ function writeRunMetadata(
     join(dir, "metadata.json"),
     JSON.stringify({
       id,
-      workflow: "builder",
-      definitionPath: "test/builder.ts",
+      workflow,
+      definitionPath: `test/${workflow}.ts`,
       trigger: { event: "runtime.idle", payload: {} },
       startedAt: completedAt,
       completedAt,
@@ -91,6 +92,23 @@ describe("WorkflowRunStore.getDailySpendUsd", () => {
     writeRunMetadata(store.runsDir, "run-today", 0.50, `${todayUtc}T08:00:00.000Z`);
     writeRunMetadata(store.runsDir, "run-yesterday", 1.00, "2020-01-01T10:00:00.000Z");
     expect(store.getDailySpendUsd()).toBeCloseTo(0.50);
+  });
+
+  it("filters spend to a specific workflow when name is provided", () => {
+    const store = new WorkflowRunStore(projectDir);
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    writeRunMetadata(store.runsDir, "run-builder", 0.30, `${todayUtc}T10:00:00.000Z`, "builder");
+    writeRunMetadata(store.runsDir, "run-explorer", 0.20, `${todayUtc}T11:00:00.000Z`, "explorer");
+    expect(store.getDailySpendUsd("builder")).toBeCloseTo(0.30);
+    expect(store.getDailySpendUsd("explorer")).toBeCloseTo(0.20);
+    expect(store.getDailySpendUsd()).toBeCloseTo(0.50);
+  });
+
+  it("returns 0 when named workflow has no completed runs today", () => {
+    const store = new WorkflowRunStore(projectDir);
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    writeRunMetadata(store.runsDir, "run-builder", 0.50, `${todayUtc}T10:00:00.000Z`, "builder");
+    expect(store.getDailySpendUsd("explorer")).toBe(0);
   });
 
   it("excludes runs missing totalCostUsd", () => {
@@ -282,6 +300,96 @@ describe("WorkflowRuntime budget enforcement", () => {
 
     expect(started.length).toBeGreaterThan(0);
     expect(started[0]).toBe("builder");
+  });
+
+  it("skips a workflow run when its per-workflow dailyBudgetUsd is reached", async () => {
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    writeRunMetadata(store.runsDir, "prior-builder", 2.0, `${todayUtc}T06:00:00.000Z`, "builder");
+    writeRunMetadata(store.runsDir, "prior-explorer", 0.1, `${todayUtc}T06:00:00.000Z`, "explorer");
+
+    const logs: string[] = [];
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 10,
+      onLog: (msg) => logs.push(msg),
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          dailyBudgetUsd: 2.0,
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    // builder budget exhausted — no new runs should have been created
+    const runsDir = join(projectDir, ".kota", "runs");
+    const newRunIds = readdirSync(runsDir).filter(
+      (d) => d !== "prior-builder" && d !== "prior-explorer",
+    );
+    expect(newRunIds).toHaveLength(0);
+    expect(logs.some((l) => l.includes("builder") && l.includes("budget"))).toBe(true);
+    expect(mockedExecuteWithAgentSDK).not.toHaveBeenCalled();
+  });
+
+  it("allows a workflow to run when only another workflow's budget is exhausted", async () => {
+    mkdirSync(join(projectDir, "src", "workflows", "explorer"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    // builder exhausted
+    writeRunMetadata(store.runsDir, "prior-builder", 5.0, `${todayUtc}T06:00:00.000Z`, "builder");
+
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0.1,
+      subtype: "success",
+      isError: false,
+    });
+
+    const started: string[] = [];
+    const bus = new EventBus();
+    bus.on("workflow.started", (p) => started.push(p.workflow));
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      onLog: (msg) => void msg,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          dailyBudgetUsd: 5.0,
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [
+            { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+          ],
+        }),
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [{ id: "run", type: "emit", event: "explorer.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    // explorer (no budget) should have run; builder (budget exhausted) should not
+    expect(started).toContain("explorer");
+    expect(started).not.toContain("builder");
   });
 
   it("behaves normally when no dailyBudgetUsd is configured", async () => {

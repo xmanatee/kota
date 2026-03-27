@@ -197,7 +197,7 @@ export class WorkflowRunStore {
     return toDelete;
   }
 
-  getDailySpendUsd(): number {
+  getDailySpendUsd(workflowName?: string): number {
     const todayUtc = new Date().toISOString().slice(0, 10);
     let dirs: string[];
     try {
@@ -209,7 +209,11 @@ export class WorkflowRunStore {
     for (const dir of dirs) {
       const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
       if (meta?.completedAt && typeof meta.totalCostUsd === "number") {
-        if (meta.completedAt.slice(0, 10) === todayUtc) total += meta.totalCostUsd;
+        if (meta.completedAt.slice(0, 10) === todayUtc) {
+          if (workflowName === undefined || meta.workflow === workflowName) {
+            total += meta.totalCostUsd;
+          }
+        }
       }
     }
     return total;
