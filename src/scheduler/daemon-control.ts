@@ -3,6 +3,15 @@ import type { WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from 
 import type { WorkflowAgentBackoffState } from "../workflow/types.js";
 import type { DaemonState } from "./daemon-state.js";
 
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
 export type DaemonControlAddress = {
   port: number;
   pid: number;
@@ -33,6 +42,7 @@ export type DaemonControlHandle = {
   resumeWorkflowDispatch(): { already: boolean };
   abortActiveRuns(): { aborted: number };
   reloadWorkflowDefinitions(): { count: number };
+  enqueuePendingRun(name: string): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
 };
 
 function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
@@ -79,6 +89,36 @@ export class DaemonControlServer {
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
+
+    if (req.method === "POST" && path === "/workflow/trigger") {
+      readBody(req)
+        .then((buf) => {
+          let body: Record<string, unknown>;
+          try {
+            body = JSON.parse(buf.toString()) as Record<string, unknown>;
+          } catch {
+            jsonResponse(res, 400, { error: "Invalid JSON body" });
+            return;
+          }
+          const name = body.name;
+          if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+            jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
+            return;
+          }
+          const result = this.handle.enqueuePendingRun(name);
+          if (result.alreadyQueued) {
+            jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
+            return;
+          }
+          if (!result.ok) {
+            jsonResponse(res, 400, { error: result.error ?? "Failed to enqueue workflow" });
+            return;
+          }
+          jsonResponse(res, 200, { ok: true, queued: result.queued });
+        })
+        .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
+      return;
+    }
 
     if (req.method === "GET" && path === "/status") {
       const daemonState = this.handle.getDaemonLiveState();

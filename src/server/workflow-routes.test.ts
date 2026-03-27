@@ -82,6 +82,7 @@ function mockClient(overrides: Partial<{
   getWorkflowStatus: () => Promise<WorkflowLiveStatus | null>;
   pause: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
   resume: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
+  trigger: (name: string) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
 }>): DaemonControlClient {
   return {
     getWorkflowStatus: vi.fn().mockResolvedValue({
@@ -93,6 +94,7 @@ function mockClient(overrides: Partial<{
     }),
     pause: vi.fn().mockResolvedValue({ ok: true, paused: true }),
     resume: vi.fn().mockResolvedValue({ ok: true, paused: false }),
+    trigger: vi.fn().mockResolvedValue(null),
     getDaemonStatus: vi.fn().mockResolvedValue(null),
     ...overrides,
   } as unknown as DaemonControlClient;
@@ -279,6 +281,38 @@ describe("workflow-routes", () => {
       const { res, result } = mockResponse();
       await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store);
       expect(result.status).toBe(409);
+    });
+
+    it("routes through daemon client when available and returns ok", async () => {
+      const client = mockClient({ trigger: async () => ({ ok: true, queued: "builder" }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).ok).toBe(true);
+      expect((result.body as Record<string, unknown>).queued).toBe("builder");
+      expect(store.readState().pendingRuns).toHaveLength(0);
+    });
+
+    it("returns 409 when daemon reports already queued", async () => {
+      const client = mockClient({ trigger: async () => ({ ok: false, alreadyQueued: true }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
+      expect(result.status).toBe(409);
+    });
+
+    it("falls back to direct write when daemon client returns null", async () => {
+      const client = mockClient({ trigger: async () => null });
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
+      expect(result.status).toBe(200);
+      expect(store.readState().pendingRuns).toHaveLength(1);
+    });
+
+    it("falls back to direct write when no daemon client (null)", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, null);
+      expect(result.status).toBe(200);
+      expect(store.readState().pendingRuns).toHaveLength(1);
     });
   });
 

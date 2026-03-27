@@ -62,6 +62,7 @@ export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,
   store = new WorkflowRunStore(),
+  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -75,6 +76,18 @@ export async function handleWorkflowTrigger(
   if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
     jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
     return;
+  }
+
+  if (client) {
+    const result = await client.trigger(name);
+    if (result) {
+      if (result.alreadyQueued) {
+        jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
+        return;
+      }
+      jsonResponse(res, 200, { ok: true, queued: result.queued ?? name });
+      return;
+    }
   }
 
   const state = store.readState();

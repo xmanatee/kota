@@ -1,7 +1,7 @@
 ---
 id: task-complete-daemon-backed-live-workflow-surface
 title: Route workflow trigger through daemon API
-status: ready
+status: done
 priority: p1
 area: runtime
 summary: Control commands (status, pause, resume, abort, reload) now use the daemon API. The remaining gap is workflow triggering — `kota workflow trigger` and the HTTP server's `POST /api/workflow/trigger` still write to `.kota/workflow-state.json` directly instead of routing through the daemon when it is running.

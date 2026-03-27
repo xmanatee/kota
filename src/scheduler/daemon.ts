@@ -109,6 +109,7 @@ export class Daemon {
       },
       abortActiveRuns: () => this.workflows.abortActiveRuns(),
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
+      enqueuePendingRun: (name: string) => this.workflows.enqueuePendingRun(name),
     });
   }
 

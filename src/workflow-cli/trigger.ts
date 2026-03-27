@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { readOptionalJsonFile } from "../json-file.js";
+import { DaemonControlClient } from "../server/daemon-client.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { getEligibleAtMs } from "../workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
@@ -13,7 +14,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
     .command("trigger <name>")
     .description("Manually enqueue a workflow run")
     .option("--force", "Ignore cooldown and enqueue immediately")
-    .action((name: string, opts: { force?: boolean }) => {
+    .action(async (name: string, opts: { force?: boolean }) => {
       const store = new WorkflowRunStore();
       const definitions = validateWorkflowDefinitions(
         getBuiltinWorkflowDefinitions(),
@@ -52,6 +53,19 @@ export function registerTriggerCommands(wfCmd: Command): void {
           `Workflow "${name}" is in cooldown (${remaining}s remaining). Use --force to override.`,
         );
         process.exit(1);
+      }
+
+      const client = DaemonControlClient.fromStateDir();
+      if (client) {
+        const result = await client.trigger(name);
+        if (result) {
+          if (result.alreadyQueued) {
+            console.error(`Workflow "${name}" is already queued.`);
+            process.exit(1);
+          }
+          console.log(`Queued workflow "${name}".`);
+          return;
+        }
       }
 
       const notBeforeMs = opts.force ? now : eligibleAtMs;
