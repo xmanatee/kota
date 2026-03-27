@@ -7,12 +7,15 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 ## Key Modules
 
-- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, dispatch, budget enforcement. ~382 lines.
+- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, dispatch, idle loop. ~298 lines.
+- `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
+- `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
+- `budget-guard.ts` — `BudgetGuard`: daily spend tracking and Telegram budget alerts.
 - `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue, pick, restore, persist.
 - `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling.
 - `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
-- `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`.
+- `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.
 - `step-context.ts` — `createStepContext` and step context helpers.
 - `step-executor.ts` / `step-executor-agent.ts` / `step-executor-parallel.ts` — Step dispatch by type.
 - `validation.ts` / `validation-primitives.ts` — Workflow definition validation orchestration and shared primitives.
