@@ -17,3 +17,5 @@ This directory contains core tool implementations and registrations.
 - `computer-use-actions-linux.ts` — Linux click, type, key, scroll, drag, and cursor actions using xdotool.
 - `custom-tool.ts` — `customToolTool` schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, persistence lifecycle, and registration.
 - `custom-tool-handlers.ts` — `handleCreate`, `handleList`, `handleRemove` action handlers and `buildRunner` execution builder for custom tools.
+- `knowledge-schema.ts` — `knowledgeTool` Anthropic tool schema definition (static, no runner logic).
+- `knowledge.ts` — `formatEntry`, `formatEntryFull` helpers and `runKnowledge` async runner; re-exports `knowledgeTool` from `knowledge-schema.ts`.

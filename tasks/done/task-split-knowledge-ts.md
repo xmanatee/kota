@@ -1,7 +1,7 @@
 ---
 id: task-split-knowledge-ts
 title: Split tools/knowledge.ts — extract tool schema into knowledge-schema.ts
-status: ready
+status: done
 priority: p2
 area: tools
 summary: knowledge.ts is 279 lines and approaching the 300-line limit. The knowledgeTool schema definition (lines 13–80) is a distinct static declaration that can move to a new knowledge-schema.ts, leaving the formatEntry helpers and runKnowledge runner as the focused execution surface.
