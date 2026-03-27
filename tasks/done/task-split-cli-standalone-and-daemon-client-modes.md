@@ -1,7 +1,7 @@
 ---
 id: task-split-cli-standalone-and-daemon-client-modes
 title: Split the CLI into standalone mode and daemon-client mode
-status: ready
+status: done
 priority: p1
 area: cli
 summary: The CLI currently mixes direct local execution with daemon-adjacent inspection. Make the mode split explicit so CLI commands can either run locally or act as a client of the daemon.

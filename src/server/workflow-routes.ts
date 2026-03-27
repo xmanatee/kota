@@ -7,6 +7,7 @@ import { jsonResponse, readBody } from "./session-pool.js";
 
 const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
   activeRuns: [],
+  pendingRuns: [],
   queueLength: 0,
   completedRuns: 0,
   workflows: {},

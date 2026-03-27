@@ -72,8 +72,12 @@ Returns live workflow runtime state only.
 ```json
 {
   "activeRuns": [],
+  "pendingRuns": [],
   "queueLength": 0,
   "completedRuns": 42,
+  "totalCostUsd": 0.0012,
+  "agentBackoff": null,
+  "definitionsLoadedAt": "2026-03-27T12:00:00.000Z",
   "workflows": {},
   "paused": false
 }
@@ -112,17 +116,44 @@ If already running (not paused):
 { "ok": true, "paused": false, "already": true }
 ```
 
+### POST /workflow/abort
+
+Aborts all currently active workflow runs by cancelling their abort controllers.
+
+**Response:**
+
+```json
+{ "ok": true, "aborted": 1 }
+```
+
+`aborted` is the number of runs that were signalled. Zero means no runs were active.
+
+### POST /workflow/reload
+
+Reloads workflow definitions in-process without restarting the daemon. Schedule
+triggers are reconciled against the new definitions.
+
+**Response:**
+
+```json
+{ "ok": true, "count": 3 }
+```
+
+`count` is the number of definitions after reload.
+
 ## Server Routes Backed By Daemon API
 
 The KOTA HTTP server (`kota serve`) proxies these routes to the daemon control
 API when the daemon is running:
 
-| Server route              | Daemon endpoint         |
-|---------------------------|-------------------------|
-| GET /api/daemon/status    | GET /status             |
-| GET /api/workflow/status  | GET /workflow/status    |
-| POST /api/workflow/pause  | POST /workflow/pause    |
-| POST /api/workflow/resume | POST /workflow/resume   |
+| Server route              | Daemon endpoint          |
+|---------------------------|--------------------------|
+| GET /api/daemon/status    | GET /status              |
+| GET /api/workflow/status  | GET /workflow/status     |
+| POST /api/workflow/pause  | POST /workflow/pause     |
+| POST /api/workflow/resume | POST /workflow/resume    |
+| POST /api/workflow/abort  | POST /workflow/abort     |
+| POST /api/workflow/reload | POST /workflow/reload    |
 
 When the daemon is not running, `/api/daemon/status` returns `{ daemon: null }`.
 The workflow status routes return empty state. Pause and resume return 503.

@@ -189,6 +189,21 @@ export class WorkflowRuntime {
     if (!paused) this.maybeStartNext();
   }
 
+  abortActiveRuns(): { aborted: number } {
+    const count = this.activeRuns.size;
+    for (const { abortController } of this.activeRuns.values()) {
+      abortController.abort();
+    }
+    return { aborted: count };
+  }
+
+  reloadWorkflowDefinitions(): { count: number } {
+    const defs = this.loadDefinitions();
+    this.scheduleTriggers.reconcile(defs);
+    this.definitions = defs;
+    return { count: defs.length };
+  }
+
   getDefinitionCount(): number {
     return this.definitions.length;
   }

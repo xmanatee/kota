@@ -87,8 +87,12 @@ export class Daemon {
         const wfState = this.workflows.getState();
         return {
           activeRuns: wfState.activeRuns ?? [],
+          pendingRuns: wfState.pendingRuns,
           queueLength: wfState.queueLength,
           completedRuns: wfState.completedRuns,
+          totalCostUsd: wfState.totalCostUsd,
+          agentBackoff: wfState.agentBackoff,
+          definitionsLoadedAt: wfState.definitionsLoadedAt,
           workflows: wfState.workflows,
           paused: this.workflows.isDispatchPaused(),
         };
@@ -103,6 +107,8 @@ export class Daemon {
         if (!already) this.workflows.setDispatchPaused(false);
         return { already };
       },
+      abortActiveRuns: () => this.workflows.abortActiveRuns(),
+      reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
     });
   }
 

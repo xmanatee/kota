@@ -65,4 +65,24 @@ export class DaemonControlClient {
       return null;
     }
   }
+
+  async abort(): Promise<{ ok: boolean; aborted: number } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/abort`, { method: "POST" });
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean; aborted: number };
+    } catch {
+      return null;
+    }
+  }
+
+  async reload(): Promise<{ ok: boolean; count: number } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/reload`, { method: "POST" });
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean; count: number };
+    } catch {
+      return null;
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { WorkflowActiveRun, WorkflowRuntimeState } from "../workflow/run-types.js";
+import type { WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "../workflow/run-types.js";
+import type { WorkflowAgentBackoffState } from "../workflow/types.js";
 import type { DaemonState } from "./daemon-state.js";
 
 export type DaemonControlAddress = {
@@ -10,8 +11,12 @@ export type DaemonControlAddress = {
 
 export type WorkflowLiveStatus = {
   activeRuns: WorkflowActiveRun[];
+  pendingRuns: WorkflowQueuedRun[];
   queueLength: number;
   completedRuns: number;
+  totalCostUsd?: number;
+  agentBackoff?: WorkflowAgentBackoffState;
+  definitionsLoadedAt?: string;
   workflows: WorkflowRuntimeState["workflows"];
   paused: boolean;
 };
@@ -26,6 +31,8 @@ export type DaemonControlHandle = {
   getWorkflowLiveStatus(): WorkflowLiveStatus;
   pauseWorkflowDispatch(): { already: boolean };
   resumeWorkflowDispatch(): { already: boolean };
+  abortActiveRuns(): { aborted: number };
+  reloadWorkflowDefinitions(): { count: number };
 };
 
 function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
@@ -95,6 +102,18 @@ export class DaemonControlServer {
     if (req.method === "POST" && path === "/workflow/resume") {
       const { already } = this.handle.resumeWorkflowDispatch();
       jsonResponse(res, 200, { ok: true, paused: false, ...(already && { already: true }) });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/workflow/abort") {
+      const { aborted } = this.handle.abortActiveRuns();
+      jsonResponse(res, 200, { ok: true, aborted });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/workflow/reload") {
+      const { count } = this.handle.reloadWorkflowDefinitions();
+      jsonResponse(res, 200, { ok: true, count });
       return;
     }
 

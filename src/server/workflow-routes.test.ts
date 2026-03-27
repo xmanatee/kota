@@ -138,6 +138,7 @@ describe("workflow-routes", () => {
     it("returns live status from daemon", async () => {
       const liveStatus: WorkflowLiveStatus = {
         activeRuns: [{ runId: "run-abc", workflow: "builder", startedAt: new Date().toISOString() }],
+        pendingRuns: [],
         queueLength: 1,
         completedRuns: 3,
         workflows: {},
@@ -157,6 +158,7 @@ describe("workflow-routes", () => {
       const client = mockClient({
         getWorkflowStatus: async () => ({
           activeRuns: [],
+          pendingRuns: [],
           queueLength: 0,
           completedRuns: 0,
           workflows: {},
