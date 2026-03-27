@@ -6,7 +6,7 @@ priority: p2
 area: cleanup
 summary: The src/modules/ directory contains built-in KotaExtension implementations but is still named after the old "module" concept. Renaming it to src/extensions/ completes the terminology shift started by the module→extension rename work.
 created_at: 2026-03-27T13:02:00Z
-updated_at: 2026-03-27T13:02:00Z
+updated_at: 2026-03-27T15:55:00Z
 ---
 
 ## Problem
@@ -25,7 +25,7 @@ updated_at: 2026-03-27T13:02:00Z
 - Pure rename — no logic changes.
 - Update all import sites and `package.json`/`tsconfig.json` path references if any exist.
 - Keep `src/extensions/index.ts` exporting `builtinExtensions` unchanged.
-- Do this after `task-rename-module-loader-to-extension-loader` is complete — the internals should be consistent before the directory is moved.
+- The internal session and tool-registry rename is now complete (`task-remove-remaining-module-terminology` done 2026-03-27). No blocking dependency remains — this is a pure path rename.
 
 ## Done When
 
