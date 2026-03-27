@@ -1,5 +1,5 @@
 ---
-id: task-split-workflow-runtime-ts
+id: task-split-workflow-runtime-dispatch-ts
 title: Split workflow/runtime.ts — extract dispatch logic into runtime-dispatch.ts
 status: ready
 priority: p2
