@@ -7,6 +7,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 ## Key Modules
 
+- `types.ts` — Workflow definition types and runtime execution types (triggers, step kinds, run status, metadata, context). 331 lines — split into `run-types.ts` is in progress.
 - `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, dispatch, idle loop. ~298 lines.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
