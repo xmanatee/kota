@@ -1,7 +1,7 @@
 ---
 id: task-add-operator-digests-and-attention-alerts
 title: Add operator digests and attention alerts
-status: doing
+status: ready
 priority: p3
 area: observability
 summary: KOTA has failure and approval alerts but no digest or attention surface for patterns like repeated failures, budget pressure, stalled work, or significant completions. Add concise operator-facing summaries without duplicating existing alerts.
