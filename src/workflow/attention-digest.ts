@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EventBus } from "../event-bus.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
@@ -8,9 +9,11 @@ import {
   loadRecentRuns,
   type RunSummary,
 } from "../workflows/shared.js";
+import { PAUSE_SIGNAL_FILE } from "./runtime.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
 const DEFAULT_COST_WARN_THRESHOLD_USD = 25;
+const DEFAULT_COST_HARD_LIMIT_USD = 50;
 
 type AttentionItem = { label: string; detail: string };
 
@@ -98,11 +101,34 @@ export function subscribeAttentionDigest(
     writeJsonFileAtomic(counterFile, { count });
     if (count % DIGEST_EVERY_N_RUNS !== 0) return;
 
+    const recentRuns = loadRecentRuns(runsDir);
+    const totalCost = Object.values(computeCostByWorkflow(recentRuns)).reduce(
+      (a, b) => a + b,
+      0,
+    );
+    const hardLimit =
+      Number(process.env.KOTA_COST_HARD_LIMIT_USD) || DEFAULT_COST_HARD_LIMIT_USD;
+
+    if (totalCost > hardLimit) {
+      writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+      if (token && chatId) {
+        void callTelegramApi(token, "sendMessage", {
+          chat_id: chatId,
+          text: `Cost circuit breaker tripped: $${totalCost.toFixed(2)} spent in last 24h (hard limit: $${hardLimit}). Autonomous dispatch paused. Delete \`.kota/${PAUSE_SIGNAL_FILE}\` to resume.`,
+          parse_mode: "Markdown",
+        }).catch((err: unknown) => {
+          log?.(`Failed to send circuit breaker alert: ${(err as Error).message}`);
+        });
+      }
+      return;
+    }
+
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
     if (!token || !chatId) return;
 
-    const recentRuns = loadRecentRuns(runsDir);
     const items = detectAttentionItems(projectDir, recentRuns);
     if (items.length === 0) return;
 

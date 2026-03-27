@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   readdirSync,
   rmSync,
@@ -99,6 +100,7 @@ describe("subscribeAttentionDigest", () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
     delete process.env.KOTA_DIGEST_COST_THRESHOLD;
+    delete process.env.KOTA_COST_HARD_LIMIT_USD;
   });
 
   function emitCompletions(n: number, workflow = "builder", status: "success" | "failed" | "interrupted" = "success"): void {
@@ -261,5 +263,66 @@ describe("subscribeAttentionDigest", () => {
     // Sanity check: each test starts with a fresh runsDir
     const entries = readdirSync(runsDir);
     expect(entries).toHaveLength(0);
+  });
+
+  describe("cost circuit breaker", () => {
+    const pausePath = () => join(projectDir, ".kota", "dispatch-paused");
+
+    it("does not write pause file when spend is below hard limit", async () => {
+      process.env.KOTA_COST_HARD_LIMIT_USD = "50";
+      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
+      emitCompletions(10);
+      await Promise.resolve();
+      expect(existsSync(pausePath())).toBe(false);
+    });
+
+    it("does not write pause file when soft threshold exceeded but hard limit is not", async () => {
+      process.env.KOTA_DIGEST_COST_THRESHOLD = "5";
+      process.env.KOTA_COST_HARD_LIMIT_USD = "50";
+      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
+      emitCompletions(10);
+      await Promise.resolve();
+      expect(existsSync(pausePath())).toBe(false);
+      // Soft warn digest should still fire
+      expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+      const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+      expect(body.text).toContain("Budget pressure");
+    });
+
+    it("writes pause file and sends alert when hard limit is exceeded", async () => {
+      process.env.KOTA_COST_HARD_LIMIT_USD = "5";
+      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
+      emitCompletions(10);
+      await Promise.resolve();
+      expect(existsSync(pausePath())).toBe(true);
+      expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+      const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+      expect(body.text).toContain("circuit breaker tripped");
+      expect(body.text).toContain("$10.00");
+      expect(body.text).toContain("dispatch-paused");
+    });
+
+    it("writes pause file even when Telegram is not configured", async () => {
+      process.env.KOTA_COST_HARD_LIMIT_USD = "5";
+      delete process.env.TELEGRAM_BOT_TOKEN;
+      delete process.env.TELEGRAM_ALERT_CHAT_ID;
+      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
+      emitCompletions(10);
+      await Promise.resolve();
+      expect(existsSync(pausePath())).toBe(true);
+      expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    });
+
+    it("does not send regular digest when hard limit is exceeded", async () => {
+      process.env.KOTA_COST_HARD_LIMIT_USD = "5";
+      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
+      makeTaskDir(projectDir, "doing", 3);
+      emitCompletions(10);
+      await Promise.resolve();
+      // Only one call — the circuit breaker alert, not a separate digest
+      expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+      const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+      expect(body.text).toContain("circuit breaker tripped");
+    });
   });
 });
