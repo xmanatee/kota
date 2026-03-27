@@ -3,8 +3,19 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
+import type { RepairSummary } from "../workflow/run-store-helpers.js";
+import { extractRepairSummary } from "../workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "../workflow/types.js";
 import { formatDuration, statusIcon } from "./utils.js";
+
+export function formatRepairLine(summary: RepairSummary): string {
+  const noun = summary.attempts === 1 ? "repair" : "repairs";
+  const costPart = summary.totalCostUsd > 0 ? ` ($${summary.totalCostUsd.toFixed(3)})` : "";
+  const parts = summary.failedChecksByAttempt.map(
+    (failures, i) => `[${i + 1}] ${failures.length > 0 ? failures.join(", ") : "passed"}`,
+  );
+  return `Repairs: ${summary.attempts} ${noun}${costPart} — ${parts.join(" / ")}`;
+}
 
 export function registerRunShowCommand(wfCmd: Command): void {
   wfCmd
@@ -90,9 +101,13 @@ export function registerRunShowCommand(wfCmd: Command): void {
           if (step.error) {
             console.log(`      Error: ${step.error}`);
           }
+          const repairSummary = extractRepairSummary(step.output);
+          if (repairSummary) {
+            console.log(`      ${formatRepairLine(repairSummary)}`);
+          }
           if (step.output !== undefined && step.output !== null) {
-            const summary = JSON.stringify(step.output);
-            const trimmed = summary.length > 120 ? `${summary.slice(0, 120)}…` : summary;
+            const outputSummary = JSON.stringify(step.output);
+            const trimmed = outputSummary.length > 120 ? `${outputSummary.slice(0, 120)}…` : outputSummary;
             console.log(`      Output: ${trimmed}`);
           }
         }
