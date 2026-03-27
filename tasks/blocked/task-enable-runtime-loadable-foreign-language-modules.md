@@ -3,7 +3,7 @@ id: task-enable-runtime-loadable-foreign-language-modules
 title: Enable runtime-loadable foreign-language modules
 status: blocked
 priority: p2
-area: modules
+area: extensions
 summary: Support modules implemented outside the in-process TypeScript runtime once the module protocol is stable enough.
 created_at: 2026-03-19
 updated_at: 2026-03-19
