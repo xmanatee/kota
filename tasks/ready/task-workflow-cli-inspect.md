@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cli-inspect
 title: Finish workflow CLI inspect error display
-status: backlog
+status: ready
 priority: p2
 area: cli
-summary: `kota workflow show` mostly works, but plain-text run errors are not displayed reliably because the command tries to read `error.txt` as JSON. Keep this in backlog while higher-leverage architecture cleanup is still in flight.
+summary: `kota workflow show` does not reliably surface stored run-level errors for failed runs because the command reads `error.txt` through the JSON reader. Small, narrow fix — promoted to ready now that architecture cleanup has settled.
 created_at: 2026-03-20
-updated_at: 2026-03-26
+updated_at: 2026-03-27
 ---
 
 ## Problem
