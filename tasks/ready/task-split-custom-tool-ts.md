@@ -1,7 +1,7 @@
 ---
 id: task-split-custom-tool-ts
 title: Split tools/custom-tool.ts — extract action handlers into custom-tool-handlers.ts
-status: backlog
+status: ready
 priority: p2
 area: code-quality
 summary: custom-tool.ts is 285 lines and approaching the 300-line limit. The three CRUD action handlers (handleCreate, handleList, handleRemove) plus the buildRunner execution bridge form a cohesive unit that can move to a new custom-tool-handlers.ts, leaving custom-tool.ts focused on the tool definition schema, registry init, and persistence lifecycle.
