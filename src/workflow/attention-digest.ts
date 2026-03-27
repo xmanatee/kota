@@ -1,4 +1,6 @@
+import { join } from "node:path";
 import type { EventBus } from "../event-bus.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { countRepoTasks } from "../repo-tasks.js";
 import { callTelegramApi } from "../telegram-client.js";
 import {
@@ -87,11 +89,14 @@ export function subscribeAttentionDigest(
   runsDir: string,
   log?: (message: string) => void,
 ): () => void {
-  let completionCount = 0;
+  // Counter is persisted so it survives daemon restarts (which happen after every builder build).
+  const counterFile = join(runsDir, "..", "attention-digest-counter.json");
 
   return bus.on("workflow.completed", () => {
-    completionCount++;
-    if (completionCount % DIGEST_EVERY_N_RUNS !== 0) return;
+    const saved = readOptionalJsonFile<{ count: number }>(counterFile);
+    const count = (saved?.count ?? 0) + 1;
+    writeJsonFileAtomic(counterFile, { count });
+    if (count % DIGEST_EVERY_N_RUNS !== 0) return;
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
