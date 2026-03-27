@@ -25,6 +25,7 @@ function allVerifyStepsPassed({ stepResults }: WorkflowStepContext): boolean {
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
+  dailyBudgetUsd: 20,
   triggers: [
     {
       event: "workflow.completed",

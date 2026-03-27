@@ -51,6 +51,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
     "Maintain a strong, deduplicated task portfolio by studying the codebase, recent work, and external ideas.",
+  dailyBudgetUsd: 5,
   triggers: [
     {
       event: "runtime.idle",
