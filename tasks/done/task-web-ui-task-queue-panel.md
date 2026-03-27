@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-task-queue-panel
 title: Add task queue panel to the web UI
-status: ready
+status: done
 priority: p2
 area: ui
 summary: The web UI shows workflow runs and cost but has no visibility into the task queue. Adding a task panel — listing tasks by state with title, priority, and summary — would let operators monitor and manage the work queue without needing CLI access. The task HTTP API already exists.

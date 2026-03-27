@@ -3,10 +3,13 @@ import type { ServerResponse } from "node:http";
 import { join } from "node:path";
 import { jsonResponse } from "./session-pool.js";
 
-type TaskSummary = {
+type TaskDetail = {
   id: string;
   title: string;
   priority: string;
+  area: string;
+  summary: string;
+  body: string;
 };
 
 type TasksResponse = {
@@ -17,10 +20,16 @@ type TasksResponse = {
     doing: number;
     blocked: number;
   };
-  doing: TaskSummary[];
+  tasks: {
+    doing: TaskDetail[];
+    ready: TaskDetail[];
+    backlog: TaskDetail[];
+    blocked: TaskDetail[];
+  };
 };
 
 const COUNTED_STATES = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
+const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
 
 function listTaskFiles(tasksDir: string, state: string): string[] {
   const dir = join(tasksDir, state);
@@ -45,15 +54,27 @@ function parseFrontmatter(content: string): Record<string, string> {
   return fields;
 }
 
-function readDoingTasks(tasksDir: string): TaskSummary[] {
-  const files = listTaskFiles(tasksDir, "doing");
-  const result: TaskSummary[] = [];
+function extractBody(content: string): string {
+  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);
+  return match ? match[1].trim() : "";
+}
+
+function readStateTasks(tasksDir: string, state: string): TaskDetail[] {
+  const files = listTaskFiles(tasksDir, state);
+  const result: TaskDetail[] = [];
   for (const file of files) {
     try {
-      const content = readFileSync(join(tasksDir, "doing", file), "utf-8");
+      const content = readFileSync(join(tasksDir, state, file), "utf-8");
       const fm = parseFrontmatter(content);
       if (fm.id && fm.title) {
-        result.push({ id: fm.id, title: fm.title, priority: fm.priority ?? "" });
+        result.push({
+          id: fm.id,
+          title: fm.title,
+          priority: fm.priority ?? "",
+          area: fm.area ?? "",
+          summary: fm.summary ?? "",
+          body: extractBody(content),
+        });
       }
     } catch {
       // skip unreadable files
@@ -67,6 +88,8 @@ export function handleTaskStatus(res: ServerResponse, projectDir = process.cwd()
   const counts = Object.fromEntries(
     COUNTED_STATES.map((state) => [state, listTaskFiles(tasksDir, state).length]),
   ) as TasksResponse["counts"];
-  const doing = readDoingTasks(tasksDir);
-  jsonResponse(res, 200, { counts, doing } satisfies TasksResponse);
+  const tasks = Object.fromEntries(
+    DETAIL_STATES.map((state) => [state, readStateTasks(tasksDir, state)]),
+  ) as TasksResponse["tasks"];
+  jsonResponse(res, 200, { counts, tasks } satisfies TasksResponse);
 }

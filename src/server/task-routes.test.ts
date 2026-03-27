@@ -59,9 +59,10 @@ describe("task-routes", () => {
       const { res, result } = mockResponse();
       handleTaskStatus(res, projectDir);
       expect(result.status).toBe(200);
-      const body = result.body as { counts: Record<string, number>; doing: unknown[] };
+      const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts).toMatchObject({ inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 });
-      expect(body.doing).toEqual([]);
+      expect(body.tasks.doing).toEqual([]);
+      expect(body.tasks.ready).toEqual([]);
     });
 
     it("counts tasks in each state", () => {
@@ -73,13 +74,14 @@ describe("task-routes", () => {
       const { res, result } = mockResponse();
       handleTaskStatus(res, projectDir);
       expect(result.status).toBe(200);
-      const body = result.body as { counts: Record<string, number>; doing: unknown[] };
+      const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts.ready).toBe(2);
       expect(body.counts.backlog).toBe(1);
       expect(body.counts.blocked).toBe(1);
       expect(body.counts.doing).toBe(0);
       expect(body.counts.inbox).toBe(0);
-      expect(body.doing).toEqual([]);
+      expect(body.tasks.doing).toEqual([]);
+      expect(body.tasks.ready).toHaveLength(2);
     });
 
     it("returns doing task metadata", () => {
@@ -87,18 +89,38 @@ describe("task-routes", () => {
         id: "task-active",
         title: "Active task",
         priority: "p1",
+        area: "infra",
+        summary: "A short summary",
       });
 
       const { res, result } = mockResponse();
       handleTaskStatus(res, projectDir);
       expect(result.status).toBe(200);
-      const body = result.body as { counts: Record<string, number>; doing: unknown[] };
+      const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts.doing).toBe(1);
-      expect(body.doing).toHaveLength(1);
-      const task = body.doing[0] as Record<string, string>;
+      expect(body.tasks.doing).toHaveLength(1);
+      const task = body.tasks.doing[0] as Record<string, string>;
       expect(task.id).toBe("task-active");
       expect(task.title).toBe("Active task");
       expect(task.priority).toBe("p1");
+      expect(task.area).toBe("infra");
+      expect(task.summary).toBe("A short summary");
+      expect(task.body).toContain("Some problem.");
+    });
+
+    it("returns tasks for ready, backlog, blocked states", () => {
+      writeTaskFile(projectDir, "ready", "r1", { id: "task-r1", title: "Ready task", priority: "p2", area: "ui" });
+      writeTaskFile(projectDir, "backlog", "b1", { id: "task-b1", title: "Backlog task", priority: "p3" });
+      writeTaskFile(projectDir, "blocked", "bl1", { id: "task-bl1", title: "Blocked task", priority: "p1" });
+
+      const { res, result } = mockResponse();
+      handleTaskStatus(res, projectDir);
+      const body = result.body as { tasks: Record<string, Array<Record<string, string>>> };
+      expect(body.tasks.ready).toHaveLength(1);
+      expect(body.tasks.ready[0].title).toBe("Ready task");
+      expect(body.tasks.ready[0].area).toBe("ui");
+      expect(body.tasks.backlog).toHaveLength(1);
+      expect(body.tasks.blocked).toHaveLength(1);
     });
 
     it("ignores AGENTS.md in task directories", () => {
