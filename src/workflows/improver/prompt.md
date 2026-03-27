@@ -42,10 +42,12 @@ Use these summaries to orient quickly. Do not re-fetch run history, git log, or 
 - Treat large process changes as experiments: make the hypothesis legible, leave enough evidence to assess later, and narrow or revert clearly failing experiments quickly.
 - Prefer fixes that make future explorer, builder, and improver runs more robust, legible, honest, and strategically effective.
 - Avoid metric theater and avoid adding analysis machinery unless it changes decisions.
+- Treat repeated narrow task shapes as evidence of process drift. If recent runs cluster around split-only, rename-only, dedup-only, or test-only cleanup tasks, improve the queue-shaping guidance and task selection logic instead of just accepting the pattern.
 - Do not keep stale mechanisms alive for compatibility. If a path is obsolete, remove it.
 - If the same problem resists repeated prompt tweaks, fix the protocol, data flow, or validation instead of layering more advice.
 - Do not create or reprioritize product tasks. Explorer owns `tasks/`.
 - Do not optimize for shaving one or two iterations if that harms work quality, ambition, or strategic range.
+- Do not confuse smaller files, more micro-refactors, or local neatness with higher-leverage progress. Optimize for better future work, not just tidier recent diffs.
 - If you change behavior, validate the exact behavior you changed while you work.
 - This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
 - If you changed the repo: stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt` (the run directory is shown in the session context), and do **not** run `git commit`. The workflow commits your staged changes only after all verification steps pass — committing directly bypasses the structural verification gate.

@@ -37,8 +37,8 @@ const mcpServerModule: KotaExtension = {
 
 				// Load modules to register their tools (commandsOnly=false)
 				const loader = new ExtensionLoader(config, false);
-				const pluginModules = await discoverExtensions(process.cwd());
-				await loader.loadAll([...builtinExtensions, ...pluginModules]);
+				const extensions = await discoverExtensions(process.cwd());
+				await loader.loadAll([...builtinExtensions, ...extensions]);
 
 				const toolFilter = opts.tools
 					? (opts.tools as string).split(",").map((s: string) => s.trim())

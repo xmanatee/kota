@@ -13,7 +13,7 @@ import {
 	validateManifest,
 } from "../../manifest/index.js";
 import type { ToolResult } from "../index.js";
-import { deregisterModuleTools, registerTool } from "../index.js";
+import { deregisterExtensionTools, registerTool } from "../index.js";
 import {
 	addLoadedModule,
 	isModuleLoaded,
@@ -60,7 +60,7 @@ export function handleCreate(
 
 	// If replacing, unload existing
 	if (isModuleLoaded(manifest.name)) {
-		deregisterModuleTools(manifest.name);
+		deregisterExtensionTools(manifest.name);
 		removeLoadedModule(manifest.name);
 	}
 
@@ -73,7 +73,7 @@ export function handleCreate(
 				registerTool(def.tool, def.runner, manifest.name);
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
-				deregisterModuleTools(manifest.name);
+				deregisterExtensionTools(manifest.name);
 				return {
 					content: `Error registering tool "${def.tool.name}": ${msg}`,
 					is_error: true,
@@ -164,7 +164,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 	}
 
 	if (wasLoaded) {
-		deregisterModuleTools(name);
+		deregisterExtensionTools(name);
 		removeLoadedModule(name);
 	}
 

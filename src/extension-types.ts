@@ -1,7 +1,7 @@
 /**
  * KotaExtension protocol — the standard unit of functionality in KOTA.
  *
- * A module can register tools, CLI commands, HTTP routes, and event
+ * An extension can register tools, CLI commands, HTTP routes, and event
  * subscriptions. Built-in features and third-party extensions use the
  * same protocol.
  */
@@ -16,7 +16,7 @@ import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "./workflow/types.js";
 
-/** Scoped logger available to modules via ExtensionContext. */
+/** Scoped logger available to extensions via ExtensionContext. */
 export type ExtensionLogger = {
   info: (msg: string, data?: unknown) => void;
   warn: (msg: string, data?: unknown) => void;
@@ -24,7 +24,7 @@ export type ExtensionLogger = {
   debug: (msg: string, data?: unknown) => void;
 };
 
-/** Event proxy available to modules via ExtensionContext. */
+/** Event proxy available to extensions via ExtensionContext. */
 export type ExtensionEventProxy = {
   /** Emit an event on the bus. No-op if bus not available. */
   emit(event: string, payload: Record<string, unknown>): void;
@@ -42,11 +42,11 @@ export type ExtensionSession = {
 export type CreateSessionOptions = {
   model?: string;
   label?: string;
-  /** If true, conversation won't be saved to history. Default: true for module sessions. */
+  /** If true, conversation won't be saved to history. Default: true for extension sessions. */
   noHistory?: boolean;
 };
 
-/** A tool definition — used by modules and plugins alike. */
+/** A tool definition — used by extensions and plugins alike. */
 export type ToolDef = {
   tool: Anthropic.Tool;
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;
@@ -54,29 +54,29 @@ export type ToolDef = {
   group?: string;
 };
 
-/** An HTTP route registered by a module. */
+/** An HTTP route registered by an extension. */
 export type RouteRegistration = {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   path: string;
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
 };
 
-/** Context provided to modules during initialization. */
+/** Context provided to extensions during initialization. */
 export type ExtensionContext = {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
-  /** Scoped file-based storage for this module (`.kota/modules/<name>/`). */
+  /** Scoped file-based storage for this extension (`.kota/extensions/<name>/`). */
   storage: ExtensionStorage;
   /** Register a custom tool group with optional auto-detect regex. */
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
-  /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
+  /** Get HTTP routes registered by all loaded extensions. Decouples extensions from each other. */
   getRoutes: () => RouteRegistration[];
   /** Get workflow definitions contributed by loaded extensions. */
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
-  /** Get this module's config section from the KOTA config. */
+  /** Get this extension's config section from the KOTA config. */
   getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
-  /** Scoped logger — messages prefixed with `[module:<name>]`. */
+  /** Scoped logger — messages prefixed with `[extension:<name>]`. */
   log: ExtensionLogger;
   /** Get a secret value by name. Returns null if not found or store not initialized. */
   getSecret: (key: string) => string | null;
@@ -86,7 +86,7 @@ export type ExtensionContext = {
   events: ExtensionEventProxy;
   /** Create an agent session without importing core types. */
   createSession: (options?: CreateSessionOptions) => ExtensionSession;
-  /** Register this module as a provider for a service type (e.g., "memory", "knowledge"). */
+  /** Register this extension as a provider for a service type (e.g., "memory", "knowledge"). */
   registerProvider: (type: string, provider: unknown) => void;
   /** Get the active provider for a service type. Returns null if none registered. */
   getProvider: <T>(type: string) => T | null;
@@ -99,40 +99,40 @@ export type ExtensionContext = {
 /**
  * KotaExtension — the pluggable unit of KOTA functionality.
  *
- * Modules extend KOTA's capabilities through a declarative protocol:
+ * Extensions extend KOTA's capabilities through a declarative protocol:
  * - `tools` — register agent tools
  * - `commands` — add CLI subcommands (appear in `kota --help`)
  * - `routes` — add HTTP endpoints (available when server runs)
  * - `workflows` — contribute automation (event, cron, interval, idle)
  *
- * Built-in modules ship with KOTA but use the same protocol as external ones.
- * The core without any modules loaded still functions as a basic agent.
+ * Built-in extensions ship with KOTA but use the same protocol as external ones.
+ * The core without any extensions loaded still functions as a basic agent.
  */
 export type KotaExtension = {
-  /** Unique module identifier (e.g. "memory", "telegram", "web"). */
+  /** Unique extension identifier (e.g. "memory", "telegram", "web"). */
   name: string;
   /** Semver version string. */
   version?: string;
-  /** Short description of what this module does. */
+  /** Short description of what this extension does. */
   description?: string;
-  /** Names of modules that must be loaded before this one. */
+  /** Names of extensions that must be loaded before this one. */
   dependencies?: string[];
 
   /**
-   * Tools this module provides. Registered during load.
+   * Tools this extension provides. Registered during load.
    * Can be a static array or a factory that receives ExtensionContext,
-   * allowing tool runners to access module services via closure.
+   * allowing tool runners to access extension services via closure.
    */
   tools?: ToolDef[] | ((ctx: ExtensionContext) => ToolDef[]);
 
   /**
-   * CLI commands this module adds. Called once at load time.
+   * CLI commands this extension adds. Called once at load time.
    * Returned commands are added to the main program — they appear in `kota --help`.
    */
   commands?: (ctx: ExtensionContext) => Command[];
 
   /**
-   * HTTP routes this module adds. Called when the server starts.
+   * HTTP routes this extension adds. Called when the server starts.
    * Routes are matched by method + path in the HTTP request handler.
    */
   routes?: (ctx: ExtensionContext) => RouteRegistration[];
@@ -158,7 +158,7 @@ export type KotaExtension = {
    */
   agents?: AgentDef[];
 
-  /** Called after the module is loaded and tools are registered. */
+  /** Called after the extension is loaded and tools are registered. */
   onLoad?: (ctx: ExtensionContext) => Promise<void> | void;
 
   /** Called on shutdown — clean up resources, close connections. */

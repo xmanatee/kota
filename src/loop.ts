@@ -57,7 +57,7 @@ export class AgentSession {
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker!: VerifyTracker;
   private mcpManager: McpManager | null = null;
-  private moduleLoader!: ExtensionLoader;
+  private extensionLoader!: ExtensionLoader;
   private transport!: Transport;
   private sigintHandler!: () => void;
   private closed = false;

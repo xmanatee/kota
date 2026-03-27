@@ -2,34 +2,34 @@ import type { ExtensionStorage } from "./extension-storage.js";
 import type { KotaExtension } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
 import { getToolMiddleware } from "./tool-middleware.js";
-import { deregisterModuleTools } from "./tools/index.js";
+import { deregisterExtensionTools } from "./tools/index.js";
 
 export interface LifecycleState {
-  modules: KotaExtension[];
-  moduleStorages: Map<string, ExtensionStorage>;
-  moduleToolCounts: Map<string, number>;
-  moduleRegistry: Map<string, KotaExtension>;
+  extensions: KotaExtension[];
+  extensionStorages: Map<string, ExtensionStorage>;
+  extensionToolCounts: Map<string, number>;
+  extensionRegistry: Map<string, KotaExtension>;
   verbose: boolean;
 }
 
-export function getModuleDependents(moduleName: string, modules: KotaExtension[]): string[] {
-  return modules
+export function getModuleDependents(moduleName: string, extensions: KotaExtension[]): string[] {
+  return extensions
     .filter((m) => m.dependencies?.includes(moduleName))
     .map((m) => m.name);
 }
 
 export async function unloadModule(moduleName: string, state: LifecycleState): Promise<boolean> {
-  const idx = state.modules.findIndex((m) => m.name === moduleName);
+  const idx = state.extensions.findIndex((m) => m.name === moduleName);
   if (idx < 0) return false;
 
-  const dependents = getModuleDependents(moduleName, state.modules);
+  const dependents = getModuleDependents(moduleName, state.extensions);
   if (dependents.length > 0) {
     throw new Error(
       `Cannot unload "${moduleName}": depended on by ${dependents.map((d) => `"${d}"`).join(", ")}`,
     );
   }
 
-  const mod = state.modules[idx];
+  const mod = state.extensions[idx];
 
   if (mod.onUnload) {
     try {
@@ -40,11 +40,11 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
     }
   }
 
-  deregisterModuleTools(moduleName);
+  deregisterExtensionTools(moduleName);
   getToolMiddleware().removeByOwner(moduleName);
-  state.moduleStorages.delete(moduleName);
-  state.moduleToolCounts.delete(moduleName);
-  state.modules.splice(idx, 1);
+  state.extensionStorages.delete(moduleName);
+  state.extensionToolCounts.delete(moduleName);
+  state.extensions.splice(idx, 1);
 
   if (state.verbose) console.error(`[kota] Extension "${moduleName}" unloaded`);
   return true;
@@ -55,10 +55,10 @@ export async function reloadModule(
   state: LifecycleState,
   loadFn: (mod: KotaExtension) => Promise<void>,
 ): Promise<boolean> {
-  const mod = state.moduleRegistry.get(moduleName);
+  const mod = state.extensionRegistry.get(moduleName);
   if (!mod) return false;
 
-  if (state.modules.some((m) => m.name === moduleName)) {
+  if (state.extensions.some((m) => m.name === moduleName)) {
     await unloadModule(moduleName, state);
   }
 
@@ -69,7 +69,7 @@ export async function reloadModule(
 }
 
 export async function unloadAllModules(state: LifecycleState): Promise<void> {
-  for (const mod of [...state.modules].reverse()) {
+  for (const mod of [...state.extensions].reverse()) {
     if (mod.onUnload) {
       try {
         await mod.onUnload();
@@ -80,11 +80,11 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
     }
   }
 
-  for (const mod of [...state.modules]) deregisterModuleTools(mod.name);
-  state.modules.splice(0);
-  state.moduleRegistry.clear();
-  state.moduleStorages.clear();
-  state.moduleToolCounts.clear();
+  for (const mod of [...state.extensions]) deregisterExtensionTools(mod.name);
+  state.extensions.splice(0);
+  state.extensionRegistry.clear();
+  state.extensionStorages.clear();
+  state.extensionToolCounts.clear();
 
   const reg = getProviderRegistry();
   if (reg) reg.clear();

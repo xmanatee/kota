@@ -19,10 +19,10 @@ export type ExtensionLoaderOptions = {
 };
 
 export class ExtensionLoader {
-  private modules: KotaExtension[] = [];
-  private moduleStorages = new Map<string, ExtensionStorage>();
-  private moduleRegistry = new Map<string, KotaExtension>();
-  private moduleToolCounts = new Map<string, number>();
+  private extensions: KotaExtension[] = [];
+  private extensionStorages = new Map<string, ExtensionStorage>();
+  private extensionRegistry = new Map<string, KotaExtension>();
+  private extensionToolCounts = new Map<string, number>();
   private skillContents: string[] = [];
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private bus: EventBus | null = null;
@@ -52,10 +52,10 @@ export class ExtensionLoader {
 
   private get lifecycleState(): LifecycleState {
     return {
-      modules: this.modules,
-      moduleStorages: this.moduleStorages,
-      moduleToolCounts: this.moduleToolCounts,
-      moduleRegistry: this.moduleRegistry,
+      extensions: this.extensions,
+      extensionStorages: this.extensionStorages,
+      extensionToolCounts: this.extensionToolCounts,
+      extensionRegistry: this.extensionRegistry,
       verbose: this.verbose,
     };
   }
@@ -65,7 +65,7 @@ export class ExtensionLoader {
       cwd: this.cwd,
       verbose: this.verbose,
       config: this.config,
-      moduleStorages: this.moduleStorages,
+      moduleStorages: this.extensionStorages,
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
       getContributedWorkflows: () => this.getContributedWorkflows(),
@@ -86,13 +86,13 @@ export class ExtensionLoader {
   }
 
   async load(mod: KotaExtension): Promise<void> {
-    if (this.modules.some((m) => m.name === mod.name)) {
+    if (this.extensions.some((m) => m.name === mod.name)) {
       throw new Error(`Duplicate module name: "${mod.name}"`);
     }
 
     if (mod.dependencies) {
       for (const dep of mod.dependencies) {
-        if (!this.modules.some((m) => m.name === dep)) {
+        if (!this.extensions.some((m) => m.name === dep)) {
           throw new Error(`Extension "${mod.name}" requires "${dep}" which is not loaded`);
         }
       }
@@ -108,7 +108,7 @@ export class ExtensionLoader {
         registerTool(def.tool, def.runner, mod.name);
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }
-      this.moduleToolCounts.set(mod.name, tools.length);
+      this.extensionToolCounts.set(mod.name, tools.length);
     }
 
     if (mod.workflows && !this.commandsOnly) {
@@ -131,10 +131,10 @@ export class ExtensionLoader {
       }
     }
 
-    this.modules.push(mod);
-    this.moduleRegistry.set(mod.name, mod);
+    this.extensions.push(mod);
+    this.extensionRegistry.set(mod.name, mod);
     if (this.verbose) {
-      const tc = this.moduleToolCounts.get(mod.name) ?? 0;
+      const tc = this.extensionToolCounts.get(mod.name) ?? 0;
       console.error(`[kota] Extension "${mod.name}" loaded (${tc} tools)`);
     }
   }
@@ -150,14 +150,14 @@ export class ExtensionLoader {
       }
     }
     this.activateConfiguredProviders();
-    if (this.modules.length > 0 && this.verbose) {
-      console.error(`[kota] Extensions: ${this.modules.length} loaded, ${this.getToolCount()} tool(s)`);
+    if (this.extensions.length > 0 && this.verbose) {
+      console.error(`[kota] Extensions: ${this.extensions.length} loaded, ${this.getToolCount()} tool(s)`);
     }
   }
 
   getCommands(): Command[] {
     const commands: Command[] = [];
-    for (const mod of this.modules) {
+    for (const mod of this.extensions) {
       if (mod.commands) {
         try {
           commands.push(...mod.commands(this.createContext(mod.name)));
@@ -175,7 +175,7 @@ export class ExtensionLoader {
     this.collectingRoutes = true;
     try {
       const routes: RouteRegistration[] = [];
-      for (const mod of this.modules) {
+      for (const mod of this.extensions) {
         if (mod.routes) {
           try {
             routes.push(...mod.routes(this.createContext(mod.name)));
@@ -205,7 +205,7 @@ export class ExtensionLoader {
   }
 
   getExtensionStorage(moduleName: string): ExtensionStorage | undefined {
-    return this.moduleStorages.get(moduleName);
+    return this.extensionStorages.get(moduleName);
   }
 
   async unload(moduleName: string): Promise<boolean> {
@@ -221,7 +221,7 @@ export class ExtensionLoader {
   }
 
   getDependents(moduleName: string): string[] {
-    return getModuleDependents(moduleName, this.modules);
+    return getModuleDependents(moduleName, this.extensions);
   }
 
   async unloadAll(): Promise<void> {
@@ -246,18 +246,18 @@ export class ExtensionLoader {
     }
   }
 
-  getLoadedModules(): string[] {
-    return this.modules.map((m) => m.name);
+  getLoadedExtensions(): string[] {
+    return this.extensions.map((m) => m.name);
   }
 
   getModuleCount(): number {
-    return this.modules.length;
+    return this.extensions.length;
   }
 
   getToolCount(): number {
     if (this.commandsOnly) return 0;
     let total = 0;
-    for (const count of this.moduleToolCounts.values()) total += count;
+    for (const count of this.extensionToolCounts.values()) total += count;
     return total;
   }
 }

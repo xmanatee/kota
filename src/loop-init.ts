@@ -56,7 +56,7 @@ export interface AgentLoopState {
   projectContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
-  moduleLoader: ExtensionLoader;
+  extensionLoader: ExtensionLoader;
   closed: boolean;
   sigintHandler: () => void;
 }
@@ -87,11 +87,11 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
     }
   }
 
-  const pluginModules = await discoverExtensions(undefined, state.verbose);
+  const extensions = await discoverExtensions(undefined, state.verbose);
   for (const { name } of listManifestModules()) markModuleLoaded(name);
-  await state.moduleLoader.loadAll([...builtinExtensions, ...pluginModules]);
+  await state.extensionLoader.loadAll([...builtinExtensions, ...extensions]);
 
-  const skillsPrompt = state.moduleLoader.getSkillsPrompt();
+  const skillsPrompt = state.extensionLoader.getSkillsPrompt();
   if (skillsPrompt) {
     state.context.appendSystemPrompt(skillsPrompt);
   }
@@ -102,7 +102,7 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
   }
 
   const bus = getEventBus();
-  if (bus) state.moduleLoader.setBus(bus);
+  if (bus) state.extensionLoader.setBus(bus);
 
   state.initialized = true;
   if (state.stateMachine.canTransition("ready")) {
@@ -142,7 +142,7 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
   resetToolTelemetry();
   resetAuditStore();
   resetAgentStatusProviders();
-  state.moduleLoader.unloadAll().catch(() => {});
+  state.extensionLoader.unloadAll().catch(() => {});
   state.mcpManager?.close().catch(() => {});
   if (state.sessionStartTime > 0) {
     tryEmit("session.end", {

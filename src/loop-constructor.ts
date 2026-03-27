@@ -139,9 +139,9 @@ export function initAgentSession(
     transport: state.transport,
   });
 
-  state.moduleLoader = new ExtensionLoader(options.config || {}, state.verbose);
+  state.extensionLoader = new ExtensionLoader(options.config || {}, state.verbose);
   setModuleInfoProvider(() =>
-    state.moduleLoader.getLoadedModules().map((name) => ({
+    state.extensionLoader.getLoadedExtensions().map((name) => ({
       name,
       toolCount: 0,
     })),
@@ -158,7 +158,7 @@ export function initAgentSession(
       };
     });
   }
-  state.moduleLoader.setSessionFactory(sessionFactory);
+  state.extensionLoader.setSessionFactory(sessionFactory);
 
   state.stateMachine = new SessionStateMachine();
   state.stateMachine.onChange((from, to, meta) => {

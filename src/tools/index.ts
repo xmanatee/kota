@@ -215,8 +215,8 @@ export function deregisterTool(name: string): boolean {
   return true;
 }
 
-/** Remove all tools registered by a specific module. */
-export function deregisterModuleTools(moduleName: string): void {
+/** Remove all tools registered by a specific extension. */
+export function deregisterExtensionTools(moduleName: string): void {
   ensureInit();
   const owned = moduleToolOwners.get(moduleName);
   if (!owned) return;

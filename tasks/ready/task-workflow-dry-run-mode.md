@@ -2,21 +2,25 @@
 id: task-workflow-dry-run-mode
 title: Add --dry-run flag to kota workflow run for step validation
 status: ready
-priority: p3
+priority: p2
 area: workflow
-summary: kota workflow run --dry-run should validate the workflow definition and simulate step execution order (including when predicates and parallel blocks) without running agent steps or executing consequential code. Useful for testing workflow changes before deploying them.
+summary: kota workflow run --dry-run should validate the workflow definition and simulate step execution order without running agents or mutating workflow state. This would make workflows safer to inspect and iterate on before real execution.
 created_at: 2026-03-27T05:19:47Z
-updated_at: 2026-03-27T13:02:00Z
+updated_at: 2026-03-27T16:06:00Z
 ---
 
 ## Problem
 
-When editing a workflow definition, there is no way to verify that the step graph is correct (step IDs, `when` predicates, parallel grouping) without actually running the workflow and waiting for an agent step to execute. Mistakes in `when` conditions or step ordering only surface at runtime.
+When editing a workflow definition, there is no way to verify that the step
+graph is correct (step IDs, `when` predicates, parallel grouping) without
+actually running the workflow and waiting for an agent step to execute.
+Mistakes in `when` conditions or step ordering only surface at runtime after a
+run directory is created and a step has already started.
 
 ## Desired Outcome
 
 - `kota workflow run <workflow> --dry-run` loads and validates the workflow definition.
-- Simulates the execution plan: prints the resolved step order, which steps would be skipped (due to `when` predicates evaluated against empty context), and which steps are parallel.
+- Prints the resolved execution plan, including step order, skipped steps (for `when` predicates evaluated against empty context), and parallel groups.
 - Code steps are validated (syntax/import check) but not executed.
 - Agent steps are listed with their model/tool config but not started.
 - Exits with a non-zero code if the definition is invalid.

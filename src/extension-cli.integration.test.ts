@@ -55,7 +55,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.loadAll(builtinExtensions);
 
     // Memory and scheduler modules provide tools
-    const moduleNames = loader.getLoadedModules();
+    const moduleNames = loader.getLoadedExtensions();
     expect(moduleNames).toContain("memory");
     expect(moduleNames).toContain("scheduler");
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
@@ -74,7 +74,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     const loader = new ExtensionLoader({});
     await loader.loadAll(builtinExtensions);
 
-    const names = loader.getLoadedModules();
+    const names = loader.getLoadedExtensions();
     expect(names).toHaveLength(15);
     expect(names).toContain("tool-cache");
     expect(names).toContain("working-memory");
@@ -146,7 +146,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
     expect(loader.getModuleCount()).toBe(0);
     expect(loader.getToolCount()).toBe(0);
-    expect(loader.getLoadedModules()).toEqual([]);
+    expect(loader.getLoadedExtensions()).toEqual([]);
 
     // Module tools should no longer be callable
     const memResult = await executeTool("memory", { action: "list" });
@@ -192,10 +192,10 @@ describe("module error resilience", () => {
     await loader.loadAll([brokenModule, ...builtinExtensions]);
 
     // Broken module should not be loaded
-    expect(loader.getLoadedModules()).not.toContain("broken");
+    expect(loader.getLoadedExtensions()).not.toContain("broken");
     // But all builtin modules should still load
-    expect(loader.getLoadedModules()).toContain("memory");
-    expect(loader.getLoadedModules()).toContain("scheduler");
+    expect(loader.getLoadedExtensions()).toContain("memory");
+    expect(loader.getLoadedExtensions()).toContain("scheduler");
     expect(loader.getModuleCount()).toBe(15);
 
     errSpy.mockRestore();
@@ -335,7 +335,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // Tool-providing modules (memory, scheduler) should have failed
     // because their tools are already registered
-    const loaded = loader2.getLoadedModules();
+    const loaded = loader2.getLoadedExtensions();
     expect(loaded).not.toContain("memory");
     expect(loaded).not.toContain("scheduler");
 

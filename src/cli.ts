@@ -211,8 +211,8 @@ async function main() {
 
   const config = loadConfig();
   const loader = new ExtensionLoader(config, false, { commandsOnly: true });
-  const pluginModules = await discoverExtensions(undefined, false);
-  await loader.loadAll([...builtinExtensions, ...pluginModules]);
+  const extensions = await discoverExtensions(undefined, false);
+  await loader.loadAll([...builtinExtensions, ...extensions]);
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }

@@ -40,7 +40,7 @@ describe("ExtensionLoader", () => {
     };
 
     await loader.load(mod);
-    expect(loader.getLoadedModules()).toEqual(["test-mod"]);
+    expect(loader.getLoadedExtensions()).toEqual(["test-mod"]);
     expect(loader.getModuleCount()).toBe(1);
     expect(loader.getToolCount()).toBe(1);
 
@@ -103,7 +103,7 @@ describe("ExtensionLoader", () => {
     // Intentionally pass in wrong order
     await loader.loadAll([dependent, dep]);
     expect(loadOrder).toEqual(["base", "ext"]);
-    expect(loader.getLoadedModules()).toEqual(["base", "ext"]);
+    expect(loader.getLoadedExtensions()).toEqual(["base", "ext"]);
   });
 
   it("calls onLoad with ExtensionContext including getRoutes", async () => {
@@ -267,7 +267,7 @@ describe("ExtensionLoader", () => {
     ]);
 
     // Bad module failed, good module loaded
-    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
+    expect(loader.getLoadedExtensions()).toEqual(["good-mod"]);
     expect(errSpy).toHaveBeenCalledWith(
       expect.stringContaining('Extension "bad-mod" failed to load: boom'),
     );
@@ -287,7 +287,7 @@ describe("ExtensionLoader", () => {
     });
 
     // Module is loaded (tracked)
-    expect(loader.getLoadedModules()).toEqual(["cmd-only-mod"]);
+    expect(loader.getLoadedExtensions()).toEqual(["cmd-only-mod"]);
     // But tools are NOT registered
     expect(loader.getToolCount()).toBe(0);
     const result = await executeTool("should_not_register", {});
@@ -325,14 +325,14 @@ describe("ExtensionLoader", () => {
     });
     await loader.load({ name: "mod-b", tools: [makeTool("tool_b")] });
 
-    expect(loader.getLoadedModules()).toEqual(["mod-a", "mod-b"]);
+    expect(loader.getLoadedExtensions()).toEqual(["mod-a", "mod-b"]);
 
     // tool_a works before unload
     const r1 = await executeTool("tool_a", {});
     expect(r1.content).toBe("result from tool_a");
 
     await loader.unload("mod-a");
-    expect(loader.getLoadedModules()).toEqual(["mod-b"]);
+    expect(loader.getLoadedExtensions()).toEqual(["mod-b"]);
 
     // tool_a gone, tool_b still works
     const r2 = await executeTool("tool_a", {});
@@ -386,7 +386,7 @@ describe("ExtensionLoader", () => {
     const reloaded = await loader.reload("reload-mod");
     expect(reloaded).toBe(true);
     expect(onLoad).toHaveBeenCalledTimes(2);
-    expect(loader.getLoadedModules()).toEqual(["reload-mod"]);
+    expect(loader.getLoadedExtensions()).toEqual(["reload-mod"]);
 
     // Tool still works after reload
     const r2 = await executeTool("reload_tool", {});
@@ -429,7 +429,7 @@ describe("scheduler module integration", () => {
     const loader = new ExtensionLoader({});
 
     await loader.load(schedulerModule);
-    expect(loader.getLoadedModules()).toEqual(["scheduler"]);
+    expect(loader.getLoadedExtensions()).toEqual(["scheduler"]);
     expect(loader.getToolCount()).toBe(1);
 
     // Schedule tool should be in the management group
@@ -472,7 +472,7 @@ describe("memory module integration", () => {
     const loader = new ExtensionLoader({});
 
     await loader.load(memoryModule);
-    expect(loader.getLoadedModules()).toEqual(["memory"]);
+    expect(loader.getLoadedExtensions()).toEqual(["memory"]);
     expect(loader.getToolCount()).toBe(1);
 
     // Memory tool should be in the management group

@@ -32,9 +32,12 @@ Use this context directly. Do not re-fetch git log, run counts, task counts, or 
 - Do not edit `src/`, workflow code, prompts, or process docs. Your job is to shape the work queue, not to implement or change process.
 - Triage `tasks/inbox/` first when it is non-empty.
 - Keep `tasks/ready/` stocked with a short, high-quality pull queue. Keep `tasks/backlog/` broader and useful.
-- Avoid converging on only tiny maintenance work. Keep a healthy mix of capability work, reliability work, and maintenance/refactor work.
+- Use `recentCommits` and `recentRuns` to detect narrowness. If recent builder work is dominated by one task shape such as split-only, rename-only, dedup-only, or test-only cleanup, treat that as a queue problem and widen the portfolio before adding more of the same.
+- Avoid converging on only tiny maintenance work. Keep a healthy mix of capability work, reliability work, operator experience work, concept cleanup, and maintenance/refactor work.
+- Keep at most one pure mechanical split, rename, or dedup task in `ready/` unless multiple are clearly blocking a larger change.
 - Before creating a new task, scan existing open and terminal task states. If a related task already exists, enrich, reprioritize, or move it instead of creating a duplicate.
 - Prefer larger, higher-leverage work over easy but low-impact queue filler.
+- File size alone is not enough to promote a split task. Only queue a split when the large file is actively hindering change, obscuring a core concept, or repeatedly causing mistakes.
 - When external research is useful, link to the source briefly inside the task body rather than copying long explanations.
 - If a task is too large, keep it outcome-focused and concise; do not bury it in implementation detail.
 - If nothing should change, leave the task queue untouched and stop.

@@ -1,7 +1,7 @@
 ---
 id: task-remove-remaining-module-terminology
 title: Rename module* → extension* in session internals and tool registry
-status: ready
+status: done
 priority: p2
 area: cleanup
 summary: >

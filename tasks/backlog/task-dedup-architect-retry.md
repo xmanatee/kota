@@ -6,7 +6,7 @@ priority: p3
 area: refactor
 summary: architect.ts exports STREAM_MAX_RETRIES and streamBackoff that nobody outside the directory imports, and architect-editor.ts duplicates private copies of both. Extract to src/architect/retry.ts so both files share one definition.
 created_at: 2026-03-27T12:50:00Z
-updated_at: 2026-03-27T13:02:00Z
+updated_at: 2026-03-27T16:06:00Z
 ---
 
 ## Problem
@@ -31,6 +31,7 @@ Both `architect.ts` and `architect-editor.ts` import from `./retry.js`. Remove t
 - No behaviour changes — only restructuring.
 - Keep the same retry values (RETRIES=2, same backoff formula).
 - Update `src/architect/AGENTS.md` to add `retry.ts` to Key Modules.
+- Keep this as low-priority cleanup unless the duplication starts blocking more meaningful architecture or capability work.
 
 ## Done When
 

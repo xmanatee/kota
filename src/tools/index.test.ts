@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
+import { clearCustomTools, deregisterExtensionTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -205,14 +205,14 @@ describe("child_process isolation", () => {
   });
 });
 
-describe("deregisterModuleTools", () => {
+describe("deregisterExtensionTools", () => {
   afterEach(() => clearCustomTools());
 
   it("removes only tools belonging to the specified module", async () => {
     registerTool(makeTool("mod_a_tool"), async () => ({ content: "a" }), "mod-a");
     registerTool(makeTool("mod_b_tool"), async () => ({ content: "b" }), "mod-b");
 
-    deregisterModuleTools("mod-a");
+    deregisterExtensionTools("mod-a");
 
     const ra = await executeTool("mod_a_tool", {});
     expect(ra.is_error).toBe(true);
@@ -223,13 +223,13 @@ describe("deregisterModuleTools", () => {
 
   it("is a no-op for unknown module name", () => {
     const before = getAllTools().length;
-    deregisterModuleTools("nonexistent");
+    deregisterExtensionTools("nonexistent");
     expect(getAllTools().length).toBe(before);
   });
 
   it("allows re-registration after deregister", async () => {
     registerTool(makeTool("reuse_tool"), async () => ({ content: "v1" }), "mod-x");
-    deregisterModuleTools("mod-x");
+    deregisterExtensionTools("mod-x");
 
     registerTool(makeTool("reuse_tool"), async () => ({ content: "v2" }), "mod-x");
     const r = await executeTool("reuse_tool", {});
