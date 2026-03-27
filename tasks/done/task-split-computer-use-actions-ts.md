@@ -1,7 +1,7 @@
 ---
 id: task-split-computer-use-actions-ts
 title: Split tools/computer-use-actions.ts — extract mac and linux implementations into platform files
-status: ready
+status: done
 priority: p2
 area: tools
 summary: computer-use-actions.ts is 285 lines and approaching the 300-line limit. It contains clearly separate Mac (cliclick/osascript) and Linux (xdotool) action implementations. Extracting each platform into its own file reduces the main file to shared utilities and the platform dispatch boundary.
