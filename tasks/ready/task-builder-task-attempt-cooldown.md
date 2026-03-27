@@ -1,7 +1,7 @@
 ---
 id: task-builder-task-attempt-cooldown
 title: Skip recently-failed tasks for N builder runs (attempt cooldown)
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: After a builder marks a task notDone or failed, it should not immediately re-attempt it. Adding a per-task cooldown (skip for N runs or T minutes after a failed attempt) prevents tight retry loops on hard tasks and keeps the queue from spinning on the same stuck work.

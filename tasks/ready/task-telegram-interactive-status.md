@@ -1,7 +1,7 @@
 ---
 id: task-telegram-interactive-status
 title: Add inbound /status Telegram command to KOTA daemon
-status: backlog
+status: ready
 priority: p2
 area: channel
 summary: Telegram is currently used only for outbound alerts. Adding a simple /status inbound command would let operators query the current dispatch state, active run, and today's spend from Telegram without needing terminal access. The bot client and server infrastructure already exist.
