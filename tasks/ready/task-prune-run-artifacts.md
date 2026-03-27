@@ -1,12 +1,12 @@
 ---
 id: task-prune-run-artifacts
 title: Auto-prune old run artifacts from .kota/runs/
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: .kota/runs/ accumulates a run directory for every workflow execution with no cleanup. At 815+ completed runs this is a real disk growth concern. Add a configurable retention policy that prunes runs older than N days.
 created_at: 2026-03-27T16:12:00Z
-updated_at: 2026-03-27T16:12:00Z
+updated_at: 2026-03-27T16:30:18Z
 ---
 
 ## Problem
