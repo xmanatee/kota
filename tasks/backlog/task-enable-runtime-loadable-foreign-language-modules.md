@@ -6,7 +6,7 @@ priority: p2
 area: extensions
 summary: Support modules implemented outside the in-process TypeScript runtime once the module protocol is stable enough.
 created_at: 2026-03-19T00:00:00Z
-updated_at: 2026-03-27T16:30:18Z
+updated_at: 2026-03-27T18:33:05Z
 ---
 
 ## Problem
@@ -24,10 +24,10 @@ runtime-loaded or foreign-language modules realistic.
 
 - Do not fake this with partial adapters that keep the old coupling underneath.
 - The prerequisite is a cleaner, smaller module protocol.
-- This is blocked until the current module boundary work is simpler and more stable.
+- This is blocked until the current module boundary work is simpler and more stable. The extension rename cleanup (task-rename-extension-private-module-storage) is the last piece of that work. Once it lands, this task should be re-evaluated for concrete next steps.
 
 ## Done When
 
 - The blocking protocol and runtime issues are resolved.
-- A concrete external-module execution model is viable.
-- The task can move back to `backlog/` or `ready/` with a sound plan.
+- A concrete external-module execution model exists and is ready to prototype.
+- This task is moved to `ready/` with a sound implementation plan.
