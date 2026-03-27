@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-runtime-dispatch-ts
 title: Split workflow/runtime.ts — extract dispatch logic into runtime-dispatch.ts
-status: ready
+status: done
 priority: p2
 area: refactor
 summary: workflow/runtime.ts is 297 lines, at the 300-line limit. The private dispatch methods (maybeStartNext, runWorkflow, loadDefinitions, emitIdleEvent) form a cohesive dispatch/lifecycle group that can move to a new runtime-dispatch.ts, leaving WorkflowRuntime as the public interface and state container.

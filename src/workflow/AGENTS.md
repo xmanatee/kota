@@ -9,7 +9,8 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 - `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, and related config. 215 lines.
 - `run-types.ts` — Runtime execution types: run status, step status, active run, queued run, execution context, predicates, repair config, step/run results.
-- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, dispatch, idle loop. ~298 lines.
+- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. ~236 lines.
+- `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
 - `budget-guard.ts` — `BudgetGuard`: daily spend tracking and Telegram budget alerts.

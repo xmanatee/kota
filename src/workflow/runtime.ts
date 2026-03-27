@@ -4,19 +4,19 @@ import type { KotaConfig } from "../config.js";
 import type { BusEnvelope } from "../event-bus.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
-import { getBuiltinWorkflowDefinitions } from "./registry.js";
-import { executeWorkflowRun } from "./run-executor.js";
-import {
-  enqueueMatchingWorkflows,
-  workflowUsesAgent,
-} from "./run-executor-utils.js";
+import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import {
+  emitIdleEvent,
+  loadDefinitions,
+  maybeStartNext,
+  runWorkflow,
+  type WorkflowRuntimeDispatchState,
+} from "./runtime-dispatch.js";
+import {
   ABORT_SIGNAL_FILE,
-  checkAbortSignal,
-  checkReloadSignal,
   PAUSE_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "./runtime-signals.js";
@@ -26,10 +26,7 @@ import type {
   WorkflowDefinition,
   WorkflowRunTrigger,
 } from "./types.js";
-import {
-  validateWorkflowDefinitions,
-  WorkflowDefinitionError,
-} from "./validation.js";
+import { WorkflowDefinitionError } from "./validation.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 export type { WorkflowRuntimeConfig };
@@ -204,88 +201,29 @@ export class WorkflowRuntime {
   }
 
   private loadDefinitions(): WorkflowDefinition[] {
-    const definitions = this.workflowInputs ?? getBuiltinWorkflowDefinitions();
-    const validated = validateWorkflowDefinitions(definitions, this.projectDir);
-    this.store.setDefinitionsLoadedAt(new Date().toISOString());
-    return validated;
+    return loadDefinitions(this as unknown as WorkflowRuntimeDispatchState);
   }
 
   private emitIdleEvent(): void {
-    checkAbortSignal(this.projectDir, this.activeRuns, (msg) => this.log(msg));
-    checkReloadSignal(
-      this.projectDir,
-      () => this.loadDefinitions(),
-      (defs) => {
-        this.scheduleTriggers.reconcile(defs);
-        this.definitions = defs;
-      },
-      (msg) => this.log(msg),
-    );
-    this.maybeStartNext(); // pick up queued items that were held by pause
-    if (this.stopping || this.activeRuns.size > 0 || this.wfQueue.length > 0) return;
-    this.runtimeConfig.bus.emit("runtime.idle", {
-      timestamp: new Date().toISOString(),
-      idleIntervalMs: this.idleIntervalMs,
-    });
+    emitIdleEvent(this as unknown as WorkflowRuntimeDispatchState);
   }
 
   private handleEvent(envelope: BusEnvelope): void {
     if (this.stopping) return;
     enqueueMatchingWorkflows(envelope, this.definitions, (def, trigger, run) =>
       this.wfQueue.enqueue(def, trigger, run));
-    this.maybeStartNext();
+    maybeStartNext(this as unknown as WorkflowRuntimeDispatchState);
   }
 
   private maybeStartNext(): void {
-    if (this.stopping || this.dispatchPaused) return;
-    if (existsSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
-
-    const budget = this.config?.dailyBudgetUsd;
-    if (budget != null && this.budgetGuard.check(this.store, budget, (msg) => this.log(msg))) return;
-
-    while (this.activeRuns.size < this.maxConcurrentRuns) {
-      const queued = this.wfQueue.pick();
-      if (!queued) break;
-
-      const definition = this.definitions.find((d) => d.name === queued.workflowName);
-      if (!definition) continue;
-
-      this.log(`Dispatching workflow "${queued.workflowName}"`);
-      void this.runWorkflow(definition, queued.trigger);
-    }
+    maybeStartNext(this as unknown as WorkflowRuntimeDispatchState);
   }
 
   private async runWorkflow(
     definition: WorkflowDefinition,
     trigger: WorkflowRunTrigger,
   ): Promise<void> {
-    const { promise, abortController } = executeWorkflowRun(definition, trigger, {
-      projectDir: this.projectDir,
-      bus: this.runtimeConfig.bus,
-      store: this.store,
-      model: this.model,
-      config: this.config,
-      log: (message) => this.log(message),
-    });
-    this.activeRuns.set(definition.name, { promise, abortController });
-
-    try {
-      const result = await promise;
-      if (result.agentBackoff) {
-        this.backoff.apply(result.agentBackoff);
-        return;
-      }
-      if (
-        workflowUsesAgent(definition) &&
-        (result.metadata.status === "success" ||
-          result.metadata.status === "completed-with-warnings")
-      ) {
-        this.backoff.clear();
-      }
-    } finally {
-      this.activeRuns.delete(definition.name);
-      this.maybeStartNext();
-    }
+    return runWorkflow(this as unknown as WorkflowRuntimeDispatchState, definition, trigger);
   }
 
   private log(message: string): void {
