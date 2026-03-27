@@ -89,7 +89,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: (ctx) =>
         isClaimTaskResult(ctx.stepOutputs["claim-task"]) && stepSucceeded("preflight-lint")(ctx),
       input: (ctx) => ({ command: "npm test", stream_output: false, timeout_ms: 300_000, cwd: ctx.projectDir }),
-      retry: { maxAttempts: 2, initialDelayMs: 10_000, backoffFactor: 1 },
+      retry: { maxAttempts: 3, initialDelayMs: 30_000, backoffFactor: 1 },
     },
     {
       id: "build",
