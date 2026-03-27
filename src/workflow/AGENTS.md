@@ -7,7 +7,10 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 ## Key Modules
 
-- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, dispatch, schedule trigger management, agent backoff. Over the 300-line limit (655 lines); `task-split-workflow-runtime-ts` will extract schedule triggers (`schedule-triggers.ts`) and agent backoff (`agent-backoff.ts`) into dedicated modules.
+- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, dispatch, budget enforcement. ~382 lines.
+- `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue, pick, restore, persist.
+- `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
+- `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling.
 - `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
 - `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`.
 - `step-context.ts` — `createStepContext` and step context helpers.
