@@ -14,6 +14,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `loop-send.ts` — `runSend`; handles prompt dispatch and the agent turn loop.
 - `guardrails.ts` — policy enforcement: `assess`, `resolvePolicy`, config helpers, and exported types.
 - `guardrails-classify.ts` — risk classification: tool lists, pattern constants, and `classifyRisk`.
+- `file-diff.ts` — `simpleDiff` utility: line-based diff formatter for agent context display.
 
 ## AgentLoopState Cast Pattern
 
