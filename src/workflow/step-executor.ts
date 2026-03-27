@@ -492,21 +492,11 @@ async function runAgentRepairLoop(
   let totalCostUsd = typeof base.totalCostUsd === "number" ? base.totalCostUsd : 0;
   let lastContent = typeof base.content === "string" ? base.content : "";
 
-  for (let attempt = 1; attempt <= maxRepairAttempts; attempt++) {
-    const checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
-    const failures = checkResults.filter((r) => !r.passed);
+  let checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
+  let failures = checkResults.filter((r) => !r.passed);
 
-    if (failures.length === 0) break;
-
+  for (let attempt = 1; attempt <= maxRepairAttempts && failures.length > 0; attempt++) {
     const iteration: RepairIteration = { attempt, failures };
-
-    if (attempt === maxRepairAttempts) {
-      iterations.push(iteration);
-      throw new Error(
-        `Repair loop for step "${step.id}" exhausted budget (${maxRepairAttempts} attempt(s)). ` +
-          `Still failing: ${failures.map((f) => f.id).join(", ")}`,
-      );
-    }
 
     const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step);
     const repairResult = await executeRepairAgentIteration(
@@ -525,6 +515,16 @@ async function runAgentRepairLoop(
     lastContent = repairResult.text;
     totalTurns += repairResult.turns ?? 0;
     totalCostUsd += repairResult.totalCostUsd ?? 0;
+
+    checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
+    failures = checkResults.filter((r) => !r.passed);
+
+    if (failures.length > 0 && attempt === maxRepairAttempts) {
+      throw new Error(
+        `Repair loop for step "${step.id}" exhausted budget (${maxRepairAttempts} attempt(s)). ` +
+          `Still failing: ${failures.map((f) => f.id).join(", ")}`,
+      );
+    }
   }
 
   return { ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations };

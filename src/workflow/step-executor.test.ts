@@ -592,9 +592,9 @@ describe("executeStep repair loop", () => {
       ),
     ).rejects.toThrow('Repair loop for step "test-step" exhausted budget (2 attempt(s))');
 
-    // Initial agent + 1 repair agent (attempt 1 runs repair, attempt 2 exhausts)
-    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
-    // Checks run on attempt 1 and attempt 2 (budget exhaustion)
-    expect(runTool).toHaveBeenCalledTimes(2);
+    // Initial agent + 2 repair agents (one per attempt): maxRepairAttempts=2 means 2 repair runs
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    // Initial check + 1 post-repair check per attempt = 3 check rounds total
+    expect(runTool).toHaveBeenCalledTimes(3);
   });
 });
