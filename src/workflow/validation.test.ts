@@ -203,7 +203,7 @@ describe("workflow validation", () => {
         projectDir,
       ),
     ).toThrow(
-      'restart step "request-restart" may only require tool or code steps, got "agent" for "build"',
+      'restart step "request-restart" may only require tool, code, or parallel steps, got "agent" for "build"',
     );
   });
 

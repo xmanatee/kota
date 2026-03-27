@@ -42,7 +42,7 @@ export type BusEvents = {
     workflow: string;
     runId: string;
     stepId: string;
-    stepType: "tool" | "agent" | "emit" | "restart" | "code";
+    stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel";
     runDir: string;
     definitionPath: string;
     startedAt: string;
@@ -51,7 +51,7 @@ export type BusEvents = {
     workflow: string;
     runId: string;
     stepId: string;
-    stepType: "tool" | "agent" | "emit" | "restart" | "code";
+    stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel";
     status: "success" | "failed" | "skipped";
     durationMs: number;
     runDir: string;

@@ -192,12 +192,22 @@ export type WorkflowCodeStepInput = WorkflowBaseStep & {
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
 };
 
+export type WorkflowParallelGroupInput = {
+  id: string;
+  type: "parallel";
+  /** Code steps to run concurrently. Agent steps are not supported in parallel groups. */
+  steps: WorkflowCodeStepInput[];
+  when?: WorkflowPredicate;
+  continueOnFailure?: boolean;
+};
+
 export type WorkflowStepInput =
   | WorkflowToolStepInput
   | WorkflowAgentStepInput
   | WorkflowEmitStepInput
   | WorkflowRestartStepInput
-  | WorkflowCodeStepInput;
+  | WorkflowCodeStepInput
+  | WorkflowParallelGroupInput;
 
 export type WorkflowDefinitionInput = {
   name: string;
@@ -253,12 +263,22 @@ export type WorkflowCodeStep = WorkflowBaseStep & {
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
 };
 
+export type WorkflowParallelGroup = {
+  id: string;
+  type: "parallel";
+  /** Code steps to run concurrently. Agent steps are not supported in parallel groups. */
+  steps: WorkflowCodeStep[];
+  when?: WorkflowPredicate;
+  continueOnFailure?: boolean;
+};
+
 export type WorkflowStep =
   | WorkflowToolStep
   | WorkflowAgentStep
   | WorkflowEmitStep
   | WorkflowRestartStep
-  | WorkflowCodeStep;
+  | WorkflowCodeStep
+  | WorkflowParallelGroup;
 
 export type WorkflowDefinition = {
   name: string;

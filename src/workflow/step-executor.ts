@@ -145,5 +145,10 @@ export async function executeStep(
   }
   if (step.type === "emit") return executeEmitStep(step, context);
   if (step.type === "restart") return executeRestartStep(step, context);
+  if (step.type === "parallel") {
+    throw new Error(
+      `Parallel group "${step.id}" must be handled by the run executor, not executeStep`,
+    );
+  }
   return executeCodeStep(step, context);
 }

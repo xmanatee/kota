@@ -2,6 +2,7 @@ import { validateCronExpr } from "./cron.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinition,
+  WorkflowParallelGroupInput,
   WorkflowRestartStep,
   WorkflowStep,
   WorkflowStepInput,
@@ -22,6 +23,7 @@ import {
   validateAgentStep,
   validateCodeStep,
   validateEmitStep,
+  validateParallelGroup,
   validateRestartStep,
   validateToolStep,
 } from "./validation-steps.js";
@@ -134,9 +136,12 @@ function validateStep(
     return validateRestartStep(step, definitionPath, index);
   }
   if (step.type === "code") return validateCodeStep(step, definitionPath, index);
+  if (step.type === "parallel") {
+    return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index);
+  }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", or "code"`,
+    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", or "parallel"`,
     definitionPath,
   );
 }
@@ -197,6 +202,17 @@ export function validateWorkflowDefinitions(
         );
       }
       seenStepIds.add(step.id);
+      if (step.type === "parallel") {
+        for (const childStep of step.steps) {
+          if (seenStepIds.has(childStep.id)) {
+            throw new WorkflowDefinitionError(
+              `duplicate step id "${childStep.id}"`,
+              definitionPath,
+            );
+          }
+          seenStepIds.add(childStep.id);
+        }
+      }
     }
 
     const restartSteps = steps.filter(
@@ -249,9 +265,13 @@ export function validateWorkflowDefinitions(
         }
 
         const requiredStep = steps[requiredIndex];
-        if (requiredStep.type !== "tool" && requiredStep.type !== "code") {
+        if (
+          requiredStep.type !== "tool" &&
+          requiredStep.type !== "code" &&
+          requiredStep.type !== "parallel"
+        ) {
           throw new WorkflowDefinitionError(
-            `restart step "${restartStep.id}" may only require tool or code steps, got "${requiredStep.type}" for "${requiredId}"`,
+            `restart step "${restartStep.id}" may only require tool, code, or parallel steps, got "${requiredStep.type}" for "${requiredId}"`,
             definitionPath,
           );
         }

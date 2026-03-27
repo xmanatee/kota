@@ -93,6 +93,24 @@ export function registerRunShowCommand(wfCmd: Command): void {
           const dur = formatDuration(step.durationMs);
           const icon = step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
           const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : "";
+
+          if (step.type === "parallel") {
+            console.log(`  ${icon} ${step.id} [parallel] ${dur}${suffix}`);
+            if (step.error) {
+              console.log(`      Error: ${step.error}`);
+            }
+            const inner = (step.output as { steps?: Array<{ id: string; type: string; status: string; durationMs: number; error?: string; continueOnFailure?: boolean }> } | null)?.steps ?? [];
+            for (const childStep of inner) {
+              const childIcon = childStep.status === "failed" && childStep.continueOnFailure ? "⚠" : statusIcon(childStep.status as "success" | "failed" | "skipped");
+              const childSuffix = childStep.status === "failed" && childStep.continueOnFailure ? " (continued)" : "";
+              console.log(`    ║ ${childIcon} ${childStep.id} [${childStep.type}] ${formatDuration(childStep.durationMs)}${childSuffix}`);
+              if (childStep.error) {
+                console.log(`          Error: ${childStep.error}`);
+              }
+            }
+            continue;
+          }
+
           const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
           const repairSummary = extractRepairSummary(step.output);
           const agentCost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
