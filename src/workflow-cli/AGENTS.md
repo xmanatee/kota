@@ -6,6 +6,8 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `run-show.ts` — `kota workflow show <runId>` step-level display.
 - `logs.ts` — `kota workflow logs` log streaming.
 - `trigger.ts` — `kota workflow trigger` and manual-trigger commands.
+- `run.ts` — `kota workflow run --dry-run` command registration.
+- `dry-run.ts` — `buildDryRunPlan` and `formatDryRunPlan`; evaluates `when` predicates against empty context and prints the step execution plan.
 - `control.ts` — `kota workflow abort`, `pause`, `resume`, `reload`, and `status`.
 - `utils.ts` — shared formatting helpers (dates, durations, status icons).
 

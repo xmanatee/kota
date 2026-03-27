@@ -1,12 +1,12 @@
 ---
 id: task-workflow-dry-run-mode
 title: Add --dry-run flag to kota workflow run for step validation
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: kota workflow run --dry-run should validate the workflow definition and simulate step execution order without running agents or mutating workflow state. This would make workflows safer to inspect and iterate on before real execution.
 created_at: 2026-03-27T05:19:47Z
-updated_at: 2026-03-27T16:06:00Z
+updated_at: 2026-03-27T16:20:00Z
 ---
 
 ## Problem
