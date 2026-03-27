@@ -120,33 +120,4 @@ describe("manifest persistence edge cases", () => {
 		expect(loaded?.tools?.[0].language).toBe("python");
 	});
 
-	it("saveManifest with scripts preserves script definitions", () => {
-		const withScripts: ModuleManifest = {
-			name: "script-mod",
-			scripts: {
-				"daily-check": {
-					description: "Run daily",
-					steps: [{ tool: "shell", input: { command: "echo hi" } }],
-				},
-			},
-		};
-		saveManifest(withScripts, tmpDir);
-		const loaded = loadManifest("script-mod", tmpDir);
-		expect(loaded?.scripts?.["daily-check"]?.steps).toHaveLength(1);
-	});
-
-	it("saveManifest with eventHandlers preserves handler definitions", () => {
-		const withEvents: ModuleManifest = {
-			name: "event-mod",
-			eventHandlers: [{
-				event: "schedule.fire",
-				code: "print('fired')",
-				language: "python",
-			}],
-		};
-		saveManifest(withEvents, tmpDir);
-		const loaded = loadManifest("event-mod", tmpDir);
-		expect(loaded?.eventHandlers).toHaveLength(1);
-		expect(loaded?.eventHandlers?.[0].event).toBe("schedule.fire");
-	});
 });

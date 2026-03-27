@@ -4,13 +4,13 @@
  * All manifest functionality is split across focused submodules:
  * - types.ts      — ManifestToolDef, ModuleManifest, etc.
  * - validation.ts — validateManifest
- * - steps.ts      — resolveRef, resolveStepInput, evaluateCondition
- * - execution.ts  — manifestToModule, runModuleScript
+ * - steps.ts      — resolveRef, resolveStepInput, evaluateCondition (shared step utilities)
+ * - execution.ts  — manifestToModule
  * - persistence.ts — saveManifest, loadManifest, discoverManifestModules
  */
 
 
-export { manifestToModule, runModuleScript } from "./execution.js";
+export { manifestToModule } from "./execution.js";
 export {
 	deleteManifest,
 	discoverManifestModules,
@@ -26,9 +26,6 @@ export {
 	resolveStepInput,
 } from "./steps.js";
 export type {
-	ManifestEventHandler,
-	ManifestScriptDef,
-	ManifestStepDef,
 	ManifestToolDef,
 	ModuleManifest,
 	ValidationError,

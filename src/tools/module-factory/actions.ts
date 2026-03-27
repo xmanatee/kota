@@ -220,18 +220,6 @@ export function handleInfo(name: string | undefined): ToolResult {
 		}
 	}
 
-	if (manifest.scripts && Object.keys(manifest.scripts).length > 0) {
-		const scriptNames = Object.keys(manifest.scripts);
-		parts.push(`\nScripts (${scriptNames.length}):`);
-		for (const sName of scriptNames) {
-			const s = manifest.scripts[sName];
-			const stepCount = s.steps?.length || 0;
-			parts.push(
-				`  - ${sName}: ${s.description || "(no description)"} (${stepCount} steps)`,
-			);
-		}
-	}
-
 	if (manifest.dependencies && manifest.dependencies.length > 0) {
 		parts.push(`Dependencies: ${manifest.dependencies.join(", ")}`);
 	}

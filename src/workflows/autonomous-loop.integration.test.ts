@@ -94,6 +94,13 @@ function seedFixtureProject(projectDir: string): void {
     }),
   );
 
+  // Trivial package.json so preflight-lint and preflight-test pass instantly when
+  // the workflow runs shell commands with cwd: projectDir (exit 0 for all scripts).
+  writeFileSync(
+    join(projectDir, "package.json"),
+    JSON.stringify({ name: "test-fixture", scripts: { lint: "exit 0", test: "exit 0", typecheck: "exit 0", build: "exit 0" } }),
+  );
+
   // Initialize a git repo so that claimTask can use `git mv` to stage task moves atomically.
   execSync("git init && git add tasks/ready/", { cwd: projectDir });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {

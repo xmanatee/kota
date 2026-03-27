@@ -79,7 +79,17 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "tool",
       tool: "shell",
       when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
-      input: { command: "npm run lint", stream_output: false },
+      input: (ctx) => ({ command: "npm run lint", stream_output: false, cwd: ctx.projectDir }),
+    },
+    {
+      // Fail fast if the test baseline is already broken before the agent spends budget.
+      id: "preflight-test",
+      type: "tool",
+      tool: "shell",
+      when: (ctx) =>
+        isClaimTaskResult(ctx.stepOutputs["claim-task"]) && stepSucceeded("preflight-lint")(ctx),
+      input: (ctx) => ({ command: "npm test", stream_output: false, timeout_ms: 300_000, cwd: ctx.projectDir }),
+      retry: { maxAttempts: 2, initialDelayMs: 10_000, backoffFactor: 1 },
     },
     {
       id: "build",
@@ -87,7 +97,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
       agentName: "builder",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) =>
-        isClaimTaskResult(ctx.stepOutputs["claim-task"]) && stepSucceeded("preflight-lint")(ctx),
+        isClaimTaskResult(ctx.stepOutputs["claim-task"]) &&
+        stepSucceeded("preflight-lint")(ctx) &&
+        stepSucceeded("preflight-test")(ctx),
     },
     {
       id: "check-task-outcome",
@@ -104,21 +116,21 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "tool",
       tool: "shell",
       when: stepSucceeded("build"),
-      input: { command: "npm run typecheck", stream_output: false },
+      input: (ctx) => ({ command: "npm run typecheck", stream_output: false, cwd: ctx.projectDir }),
     },
     {
       id: "verify-lint",
       type: "tool",
       tool: "shell",
       when: stepSucceeded("build"),
-      input: { command: "npm run lint", stream_output: false },
+      input: (ctx) => ({ command: "npm run lint", stream_output: false, cwd: ctx.projectDir }),
     },
     {
       id: "verify-test",
       type: "tool",
       tool: "shell",
       when: stepSucceeded("build"),
-      input: { command: "npm test", stream_output: false, timeout_ms: 300_000 },
+      input: (ctx) => ({ command: "npm test", stream_output: false, timeout_ms: 300_000, cwd: ctx.projectDir }),
       retry: { maxAttempts: 2, initialDelayMs: 10_000, backoffFactor: 1 },
     },
     {
@@ -126,7 +138,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "tool",
       tool: "shell",
       when: stepSucceeded("build"),
-      input: { command: "npm run build", stream_output: false },
+      input: (ctx) => ({ command: "npm run build", stream_output: false, cwd: ctx.projectDir }),
     },
     {
       // Structural gate: commits staged changes only when all verification steps pass.

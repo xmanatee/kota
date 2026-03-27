@@ -1,12 +1,12 @@
 ---
 id: task-remove-legacy-runtime-and-manifest-surfaces
 title: Remove legacy runtime state fields and duplicate manifest-era surfaces
-status: ready
+status: done
 priority: p1
 area: runtime
 summary: Some legacy runtime state was removed, but the public surface still carries old module terminology and manifest-era extension hooks like `promptSection`, `eventHandlers`, and script conversion. Finish removing the leftover parallel surfaces instead of keeping mixed-era names and concepts alive.
 created_at: 2026-03-26
-updated_at: 2026-03-26
+updated_at: 2026-03-27
 ---
 
 ## Problem

@@ -11,7 +11,6 @@ import { initModuleLogStore, resetModuleLogStore } from "../../extension-log.js"
 import { clearCustomTools } from "../index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
 import { handleLogs } from "./logs.js";
-import { handleRun } from "./scripts.js";
 import {
 	addLoadedModule,
 	getLoadedManifestModuleCount,
@@ -269,25 +268,6 @@ describe("handleInfo — edge cases", () => {
 
 		const result = handleInfo("saved-mod");
 		expect(result.content).toContain("saved (loads on restart)");
-	});
-});
-
-// ─── Scripts edge cases ──────────────────────────────────────────────
-
-describe("handleRun — edge cases", () => {
-	it("handles undefined args gracefully", async () => {
-		handleCreate({
-			name: "script-mod",
-			scripts: {
-				greet: {
-					steps: [{ tool: "shell", input: { command: "echo hi" } }],
-				},
-			},
-		});
-		// Pass empty args — should not throw
-		const result = await handleRun("script-mod", "greet", {});
-		// We can't assert success (requires tool runner) but it shouldn't crash
-		expect(result).toBeDefined();
 	});
 });
 

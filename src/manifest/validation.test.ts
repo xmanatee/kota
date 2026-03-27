@@ -74,50 +74,6 @@ describe("validateManifest edge cases", () => {
 		expect(errors.length).toBeGreaterThanOrEqual(2);
 	});
 
-	it("rejects event handler with empty event string", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			eventHandlers: [{ event: "", code: "print(1)" }],
-		});
-		expect(errors.some((e) => e.field === "eventHandlers[0].event")).toBe(true);
-	});
-
-	it("rejects scripts as null", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			scripts: null,
-		});
-		expect(errors.some((e) => e.field === "scripts")).toBe(true);
-	});
-
-	it("rejects scripts as array", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			scripts: [{ steps: [{ tool: "shell" }] }],
-		});
-		expect(errors.some((e) => e.field === "scripts")).toBe(true);
-	});
-
-	it("rejects script step with null input", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			scripts: {
-				"bad-null": { steps: [{ tool: "shell", input: null }] },
-			},
-		});
-		expect(errors.some((e) => e.field.includes("input"))).toBe(true);
-	});
-
-	it("rejects script step with array input", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			scripts: {
-				"bad-arr": { steps: [{ tool: "shell", input: [1, 2] }] },
-			},
-		});
-		expect(errors.some((e) => e.field.includes("input"))).toBe(true);
-	});
-
 	it("accepts name at exactly 3 characters", () => {
 		const errors = validateManifest({ name: "abc" });
 		expect(errors).toHaveLength(0);
@@ -154,14 +110,4 @@ describe("validateManifest edge cases", () => {
 		}
 	});
 
-	it("rejects event handler step with null as entry", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			eventHandlers: [{
-				event: "test",
-				steps: [null],
-			}],
-		});
-		expect(errors.some((e) => e.message === "each step must be an object")).toBe(true);
-	});
 });

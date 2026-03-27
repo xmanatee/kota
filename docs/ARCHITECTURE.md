@@ -39,12 +39,12 @@ adding a parallel surface.
   few public interfaces and comments. The loading surface is largely unified;
   the remaining work is cleanup and direct renaming.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
-  agents, but skills are not yet the one real reusable guidance path.
-  `promptSection` still survives as a parallel extension-level prompt surface.
+  agents. Skills are the one real reusable guidance path; `promptSection` has
+  been removed.
 - Workflows are the documented public automation surface, and workflow triggers
-  now cover event, cron, interval, and idle work. But direct extension event
-  subscriptions and manifest event-handler/script conversion still exist as
-  lower-level parallel paths that should be collapsed or hidden.
+  now cover event, cron, interval, and idle work. Manifest-era `eventHandlers`
+  and `scripts` have been removed from the manifest format; direct extension
+  event subscriptions remain but should migrate to contributed workflows.
 - History, memory, working memory, knowledge, and run artifacts should be
   treated as stores inside one runtime state subsystem, not as many separate
   product-level concepts.

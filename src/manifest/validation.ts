@@ -67,16 +67,6 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 		validateTools(m.tools, errors);
 	}
 
-	// eventHandlers
-	if (m.eventHandlers !== undefined) {
-		validateEventHandlers(m.eventHandlers, errors);
-	}
-
-	// scripts
-	if (m.scripts !== undefined) {
-		validateScripts(m.scripts, errors);
-	}
-
 	// dependencies
 	if (m.dependencies !== undefined) {
 		if (
@@ -173,94 +163,6 @@ function validateTools(tools: unknown, errors: ValidationError[]): void {
 					});
 				}
 			}
-		}
-	}
-}
-
-function validateSteps(
-	steps: unknown[],
-	prefix: string,
-	errors: ValidationError[],
-): void {
-	for (let j = 0; j < steps.length; j++) {
-		const s = steps[j] as Record<string, unknown>;
-		const sp = `${prefix}.steps[${j}]`;
-		if (!s || typeof s !== "object") {
-			errors.push({ field: sp, message: "each step must be an object" });
-			continue;
-		}
-		if (typeof s.tool !== "string" || !s.tool) {
-			errors.push({ field: `${sp}.tool`, message: "step tool name is required" });
-		}
-		if (s.input !== undefined && (typeof s.input !== "object" || s.input === null || Array.isArray(s.input))) {
-			errors.push({ field: `${sp}.input`, message: "step input must be an object" });
-		}
-		if (s.if !== undefined && typeof s.if !== "string") {
-			errors.push({ field: `${sp}.if`, message: "step if must be a string" });
-		}
-	}
-}
-
-function validateEventHandlers(
-	eventHandlers: unknown,
-	errors: ValidationError[],
-): void {
-	if (!Array.isArray(eventHandlers)) {
-		errors.push({ field: "eventHandlers", message: "eventHandlers must be an array" });
-		return;
-	}
-	for (let i = 0; i < eventHandlers.length; i++) {
-		const h = eventHandlers[i] as Record<string, unknown>;
-		const prefix = `eventHandlers[${i}]`;
-		if (!h || typeof h !== "object") {
-			errors.push({ field: prefix, message: "each handler must be an object" });
-			continue;
-		}
-		if (typeof h.event !== "string" || !h.event) {
-			errors.push({ field: `${prefix}.event`, message: "event name is required" });
-		}
-		const hasCode = typeof h.code === "string" && h.code;
-		const hasSteps = Array.isArray(h.steps) && h.steps.length > 0;
-		if (!hasCode && !hasSteps) {
-			errors.push({ field: `${prefix}`, message: "handler must have either code or steps" });
-		}
-		if (hasCode && hasSteps) {
-			errors.push({ field: `${prefix}`, message: "handler cannot have both code and steps" });
-		}
-		if (hasCode) {
-			if (h.language !== undefined && h.language !== "python" && h.language !== "node") {
-				errors.push({ field: `${prefix}.language`, message: 'language must be "python" or "node"' });
-			}
-		}
-		if (Array.isArray(h.steps)) {
-			validateSteps(h.steps, prefix, errors);
-		}
-	}
-}
-
-function validateScripts(
-	scripts: unknown,
-	errors: ValidationError[],
-): void {
-	if (typeof scripts !== "object" || scripts === null || Array.isArray(scripts)) {
-		errors.push({ field: "scripts", message: "scripts must be an object" });
-		return;
-	}
-	const scriptNameRe = /^[a-z][a-z0-9_-]{0,48}[a-z0-9]$/;
-	for (const [sName, sDef] of Object.entries(scripts as Record<string, unknown>)) {
-		const prefix = `scripts.${sName}`;
-		if (!scriptNameRe.test(sName)) {
-			errors.push({ field: prefix, message: "script name must be 2-50 chars, lowercase letters/digits/hyphens/underscores" });
-		}
-		if (!sDef || typeof sDef !== "object" || Array.isArray(sDef)) {
-			errors.push({ field: prefix, message: "each script must be an object" });
-			continue;
-		}
-		const sd = sDef as Record<string, unknown>;
-		if (!Array.isArray(sd.steps) || sd.steps.length === 0) {
-			errors.push({ field: `${prefix}.steps`, message: "script must have at least one step" });
-		} else {
-			validateSteps(sd.steps, prefix, errors);
 		}
 	}
 }
