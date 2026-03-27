@@ -33,6 +33,10 @@ surfaces and tools.
 If a step output truly must be passed forward, mark that step with
 `exposeOutputToAgent: true`. Keep this rare.
 
+Built-in autonomy workflows should default to no `dailyBudgetUsd`. Use
+preflight checks, backoff, repair loops, and better queue shaping before adding
+hard spend caps to explorer, builder, or improver.
+
 ### Hook-like reaction
 
 React to a file change or a workflow completion:

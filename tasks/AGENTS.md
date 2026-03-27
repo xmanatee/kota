@@ -33,10 +33,12 @@ outstanding work.
 - New owner requests should be added as files under `inbox/`.
 - Triage means moving an inbox item to `ready/`, `backlog/`, or `dropped/` and normalizing it into the full task format.
 - Keep `ready/` short and deliberately mixed. Do not let `ready/` or `backlog/` collapse into only one task shape such as repeated split, rename, dedup, or test-only cleanup work.
+- Treat queue size targets as lower bounds, not proof of quality. A queue with enough items can still be too local, too timid, or too repetitive.
 - Before promoting maintenance or refactor tasks, review `doing/`, `ready/`, and recent `done/` work. If the same kind of task already dominated recent iterations, prefer a different kind of improvement next.
 - Mechanical split, rename, and dedup tasks are support work by default. Keep at most one such task in `ready/` unless multiple are clearly blocking a larger architectural or capability change.
 - File length and local neatness are signals, not goals. Prefer tasks that improve capability, reliability, operator experience, or concept clarity over rote cleanup.
 - When the queue is thin, prefer one substantive task over several small cleanup fillers.
+- Keep some real range in the open queue over time: architecture/protocol work, operator or client-facing work, capability expansion, and reliability work should all be represented. Do not let one local theme crowd out the rest.
 - When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly.
 - When moving a task file, use `git mv <src> <dst>` to stage the rename atomically. Edit the content (e.g. the `status` field) AFTER `git mv`, then run `git add <dst>` to stage the content change before committing. Editing before `git mv` silently discards the edit — `git mv` uses the index content, not the working tree content.
 - Before committing any task file changes, run `git status --short` and verify no paths appear as `D` (deleted, unstaged) or `M` (modified, unstaged). Stage any missing changes before committing.

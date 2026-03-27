@@ -384,4 +384,13 @@ describe("workflow validation", () => {
       "improver",
     ]);
   });
+
+  it("keeps the built-in explorer, builder, and improver workflows uncapped by daily budgets", () => {
+    const definitions = validateWorkflowDefinitions(
+      getBuiltinWorkflowDefinitions(),
+      process.cwd(),
+    );
+
+    expect(definitions.every((definition) => definition.dailyBudgetUsd == null)).toBe(true);
+  });
 });

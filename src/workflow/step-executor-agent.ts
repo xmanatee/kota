@@ -111,6 +111,7 @@ export function buildAgentPrompt(
 
   lines.push(
     "",
+    "There is intentionally no fixed checklist here. Decide what to inspect, what to ignore, and how deep to go.",
     "Use the workflow instructions in your system prompt.",
     "Work directly instead of narrating intent.",
     'Do not emit progress filler such as "Let me..." or "I will...".',

@@ -273,6 +273,18 @@ describe("buildAgentPrompt", () => {
     expect(prompt).not.toContain("Exposed step outputs:");
   });
 
+  it("states that the agent should choose its own investigation path", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      {},
+    );
+    expect(prompt).toContain("There is intentionally no fixed checklist here.");
+  });
+
   it("omits non-exposed step outputs", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition({

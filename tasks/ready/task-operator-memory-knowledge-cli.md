@@ -1,12 +1,12 @@
 ---
 id: task-operator-memory-knowledge-cli
 title: Add CLI commands for memory and knowledge stores
-status: backlog
+status: ready
 priority: p2
 area: cli
 summary: Operators have no direct CLI access to the memory and knowledge stores. Currently the only way to interact with these stores is through an agent session. Adding kota memory and kota knowledge subcommands gives operators direct read/write control.
 created_at: 2026-03-27T18:33:05Z
-updated_at: 2026-03-27T18:33:05Z
+updated_at: 2026-03-27T21:30:00Z
 ---
 
 ## Problem

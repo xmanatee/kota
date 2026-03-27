@@ -20,6 +20,9 @@
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
 - Prefer clear discoverable surfaces over injected context summaries. If an
   agent can gather context itself, do not precompute and force-feed it.
+- Do not throttle the built-in core autonomy loops with hard daily spend caps by
+  default. If autonomy is wasteful, fix the queue, prompts, validation, repair
+  flow, or operator controls before capping explorer, builder, or improver.
 - Treat runtime, workflow, and core-loop changes as high-risk and verify them more thoroughly than routine edits.
 
 ## AGENTS.md Files

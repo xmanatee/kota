@@ -19,7 +19,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   description:
     "Improve the autonomous development system itself using evidence from recent runs.",
-  dailyBudgetUsd: 6,
   triggers: [
     {
       event: "workflow.completed",

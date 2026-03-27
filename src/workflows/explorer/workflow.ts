@@ -7,7 +7,7 @@ import {
 } from "../shared.js";
 import { autoEscalateBlockedTasks } from "./auto-escalate.js";
 
-const STRATEGIC_REFRESH_MS = 60 * 60 * 1000;
+const STRATEGIC_REFRESH_MS = 30 * 60 * 1000;
 
 type ExplorerAssessment = {
   counts: ReturnType<typeof getRepoTaskQueueSnapshot>["counts"];
@@ -51,7 +51,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
     "Maintain a strong, deduplicated task portfolio by studying the codebase, recent work, and external ideas.",
-  dailyBudgetUsd: 5,
   triggers: [
     {
       event: "runtime.idle",

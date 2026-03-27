@@ -36,8 +36,8 @@ function wait(ms: number): Promise<void> {
  *
  * Requirements for needsAttention = false:
  *   - inbox == 0 (no inbox task files)
- *   - ready >= READY_TASK_TARGET (3)
- *   - backlog >= BACKLOG_TASK_TARGET (6)
+ *   - ready >= READY_TASK_TARGET (4)
+ *   - backlog >= BACKLOG_TASK_TARGET (8)
  *   - strategicRefreshDue = false (lastCompletedAt is recent)
  */
 function seedFixtureProject(projectDir: string): void {
@@ -62,7 +62,7 @@ function seedFixtureProject(projectDir: string): void {
   writeFileSync(join(projectDir, "src/workflows/builder/prompt.md"), "Build.\n");
   writeFileSync(join(projectDir, "src/workflows/improver/prompt.md"), "Improve.\n");
 
-  // 3 ready tasks — well-formed so they pass builder preflight validation
+  // 4 ready tasks — well-formed so they pass builder preflight validation
   const makeReadyTask = (id: string, title: string) =>
     `---\nid: ${id}\ntitle: ${title}\nstatus: ready\npriority: p2\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
   writeFileSync(
@@ -77,23 +77,27 @@ function seedFixtureProject(projectDir: string): void {
     join(projectDir, "tasks/ready/task-gamma.md"),
     makeReadyTask("task-gamma", "Task Gamma"),
   );
+  writeFileSync(
+    join(projectDir, "tasks/ready/task-delta.md"),
+    makeReadyTask("task-delta", "Task Delta"),
+  );
 
-  // 6 backlog tasks so BACKLOG_TASK_TARGET (6) is met
-  for (let i = 1; i <= 6; i++) {
+  // 8 backlog tasks so BACKLOG_TASK_TARGET (8) is met
+  for (let i = 1; i <= 8; i++) {
     writeFileSync(join(projectDir, `tasks/backlog/task-${i}.md`), `# Backlog ${i}\n`);
   }
 
-  // Pre-seed runtime state with explorer's lastCompletedAt set to 30 minutes ago:
+  // Pre-seed runtime state with explorer's lastCompletedAt set to 10 minutes ago:
   //   - Past the 30s cooldown window → explorer runs immediately on idle
-  //   - Within the 1-hour strategic refresh window → strategicRefreshDue = false
-  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  //   - Within the 30-minute strategic refresh window → strategicRefreshDue = false
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   writeFileSync(
     join(projectDir, ".kota/workflow-state.json"),
     JSON.stringify({
       completedRuns: 1,
       pendingRuns: [],
       workflows: {
-        explorer: { lastCompletedAt: thirtyMinutesAgo },
+        explorer: { lastCompletedAt: tenMinutesAgo },
       },
     }),
   );
@@ -215,7 +219,7 @@ describe("autonomous workflow loop integration", () => {
       );
       expect(inspectStep.status).toBe("success");
       expect(inspectStep.output).toMatchObject({
-        counts: { ready: 3, backlog: 6, inbox: 0 },
+        counts: { ready: 4, backlog: 8, inbox: 0 },
       });
 
       // build agent step must have run and failed
@@ -292,7 +296,7 @@ describe("autonomous workflow loop integration", () => {
       );
       expect(inspectStep.status).toBe("success");
       expect(inspectStep.output.needsAttention).toBe(false);
-      expect(inspectStep.output.counts.ready).toBe(3);
+      expect(inspectStep.output.counts.ready).toBe(4);
 
       // explore agent step was skipped (file exists but status is "skipped")
       const exploreStep = JSON.parse(

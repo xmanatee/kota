@@ -4,8 +4,8 @@ import type {
 } from "../workflow/run-types.js";
 import { loadRunsInWindow } from "../workflow-history.js";
 
-export const READY_TASK_TARGET = 3;
-export const BACKLOG_TASK_TARGET = 6;
+export const READY_TASK_TARGET = 4;
+export const BACKLOG_TASK_TARGET = 8;
 
 export type RunSummary = {
   id: string;

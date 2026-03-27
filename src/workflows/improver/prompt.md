@@ -20,6 +20,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 
 - Start from evidence. Use recent runs and current code, not guesswork.
 - Prefer repeated patterns over one-off anomalies unless the failure is immediately decisive.
+- Before restoring a removed mechanism or reverting a simplification, verify that it was actually accidental. Check the current code, nearby docs, recent commits, and recent runs together so you do not misread an intentional change from a partial snapshot.
 - Treat large process changes as experiments: make the hypothesis legible, leave enough evidence to assess later, and narrow or revert clearly failing experiments quickly.
 - Prefer fixes that make future explorer, builder, and improver runs more robust, legible, honest, and strategically effective.
 - Optimize for work quality, strategic range, and correct steering, not for fewer tokens or fewer iterations.
@@ -27,12 +28,14 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Treat repeated narrow task shapes as evidence of process drift. If recent runs cluster around split-only, rename-only, dedup-only, or test-only cleanup tasks, improve the queue-shaping guidance and task selection logic instead of just accepting the pattern.
 - Treat over-scaffolded context injection as process drift. Agents should be trusted to gather most of their own context; the runtime should inject only facts they cannot recover themselves.
 - If explorer is staying too local, not researching broadly enough, or keeping the queue too small or too timid, fix the guidance and workflow conditions around explorer.
+- Treat hard daily spend caps on the built-in core workflows as an exceptional last resort, not a normal steering tool. If the loop is wasteful, prefer better queue shaping, preflight gates, repair loops, backoff, and clearer operator controls before throttling explorer, builder, or improver themselves.
 - Do not keep stale mechanisms alive for compatibility. If a path is obsolete, remove it.
 - If the same problem resists repeated prompt tweaks, fix the protocol, data flow, or validation instead of layering more advice.
 - Do not create or reprioritize product tasks. Explorer owns `tasks/`.
 - Do not optimize for shaving one or two iterations if that harms work quality, ambition, or strategic range.
 - Do not confuse smaller files, more micro-refactors, or local neatness with higher-leverage progress. Optimize for better future work, not just tidier recent diffs.
 - Use external research when it materially improves process design. Compare against strong agent systems and prefer simpler, more legible mechanisms over bespoke orchestration.
+- If a run looks problematic, consider whether you caught the system mid-transition before concluding that a rollback is needed. Fix causal flaws, not snapshots.
 - If you change behavior, validate the exact behavior you changed while you work.
 - This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
 - If you changed the repo: stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt` (the run directory is shown in the session context), and do **not** run `git commit`. The workflow commits your staged changes only after all verification steps pass — committing directly bypasses the structural verification gate.
