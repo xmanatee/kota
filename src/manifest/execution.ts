@@ -72,11 +72,6 @@ export function manifestToModule(manifest: ModuleManifest): KotaExtension {
 		tools: tools.length > 0 ? tools : undefined,
 	};
 
-	if (manifest.promptSection) {
-		const section = manifest.promptSection;
-		mod.promptSection = () => section;
-	}
-
 	if (manifest.eventHandlers && manifest.eventHandlers.length > 0) {
 		const handlers = manifest.eventHandlers;
 		mod.events = (bus) => {

@@ -98,15 +98,11 @@ export function handleCreate(
 	addLoadedModule(manifest.name);
 
 	const toolNames = tools.map((t) => t.tool.name).join(", ") || "none";
-	const promptNote = manifest.promptSection
-		? " Prompt section will be active on next session."
-		: "";
 	return {
 		content:
 			`Module "${manifest.name}" created and saved.\n` +
 			`Tools: ${toolNames}\n` +
-			`Version: ${manifest.version || "1.0.0"}` +
-			`${promptNote}`,
+			`Version: ${manifest.version || "1.0.0"}`,
 	};
 }
 
@@ -222,14 +218,6 @@ export function handleInfo(name: string | undefined): ToolResult {
 				`  - ${t.name}${paramStr} [${t.language || "python"}]: ${t.description}`,
 			);
 		}
-	}
-
-	if (manifest.promptSection) {
-		const preview =
-			manifest.promptSection.length > 200
-				? `${manifest.promptSection.slice(0, 200)}...`
-				: manifest.promptSection;
-		parts.push(`\nPrompt section: ${preview}`);
 	}
 
 	if (manifest.scripts && Object.keys(manifest.scripts).length > 0) {

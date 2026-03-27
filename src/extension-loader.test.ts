@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus, initEventBus, resetEventBus } from "./event-bus.js";
 import { ExtensionLoader } from "./extension-loader.js";
@@ -637,17 +640,21 @@ describe("getRoutes reentrancy guard", () => {
   });
 });
 
-describe("Module SDK — storage, config, promptSection", () => {
+describe("Module SDK — storage, config, skills", () => {
+  let tmpDir: string;
+
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    tmpDir = mkdtempSync(join(tmpdir(), "kota-test-"));
   });
 
   afterEach(() => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("provides scoped storage via ExtensionContext", async () => {
@@ -697,74 +704,59 @@ describe("Module SDK — storage, config, promptSection", () => {
     expect(ctx.getModuleConfig()).toBeUndefined();
   });
 
-  it("collects promptSection from modules", async () => {
-    const loader = new ExtensionLoader({});
+  it("collects skill content from modules", async () => {
+    const skillPath = join(tmpDir, "helper.md");
+    writeFileSync(skillPath, "Use the helper tool for quick lookups.");
+    const loader = new ExtensionLoader({}, false);
+    loader.setCwd(tmpDir);
     await loader.load({
       name: "helper-mod",
-      promptSection: () => "Use the helper tool for quick lookups.",
+      skills: [{ name: "helper", promptPath: "helper.md" }],
     });
 
-    const sections = loader.getPromptSections();
-    expect(sections).toContain("## Extension Capabilities");
-    expect(sections).toContain("### helper-mod");
-    expect(sections).toContain("Use the helper tool for quick lookups.");
+    const prompt = loader.getSkillsPrompt();
+    expect(prompt).toContain("## Extension Capabilities");
+    expect(prompt).toContain("### helper");
+    expect(prompt).toContain("Use the helper tool for quick lookups.");
   });
 
-  it("skips promptSection that returns undefined", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.load({
-      name: "silent-mod",
-      promptSection: () => undefined,
-    });
-
-    expect(loader.getPromptSections()).toBe("");
-  });
-
-  it("handles promptSection errors gracefully", async () => {
+  it("handles missing skill file gracefully", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const loader = new ExtensionLoader({});
     await loader.load({
-      name: "bad-prompt",
-      promptSection: () => { throw new Error("prompt boom"); },
+      name: "broken-mod",
+      skills: [{ name: "missing", promptPath: "nonexistent/skill.md" }],
     });
 
-    expect(loader.getPromptSections()).toBe("");
+    expect(loader.getSkillsPrompt()).toBe("");
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Extension "bad-prompt" promptSection failed'),
+      expect.stringContaining('Extension "broken-mod" skill "missing" failed to load'),
     );
     errSpy.mockRestore();
   });
 
-  it("collects multiple prompt sections in load order", async () => {
+  it("collects multiple skills in load order", async () => {
+    const skillA = join(tmpDir, "skill-a.md");
+    const skillB = join(tmpDir, "skill-b.md");
+    writeFileSync(skillA, "Section A content.");
+    writeFileSync(skillB, "Section B content.");
     const loader = new ExtensionLoader({});
+    loader.setCwd(tmpDir);
     await loader.load({
       name: "mod-a",
-      promptSection: () => "Section A content.",
+      skills: [{ name: "skill-a", promptPath: "skill-a.md" }],
     });
     await loader.load({
       name: "mod-b",
-      promptSection: () => "Section B content.",
+      skills: [{ name: "skill-b", promptPath: "skill-b.md" }],
     });
 
-    const sections = loader.getPromptSections();
-    const idxA = sections.indexOf("### mod-a");
-    const idxB = sections.indexOf("### mod-b");
+    const prompt = loader.getSkillsPrompt();
+    const idxA = prompt.indexOf("### skill-a");
+    const idxB = prompt.indexOf("### skill-b");
     expect(idxA).toBeLessThan(idxB);
-    expect(sections).toContain("Section A content.");
-    expect(sections).toContain("Section B content.");
-  });
-
-  it("removes prompt section on module unload", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.load({
-      name: "removable",
-      promptSection: () => "Removable content.",
-    });
-
-    expect(loader.getPromptSections()).toContain("Removable content.");
-
-    await loader.unload("removable");
-    expect(loader.getPromptSections()).toBe("");
+    expect(prompt).toContain("Section A content.");
+    expect(prompt).toContain("Section B content.");
   });
 
   it("getExtensionStorage returns storage for loaded module", async () => {
@@ -790,14 +782,17 @@ describe("Module SDK — storage, config, promptSection", () => {
     expect(loader.getExtensionStorage("cleanup-storage")).toBeUndefined();
   });
 
-  it("commandsOnly mode skips promptSection collection", async () => {
+  it("commandsOnly mode skips skill loading", async () => {
+    const skillPath = join(tmpDir, "skill.md");
+    writeFileSync(skillPath, "Should not appear.");
     const loader = new ExtensionLoader({}, false, { commandsOnly: true });
+    loader.setCwd(tmpDir);
     await loader.load({
-      name: "skip-prompt",
-      promptSection: () => "Should not appear.",
+      name: "skip-mod",
+      skills: [{ name: "skill", promptPath: "skill.md" }],
     });
 
-    expect(loader.getPromptSections()).toBe("");
+    expect(loader.getSkillsPrompt()).toBe("");
   });
 });
 

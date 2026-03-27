@@ -159,8 +159,7 @@ export type KotaExtension = {
 
   /**
    * Skills this extension contributes — named, file-backed guidance blocks.
-   * Skills are the preferred way to teach the agent about extension capabilities.
-   * Use promptSection for inline (non-file) guidance.
+   * Skills are the one way to teach the agent about extension capabilities.
    */
   skills?: SkillDef[];
 
@@ -169,15 +168,6 @@ export type KotaExtension = {
    * Registered agents can be referenced by name in workflow agent steps.
    */
   agents?: AgentDef[];
-
-  /**
-   * System prompt section this module contributes.
-   * Returned string is appended to the system prompt under a heading.
-   * Enables modules to teach the agent how to use their capabilities.
-   * Called once after load; return null/undefined to skip.
-   * Prefer skills for file-backed guidance.
-   */
-  promptSection?: (ctx: ExtensionContext) => string | undefined;
 
   /** Called after the module is loaded and tools are registered. */
   onLoad?: (ctx: ExtensionContext) => Promise<void> | void;

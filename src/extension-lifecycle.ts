@@ -11,7 +11,6 @@ export interface LifecycleState {
   moduleEventUnsubs: Map<string, Array<() => void>>;
   moduleStorages: Map<string, ExtensionStorage>;
   moduleToolCounts: Map<string, number>;
-  promptSections: Map<string, string>;
   moduleRegistry: Map<string, KotaExtension>;
   verbose: boolean;
 }
@@ -55,7 +54,6 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
 
   deregisterModuleTools(moduleName);
   getToolMiddleware().removeByOwner(moduleName);
-  state.promptSections.delete(moduleName);
   state.moduleStorages.delete(moduleName);
   state.moduleToolCounts.delete(moduleName);
   state.modules.splice(idx, 1);
@@ -107,7 +105,6 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
   state.moduleRegistry.clear();
   state.moduleStorages.clear();
   state.moduleToolCounts.clear();
-  state.promptSections.clear();
 
   const reg = getProviderRegistry();
   if (reg) reg.clear();

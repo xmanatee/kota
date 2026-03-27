@@ -63,7 +63,6 @@ export type ModuleManifest = {
 	version?: string;
 	description?: string;
 	tools?: ManifestToolDef[];
-	promptSection?: string;
 	dependencies?: string[];
 	/** Event handlers — subscribe to bus events and run code when they fire. */
 	eventHandlers?: ManifestEventHandler[];

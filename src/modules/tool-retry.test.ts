@@ -55,9 +55,9 @@ describe("tool-retry module", () => {
 		// Stats reset (middleware removal is handled by module loader)
 	});
 
-	it("provides a prompt section", () => {
-		const section = toolRetryModule.promptSection!(ctx as any);
-		expect(section).toContain("retried");
-		expect(section).toContain("web_fetch");
+	it("declares a skill for retry guidance", () => {
+		expect(toolRetryModule.skills).toHaveLength(1);
+		expect(toolRetryModule.skills![0].name).toBe("tool-retry");
+		expect(toolRetryModule.skills![0].promptPath).toContain("tool-retry.md");
 	});
 });

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
@@ -23,7 +25,7 @@ export class ExtensionLoader {
   private moduleStorages = new Map<string, ExtensionStorage>();
   private moduleRegistry = new Map<string, KotaExtension>();
   private moduleToolCounts = new Map<string, number>();
-  private promptSections = new Map<string, string>();
+  private skillContents: string[] = [];
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private bus: EventBus | null = null;
   private verbose: boolean;
@@ -46,6 +48,10 @@ export class ExtensionLoader {
     this.sessionFactory = factory;
   }
 
+  setCwd(cwd: string): void {
+    this.cwd = cwd;
+  }
+
   private get lifecycleState(): LifecycleState {
     return {
       modules: this.modules,
@@ -53,7 +59,6 @@ export class ExtensionLoader {
       moduleEventUnsubs: this.moduleEventUnsubs,
       moduleStorages: this.moduleStorages,
       moduleToolCounts: this.moduleToolCounts,
-      promptSections: this.promptSections,
       moduleRegistry: this.moduleRegistry,
       verbose: this.verbose,
     };
@@ -119,13 +124,15 @@ export class ExtensionLoader {
 
     if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
 
-    if (mod.promptSection && !this.commandsOnly) {
-      try {
-        const section = mod.promptSection(ctx);
-        if (section) this.promptSections.set(mod.name, section);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Extension "${mod.name}" promptSection failed: ${msg}`);
+    if (mod.skills && !this.commandsOnly) {
+      for (const skill of mod.skills) {
+        try {
+          const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
+          if (content) this.skillContents.push(`### ${skill.name}\n${content}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[kota] Extension "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
+        }
       }
     }
 
@@ -213,13 +220,9 @@ export class ExtensionLoader {
     }
   }
 
-  getPromptSections(): string {
-    if (this.promptSections.size === 0) return "";
-    const parts: string[] = [];
-    for (const [name, section] of this.promptSections) {
-      parts.push(`\n### ${name}\n${section}`);
-    }
-    return `\n\n## Extension Capabilities\n${parts.join("\n")}`;
+  getSkillsPrompt(): string {
+    if (this.skillContents.length === 0) return "";
+    return `\n\n## Extension Capabilities\n${this.skillContents.join("\n\n")}`;
   }
 
   getExtensionStorage(moduleName: string): ExtensionStorage | undefined {

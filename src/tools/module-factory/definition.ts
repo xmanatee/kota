@@ -8,7 +8,7 @@ export const moduleFactoryTool: Anthropic.Tool = {
 	name: "module_factory",
 	description:
 		"Create, list, remove, inspect, run scripts, or query logs from custom modules. " +
-		"Modules bundle related tools, prompt sections, scripts, and metadata. " +
+		"Modules bundle related tools, scripts, and metadata. " +
 		"Logs capture module operations (events, scripts, lifecycle) for observability.",
 	input_schema: {
 		type: "object" as const,
@@ -26,7 +26,7 @@ export const moduleFactoryTool: Anthropic.Tool = {
 				type: "object",
 				description:
 					'Module manifest (for create). Must include "name" (string). ' +
-					'Optional: "description", "version", "tools" (array), "promptSection" (string), ' +
+					'Optional: "description", "version", "tools" (array), ' +
 					'"scripts" (object mapping script names to {steps: [{tool, input}]}), "dependencies" (array).',
 			},
 			name: {

@@ -90,9 +90,9 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
   for (const { name } of listManifestModules()) markModuleLoaded(name);
   await state.moduleLoader.loadAll([...builtinExtensions, ...pluginModules]);
 
-  const modulePromptSections = state.moduleLoader.getPromptSections();
-  if (modulePromptSections) {
-    state.context.appendSystemPrompt(modulePromptSections);
+  const skillsPrompt = state.moduleLoader.getSkillsPrompt();
+  if (skillsPrompt) {
+    state.context.appendSystemPrompt(skillsPrompt);
   }
 
   const customToolCount = loadSavedTools();

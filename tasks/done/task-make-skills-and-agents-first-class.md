@@ -1,7 +1,7 @@
 ---
 id: task-make-skills-and-agents-first-class
 title: Make skills and agent definitions first-class runtime concepts
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Agent definitions now exist and workflows can invoke them by name, but skills are still not the one real reusable guidance surface. Finish the model by removing extension `promptSection` as a parallel path beside skills.

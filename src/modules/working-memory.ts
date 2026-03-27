@@ -155,10 +155,7 @@ const workingMemoryModule: KotaExtension = {
 		if (count > 0) ctx.log.info(`Restored ${count} persistent working memory entries`);
 	},
 
-	promptSection: () =>
-		"You have a working memory scratchpad. Entries appear in <working-memory> tags every turn. " +
-		"Use write with persist:true to survive restarts; default entries are session-only. " +
-		"Good for research findings, plans, or cross-session state.",
+	skills: [{ name: "working-memory", promptPath: "src/modules/skills/working-memory.md" }],
 };
 
 export default workingMemoryModule;

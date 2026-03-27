@@ -46,8 +46,7 @@ describe("validateManifest", () => {
 					language: "python",
 				},
 			],
-			promptSection: "Use get_weather for weather data.",
-		});
+			});
 		expect(errors).toHaveLength(0);
 	});
 
@@ -132,14 +131,6 @@ describe("validateManifest", () => {
 			}],
 		});
 		expect(errors.some((e) => e.message.includes("python"))).toBe(true);
-	});
-
-	it("rejects non-string promptSection", () => {
-		const errors = validateManifest({
-			name: "test-mod",
-			promptSection: 42,
-		});
-		expect(errors.some((e) => e.field === "promptSection")).toBe(true);
 	});
 
 	it("rejects non-array dependencies", () => {
@@ -412,7 +403,6 @@ describe("manifestToModule", () => {
 		expect(mod.name).toBe("simple");
 		expect(mod.version).toBe("1.0.0");
 		expect(mod.tools).toBeUndefined();
-		expect(mod.promptSection).toBeUndefined();
 	});
 
 	it("creates a KotaExtension with tools", () => {
@@ -427,15 +417,6 @@ describe("manifestToModule", () => {
 		expect(toolsOf(mod)).toHaveLength(1);
 		expect(toolsOf(mod)[0].tool.name).toBe("say_hello");
 		expect(typeof toolsOf(mod)[0].runner).toBe("function");
-	});
-
-	it("creates a KotaExtension with prompt section", () => {
-		const mod = manifestToModule({
-			name: "with-prompt",
-			promptSection: "Use this module for testing.",
-		});
-		expect(mod.promptSection).toBeDefined();
-		expect(mod.promptSection!({} as never)).toBe("Use this module for testing.");
 	});
 
 	it("preserves version and description", () => {
@@ -714,7 +695,6 @@ describe("manifest persistence", () => {
 			description: "A test tool",
 			code: "print('test')",
 		}],
-		promptSection: "Use test_tool for testing.",
 	};
 
 	it("saveManifest creates manifest.json in the correct directory", () => {

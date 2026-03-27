@@ -27,9 +27,7 @@ const toolRetryModule: KotaExtension = {
 		resetRetryStats();
 	},
 
-	promptSection: () =>
-		"Network tools (web_fetch, web_search, http_request) and shell timeouts " +
-		"are automatically retried once on transient errors.",
+	skills: [{ name: "tool-retry", promptPath: "src/modules/skills/tool-retry.md" }],
 };
 
 export default toolRetryModule;

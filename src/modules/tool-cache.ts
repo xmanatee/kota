@@ -28,9 +28,7 @@ const toolCacheModule: KotaExtension = {
 		resetToolCache();
 	},
 
-	promptSection: () =>
-		"Tool results for read-only tools (file_read, grep, glob) are cached within " +
-		"this session. The cache auto-invalidates when you write files or run commands.",
+	skills: [{ name: "tool-cache", promptPath: "src/modules/skills/tool-cache.md" }],
 };
 
 export default toolCacheModule;

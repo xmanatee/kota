@@ -77,17 +77,6 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 		validateScripts(m.scripts, errors);
 	}
 
-	// promptSection
-	if (
-		m.promptSection !== undefined &&
-		typeof m.promptSection !== "string"
-	) {
-		errors.push({
-			field: "promptSection",
-			message: "promptSection must be a string",
-		});
-	}
-
 	// dependencies
 	if (m.dependencies !== undefined) {
 		if (

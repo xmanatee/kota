@@ -106,17 +106,6 @@ describe("state — granular operations", () => {
 // ─── Create edge cases ───────────────────────────────────────────────
 
 describe("handleCreate — edge cases", () => {
-	it("creates module with promptSection and includes note", () => {
-		const manifest = {
-			name: "prompt-mod",
-			promptSection: "Always be helpful.",
-			tools: [],
-		};
-		const result = handleCreate(manifest);
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Prompt section will be active");
-	});
-
 	it("creates module with no tools", () => {
 		const manifest = { name: "empty-mod", tools: [] };
 		const result = handleCreate(manifest);
@@ -244,19 +233,6 @@ describe("handleInfo — edge cases", () => {
 		expect(result.content).toContain("not persisted");
 	});
 
-	it("truncates long promptSection preview", () => {
-		const longPrompt = "A".repeat(300);
-		handleCreate({
-			name: "long-prompt-mod",
-			promptSection: longPrompt,
-			tools: [],
-		});
-		const result = handleInfo("long-prompt-mod");
-		expect(result.content).toContain("Prompt section:");
-		expect(result.content).toContain("...");
-		// Should be truncated to ~200 chars
-		expect(result.content).not.toContain("A".repeat(300));
-	});
 
 	it("shows dependencies in info output", () => {
 		handleCreate({

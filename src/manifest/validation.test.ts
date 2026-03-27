@@ -70,9 +70,8 @@ describe("validateManifest edge cases", () => {
 		const errors = validateManifest({
 			// Missing name
 			tools: [{ name: "AB" }], // invalid format + missing fields
-			promptSection: 123,
 		});
-		expect(errors.length).toBeGreaterThanOrEqual(3);
+		expect(errors.length).toBeGreaterThanOrEqual(2);
 	});
 
 	it("rejects event handler with empty event string", () => {
