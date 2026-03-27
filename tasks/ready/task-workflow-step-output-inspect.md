@@ -6,7 +6,7 @@ priority: p3
 area: workflow
 summary: kota workflow show displays step status and duration but not step output payloads. Adding a --step flag to print the full JSON output of a specific step would make it much easier to debug what a code or tool step returned during a run.
 created_at: 2026-03-20
-updated_at: 2026-03-27
+updated_at: 2026-03-27T04:25:00Z
 ---
 
 ## Problem
@@ -22,7 +22,7 @@ updated_at: 2026-03-27
 ## Constraints
 
 - Read step output directly from the run metadata file — no new storage needed.
-- Keep the change narrow to `workflow-cli.ts` and the run-store helpers.
+- Keep the change narrow to `workflow-cli/run-show.ts` and the run-store helpers.
 - Do not change the default `kota workflow show` output format.
 
 ## Done When
