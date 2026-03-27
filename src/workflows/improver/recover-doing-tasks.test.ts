@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "../../workflow/types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "../../workflow/run-types.js";
 import { recoverDoingTasks } from "./recover-doing-tasks.js";
 
 const DOING_TASK = `---

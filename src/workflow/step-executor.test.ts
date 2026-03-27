@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig } from "./step-executor.js";
 import {
   buildAgentPrompt,
@@ -15,9 +16,7 @@ import {
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
-  WorkflowRunMetadata,
   WorkflowRunTrigger,
-  WorkflowStepContext,
   WorkflowToolStep,
 } from "./types.js";
 

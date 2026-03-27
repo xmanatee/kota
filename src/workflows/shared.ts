@@ -3,8 +3,8 @@ import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
   WorkflowRuntimeState,
-  WorkflowStepInput,
-} from "../workflow/types.js";
+} from "../workflow/run-types.js";
+import type { WorkflowStepInput } from "../workflow/types.js";
 import { loadRunsInWindow } from "../workflow-history.js";
 
 export const READY_TASK_TARGET = 2;

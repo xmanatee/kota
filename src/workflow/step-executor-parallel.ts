@@ -1,9 +1,6 @@
+import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import { executeCodeStep, shouldRunStep } from "./step-executor.js";
-import type {
-  WorkflowParallelGroup,
-  WorkflowStepContext,
-  WorkflowStepResult,
-} from "./types.js";
+import type { WorkflowParallelGroup } from "./types.js";
 
 export type ParallelGroupResult = {
   groupResult: WorkflowStepResult;

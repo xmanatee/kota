@@ -6,7 +6,8 @@ import { EventBus } from "../event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { findRetryFromIndex } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowDefinition, WorkflowRunMetadata, WorkflowRunTrigger, WorkflowStepResult } from "./types.js";
+import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {

@@ -1,9 +1,9 @@
 import type { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowQueuedRun } from "./run-types.js";
 import type {
   WorkflowAgentBackoffSignal,
   WorkflowAgentBackoffState,
   WorkflowDefinition,
-  WorkflowQueuedRun,
 } from "./types.js";
 
 const MAX_AGENT_BACKOFF_MS = 6 * 60 * 60 * 1000;

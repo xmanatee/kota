@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
-import type { WorkflowStepContext } from "../../workflow/types.js";
+import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import {
   buildRuntimeState,
   computeCostByWorkflow,

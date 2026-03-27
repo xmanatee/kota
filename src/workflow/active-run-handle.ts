@@ -7,7 +7,7 @@ import type {
   WorkflowRunStatus,
   WorkflowRuntimeState,
   WorkflowStepResult,
-} from "./types.js";
+} from "./run-types.js";
 
 export type FinishUpdate = {
   status: WorkflowRunStatus;

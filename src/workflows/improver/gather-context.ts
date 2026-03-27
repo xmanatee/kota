@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "../../json-file.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "../../workflow/types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "../../workflow/run-types.js";
 import { buildRuntimeState, computeCostByWorkflow, loadChangedFiles, loadRecentCommits, loadRecentRuns, type RunSummary, summarizeRun } from "../shared.js";
 
 export type { RunSummary };

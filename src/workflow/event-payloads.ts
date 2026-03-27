@@ -1,10 +1,6 @@
 import type { BusEvents } from "../event-bus.js";
-import type {
-  WorkflowRunMetadata,
-  WorkflowRunStatus,
-  WorkflowStep,
-  WorkflowStepResult,
-} from "./types.js";
+import type { WorkflowRunMetadata, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowStep } from "./types.js";
 
 export function buildStepStartedPayload(
   metadata: WorkflowRunMetadata,

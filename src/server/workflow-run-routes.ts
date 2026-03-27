@@ -3,7 +3,7 @@ import type { ServerResponse } from "node:http";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata } from "../workflow/types.js";
+import type { WorkflowRunMetadata } from "../workflow/run-types.js";
 import { jsonResponse, SseTransport, setCors } from "./session-pool.js";
 
 type RunSummary = {

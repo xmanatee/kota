@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { WorkflowStepContext } from "../../workflow/types.js";
+import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import { loadRunsInWindow } from "../../workflow-history.js";
 
 const FAILED_ATTEMPT_THRESHOLD = 2;

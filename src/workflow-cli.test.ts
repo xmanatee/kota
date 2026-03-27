@@ -6,11 +6,11 @@ import { readOptionalJsonFile } from "./json-file.js";
 import { getEligibleAtMs } from "./workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 import type {
-  WorkflowDefinition,
   WorkflowRunMetadata,
   WorkflowRuntimeState,
   WorkflowStepResult,
-} from "./workflow/types.js";
+} from "./workflow/run-types.js";
+import type { WorkflowDefinition } from "./workflow/types.js";
 
 // Isolated test for the trigger command's core logic:
 // cooldown checks and queue writes via WorkflowRunStore.

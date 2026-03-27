@@ -5,9 +5,10 @@ import {
   executeWithAgentSDK,
 } from "../agent-sdk/index.js";
 import type { SDKMessage } from "../agent-sdk/types.js";
+import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, WorkflowStepOutput } from "./step-executor-agent.js";
 import { DEFAULT_MODEL } from "./step-executor-agent.js";
-import type { WorkflowAgentStep, WorkflowRepairCheck, WorkflowStepContext } from "./types.js";
+import type { WorkflowAgentStep } from "./types.js";
 
 export type RepairCheckResult = {
   id: string;

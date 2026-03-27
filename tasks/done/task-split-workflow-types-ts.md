@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-types-ts
 title: Split workflow/types.ts (331 lines) — extract run-execution types
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: workflow/types.ts is 331 lines mixing workflow definition types (triggers, steps, definitions) with runtime execution types (run status, step results, run metadata, context, predicates). Extract the runtime execution types into a focused module to bring each file under 300 lines.

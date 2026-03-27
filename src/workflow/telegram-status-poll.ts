@@ -1,6 +1,6 @@
 import { callTelegramApi } from "../telegram-client.js";
 import { computeCostByWorkflow, loadRecentRuns } from "../workflows/shared.js";
-import type { WorkflowRuntimeState } from "./types.js";
+import type { WorkflowRuntimeState } from "./run-types.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const ERROR_BACKOFF_MS = 5_000;

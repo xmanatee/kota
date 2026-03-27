@@ -7,12 +7,12 @@ import {
 import type { SDKMessage } from "../agent-sdk/types.js";
 import type { KotaConfig } from "../config.js";
 import type { ToolResult } from "../tools/index.js";
+import type { WorkflowRunMetadata } from "./run-types.js";
 import type {
   WorkflowAgentBackoffKind,
   WorkflowAgentStep,
   WorkflowDefinition,
   WorkflowRetryConfig,
-  WorkflowRunMetadata,
   WorkflowRunTrigger,
 } from "./types.js";
 

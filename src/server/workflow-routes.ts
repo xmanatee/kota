@@ -2,7 +2,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowQueuedRun } from "../workflow/types.js";
+import type { WorkflowQueuedRun } from "../workflow/run-types.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
 const PAUSE_SIGNAL = "dispatch-paused";

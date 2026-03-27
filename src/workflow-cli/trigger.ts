@@ -5,7 +5,7 @@ import { readOptionalJsonFile } from "../json-file.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { getEligibleAtMs } from "../workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata } from "../workflow/types.js";
+import type { WorkflowRunMetadata } from "../workflow/run-types.js";
 import { validateWorkflowDefinitions } from "../workflow/validation.js";
 
 export function registerTriggerCommands(wfCmd: Command): void {

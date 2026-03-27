@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter } from "../../frontmatter.js";
-import type { WorkflowStepContext } from "../../workflow/types.js";
+import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import { buildRuntimeState, computeCostByWorkflow, loadRecentCommits, loadRecentRuns, type RunSummary } from "../shared.js";
 
 export type { RunSummary };

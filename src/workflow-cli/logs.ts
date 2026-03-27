@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata } from "../workflow/types.js";
+import type { WorkflowRunMetadata } from "../workflow/run-types.js";
 import { buildRunLogs, followRunLogs } from "../workflow-logs.js";
 
 export function registerLogsCommand(wfCmd: Command): void {

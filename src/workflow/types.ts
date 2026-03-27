@@ -3,7 +3,12 @@ import type {
   SDKSettingSource,
 } from "../agent-sdk/types.js";
 import type { BusEvents } from "../event-bus.js";
-import type { ToolResult } from "../tools/index.js";
+import type {
+  WorkflowPredicate,
+  WorkflowRepairLoopConfig,
+  WorkflowStepContext,
+  WorkflowValueResolver,
+} from "./run-types.js";
 
 export type WorkflowRetryConfig = {
   maxAttempts: number;
@@ -56,91 +61,10 @@ export type WorkflowRunTrigger = {
   payload: Record<string, unknown>;
 };
 
-export type WorkflowRunStatus =
-  | "success"
-  | "failed"
-  | "interrupted"
-  | "completed-with-warnings";
-
-export type WorkflowStepStatus = "success" | "failed" | "skipped";
-
-export type WorkflowActiveRun = {
-  runId: string;
-  workflow: string;
-  startedAt: string;
-};
-
-export type WorkflowRuntimeState = {
-  activeRuns?: WorkflowActiveRun[];
-  completedRuns: number;
-  totalCostUsd?: number;
-  definitionsLoadedAt?: string;
-  agentBackoff?: WorkflowAgentBackoffState;
-  pendingRuns: WorkflowQueuedRun[];
-  workflows: Record<
-    string,
-    {
-      lastRunId?: string;
-      lastStartedAt?: string;
-      lastCompletedAt?: string;
-      lastStatus?: WorkflowRunStatus;
-      nextScheduledAt?: string;
-    }
-  >;
-};
-
-export type WorkflowContextInfo = {
-  name: string;
-  definitionPath: string;
-  runId: string;
-  runDir: string;
-  runDirPath: string;
-};
-
-export type WorkflowStepContext = {
-  projectDir: string;
-  workflow: WorkflowContextInfo;
-  trigger: WorkflowRunTrigger;
-  previousOutput: unknown;
-  stepOutputs: Record<string, unknown>;
-  stepResults: Record<string, WorkflowStepResult>;
-  stepOutputList: unknown[];
-  runTool: (
-    name: string,
-    input: Record<string, unknown>,
-  ) => Promise<ToolResult>;
-  emit: (event: string, payload: Record<string, unknown>) => void;
-  requestRestart: (reason: string) => void;
-  readPrompt: (promptPath: string) => string;
-  readRuntimeState: () => WorkflowRuntimeState;
-};
-
-export type WorkflowValueResolver<T> =
-  | T
-  | ((context: WorkflowStepContext) => T | Promise<T>);
-
-export type WorkflowPredicate = (
-  context: WorkflowStepContext,
-) => boolean | Promise<boolean>;
-
 type WorkflowBaseStep = {
   id: string;
   when?: WorkflowPredicate;
   continueOnFailure?: boolean;
-};
-
-export type WorkflowRepairCheck = {
-  /** Identifier for this check, shown in repair iteration output. */
-  id: string;
-  tool: string;
-  input?: WorkflowValueResolver<Record<string, unknown>>;
-};
-
-export type WorkflowRepairLoopConfig = {
-  /** Checks to run after the agent step. Failures trigger a repair agent run. */
-  checks: WorkflowRepairCheck[];
-  /** Maximum number of repair agent runs before giving up and failing the step. */
-  maxRepairAttempts: number;
 };
 
 export type WorkflowToolStepInput = WorkflowBaseStep & {
@@ -288,44 +212,4 @@ export type WorkflowDefinition = {
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];
-};
-
-export type WorkflowQueuedRun = {
-  workflowName: string;
-  trigger: WorkflowRunTrigger;
-  enqueuedAtMs: number;
-  notBeforeMs: number;
-};
-
-export type WorkflowStepResult = {
-  id: string;
-  type: WorkflowStep["type"];
-  status: WorkflowStepStatus;
-  startedAt: string;
-  completedAt: string;
-  durationMs: number;
-  output?: unknown;
-  error?: string;
-  continueOnFailure?: boolean;
-};
-
-export type WorkflowRunExecutionResult = {
-  metadata: WorkflowRunMetadata;
-  agentBackoff?: WorkflowAgentBackoffSignal;
-};
-
-export type WorkflowRunMetadata = {
-  id: string;
-  workflow: string;
-  definitionPath: string;
-  trigger: WorkflowRunTrigger;
-  triggeredByRunId?: string;
-  retryOf?: string;
-  startedAt: string;
-  completedAt?: string;
-  status: WorkflowRunStatus | "running";
-  durationMs?: number;
-  totalCostUsd?: number;
-  runDir: string;
-  steps: WorkflowStepResult[];
 };

@@ -1,9 +1,9 @@
 import { getEligibleAtMs } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowQueuedRun } from "./run-types.js";
 import type {
   WorkflowAgentBackoffState,
   WorkflowDefinition,
-  WorkflowQueuedRun,
   WorkflowRunTrigger,
 } from "./types.js";
 

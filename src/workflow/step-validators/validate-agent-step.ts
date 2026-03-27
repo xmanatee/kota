@@ -1,11 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getAgent } from "../../agents/index.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowAgentStepInput,
-  WorkflowRepairLoopConfig,
-} from "../types.js";
+import type { WorkflowRepairLoopConfig } from "../run-types.js";
+import type { WorkflowAgentStep, WorkflowAgentStepInput } from "../types.js";
 import {
   expectName,
   expectNonEmptyString,

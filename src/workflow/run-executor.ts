@@ -7,6 +7,7 @@ import {
 } from "./event-payloads.js";
 import { buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
 import { createStepContext } from "./step-context.js";
 import {
   type AgentStepConfig,
@@ -15,13 +16,7 @@ import {
   shouldRunStep,
 } from "./step-executor.js";
 import { executeParallelStepGroup } from "./step-executor-parallel.js";
-import type {
-  WorkflowDefinition,
-  WorkflowRunExecutionResult,
-  WorkflowRunStatus,
-  WorkflowRunTrigger,
-  WorkflowStepResult,
-} from "./types.js";
+import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 
 export type RunExecutorDeps = {
   projectDir: string;

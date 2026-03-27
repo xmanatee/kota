@@ -5,7 +5,7 @@ import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { RepairSummary } from "../workflow/run-store-helpers.js";
 import { extractRepairSummary } from "../workflow/run-store-helpers.js";
-import type { WorkflowRunMetadata } from "../workflow/types.js";
+import type { WorkflowRunMetadata } from "../workflow/run-types.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
 export function formatRepairLine(summary: RepairSummary): string {

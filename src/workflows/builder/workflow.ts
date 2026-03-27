@@ -2,7 +2,8 @@ import {
   getRepoTaskQueueSnapshot,
   isRepoTaskQueueSnapshot,
 } from "../../repo-tasks.js";
-import type { WorkflowDefinitionInput, WorkflowStepContext } from "../../workflow/types.js";
+import type { WorkflowStepContext } from "../../workflow/run-types.js";
+import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { stepSucceeded } from "../shared.js";
 import { checkTaskOutcome } from "./check-task-outcome.js";
 import { claimTask, isClaimTaskResult } from "./claim-task.js";

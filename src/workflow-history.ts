@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "./json-file.js";
-import type { WorkflowRunMetadata } from "./workflow/types.js";
+import type { WorkflowRunMetadata } from "./workflow/run-types.js";
 
 export type HistoryStats = {
   total: number;

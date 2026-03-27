@@ -5,10 +5,10 @@ import { executeTool } from "../tools/index.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type {
   WorkflowRunMetadata,
-  WorkflowRunTrigger,
   WorkflowStepContext,
   WorkflowStepResult,
-} from "./types.js";
+} from "./run-types.js";
+import type { WorkflowRunTrigger } from "./types.js";
 
 export function createStepContext(
   metadata: WorkflowRunMetadata,
