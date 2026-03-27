@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -341,5 +341,46 @@ describe("workflow show step cost display", () => {
       ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
       : "";
     expect(cost).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// workflow show: plain-text error.txt reading
+// ---------------------------------------------------------------------------
+
+describe("workflow show error.txt reading", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(
+      tmpdir(),
+      `kota-wf-error-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reads plain-text error.txt when present", () => {
+    const errorPath = join(tmpDir, "error.txt");
+    writeFileSync(errorPath, "something went wrong", "utf-8");
+    const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
+    expect(errorText).toBe("something went wrong");
+  });
+
+  it("returns null when error.txt is absent", () => {
+    const errorPath = join(tmpDir, "error.txt");
+    const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
+    expect(errorText).toBeNull();
+  });
+
+  it("reads multi-line plain-text error.txt", () => {
+    const errorPath = join(tmpDir, "error.txt");
+    const msg = "line one\nline two\nline three";
+    writeFileSync(errorPath, msg, "utf-8");
+    const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
+    expect(errorText).toBe(msg);
   });
 });

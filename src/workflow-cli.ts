@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { loadConfig } from "./config.js";
@@ -140,7 +140,7 @@ export function registerWorkflowCommands(program: Command): void {
       }
 
       const errorPath = join(store.runsDir, resolvedId, "error.txt");
-      const errorText = readOptionalJsonFile<never>(errorPath);
+      const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
 
       console.log(`Run:      ${metadata.id}`);
       console.log(`Workflow: ${metadata.workflow}`);
