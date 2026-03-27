@@ -11,42 +11,15 @@
  */
 
 import type { KotaExtension, ToolDef } from "./extension-types.js";
+import type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
 import {
   buildInputSchema,
   extractJsonSchema,
   normalizeResult,
 } from "./tool-adapters-zod.js";
 
+export type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
 export { extractJsonSchema, normalizeResult, zodDefToJsonSchema } from "./tool-adapters-zod.js";
-
-// --- External format types ---
-
-export type SimpleTool = {
-  name: string;
-  description: string;
-  parameters?: Record<string, unknown>;
-  run: (input: Record<string, unknown>) => unknown | Promise<unknown>;
-  group?: string;
-};
-
-export type OpenAIFunctionTool = {
-  type: "function";
-  function: {
-    name: string;
-    description?: string;
-    parameters?: Record<string, unknown>;
-  };
-  run: (input: Record<string, unknown>) => unknown | Promise<unknown>;
-  group?: string;
-};
-
-/** Vercel AI SDK tool() format — uses `execute` and Zod/JSON Schema parameters. */
-export type VercelAITool = {
-  description?: string;
-  parameters: unknown; // Zod schema, AI SDK jsonSchema(), or raw JSON Schema
-  execute: (input: Record<string, unknown>) => unknown | Promise<unknown>;
-  group?: string;
-};
 
 // --- Adapters ---
 

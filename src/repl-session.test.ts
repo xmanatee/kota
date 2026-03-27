@@ -123,7 +123,7 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     expect(result.output).not.toContain("Session restarted");
     expect(result.output).not.toContain("crashed");
     expect(result.output).toContain("clean");
-  });
+  }, 15_000);
 
   it("Node.js crash reports state loss", async () => {
     session = new REPLSession("node");

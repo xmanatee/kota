@@ -1,29 +1,31 @@
 ---
 id: task-split-tool-adapters-ts
-title: Split tool-adapters.ts — extract adapter implementations from registry
+title: Split tool-adapters.ts — extract external format types into tool-adapter-types.ts
 status: done
 priority: p2
-area: structure
-summary: src/tool-adapters.ts is 423 lines, 41% over the 300-line limit. The file bundles adapter registration, conversion logic, and type helpers in one place.
-created_at: 2026-03-19
-updated_at: 2026-03-19T09:12:57Z
+area: refactor
+summary: tool-adapters.ts is 265 lines with a clear "External format types" section (SimpleTool, OpenAIFunctionTool, VercelAITool) at the top followed by the adapter functions. Extracting the types gives consumers a lightweight import path and keeps each file focused.
+created_at: 2026-03-27T12:31:00Z
+updated_at: 2026-03-27T12:55:00Z
 ---
 
 ## Problem
 
-`src/tool-adapters.ts` is 423 lines (41% over the 300-line limit). It mixes adapter registration, tool conversion/wrapping logic, and supporting helpers.
+`tool-adapters.ts` (265 lines) mixes external-format type definitions with adapter conversion functions. Consumers that only need to construct or type-check tool objects must import from the adapter file, pulling in conversion logic they do not use.
 
 ## Desired Outcome
 
-`tool-adapters.ts` shrinks to ≤300 lines. A natural split extracts conversion helpers or a group of adapters into a co-located module. No behavior changes.
+A new `tool-adapter-types.ts` contains `SimpleTool`, `OpenAIFunctionTool`, and `VercelAITool`. `tool-adapters.ts` imports from it and re-exports those types for backwards compatibility. Both files stay well under 300 lines.
 
 ## Constraints
 
-- Public exports must remain the same or be re-exported from `tool-adapters.ts`.
-- All tests must pass after the split.
+- No behaviour changes — only a structural split.
+- `tool-adapters.ts` must re-export the types so existing importers need no changes.
+- Update `src/AGENTS.md` Key Modules if either file is listed there.
 
 ## Done When
 
-- `tool-adapters.ts` is ≤300 lines.
-- Any extracted file is ≤300 lines.
-- `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` all pass.
+- `tool-adapter-types.ts` exists and contains the three external format types.
+- `tool-adapters.ts` imports from `tool-adapter-types.ts` and re-exports those types.
+- All existing tests pass.
+- Both files are under 300 lines.
