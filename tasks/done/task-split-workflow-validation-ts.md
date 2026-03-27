@@ -1,38 +1,31 @@
 ---
 id: task-split-workflow-validation-ts
-title: Split workflow/validation.ts — extract primitive validators
+title: Split workflow/validation.ts (306 lines) — extract trigger validation
 status: done
 priority: p2
-area: structure
-summary: workflow/validation.ts is 601 lines, twice the 300-line limit. It mixes low-level value validators with step-type validation and top-level registration. Extracting the primitive validators improves navigability.
-created_at: 2026-03-19
-updated_at: 2026-03-19
-completed_at: 2026-03-19
-promoted_at: 2026-03-19
+area: workflow
+summary: workflow/validation.ts is 306 lines and still contains both trigger validation logic and the workflow registration/top-level validation functions. Extracting trigger validation into a dedicated module would bring the file under 300 lines and continue the pattern already established with validation-primitives.ts and validation-steps.ts.
+created_at: "2026-03-27"
+updated_at: "2026-03-27"
+
 ---
 
 ## Problem
 
-`src/workflow/validation.ts` is 601 lines (100% over the 300-line limit). It contains two separable layers:
-
-- Primitive field validators (`expectRelativePath`, `expectName`, `expectNonEmptyString`, `expectOptionalString`, `expectOptionalBoolean`, `expectOptionalInteger`, `expectOptionalScalarFilter`, etc.)
-- Step-type validators (`validateToolStep`, `validateAgentStep`, `validateEmitStep`, `validateRestartStep`, `validateCodeStep`, `validateStep`)
-- Top-level registry functions (`registerWorkflowDefinition`, `validateWorkflowDefinitions`)
-
-The primitive validators have no dependency on workflow types and can live independently.
+`src/workflow/validation.ts` is 306 lines. It already delegated step validators to `validation-steps.ts` and shared primitives to `validation-primitives.ts`, but the internal `validateTrigger` function (~84 lines) still lives here alongside `validateStep`, `registerWorkflowDefinition`, and `validateWorkflowDefinitions`. The file is over the 300-line limit.
 
 ## Desired Outcome
 
-`workflow/validation.ts` shrinks to ≤300 lines. Primitive validators move to a small `workflow/validation-primitives.ts` or similar. No behavior changes.
+Extract `validateTrigger` (and any helpers it uses) into `src/workflow/validation-trigger.ts`. Update `validation.ts` to import from the new module. Both files stay under 300 lines.
 
 ## Constraints
 
-- `registerWorkflowDefinition` and `validateWorkflowDefinitions` must remain exported from `validation.ts` or re-exported through it.
-- No changes to the public validation API.
-- All tests must pass after the split.
+- Follow the established pattern: primitives in `validation-primitives.ts`, step validators in `validation-steps.ts`, trigger validator in `validation-trigger.ts`.
+- Do not change validation logic or error messages.
+- No re-export shims — update all call sites.
 
 ## Done When
 
-- `workflow/validation.ts` is ≤300 lines.
-- The extracted file is ≤300 lines.
-- `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` all pass.
+- `src/workflow/validation-trigger.ts` exists and contains trigger validation logic.
+- `src/workflow/validation.ts` is under 300 lines.
+- `npx tsc --noEmit` passes with no new errors.
