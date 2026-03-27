@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-routes-ts
 title: Split server/workflow-routes.ts (315 lines) — extract run-data handlers
-status: backlog
+status: ready
 priority: p2
 area: server
 summary: server/workflow-routes.ts is 315 lines mixing workflow control handlers (status, pause, resume, trigger) with run data handlers (list runs, run detail, run stream). Extract the run-data handlers into a focused module to bring each file under 300 lines.
