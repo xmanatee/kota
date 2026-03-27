@@ -5,6 +5,7 @@ import { initModuleLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
+import { subscribeAttentionDigest } from "../workflow/attention-digest.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
@@ -46,6 +47,7 @@ export class Daemon {
   private stopRestartListener: (() => void) | null = null;
   private stopFailureAlert: (() => void) | null = null;
   private stopApprovalNotification: (() => void) | null = null;
+  private stopAttentionDigest: (() => void) | null = null;
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -129,6 +131,14 @@ export class Daemon {
       (message) => this.log(message),
     );
 
+    const runsDir = join(this.stateDir, "runs");
+    this.stopAttentionDigest = subscribeAttentionDigest(
+      this.bus,
+      this.projectDir,
+      runsDir,
+      (message) => this.log(message),
+    );
+
     this.workflows.start();
 
     this.shutdownHandler = () => {
@@ -184,6 +194,10 @@ export class Daemon {
     if (this.stopApprovalNotification) {
       this.stopApprovalNotification();
       this.stopApprovalNotification = null;
+    }
+    if (this.stopAttentionDigest) {
+      this.stopAttentionDigest();
+      this.stopAttentionDigest = null;
     }
 
     if (this.shutdownHandler) {
