@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-cli-ts
 title: Split workflow-cli.ts into focused sub-modules
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: workflow-cli.ts is 636 lines — more than twice the 300-line file limit. It mixes run listing, run display, step inspection, log streaming, pause/resume, abort, and manual-trigger concerns. Splitting it into focused sub-modules will improve readability and make each concern independently testable.
