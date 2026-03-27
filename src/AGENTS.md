@@ -12,6 +12,8 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `loop-constructor.ts` — `initAgentSession` function; contains the full constructor body extracted from `AgentSession`.
 - `loop-init.ts` — `AgentLoopState` interface, `runInitExtensions`, `saveToHistoryImpl`, `runClose`.
 - `loop-send.ts` — `runSend`; handles prompt dispatch and the agent turn loop.
+- `guardrails.ts` — policy enforcement: `assess`, `resolvePolicy`, config helpers, and exported types.
+- `guardrails-classify.ts` — risk classification: tool lists, pattern constants, and `classifyRisk`.
 
 ## AgentLoopState Cast Pattern
 
