@@ -15,3 +15,5 @@ This directory contains core tool implementations and registrations.
 - `computer-use-actions-shared.ts` — `EXEC_OPTS`, `parseCombo`, `truncText`, `needCoords` shared by both platform files.
 - `computer-use-actions-mac.ts` — macOS click, type, key, scroll, drag, and cursor actions using cliclick/osascript.
 - `computer-use-actions-linux.ts` — Linux click, type, key, scroll, drag, and cursor actions using xdotool.
+- `custom-tool.ts` — `customToolTool` schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, persistence lifecycle, and registration.
+- `custom-tool-handlers.ts` — `handleCreate`, `handleList`, `handleRemove` action handlers and `buildRunner` execution builder for custom tools.
