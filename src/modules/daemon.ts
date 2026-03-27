@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { Command } from "commander";
 import type { KotaExtension } from "../extension-types.js";
 import { Daemon, RESTART_EXIT_CODE } from "../scheduler/daemon.js";
+import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
+import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 
@@ -31,6 +33,12 @@ export function buildDaemonChildArgs(opts: {
   if (opts.model) args.push("--model", opts.model);
   if (opts.verbose) args.push("--verbose");
   return args;
+}
+
+export function resolveDaemonWorkflowDefinitions(
+  contributedWorkflows: readonly RegisteredWorkflowDefinitionInput[] = [],
+): RegisteredWorkflowDefinitionInput[] {
+  return getRegisteredWorkflowDefinitions(contributedWorkflows);
 }
 
 async function runDaemonSupervisor(
@@ -119,7 +127,7 @@ const daemonModule: KotaExtension = {
           config: ctx.config,
           idleIntervalMs: parseIntOption(opts.idleInterval, "idle-interval") * 1000,
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
-          workflows: ctx.getWorkflows(),
+          workflows: resolveDaemonWorkflowDefinitions(ctx.getContributedWorkflows()),
         });
 
         await daemon.start();

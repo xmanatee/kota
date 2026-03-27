@@ -68,7 +68,7 @@ export class ExtensionLoader {
       moduleEventUnsubs: this.moduleEventUnsubs,
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
-      getWorkflows: () => this.getWorkflows(),
+      getContributedWorkflows: () => this.getContributedWorkflows(),
       sessionFactory: this.sessionFactory,
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ExtensionLoader.MAX_TOOL_CALL_DEPTH) {
@@ -189,7 +189,7 @@ export class ExtensionLoader {
     }
   }
 
-  getWorkflows(): RegisteredWorkflowDefinitionInput[] {
+  getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] {
     return this.contributedWorkflows;
   }
 

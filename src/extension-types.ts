@@ -77,8 +77,8 @@ export type ExtensionContext = {
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
   /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
   getRoutes: () => RouteRegistration[];
-  /** Get workflow definitions contributed by all loaded extensions. */
-  getWorkflows: () => RegisteredWorkflowDefinitionInput[];
+  /** Get workflow definitions contributed by loaded extensions. */
+  getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   /** Get this module's config section from the KOTA config. */
   getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
   /** Scoped logger — messages prefixed with `[module:<name>]`. */

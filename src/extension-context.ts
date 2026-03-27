@@ -19,7 +19,7 @@ export interface ExtensionContextParams {
   moduleEventUnsubs: Map<string, Array<() => void>>;
   getBus: () => EventBus | null;
   getRoutes: () => RouteRegistration[];
-  getWorkflows: () => RegisteredWorkflowDefinitionInput[];
+  getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   sessionFactory: ((opts: CreateSessionOptions) => ExtensionSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }
@@ -71,7 +71,7 @@ function createEventProxy(
 }
 
 export function createExtensionContext(params: ExtensionContextParams, moduleName?: string): ExtensionContext {
-  const { cwd, verbose, config, moduleStorages, moduleEventUnsubs, getBus, getRoutes, getWorkflows, sessionFactory, callTool } = params;
+  const { cwd, verbose, config, moduleStorages, moduleEventUnsubs, getBus, getRoutes, getContributedWorkflows, sessionFactory, callTool } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ExtensionStorage(cwd, "_default");
@@ -103,7 +103,7 @@ export function createExtensionContext(params: ExtensionContextParams, moduleNam
       registerCustomGroup(name, toolNames, pattern);
     },
     getRoutes,
-    getWorkflows,
+    getContributedWorkflows,
     getModuleConfig: <T = Record<string, unknown>>(): T | undefined => {
       if (!moduleName) return undefined;
       return config.modules?.[moduleName] as T | undefined;

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ExtensionStorage } from "../extension-storage.js";
 import type { ExtensionContext } from "../extension-types.js";
-import daemonModule, { buildDaemonChildArgs } from "./daemon.js";
+import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
+import daemonModule, {
+  buildDaemonChildArgs,
+  resolveDaemonWorkflowDefinitions,
+} from "./daemon.js";
 
 const stubCtx: ExtensionContext = {
   cwd: "/tmp/test",
@@ -10,7 +14,7 @@ const stubCtx: ExtensionContext = {
   storage: new ExtensionStorage("/tmp/test", "daemon"),
   registerGroup: () => {},
   getRoutes: () => [],
-  getWorkflows: () => [],
+  getContributedWorkflows: () => [],
   getModuleConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
@@ -72,5 +76,29 @@ describe("daemonModule", () => {
     expect(args).toContain("--model");
     expect(args).toContain("claude-sonnet-4-6");
     expect(args).toContain("--verbose");
+  });
+
+  it("includes built-in workflows when no extension workflows are contributed", () => {
+    const workflows = resolveDaemonWorkflowDefinitions([]);
+
+    expect(workflows.map((workflow) => workflow.name)).toEqual(
+      getBuiltinWorkflowDefinitions().map((workflow) => workflow.name),
+    );
+  });
+
+  it("merges contributed workflows on top of the built-in set", () => {
+    const workflows = resolveDaemonWorkflowDefinitions([
+      {
+        name: "extension/nightly",
+        definitionPath: "extensions/test",
+        triggers: [{ event: "runtime.idle" }],
+        steps: [{ id: "emit", type: "emit", event: "extension.done" }],
+      },
+    ]);
+
+    expect(workflows.map((workflow) => workflow.name)).toContain("explorer");
+    expect(workflows.map((workflow) => workflow.name)).toContain("builder");
+    expect(workflows.map((workflow) => workflow.name)).toContain("improver");
+    expect(workflows.map((workflow) => workflow.name)).toContain("extension/nightly");
   });
 });

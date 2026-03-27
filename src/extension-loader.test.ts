@@ -142,7 +142,7 @@ describe("ExtensionLoader", () => {
     expect(discoveredRoutes[0].path).toBe("/api/test");
   });
 
-  it("collects workflow definitions from extensions and exposes via getWorkflows", async () => {
+  it("collects workflow definitions from extensions and exposes via getContributedWorkflows", async () => {
     const loader = new ExtensionLoader({});
 
     await loader.load({
@@ -156,13 +156,13 @@ describe("ExtensionLoader", () => {
       ],
     });
 
-    const workflows = loader.getWorkflows();
+    const workflows = loader.getContributedWorkflows();
     expect(workflows).toHaveLength(1);
     expect(workflows[0].name).toBe("workflow-provider/my-job");
     expect(workflows[0].definitionPath).toBe("extensions/workflow-provider");
   });
 
-  it("exposes contributed workflows via ctx.getWorkflows()", async () => {
+  it("exposes contributed workflows via ctx.getContributedWorkflows()", async () => {
     const loader = new ExtensionLoader({});
 
     await loader.load({
@@ -180,7 +180,7 @@ describe("ExtensionLoader", () => {
     await loader.load({
       name: "wf-consumer",
       onLoad: (ctx) => {
-        discoveredWorkflows = ctx.getWorkflows();
+        discoveredWorkflows = ctx.getContributedWorkflows();
       },
     });
 

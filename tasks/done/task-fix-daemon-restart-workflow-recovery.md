@@ -1,7 +1,7 @@
 ---
 id: task-fix-daemon-restart-workflow-recovery
 title: Fix daemon restart so workflow definitions and queued runs recover correctly
-status: ready
+status: done
 priority: p0
 area: workflow
 summary: A builder-triggered restart can bring the child daemon back up with zero loaded workflows, which then causes pending follow-up runs like improver to be discarded during queue restore. Fix the restart path so built-in workflows always load, extension workflows are merged correctly, and queued runs survive restarts.

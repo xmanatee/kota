@@ -20,3 +20,9 @@ export function getBuiltinWorkflowDefinitions(): RegisteredWorkflowDefinitionInp
     ),
   ];
 }
+
+export function getRegisteredWorkflowDefinitions(
+  contributed: readonly RegisteredWorkflowDefinitionInput[] = [],
+): RegisteredWorkflowDefinitionInput[] {
+  return [...getBuiltinWorkflowDefinitions(), ...contributed];
+}

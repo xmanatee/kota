@@ -304,7 +304,7 @@ describe("resolveExtensionTools", () => {
     storage: {} as ExtensionContext["storage"],
     registerGroup: () => {},
     getRoutes: () => [],
-    getWorkflows: () => [],
+    getContributedWorkflows: () => [],
     getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
