@@ -1,12 +1,12 @@
 ---
 id: task-add-post-check-agent-resume-loop
 title: Post-check repair loop for workflow agent steps
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: When an agent step completes and post-checks fail, the same agent could immediately repair the issue with full local context rather than waiting for the next improver/builder cycle. Add an optional bounded repair loop within the workflow run.
 created_at: 2026-03-25
-updated_at: 2026-03-27
+updated_at: 2026-03-27T03:45:00Z
 ---
 
 ## Problem

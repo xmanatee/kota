@@ -129,6 +129,20 @@ type WorkflowBaseStep = {
   continueOnFailure?: boolean;
 };
 
+export type WorkflowRepairCheck = {
+  /** Identifier for this check, shown in repair iteration output. */
+  id: string;
+  tool: string;
+  input?: WorkflowValueResolver<Record<string, unknown>>;
+};
+
+export type WorkflowRepairLoopConfig = {
+  /** Checks to run after the agent step. Failures trigger a repair agent run. */
+  checks: WorkflowRepairCheck[];
+  /** Maximum number of repair agent runs before giving up and failing the step. */
+  maxRepairAttempts: number;
+};
+
 export type WorkflowToolStepInput = WorkflowBaseStep & {
   type: "tool";
   tool: string;
@@ -158,6 +172,7 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   disallowedTools?: string[];
   settingSources?: SDKSettingSource[];
   retry?: WorkflowRetryConfig;
+  repairLoop?: WorkflowRepairLoopConfig;
 };
 
 export type WorkflowEmitStepInput = WorkflowBaseStep & {
@@ -218,6 +233,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   disallowedTools?: string[];
   settingSources: SDKSettingSource[];
   retry?: WorkflowRetryConfig;
+  repairLoop?: WorkflowRepairLoopConfig;
 };
 
 export type WorkflowEmitStep = WorkflowBaseStep & {

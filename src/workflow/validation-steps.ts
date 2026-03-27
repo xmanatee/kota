@@ -8,6 +8,7 @@ import type {
   WorkflowCodeStepInput,
   WorkflowEmitStep,
   WorkflowEmitStepInput,
+  WorkflowRepairLoopConfig,
   WorkflowRestartStep,
   WorkflowRestartStepInput,
   WorkflowToolStep,
@@ -24,6 +25,7 @@ import {
   expectOptionalString,
   expectOptionalStringArray,
   expectRelativePath,
+  isPlainObject,
   WorkflowDefinitionError,
 } from "./validation-primitives.js";
 
@@ -39,6 +41,52 @@ export const VALID_MODEL_IDS = new Set([
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
 ]);
+
+function validateRepairLoop(
+  value: unknown,
+  field: string,
+  definitionPath: string,
+): WorkflowRepairLoopConfig {
+  if (!isPlainObject(value)) {
+    throw new WorkflowDefinitionError(`${field} must be an object`, definitionPath);
+  }
+  const maxRepairAttempts = expectOptionalInteger(
+    value.maxRepairAttempts,
+    `${field}.maxRepairAttempts`,
+    definitionPath,
+    1,
+  );
+  if (!maxRepairAttempts) {
+    throw new WorkflowDefinitionError(
+      `${field}.maxRepairAttempts must be a positive integer`,
+      definitionPath,
+    );
+  }
+  if (!Array.isArray(value.checks) || value.checks.length === 0) {
+    throw new WorkflowDefinitionError(
+      `${field}.checks must be a non-empty array`,
+      definitionPath,
+    );
+  }
+  const checks = value.checks.map((check: unknown, i: number) => {
+    if (!isPlainObject(check)) {
+      throw new WorkflowDefinitionError(
+        `${field}.checks[${i}] must be an object`,
+        definitionPath,
+      );
+    }
+    return {
+      id: expectName(check.id, `${field}.checks[${i}].id`, definitionPath),
+      tool: expectNonEmptyString(check.tool, `${field}.checks[${i}].tool`, definitionPath),
+      input: expectOptionalObjectOrFunction(
+        check.input,
+        `${field}.checks[${i}].input`,
+        definitionPath,
+      ) as WorkflowRepairLoopConfig["checks"][number]["input"],
+    };
+  });
+  return { checks, maxRepairAttempts };
+}
 
 export function validateToolStep(
   step: WorkflowToolStepInput,
@@ -202,6 +250,10 @@ export function validateAgentStep(
       definitionPath,
     ),
     retry: step.retry,
+    repairLoop:
+      step.repairLoop !== undefined
+        ? validateRepairLoop(step.repairLoop, `steps[${index}].repairLoop`, definitionPath)
+        : undefined,
   };
 }
 

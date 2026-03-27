@@ -4,12 +4,20 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import type { AgentStepConfig } from "./step-executor.js";
-import { buildAgentPrompt, executeAgentStep, executeToolStep, withRetry } from "./step-executor.js";
+import {
+  buildAgentPrompt,
+  buildRepairPrompt,
+  executeAgentStep,
+  executeStep,
+  executeToolStep,
+  withRetry,
+} from "./step-executor.js";
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
   WorkflowRunMetadata,
   WorkflowRunTrigger,
+  WorkflowStepContext,
   WorkflowToolStep,
 } from "./types.js";
 
@@ -405,5 +413,188 @@ describe("executeToolStep retry", () => {
 
     await expect(executeToolStep(step, context)).rejects.toThrow("fail");
     expect(context.runTool).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("buildRepairPrompt", () => {
+  it("includes attempt info and failed check output", () => {
+    const step = makeStep({ id: "build" });
+    const failures = [{ id: "verify-lint", passed: false, output: "error: semicolon" }];
+    const prompt = buildRepairPrompt(1, 3, failures, step);
+    expect(prompt).toContain("repair attempt 1/3");
+    expect(prompt).toContain('"build"');
+    expect(prompt).toContain("## verify-lint");
+    expect(prompt).toContain("error: semicolon");
+    expect(prompt).toContain("Fix these issues now");
+  });
+
+  it("includes all failures", () => {
+    const step = makeStep();
+    const failures = [
+      { id: "check-a", passed: false, output: "error A" },
+      { id: "check-b", passed: false, output: "error B" },
+    ];
+    const prompt = buildRepairPrompt(2, 5, failures, step);
+    expect(prompt).toContain("## check-a");
+    expect(prompt).toContain("error A");
+    expect(prompt).toContain("## check-b");
+    expect(prompt).toContain("error B");
+  });
+});
+
+describe("executeStep repair loop", () => {
+  let projectDir: string;
+  let agentConfig: AgentStepConfig;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-repair-loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, "src", "workflows", "test"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "workflows", "test", "prompt.md"),
+      "Test prompt.\n",
+    );
+    agentConfig = { projectDir };
+    mockedExecuteWithAgentSDK.mockReset();
+  });
+
+  function makeRepairContext(runTool: WorkflowStepContext["runTool"]): WorkflowStepContext {
+    return {
+      projectDir,
+      workflow: {
+        name: "test",
+        definitionPath: "src/workflows/test/workflow.ts",
+        runId: "run-1",
+        runDir: ".kota/runs/run-1",
+        runDirPath: `${projectDir}/.kota/runs/run-1`,
+      },
+      trigger: TRIGGER,
+      previousOutput: null,
+      stepOutputs: {},
+      stepResults: {},
+      stepOutputList: [],
+      runTool,
+      emit: () => {},
+      requestRestart: () => {},
+      readPrompt: () => "",
+      readRuntimeState: () => ({
+        completedRuns: 0,
+        pendingRuns: [],
+        workflows: {},
+      }),
+    };
+  }
+
+  it("happy path: no repair needed when all checks pass", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    const runTool = vi.fn().mockResolvedValue({ content: "all good", is_error: false });
+    const context = makeRepairContext(runTool);
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+      },
+    });
+
+    const result = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(runTool).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ content: "done", repairIterations: [] });
+  });
+
+  it("repair success: agent fixes issue on first repair attempt", async () => {
+    mockedExecuteWithAgentSDK
+      .mockResolvedValueOnce(SUCCESS_RESULT) // initial agent run
+      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed", turns: 2, totalCostUsd: 0.02 }); // repair agent
+
+    const runTool = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("lint error: missing semicolon")) // first check fails
+      .mockResolvedValue({ content: "lint passed", is_error: false }); // second check passes
+
+    const context = makeRepairContext(runTool);
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 3,
+        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+      },
+    });
+
+    const result = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    ) as Record<string, unknown>;
+
+    // Initial agent + repair agent = 2 calls
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    // First check fails, repair runs, second check passes
+    expect(runTool).toHaveBeenCalledTimes(2);
+
+    expect(result.content).toBe("fixed");
+    expect(result.turns).toBe(3); // 1 initial + 2 repair
+    expect(result.totalCostUsd).toBeCloseTo(0.03); // 0.01 + 0.02
+
+    const iterations = result.repairIterations as Array<Record<string, unknown>>;
+    expect(iterations).toHaveLength(1);
+    expect(iterations[0].attempt).toBe(1);
+    expect(iterations[0].agentResponse).toBe("fixed");
+    const failures = iterations[0].failures as Array<{ id: string }>;
+    expect(failures[0].id).toBe("check-lint");
+  });
+
+  it("budget exhaustion: throws after maxRepairAttempts with still-failing checks", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT); // initial + repair agents all succeed
+
+    const runTool = vi
+      .fn()
+      .mockRejectedValue(new Error("typecheck error: type mismatch")); // checks always fail
+
+    const context = makeRepairContext(runTool);
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [{ id: "check-typecheck", tool: "shell", input: { command: "npm run typecheck" } }],
+      },
+    });
+
+    await expect(
+      executeStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        context,
+        new AbortController(),
+        () => {},
+        () => {},
+        agentConfig,
+      ),
+    ).rejects.toThrow('Repair loop for step "test-step" exhausted budget (2 attempt(s))');
+
+    // Initial agent + 1 repair agent (attempt 1 runs repair, attempt 2 exhausts)
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    // Checks run on attempt 1 and attempt 2 (budget exhaustion)
+    expect(runTool).toHaveBeenCalledTimes(2);
   });
 });
