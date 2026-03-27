@@ -74,11 +74,20 @@ const builderWorkflow: WorkflowDefinitionInput = {
       },
     },
     {
+      // Fail fast if lint is already broken before the agent spends budget.
+      id: "preflight-lint",
+      type: "tool",
+      tool: "shell",
+      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
+      input: { command: "npm run lint", stream_output: false },
+    },
+    {
       id: "build",
       type: "agent",
       agentName: "builder",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
+      when: (ctx) =>
+        isClaimTaskResult(ctx.stepOutputs["claim-task"]) && stepSucceeded("preflight-lint")(ctx),
     },
     {
       id: "check-task-outcome",
