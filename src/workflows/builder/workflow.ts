@@ -108,7 +108,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
       run: ({ projectDir, stepOutputs, stepResults, workflow }) => {
         const claim = stepOutputs["claim-task"] as { chosenTaskId: string };
-        const buildResult = stepResults["build"];
+        const buildResult = stepResults.build;
         const summary = buildResult?.error
           ? buildResult.error.split("\n")[0].slice(0, 120)
           : buildResult?.status === "success"
