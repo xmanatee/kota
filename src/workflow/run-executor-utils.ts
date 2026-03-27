@@ -1,10 +1,14 @@
 import { join } from "node:path";
+import type { BusEnvelope } from "../event-bus.js";
 import { readOptionalJsonFile } from "../json-file.js";
 import type {
+  WorkflowDefinition,
   WorkflowFilterValue,
   WorkflowRunMetadata,
+  WorkflowRunTrigger,
   WorkflowRuntimeState,
   WorkflowStepResult,
+  WorkflowTrigger,
 } from "./types.js";
 
 export function matchesFilter(
@@ -112,4 +116,32 @@ export function buildRetryInitialState(
     }
   }
   return state;
+}
+
+export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
+  return definition.steps.some((step) => step.type === "agent");
+}
+
+export function enqueueMatchingWorkflows(
+  envelope: BusEnvelope,
+  definitions: readonly WorkflowDefinition[],
+  enqueue: (
+    def: WorkflowDefinition,
+    trigger: WorkflowTrigger,
+    run: WorkflowRunTrigger,
+  ) => void,
+): void {
+  for (const definition of definitions) {
+    if (!definition.enabled) continue;
+    for (const trigger of definition.triggers) {
+      if (trigger.event !== envelope.type) continue;
+      if (!matchesFilter(trigger.filter, envelope.payload)) continue;
+      // Shallow-copy the payload so each queued run owns its own object
+      // reference — safeJsonStringify treats shared references as circular.
+      enqueue(definition, trigger, {
+        event: envelope.type,
+        payload: { ...envelope.payload },
+      });
+    }
+  }
 }
