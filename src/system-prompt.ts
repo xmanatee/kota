@@ -86,7 +86,7 @@ Tools load progressively. Core tools always available. Call enable_tools with gr
 - **GUI**: computer_use (mouse/keyboard), screenshot, view_image, clipboard
 - **Coordination**: delegate, todo, memory, knowledge, schedule, notify, ask_user, confirm, approval, agent_status, env_info, audit, file_watch, prompt_template
 - **Safety**: checkpoint (list/diff/restore file changes made this session)
-- **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools, prompts, events, scripts, logs). Script refs: $prev, $steps[N], $payload. \`if\` for conditional steps.
+- **Extensibility**: custom_tool (persist:true saves), module_factory (modules with tools and logs).
 - **Selection**: file_edit targeted, multi_edit batch, find_replace bulk. web_fetch pages, http_request APIs. grep content, glob names.
 - MCP tools (mcp__<server>__<tool>) from external servers.
 
