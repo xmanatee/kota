@@ -42,10 +42,27 @@ const improverWorkflow: WorkflowDefinitionInput = {
       run: (ctx) => recoverDoingTasks(ctx),
     },
     {
+      // Fail fast if lint is already broken before the agent spends budget.
+      id: "preflight-lint",
+      type: "tool",
+      tool: "shell",
+      input: (ctx) => ({ command: "npm run lint", stream_output: false, cwd: ctx.projectDir }),
+    },
+    {
+      // Fail fast if the test baseline is already broken before the agent spends budget.
+      id: "preflight-test",
+      type: "tool",
+      tool: "shell",
+      when: stepSucceeded("preflight-lint"),
+      input: (ctx) => ({ command: "npm test", stream_output: false, timeout_ms: 300_000, cwd: ctx.projectDir }),
+      retry: { maxAttempts: 3, initialDelayMs: 30_000, backoffFactor: 1 },
+    },
+    {
       id: "improve",
       type: "agent",
       agentName: "improver",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
+      when: (ctx) => stepSucceeded("preflight-lint")(ctx) && stepSucceeded("preflight-test")(ctx),
     },
     {
       id: "verify-typecheck",

@@ -1,12 +1,12 @@
 ---
 id: task-improver-preflight-guards
 title: Add preflight lint/test guards to the improver workflow
-status: backlog
+status: done
 priority: p2
 area: workflow
 summary: The builder workflow checks lint and tests before spending agent budget, but the improver workflow goes straight to the agent step. Adding the same preflight guards to improver prevents burning budget when the baseline is already broken.
 created_at: 2026-03-27T19:00:00Z
-updated_at: 2026-03-27T19:00:00Z
+updated_at: 2026-03-27T18:30:00Z
 ---
 
 ## Problem
