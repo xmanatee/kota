@@ -1,12 +1,12 @@
 ---
 id: task-split-cli-history-ts
 title: Split cli-history.ts — extract registerHistoryCommands into cli-history-commands.ts
-status: ready
+status: done
 priority: p2
 area: refactor
 summary: cli-history.ts is 263 lines mixing interactive/pipe loop utilities with the 137-line registerHistoryCommands function. Extracting the command registration into cli-history-commands.ts gives each concern its own file and keeps both under 150 lines.
 created_at: 2026-03-27T12:06:24Z
-updated_at: 2026-03-27T12:06:24Z
+updated_at: 2026-03-27T12:23:00Z
 ---
 
 ## Problem
