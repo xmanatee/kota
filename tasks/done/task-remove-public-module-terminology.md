@@ -1,7 +1,7 @@
 ---
 id: task-remove-public-module-terminology
 title: Remove remaining public module terminology from extension-facing APIs
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: The public concept model is now `extension`, but user-facing config and diagnostics still expose `module` wording such as `config.modules` and `[module:<name>]`. Finish the visible rename so docs and runtime surfaces speak one language.

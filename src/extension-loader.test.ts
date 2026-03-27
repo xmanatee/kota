@@ -624,10 +624,10 @@ describe("Module SDK — storage, config, skills", () => {
     expect(storageB.getDir()).toContain("mod-b");
   });
 
-  it("getExtensionConfig returns the module's config section", async () => {
+  it("getExtensionConfig returns the extension's config section", async () => {
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({
-      modules: {
+      extensions: {
         "my-mod": { apiKey: "secret", retries: 3 },
       },
     });

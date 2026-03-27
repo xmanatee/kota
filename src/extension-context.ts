@@ -51,7 +51,7 @@ export function createExtensionContext(params: ExtensionContextParams, moduleNam
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ExtensionStorage(cwd, "_default");
-  const prefix = moduleName ? `[module:${moduleName}]` : "[module]";
+  const prefix = moduleName ? `[extension:${moduleName}]` : "[extension]";
   const log = {
     info: (msg: string, data?: unknown) => {
       console.error(`${prefix} ${msg}`);
@@ -82,7 +82,7 @@ export function createExtensionContext(params: ExtensionContextParams, moduleNam
     getContributedWorkflows,
     getExtensionConfig: <T = Record<string, unknown>>(): T | undefined => {
       if (!moduleName) return undefined;
-      return config.modules?.[moduleName] as T | undefined;
+      return config.extensions?.[moduleName] as T | undefined;
     },
     log,
     getSecret: (key: string): string | null => {

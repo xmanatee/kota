@@ -37,8 +37,8 @@ export type KotaConfig = {
   /** Guardrails — risk classification and policy enforcement for tool calls. */
   guardrails?: GuardrailsConfig;
 
-  /** Per-module configuration. Keys are module names, values are module-specific settings. */
-  modules?: Record<string, Record<string, unknown>>;
+  /** Per-extension configuration. Keys are extension names, values are extension-specific settings. */
+  extensions?: Record<string, Record<string, unknown>>;
 
   /** Provider overrides. Keys are service types (e.g. "memory", "knowledge"), values are provider names. */
   providers?: Record<string, string>;
@@ -116,14 +116,14 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (parsed) out.guardrails = parsed;
   }
 
-  if (typeof raw.modules === "object" && raw.modules !== null && !Array.isArray(raw.modules)) {
-    const modules: Record<string, Record<string, unknown>> = {};
-    for (const [name, val] of Object.entries(raw.modules)) {
+  if (typeof raw.extensions === "object" && raw.extensions !== null && !Array.isArray(raw.extensions)) {
+    const extensions: Record<string, Record<string, unknown>> = {};
+    for (const [name, val] of Object.entries(raw.extensions)) {
       if (typeof val === "object" && val !== null && !Array.isArray(val)) {
-        modules[name] = val as Record<string, unknown>;
+        extensions[name] = val as Record<string, unknown>;
       }
     }
-    if (Object.keys(modules).length > 0) out.modules = modules;
+    if (Object.keys(extensions).length > 0) out.extensions = extensions;
   }
 
   if (typeof raw.providers === "object" && raw.providers !== null && !Array.isArray(raw.providers)) {
@@ -178,8 +178,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
         policies: { ...(base?.policies), ...over.policies },
         toolOverrides: over.toolOverrides ?? base?.toolOverrides,
       };
-    } else if (key === "modules" && typeof val === "object") {
-      merged.modules = { ...a.modules, ...(val as Record<string, Record<string, unknown>>) };
+    } else if (key === "extensions" && typeof val === "object") {
+      merged.extensions = { ...a.extensions, ...(val as Record<string, Record<string, unknown>>) };
     } else if (key === "providers" && typeof val === "object") {
       merged.providers = { ...a.providers, ...(val as Record<string, string>) };
     } else if (key === "modelProvider" && typeof val === "object") {

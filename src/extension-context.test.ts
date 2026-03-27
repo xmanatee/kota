@@ -43,7 +43,7 @@ describe("ExtensionContext.log", () => {
     expect(typeof ctx.log.debug).toBe("function");
   });
 
-  it("prefixes messages with [module:<name>]", async () => {
+  it("prefixes messages with [extension:<name>]", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({});
@@ -51,13 +51,13 @@ describe("ExtensionContext.log", () => {
 
     const ctx: ExtensionContext = onLoad.mock.calls[0][0];
     ctx.log.info("hello world");
-    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] hello world");
+    expect(errSpy).toHaveBeenCalledWith("[extension:my-mod] hello world");
 
     ctx.log.warn("watch out");
-    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] WARN: watch out");
+    expect(errSpy).toHaveBeenCalledWith("[extension:my-mod] WARN: watch out");
 
     ctx.log.error("something broke");
-    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] ERROR: something broke");
+    expect(errSpy).toHaveBeenCalledWith("[extension:my-mod] ERROR: something broke");
 
     errSpy.mockRestore();
   });
@@ -84,7 +84,7 @@ describe("ExtensionContext.log", () => {
       (call) => typeof call[0] === "string" && call[0].includes("DEBUG:"),
     );
     expect(debugCall).toBeTruthy();
-    expect(debugCall![0]).toContain("[module:verbose-mod] DEBUG: visible");
+    expect(debugCall![0]).toContain("[extension:verbose-mod] DEBUG: visible");
 
     errSpy.mockRestore();
   });
@@ -236,7 +236,7 @@ describe("tools as factory function", () => {
       (call) => typeof call[0] === "string" && call[0].includes("tool executed"),
     );
     expect(logCall).toBeTruthy();
-    expect(logCall![0]).toContain("[module:logging-factory]");
+    expect(logCall![0]).toContain("[extension:logging-factory]");
 
     errSpy.mockRestore();
   });
