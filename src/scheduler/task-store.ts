@@ -2,27 +2,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { projectHash } from "./schedule-parser.js";
+import type { Task, TaskFileData, TaskPriority, TaskStatus } from "./task-store-types.js";
 
-export type TaskPriority = "high" | "medium" | "low";
-export type TaskStatus = "pending" | "in_progress" | "done";
-
-export type Task = {
-  id: number;
-  task: string;
-  status: TaskStatus;
-  parent_id?: number;
-  priority?: TaskPriority;
-  blocked_by?: number[];
-  created: string;
-  completed?: string;
-  notes?: string;
-};
-
-type TaskFileData = {
-  project: string;
-  tasks: Task[];
-  nextId: number;
-};
+export type { Task, TaskPriority, TaskStatus } from "./task-store-types.js";
 
 const MAX_COMPLETED = 15;
 

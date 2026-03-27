@@ -1,7 +1,7 @@
 ---
 id: task-split-task-store-ts
 title: Split scheduler/task-store.ts — extract types into task-store-types.ts
-status: backlog
+status: done
 priority: p2
 area: scheduler
 summary: task-store.ts is 276 lines and approaching the 300-line limit. The TaskPriority, TaskStatus, and Task type declarations at the top are a distinct static concern that can move to a new task-store-types.ts, leaving the TaskStore class and singleton helpers as the focused runtime surface.
