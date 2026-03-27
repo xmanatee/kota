@@ -34,4 +34,4 @@ Extract the retry/backoff group into `workflow/step-executor-retry.ts`:
 
 - `step-executor-retry.ts` exists with the retry/backoff group.
 - `step-executor-agent.ts` is measurably shorter (under 220 lines).
-- `tsc --noEmit` passes with no new errors.
+- `npm run typecheck`, `npm run test`, and `npm run lint` all pass.
