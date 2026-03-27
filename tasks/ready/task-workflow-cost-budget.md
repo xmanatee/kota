@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cost-budget
 title: Add per-workflow daily cost budget with auto-pause
-status: backlog
+status: ready
 priority: p2
 area: workflows
 summary: Builder runs cost ~$6.50/day and improver ~$3.30/day with no enforcement mechanism. Operators need a way to set daily spend limits per workflow so runaway autonomous cycles don't accumulate unbounded cost.
 created_at: 2026-03-27T16:12:00Z
-updated_at: 2026-03-27T16:12:00Z
+updated_at: 2026-03-27T16:23:00Z
 ---
 
 ## Problem
