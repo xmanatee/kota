@@ -1,7 +1,7 @@
 ---
 id: task-split-workflow-runtime-ts
 title: Split workflow/runtime.ts (382 lines) — extract event handling and budget alerting
-status: backlog
+status: ready
 priority: p2
 area: workflow
 summary: workflow/runtime.ts is still 382 lines after prior extractions (queue, backoff, schedule-triggers). The remaining WorkflowRuntime class mixes lifecycle (start/stop), event handling/dispatch, idle loop, signal polling, and Telegram budget alerting. Extract the budget alert and/or event dispatch logic into focused modules to bring the file under 300 lines.
