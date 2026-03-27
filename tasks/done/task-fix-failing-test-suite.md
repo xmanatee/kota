@@ -1,7 +1,7 @@
 ---
 id: task-fix-failing-test-suite
 title: Fix failing test suite blocking builder workflow
-status: ready
+status: done
 priority: p1
 area: testing
 summary: The test suite has 32 failures across 19 files, causing every builder run to fail at the verification step. Identify the root causes and restore a green baseline so builder can make progress again.

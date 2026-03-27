@@ -1404,20 +1404,20 @@ describe("WorkflowRuntime", () => {
       runtime.start();
       await wait(50); // both workflows should have started
 
-      expect(startTimes["builder"]).toBeDefined();
-      expect(startTimes["formatter"]).toBeDefined();
+      expect(startTimes.builder).toBeDefined();
+      expect(startTimes.formatter).toBeDefined();
 
       // Both should be running concurrently (neither completed yet)
-      expect(completeTimes["builder"]).toBeUndefined();
-      expect(completeTimes["formatter"]).toBeUndefined();
+      expect(completeTimes.builder).toBeUndefined();
+      expect(completeTimes.formatter).toBeUndefined();
 
       releaseAlpha!();
       releaseBeta!();
       await wait(60);
       await runtime.stop();
 
-      expect(completeTimes["builder"]).toBeDefined();
-      expect(completeTimes["formatter"]).toBeDefined();
+      expect(completeTimes.builder).toBeDefined();
+      expect(completeTimes.formatter).toBeDefined();
 
       const runsDir = join(projectDir, ".kota", "runs");
       const runIds = readdirSync(runsDir);

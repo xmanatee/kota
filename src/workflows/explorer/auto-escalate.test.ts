@@ -209,7 +209,7 @@ describe("escalateTaskFiles", () => {
   it("does not duplicate Blocker section if already present", () => {
     const taskId = "task-foo";
     const contentWithBlocker =
-      makeTaskContent(taskId, "ready") + "\n## Blocker\n\nExisting blocker.\n";
+      `${makeTaskContent(taskId, "ready")}\n## Blocker\n\nExisting blocker.\n`;
     writeFileSync(
       join(projectDir, "tasks", "ready", `${taskId}.md`),
       contentWithBlocker,

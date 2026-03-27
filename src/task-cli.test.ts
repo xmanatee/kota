@@ -52,7 +52,7 @@ function captureOutput(fn: () => void): string {
     return true;
   });
   const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
-    lines.push(args.join(" ") + "\n");
+    lines.push(`${args.join(" ")}\n`);
   });
   try {
     fn();
