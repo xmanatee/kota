@@ -1,7 +1,7 @@
 ---
 id: task-split-web-ui-client-ts
 title: Split web-ui client.ts into logical section modules
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: client.ts is 833 lines — nearly 3x the 300-line project limit. Split it into focused section files (sessions, chat, workflows, tasks, approvals, cost, utils) that are composed into the single template literal output, mirroring how web-ui.ts already separates styles.ts from client.ts.
