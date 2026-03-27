@@ -8,12 +8,13 @@ Your `previousOutput` contains pre-packaged situational context from the `gather
 
 - `needsAttention` — whether the queue requires action (you are only invoked when this is true)
 - `taskCounts` — task counts by state (inbox, ready, backlog, doing, blocked, done, dropped)
+- `openTaskSummaries` — array of `{ id, title, summary, status, priority }` for every task in `tasks/ready/` and `tasks/backlog/`; use this to check for duplicates and understand existing priorities before reading individual task files
 - `recentRuns` — recent workflow run summaries (last 24h, up to 20) with workflow name, status, duration, cost
 - `recentCommits` — last 10 git commits in short format
 - `costByWorkflow` — total spend (USD) per workflow over the last 24h; use this to gauge run frequency and cost without computing aggregates yourself
 - `runtimeState` — completedRuns total and per-workflow last status/runId
 
-Use this context directly. Do not re-fetch git log, run counts, or task counts via tool calls — they are already available above.
+Use this context directly. Do not re-fetch git log, run counts, task counts, or open task lists via tool calls — they are already available above.
 
 ## Role
 

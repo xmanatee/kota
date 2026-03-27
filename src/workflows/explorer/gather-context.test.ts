@@ -179,4 +179,86 @@ describe("gatherExplorerContext", () => {
       lastRunId: "explorer-run-1",
     });
   });
+
+  function writeTaskFile(dir: string, filename: string, attrs: Record<string, string>) {
+    const frontmatter = Object.entries(attrs)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n");
+    writeFileSync(join(dir, filename), `---\n${frontmatter}\n---\n`);
+  }
+
+  it("returns openTaskSummaries for tasks in ready and backlog", () => {
+    const readyDir = join(projectDir, "tasks", "ready");
+    const backlogDir = join(projectDir, "tasks", "backlog");
+    mkdirSync(readyDir, { recursive: true });
+    mkdirSync(backlogDir, { recursive: true });
+
+    writeTaskFile(readyDir, "task-foo.md", {
+      id: "task-foo",
+      title: "Foo task",
+      summary: "A ready task",
+      status: "ready",
+      priority: "p1",
+    });
+    writeTaskFile(backlogDir, "task-bar.md", {
+      id: "task-bar",
+      title: "Bar task",
+      summary: "A backlog task",
+      status: "backlog",
+      priority: "p2",
+    });
+
+    const ctx = makeContext(projectDir, null);
+    const result = gatherExplorerContext(ctx);
+
+    expect(result.openTaskSummaries).toEqual(
+      expect.arrayContaining([
+        { id: "task-foo", title: "Foo task", summary: "A ready task", status: "ready", priority: "p1" },
+        { id: "task-bar", title: "Bar task", summary: "A backlog task", status: "backlog", priority: "p2" },
+      ]),
+    );
+  });
+
+  it("returns empty openTaskSummaries when both ready and backlog are empty", () => {
+    mkdirSync(join(projectDir, "tasks", "ready"), { recursive: true });
+    mkdirSync(join(projectDir, "tasks", "backlog"), { recursive: true });
+
+    const ctx = makeContext(projectDir, null);
+    const result = gatherExplorerContext(ctx);
+    expect(result.openTaskSummaries).toEqual([]);
+  });
+
+  it("returns openTaskSummaries when only one state has tasks", () => {
+    const readyDir = join(projectDir, "tasks", "ready");
+    mkdirSync(readyDir, { recursive: true });
+    writeTaskFile(readyDir, "task-only.md", {
+      id: "task-only",
+      title: "Only task",
+      summary: "Just one",
+      status: "ready",
+      priority: "p3",
+    });
+
+    const ctx = makeContext(projectDir, null);
+    const result = gatherExplorerContext(ctx);
+    expect(result.openTaskSummaries).toHaveLength(1);
+    expect(result.openTaskSummaries[0]).toMatchObject({ id: "task-only", status: "ready" });
+  });
+
+  it("skips AGENTS.md and uses empty string for missing summary", () => {
+    const readyDir = join(projectDir, "tasks", "ready");
+    mkdirSync(readyDir, { recursive: true });
+    writeFileSync(join(readyDir, "AGENTS.md"), "# AGENTS\nsome content\n");
+    writeTaskFile(readyDir, "task-nosummary.md", {
+      id: "task-nosummary",
+      title: "No summary task",
+      status: "ready",
+      priority: "p2",
+    });
+
+    const ctx = makeContext(projectDir, null);
+    const result = gatherExplorerContext(ctx);
+    expect(result.openTaskSummaries).toHaveLength(1);
+    expect(result.openTaskSummaries[0].summary).toBe("");
+  });
 });
