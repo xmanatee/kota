@@ -10,7 +10,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
   wfCmd
     .command("show <run-id>")
     .description("Show step-level details for a specific run")
-    .action((runId) => {
+    .option("--step <step-id>", "Print the full output of a specific step as JSON")
+    .action((runId, options) => {
+      const stepId = options.step as string | undefined;
       const store = new WorkflowRunStore();
       // Support prefix matching
       let resolvedId = runId;
@@ -34,6 +36,20 @@ export function registerRunShowCommand(wfCmd: Command): void {
       if (!metadata) {
         console.error(`Run "${resolvedId}" not found.`);
         process.exit(1);
+      }
+
+      if (stepId !== undefined) {
+        const step = metadata.steps.find((s) => s.id === stepId);
+        if (!step) {
+          console.error(`Step "${stepId}" not found in run "${resolvedId}".`);
+          process.exit(1);
+        }
+        if (step.error) {
+          console.log(step.error);
+        } else {
+          console.log(JSON.stringify(step.output, null, 2));
+        }
+        return;
       }
 
       const errorPath = join(store.runsDir, resolvedId, "error.txt");

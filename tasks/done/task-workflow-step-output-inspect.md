@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-output-inspect
 title: Add step output inspection to workflow CLI
-status: ready
+status: done
 priority: p3
 area: workflow
 summary: kota workflow show displays step status and duration but not step output payloads. Adding a --step flag to print the full JSON output of a specific step would make it much easier to debug what a code or tool step returned during a run.
 created_at: 2026-03-20
-updated_at: 2026-03-27T04:25:00Z
+updated_at: 2026-03-27T04:47:00Z
 ---
 
 ## Problem

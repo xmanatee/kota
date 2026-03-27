@@ -2,10 +2,12 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readOptionalJsonFile } from "./json-file.js";
 import { getEligibleAtMs } from "./workflow/run-executor.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 import type {
   WorkflowDefinition,
+  WorkflowRunMetadata,
   WorkflowRuntimeState,
   WorkflowStepResult,
 } from "./workflow/types.js";
@@ -341,6 +343,83 @@ describe("workflow show step cost display", () => {
       ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
       : "";
     expect(cost).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// workflow show --step: step output inspection
+// ---------------------------------------------------------------------------
+
+describe("workflow show --step flag", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-wf-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("returns full JSON output for a step with output", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep(makeStepResult("gather-context", "code", { taskCounts: { ready: 2 } }));
+    run.finish({ status: "success", durationMs: 100 });
+
+    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      join(store.runsDir, run.metadata.id, "metadata.json"),
+    );
+    const step = metadata?.steps.find((s) => s.id === "gather-context");
+    expect(step).toBeDefined();
+    expect(JSON.stringify(step?.output, null, 2)).toContain('"taskCounts"');
+    expect(JSON.stringify(step?.output, null, 2)).toContain('"ready": 2');
+  });
+
+  it("returns error string for a failed step", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep({
+      id: "build",
+      type: "agent",
+      status: "failed",
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: 50,
+      error: "Something went wrong",
+    });
+    run.finish({ status: "failed", durationMs: 50, error: "Something went wrong" });
+
+    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      join(store.runsDir, run.metadata.id, "metadata.json"),
+    );
+    const step = metadata?.steps.find((s) => s.id === "build");
+    expect(step?.error).toBe("Something went wrong");
+    expect(step?.output).toBeUndefined();
+  });
+
+  it("step with null output prints null as JSON", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    run.recordStep({
+      id: "noop",
+      type: "code",
+      status: "success",
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: 10,
+      output: null,
+    });
+    run.finish({ status: "success", durationMs: 10 });
+
+    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      join(store.runsDir, run.metadata.id, "metadata.json"),
+    );
+    const step = metadata?.steps.find((s) => s.id === "noop");
+    expect(JSON.stringify(step?.output, null, 2)).toBe("null");
   });
 });
 
