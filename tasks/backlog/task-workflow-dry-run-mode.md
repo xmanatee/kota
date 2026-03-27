@@ -5,8 +5,8 @@ status: backlog
 priority: p3
 area: workflow
 summary: kota workflow run --dry-run should validate the workflow definition and simulate step execution order (including when predicates and parallel blocks) without running agent steps or executing consequential code. Useful for testing workflow changes before deploying them.
-created_at: 2026-03-27
-updated_at: 2026-03-27
+created_at: 2026-03-27T05:19:47Z
+updated_at: 2026-03-27T05:19:47Z
 ---
 
 ## Problem

@@ -5,8 +5,8 @@ status: ready
 priority: p2
 area: web-ui
 summary: The sidebar history panel renders conversation titles but clicking does nothing. The API already supports GET /api/history/:id returning full message content. Clicking a history entry should display the conversation in the main chat area as a read-only view.
-created_at: 2026-03-27
-updated_at: 2026-03-27
+created_at: 2026-03-27T06:40:18Z
+updated_at: 2026-03-27T06:40:18Z
 ---
 
 ## Problem

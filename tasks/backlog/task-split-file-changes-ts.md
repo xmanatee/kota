@@ -5,8 +5,8 @@ status: backlog
 priority: p2
 area: core
 summary: file-changes.ts is 272 lines and approaching the limit. The simpleDiff function (~64 lines) is a self-contained diff utility with no dependency on ChangeTracker. Extracting it into file-diff.ts leaves ChangeTracker and its singleton utilities as the sole concern of file-changes.ts.
-created_at: 2026-03-27
-updated_at: 2026-03-27
+created_at: 2026-03-27T11:40:10Z
+updated_at: 2026-03-27T11:40:10Z
 ---
 
 ## Problem

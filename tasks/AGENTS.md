@@ -23,6 +23,7 @@ outstanding work.
   - `id` must equal the filename without the `.md` extension (e.g. file `task-foo-bar.md` → `id: task-foo-bar`).
   - `priority` must be one of `p0`, `p1`, `p2`, or `p3`.
   - `status` must equal the containing directory name (e.g. `status: doing` when the file is in `doing/`).
+  - `created_at` and `updated_at` must use ISO 8601 datetime format (`YYYY-MM-DDTHH:MM:SSZ`, e.g. `2026-03-27T06:40:18Z`). Date-only values are accepted but lose same-day tiebreaker precision — always use datetime.
 - Required body sections outside `inbox/`: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - `## Plan` is optional and must stay high-level. Do not put deep implementation detail in tasks.
 - Tasks should read like product or work specs, not coding instructions.

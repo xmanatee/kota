@@ -5,8 +5,8 @@ status: backlog
 priority: p3
 area: cli
 summary: The kota CLI has grown to cover workflows, tasks, approvals, and more. Adding zsh/bash completion would speed up daily operator use — completing subcommands, workflow names, run IDs, and flag names without memorizing them.
-created_at: 2026-03-27
-updated_at: 2026-03-27
+created_at: 2026-03-27T05:52:33Z
+updated_at: 2026-03-27T05:52:33Z
 ---
 
 ## Problem
