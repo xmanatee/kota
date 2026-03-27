@@ -1,7 +1,7 @@
 ---
 id: task-split-run-store-ts
 title: Split workflow/run-store.ts (366 lines) — extract ActiveWorkflowRunHandle
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: workflow/run-store.ts is 366 lines containing both WorkflowRunStore (directory management, list/load/delete) and the ActiveWorkflowRunHandle factory with its append/record/finish methods. Extract ActiveWorkflowRunHandle and its builder into a separate module so each file stays under 300 lines.
