@@ -31,12 +31,14 @@ import { handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowPause,
   handleWorkflowResume,
-  handleWorkflowRunDetail,
-  handleWorkflowRunStream,
-  handleWorkflowRuns,
   handleWorkflowStatus,
   handleWorkflowTrigger,
 } from "./workflow-routes.js";
+import {
+  handleWorkflowRunDetail,
+  handleWorkflowRunStream,
+  handleWorkflowRuns,
+} from "./workflow-run-routes.js";
 
 export type ServerContext = {
   port: number;

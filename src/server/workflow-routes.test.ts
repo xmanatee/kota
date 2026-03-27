@@ -7,13 +7,15 @@ import { WorkflowRunStore } from "../workflow/run-store.js";
 import {
   handleWorkflowPause,
   handleWorkflowResume,
+  handleWorkflowStatus,
+  handleWorkflowTrigger,
+} from "./workflow-routes.js";
+import {
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
-  handleWorkflowStatus,
-  handleWorkflowTrigger,
   listRunMetadata,
-} from "./workflow-routes.js";
+} from "./workflow-run-routes.js";
 
 function makeProjectDir(): string {
   const dir = join(
