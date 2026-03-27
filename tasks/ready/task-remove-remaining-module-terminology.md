@@ -1,5 +1,5 @@
 ---
-id: task-rename-module-loader-to-extension-loader
+id: task-remove-remaining-module-terminology
 title: Rename module* → extension* in session internals and tool registry
 status: ready
 priority: p2
