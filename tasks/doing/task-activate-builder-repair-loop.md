@@ -1,7 +1,7 @@
 ---
 id: task-activate-builder-repair-loop
 title: Activate repair loop on the builder workflow's build step
-status: ready
+status: doing
 priority: p2
 area: workflows
 summary: The workflow runtime supports a repairLoop on agent steps — checks that run after the step, with automatic repair agent runs on failure — but the builder's build step does not use it. Activating it would let the builder self-correct typecheck, lint, or test failures without burning a full retry.
