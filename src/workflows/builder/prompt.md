@@ -34,7 +34,7 @@ Use these summaries to orient quickly without making discovery tool calls. You s
 - Aim for materially useful improvements over low-value polish.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - **Move the task to `done/` when your work is complete**: `git mv tasks/doing/<task-id>.md tasks/done/<task-id>.md` and update its `status` field to `done`. This is required — the `check-task-outcome` step will record a failure annotation if the task is still in `doing/` after the build step.
-- Keep the task file, docs, and any local `AGENTS.md` files aligned with reality when your change affects them.
+- Keep the task file, docs, and any local `AGENTS.md` files aligned with reality when your change affects them. **When you create a new file, you must add it to the local `AGENTS.md` Key Modules list** (or equivalent section) — stale AGENTS.md entries after file splits have recurred and required follow-up improver commits to fix.
 - If implementation uncovers a genuinely useful follow-up, capture it lightly in `tasks/inbox/` or enrich the current task instead of creating duplicate work.
 - **Check file sizes after changes**: JS/TS files should stay under ~300 lines (see AGENTS.md). If a file you significantly modified now exceeds this, create an inbox task to split it — do not add a split to the current task scope.
 - If you change behavior, verify the exact behavior you changed while you work.
