@@ -2,29 +2,18 @@ Your job is to make KOTA materially better as a general-purpose autonomous agent
 
 Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files in directories you touch.
 
-## Context
-
-Your prior step outputs contain pre-packaged situational context:
-
-From `gather-context`:
-- `taskCounts` — task counts by state (inbox, backlog, ready, doing, blocked, done, dropped)
-- `recentRuns` — workflow run summaries from the last 24h (up to 20), with workflow name, status, duration, cost
-- `recentCommits` — last 10 git commits (one-line format)
-- `recentlyAttemptedTaskIds` — task IDs that appeared in `tasks/done/` or `tasks/doing/` in recent builder commits (de-duplicated). If `claim-task.chosenTaskId` appears here, the task was previously attempted — investigate why it was re-opened before building.
-- `costByWorkflow` — total spend (USD) per workflow over the last 24h; use this to note cost-per-run trends without computing aggregates yourself
-- `runtimeState` — completedRuns total and per-workflow last status/runId
-
-From `claim-task`:
-- `chosenTaskId` — the task ID that was pre-claimed for this run; the task file has already been moved to `tasks/doing/`
-
-Use these summaries to orient quickly without making discovery tool calls. You still need to read task files, code, and `.kota/runs/<run-id>/` when you need details beyond these summaries.
-
 ## Role
 
-- Work on the task identified by `claim-task.chosenTaskId`. The task file is in `tasks/doing/`.
+- Work on the task identified by the `claim-task` step output exposed in the workflow wrapper. The task file is already in `tasks/doing/`.
 - Investigate the chosen task deeply, including the relevant code, existing abstractions, and external references when they help you implement it well.
 - Focus on correct architecture, complete implementation, and honest verification.
 - Make one cohesive improvement per run.
+
+## Workflow Contract
+
+- The workflow wrapper only injects runtime-only facts such as the claimed task id and trigger details.
+- Everything else is discoverable. Gather the context you need yourself from the repository, `.kota/runs/`, git history, tests, docs, and external sources when useful.
+- Optimize for quality, correctness, and leverage, not for token thrift or minimum-step execution.
 
 ## Guidance
 
@@ -40,6 +29,6 @@ Use these summaries to orient quickly without making discovery tool calls. You s
 - Do not turn one structural task into a chain of adjacent split, rename, or dedup tasks just because they are easy and local. Prefer one cohesive, higher-leverage improvement per run.
 - If you change behavior, verify the exact behavior you changed while you work.
 - Before committing, run all three checks yourself: `npm run typecheck`, `npm run lint`, and `npm test`. All must pass. Do not rely on the post-step pipeline to catch failures — a lint or type error will fail the run and undo nothing. Biome flags unsorted imports as lint errors; if you add or move imports, sort them or run `npx biome check --write src/` to auto-fix. You may use file-scoped runs (`npm test -- <file>`) for fast iteration during development, but the final verification before committing must always be the full suite (`npm test` with no arguments) — cross-file invariants only surface there. **Run lint as the very last step before staging** — not midway through; incremental edits after a clean lint check have caused recurrent failures. In test files using `vi.mock`, place all imports at the top (sorted: `node:` before package imports before relative imports), then `vi.mock(...)` calls below them; Vitest hoists mock calls automatically so import position does not affect hoisting.
-- If `npm test` fails and the failures appear unrelated to your changes (e.g. same tests failing that you didn't touch), check `recentRuns` for a pattern of recent builder failures at `verify-test`. If multiple recent runs also failed there, the failure is likely pre-existing. In that case: capture it in `tasks/inbox/` if not already tracked, do not commit code changes, and finish the run. Do not attempt the task work when the baseline test suite is broken.
+- If `npm test` fails and the failures appear unrelated to your changes, inspect recent runs and git history yourself before deciding the baseline is broken. If the failure is genuinely pre-existing, capture it in `tasks/inbox/` if not already tracked, do not commit code changes, and finish the run. Do not attempt the task work when the baseline test suite is broken.
 - This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
 - If you changed the repo: stage all changes with `git add -A` (and use `git mv` for task file moves), write a short readable commit message to `<run-directory>/commit-message.txt` (the run directory is shown in the session context), and do **not** run `git commit`. The workflow commits your staged changes only after all verification steps pass — committing directly bypasses the structural verification gate.

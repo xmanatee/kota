@@ -84,6 +84,58 @@ describe("workflow validation", () => {
     });
   });
 
+  it("accepts exposeOutputToAgent on workflow steps", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "claim-task",
+              type: "code",
+              exposeOutputToAgent: true,
+              run: () => ({ chosenTaskId: "task-demo" }),
+            },
+            {
+              id: "build",
+              type: "emit",
+              event: "builder.done",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.steps[0]).toMatchObject({
+      id: "claim-task",
+      exposeOutputToAgent: true,
+    });
+  });
+
+  it("rejects non-boolean exposeOutputToAgent values", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/explorer.ts", {
+            name: "explorer",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "claim-task",
+                type: "code",
+                exposeOutputToAgent: "yes" as never,
+                run: () => ({ chosenTaskId: "task-demo" }),
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(WorkflowDefinitionError);
+  });
+
   it("rejects missing prompt files", () => {
     expect(() =>
       validateWorkflowDefinitions(

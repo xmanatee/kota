@@ -44,6 +44,29 @@ export {
   withRetry,
 };
 
+function shouldExposeOutput(output: unknown): boolean {
+  if (output === undefined) return false;
+  if (
+    output &&
+    typeof output === "object" &&
+    !Array.isArray(output) &&
+    "skipped" in output
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function getExposedStepOutputs(
+  definition: WorkflowDefinition,
+  priorStepOutputs: Record<string, unknown>,
+): Array<[string, unknown]> {
+  return definition.steps
+    .filter((candidate) => "exposeOutputToAgent" in candidate && candidate.exposeOutputToAgent)
+    .map((candidate) => [candidate.id, priorStepOutputs[candidate.id]] as [string, unknown])
+    .filter(([, output]) => shouldExposeOutput(output));
+}
+
 export function buildAgentPrompt(
   definition: WorkflowDefinition,
   step: WorkflowAgentStep,
@@ -56,6 +79,8 @@ export function buildAgentPrompt(
     resolve(projectDir, step.promptPath),
     "utf-8",
   );
+  const triggerPayloadKeys = Object.keys(trigger.payload);
+  const exposedOutputs = getExposedStepOutputs(definition, priorStepOutputs);
   const lines = [
     "Execute one KOTA workflow step in this repository.",
     `Workflow: ${definition.name}`,
@@ -66,22 +91,20 @@ export function buildAgentPrompt(
     `Prompt file: ${step.promptPath}`,
     `Project root: ${projectDir}`,
     `Trigger event: ${trigger.event}`,
-    "",
-    "Trigger payload:",
-    "```json",
-    JSON.stringify(trigger.payload, null, 2),
-    "```",
+    "Only runtime-only workflow facts are injected here. Discover repository context yourself.",
   ];
-
-  const meaningfulOutputs = Object.entries(priorStepOutputs).filter(
-    ([, v]) =>
-      v !== null &&
-      typeof v === "object" &&
-      !("skipped" in (v as object)),
-  );
-  if (meaningfulOutputs.length > 0) {
-    lines.push("", "Prior step outputs:");
-    for (const [id, output] of meaningfulOutputs) {
+  if (triggerPayloadKeys.length > 0) {
+    lines.push(
+      "",
+      "Trigger payload:",
+      "```json",
+      JSON.stringify(trigger.payload, null, 2),
+      "```",
+    );
+  }
+  if (exposedOutputs.length > 0) {
+    lines.push("", "Exposed step outputs:");
+    for (const [id, output] of exposedOutputs) {
       lines.push(`<step id="${id}">`, JSON.stringify(output, null, 2), "</step>");
     }
   }

@@ -42,6 +42,7 @@ export type WorkflowRuntimeState = {
       lastCompletedAt?: string;
       lastStatus?: WorkflowRunStatus;
       nextScheduledAt?: string;
+      budgetPausedUntil?: string;
     }
   >;
 };

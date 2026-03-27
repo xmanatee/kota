@@ -336,7 +336,7 @@ describe("workflow-routes", () => {
         JSON.stringify({
           name: "builder",
           steps: [
-            { id: "gather-context", type: "code" },
+            { id: "inspect-queue", type: "code" },
             { id: "build", type: "agent" },
           ],
         }),
@@ -349,7 +349,7 @@ describe("workflow-routes", () => {
       expect(Array.isArray(body.workflowSteps)).toBe(true);
       const ws = body.workflowSteps as Array<{ id: string; type: string }>;
       expect(ws).toHaveLength(2);
-      expect(ws[0]).toEqual({ id: "gather-context", type: "code" });
+      expect(ws[0]).toEqual({ id: "inspect-queue", type: "code" });
       expect(ws[1]).toEqual({ id: "build", type: "agent" });
     });
 

@@ -42,6 +42,19 @@ export interface WorkflowRuntimeDispatchState {
   log(message: string): void;
 }
 
+function nextUtcMidnightIso(now = new Date()): string {
+  const nextMidnight = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + 1,
+    0,
+    0,
+    0,
+    0,
+  );
+  return new Date(nextMidnight).toISOString();
+}
+
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
   const definitions = state.workflowInputs ?? getBuiltinWorkflowDefinitions();
   const validated = validateWorkflowDefinitions(definitions, state.projectDir);
@@ -82,14 +95,23 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
     const definition = state.definitions.find((d) => d.name === queued.workflowName);
     if (!definition) continue;
 
-    if (definition.dailyBudgetUsd != null) {
+    if (definition.dailyBudgetUsd == null) {
+      state.store.clearWorkflowBudgetPause(definition.name);
+    } else {
+      const pausedUntil = state.store.getWorkflowBudgetPauseUntil(definition.name);
+      if (pausedUntil) {
+        continue;
+      }
       const wfSpend = state.store.getDailySpendUsd(definition.name);
       if (wfSpend >= definition.dailyBudgetUsd) {
+        const pauseUntil = nextUtcMidnightIso();
+        state.store.setWorkflowBudgetPauseUntil(definition.name, pauseUntil);
         state.log(
-          `Daily budget of $${definition.dailyBudgetUsd.toFixed(4)} reached for workflow "${definition.name}" ($${wfSpend.toFixed(4)} spent today). Skipping run.`,
+          `Daily budget of $${definition.dailyBudgetUsd.toFixed(4)} reached for workflow "${definition.name}" ($${wfSpend.toFixed(4)} spent today). Pausing it until ${pauseUntil}.`,
         );
         continue;
       }
+      state.store.clearWorkflowBudgetPause(definition.name);
     }
 
     state.log(`Dispatching workflow "${queued.workflowName}"`);

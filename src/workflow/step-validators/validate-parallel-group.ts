@@ -52,6 +52,11 @@ export function validateParallelGroup(
         `${label}.continueOnFailure`,
         definitionPath,
       ),
+      exposeOutputToAgent: expectOptionalBoolean(
+        codeStep.exposeOutputToAgent,
+        `${label}.exposeOutputToAgent`,
+        definitionPath,
+      ),
     };
   });
 

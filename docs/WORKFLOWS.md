@@ -18,6 +18,21 @@ runs on noisy events.
 
 ## Common Patterns
 
+## Agent Step Contract
+
+Workflow agent steps should receive a thin runtime envelope, not a curated
+context pack. The runtime may inject:
+
+- trigger details
+- run identity and run directory
+- explicitly exposed step outputs that the agent cannot recover itself
+
+Everything else should stay discoverable by the agent through normal repo
+surfaces and tools.
+
+If a step output truly must be passed forward, mark that step with
+`exposeOutputToAgent: true`. Keep this rare.
+
 ### Hook-like reaction
 
 React to a file change or a workflow completion:

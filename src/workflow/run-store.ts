@@ -130,6 +130,32 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
+  getWorkflowBudgetPauseUntil(name: string): string | null {
+    const state = this.readState();
+    const until = state.workflows[name]?.budgetPausedUntil;
+    if (!until) return null;
+    if (new Date(until).getTime() > Date.now()) return until;
+    delete state.workflows[name].budgetPausedUntil;
+    this.writeState(state);
+    return null;
+  }
+
+  setWorkflowBudgetPauseUntil(name: string, until: string): void {
+    const state = this.readState();
+    state.workflows[name] = {
+      ...state.workflows[name],
+      budgetPausedUntil: until,
+    };
+    this.writeState(state);
+  }
+
+  clearWorkflowBudgetPause(name: string): void {
+    const state = this.readState();
+    if (!state.workflows[name]?.budgetPausedUntil) return;
+    delete state.workflows[name].budgetPausedUntil;
+    this.writeState(state);
+  }
+
   pruneRuns(opts?: {
     retentionDays?: number;
     minKeepPerWorkflow?: number;

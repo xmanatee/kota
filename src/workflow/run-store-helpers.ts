@@ -120,7 +120,13 @@ export function assertWorkflowRuntimeState(
         `workflow state entry "${workflowName}" is invalid`,
       );
     }
-    for (const key of ["lastRunId", "lastStartedAt", "lastCompletedAt"] as const) {
+    for (const key of [
+      "lastRunId",
+      "lastStartedAt",
+      "lastCompletedAt",
+      "nextScheduledAt",
+      "budgetPausedUntil",
+    ] as const) {
       const current = entry[key];
       if (
         current !== undefined &&
@@ -133,10 +139,7 @@ export function assertWorkflowRuntimeState(
         );
       }
     }
-    if (
-      entry.lastStatus !== undefined &&
-      !isWorkflowRunStatus(entry.lastStatus)
-    ) {
+    if (entry.lastStatus !== undefined && !isWorkflowRunStatus(entry.lastStatus)) {
       throw new JsonFileError(
         path,
         "parse",
@@ -196,6 +199,7 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       type: step.type,
       tool: step.tool,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+      ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
     };
   }
   if (step.type === "agent") {
@@ -211,6 +215,7 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       disallowedTools: step.disallowedTools,
       settingSources: step.settingSources,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+      ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
     };
   }
   if (step.type === "emit") {
@@ -219,6 +224,7 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       type: step.type,
       event: step.event,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+      ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
     };
   }
   if (step.type === "restart") {
@@ -227,12 +233,21 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       type: step.type,
       requires: step.requires,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+      ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
+    };
+  }
+  if (step.type === "parallel") {
+    return {
+      id: step.id,
+      type: step.type,
+      ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
   }
   return {
     id: step.id,
     type: step.type,
     ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+    ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
   };
 }
 

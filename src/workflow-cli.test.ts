@@ -369,13 +369,13 @@ describe("workflow show --step flag", () => {
 
   it("returns full JSON output for a step with output", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
-    run.recordStep(makeStepResult("gather-context", "code", { taskCounts: { ready: 2 } }));
+    run.recordStep(makeStepResult("inspect-queue", "code", { taskCounts: { ready: 2 } }));
     run.finish({ status: "success", durationMs: 100 });
 
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
       join(store.runsDir, run.metadata.id, "metadata.json"),
     );
-    const step = metadata?.steps.find((s) => s.id === "gather-context");
+    const step = metadata?.steps.find((s) => s.id === "inspect-queue");
     expect(step).toBeDefined();
     expect(JSON.stringify(step?.output, null, 2)).toContain('"taskCounts"');
     expect(JSON.stringify(step?.output, null, 2)).toContain('"ready": 2');

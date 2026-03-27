@@ -2,7 +2,6 @@ import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { commitBuilderChanges } from "../builder/commit.js";
 import { stepSucceeded } from "../shared.js";
-import { gatherImproverContext } from "./gather-context.js";
 import { recoverDoingTasks } from "./recover-doing-tasks.js";
 
 const VERIFY_STEP_IDS = [
@@ -20,7 +19,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   description:
     "Improve the autonomous development system itself using evidence from recent runs.",
-  dailyBudgetUsd: 5,
   triggers: [
     {
       event: "workflow.completed",
@@ -38,11 +36,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
   ],
   steps: [
-    {
-      id: "gather-context",
-      type: "code",
-      run: (ctx) => gatherImproverContext(ctx),
-    },
     {
       id: "recover-doing-tasks",
       type: "code",

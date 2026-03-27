@@ -41,13 +41,14 @@ function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep
   };
 }
 
-function makeDefinition(): WorkflowDefinition {
+function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
     name: "test",
     enabled: true,
     definitionPath: "src/workflows/test/workflow.ts",
     triggers: [],
     steps: [],
+    ...overrides,
   };
 }
 
@@ -260,7 +261,7 @@ describe("buildAgentPrompt", () => {
     );
   });
 
-  it("omits prior step outputs section when all outputs are empty", () => {
+  it("omits the exposed step outputs section when nothing is exposed", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
       makeStep(),
@@ -269,54 +270,126 @@ describe("buildAgentPrompt", () => {
       projectDir,
       {},
     );
-    expect(prompt).not.toContain("Prior step outputs:");
+    expect(prompt).not.toContain("Exposed step outputs:");
   });
 
-  it("omits skipped steps from prior step outputs", () => {
+  it("omits non-exposed step outputs", () => {
     const { prompt } = buildAgentPrompt(
-      makeDefinition(),
+      makeDefinition({
+        steps: [{ id: "some-step", type: "code", run: async () => ({ ok: true }) }],
+      }),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      { "some-step": { counts: { ready: 2 } } },
+    );
+    expect(prompt).not.toContain("Exposed step outputs:");
+  });
+
+  it("omits skipped exposed outputs", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition({
+        steps: [
+          {
+            id: "some-step",
+            type: "code",
+            run: async () => ({ ok: true }),
+            exposeOutputToAgent: true,
+          },
+        ],
+      }),
       makeStep(),
       makeMetadata(),
       TRIGGER,
       projectDir,
       { "some-step": { skipped: true } },
     );
-    expect(prompt).not.toContain("Prior step outputs:");
+    expect(prompt).not.toContain("Exposed step outputs:");
   });
 
-  it("injects non-skipped prior step outputs into prompt", () => {
+  it("injects explicitly exposed step outputs into prompt", () => {
     const output = { counts: { ready: 3 }, actionableCount: 3 };
     const { prompt } = buildAgentPrompt(
-      makeDefinition(),
+      makeDefinition({
+        steps: [
+          {
+            id: "inspect-ready-queue",
+            type: "code",
+            run: async () => output,
+            exposeOutputToAgent: true,
+          },
+        ],
+      }),
       makeStep(),
       makeMetadata(),
       TRIGGER,
       projectDir,
       { "inspect-ready-queue": output },
     );
-    expect(prompt).toContain("Prior step outputs:");
+    expect(prompt).toContain("Exposed step outputs:");
     expect(prompt).toContain('<step id="inspect-ready-queue">');
     expect(prompt).toContain('"ready": 3');
   });
 
-  it("injects multiple prior step outputs in order", () => {
+  it("injects multiple exposed step outputs in definition order", () => {
     const outputs = {
-      "gather-context": { recentRuns: [] },
+      "claim-task": { chosenTaskId: "task-demo" },
       "inspect-queue": { counts: { ready: 2 } },
     };
     const { prompt } = buildAgentPrompt(
-      makeDefinition(),
+      makeDefinition({
+        steps: [
+          {
+            id: "inspect-queue",
+            type: "code",
+            run: async () => ({ counts: { ready: 2 } }),
+            exposeOutputToAgent: true,
+          },
+          {
+            id: "claim-task",
+            type: "code",
+            run: async () => ({ chosenTaskId: "task-demo" }),
+            exposeOutputToAgent: true,
+          },
+        ],
+      }),
       makeStep(),
       makeMetadata(),
       TRIGGER,
       projectDir,
       outputs,
     );
-    const gatherIdx = prompt.indexOf('<step id="gather-context">');
     const inspectIdx = prompt.indexOf('<step id="inspect-queue">');
-    expect(gatherIdx).toBeGreaterThan(-1);
+    const claimIdx = prompt.indexOf('<step id="claim-task">');
     expect(inspectIdx).toBeGreaterThan(-1);
-    expect(gatherIdx).toBeLessThan(inspectIdx);
+    expect(claimIdx).toBeGreaterThan(-1);
+    expect(inspectIdx).toBeLessThan(claimIdx);
+  });
+
+  it("omits the trigger payload block when the payload is empty", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      {},
+    );
+    expect(prompt).not.toContain("Trigger payload:");
+  });
+
+  it("includes the trigger payload block when the payload has runtime facts", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      { event: "workflow.completed", payload: { runId: "run-123" } },
+      projectDir,
+      {},
+    );
+    expect(prompt).toContain("Trigger payload:");
+    expect(prompt).toContain('"runId": "run-123"');
   });
 });
 

@@ -65,6 +65,12 @@ type WorkflowBaseStep = {
   id: string;
   when?: WorkflowPredicate;
   continueOnFailure?: boolean;
+  /**
+   * When true, this step's output is injected into later agent-step prompts.
+   * Keep this off by default and only expose runtime-only facts that the agent
+   * cannot reasonably discover from the repository itself.
+   */
+  exposeOutputToAgent?: boolean;
 };
 
 export type WorkflowToolStepInput = WorkflowBaseStep & {

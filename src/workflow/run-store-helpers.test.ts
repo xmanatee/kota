@@ -422,4 +422,13 @@ describe("buildWorkflowSnapshot", () => {
     const snap = buildWorkflowSnapshot(wf);
     expect(snap.steps[0]).toEqual({ id: "s1", type: "code" });
   });
+
+  it("includes exposeOutputToAgent when set", () => {
+    const wf: WorkflowDefinition = {
+      ...baseWorkflow,
+      steps: [{ id: "s1", type: "code", run: async () => ({}), exposeOutputToAgent: true }],
+    };
+    const snap = buildWorkflowSnapshot(wf);
+    expect(snap.steps[0]).toEqual({ id: "s1", type: "code", exposeOutputToAgent: true });
+  });
 });

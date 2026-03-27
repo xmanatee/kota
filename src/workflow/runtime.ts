@@ -84,6 +84,7 @@ export class WorkflowRuntime {
     this.wfQueue = new WorkflowQueueManager({
       store: this.store,
       getActiveBackoff: () => this.backoff.getActive(),
+      getWorkflowBudgetPauseUntil: (name) => this.store.getWorkflowBudgetPauseUntil(name),
       shouldSuppressBackoff: (def) => this.backoff.shouldSuppress(def),
       workflowUsesAgent,
       isActiveRun: (name) => this.activeRuns.has(name),

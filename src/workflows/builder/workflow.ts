@@ -8,7 +8,6 @@ import { stepSucceeded } from "../shared.js";
 import { checkTaskOutcome } from "./check-task-outcome.js";
 import { claimTask, isClaimTaskResult } from "./claim-task.js";
 import { commitBuilderChanges } from "./commit.js";
-import { gatherBuilderContext } from "./gather-context.js";
 import { isBuilderPreflightResult, runBuilderPreflight } from "./preflight.js";
 import { verifyClaim } from "./verify-claim.js";
 
@@ -26,7 +25,6 @@ function allVerifyStepsPassed({ stepResults }: WorkflowStepContext): boolean {
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
-  dailyBudgetUsd: 12,
   triggers: [
     {
       event: "workflow.completed",
@@ -51,19 +49,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir }) => runBuilderPreflight(projectDir),
     },
     {
-      id: "gather-context",
-      type: "code",
-      when: ({ previousOutput }) =>
-        isBuilderPreflightResult(previousOutput) &&
-        previousOutput.validCount > 0,
-      run: (ctx) => gatherBuilderContext(ctx),
-    },
-    {
       id: "claim-task",
       type: "code",
       when: ({ stepOutputs }) =>
         isBuilderPreflightResult(stepOutputs.preflight) &&
         (stepOutputs.preflight as { validCount: number }).validCount > 0,
+      exposeOutputToAgent: true,
       run: ({ projectDir }) => claimTask(projectDir),
     },
     {

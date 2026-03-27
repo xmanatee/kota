@@ -18,6 +18,8 @@
 - Do not add test-only production flags, hooks, or override parameters just to make tests easier.
 - Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
+- Prefer clear discoverable surfaces over injected context summaries. If an
+  agent can gather context itself, do not precompute and force-feed it.
 - Treat runtime, workflow, and core-loop changes as high-risk and verify them more thoroughly than routine edits.
 
 ## AGENTS.md Files

@@ -10,6 +10,7 @@ import type {
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
+  getWorkflowBudgetPauseUntil: (workflowName: string) => string | null;
   shouldSuppressBackoff: (
     definition: WorkflowDefinition,
   ) => WorkflowAgentBackoffState | null;
@@ -51,10 +52,13 @@ export class WorkflowQueueManager {
     );
     this.queue = state.pendingRuns.filter((item) => {
       if (!validNames.has(item.workflowName)) return false;
-      if (!activeAgentBackoff) return true;
       const definition = this.config
         .getDefinitions()
         .find((candidate) => candidate.name === item.workflowName);
+      if (definition?.dailyBudgetUsd != null && this.config.getWorkflowBudgetPauseUntil(item.workflowName)) {
+        return false;
+      }
+      if (!activeAgentBackoff) return true;
       return !definition || !this.config.workflowUsesAgent(definition);
     });
     this.persist();
@@ -68,6 +72,19 @@ export class WorkflowQueueManager {
     triggerConfig: WorkflowDefinition["triggers"][number],
     trigger: WorkflowRunTrigger,
   ): void {
+    const budgetPauseUntil =
+      definition.dailyBudgetUsd != null
+        ? this.config.getWorkflowBudgetPauseUntil(definition.name)
+        : null;
+    if (budgetPauseUntil) {
+      if (trigger.event !== "runtime.idle") {
+        this.config.log(
+          `Skipped workflow "${definition.name}" from event "${trigger.event}" during budget pause until ${new Date(budgetPauseUntil).toLocaleTimeString()}`,
+        );
+      }
+      return;
+    }
+
     const activeAgentBackoff = this.config.shouldSuppressBackoff(definition);
     if (activeAgentBackoff) {
       if (trigger.event !== "runtime.idle") {
@@ -124,16 +141,20 @@ export class WorkflowQueueManager {
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => {
+        const definition = this.config
+          .getDefinitions()
+          .find((candidate) => candidate.name === item.workflowName);
+        const budgetPaused =
+          definition?.dailyBudgetUsd != null &&
+          Boolean(this.config.getWorkflowBudgetPauseUntil(item.workflowName));
         if (
           item.notBeforeMs > now ||
-          this.config.isActiveRun(item.workflowName)
+          this.config.isActiveRun(item.workflowName) ||
+          budgetPaused
         ) {
           return false;
         }
         if (!activeAgentBackoff) return true;
-        const definition = this.config
-          .getDefinitions()
-          .find((candidate) => candidate.name === item.workflowName);
         return !definition || !this.config.workflowUsesAgent(definition);
       })
       .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);

@@ -302,7 +302,7 @@ describe("WorkflowRuntime budget enforcement", () => {
     expect(started[0]).toBe("builder");
   });
 
-  it("skips a workflow run when its per-workflow dailyBudgetUsd is reached", async () => {
+  it("pauses a workflow for the rest of the UTC day when its per-workflow dailyBudgetUsd is reached", async () => {
     mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
     const todayUtc = new Date().toISOString().slice(0, 10);
     const store = new WorkflowRunStore(projectDir);
@@ -335,8 +335,21 @@ describe("WorkflowRuntime budget enforcement", () => {
       (d) => d !== "prior-builder" && d !== "prior-explorer",
     );
     expect(newRunIds).toHaveLength(0);
-    expect(logs.some((l) => l.includes("builder") && l.includes("budget"))).toBe(true);
+    const budgetLogs = logs.filter((l) => l.includes('workflow "builder"') && l.includes("budget"));
+    expect(budgetLogs).toHaveLength(1);
+    expect(budgetLogs[0]).toContain("Pausing it until");
     expect(mockedExecuteWithAgentSDK).not.toHaveBeenCalled();
+
+    const pausedUntil = store.getWorkflowBudgetPauseUntil("builder");
+    expect(pausedUntil).toBeTruthy();
+  });
+
+  it("clears an expired per-workflow budget pause automatically", () => {
+    const store = new WorkflowRunStore(projectDir);
+    store.setWorkflowBudgetPauseUntil("builder", "2020-01-01T00:00:00.000Z");
+
+    expect(store.getWorkflowBudgetPauseUntil("builder")).toBeNull();
+    expect(store.readState().workflows.builder?.budgetPausedUntil).toBeUndefined();
   });
 
   it("allows a workflow to run when only another workflow's budget is exhausted", async () => {

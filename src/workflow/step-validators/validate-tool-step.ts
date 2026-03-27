@@ -31,6 +31,11 @@ export function validateToolStep(
       `steps[${index}].continueOnFailure`,
       definitionPath,
     ),
+    exposeOutputToAgent: expectOptionalBoolean(
+      step.exposeOutputToAgent,
+      `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
     retry: step.retry,
   };
 }

@@ -44,5 +44,10 @@ export function validateRestartStep(
       `steps[${index}].continueOnFailure`,
       definitionPath,
     ),
+    exposeOutputToAgent: expectOptionalBoolean(
+      step.exposeOutputToAgent,
+      `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
   };
 }

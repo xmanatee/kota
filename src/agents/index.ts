@@ -27,7 +27,7 @@ export const BUILTIN_AGENTS: readonly AgentDef[] = [
   },
   {
     name: "improver",
-    role: "Improve the autonomous development system itself using evidence from recent runs.",
+    role: "Steer the autonomous development system toward higher-quality, more ambitious work by improving prompts, workflows, and protocols.",
     promptPath: "src/workflows/improver/prompt.md",
     model: "claude-sonnet-4-6",
     tools: { permissionMode: "bypassPermissions" },

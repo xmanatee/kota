@@ -66,6 +66,17 @@ adding a parallel surface.
   identity.
 - `extension` protocol: contribution bundle for the concepts above.
 
+## Context Gathering
+
+Agents should receive only the runtime facts they cannot reconstruct
+themselves: trigger details, run identity, claimed task ids, and other explicit
+workflow facts. Everything else should stay discoverable through normal repo
+surfaces such as code, tasks, docs, git history, `.kota/runs/`, and external
+research tools.
+
+Do not build a second orchestration layer out of pre-packaged summaries.
+Prefer clear surfaces and self-directed investigation over injected worldview.
+
 ## Sessions And Channels
 
 `session` is core. `AgentSession` owns the conversation, context, tools, and
@@ -91,6 +102,9 @@ shared channel session model — new channels should use the same types.
 - Make built-in autonomy use the same `agent`, `workflow`, and `extension`
   model as everything else.
 - Do not add a second public automation engine beside workflows.
+- Keep workflow-provided context thin. If an agent can discover something
+  cheaply and reliably from the repo, the runtime should not inject it by
+  default.
 
 ## External Anchors
 
