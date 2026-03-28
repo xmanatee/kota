@@ -25,7 +25,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - **Do not use git worktrees.** Make all changes directly in this repository. The post-step verification pipeline runs from the project root, so changes isolated in a worktree will not be visible to it and will cause the run to fail. This applies to sub-agents too: when using the Agent tool, never set `isolation: "worktree"`. All sub-agents must work in the same project directory.
 - Aim for materially useful improvements over low-value polish.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
-- Own the task state directly. Move the task between `ready/`, `doing/`, `done/`, or `blocked/` yourself as reality changes. Before marking a task done, verify every specific quantitative claim in `## Done When` directly instead of estimating.
+- Own the task state directly. Move the task between `ready/`, `doing/`, `done/`, or `blocked/` yourself as reality changes; always update the `status:` frontmatter to match the target directory when you move a task file. Before marking a task done, verify every specific quantitative claim in `## Done When` directly instead of estimating.
 - Keep the task file, docs, and any local `AGENTS.md` files aligned with
   reality when your change affects them. If a local `AGENTS.md` contains an
   inventory such as `Key Modules`, update it when your change would otherwise
