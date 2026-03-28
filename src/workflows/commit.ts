@@ -15,7 +15,7 @@ const DEFAULT_COMMIT_MESSAGE = "Workflow: update repo";
  * otherwise falls back to a default message.
  * Returns `{ committed: false }` when there are no staged changes.
  */
-export function commitBuilderChanges(
+export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
 ): CommitResult {

@@ -1,9 +1,9 @@
 /**
- * Plugin discovery — finds user-authored plugins in `.kota/plugins/` and
+ * Extension discovery — finds user-authored plugins in `.kota/plugins/` and
  * `.kota/packages/`, adapts their exports to KotaExtension format, and returns
  * them for loading through ExtensionLoader.
  *
- * After the plugin→module unification (iter 447), plugins are simply modules
+ * After the plugin→extension unification, plugins are simply extensions
  * discovered from disk. ExtensionLoader handles all lifecycle (load, unload,
  * reload, dependencies, tool registration).
  */
@@ -19,7 +19,7 @@ const PLUGIN_DIR = ".kota/plugins";
 const PACKAGES_DIR = ".kota/packages";
 
 /**
- * Discover plugin modules from `.kota/plugins/` and `.kota/packages/`.
+ * Discover plugin extensions from `.kota/plugins/` and `.kota/packages/`.
  * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
  */
 export async function discoverExtensions(cwd?: string, verbose = false): Promise<KotaExtension[]> {

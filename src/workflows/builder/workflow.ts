@@ -4,8 +4,8 @@ import {
 } from "../../repo-tasks.js";
 import { assertTaskQueueValid } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { stepSucceeded } from "../shared.js";
-import { commitBuilderChanges } from "./commit.js";
+import { commitWorkflowChanges } from "../commit.js";
+import { stepCommitted, stepSucceeded } from "../shared.js";
 
 function shouldRunBuilder(stepOutputs: Record<string, unknown>): boolean {
   const inspectOutput = stepOutputs["inspect-ready-queue"];
@@ -96,12 +96,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("build"),
-      run: ({ projectDir, workflow }) => commitBuilderChanges(projectDir, workflow.runDirPath),
+      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
     {
       id: "request-restart",
       type: "restart",
-      when: stepSucceeded("commit"),
+      when: stepCommitted("commit"),
       reason: "builder workflow finished validation and commit",
       requires: ["commit"],
     },

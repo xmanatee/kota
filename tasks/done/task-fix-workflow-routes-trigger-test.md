@@ -1,13 +1,17 @@
 ---
 id: task-fix-workflow-routes-trigger-test
 title: Fix workflow-routes trigger test returning 409 instead of 200
-status: ready
+status: done
 priority: p1
 area: testing
-summary: Test calls handleWorkflowTrigger without a client arg, so the default DaemonControlClient.fromStateDir() connects to the live daemon which reports builder already queued — pass null explicitly to fix.
+summary: Resolved by making workflow route handlers use explicit daemon-client injection instead of defaulting to the live daemon from process cwd, which restored test isolation and removed the 409/200 failure.
 created_at: 2026-03-27T23:20:00Z
-updated_at: 2026-03-27T23:25:00Z
+updated_at: 2026-03-28T00:00:00Z
 ---
+
+Resolved more cleanly than the original one-line test patch: the route handler
+no longer reaches out to the live daemon by default, and the HTTP server path
+injects the daemon client explicitly.
 
 ## Problem
 

@@ -147,7 +147,7 @@ function ensureInit(): void {
   }
 }
 
-/** Returns the full tool list (core + module-registered). Read-only. */
+/** Returns the full tool list (core + extension-registered). Read-only. */
 export function getAllTools(): readonly Anthropic.Tool[] {
   ensureInit();
   return tools;

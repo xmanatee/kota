@@ -15,8 +15,9 @@ export function checkAbortSignal(
   if (!existsSync(signalPath)) return;
   try {
     rmSync(signalPath);
-  } catch {
-    // ignore cleanup errors
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Failed to clear abort signal: ${message}`);
   }
   if (activeRuns.size > 0) {
     log("Abort signal received — aborting active run(s)");
@@ -36,8 +37,9 @@ export function checkReloadSignal(
   if (!existsSync(signalPath)) return;
   try {
     rmSync(signalPath);
-  } catch {
-    // ignore cleanup errors
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Failed to clear workflow reload signal: ${message}`);
   }
   try {
     const newDefinitions = loadDefinitions();

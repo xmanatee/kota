@@ -43,3 +43,18 @@ export function computeCostByWorkflow(runs: RunSummary[]): Record<string, number
 export function stepSucceeded(stepId: string): WorkflowPredicate {
   return ({ stepResults }) => stepResults[stepId]?.status === "success";
 }
+
+export function stepCommitted(stepId: string): WorkflowPredicate {
+  return ({ stepResults, stepOutputs }) => {
+    if (stepResults[stepId]?.status !== "success") {
+      return false;
+    }
+    const output = stepOutputs[stepId];
+    return Boolean(
+      output &&
+        typeof output === "object" &&
+        "committed" in output &&
+        output.committed === true,
+    );
+  };
+}

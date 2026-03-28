@@ -4,7 +4,7 @@ import {
   assertTaskQueueValid,
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { commitBuilderChanges } from "../builder/commit.js";
+import { commitWorkflowChanges } from "../commit.js";
 import {
   BACKLOG_TASK_TARGET,
   READY_TASK_TARGET,
@@ -103,7 +103,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("explore"),
-      run: ({ projectDir, workflow }) => commitBuilderChanges(projectDir, workflow.runDirPath),
+      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
   ],
 };

@@ -22,7 +22,7 @@ import { initTaskStore } from "./scheduler/task-store.js";
 import { SessionStateMachine } from "./session-state.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { enableGroup } from "./tool-groups.js";
-import { setConfigProvider, setModuleInfoProvider } from "./tools/agent-status.js";
+import { setConfigProvider, setExtensionInfoProvider } from "./tools/agent-status.js";
 import { setDelegateConfig } from "./tools/delegate.js";
 import { CliTransport } from "./transport.js";
 import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
@@ -140,7 +140,7 @@ export function initAgentSession(
   });
 
   state.extensionLoader = new ExtensionLoader(options.config || {}, state.verbose);
-  setModuleInfoProvider(() =>
+  setExtensionInfoProvider(() =>
     state.extensionLoader.getLoadedExtensions().map((name) => ({
       name,
       toolCount: 0,

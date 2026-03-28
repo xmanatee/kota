@@ -45,11 +45,12 @@ adding a parallel surface.
 
 ## Current To Target
 
-- The module→extension migration is complete. All surfaces — public interfaces
-  (`extension_factory`, `getExtensionConfig`), session internals, tool registry,
-  directory paths (`src/extensions/`), config fields (`config.extensions`), log
-  prefixes (`[extension:...]`), and extension-private storage and logging
-  internals — now use extension terminology.
+- The module→extension migration is mostly complete, but not finished.
+  Public APIs such as `extension_factory`, `getExtensionConfig`,
+  `config.extensions`, and `src/extensions/` now use extension terminology.
+  Some extension internals, diagnostics, and manifest-era helpers still carry
+  module-era naming and should be cleaned up instead of treated as a permanent
+  second vocabulary.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.

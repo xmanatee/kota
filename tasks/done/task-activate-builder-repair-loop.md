@@ -1,13 +1,17 @@
 ---
 id: task-activate-builder-repair-loop
 title: Activate repair loop on the builder workflow's build step
-status: ready
+status: done
 priority: p2
 area: workflows
 summary: The workflow runtime supports a repairLoop on agent steps — checks that run after the step, with automatic repair agent runs on failure — but the builder's build step does not use it. Activating it would let the builder self-correct typecheck, lint, or test failures without burning a full retry.
 created_at: 2026-03-27T18:33:05Z
-updated_at: 2026-03-27T19:00:00Z
+updated_at: 2026-03-28T00:00:00Z
 ---
+
+Implemented by the broader validation-rails refactor: the builder's `build`
+agent step now runs a repair loop with task-queue, typecheck, lint, test, and
+build checks, and the older hardcoded bookkeeping path was removed.
 
 ## Problem
 

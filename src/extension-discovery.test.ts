@@ -61,7 +61,7 @@ describe("discoverExtensions", () => {
     expect(modules[0].name).toBe("hello-plugin");
 
     await loader.loadAll(modules);
-    expect(loader.getModuleCount()).toBe(1);
+    expect(loader.getExtensionCount()).toBe(1);
     expect(loader.getToolCount()).toBe(1);
 
     const result = await executeTool("hello_world", {});
@@ -162,10 +162,10 @@ describe("discoverExtensions", () => {
 
     const modules = await discoverExtensions(tmpDir);
     await loader.loadAll(modules);
-    expect(loader.getModuleCount()).toBe(1);
+    expect(loader.getExtensionCount()).toBe(1);
 
     await loader.unloadAll();
-    expect(loader.getModuleCount()).toBe(0);
+    expect(loader.getExtensionCount()).toBe(0);
 
     const { existsSync } = await import("node:fs");
     expect(existsSync(flagPath)).toBe(true);
@@ -177,7 +177,7 @@ describe("discoverExtensions", () => {
     `);
 
     const modules = await discoverExtensions(tmpDir);
-    // adaptExport logs an error and the module is skipped
+    // adaptExport logs an error and the extension is skipped
     expect(modules).toHaveLength(0);
   });
 
@@ -190,7 +190,7 @@ describe("discoverExtensions", () => {
 
     // ExtensionLoader rejects the duplicate — first loads, second errors silently
     await loader.loadAll(modules);
-    expect(loader.getModuleCount()).toBe(1);
+    expect(loader.getExtensionCount()).toBe(1);
   });
 
   it("discovers plugins in alphabetical order", async () => {

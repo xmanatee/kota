@@ -3,11 +3,9 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { WorkflowStepContext, WorkflowStepResult } from "../../workflow/run-types.js";
-import { commitBuilderChanges } from "./commit.js";
-import builderWorkflow from "./workflow.js";
-
-// ── helpers ────────────────────────────────────────────────────────────────
+import type { WorkflowStepContext, WorkflowStepResult } from "../workflow/run-types.js";
+import { commitWorkflowChanges } from "./commit.js";
+import builderWorkflow from "./builder/workflow.js";
 
 function initGitRepo(dir: string): void {
   execSync("git init", { cwd: dir });
@@ -24,6 +22,7 @@ function makeStepResult(status: WorkflowStepResult["status"]): WorkflowStepResul
 
 function makeContext(
   stepResults: Record<string, WorkflowStepResult["status"]>,
+  stepOutputs: Record<string, unknown> = {},
 ): WorkflowStepContext {
   const results: Record<string, WorkflowStepResult> = {};
   for (const [id, status] of Object.entries(stepResults)) {
@@ -31,7 +30,7 @@ function makeContext(
   }
   return {
     stepResults: results,
-    stepOutputs: {},
+    stepOutputs,
     previousOutput: undefined,
     stepOutputList: [],
     projectDir: "/tmp",
@@ -45,9 +44,7 @@ function makeContext(
   } as unknown as WorkflowStepContext;
 }
 
-// ── commitBuilderChanges unit tests ────────────────────────────────────────
-
-describe("commitBuilderChanges", () => {
+describe("commitWorkflowChanges", () => {
   let tmpBase: string;
   let projectDir: string;
   let runDirPath: string;
@@ -70,7 +67,7 @@ describe("commitBuilderChanges", () => {
 
   it("returns committed=false when there are no staged changes", () => {
     writeFileSync(join(projectDir, "unstaged.txt"), "unstaged\n");
-    expect(commitBuilderChanges(projectDir, runDirPath)).toEqual({ committed: false });
+    expect(commitWorkflowChanges(projectDir, runDirPath)).toEqual({ committed: false });
   });
 
   it("commits staged changes using the commit-message.txt file", () => {
@@ -78,7 +75,7 @@ describe("commitBuilderChanges", () => {
     execSync("git add change.txt", { cwd: projectDir });
     writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: my custom message");
 
-    const result = commitBuilderChanges(projectDir, runDirPath);
+    const result = commitWorkflowChanges(projectDir, runDirPath);
     expect(result).toEqual({ committed: true, message: "Builder: my custom message" });
 
     const log = execSync("git log --format=%s -1", {
@@ -92,7 +89,7 @@ describe("commitBuilderChanges", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
     execSync("git add change.txt", { cwd: projectDir });
 
-    const result = commitBuilderChanges(projectDir, runDirPath);
+    const result = commitWorkflowChanges(projectDir, runDirPath);
     expect(result).toEqual({ committed: true, message: "Workflow: update repo" });
 
     const log = execSync("git log --format=%s -1", {
@@ -103,34 +100,47 @@ describe("commitBuilderChanges", () => {
   });
 });
 
-// ── commit step gate tests ─────────────────────────────────────────────────
-
-describe("builder workflow commit gate", () => {
+describe("builder workflow commit and restart gates", () => {
   const commitStep = builderWorkflow.steps.find((s) => s.id === "commit");
+  const restartStep = builderWorkflow.steps.find((s) => s.id === "request-restart");
 
   it("commit step exists in the workflow", () => {
     expect(commitStep).toBeDefined();
     expect(commitStep?.when).toBeDefined();
   });
 
-  it("is skipped when build fails", async () => {
+  it("restart step exists in the workflow", () => {
+    expect(restartStep).toBeDefined();
+    expect(restartStep?.when).toBeDefined();
+  });
+
+  it("skips commit when build fails", async () => {
     const ctx = makeContext({
       build: "failed",
     });
     expect(await commitStep!.when!(ctx)).toBe(false);
   });
 
-  it("is skipped when build is missing", async () => {
-    const ctx = makeContext({
-      inspect: "success",
-    });
-    expect(await commitStep!.when!(ctx)).toBe(false);
-  });
-
-  it("runs when build passes", async () => {
+  it("runs commit when build passes", async () => {
     const ctx = makeContext({
       build: "success",
     });
     expect(await commitStep!.when!(ctx)).toBe(true);
+  });
+
+  it("skips restart when commit produced no commit", async () => {
+    const ctx = makeContext(
+      { commit: "success" },
+      { commit: { committed: false } },
+    );
+    expect(await restartStep!.when!(ctx)).toBe(false);
+  });
+
+  it("runs restart when commit produced a commit", async () => {
+    const ctx = makeContext(
+      { commit: "success" },
+      { commit: { committed: true, message: "Workflow: update repo" } },
+    );
+    expect(await restartStep!.when!(ctx)).toBe(true);
   });
 });

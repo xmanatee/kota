@@ -158,6 +158,6 @@ export function classifyRisk(
     return { risk: "moderate", reason: `${name} modifies state` };
   }
 
-  // Unknown tools (MCP, module-registered) — default to moderate
+  // Unknown tools (MCP, extension-registered) default to moderate.
   return { risk: "moderate", reason: "unclassified tool" };
 }

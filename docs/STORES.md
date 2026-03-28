@@ -48,7 +48,7 @@ In-memory key-value scratchpad rendered into the agent's system prompt under
 session. Cleared when the session closes unless the entry is marked persistent.
 
 - Limit: 20 entries, 500 chars each, 4000 chars total.
-- Persistent entries survive restart via per-extension module storage.
+- Persistent entries survive restart via per-extension storage.
 
 ### Run Artifacts
 

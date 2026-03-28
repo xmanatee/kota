@@ -113,7 +113,7 @@ function isVercelAIFormat(obj: Record<string, unknown>): boolean {
 }
 
 /**
- * Auto-detect the format of a module export and convert to KotaExtension.
+ * Auto-detect the format of an extension export and convert it to KotaExtension.
  *
  * Detection order:
  * 1. Native KotaExtension (has name + tools array) → pass-through

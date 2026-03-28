@@ -87,7 +87,7 @@ export class ExtensionLoader {
 
   async load(mod: KotaExtension): Promise<void> {
     if (this.extensions.some((m) => m.name === mod.name)) {
-      throw new Error(`Duplicate module name: "${mod.name}"`);
+      throw new Error(`Duplicate extension name: "${mod.name}"`);
     }
 
     if (mod.dependencies) {
@@ -250,7 +250,7 @@ export class ExtensionLoader {
     return this.extensions.map((m) => m.name);
   }
 
-  getModuleCount(): number {
+  getExtensionCount(): number {
     return this.extensions.length;
   }
 

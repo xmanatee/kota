@@ -5,7 +5,7 @@ import {
 	resetAgentStatusProviders,
 	runAgentStatus,
 	setConfigProvider,
-	setModuleInfoProvider,
+	setExtensionInfoProvider,
 } from "./agent-status.js";
 
 describe("agent_status", () => {
@@ -61,40 +61,40 @@ describe("agent_status", () => {
 		});
 	});
 
-	describe("modules query", () => {
+	describe("extensions query", () => {
 		it("shows message when no provider set", async () => {
-			const result = await runAgentStatus({ query: "modules" });
-			expect(result.content).toContain("module info not available");
+			const result = await runAgentStatus({ query: "extensions" });
+			expect(result.content).toContain("extension info not available");
 		});
 
-		it("lists loaded modules when provider is set", async () => {
-			setModuleInfoProvider(() => [
+		it("lists loaded extensions when provider is set", async () => {
+			setExtensionInfoProvider(() => [
 				{ name: "memory", toolCount: 2 },
 				{ name: "scheduler", toolCount: 1 },
 				{ name: "history", toolCount: 0 },
 			]);
-			const result = await runAgentStatus({ query: "modules" });
-			expect(result.content).toContain("3 module(s) loaded");
+			const result = await runAgentStatus({ query: "extensions" });
+			expect(result.content).toContain("3 extension(s) loaded");
 			expect(result.content).toContain("memory (2 tools)");
 			expect(result.content).toContain("scheduler (1 tools)");
 			expect(result.content).toContain("- history");
 			expect(result.content).not.toContain("history (0 tools)");
 		});
 
-		it("filters modules by name", async () => {
-			setModuleInfoProvider(() => [
+		it("filters extensions by name", async () => {
+			setExtensionInfoProvider(() => [
 				{ name: "memory", toolCount: 2 },
 				{ name: "scheduler", toolCount: 1 },
 			]);
-			const result = await runAgentStatus({ query: "modules", filter: "mem" });
+			const result = await runAgentStatus({ query: "extensions", filter: "mem" });
 			expect(result.content).toContain("memory");
 			expect(result.content).not.toContain("scheduler");
 		});
 
-		it("shows empty message when no modules loaded", async () => {
-			setModuleInfoProvider(() => []);
-			const result = await runAgentStatus({ query: "modules" });
-			expect(result.content).toContain("no modules loaded");
+		it("shows empty message when no extensions loaded", async () => {
+			setExtensionInfoProvider(() => []);
+			const result = await runAgentStatus({ query: "extensions" });
+			expect(result.content).toContain("no extensions loaded");
 		});
 	});
 
@@ -205,13 +205,13 @@ describe("agent_status", () => {
 
 	describe("all query", () => {
 		it("includes all sections", async () => {
-			setModuleInfoProvider(() => [{ name: "test-mod", toolCount: 1 }]);
+			setExtensionInfoProvider(() => [{ name: "test-mod", toolCount: 1 }]);
 			setConfigProvider(() => ({ model: "test" }));
 			initProviderRegistry();
 
 			const result = await runAgentStatus({ query: "all" });
 			expect(result.content).toContain("## Tools");
-			expect(result.content).toContain("## Modules");
+			expect(result.content).toContain("## Extensions");
 			expect(result.content).toContain("## Providers");
 			expect(result.content).toContain("## Tool Groups");
 			expect(result.content).toContain("## Config");
@@ -239,13 +239,13 @@ describe("agent_status", () => {
 	});
 
 	describe("resetAgentStatusProviders", () => {
-		it("clears module and config providers", async () => {
-			setModuleInfoProvider(() => [{ name: "test", toolCount: 0 }]);
+		it("clears extension and config providers", async () => {
+			setExtensionInfoProvider(() => [{ name: "test", toolCount: 0 }]);
 			setConfigProvider(() => ({ model: "test" }));
 			resetAgentStatusProviders();
 
-			const modules = await runAgentStatus({ query: "modules" });
-			expect(modules.content).toContain("module info not available");
+			const extensions = await runAgentStatus({ query: "extensions" });
+			expect(extensions.content).toContain("extension info not available");
 
 			const config = await runAgentStatus({ query: "config" });
 			expect(config.content).toContain("config not available");

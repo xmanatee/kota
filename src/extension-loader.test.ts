@@ -41,7 +41,7 @@ describe("ExtensionLoader", () => {
 
     await loader.load(mod);
     expect(loader.getLoadedExtensions()).toEqual(["test-mod"]);
-    expect(loader.getModuleCount()).toBe(1);
+    expect(loader.getExtensionCount()).toBe(1);
     expect(loader.getToolCount()).toBe(1);
 
     const result = await executeTool("test_tool", {});
@@ -71,7 +71,7 @@ describe("ExtensionLoader", () => {
     const loader = new ExtensionLoader({});
     await loader.load({ name: "dup" });
     await expect(loader.load({ name: "dup" })).rejects.toThrow(
-      'Duplicate module name: "dup"',
+      'Duplicate extension name: "dup"',
     );
   });
 
@@ -203,7 +203,7 @@ describe("ExtensionLoader", () => {
 
     await loader.unloadAll();
     expect(unloadOrder).toEqual(["third", "second", "first"]);
-    expect(loader.getModuleCount()).toBe(0);
+    expect(loader.getExtensionCount()).toBe(0);
   });
 
   it("cleans up tools on unloadAll", async () => {
@@ -944,4 +944,3 @@ describe("ctx.callTool — direct tool invocation", () => {
     expect(eventResult?.content).toBe("result from event_target");
   });
 });
-

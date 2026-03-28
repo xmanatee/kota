@@ -6,7 +6,7 @@ HTTP API server with session management and real-time notifications.
 
 | File | Purpose |
 |------|---------|
-| `server.ts` | `startServer()` — HTTP server with REST endpoints, module route integration |
+| `server.ts` | `startServer()` — HTTP server with REST endpoints and extension route integration |
 | `session-pool.ts` | `SessionPool` — manages concurrent agent sessions, SSE transport, CORS |
 | `server-notifications.ts` | `NotificationHub` — SSE push notifications for scheduled action results |
 | `server-routes.ts` | Thin orchestrator — `ServerContext`, `readDaemonState`, route dispatch |

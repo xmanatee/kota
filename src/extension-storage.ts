@@ -126,7 +126,7 @@ export class ExtensionStorage {
 		return this.list().filter((f) => f.endsWith(ext));
 	}
 
-	/** Remove all files in this module's storage. */
+	/** Remove all files in this extension's storage. */
 	clear(): void {
 		if (!existsSync(this.dir)) return;
 		for (const file of readdirSync(this.dir)) {

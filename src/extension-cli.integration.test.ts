@@ -139,12 +139,12 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     const loader = new ExtensionLoader({});
     await loader.loadAll(builtinExtensions);
 
-    expect(loader.getModuleCount()).toBe(15);
+    expect(loader.getExtensionCount()).toBe(15);
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
 
     await loader.unloadAll();
 
-    expect(loader.getModuleCount()).toBe(0);
+    expect(loader.getExtensionCount()).toBe(0);
     expect(loader.getToolCount()).toBe(0);
     expect(loader.getLoadedExtensions()).toEqual([]);
 
@@ -196,7 +196,7 @@ describe("module error resilience", () => {
     // But all builtin modules should still load
     expect(loader.getLoadedExtensions()).toContain("memory");
     expect(loader.getLoadedExtensions()).toContain("scheduler");
-    expect(loader.getModuleCount()).toBe(15);
+    expect(loader.getExtensionCount()).toBe(15);
 
     errSpy.mockRestore();
     await loader.unloadAll();
@@ -306,17 +306,17 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // First cycle
     await loader.loadAll(builtinExtensions);
-    expect(loader.getModuleCount()).toBe(15);
+    expect(loader.getExtensionCount()).toBe(15);
     const memResult1 = await executeTool("memory", { action: "list" });
     expect(memResult1.is_error).toBeFalsy();
 
     await loader.unloadAll();
-    expect(loader.getModuleCount()).toBe(0);
+    expect(loader.getExtensionCount()).toBe(0);
 
     // Second cycle — should work identically
     const loader2 = new ExtensionLoader({});
     await loader2.loadAll(builtinExtensions);
-    expect(loader2.getModuleCount()).toBe(15);
+    expect(loader2.getExtensionCount()).toBe(15);
     const memResult2 = await executeTool("memory", { action: "list" });
     expect(memResult2.is_error).toBeFalsy();
 

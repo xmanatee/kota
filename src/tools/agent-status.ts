@@ -6,17 +6,17 @@ import { getCoreRegistrations, getRegisteredTools, type ToolRegistration, type T
 export const agentStatusTool: Anthropic.Tool = {
 	name: "agent_status",
 	description:
-		"Introspect the agent's runtime state: available tools, loaded modules, " +
+		"Introspect the agent's runtime state: available tools, loaded extensions, " +
 		"active providers, enabled tool groups, and config. Use when you need to " +
-		"discover capabilities, check what modules are loaded, or verify configuration.",
+		"discover capabilities, check what extensions are loaded, or verify configuration.",
 	input_schema: {
 		type: "object" as const,
 		properties: {
 			query: {
 				type: "string",
-				enum: ["tools", "modules", "providers", "groups", "config", "all"],
+				enum: ["tools", "extensions", "providers", "groups", "config", "all"],
 				description:
-					"What to inspect. tools: list available tools. modules: loaded modules. " +
+					"What to inspect. tools: list available tools. extensions: loaded extensions. " +
 					"providers: registered service providers. groups: tool groups and status. " +
 					"config: current settings. all: everything.",
 			},
@@ -29,21 +29,21 @@ export const agentStatusTool: Anthropic.Tool = {
 	},
 };
 
-// --- Module info provider (set by loop.ts to avoid circular imports) ---
+// --- Extension info provider (set by loop.ts to avoid circular imports) ---
 
-export type ModuleStatusEntry = {
+export type ExtensionStatusEntry = {
 	name: string;
 	toolCount: number;
 };
 
-type ModuleInfoProvider = () => ModuleStatusEntry[];
+type ExtensionInfoProvider = () => ExtensionStatusEntry[];
 type ConfigProvider = () => Record<string, unknown>;
 
-let _moduleInfoProvider: ModuleInfoProvider | null = null;
+let _extensionInfoProvider: ExtensionInfoProvider | null = null;
 let _configProvider: ConfigProvider | null = null;
 
-export function setModuleInfoProvider(fn: ModuleInfoProvider): void {
-	_moduleInfoProvider = fn;
+export function setExtensionInfoProvider(fn: ExtensionInfoProvider): void {
+	_extensionInfoProvider = fn;
 }
 
 export function setConfigProvider(fn: ConfigProvider): void {
@@ -51,7 +51,7 @@ export function setConfigProvider(fn: ConfigProvider): void {
 }
 
 export function resetAgentStatusProviders(): void {
-	_moduleInfoProvider = null;
+	_extensionInfoProvider = null;
 	_configProvider = null;
 }
 
@@ -68,8 +68,8 @@ export async function runAgentStatus(
 	if (query === "tools" || query === "all") {
 		sections.push(formatTools(filter));
 	}
-	if (query === "modules" || query === "all") {
-		sections.push(formatModules(filter));
+	if (query === "extensions" || query === "all") {
+		sections.push(formatExtensions(filter));
 	}
 	if (query === "providers" || query === "all") {
 		sections.push(formatProviders(filter));
@@ -91,7 +91,7 @@ function matches(text: string, filter: string): boolean {
 
 function formatTools(filter: string): string {
 	const core = getCoreRegistrations();
-	const moduleTools = getRegisteredTools();
+	const extensionTools = getRegisteredTools();
 
 	const lines: string[] = ["## Tools"];
 
@@ -105,17 +105,17 @@ function formatTools(filter: string): string {
 		}
 	}
 
-	const modFiltered = moduleTools.filter(
+	const extensionFiltered = extensionTools.filter(
 		(t) => matches(t.name, filter) || matches(t.description || "", filter),
 	);
-	if (modFiltered.length > 0) {
-		lines.push(`\nModule tools (${modFiltered.length}):`);
-		for (const t of modFiltered) {
+	if (extensionFiltered.length > 0) {
+		lines.push(`\nExtension tools (${extensionFiltered.length}):`);
+		for (const t of extensionFiltered) {
 			lines.push(`- ${t.name}: ${truncate(t.description || "(no description)", 80)}`);
 		}
 	}
 
-	if (coreFiltered.length === 0 && modFiltered.length === 0) {
+	if (coreFiltered.length === 0 && extensionFiltered.length === 0) {
 		lines.push("(no tools match filter)");
 	}
 
@@ -128,26 +128,30 @@ function formatToolLine(r: ToolRegistration): string {
 	return `- ${r.tool.name}${group}${risk}: ${truncate(r.tool.description || "", 80)}`;
 }
 
-function formatModules(filter: string): string {
-	const lines: string[] = ["## Modules"];
+function formatExtensions(filter: string): string {
+	const lines: string[] = ["## Extensions"];
 
-	if (!_moduleInfoProvider) {
-		lines.push("(module info not available)");
+	if (!_extensionInfoProvider) {
+		lines.push("(extension info not available)");
 		return lines.join("\n");
 	}
 
-	const modules = _moduleInfoProvider();
-	const filtered = modules.filter((m) => matches(m.name, filter));
+	const extensions = _extensionInfoProvider();
+	const filtered = extensions.filter((extension) => matches(extension.name, filter));
 
 	if (filtered.length === 0) {
-		lines.push(modules.length > 0 ? "(no modules match filter)" : "(no modules loaded)");
+		lines.push(
+			extensions.length > 0
+				? "(no extensions match filter)"
+				: "(no extensions loaded)",
+		);
 		return lines.join("\n");
 	}
 
-	lines.push(`${filtered.length} module(s) loaded:`);
-	for (const m of filtered) {
-		const tools = m.toolCount > 0 ? ` (${m.toolCount} tools)` : "";
-		lines.push(`- ${m.name}${tools}`);
+	lines.push(`${filtered.length} extension(s) loaded:`);
+	for (const extension of filtered) {
+		const tools = extension.toolCount > 0 ? ` (${extension.toolCount} tools)` : "";
+		lines.push(`- ${extension.name}${tools}`);
 	}
 
 	return lines.join("\n");

@@ -29,7 +29,7 @@ export class Context {
     this.systemPrompt = systemPrompt;
   }
 
-  /** Append additional sections to the system prompt (e.g. module contributions). */
+  /** Append additional sections to the system prompt (e.g. extension contributions). */
   appendSystemPrompt(section: string): void {
     this.systemPrompt += section;
   }

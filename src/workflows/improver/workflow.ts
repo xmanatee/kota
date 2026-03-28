@@ -1,8 +1,8 @@
 import { assertTaskQueueValid } from "../../task-queue-validation.js";
 import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { commitBuilderChanges } from "../builder/commit.js";
-import { stepSucceeded } from "../shared.js";
+import { commitWorkflowChanges } from "../commit.js";
+import { stepCommitted, stepSucceeded } from "../shared.js";
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
@@ -66,12 +66,12 @@ const improverWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepSucceeded("improve"),
       run: ({ projectDir, workflow }: WorkflowStepContext) =>
-        commitBuilderChanges(projectDir, workflow.runDirPath),
+        commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
     {
       id: "request-restart",
       type: "restart",
-      when: stepSucceeded("commit"),
+      when: stepCommitted("commit"),
       reason: "improver workflow finished validation and commit",
       requires: ["commit"],
     },
