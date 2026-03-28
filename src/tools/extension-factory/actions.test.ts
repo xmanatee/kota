@@ -1,5 +1,5 @@
 /**
- * Edge-case tests for extension-factory split modules.
+ * Edge-case tests for extension-factory split files.
  * Covers gaps not addressed by the existing extension-factory.test.ts.
  */
 
@@ -49,7 +49,7 @@ afterEach(() => {
 const _sampleManifest = {
 	name: "test-mod",
 	version: "1.0.0",
-	description: "A test module",
+	description: "A test extension",
 	tools: [
 		{
 			name: "test_tool",
@@ -59,7 +59,7 @@ const _sampleManifest = {
 	],
 };
 
-// ─── State module ─────────────────────────────────────────────────────
+// ─── State ────────────────────────────────────────────────────────────
 
 describe("state — granular operations", () => {
 	it("isExtensionLoaded returns false for unloaded extensions", () => {
@@ -105,14 +105,14 @@ describe("state — granular operations", () => {
 // ─── Create edge cases ───────────────────────────────────────────────
 
 describe("handleCreate — edge cases", () => {
-	it("creates module with no tools", () => {
+	it("creates extension with no tools", () => {
 		const manifest = { name: "empty-mod", tools: [] };
 		const result = handleCreate(manifest);
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("Tools: none");
 	});
 
-	it("creates module with default version when omitted", () => {
+	it("creates extension with default version when omitted", () => {
 		const manifest = { name: "no-ver", tools: [] };
 		const result = handleCreate(manifest);
 		expect(result.content).toContain("1.0.0");
@@ -126,7 +126,7 @@ describe("handleCreate — edge cases", () => {
 			tools: [{ name: "pf_tool", description: "test", code: "pass" }],
 		};
 		const result = handleCreate(manifest);
-		// Should not be an error — module is usable session-only
+		// Should not be an error — extension is usable session-only
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("session-only");
 		expect(result.content).toContain("failed to persist");
@@ -134,13 +134,13 @@ describe("handleCreate — edge cases", () => {
 	});
 
 	it("rolls back tools on registration failure (duplicate name)", () => {
-		// Create first module with a tool
+		// Create first extension with a tool
 		handleCreate({
 			name: "first-mod",
 			tools: [{ name: "dup_tool", description: "first", code: "pass" }],
 		});
 
-		// Create second module with same tool name — should fail
+		// Create second extension with same tool name — should fail
 		const result = handleCreate({
 			name: "second-mod",
 			tools: [{ name: "dup_tool", description: "second", code: "pass" }],
@@ -153,7 +153,7 @@ describe("handleCreate — edge cases", () => {
 		expect(isExtensionLoaded("second-mod")).toBe(false);
 	});
 
-	it("replaces existing module and deregisters old tools", () => {
+	it("replaces existing extension and deregisters old tools", () => {
 		handleCreate({
 			name: "replace-mod",
 			tools: [
@@ -177,16 +177,16 @@ describe("handleCreate — edge cases", () => {
 // ─── List edge cases ─────────────────────────────────────────────────
 
 describe("handleList — edge cases", () => {
-	it("shows session-only modules without disk persistence", () => {
-		// Add a module to loaded set without saving to disk
+	it("shows session-only extensions without disk persistence", () => {
+		// Add an extension to loaded set without saving to disk
 		addLoadedExtension("ghost-mod");
 		const result = handleList();
 		expect(result.content).toContain("ghost-mod");
 		expect(result.content).toContain("session-only");
 	});
 
-	it("shows both persisted and session-only modules", () => {
-		// Create a real persisted module
+	it("shows both persisted and session-only extensions", () => {
+		// Create a real persisted extension
 		handleCreate({
 			name: "real-mod",
 			description: "Persisted",
@@ -206,12 +206,12 @@ describe("handleList — edge cases", () => {
 // ─── Remove edge cases ──────────────────────────────────────────────
 
 describe("handleRemove — edge cases", () => {
-	it("removes disk-only module not loaded in session", () => {
+	it("removes disk-only extension not loaded in session", () => {
 		// Create and persist, then reset session state (simulates restart)
 		handleCreate({ name: "disk-mod", tools: [] });
 		removeLoadedExtension("disk-mod");
 
-		// Module is on disk but not in session
+		// Extension is on disk but not in session
 		expect(isExtensionLoaded("disk-mod")).toBe(false);
 
 		const result = handleRemove("disk-mod");
@@ -225,7 +225,7 @@ describe("handleRemove — edge cases", () => {
 // ─── Info edge cases ─────────────────────────────────────────────────
 
 describe("handleInfo — edge cases", () => {
-	it("shows session-only status for loaded-but-not-persisted module", () => {
+	it("shows session-only status for loaded-but-not-persisted extension", () => {
 		addLoadedExtension("ephemeral");
 		const result = handleInfo("ephemeral");
 		expect(result.content).toContain("session-only");
@@ -262,7 +262,7 @@ describe("handleInfo — edge cases", () => {
 		expect(result.content).toContain("param_tool(x, y)");
 	});
 
-	it("shows status as saved when module not loaded in session", () => {
+	it("shows status as saved when extension not loaded in session", () => {
 		handleCreate({ name: "saved-mod", tools: [] });
 		removeLoadedExtension("saved-mod");
 

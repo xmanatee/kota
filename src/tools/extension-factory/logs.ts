@@ -1,5 +1,5 @@
 /**
- * Module Factory — log query handler.
+ * Extension Factory — log query handler.
  */
 
 import type { LogLevel } from "../../extension-log.js";

@@ -1,7 +1,7 @@
 ---
 id: task-rename-extension-private-module-storage
 title: Rename remaining internal module-era extension helper names
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Most extension-private storage/log naming has been cleaned up, but internal helper names and comments still use `module` wording in places like extension-factory state, middleware ownership, and extension context comments. Finish that internal rename so the extension model is consistent end to end.

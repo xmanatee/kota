@@ -6,7 +6,7 @@
 
 const loadedManifestExtensions = new Set<string>();
 
-export const MAX_MANIFEST_MODULES = 10;
+export const MAX_MANIFEST_EXTENSIONS = 10;
 
 export function isExtensionLoaded(name: string): boolean {
 	return loadedManifestExtensions.has(name);

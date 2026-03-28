@@ -19,7 +19,7 @@ import {
 	isExtensionLoaded,
 	loadedExtensionCount,
 	loadedExtensionNames,
-	MAX_MANIFEST_MODULES,
+	MAX_MANIFEST_EXTENSIONS,
 	removeLoadedExtension,
 } from "./state.js";
 
@@ -49,11 +49,11 @@ export function handleCreate(
 	const manifest = rawManifest as unknown as ExtensionManifest;
 
 	if (
-		loadedExtensionCount() >= MAX_MANIFEST_MODULES &&
+		loadedExtensionCount() >= MAX_MANIFEST_EXTENSIONS &&
 		!isExtensionLoaded(manifest.name)
 	) {
 		return {
-			content: `Error: maximum ${MAX_MANIFEST_MODULES} custom extensions reached. Remove one first.`,
+			content: `Error: maximum ${MAX_MANIFEST_EXTENSIONS} custom extensions reached. Remove one first.`,
 			is_error: true,
 		};
 	}
