@@ -34,6 +34,10 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - For strategically important topics, do at least one real scouting pass outside the repo before concluding there is nothing better to queue. Use official docs, issue trackers, discussion forums, and comparable tools when they can change the roadmap.
 - When external research is useful, link to the source briefly inside the task body rather than copying long explanations.
 - If a task is too large, keep it outcome-focused and concise; do not bury it in implementation detail.
+- Leave most development detail to builder. Good tasks define the problem,
+  target outcome, constraints, and proof of completion; they do not need to
+  prescribe the internal engineering plan unless a sequencing constraint or
+  protocol boundary truly depends on it.
 - If nothing should change, leave the task queue untouched and stop.
 
 ## Task Requirements

@@ -9,6 +9,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Investigate the chosen task deeply, including the relevant code, existing abstractions, and external references when they help you implement it well.
 - Focus on correct architecture, complete implementation, and honest verification.
 - Make one cohesive improvement per run.
+- Treat the task as a contract, not a script. Own the missing technical plan
+  yourself instead of waiting for the task file to prescribe every code move.
 
 ## Workflow Contract
 
@@ -24,7 +26,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Aim for materially useful improvements over low-value polish.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - Own the task state directly. Move the task between `ready/`, `doing/`, `done/`, or `blocked/` yourself as reality changes. Before marking a task done, verify every specific quantitative claim in `## Done When` directly instead of estimating.
-- Keep the task file, docs, and any local `AGENTS.md` files aligned with reality when your change affects them. **When you create a new file, you must add it to the local `AGENTS.md` Key Modules list** (or equivalent section) — stale AGENTS.md entries after file splits have recurred and required follow-up improver commits to fix.
+- Keep the task file, docs, and any local `AGENTS.md` files aligned with
+  reality when your change affects them. If a local `AGENTS.md` contains an
+  inventory such as `Key Modules`, update it when your change would otherwise
+  leave it stale.
 - If implementation uncovers a genuinely useful follow-up, capture it lightly in `tasks/inbox/` or enrich the current task instead of creating duplicate work. Use ISO 8601 datetime for `created_at` and `updated_at` in any task files you create (e.g. `2026-03-27T11:40:00Z`).
 - Keep files readable and reasonably scoped, but do not treat line counts as a goal. Do not create automatic split follow-ups just because a touched file is large; only capture structural follow-up work when it clearly unlocks a larger change or resolves real concept confusion.
 - Do not turn one structural task into a chain of adjacent split, rename, or dedup tasks just because they are easy and local. Prefer one cohesive, higher-leverage improvement per run.

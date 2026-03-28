@@ -27,6 +27,10 @@ outstanding work.
 - Required body sections outside `inbox/`: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - `## Plan` is optional and must stay high-level. Do not put deep implementation detail in tasks.
 - Tasks should read like product or work specs, not coding instructions.
+- Tasks should describe what must become true and why it matters. Builder owns
+  the detailed technical plan, research path, file-level decomposition, and
+  implementation choices unless a specific sequencing or protocol invariant
+  truly has to be pinned down in the task itself.
 
 ## Usage
 

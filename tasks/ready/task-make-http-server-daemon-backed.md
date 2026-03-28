@@ -1,12 +1,12 @@
 ---
 id: task-make-http-server-daemon-backed
 title: Make the HTTP server use the daemon as its runtime backend
-status: backlog
+status: ready
 priority: p1
 area: api
 summary: The KOTA HTTP server and the daemon are still separate runtime entry points. The server reads live state from .kota/ files and its own in-process workflow state rather than routing through the daemon API. Making the server daemon-backed completes migration step 4 in DAEMON-CLIENTS.md.
 created_at: 2026-03-27T22:43:00Z
-updated_at: 2026-03-27T22:43:00Z
+updated_at: 2026-03-28T00:00:00Z
 ---
 
 ## Problem

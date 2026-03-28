@@ -28,6 +28,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Treat repeated narrow task shapes as evidence of process drift. If recent runs cluster around split-only, rename-only, dedup-only, or test-only cleanup tasks, improve the queue-shaping guidance and task selection logic instead of just accepting the pattern.
 - Treat over-scaffolded context injection as process drift. Agents should be trusted to gather most of their own context; the runtime should inject only facts they cannot recover themselves.
 - Prefer lightweight end-of-step validations over bespoke orchestration. If a consistency check can run like a linter or hook after an agent step, prefer that to hardcoded workflow bookkeeping.
+- If tasks or prompts start turning into procedural scripts, simplify them.
+  Prefer clear goals, invariants, and lightweight validation over telling the
+  other agents exactly how to think or in what order to inspect things.
 - If explorer is staying too local, not researching broadly enough, or keeping the queue too small or too timid, fix the guidance and workflow conditions around explorer.
 - Treat hard daily spend caps on the built-in core workflows as an exceptional last resort, not a normal steering tool. If the loop is wasteful, prefer better queue shaping, preflight gates, repair loops, backoff, and clearer operator controls before throttling explorer, builder, or improver themselves.
 - Do not keep stale mechanisms alive for compatibility. If a path is obsolete, remove it.
