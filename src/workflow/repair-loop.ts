@@ -14,6 +14,7 @@ export type RepairCheckResult = {
   id: string;
   passed: boolean;
   output: string;
+  severity: "error" | "warning";
 };
 
 export type RepairIteration = {
@@ -50,16 +51,28 @@ async function runRepairCheck(
   check: WorkflowRepairCheck,
   context: WorkflowStepContext,
 ): Promise<RepairCheckResult> {
-  const input = typeof check.input === "function"
-    ? await check.input(context)
-    : (check.input ?? {});
+  const severity = check.severity ?? "error";
   try {
+    if (check.type === "code") {
+      const output = await check.run(context);
+      return {
+        id: check.id,
+        passed: true,
+        output:
+          typeof output === "string" ? output : JSON.stringify(output ?? {}, null, 2),
+        severity,
+      };
+    }
+
+    const input = typeof check.input === "function"
+      ? await check.input(context)
+      : (check.input ?? {});
     const result = await context.runTool(check.tool, input);
     const output = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
-    return { id: check.id, passed: true, output };
+    return { id: check.id, passed: true, output, severity };
   } catch (error) {
     const output = error instanceof Error ? error.message : String(error);
-    return { id: check.id, passed: false, output };
+    return { id: check.id, passed: false, output, severity };
   }
 }
 
@@ -120,9 +133,11 @@ export async function runAgentRepairLoop(
   let totalTurns = typeof base.turns === "number" ? base.turns : 0;
   let totalCostUsd = typeof base.totalCostUsd === "number" ? base.totalCostUsd : 0;
   let lastContent = typeof base.content === "string" ? base.content : "";
+  let warnings = [] as RepairCheckResult[];
 
   let checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
-  let failures = checkResults.filter((r) => !r.passed);
+  let failures = checkResults.filter((r) => !r.passed && r.severity === "error");
+  warnings = checkResults.filter((r) => !r.passed && r.severity === "warning");
 
   for (let attempt = 1; attempt <= maxRepairAttempts && failures.length > 0; attempt++) {
     const iteration: RepairIteration = { attempt, failures };
@@ -146,7 +161,8 @@ export async function runAgentRepairLoop(
     totalCostUsd += repairResult.totalCostUsd ?? 0;
 
     checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
-    failures = checkResults.filter((r) => !r.passed);
+    failures = checkResults.filter((r) => !r.passed && r.severity === "error");
+    warnings = checkResults.filter((r) => !r.passed && r.severity === "warning");
 
     if (failures.length > 0 && attempt === maxRepairAttempts) {
       throw new Error(
@@ -156,5 +172,12 @@ export async function runAgentRepairLoop(
     }
   }
 
-  return { ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations };
+  return {
+    ...base,
+    content: lastContent,
+    turns: totalTurns,
+    totalCostUsd,
+    repairIterations: iterations,
+    repairWarnings: warnings,
+  };
 }

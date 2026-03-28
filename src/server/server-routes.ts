@@ -5,11 +5,13 @@ import type { AgentSession } from "../loop.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
+import { WorkflowRunStore } from "../workflow/run-store.js";
 import {
   handleApproveApproval,
   handleListApprovals,
   handleRejectApproval,
 } from "./approval-routes.js";
+import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
@@ -172,28 +174,33 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/workflow/status") {
-      handleWorkflowStatus(res).catch((err) => {
+      handleWorkflowStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
     }
 
     if (req.method === "POST" && path === "/api/workflow/pause") {
-      handleWorkflowPause(res).catch((err) => {
+      handleWorkflowPause(res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
     }
 
     if (req.method === "POST" && path === "/api/workflow/resume") {
-      handleWorkflowResume(res).catch((err) => {
+      handleWorkflowResume(res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
     }
 
     if (req.method === "POST" && path === "/api/workflow/trigger") {
-      handleWorkflowTrigger(req, res).catch((err) => {
+      handleWorkflowTrigger(
+        req,
+        res,
+        new WorkflowRunStore(),
+        DaemonControlClient.fromStateDir(),
+      ).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

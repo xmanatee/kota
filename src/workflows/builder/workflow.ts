@@ -2,24 +2,20 @@ import {
   getRepoTaskQueueSnapshot,
   isRepoTaskQueueSnapshot,
 } from "../../repo-tasks.js";
-import type { WorkflowStepContext } from "../../workflow/run-types.js";
+import { assertTaskQueueValid } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { stepSucceeded } from "../shared.js";
-import { checkTaskOutcome } from "./check-task-outcome.js";
-import { claimTask, isClaimTaskResult } from "./claim-task.js";
 import { commitBuilderChanges } from "./commit.js";
-import { isBuilderPreflightResult, runBuilderPreflight } from "./preflight.js";
-import { verifyClaim } from "./verify-claim.js";
 
-const VERIFY_STEP_IDS = [
-  "verify-typecheck",
-  "verify-lint",
-  "verify-test",
-  "verify-build",
-] as const;
-
-function allVerifyStepsPassed({ stepResults }: WorkflowStepContext): boolean {
-  return VERIFY_STEP_IDS.every((id) => stepResults[id]?.status === "success");
+function shouldRunBuilder(stepOutputs: Record<string, unknown>): boolean {
+  const inspectOutput = stepOutputs["inspect-ready-queue"];
+  return Boolean(
+    inspectOutput &&
+      typeof inspectOutput === "object" &&
+      "actionableCount" in inspectOutput &&
+      typeof inspectOutput.actionableCount === "number" &&
+      inspectOutput.actionableCount > 0,
+  );
 }
 
 const builderWorkflow: WorkflowDefinitionInput = {
@@ -41,122 +37,73 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir }) => getRepoTaskQueueSnapshot(projectDir),
     },
     {
-      id: "preflight",
-      type: "code",
-      when: ({ previousOutput }) =>
-        isRepoTaskQueueSnapshot(previousOutput) &&
-        previousOutput.counts.ready > 0,
-      run: ({ projectDir }) => runBuilderPreflight(projectDir),
-    },
-    {
-      id: "claim-task",
-      type: "code",
-      when: ({ stepOutputs }) =>
-        isBuilderPreflightResult(stepOutputs.preflight) &&
-        (stepOutputs.preflight as { validCount: number }).validCount > 0,
-      exposeOutputToAgent: true,
-      run: ({ projectDir }) => claimTask(projectDir),
-    },
-    {
-      id: "verify-claim",
-      type: "code",
-      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
-      run: ({ projectDir, stepOutputs }) => {
-        const claim = stepOutputs["claim-task"] as { chosenTaskId: string };
-        return verifyClaim(projectDir, claim.chosenTaskId);
-      },
-    },
-    {
-      // Fail fast if lint is already broken before the agent spends budget.
-      id: "preflight-lint",
-      type: "tool",
-      tool: "shell",
-      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
-      input: (ctx) => ({ command: "npm run lint", stream_output: false, cwd: ctx.projectDir }),
-    },
-    {
-      // Fail fast if the test baseline is already broken before the agent spends budget.
-      id: "preflight-test",
-      type: "tool",
-      tool: "shell",
-      when: (ctx) =>
-        isClaimTaskResult(ctx.stepOutputs["claim-task"]) && stepSucceeded("preflight-lint")(ctx),
-      input: (ctx) => ({ command: "npm test", stream_output: false, timeout_ms: 300_000, cwd: ctx.projectDir }),
-      retry: { maxAttempts: 3, initialDelayMs: 30_000, backoffFactor: 1 },
-    },
-    {
       id: "build",
       type: "agent",
       agentName: "builder",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) =>
-        isClaimTaskResult(ctx.stepOutputs["claim-task"]) &&
-        stepSucceeded("preflight-lint")(ctx) &&
-        stepSucceeded("preflight-test")(ctx),
-    },
-    {
-      id: "check-task-outcome",
-      type: "code",
-      continueOnFailure: true,
-      when: ({ stepOutputs }) => isClaimTaskResult(stepOutputs["claim-task"]),
-      run: ({ projectDir, stepOutputs, stepResults, workflow }) => {
-        const claim = stepOutputs["claim-task"] as { chosenTaskId: string };
-        const buildResult = stepResults.build;
-        const summary = buildResult?.error
-          ? buildResult.error.split("\n")[0].slice(0, 120)
-          : buildResult?.status === "success"
-            ? "build agent completed but task not moved to done"
-            : "build step did not run";
-        return checkTaskOutcome(projectDir, claim.chosenTaskId, {
-          runId: workflow.runId,
-          summary,
-          date: new Date().toISOString().slice(0, 10),
-        });
+      when: ({ stepOutputs }) =>
+        isRepoTaskQueueSnapshot(stepOutputs["inspect-ready-queue"]) &&
+        shouldRunBuilder(stepOutputs),
+      repairLoop: {
+        maxRepairAttempts: 3,
+        checks: [
+          {
+            id: "task-queue-valid",
+            type: "code",
+            run: ({ projectDir }) => assertTaskQueueValid(projectDir),
+          },
+          {
+            id: "typecheck",
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm run typecheck",
+              stream_output: false,
+              cwd: ctx.projectDir,
+            }),
+          },
+          {
+            id: "lint",
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm run lint",
+              stream_output: false,
+              cwd: ctx.projectDir,
+            }),
+          },
+          {
+            id: "test",
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm test",
+              stream_output: false,
+              timeout_ms: 300_000,
+              cwd: ctx.projectDir,
+            }),
+          },
+          {
+            id: "build-output",
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm run build",
+              stream_output: false,
+              cwd: ctx.projectDir,
+            }),
+          },
+        ],
       },
     },
     {
-      id: "verify-typecheck",
-      type: "tool",
-      tool: "shell",
-      when: stepSucceeded("build"),
-      input: (ctx) => ({ command: "npm run typecheck", stream_output: false, cwd: ctx.projectDir }),
-    },
-    {
-      id: "verify-lint",
-      type: "tool",
-      tool: "shell",
-      when: stepSucceeded("build"),
-      input: (ctx) => ({ command: "npm run lint", stream_output: false, cwd: ctx.projectDir }),
-    },
-    {
-      id: "verify-test",
-      type: "tool",
-      tool: "shell",
-      when: stepSucceeded("build"),
-      input: (ctx) => ({ command: "npm test", stream_output: false, timeout_ms: 300_000, cwd: ctx.projectDir }),
-      retry: { maxAttempts: 2, initialDelayMs: 10_000, backoffFactor: 1 },
-    },
-    {
-      id: "verify-build",
-      type: "tool",
-      tool: "shell",
-      when: stepSucceeded("build"),
-      input: (ctx) => ({ command: "npm run build", stream_output: false, cwd: ctx.projectDir }),
-    },
-    {
-      // Structural gate: commits staged changes only when all verification steps pass.
-      // The agent stages changes but does not commit; this step is the sole commit point.
       id: "commit",
       type: "code",
-      when: allVerifyStepsPassed,
+      when: stepSucceeded("build"),
       run: ({ projectDir, workflow }) => commitBuilderChanges(projectDir, workflow.runDirPath),
     },
     {
       id: "request-restart",
       type: "restart",
-      when: stepSucceeded("build"),
-      reason: "builder workflow finished verification build",
-      requires: [...VERIFY_STEP_IDS],
+      when: stepSucceeded("commit"),
+      reason: "builder workflow finished validation and commit",
+      requires: ["commit"],
     },
   ],
 };

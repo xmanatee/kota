@@ -40,8 +40,8 @@ outstanding work.
 - When the queue is thin, prefer one substantive task over several small cleanup fillers.
 - Keep some real range in the open queue over time: architecture/protocol work, operator or client-facing work, capability expansion, and reliability work should all be represented. Do not let one local theme crowd out the rest.
 - When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly.
-- When moving a task file, use `git mv <src> <dst>` to stage the rename atomically. Edit the content (e.g. the `status` field) AFTER `git mv`, then run `git add <dst>` to stage the content change before committing. Editing before `git mv` silently discards the edit — `git mv` uses the index content, not the working tree content.
-- Before committing any task file changes, run `git status --short` and verify no paths appear as `D` (deleted, unstaged) or `M` (modified, unstaged). Stage any missing changes before committing.
+- Prefer `git mv <src> <dst>` for tracked task files, but do not treat it as a fragile ritual. If the queue is already inconsistent, fix the file layout directly and finish with `git add -A` so the staged state matches reality.
+- Before finishing, make sure task-file validations would pass: no duplicate task ids across states, no stale deleted task paths, no untracked task files, and no status/directory mismatches.
 - If you start and complete a task in one run, move it directly to `done/` instead of leaving a parallel `doing/` copy behind.
 - When a task leaves `inbox/`, normalize it into the full task format with the required sections.
 - Before creating a new task, scan related open work in `inbox/`, `backlog/`, `ready/`, `doing/`, and `blocked/`.

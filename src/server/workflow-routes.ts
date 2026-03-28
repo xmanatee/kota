@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkflowLiveStatus } from "../scheduler/daemon-control.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowQueuedRun } from "../workflow/run-types.js";
-import { DaemonControlClient } from "./daemon-client.js";
+import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
 const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
@@ -16,7 +16,7 @@ const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
 
 export async function handleWorkflowStatus(
   res: ServerResponse,
-  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+  client: DaemonControlClient | null = null,
 ): Promise<void> {
   if (!client) {
     jsonResponse(res, 200, EMPTY_WORKFLOW_STATUS);
@@ -28,7 +28,7 @@ export async function handleWorkflowStatus(
 
 export async function handleWorkflowPause(
   res: ServerResponse,
-  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+  client: DaemonControlClient | null = null,
 ): Promise<void> {
   if (!client) {
     jsonResponse(res, 503, { error: "Daemon not running" });
@@ -44,7 +44,7 @@ export async function handleWorkflowPause(
 
 export async function handleWorkflowResume(
   res: ServerResponse,
-  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+  client: DaemonControlClient | null = null,
 ): Promise<void> {
   if (!client) {
     jsonResponse(res, 503, { error: "Daemon not running" });
@@ -62,7 +62,7 @@ export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,
   store = new WorkflowRunStore(),
-  client: DaemonControlClient | null = DaemonControlClient.fromStateDir(),
+  client: DaemonControlClient | null = null,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {

@@ -1,11 +1,15 @@
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
+import {
+  assertTaskQueueRecommendations,
+  assertTaskQueueValid,
+} from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
+import { commitBuilderChanges } from "../builder/commit.js";
 import {
   BACKLOG_TASK_TARGET,
   READY_TASK_TARGET,
   stepSucceeded,
 } from "../shared.js";
-import { autoEscalateBlockedTasks } from "./auto-escalate.js";
 
 const STRATEGIC_REFRESH_MS = 30 * 60 * 1000;
 
@@ -69,26 +73,37 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       },
     },
     {
-      id: "auto-escalate-blocked",
-      type: "code",
-      run: ({ projectDir }) => autoEscalateBlockedTasks(projectDir),
-    },
-    {
       id: "explore",
       type: "agent",
       agentName: "explorer",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ stepOutputs }) => shouldRunExplorer(stepOutputs),
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [
+          {
+            id: "task-queue-valid",
+            type: "code",
+            run: ({ projectDir }) => assertTaskQueueValid(projectDir, { minReady: 1 }),
+          },
+          {
+            id: "task-queue-range",
+            type: "code",
+            severity: "warning",
+            run: ({ projectDir }) =>
+              assertTaskQueueRecommendations(projectDir, {
+                recommendedMinReady: READY_TASK_TARGET,
+                recommendedMinBacklog: BACKLOG_TASK_TARGET,
+              }),
+          },
+        ],
+      },
     },
     {
-      id: "verify-task-files",
-      type: "tool",
-      tool: "shell",
+      id: "commit",
+      type: "code",
       when: stepSucceeded("explore"),
-      input: {
-        command: "npm test -- src/task-files.test.ts",
-        stream_output: false,
-      },
+      run: ({ projectDir, workflow }) => commitBuilderChanges(projectDir, workflow.runDirPath),
     },
   ],
 };

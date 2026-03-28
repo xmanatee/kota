@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getAgent } from "../../agents/index.js";
-import type { WorkflowRepairLoopConfig } from "../run-types.js";
+import type {
+  WorkflowRepairLoopConfig,
+  WorkflowStepContext,
+  WorkflowValueResolver,
+} from "../run-types.js";
 import type { WorkflowAgentStep, WorkflowAgentStepInput } from "../types.js";
 import {
   expectName,
@@ -64,14 +68,52 @@ function validateRepairLoop(
         definitionPath,
       );
     }
+    const severity = expectOptionalString(
+      check.severity,
+      `${field}.checks[${i}].severity`,
+      definitionPath,
+    );
+    if (
+      severity !== undefined &&
+      severity !== "error" &&
+      severity !== "warning"
+    ) {
+      throw new WorkflowDefinitionError(
+        `${field}.checks[${i}].severity must be "error" or "warning"`,
+        definitionPath,
+      );
+    }
+
+    if (check.type === "code") {
+      const run = expectOptionalFunction(
+        check.run,
+        `${field}.checks[${i}].run`,
+        definitionPath,
+      );
+      if (!run) {
+        throw new WorkflowDefinitionError(
+          `${field}.checks[${i}].run must be a function`,
+          definitionPath,
+        );
+      }
+      return {
+        id: expectName(check.id, `${field}.checks[${i}].id`, definitionPath),
+        type: "code" as const,
+        severity: severity as "error" | "warning" | undefined,
+        run: run as (context: WorkflowStepContext) => Promise<unknown> | unknown,
+      };
+    }
+
     return {
       id: expectName(check.id, `${field}.checks[${i}].id`, definitionPath),
+      type: "tool" as const,
+      severity: severity as "error" | "warning" | undefined,
       tool: expectNonEmptyString(check.tool, `${field}.checks[${i}].tool`, definitionPath),
       input: expectOptionalObjectOrFunction(
         check.input,
         `${field}.checks[${i}].input`,
         definitionPath,
-      ) as WorkflowRepairLoopConfig["checks"][number]["input"],
+      ) as WorkflowValueResolver<Record<string, unknown>>,
     };
   });
   return { checks, maxRepairAttempts };

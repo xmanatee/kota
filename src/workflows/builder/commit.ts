@@ -7,7 +7,7 @@ export type CommitResult = {
   message?: string;
 };
 
-const DEFAULT_COMMIT_MESSAGE = "Builder: complete task";
+const DEFAULT_COMMIT_MESSAGE = "Workflow: update repo";
 
 /**
  * Commits any staged changes in the project directory.

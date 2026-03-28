@@ -40,8 +40,9 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 
 - Every non-inbox task body must include all four required sections in order: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - `## Done When` must stay consistent with `## Desired Outcome`. Do not promise a broader result than the task actually asks for.
-- Use ISO 8601 datetime for `created_at` and `updated_at` (for example `2026-03-27T06:40:18Z`). Date-only values lose same-day tiebreaker precision in `claim-task`.
+- Use ISO 8601 datetime for `created_at` and `updated_at` (for example `2026-03-27T06:40:18Z`). Date-only values lose same-day precision when the queue is sorted or compared.
 
 ## Finish
 
-- If you changed the repo, create a short readable git commit before finishing.
+- Lightweight end-of-step validations run after you finish. Hard errors must be fixed in the same run; warnings do not block completion.
+- If you changed the repo, stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt`, and do **not** run `git commit` yourself. The workflow commits only after the validation bundle passes.

@@ -96,9 +96,18 @@ export type WorkflowPredicate = (
 export type WorkflowRepairCheck = {
   /** Identifier for this check, shown in repair iteration output. */
   id: string;
-  tool: string;
-  input?: WorkflowValueResolver<Record<string, unknown>>;
-};
+  severity?: "error" | "warning";
+} & (
+  | {
+      type?: "tool";
+      tool: string;
+      input?: WorkflowValueResolver<Record<string, unknown>>;
+    }
+  | {
+      type: "code";
+      run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
+    }
+);
 
 export type WorkflowRepairLoopConfig = {
   /** Checks to run after the agent step. Failures trigger a repair agent run. */

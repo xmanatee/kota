@@ -114,6 +114,49 @@ describe("workflow validation", () => {
     });
   });
 
+  it("accepts repair checks with severity and code validators", () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/workflows/builder/prompt.md",
+                repairLoop: {
+                  maxRepairAttempts: 2,
+                  checks: [
+                    {
+                      id: "queue-valid",
+                      type: "code",
+                      severity: "error",
+                      run: () => ({ ok: true }),
+                    },
+                    {
+                      id: "lint-warning",
+                      severity: "warning",
+                      tool: "shell",
+                      input: { command: "npm run lint" },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
+  });
+
   it("rejects non-boolean exposeOutputToAgent values", () => {
     expect(() =>
       validateWorkflowDefinitions(

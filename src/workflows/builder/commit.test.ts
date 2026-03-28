@@ -93,13 +93,13 @@ describe("commitBuilderChanges", () => {
     execSync("git add change.txt", { cwd: projectDir });
 
     const result = commitBuilderChanges(projectDir, runDirPath);
-    expect(result).toEqual({ committed: true, message: "Builder: complete task" });
+    expect(result).toEqual({ committed: true, message: "Workflow: update repo" });
 
     const log = execSync("git log --format=%s -1", {
       cwd: projectDir,
       encoding: "utf-8",
     }).trim();
-    expect(log).toBe("Builder: complete task");
+    expect(log).toBe("Workflow: update repo");
   });
 });
 
@@ -113,62 +113,23 @@ describe("builder workflow commit gate", () => {
     expect(commitStep?.when).toBeDefined();
   });
 
-  it("is skipped when verify-typecheck fails", async () => {
+  it("is skipped when build fails", async () => {
     const ctx = makeContext({
-      "verify-typecheck": "failed",
-      "verify-lint": "success",
-      "verify-test": "success",
-      "verify-build": "success",
+      build: "failed",
     });
     expect(await commitStep!.when!(ctx)).toBe(false);
   });
 
-  it("is skipped when verify-lint fails", async () => {
+  it("is skipped when build is missing", async () => {
     const ctx = makeContext({
-      "verify-typecheck": "success",
-      "verify-lint": "failed",
-      "verify-test": "success",
-      "verify-build": "success",
+      inspect: "success",
     });
     expect(await commitStep!.when!(ctx)).toBe(false);
   });
 
-  it("is skipped when verify-test fails", async () => {
+  it("runs when build passes", async () => {
     const ctx = makeContext({
-      "verify-typecheck": "success",
-      "verify-lint": "success",
-      "verify-test": "failed",
-      "verify-build": "success",
-    });
-    expect(await commitStep!.when!(ctx)).toBe(false);
-  });
-
-  it("is skipped when verify-build fails", async () => {
-    const ctx = makeContext({
-      "verify-typecheck": "success",
-      "verify-lint": "success",
-      "verify-test": "success",
-      "verify-build": "failed",
-    });
-    expect(await commitStep!.when!(ctx)).toBe(false);
-  });
-
-  it("is skipped when any verify step is missing (skipped)", async () => {
-    const ctx = makeContext({
-      "verify-typecheck": "success",
-      "verify-lint": "success",
-      // verify-test absent — step was skipped, not recorded
-      "verify-build": "success",
-    });
-    expect(await commitStep!.when!(ctx)).toBe(false);
-  });
-
-  it("runs when all four verify steps pass", async () => {
-    const ctx = makeContext({
-      "verify-typecheck": "success",
-      "verify-lint": "success",
-      "verify-test": "success",
-      "verify-build": "success",
+      build: "success",
     });
     expect(await commitStep!.when!(ctx)).toBe(true);
   });

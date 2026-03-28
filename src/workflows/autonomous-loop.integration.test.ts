@@ -102,14 +102,14 @@ function seedFixtureProject(projectDir: string): void {
     }),
   );
 
-  // Trivial package.json so preflight-lint and preflight-test pass instantly when
+  // Trivial package.json so end-of-step validation checks pass instantly when
   // the workflow runs shell commands with cwd: projectDir (exit 0 for all scripts).
   writeFileSync(
     join(projectDir, "package.json"),
     JSON.stringify({ name: "test-fixture", scripts: { lint: "exit 0", test: "exit 0", typecheck: "exit 0", build: "exit 0" } }),
   );
 
-  // Initialize a git repo so that claimTask can use `git mv` to stage task moves atomically.
+  // Initialize a git repo so workflow commit steps can run if a test needs them.
   execSync("git init && git add tasks/ready/", { cwd: projectDir });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
     cwd: projectDir,
@@ -229,10 +229,8 @@ describe("autonomous workflow loop integration", () => {
       expect(buildStep.status).toBe("failed");
       expect(buildStep.error).toContain("error_max_turns");
 
-      // verify steps must not have run (workflow exits on build failure before reaching them)
-      expect(
-        existsSync(join(runsDir, builderRunDir!, "steps", "verify-typecheck.json")),
-      ).toBe(false);
+      // post-build commit should not have run on a failed build step
+      expect(existsSync(join(runsDir, builderRunDir!, "steps", "commit.json"))).toBe(false);
 
       // ── Improver triggered by builder failure ─────────────────────────────
       const improverRun = completedRuns.find((r) => r.workflow === "improver");

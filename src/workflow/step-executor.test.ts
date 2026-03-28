@@ -503,7 +503,7 @@ describe("executeToolStep retry", () => {
 describe("buildRepairPrompt", () => {
   it("includes attempt info and failed check output", () => {
     const step = makeStep({ id: "build" });
-    const failures = [{ id: "verify-lint", passed: false, output: "error: semicolon" }];
+    const failures = [{ id: "verify-lint", passed: false, output: "error: semicolon", severity: "error" as const }];
     const prompt = buildRepairPrompt(1, 3, failures, step);
     expect(prompt).toContain("repair attempt 1/3");
     expect(prompt).toContain('"build"');
@@ -515,8 +515,8 @@ describe("buildRepairPrompt", () => {
   it("includes all failures", () => {
     const step = makeStep();
     const failures = [
-      { id: "check-a", passed: false, output: "error A" },
-      { id: "check-b", passed: false, output: "error B" },
+      { id: "check-a", passed: false, output: "error A", severity: "error" as const },
+      { id: "check-b", passed: false, output: "error B", severity: "error" as const },
     ];
     const prompt = buildRepairPrompt(2, 5, failures, step);
     expect(prompt).toContain("## check-a");
@@ -680,5 +680,88 @@ describe("executeStep repair loop", () => {
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
     // Initial check + 1 post-repair check per attempt = 3 check rounds total
     expect(runTool).toHaveBeenCalledTimes(3);
+  });
+
+  it("warning checks do not trigger repair", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    const runTool = vi
+      .fn()
+      .mockRejectedValue(new Error("advisory warning"));
+    const context = makeRepairContext(runTool);
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [
+          {
+            id: "warning-check",
+            tool: "shell",
+            severity: "warning",
+            input: { command: "npm test -- warnings" },
+          },
+        ],
+      },
+    });
+
+    const result = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    ) as Record<string, unknown>;
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(runTool).toHaveBeenCalledTimes(1);
+    expect(result.content).toBe("done");
+    expect(result.repairIterations).toEqual([]);
+    expect(result.repairWarnings).toMatchObject([{ id: "warning-check", severity: "warning" }]);
+  });
+
+  it("supports code-based repair checks", async () => {
+    mockedExecuteWithAgentSDK
+      .mockResolvedValueOnce(SUCCESS_RESULT)
+      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed queue", turns: 2, totalCostUsd: 0.02 });
+
+    const codeCheck = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error("queue invalid");
+      })
+      .mockReturnValue({ ok: true });
+
+    const context = makeRepairContext(vi.fn());
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [
+          {
+            id: "queue-check",
+            type: "code",
+            run: codeCheck,
+          },
+        ],
+      },
+    });
+
+    const result = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    ) as Record<string, unknown>;
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    expect(codeCheck).toHaveBeenCalledTimes(2);
+    expect(result.content).toBe("fixed queue");
   });
 });

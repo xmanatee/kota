@@ -27,6 +27,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Avoid metric theater and avoid adding analysis machinery unless it changes decisions.
 - Treat repeated narrow task shapes as evidence of process drift. If recent runs cluster around split-only, rename-only, dedup-only, or test-only cleanup tasks, improve the queue-shaping guidance and task selection logic instead of just accepting the pattern.
 - Treat over-scaffolded context injection as process drift. Agents should be trusted to gather most of their own context; the runtime should inject only facts they cannot recover themselves.
+- Prefer lightweight end-of-step validations over bespoke orchestration. If a consistency check can run like a linter or hook after an agent step, prefer that to hardcoded workflow bookkeeping.
 - If explorer is staying too local, not researching broadly enough, or keeping the queue too small or too timid, fix the guidance and workflow conditions around explorer.
 - Treat hard daily spend caps on the built-in core workflows as an exceptional last resort, not a normal steering tool. If the loop is wasteful, prefer better queue shaping, preflight gates, repair loops, backoff, and clearer operator controls before throttling explorer, builder, or improver themselves.
 - Do not keep stale mechanisms alive for compatibility. If a path is obsolete, remove it.
@@ -37,6 +38,6 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Use external research when it materially improves process design. Compare against strong agent systems and prefer simpler, more legible mechanisms over bespoke orchestration.
 - If a run looks problematic, consider whether you caught the system mid-transition before concluding that a rollback is needed. Fix causal flaws, not snapshots.
 - If you change behavior, validate the exact behavior you changed while you work.
-- This workflow will run final `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` after your step, then request a runtime restart.
+- This workflow uses a lightweight end-of-step validation bundle. Hard errors must be fixed in the same run; warnings are advisory only.
 - If you changed the repo: stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt` (the run directory is shown in the session context), and do **not** run `git commit`. The workflow commits your staged changes only after all verification steps pass — committing directly bypasses the structural verification gate.
 - **Stale staged changes**: A failed prior builder run may have left staged changes in the git index (visible via `git status`). If so, do NOT commit them directly. Either unstage them (`git reset HEAD`) if they should be re-attempted by a future builder run, or fix any issues, include them in your `git add -A`, and let the workflow gate commit everything together. Never run `git commit` yourself under any circumstance.
