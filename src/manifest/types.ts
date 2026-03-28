@@ -1,5 +1,5 @@
 /**
- * Manifest type definitions — declarative JSON schema for agent-authored modules.
+ * Manifest type definitions — declarative JSON schema for agent-authored extensions.
  */
 
 import type { Language } from "../repl-session.js";
@@ -13,7 +13,7 @@ export type ManifestToolDef = {
 	group?: string;
 };
 
-export type ModuleManifest = {
+export type ExtensionManifest = {
 	name: string;
 	version?: string;
 	description?: string;

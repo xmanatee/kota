@@ -1,5 +1,5 @@
 /**
- * Manifest persistence — save, load, delete, and discover manifest-based modules.
+ * Manifest persistence — save, load, delete, and discover manifest-based extensions.
  */
 
 import {
@@ -12,8 +12,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { KotaExtension } from "../extension-types.js";
-import { manifestToModule } from "./execution.js";
-import type { ModuleManifest } from "./types.js";
+import { manifestToExtension } from "./execution.js";
+import type { ExtensionManifest } from "./types.js";
 import { validateManifest } from "./validation.js";
 
 function getExtensionsDir(cwd?: string): string {
@@ -25,7 +25,7 @@ function getManifestPath(extensionName: string, cwd?: string): string {
 }
 
 export function saveManifest(
-	manifest: ModuleManifest,
+	manifest: ExtensionManifest,
 	cwd?: string,
 ): string {
 	const dir = join(getExtensionsDir(cwd), manifest.name);
@@ -38,11 +38,11 @@ export function saveManifest(
 export function loadManifest(
 	extensionName: string,
 	cwd?: string,
-): ModuleManifest | null {
+): ExtensionManifest | null {
 	const path = getManifestPath(extensionName, cwd);
 	if (!existsSync(path)) return null;
 	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as ModuleManifest;
+		return JSON.parse(readFileSync(path, "utf-8")) as ExtensionManifest;
 	} catch {
 		return null;
 	}
@@ -67,42 +67,42 @@ export function deleteManifest(extensionName: string, cwd?: string): boolean {
  * Discover all manifest-based extensions saved to `.kota/extensions/`.
  * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
  */
-export function discoverManifestModules(cwd?: string): KotaExtension[] {
+export function discoverManifestExtensions(cwd?: string): KotaExtension[] {
 	const dir = getExtensionsDir(cwd);
 	if (!existsSync(dir)) return [];
 
-	const modules: KotaExtension[] = [];
+	const extensions: KotaExtension[] = [];
 	for (const entry of readdirSync(dir)) {
 		const manifestPath = join(dir, entry, "manifest.json");
 		if (!existsSync(manifestPath)) continue;
 		try {
 			const raw = readFileSync(manifestPath, "utf-8");
-			const manifest = JSON.parse(raw) as ModuleManifest;
+			const manifest = JSON.parse(raw) as ExtensionManifest;
 			const errors = validateManifest(manifest);
 			if (errors.length > 0) {
 				console.error(
-					`[kota] Manifest module "${entry}" has validation errors, skipping`,
+					`[kota] Manifest extension "${entry}" has validation errors, skipping`,
 				);
 				continue;
 			}
-			modules.push(manifestToModule(manifest));
+			extensions.push(manifestToExtension(manifest));
 		} catch {
 			console.error(
-				`[kota] Failed to load manifest module "${entry}", skipping`,
+				`[kota] Failed to load manifest extension "${entry}", skipping`,
 			);
 		}
 	}
-	return modules;
+	return extensions;
 }
 
 /** List all saved manifest extension names. */
-export function listManifestModules(
+export function listManifestExtensions(
 	cwd?: string,
-): { name: string; manifest: ModuleManifest }[] {
+): { name: string; manifest: ExtensionManifest }[] {
 	const dir = getExtensionsDir(cwd);
 	if (!existsSync(dir)) return [];
 
-	const results: { name: string; manifest: ModuleManifest }[] = [];
+	const results: { name: string; manifest: ExtensionManifest }[] = [];
 	for (const entry of readdirSync(dir)) {
 		const manifest = loadManifest(entry, cwd);
 		if (manifest) results.push({ name: entry, manifest });

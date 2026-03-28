@@ -12,8 +12,8 @@ import { handleLogs } from "./logs.js";
 // Public API
 export { extensionFactoryTool } from "./definition.js";
 export {
-	getLoadedManifestModuleCount,
-	markModuleLoaded,
+	getLoadedManifestExtensionCount,
+	markExtensionLoaded,
 	resetExtensionFactory,
 } from "./state.js";
 

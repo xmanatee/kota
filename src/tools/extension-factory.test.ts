@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initExtensionLogStore, resetExtensionLogStore } from "../extension-log.js";
 import {
-	getLoadedManifestModuleCount,
-	markModuleLoaded,
+	getLoadedManifestExtensionCount,
+	markExtensionLoaded,
 	resetExtensionFactory,
 	runExtensionFactory,
 } from "./extension-factory/index.js";
@@ -166,16 +166,16 @@ describe("runExtensionFactory — unknown action", () => {
 
 
 describe("session lifecycle", () => {
-	it("markModuleLoaded tracks loaded extensions", () => {
-		expect(getLoadedManifestModuleCount()).toBe(0);
-		markModuleLoaded("my-mod");
-		expect(getLoadedManifestModuleCount()).toBe(1);
+	it("markExtensionLoaded tracks loaded extensions", () => {
+		expect(getLoadedManifestExtensionCount()).toBe(0);
+		markExtensionLoaded("my-mod");
+		expect(getLoadedManifestExtensionCount()).toBe(1);
 	});
 
 	it("resetExtensionFactory clears state", () => {
-		markModuleLoaded("my-mod");
+		markExtensionLoaded("my-mod");
 		resetExtensionFactory();
-		expect(getLoadedManifestModuleCount()).toBe(0);
+		expect(getLoadedManifestExtensionCount()).toBe(0);
 	});
 });
 

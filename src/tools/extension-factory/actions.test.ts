@@ -12,13 +12,13 @@ import { clearCustomTools } from "../index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
 import { handleLogs } from "./logs.js";
 import {
-	addLoadedModule,
-	getLoadedManifestModuleCount,
-	isModuleLoaded,
-	loadedModuleCount,
-	loadedModuleNames,
-	markModuleLoaded,
-	removeLoadedModule,
+	addLoadedExtension,
+	getLoadedManifestExtensionCount,
+	isExtensionLoaded,
+	loadedExtensionCount,
+	loadedExtensionNames,
+	markExtensionLoaded,
+	removeLoadedExtension,
 	resetExtensionFactory,
 } from "./state.js";
 
@@ -62,43 +62,43 @@ const _sampleManifest = {
 // ─── State module ─────────────────────────────────────────────────────
 
 describe("state — granular operations", () => {
-	it("isModuleLoaded returns false for unloaded modules", () => {
-		expect(isModuleLoaded("nonexistent")).toBe(false);
+	it("isExtensionLoaded returns false for unloaded extensions", () => {
+		expect(isExtensionLoaded("nonexistent")).toBe(false);
 	});
 
-	it("addLoadedModule + isModuleLoaded round-trip", () => {
-		addLoadedModule("my-mod");
-		expect(isModuleLoaded("my-mod")).toBe(true);
-		expect(loadedModuleCount()).toBe(1);
+	it("addLoadedExtension + isExtensionLoaded round-trip", () => {
+		addLoadedExtension("my-mod");
+		expect(isExtensionLoaded("my-mod")).toBe(true);
+		expect(loadedExtensionCount()).toBe(1);
 	});
 
-	it("removeLoadedModule removes the module", () => {
-		addLoadedModule("my-mod");
-		removeLoadedModule("my-mod");
-		expect(isModuleLoaded("my-mod")).toBe(false);
-		expect(loadedModuleCount()).toBe(0);
+	it("removeLoadedExtension removes the extension", () => {
+		addLoadedExtension("my-mod");
+		removeLoadedExtension("my-mod");
+		expect(isExtensionLoaded("my-mod")).toBe(false);
+		expect(loadedExtensionCount()).toBe(0);
 	});
 
-	it("removeLoadedModule is a no-op for unknown names", () => {
-		removeLoadedModule("nonexistent");
-		expect(loadedModuleCount()).toBe(0);
+	it("removeLoadedExtension is a no-op for unknown names", () => {
+		removeLoadedExtension("nonexistent");
+		expect(loadedExtensionCount()).toBe(0);
 	});
 
-	it("loadedModuleNames iterates all loaded names", () => {
-		addLoadedModule("a");
-		addLoadedModule("b");
-		addLoadedModule("c");
-		const names = [...loadedModuleNames()];
+	it("loadedExtensionNames iterates all loaded names", () => {
+		addLoadedExtension("a");
+		addLoadedExtension("b");
+		addLoadedExtension("c");
+		const names = [...loadedExtensionNames()];
 		expect(names).toContain("a");
 		expect(names).toContain("b");
 		expect(names).toContain("c");
 		expect(names).toHaveLength(3);
 	});
 
-	it("markModuleLoaded is idempotent", () => {
-		markModuleLoaded("x");
-		markModuleLoaded("x");
-		expect(getLoadedManifestModuleCount()).toBe(1);
+	it("markExtensionLoaded is idempotent", () => {
+		markExtensionLoaded("x");
+		markExtensionLoaded("x");
+		expect(getLoadedManifestExtensionCount()).toBe(1);
 	});
 });
 
@@ -150,7 +150,7 @@ describe("handleCreate — edge cases", () => {
 		expect(result.content).toContain("dup_tool");
 
 		// second-mod should NOT be loaded
-		expect(isModuleLoaded("second-mod")).toBe(false);
+		expect(isExtensionLoaded("second-mod")).toBe(false);
 	});
 
 	it("replaces existing module and deregisters old tools", () => {
@@ -160,7 +160,7 @@ describe("handleCreate — edge cases", () => {
 				{ name: "old_tool", description: "old", code: "pass" },
 			],
 		});
-		expect(isModuleLoaded("replace-mod")).toBe(true);
+		expect(isExtensionLoaded("replace-mod")).toBe(true);
 
 		// Replace with different tools
 		const result = handleCreate({
@@ -179,7 +179,7 @@ describe("handleCreate — edge cases", () => {
 describe("handleList — edge cases", () => {
 	it("shows session-only modules without disk persistence", () => {
 		// Add a module to loaded set without saving to disk
-		addLoadedModule("ghost-mod");
+		addLoadedExtension("ghost-mod");
 		const result = handleList();
 		expect(result.content).toContain("ghost-mod");
 		expect(result.content).toContain("session-only");
@@ -193,7 +193,7 @@ describe("handleList — edge cases", () => {
 			tools: [],
 		});
 		// Add a session-only one
-		addLoadedModule("phantom-mod");
+		addLoadedExtension("phantom-mod");
 
 		const result = handleList();
 		expect(result.content).toContain("real-mod");
@@ -209,10 +209,10 @@ describe("handleRemove — edge cases", () => {
 	it("removes disk-only module not loaded in session", () => {
 		// Create and persist, then reset session state (simulates restart)
 		handleCreate({ name: "disk-mod", tools: [] });
-		removeLoadedModule("disk-mod");
+		removeLoadedExtension("disk-mod");
 
 		// Module is on disk but not in session
-		expect(isModuleLoaded("disk-mod")).toBe(false);
+		expect(isExtensionLoaded("disk-mod")).toBe(false);
 
 		const result = handleRemove("disk-mod");
 		expect(result.is_error).toBeUndefined();
@@ -226,7 +226,7 @@ describe("handleRemove — edge cases", () => {
 
 describe("handleInfo — edge cases", () => {
 	it("shows session-only status for loaded-but-not-persisted module", () => {
-		addLoadedModule("ephemeral");
+		addLoadedExtension("ephemeral");
 		const result = handleInfo("ephemeral");
 		expect(result.content).toContain("session-only");
 		expect(result.content).toContain("not persisted");
@@ -264,7 +264,7 @@ describe("handleInfo — edge cases", () => {
 
 	it("shows status as saved when module not loaded in session", () => {
 		handleCreate({ name: "saved-mod", tools: [] });
-		removeLoadedModule("saved-mod");
+		removeLoadedExtension("saved-mod");
 
 		const result = handleInfo("saved-mod");
 		expect(result.content).toContain("saved (loads on restart)");

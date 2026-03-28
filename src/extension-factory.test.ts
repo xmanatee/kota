@@ -5,13 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { KotaExtension, ToolDef } from "./extension-types.js";
 import {
 	deleteManifest,
-	discoverManifestModules,
+	discoverManifestExtensions,
 	evaluateCondition,
 	getFieldByPath,
-	listManifestModules,
+	listManifestExtensions,
 	loadManifest,
-	type ModuleManifest,
-	manifestToModule,
+	type ExtensionManifest,
+	manifestToExtension,
 	resolveRef,
 	resolveStepInput,
 	saveManifest,
@@ -142,18 +142,18 @@ describe("validateManifest", () => {
 
 });
 
-// ─── manifestToModule ─────────────────────────────────────────────────
+// ─── manifestToExtension ─────────────────────────────────────────────────
 
-describe("manifestToModule", () => {
+describe("manifestToExtension", () => {
 	it("creates a KotaExtension from a minimal manifest", () => {
-		const mod = manifestToModule({ name: "simple" });
+		const mod = manifestToExtension({ name: "simple" });
 		expect(mod.name).toBe("simple");
 		expect(mod.version).toBe("1.0.0");
 		expect(mod.tools).toBeUndefined();
 	});
 
 	it("creates a KotaExtension with tools", () => {
-		const mod = manifestToModule({
+		const mod = manifestToExtension({
 			name: "with-tools",
 			tools: [{
 				name: "say_hello",
@@ -167,17 +167,17 @@ describe("manifestToModule", () => {
 	});
 
 	it("preserves version and description", () => {
-		const mod = manifestToModule({
+		const mod = manifestToExtension({
 			name: "meta-mod",
 			version: "2.0.0",
-			description: "A test module",
+			description: "A test extension",
 		});
 		expect(mod.version).toBe("2.0.0");
-		expect(mod.description).toBe("A test module");
+		expect(mod.description).toBe("A test extension");
 	});
 
 	it("sets default parameters schema when none provided", () => {
-		const mod = manifestToModule({
+		const mod = manifestToExtension({
 			name: "no-params",
 			tools: [{
 				name: "no_param_tool",
@@ -189,7 +189,7 @@ describe("manifestToModule", () => {
 	});
 
 	it("preserves tool group assignments", () => {
-		const mod = manifestToModule({
+		const mod = manifestToExtension({
 			name: "grouped",
 			tools: [{
 				name: "grouped_tool",
@@ -318,10 +318,10 @@ describe("manifest persistence", () => {
 		try { rmSync(tmpDir, { recursive: true }); } catch { /* */ }
 	});
 
-	const sampleManifest: ModuleManifest = {
+	const sampleManifest: ExtensionManifest = {
 		name: "test-mod",
 		version: "1.0.0",
-		description: "A test module",
+		description: "A test extension",
 		tools: [{
 			name: "test_tool",
 			description: "A test tool",
@@ -370,36 +370,36 @@ describe("manifest persistence", () => {
 		expect(existsSync(storageFile)).toBe(true);
 	});
 
-	it("discoverManifestModules finds saved modules", () => {
+	it("discoverManifestExtensions finds saved extensions", () => {
 		saveManifest(sampleManifest, tmpDir);
 		saveManifest({ ...sampleManifest, name: "other-mod", tools: [] }, tmpDir);
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(2);
-		const names = modules.map((m) => m.name).sort();
+		const extensions = discoverManifestExtensions(tmpDir);
+		expect(extensions).toHaveLength(2);
+		const names = extensions.map((m) => m.name).sort();
 		expect(names).toEqual(["other-mod", "test-mod"]);
 	});
 
-	it("discoverManifestModules skips invalid manifests", () => {
+	it("discoverManifestExtensions skips invalid manifests", () => {
 		saveManifest(sampleManifest, tmpDir);
 		// Write an invalid manifest
 		const badDir = join(tmpDir, ".kota", "extensions", "bad-mod");
 		mkdirSync(badDir, { recursive: true });
 		writeFileSync(join(badDir, "manifest.json"), "not json");
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(1);
+		const extensions = discoverManifestExtensions(tmpDir);
+		expect(extensions).toHaveLength(1);
 	});
 
-	it("discoverManifestModules returns empty for non-existent directory", () => {
-		const modules = discoverManifestModules(join(tmpDir, "nonexistent"));
-		expect(modules).toHaveLength(0);
+	it("discoverManifestExtensions returns empty for non-existent directory", () => {
+		const extensions = discoverManifestExtensions(join(tmpDir, "nonexistent"));
+		expect(extensions).toHaveLength(0);
 	});
 
-	it("listManifestModules returns name and manifest pairs", () => {
+	it("listManifestExtensions returns name and manifest pairs", () => {
 		saveManifest(sampleManifest, tmpDir);
-		const list = listManifestModules(tmpDir);
+		const list = listManifestExtensions(tmpDir);
 		expect(list).toHaveLength(1);
 		expect(list[0].name).toBe("test-mod");
-		expect(list[0].manifest.description).toBe("A test module");
+		expect(list[0].manifest.description).toBe("A test extension");
 	});
 });
 

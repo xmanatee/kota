@@ -1,7 +1,7 @@
 ---
 id: task-remove-public-module-terminology
 title: Remove remaining public module terminology from extension-facing APIs
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: The public concept model is now `extension`, but manifest and extension-factory surfaces still expose `module` wording such as `ModuleManifest`, manifest module diagnostics, and loaded-module state helpers. Finish the visible rename so docs and runtime surfaces speak one language.

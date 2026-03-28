@@ -1,45 +1,45 @@
 /**
- * Module Factory — session state tracking.
+ * Extension Factory — session state tracking.
  *
- * Tracks which manifest modules are currently loaded in this session.
+ * Tracks which manifest extensions are currently loaded in this session.
  */
 
-const loadedManifestModules = new Set<string>();
+const loadedManifestExtensions = new Set<string>();
 
 export const MAX_MANIFEST_MODULES = 10;
 
-export function isModuleLoaded(name: string): boolean {
-	return loadedManifestModules.has(name);
+export function isExtensionLoaded(name: string): boolean {
+	return loadedManifestExtensions.has(name);
 }
 
-export function loadedModuleCount(): number {
-	return loadedManifestModules.size;
+export function loadedExtensionCount(): number {
+	return loadedManifestExtensions.size;
 }
 
-export function addLoadedModule(name: string): void {
-	loadedManifestModules.add(name);
+export function addLoadedExtension(name: string): void {
+	loadedManifestExtensions.add(name);
 }
 
-export function removeLoadedModule(name: string): void {
-	loadedManifestModules.delete(name);
+export function removeLoadedExtension(name: string): void {
+	loadedManifestExtensions.delete(name);
 }
 
-/** Track a module as loaded in this session (called during startup discovery). */
-export function markModuleLoaded(name: string): void {
-	loadedManifestModules.add(name);
+/** Track an extension as loaded in this session (called during startup discovery). */
+export function markExtensionLoaded(name: string): void {
+	loadedManifestExtensions.add(name);
 }
 
-/** Get count of loaded manifest modules. For testing. */
-export function getLoadedManifestModuleCount(): number {
-	return loadedManifestModules.size;
+/** Get count of loaded manifest extensions. For testing. */
+export function getLoadedManifestExtensionCount(): number {
+	return loadedManifestExtensions.size;
 }
 
 /** Clear state. For testing. */
 export function resetExtensionFactory(): void {
-	loadedManifestModules.clear();
+	loadedManifestExtensions.clear();
 }
 
-/** Iterate loaded module names. Used by list handler for session-only detection. */
-export function loadedModuleNames(): Iterable<string> {
-	return loadedManifestModules;
+/** Iterate loaded extension names. Used by list handler for session-only detection. */
+export function loadedExtensionNames(): Iterable<string> {
+	return loadedManifestExtensions;
 }

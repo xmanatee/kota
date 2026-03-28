@@ -7,7 +7,7 @@ import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
 import type { KotaExtension, ToolDef } from "../extension-types.js";
 import type { Language } from "../repl-session.js";
 import { sessions } from "../repl-session.js";
-import type { ManifestToolDef, ModuleManifest } from "./types.js";
+import type { ExtensionManifest, ManifestToolDef } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ function buildToolRunner(
 
 // ─── Manifest → KotaExtension conversion ────────────────────────────────
 
-export function manifestToModule(manifest: ModuleManifest): KotaExtension {
+export function manifestToExtension(manifest: ExtensionManifest): KotaExtension {
 	const tools: ToolDef[] = (manifest.tools || []).map((t) => ({
 		tool: {
 			name: t.name,

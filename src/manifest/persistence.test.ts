@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	deleteManifest,
-	discoverManifestModules,
-	listManifestModules,
+	discoverManifestExtensions,
+	listManifestExtensions,
 	loadManifest,
 	saveManifest,
 } from "./persistence.js";
-import type { ModuleManifest } from "./types.js";
+import type { ExtensionManifest } from "./types.js";
 
 describe("manifest persistence edge cases", () => {
 	let tmpDir: string;
@@ -23,7 +23,7 @@ describe("manifest persistence edge cases", () => {
 		try { rmSync(tmpDir, { recursive: true }); } catch { /* */ }
 	});
 
-	const minimal: ModuleManifest = { name: "test-mod" };
+	const minimal: ExtensionManifest = { name: "test-mod" };
 
 	it("saveManifest creates nested directory structure", () => {
 		const path = saveManifest(minimal, tmpDir);
@@ -68,43 +68,43 @@ describe("manifest persistence edge cases", () => {
 		expect(existsSync(join(tmpDir, ".kota", "extensions", "test-mod"))).toBe(true);
 	});
 
-	it("discoverManifestModules skips directories without manifest.json", () => {
+	it("discoverManifestExtensions skips directories without manifest.json", () => {
 		saveManifest(minimal, tmpDir);
 		const emptyDir = join(tmpDir, ".kota", "extensions", "empty-mod");
 		mkdirSync(emptyDir, { recursive: true });
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(1);
-		expect(modules[0].name).toBe("test-mod");
+		const extensions = discoverManifestExtensions(tmpDir);
+		expect(extensions).toHaveLength(1);
+		expect(extensions[0].name).toBe("test-mod");
 	});
 
-	it("discoverManifestModules skips manifests with validation errors", () => {
+	it("discoverManifestExtensions skips manifests with validation errors", () => {
 		// Save a valid one
 		saveManifest(minimal, tmpDir);
 		// Write an invalid one (name too short)
 		const badDir = join(tmpDir, ".kota", "extensions", "x");
 		mkdirSync(badDir, { recursive: true });
 		writeFileSync(join(badDir, "manifest.json"), JSON.stringify({ name: "x" }));
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(1);
+		const extensions = discoverManifestExtensions(tmpDir);
+		expect(extensions).toHaveLength(1);
 	});
 
-	it("listManifestModules returns empty for non-existent modules dir", () => {
-		const list = listManifestModules(join(tmpDir, "nonexistent"));
+	it("listManifestExtensions returns empty for non-existent extensions dir", () => {
+		const list = listManifestExtensions(join(tmpDir, "nonexistent"));
 		expect(list).toHaveLength(0);
 	});
 
-	it("listManifestModules returns multiple modules sorted by directory order", () => {
+	it("listManifestExtensions returns multiple extensions sorted by directory order", () => {
 		saveManifest({ name: "alpha-mod" }, tmpDir);
 		saveManifest({ name: "beta-mod", description: "B" }, tmpDir);
 		saveManifest({ name: "gamma-mod", version: "2.0.0" }, tmpDir);
-		const list = listManifestModules(tmpDir);
+		const list = listManifestExtensions(tmpDir);
 		expect(list).toHaveLength(3);
 		const names = list.map((l) => l.name).sort();
 		expect(names).toEqual(["alpha-mod", "beta-mod", "gamma-mod"]);
 	});
 
 	it("saveManifest with tools preserves tool definitions", () => {
-		const withTools: ModuleManifest = {
+		const withTools: ExtensionManifest = {
 			name: "tool-mod",
 			tools: [{
 				name: "my_tool",

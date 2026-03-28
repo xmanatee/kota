@@ -2,19 +2,19 @@
  * Manifest module — public API re-exports.
  *
  * All manifest functionality is split across focused submodules:
- * - types.ts      — ManifestToolDef, ModuleManifest, etc.
+ * - types.ts      — ManifestToolDef, ExtensionManifest, etc.
  * - validation.ts — validateManifest
  * - steps.ts      — resolveRef, resolveStepInput, evaluateCondition (shared step utilities)
- * - execution.ts  — manifestToModule
- * - persistence.ts — saveManifest, loadManifest, discoverManifestModules
+ * - execution.ts  — manifestToExtension
+ * - persistence.ts — saveManifest, loadManifest, discoverManifestExtensions
  */
 
 
-export { manifestToModule } from "./execution.js";
+export { manifestToExtension } from "./execution.js";
 export {
 	deleteManifest,
-	discoverManifestModules,
-	listManifestModules,
+	discoverManifestExtensions,
+	listManifestExtensions,
 	loadManifest,
 	saveManifest,
 } from "./persistence.js";
@@ -26,8 +26,8 @@ export {
 	resolveStepInput,
 } from "./steps.js";
 export type {
+	ExtensionManifest,
 	ManifestToolDef,
-	ModuleManifest,
 	ValidationError,
 } from "./types.js";
 export { validateManifest } from "./validation.js";

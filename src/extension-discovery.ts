@@ -12,7 +12,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { KotaExtension } from "./extension-types.js";
-import { discoverManifestModules } from "./manifest/index.js";
+import { discoverManifestExtensions } from "./manifest/index.js";
 import { adaptExport } from "./tool-adapters.js";
 
 const PLUGIN_DIR = ".kota/plugins";
@@ -49,8 +49,8 @@ export async function discoverExtensions(cwd?: string, verbose = false): Promise
   modules.push(...npmModules);
 
   // 3. Manifest-based extensions from .kota/extensions/*/manifest.json
-  const manifestModules = discoverManifestModules(base);
-  modules.push(...manifestModules);
+  const manifestExtensions = discoverManifestExtensions(base);
+  modules.push(...manifestExtensions);
 
   if (modules.length > 0 && verbose) {
     const toolCount = modules.reduce((n, m) => n + (m.tools?.length ?? 0), 0);

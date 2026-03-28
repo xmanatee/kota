@@ -8,7 +8,7 @@ import { builtinExtensions } from "./extensions/index.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { GuardrailsConfig } from "./guardrails.js";
 import { resetAuditStore } from "./guardrails-audit.js";
-import { listManifestModules } from "./manifest/index.js";
+import { listManifestExtensions } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
 import type { ModelClient } from "./model/model-client.js";
@@ -21,7 +21,7 @@ import { resetAgentStatusProviders } from "./tools/agent-status.js";
 import { cleanupSessions } from "./tools/code-exec.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
-import { markModuleLoaded, resetExtensionFactory } from "./tools/extension-factory/index.js";
+import { markExtensionLoaded, resetExtensionFactory } from "./tools/extension-factory/index.js";
 import { cleanupProcesses } from "./tools/process.js";
 import type { Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
@@ -88,7 +88,7 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
   }
 
   const extensions = await discoverExtensions(undefined, state.verbose);
-  for (const { name } of listManifestModules()) markModuleLoaded(name);
+  for (const { name } of listManifestExtensions()) markExtensionLoaded(name);
   await state.extensionLoader.loadAll([...builtinExtensions, ...extensions]);
 
   const skillsPrompt = state.extensionLoader.getSkillsPrompt();

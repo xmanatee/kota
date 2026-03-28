@@ -5,22 +5,22 @@
 import { resolveExtensionTools } from "../../extension-types.js";
 import {
 	deleteManifest,
-	listManifestModules,
+	listManifestExtensions,
 	loadManifest,
-	type ModuleManifest,
-	manifestToModule,
+	type ExtensionManifest,
+	manifestToExtension,
 	saveManifest,
 	validateManifest,
 } from "../../manifest/index.js";
 import type { ToolResult } from "../index.js";
 import { deregisterExtensionTools, registerTool } from "../index.js";
 import {
-	addLoadedModule,
-	isModuleLoaded,
-	loadedModuleCount,
-	loadedModuleNames,
+	addLoadedExtension,
+	isExtensionLoaded,
+	loadedExtensionCount,
+	loadedExtensionNames,
 	MAX_MANIFEST_MODULES,
-	removeLoadedModule,
+	removeLoadedExtension,
 } from "./state.js";
 
 // ─── Create ──────────────────────────────────────────────────────────
@@ -46,11 +46,11 @@ export function handleCreate(
 		};
 	}
 
-	const manifest = rawManifest as unknown as ModuleManifest;
+	const manifest = rawManifest as unknown as ExtensionManifest;
 
 	if (
-		loadedModuleCount() >= MAX_MANIFEST_MODULES &&
-		!isModuleLoaded(manifest.name)
+		loadedExtensionCount() >= MAX_MANIFEST_MODULES &&
+		!isExtensionLoaded(manifest.name)
 	) {
 		return {
 			content: `Error: maximum ${MAX_MANIFEST_MODULES} custom extensions reached. Remove one first.`,
@@ -59,13 +59,13 @@ export function handleCreate(
 	}
 
 	// If replacing, unload existing
-	if (isModuleLoaded(manifest.name)) {
+	if (isExtensionLoaded(manifest.name)) {
 		deregisterExtensionTools(manifest.name);
-		removeLoadedModule(manifest.name);
+		removeLoadedExtension(manifest.name);
 	}
 
 	// Convert to KotaExtension and register tools
-	const mod = manifestToModule(manifest);
+	const mod = manifestToExtension(manifest);
 	const tools = resolveExtensionTools(mod);
 	if (tools.length > 0) {
 		for (const def of tools) {
@@ -87,7 +87,7 @@ export function handleCreate(
 		saveManifest(manifest);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
-		addLoadedModule(manifest.name);
+		addLoadedExtension(manifest.name);
 		return {
 			content:
 				`Extension "${manifest.name}" created (session-only — failed to persist: ${msg}). ` +
@@ -95,7 +95,7 @@ export function handleCreate(
 		};
 	}
 
-	addLoadedModule(manifest.name);
+	addLoadedExtension(manifest.name);
 
 	const toolNames = tools.map((t) => t.tool.name).join(", ") || "none";
 	return {
@@ -109,9 +109,9 @@ export function handleCreate(
 // ─── List ────────────────────────────────────────────────────────────
 
 export function handleList(): ToolResult {
-	const saved = listManifestModules();
+	const saved = listManifestExtensions();
 
-	if (saved.length === 0 && loadedModuleCount() === 0) {
+	if (saved.length === 0 && loadedExtensionCount() === 0) {
 		return {
 			content:
 				"No custom extensions. Use extension_factory(create, manifest: {...}) to create one.",
@@ -123,7 +123,7 @@ export function handleList(): ToolResult {
 
 	for (const { name, manifest } of saved) {
 		seen.add(name);
-		const loaded = isModuleLoaded(name);
+		const loaded = isExtensionLoaded(name);
 		const toolCount = manifest.tools?.length || 0;
 		const status = loaded ? "active" : "saved (loads on restart)";
 		lines.push(
@@ -132,7 +132,7 @@ export function handleList(): ToolResult {
 	}
 
 	// Show session-only extensions (created but not persisted)
-	for (const name of loadedModuleNames()) {
+	for (const name of loadedExtensionNames()) {
 		if (!seen.has(name)) {
 			lines.push(`- ${name} [session-only]: (not persisted to disk)`);
 		}
@@ -153,7 +153,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 		};
 	}
 
-	const wasLoaded = isModuleLoaded(name);
+	const wasLoaded = isExtensionLoaded(name);
 	const wasOnDisk = deleteManifest(name);
 
 	if (!wasLoaded && !wasOnDisk) {
@@ -165,7 +165,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 
 	if (wasLoaded) {
 		deregisterExtensionTools(name);
-		removeLoadedModule(name);
+		removeLoadedExtension(name);
 	}
 
 	return {
@@ -185,7 +185,7 @@ export function handleInfo(name: string | undefined): ToolResult {
 
 	const manifest = loadManifest(name);
 	if (!manifest) {
-		if (isModuleLoaded(name)) {
+		if (isExtensionLoaded(name)) {
 			return {
 				content: `Extension "${name}" is loaded (session-only, not persisted to disk).`,
 			};
@@ -196,7 +196,7 @@ export function handleInfo(name: string | undefined): ToolResult {
 		};
 	}
 
-	const loaded = isModuleLoaded(name);
+	const loaded = isExtensionLoaded(name);
 	const parts: string[] = [
 		`Extension: ${manifest.name}`,
 		`Version: ${manifest.version || "1.0.0"}`,
