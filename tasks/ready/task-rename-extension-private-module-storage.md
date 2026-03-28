@@ -1,28 +1,28 @@
 ---
 id: task-rename-extension-private-module-storage
 title: Rename remaining internal module-era extension helper names
-status: backlog
+status: ready
 priority: p1
 area: architecture
 summary: Most extension-private storage/log naming has been cleaned up, but internal helper names and comments still use `module` wording in places like extension-factory state, middleware ownership, and extension context comments. Finish that internal rename so the extension model is consistent end to end.
 created_at: 2026-03-27T18:09:52Z
-updated_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T01:20:00Z
 ---
 
 ## Problem
 
 The public model says `extension`, but the internal runtime still uses
-module-era helper names and comments in places such as:
+module-era names in places such as:
 
-- `src/tools/extension-factory/state.ts` (`markModuleLoaded`, `loadedModuleNames`, etc.)
-- middleware/context comments that still describe extension ownership as
-  "module" ownership
-- internal comments and helper text that still describe extension capabilities
-  as modules
+- `src/tools/extension-factory/state.ts` — `MAX_MANIFEST_MODULES` constant
+  (exported and used in `actions.ts`)
+- `src/tools/extension-factory/logs.ts` — file-level comment "Module Factory —
+  log query handler"
+- Test files in `extension-factory/` that still use "module" in test names,
+  descriptions, and variable names
 
-That internal cleanup is not actually finished. The storage and log paths were
-renamed, but helper/runtime vocabulary still carries old wording in multiple
-places.
+The public-facing rename (commit 143a212) cleaned up exposed APIs, but these
+internal constants, comments, and test vocabulary were not updated.
 
 ## Desired Outcome
 
