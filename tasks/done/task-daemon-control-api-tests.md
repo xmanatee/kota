@@ -1,7 +1,7 @@
 ---
 id: task-daemon-control-api-tests
 title: Add integration tests for daemon control API endpoints
-status: ready
+status: done
 priority: p2
 area: reliability
 summary: The daemon control server (daemon-control.ts) is new critical infrastructure with no dedicated tests. It handles workflow triggers, status queries, and pause/resume — all paths that autonomous workflows depend on. Add integration tests covering the key HTTP endpoints.
