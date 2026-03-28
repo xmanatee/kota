@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext, WorkflowStepResult } from "../workflow/run-types.js";
-import { commitWorkflowChanges } from "./commit.js";
 import builderWorkflow from "./builder/workflow.js";
+import { commitWorkflowChanges } from "./commit.js";
 
 function initGitRepo(dir: string): void {
   execSync("git init", { cwd: dir });
@@ -65,14 +65,12 @@ describe("commitWorkflowChanges", () => {
     rmSync(tmpBase, { recursive: true, force: true });
   });
 
-  it("returns committed=false when there are no staged changes", () => {
-    writeFileSync(join(projectDir, "unstaged.txt"), "unstaged\n");
+  it("returns committed=false when there are no working tree changes", () => {
     expect(commitWorkflowChanges(projectDir, runDirPath)).toEqual({ committed: false });
   });
 
-  it("commits staged changes using the commit-message.txt file", () => {
+  it("commits unstaged working tree changes using the commit-message.txt file", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
-    execSync("git add change.txt", { cwd: projectDir });
     writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: my custom message");
 
     const result = commitWorkflowChanges(projectDir, runDirPath);
@@ -85,9 +83,8 @@ describe("commitWorkflowChanges", () => {
     expect(log).toBe("Builder: my custom message");
   });
 
-  it("commits staged changes with a default message when commit-message.txt is absent", () => {
+  it("commits working tree changes with a default message when commit-message.txt is absent", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
-    execSync("git add change.txt", { cwd: projectDir });
 
     const result = commitWorkflowChanges(projectDir, runDirPath);
     expect(result).toEqual({ committed: true, message: "Workflow: update repo" });

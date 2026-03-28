@@ -6,11 +6,11 @@ import type { KotaExtension, ToolDef } from "./extension-types.js";
 import {
 	deleteManifest,
 	discoverManifestExtensions,
+	type ExtensionManifest,
 	evaluateCondition,
 	getFieldByPath,
 	listManifestExtensions,
 	loadManifest,
-	type ExtensionManifest,
 	manifestToExtension,
 	resolveRef,
 	resolveStepInput,

@@ -10,15 +10,16 @@ export type CommitResult = {
 const DEFAULT_COMMIT_MESSAGE = "Workflow: update repo";
 
 /**
- * Commits any staged changes in the project directory.
+ * Stages all working tree changes and commits them.
  * Reads the commit message from `<runDirPath>/commit-message.txt` if present,
  * otherwise falls back to a default message.
- * Returns `{ committed: false }` when there are no staged changes.
+ * Returns `{ committed: false }` when there is nothing to commit.
  */
 export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
 ): CommitResult {
+  execSync("git add -A", { cwd: projectDir });
   const stagedFiles = execSync("git diff --cached --name-only", {
     cwd: projectDir,
     encoding: "utf-8",

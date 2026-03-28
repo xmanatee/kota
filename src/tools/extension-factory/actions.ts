@@ -5,9 +5,9 @@
 import { resolveExtensionTools } from "../../extension-types.js";
 import {
 	deleteManifest,
+	type ExtensionManifest,
 	listManifestExtensions,
 	loadManifest,
-	type ExtensionManifest,
 	manifestToExtension,
 	saveManifest,
 	validateManifest,
