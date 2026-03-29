@@ -2,7 +2,8 @@
 
 This directory contains the per-subcommand modules for `kota workflow`.
 
-- `run-list.ts` — `kota workflow list` and related listing commands.
+- `run-list.ts` — `kota workflow list`, `kota workflow history`, and related listing commands.
+- `run-cost.ts` — `kota workflow cost`; daily cost breakdown by workflow with `--days`, `--workflow`, `--runs`, and `--json` options.
 - `run-show.ts` — `kota workflow show <runId>` step-level display.
 - `logs.ts` — `kota workflow logs` log streaming.
 - `follow.ts` — `kota workflow follow [run-id]` live run output streaming with SSE and file-poll fallback.

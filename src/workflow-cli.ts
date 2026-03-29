@@ -3,6 +3,7 @@ import { registerControlCommands } from "./workflow-cli/control.js";
 import { registerFollowCommand } from "./workflow-cli/follow.js";
 import { registerLogsCommand } from "./workflow-cli/logs.js";
 import { registerRunCommand } from "./workflow-cli/run.js";
+import { registerCostCommand } from "./workflow-cli/run-cost.js";
 import { registerRunListCommands } from "./workflow-cli/run-list.js";
 import { registerRunShowCommand } from "./workflow-cli/run-show.js";
 import { registerTriggerCommands } from "./workflow-cli/trigger.js";
@@ -21,6 +22,7 @@ export function registerWorkflowCommands(program: Command): void {
 
   registerRunListCommands(wfCmd);
   registerRunShowCommand(wfCmd);
+  registerCostCommand(wfCmd);
   registerLogsCommand(wfCmd);
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd);

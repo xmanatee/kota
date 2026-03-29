@@ -1,7 +1,7 @@
 ---
 id: task-workflow-cost-reporting-cli
 title: Add workflow cost reporting to the CLI
-status: ready
+status: done
 priority: p2
 area: cli
 summary: The workflow runtime tracks per-run cost and daily spend but there is no CLI surface to view them. Operators must dig through run artifact JSON files to understand what autonomous workflows are spending.
