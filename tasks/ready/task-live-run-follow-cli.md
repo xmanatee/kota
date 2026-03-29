@@ -1,12 +1,12 @@
 ---
 id: task-live-run-follow-cli
 title: Add kota workflow follow command for live run output streaming
-status: backlog
+status: ready
 priority: p2
 area: cli
 summary: Operators have no way to tail the output of an actively running workflow step from the CLI. kota workflow show only works on completed runs. Adding kota workflow follow <run-id> would stream live agent output so operators can monitor autonomous runs without log diving.
 created_at: 2026-03-27T23:26:32Z
-updated_at: 2026-03-27T23:26:32Z
+updated_at: 2026-03-29T22:05:39Z
 ---
 
 ## Problem
@@ -36,12 +36,12 @@ summary (status, duration, cost) when the run finishes.
 
 ## Constraints
 
-- Depends on task-add-daemon-sse-event-stream being complete; without it the
-  command can fall back to polling `kota workflow list` and printing status
-  updates only.
+- The daemon SSE event stream is complete; use `DaemonControlClient.events()`
+  for workflow-level events and fall back to the existing file-polling path when
+  the daemon is not running.
 - Do not add new persistence or a new streaming protocol — use the daemon SSE
-  event stream for workflow events and the existing HTTP log-streaming endpoint
-  for agent output.
+  event stream for workflow events and existing `.kota/runs/` artifacts for
+  agent output.
 - Interruptible with Ctrl-C; interrupt should not abort the run, only detach
   the follower.
 - Follow the existing `workflow-cli/` pattern and register as a subcommand of
