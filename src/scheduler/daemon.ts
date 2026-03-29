@@ -110,6 +110,22 @@ export class Daemon {
       abortActiveRuns: () => this.workflows.abortActiveRuns(),
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
       enqueuePendingRun: (name: string) => this.workflows.enqueuePendingRun(name),
+      subscribeToEvents: (handler) => {
+        const stops = [
+          this.bus.on("workflow.started", (p) => {
+            handler({ type: "workflow.started", payload: p as unknown as Record<string, unknown> });
+            handler({ type: "queue.changed", payload: { source: "workflow.started", workflow: p.workflow } });
+          }),
+          this.bus.on("workflow.completed", (p) => {
+            handler({ type: "workflow.completed", payload: p as unknown as Record<string, unknown> });
+            handler({ type: "queue.changed", payload: { source: "workflow.completed", workflow: p.workflow, status: p.status } });
+          }),
+          this.bus.on("workflow.step.completed", (p) =>
+            handler({ type: "workflow.step.completed", payload: p as unknown as Record<string, unknown> }),
+          ),
+        ];
+        return () => stops.forEach((s) => s());
+      },
     });
   }
 

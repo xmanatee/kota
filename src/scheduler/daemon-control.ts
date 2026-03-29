@@ -35,6 +35,17 @@ export type DaemonLiveStatus = DaemonState & {
   workflow: WorkflowLiveStatus;
 };
 
+export type DaemonSseEventType =
+  | "workflow.started"
+  | "workflow.completed"
+  | "workflow.step.completed"
+  | "queue.changed";
+
+export type DaemonSseEvent = {
+  type: DaemonSseEventType;
+  payload: Record<string, unknown>;
+};
+
 export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
   getWorkflowLiveStatus(): WorkflowLiveStatus;
@@ -43,6 +54,7 @@ export type DaemonControlHandle = {
   abortActiveRuns(): { aborted: number };
   reloadWorkflowDefinitions(): { count: number };
   enqueuePendingRun(name: string): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
+  subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
 };
 
 function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
@@ -54,6 +66,8 @@ function jsonResponse(res: ServerResponse, status: number, body: unknown): void 
 export class DaemonControlServer {
   private server: Server | null = null;
   private port: number | null = null;
+  private sseClients = new Set<ServerResponse>();
+  private unsubscribeEvents: (() => void) | null = null;
 
   constructor(private readonly handle: DaemonControlHandle) {}
 
@@ -66,6 +80,9 @@ export class DaemonControlServer {
         const addr = srv.address() as { port: number };
         this.server = srv;
         this.port = addr.port;
+        this.unsubscribeEvents = this.handle.subscribeToEvents((event) => {
+          this.broadcast(event);
+        });
         resolve(addr.port);
       });
       srv.once("error", reject);
@@ -74,6 +91,12 @@ export class DaemonControlServer {
 
   stop(): Promise<void> {
     return new Promise((resolve) => {
+      this.unsubscribeEvents?.();
+      this.unsubscribeEvents = null;
+      for (const res of this.sseClients) {
+        try { res.end(); } catch { /* ignore */ }
+      }
+      this.sseClients.clear();
       if (!this.server) {
         resolve();
         return;
@@ -86,9 +109,34 @@ export class DaemonControlServer {
     return this.port;
   }
 
+  private broadcast(event: DaemonSseEvent): void {
+    const chunk = `event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
+    for (const res of this.sseClients) {
+      try {
+        res.write(chunk);
+      } catch {
+        this.sseClients.delete(res);
+      }
+    }
+  }
+
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
+
+    if (req.method === "GET" && path === "/events") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      res.write(":\n\n");
+      this.sseClients.add(res);
+      req.on("close", () => {
+        this.sseClients.delete(res);
+      });
+      return;
+    }
 
     if (req.method === "POST" && path === "/workflow/trigger") {
       readBody(req)

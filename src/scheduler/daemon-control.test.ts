@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type DaemonControlHandle,
   DaemonControlServer,
+  type DaemonSseEvent,
   type WorkflowLiveStatus,
 } from "./daemon-control.js";
 
@@ -27,6 +28,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 3 })),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
+    subscribeToEvents: vi.fn(() => () => {}),
     ...overrides,
   };
 }
@@ -242,6 +244,51 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, count: 3 });
+    });
+  });
+
+  describe("GET /events", () => {
+    it("returns 200 with SSE content-type and keeps connection open", async () => {
+      const controller = new AbortController();
+      const res = await fetch(port, "/events", { signal: controller.signal });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/event-stream");
+      controller.abort();
+    });
+
+    it("delivers events to connected clients", async () => {
+      let eventHandler: ((e: DaemonSseEvent) => void) | null = null;
+      handle = makeHandle({
+        subscribeToEvents: vi.fn((h) => {
+          eventHandler = h;
+          return () => { eventHandler = null; };
+        }),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle);
+      port = await server.start();
+
+      const controller = new AbortController();
+      const res = await fetch(port, "/events", { signal: controller.signal });
+      expect(res.status).toBe(200);
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+
+      // Emit an event after connection is established
+      eventHandler!({ type: "workflow.started", payload: { workflow: "builder", runId: "run-1" } });
+
+      // Read chunks until we have the event
+      let received = "";
+      while (!received.includes("workflow.started")) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += decoder.decode(value);
+      }
+
+      expect(received).toContain("event: workflow.started");
+      expect(received).toContain('"workflow":"builder"');
+      controller.abort();
     });
   });
 

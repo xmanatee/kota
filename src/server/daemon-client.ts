@@ -3,6 +3,8 @@ import { readOptionalJsonFile } from "../json-file.js";
 import type {
   DaemonControlAddress,
   DaemonLiveStatus,
+  DaemonSseEvent,
+  DaemonSseEventType,
   WorkflowLiveStatus,
 } from "../scheduler/daemon-control.js";
 
@@ -98,6 +100,53 @@ export class DaemonControlClient {
       return (await res.json()) as { ok: boolean; queued?: string };
     } catch {
       return null;
+    }
+  }
+
+  async *events(): AsyncGenerator<DaemonSseEvent> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/events`);
+      if (!res.ok || !res.body) return;
+    } catch {
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const messages = buffer.split("\n\n");
+        buffer = messages.pop() ?? "";
+
+        for (const message of messages) {
+          if (!message.trim()) continue;
+          const lines = message.split("\n");
+          let eventType = "";
+          let data = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) data = line.slice(6).trim();
+          }
+          if (eventType && data) {
+            try {
+              yield {
+                type: eventType as DaemonSseEventType,
+                payload: JSON.parse(data) as Record<string, unknown>,
+              };
+            } catch {
+              // skip malformed event
+            }
+          }
+        }
+      }
+    } finally {
+      try { reader.cancel(); } catch { /* ignore */ }
     }
   }
 }

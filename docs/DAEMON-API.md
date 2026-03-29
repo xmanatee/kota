@@ -141,6 +141,40 @@ triggers are reconciled against the new definitions.
 
 `count` is the number of definitions after reload.
 
+### GET /events
+
+Opens a Server-Sent Events stream. The daemon pushes typed events as they
+occur. Clients stay connected and receive events in real time without polling.
+
+**Response headers:**
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+```
+
+**Event types:**
+
+| Event type                | When emitted                                      |
+|---------------------------|---------------------------------------------------|
+| `workflow.started`        | A workflow run begins                             |
+| `workflow.completed`      | A workflow run finishes (success, failed, etc.)   |
+| `workflow.step.completed` | An individual workflow step finishes              |
+| `queue.changed`           | After `workflow.started` or `workflow.completed`  |
+
+Each event is formatted as standard SSE:
+
+```
+event: workflow.started
+data: {"workflow":"builder","runId":"2026-03-28T...","triggerEvent":"runtime.idle",...}
+
+```
+
+`DaemonControlClient.events()` returns an `AsyncGenerator<DaemonSseEvent>` that
+subscribes to this endpoint. Web clients can use the proxied
+`GET /api/daemon/events` route on the HTTP server instead.
+
 ## Server Routes Backed By Daemon API
 
 The KOTA HTTP server (`kota serve`) proxies these routes to the daemon control
@@ -149,6 +183,7 @@ API when the daemon is running:
 | Server route              | Daemon endpoint          |
 |---------------------------|--------------------------|
 | GET /api/daemon/status    | GET /status              |
+| GET /api/daemon/events    | GET /events (SSE proxy)  |
 | GET /api/workflow/status  | GET /workflow/status     |
 | POST /api/workflow/pause  | POST /workflow/pause     |
 | POST /api/workflow/resume | POST /workflow/resume    |

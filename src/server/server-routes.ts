@@ -223,6 +223,24 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
+    if (req.method === "GET" && path === "/api/daemon/events") {
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        jsonResponse(res, 503, { error: "Daemon not running" });
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+      const gen = client.events();
+      req.on("close", () => { void gen.return(undefined); });
+      void (async () => {
+        for await (const event of gen) {
+          if (res.destroyed) break;
+          res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+        }
+      })();
+      return;
+    }
+
     if (req.method === "GET" && path === "/api/daemon/status") {
       queryDaemonStatus().then((daemon) => {
         jsonResponse(res, 200, {
