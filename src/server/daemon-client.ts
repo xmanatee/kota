@@ -19,18 +19,28 @@ function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response>
 }
 
 export class DaemonControlClient {
-  private constructor(private readonly baseUrl: string) {}
+  private constructor(
+    private readonly baseUrl: string,
+    private readonly token?: string,
+  ) {}
 
   static fromStateDir(stateDir?: string): DaemonControlClient | null {
     const dir = stateDir ?? join(process.cwd(), ".kota");
     const address = readOptionalJsonFile<DaemonControlAddress>(join(dir, "daemon-control.json"));
     if (!address || typeof address.port !== "number") return null;
-    return new DaemonControlClient(`http://127.0.0.1:${address.port}`);
+    return new DaemonControlClient(
+      `http://127.0.0.1:${address.port}`,
+      typeof address.token === "string" ? address.token : undefined,
+    );
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.token ? { Authorization: `Bearer ${this.token}` } : {};
   }
 
   async getDaemonStatus(): Promise<DaemonLiveStatus | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/status`);
+      const res = await fetchWithTimeout(`${this.baseUrl}/status`, { headers: this.authHeaders() });
       if (!res.ok) return null;
       return (await res.json()) as DaemonLiveStatus;
     } catch {
@@ -40,7 +50,7 @@ export class DaemonControlClient {
 
   async getWorkflowStatus(): Promise<WorkflowLiveStatus | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/status`);
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/status`, { headers: this.authHeaders() });
       if (!res.ok) return null;
       return (await res.json()) as WorkflowLiveStatus;
     } catch {
@@ -50,7 +60,10 @@ export class DaemonControlClient {
 
   async pause(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/pause`, { method: "POST" });
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/pause`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
       if (!res.ok) return null;
       return (await res.json()) as { ok: boolean; paused: boolean; already?: boolean };
     } catch {
@@ -60,7 +73,10 @@ export class DaemonControlClient {
 
   async resume(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/resume`, { method: "POST" });
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/resume`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
       if (!res.ok) return null;
       return (await res.json()) as { ok: boolean; paused: boolean; already?: boolean };
     } catch {
@@ -70,7 +86,10 @@ export class DaemonControlClient {
 
   async abort(): Promise<{ ok: boolean; aborted: number } | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/abort`, { method: "POST" });
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/abort`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
       if (!res.ok) return null;
       return (await res.json()) as { ok: boolean; aborted: number };
     } catch {
@@ -80,7 +99,10 @@ export class DaemonControlClient {
 
   async reload(): Promise<{ ok: boolean; count: number } | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/reload`, { method: "POST" });
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/reload`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
       if (!res.ok) return null;
       return (await res.json()) as { ok: boolean; count: number };
     } catch {
@@ -92,7 +114,7 @@ export class DaemonControlClient {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/trigger`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
         body: JSON.stringify({ name }),
       });
       if (res.status === 409) return { ok: false, alreadyQueued: true };
@@ -106,7 +128,7 @@ export class DaemonControlClient {
   async *events(): AsyncGenerator<DaemonSseEvent> {
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}/events`);
+      res = await fetch(`${this.baseUrl}/events`, { headers: this.authHeaders() });
       if (!res.ok || !res.body) return;
     } catch {
       return;

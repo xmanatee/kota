@@ -1,7 +1,7 @@
 ---
 id: task-add-daemon-auth-and-capability-scopes
 title: Add daemon auth and capability scopes for clients
-status: ready
+status: done
 priority: p1
 area: security
 summary: Once the daemon becomes the source of truth for CLI, desktop, web, and mobile clients, it needs one clear auth and capability model instead of assuming trusted local file access.

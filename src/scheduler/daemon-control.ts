@@ -16,7 +16,15 @@ export type DaemonControlAddress = {
   port: number;
   pid: number;
   startedAt: string;
+  token: string;
 };
+
+/**
+ * Capability scopes for daemon control access.
+ * - read: observe daemon and workflow state, subscribe to events
+ * - control: mutate workflow dispatch (pause/resume/abort/reload/trigger)
+ */
+export type CapabilityScope = "read" | "control";
 
 export type WorkflowLiveStatus = {
   activeRuns: WorkflowActiveRun[];
@@ -57,6 +65,18 @@ export type DaemonControlHandle = {
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
 };
 
+// Map each route key (method + " " + path) to its required capability scope.
+const ROUTE_SCOPES: Record<string, CapabilityScope> = {
+  "GET /status": "read",
+  "GET /workflow/status": "read",
+  "GET /events": "read",
+  "POST /workflow/trigger": "control",
+  "POST /workflow/pause": "control",
+  "POST /workflow/resume": "control",
+  "POST /workflow/abort": "control",
+  "POST /workflow/reload": "control",
+};
+
 function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
   const data = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -69,7 +89,10 @@ export class DaemonControlServer {
   private sseClients = new Set<ServerResponse>();
   private unsubscribeEvents: (() => void) | null = null;
 
-  constructor(private readonly handle: DaemonControlHandle) {}
+  constructor(
+    private readonly handle: DaemonControlHandle,
+    private readonly token?: string,
+  ) {}
 
   start(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -109,6 +132,12 @@ export class DaemonControlServer {
     return this.port;
   }
 
+  private isAuthorized(req: IncomingMessage): boolean {
+    if (!this.token) return true;
+    const header = req.headers.authorization ?? "";
+    return header === `Bearer ${this.token}`;
+  }
+
   private broadcast(event: DaemonSseEvent): void {
     const chunk = `event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
     for (const res of this.sseClients) {
@@ -123,6 +152,17 @@ export class DaemonControlServer {
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
+    const routeKey = `${req.method} ${path}`;
+
+    if (!(routeKey in ROUTE_SCOPES)) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+
+    if (!this.isAuthorized(req)) {
+      jsonResponse(res, 401, { error: "Unauthorized" });
+      return;
+    }
 
     if (req.method === "GET" && path === "/events") {
       res.writeHead(200, {

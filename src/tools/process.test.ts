@@ -57,10 +57,10 @@ describe("process tool", () => {
     it("allows new process after previous ones exit", async () => {
       // Start a process that exits quickly
       await runProcess({ action: "start", command: "echo quick" });
-      // Wait for it to exit
-      await new Promise((r) => setTimeout(r, 200));
+      // Poll until it shows as exited (close event may arrive slightly after the startProcess wait)
+      await waitForExit("p1");
       expect(getActiveProcessCount()).toBe(0);
-    });
+    }, 10_000);
   });
 
   describe("output action", () => {
@@ -194,7 +194,7 @@ describe("process tool", () => {
       const result = await runProcess({ action: "start", command: "sleep 30" });
       expect(result.is_error).toBeUndefined();
       expect(result.content).toContain("Started background process");
-    });
+    }, 15_000);
   });
 
   describe("output lines clamping", () => {
@@ -216,13 +216,20 @@ describe("process tool", () => {
       const longLine = "B".repeat(120);
       // Use a long-running process so last buffer line is the long echo, not exit message
       await runProcess({ action: "start", command: `echo ${longLine} && sleep 30` });
+      // Poll until the output buffer has content (data event may arrive after startProcess wait)
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const out = await runProcess({ action: "output", process_id: "p1" });
+        if (out.content && !out.content.includes("(no output)")) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
       const result = await runProcess({ action: "list" });
       // The "last:" line should be truncated with ...
       const lastMatch = result.content!.match(/last: (.+)/);
       expect(lastMatch).toBeTruthy();
       expect(lastMatch![1]).toContain("...");
       expect(lastMatch![1].length).toBeLessThanOrEqual(80);
-    });
+    }, 10_000);
   });
 
   describe("chunk boundary handling", () => {

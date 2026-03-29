@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
@@ -42,6 +43,7 @@ export class Daemon {
   private readonly workflows: WorkflowRuntime;
   private readonly projectDir: string;
   private readonly controlServer: DaemonControlServer;
+  private readonly token: string;
 
   private state: DaemonState;
   private unsubscribe: (() => void) | null = null;
@@ -80,6 +82,7 @@ export class Daemon {
     };
     this.state.pid = process.pid;
     this.state.startedAt = new Date().toISOString();
+    this.token = randomBytes(32).toString("hex");
 
     this.controlServer = new DaemonControlServer({
       getDaemonLiveState: () => ({ ...this.state, running: this.isRunning() }),
@@ -126,7 +129,7 @@ export class Daemon {
         ];
         return () => stops.forEach((s) => s());
       },
-    });
+    }, this.token);
   }
 
   async start(): Promise<void> {
@@ -150,6 +153,7 @@ export class Daemon {
       port: controlPort,
       pid: process.pid,
       startedAt: this.state.startedAt,
+      token: this.token,
     });
     this.log(`Control API on http://127.0.0.1:${controlPort}`);
 
