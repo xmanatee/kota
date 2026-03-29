@@ -1,12 +1,12 @@
 ---
 id: task-workflow-concurrent-execution
 title: Enable concurrent execution of independent workflow runs
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: The workflow runtime serializes all runs through a single active-run slot. Independent workflows block on each other, creating head-of-line blocking that limits throughput as the workflow set grows.
 created_at: 2026-03-27T23:05:32Z
-updated_at: 2026-03-27T23:05:32Z
+updated_at: 2026-03-29T22:35:00Z
 ---
 
 ## Problem
