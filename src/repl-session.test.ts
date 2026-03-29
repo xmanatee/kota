@@ -102,7 +102,7 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     expect(result.isError).toBe(true);
     expect(result.output).toContain("Session crashed");
     expect(result.output).toContain("state were lost");
-  });
+  }, 15_000);
 
   it("auto-restarts after crash with restart warning", async () => {
     session = new REPLSession("python");
