@@ -6,7 +6,7 @@ priority: p1
 area: api
 summary: The KOTA HTTP server and the daemon are still separate runtime entry points. The server reads live state from .kota/ files and its own in-process workflow state rather than routing through the daemon API. Making the server daemon-backed completes migration step 4 in DAEMON-CLIENTS.md.
 created_at: 2026-03-27T22:43:00Z
-updated_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-29T22:31:00Z
 ---
 
 ## Problem
@@ -40,8 +40,7 @@ the server can still serve a degraded read-only view from `.kota/` artifacts.
   without a running daemon.
 - Session pool management should move to the daemon; the server should route
   interactive session requests through the daemon's session registry.
-- This task depends on the SSE event stream task (task-add-daemon-sse-event-stream)
-  being complete, since the server needs push events from the daemon.
+- The SSE event stream (`GET /events`) is now complete and available via `DaemonControlClient`. Use it for push events from the daemon to the server.
 - Do not introduce a web-specific control protocol — reuse `DaemonControlClient`
   and the `GET /events` SSE endpoint.
 
