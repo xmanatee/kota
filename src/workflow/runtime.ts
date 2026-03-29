@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope } from "../event-bus.js";
+import { getRepoWorktreeStatus } from "../repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
 import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
@@ -118,6 +119,7 @@ export class WorkflowRuntime {
     }
 
     this.definitions = this.loadDefinitions();
+    this.queueInterruptedRunRecovery(interrupted);
     this.wfQueue.restorePending();
     const activeAgentBackoff = this.backoff.getActive();
     if (activeAgentBackoff) {
@@ -246,6 +248,41 @@ export class WorkflowRuntime {
 
   private maybeStartNext(): void {
     maybeStartNext(this as unknown as WorkflowRuntimeDispatchState);
+  }
+
+  private queueInterruptedRunRecovery(
+    interrupted: Array<{ id: string; workflow: string }>,
+  ): void {
+    if (interrupted.length === 0) return;
+    const worktree = getRepoWorktreeStatus(this.projectDir);
+    if (!worktree.available || !worktree.dirty) return;
+
+    const improver = this.definitions.find(
+      (definition) => definition.name === "improver" && definition.enabled,
+    );
+    if (!improver) {
+      this.log(
+        `Recovered interrupted run(s) left a dirty worktree, but no improver workflow is available: ${worktree.summary}`,
+      );
+      return;
+    }
+
+    this.wfQueue.enqueue(
+      improver,
+      { event: "runtime.recovered", cooldownMs: 0 },
+      {
+        event: "runtime.recovered",
+        payload: {
+          recoveredRunIds: interrupted.map((run) => run.id),
+          recoveredWorkflows: interrupted.map((run) => run.workflow),
+          recoveredAt: new Date().toISOString(),
+          worktreeSummary: worktree.summary,
+        },
+      },
+    );
+    this.log(
+      `Queued improver recovery for interrupted run(s) with uncommitted changes: ${worktree.summary}`,
+    );
   }
 
   private async runWorkflow(

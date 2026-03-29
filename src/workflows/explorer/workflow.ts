@@ -1,4 +1,5 @@
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
+import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
@@ -66,6 +67,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       id: "inspect-queue",
       type: "code",
       run: ({ projectDir, readRuntimeState }) => {
+        assertRepoWorktreeClean(projectDir);
         return buildExplorerAssessment(
           projectDir,
           readRuntimeState().workflows.explorer?.lastCompletedAt,

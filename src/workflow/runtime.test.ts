@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -11,8 +12,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
+import { WorkflowRunStore } from "./run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
-import { registerWorkflowDefinition } from "./validation.js";
+import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
 vi.mock("../agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
@@ -833,6 +835,80 @@ describe("WorkflowRuntime", () => {
     );
     expect(metadata.status).toBe("interrupted");
     expect(metadata.steps[0].status).toBe("failed");
+  });
+
+  it("queues improver recovery first when startup finds an interrupted run with a dirty worktree", async () => {
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, "README.md"), "clean\n");
+    execFileSync("git", ["add", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+
+    const builderDefinition = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+      projectDir,
+    )[0];
+
+    const store = new WorkflowRunStore(projectDir);
+    store.createRun(builderDefinition, {
+      event: "runtime.idle",
+      payload: {},
+    });
+
+    writeFileSync(join(projectDir, "README.md"), "dirty\n");
+
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 1_000,
+      workflows: [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: { workflow: "builder", status: ["failed", "interrupted"] },
+            },
+          ],
+          steps: [{ id: "repair", type: "emit", event: "improver.done" }],
+        }),
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started[0]).toBe("improver");
+
+    const state = store.readState();
+    expect(state.activeRuns).toEqual([]);
+
+    const runsDir = join(projectDir, ".kota", "runs");
+    const interruptedRunId = readdirSync(runsDir).find((runId) => runId.includes("-builder-"));
+    expect(interruptedRunId).toBeDefined();
+    const metadata = JSON.parse(
+      readFileSync(join(runsDir, interruptedRunId!, "metadata.json"), "utf-8"),
+    );
+    expect(metadata.status).toBe("interrupted");
   });
 
   it("fires interval-based schedule trigger immediately on first run", async () => {

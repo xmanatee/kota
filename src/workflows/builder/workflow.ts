@@ -2,6 +2,7 @@ import {
   getRepoTaskQueueSnapshot,
   isRepoTaskQueueSnapshot,
 } from "../../repo-tasks.js";
+import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import { assertTaskQueueValid } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
@@ -34,7 +35,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "inspect-ready-queue",
       type: "code",
-      run: ({ projectDir }) => getRepoTaskQueueSnapshot(projectDir),
+      run: ({ projectDir }) => {
+        assertRepoWorktreeClean(projectDir);
+        return getRepoTaskQueueSnapshot(projectDir);
+      },
     },
     {
       id: "build",
