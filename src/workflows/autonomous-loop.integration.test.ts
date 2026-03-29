@@ -109,8 +109,14 @@ function seedFixtureProject(projectDir: string): void {
     JSON.stringify({ name: "test-fixture", scripts: { lint: "exit 0", test: "exit 0", typecheck: "exit 0", build: "exit 0" } }),
   );
 
+  // .gitignore mirrors the real project: .kota/ is runtime state, not source.
+  // Without this, assertRepoWorktreeClean would fail when the workflow runtime
+  // modifies workflow-state.json and creates run artifacts before the step runs.
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+
   // Initialize a git repo so workflow commit steps can run if a test needs them.
-  execSync("git init && git add tasks/ready/", { cwd: projectDir });
+  // Commit all seeded files (excluding .kota/) so assertRepoWorktreeClean passes.
+  execSync("git init && git add .", { cwd: projectDir });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
     cwd: projectDir,
   });

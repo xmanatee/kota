@@ -1,7 +1,7 @@
 ---
 id: task-live-run-follow-cli
 title: Add kota workflow follow command for live run output streaming
-status: ready
+status: done
 priority: p2
 area: cli
 summary: Operators have no way to tail the output of an actively running workflow step from the CLI. kota workflow show only works on completed runs. Adding kota workflow follow <run-id> would stream live agent output so operators can monitor autonomous runs without log diving.

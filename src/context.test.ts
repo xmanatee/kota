@@ -197,7 +197,7 @@ describe("Context", () => {
       const state = ctx.getDynamicState();
       // Should contain a weekday name and timezone abbreviation
       expect(state).toMatch(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/);
-      expect(state).toMatch(/\b[A-Z]{2,5}\]$/m);
+      expect(state).toMatch(/\b([A-Z]{2,5}|GMT[+-]\d+)\]$/m);
     });
   });
 
