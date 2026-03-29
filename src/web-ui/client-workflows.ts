@@ -111,4 +111,29 @@ export const CLIENT_WORKFLOWS_JS = `
       renderWorkflowControls(!!statusData.paused, wfNames);
     } catch {}
   }
+
+  var _daemonEventsSource = null;
+  var _daemonEventsRetryTimer = null;
+
+  function connectDaemonEvents() {
+    if (_daemonEventsSource) return;
+    var src = new EventSource(API + "/api/daemon/events");
+    _daemonEventsSource = src;
+
+    function onQueueEvent() { refreshWorkflows(); }
+    src.addEventListener("workflow.started", onQueueEvent);
+    src.addEventListener("workflow.completed", onQueueEvent);
+    src.addEventListener("workflow.step.completed", onQueueEvent);
+    src.addEventListener("queue.changed", onQueueEvent);
+
+    src.onerror = function() {
+      src.close();
+      _daemonEventsSource = null;
+      _daemonEventsRetryTimer = setTimeout(connectDaemonEvents, 10000);
+    };
+  }
+
+  function startWorkflowUpdates() {
+    connectDaemonEvents();
+  }
 `;

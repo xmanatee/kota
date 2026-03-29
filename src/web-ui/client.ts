@@ -83,7 +83,8 @@ ${CLIENT_COST_JS}
   refreshApprovals();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
-  setInterval(refreshWorkflows, 5000);
+  startWorkflowUpdates();
+  setInterval(refreshWorkflows, 30000);
   setInterval(refreshTasks, 5000);
   setInterval(refreshCost, 5000);
   setInterval(refreshApprovals, 5000);

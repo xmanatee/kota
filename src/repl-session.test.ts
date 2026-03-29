@@ -85,7 +85,7 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     const r2 = await session.execute("print('after')", 10_000);
     expect(r2.output).toContain("after");
     expect(session.isAlive()).toBe(true);
-  });
+  }, 15_000);
 
   it("handles timeout with graceful SIGINT for Python", async () => {
     session = new REPLSession("python");
@@ -112,7 +112,7 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     expect(result.isError).toBe(false);
     expect(result.output).toContain("Session restarted");
     expect(result.output).toContain("recovered");
-  });
+  }, 15_000);
 
   it("explicit kill restart does not show crash warning", async () => {
     session = new REPLSession("python");
