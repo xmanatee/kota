@@ -1,12 +1,12 @@
 ---
 id: task-clean-extension-internals-naming
 title: Clean up remaining module-era naming in extension internals
-status: backlog
+status: ready
 priority: p3
 area: refactor
 summary: The module→extension migration is mostly complete in public APIs, but several internals still use module-era names (modules, mod, moduleRoutes, MODULE_NAME_RE, BUILTIN_MODULE_NAMES). Clean these up to finish the terminology migration and keep the codebase consistent.
 created_at: 2026-03-28T01:35:31Z
-updated_at: 2026-03-28T01:35:31Z
+updated_at: 2026-03-30T00:00:00Z
 ---
 
 ## Problem
