@@ -12,7 +12,8 @@ The daemon writes its control address to `.kota/daemon-control.json`:
 {
   "port": 49251,
   "pid": 12345,
-  "startedAt": "2026-03-27T12:00:00.000Z"
+  "startedAt": "2026-03-27T12:00:00.000Z",
+  "token": "a3f8..."
 }
 ```
 
@@ -20,12 +21,22 @@ Clients discover the address by reading this file. If the file does not exist,
 or if the HTTP request fails, the daemon is not running.
 
 Use `DaemonControlClient.fromStateDir()` from `src/server/daemon-client.ts` to
-get a ready-to-use client in TypeScript.
+get a ready-to-use client in TypeScript. The client reads the token from the
+lock file automatically and sends it with all requests.
 
 ## Protocol
 
-All endpoints are HTTP + JSON, served on `127.0.0.1` (loopback only). No
-authentication is required because the API is loopback-local.
+All endpoints are HTTP + JSON, served on `127.0.0.1` (loopback only). Requests
+must include an `Authorization: Bearer <token>` header matching the token in
+`daemon-control.json`. Requests without a valid token receive `401 Unauthorized`.
+
+Routes are tagged with a capability scope:
+
+- **`read`** — observe daemon and workflow state, subscribe to events:
+  `GET /status`, `GET /workflow/status`, `GET /events`
+- **`control`** — mutate workflow dispatch:
+  `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
+  `POST /workflow/reload`, `POST /workflow/trigger`
 
 ## Endpoints
 
