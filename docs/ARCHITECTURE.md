@@ -126,9 +126,10 @@ lifecycle for every agent run — interactive or autonomous. Every path through
 KOTA runs in a session. The `SessionStateMachine` enforces explicit lifecycle
 states (idle → initializing → ready → thinking → acting → reflecting → closed).
 
-The daemon should be the source of truth for live sessions when it is running.
-Clients should query or control the daemon instead of reading session state
-from `.kota/` files directly.
+When the daemon is running, it is the source of truth for live sessions.
+`kota serve` registers and unregisters interactive sessions with the daemon so
+all live state is visible via a single control API. Clients query the daemon
+instead of reading session state from `.kota/` files directly.
 
 `channel` is optional. Channels manage pools of sessions on behalf of external
 users (Telegram, daemon-backed web chat, future connectors). They live inside
