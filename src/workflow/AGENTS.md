@@ -13,7 +13,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
-- `budget-guard.ts` — `BudgetGuard`: daily spend tracking and Telegram budget alerts.
+- `budget-guard.ts` — `BudgetGuard`: daily spend tracking; emits `workflow.budget.exceeded` and `workflow.cost.limit.reached` bus events when thresholds are crossed.
 - `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue, pick, restore, persist.
 - `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling.

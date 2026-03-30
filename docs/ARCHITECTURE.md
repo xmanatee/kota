@@ -91,6 +91,13 @@ adding a parallel surface.
   hardcoded in daemon-subscriptions. A second extension can now add a channel
   (Slack, email, web chat) by declaring a `ChannelDef` without touching daemon
   internals.
+- Notification callers (`BudgetGuard`, `AttentionDigest`, `subscribeWorkflowFailureAlert`)
+  emit typed bus events (`workflow.failure.alert`, `workflow.budget.exceeded`,
+  `workflow.attention.digest`, `workflow.cost.limit.reached`) rather than calling
+  Telegram directly. Extensions subscribe via `ExtensionEventProxy.subscribe()` in
+  their `onLoad` hook and unsubscribe in `onUnload`. A second notification consumer
+  (Slack, email, webhook) can now subscribe to these events without touching the
+  workflow runtime.
 
 ## Protocol Boundaries
 
