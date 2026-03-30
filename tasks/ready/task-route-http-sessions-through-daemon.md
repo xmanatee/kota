@@ -1,12 +1,12 @@
 ---
 id: task-route-http-sessions-through-daemon
 title: Route HTTP server session management through the daemon
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: kota serve starts its own scheduler, event bus, and SessionPool — a parallel runtime separate from the daemon. Routing the HTTP server's session management through the daemon creates one unified runtime host and eliminates the dual-process-state problem.
 created_at: 2026-03-30T01:00:00Z
-updated_at: 2026-03-30T01:00:00Z
+updated_at: 2026-03-30T15:34:00Z
 ---
 
 ## Problem
