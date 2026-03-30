@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-session-panel
 title: Add active sessions panel to the web UI dashboard
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The daemon tracks active interactive and workflow agent sessions, but the web dashboard has no panel showing live session activity alongside workflow runs and approvals.
 created_at: 2026-03-30T19:57:00Z
-updated_at: 2026-03-30T19:57:00Z
+updated_at: 2026-03-30T20:20:00Z
 ---
 
 ## Problem
@@ -31,11 +31,10 @@ The panel does not need session control (no abort/interrupt); read-only display 
 ## Constraints
 
 - Use the existing SSE client wiring and panel component patterns from approvals/tasks panels.
-- Subscribe to `session.registered` / `session.unregistered` bus events; emit them from
-  the daemon session registration handlers.
+- Add `session.registered` and `session.unregistered` to `BusEvents` in `event-bus-types.ts`;
+  emit them from the daemon session registration handlers in `daemon-control.ts`.
 - No new REST endpoints needed — initial state comes from `GET /status`.
-- Implement event emission alongside the existing `kota serve` session register/unregister
-  calls (`DaemonControlServer` in `src/scheduler/daemon-control.ts`).
+- Session panel sits alongside the existing approvals, tasks, and workflow panels.
 
 ## Done When
 
