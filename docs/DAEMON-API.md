@@ -543,6 +543,13 @@ When the daemon is running:
 - Run artifacts (`.kota/runs/`) are durable records that are valid to read
   directly; they are not live control state.
 
+## Test Coverage
+
+Integration tests for all endpoints live in
+`src/scheduler/daemon-control.test.ts`. The test file uses a `makeHandle()`
+stub pattern — no process spawning — and covers auth enforcement, each route's
+success path, and error cases (404, 409, 401).
+
 ## Mobile Client Contract
 
 A thin mobile client can implement full operator functionality using only this

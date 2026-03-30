@@ -483,6 +483,274 @@ describe("DaemonControlServer", () => {
     });
   });
 
+  describe("GET /history", () => {
+    it("returns 200 with empty conversations list", async () => {
+      const res = await fetchWithToken(port, "/history");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ conversations: [] });
+      expect(handle.listHistory).toHaveBeenCalled();
+    });
+
+    it("returns conversations from handle", async () => {
+      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-6", messageCount: 2, cwd: "/tmp" };
+      handle = makeHandle({ listHistory: vi.fn(() => [record]) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/history");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.conversations).toHaveLength(1);
+      expect(body.conversations[0].id).toBe("conv-1");
+    });
+
+    it("passes search and limit query params to handle", async () => {
+      const res = await fetchWithToken(port, "/history?search=foo&limit=5");
+      expect(res.status).toBe(200);
+      expect(handle.listHistory).toHaveBeenCalledWith("foo", 5);
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/history");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /history/:id", () => {
+    it("returns 200 with conversation data when found", async () => {
+      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-6", messageCount: 2, cwd: "/tmp" };
+      const data = { record, messages: [], compactionCount: 0, lastInputTokens: 0 };
+      handle = makeHandle({ getHistory: vi.fn(() => data) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/history/conv-1");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.record.id).toBe("conv-1");
+      expect(handle.getHistory).toHaveBeenCalledWith("conv-1");
+    });
+
+    it("returns 404 when conversation not found", async () => {
+      const res = await fetchWithToken(port, "/history/missing-id");
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/history/conv-1");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /workflow/runs", () => {
+    it("returns 200 with empty runs list", async () => {
+      const res = await fetchWithToken(port, "/workflow/runs");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ runs: [] });
+      expect(handle.listWorkflowRuns).toHaveBeenCalled();
+    });
+
+    it("returns runs from handle", async () => {
+      const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", startedAt: "2026-01-01T00:00:00.000Z" };
+      handle = makeHandle({ listWorkflowRuns: vi.fn(() => [run]) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.runs).toHaveLength(1);
+      expect(body.runs[0].id).toBe("run-1");
+    });
+
+    it("passes workflow filter and limit to handle", async () => {
+      const res = await fetchWithToken(port, "/workflow/runs?workflow=builder&limit=5");
+      expect(res.status).toBe(200);
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith("builder", 5);
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/workflow/runs");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /workflow/runs/:id", () => {
+    it("returns 200 with run detail when found", async () => {
+      const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", startedAt: "2026-01-01T00:00:00.000Z", steps: [] };
+      handle = makeHandle({ getWorkflowRun: vi.fn(() => run) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs/run-1");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.id).toBe("run-1");
+      expect(handle.getWorkflowRun).toHaveBeenCalledWith("run-1");
+    });
+
+    it("returns 404 when run not found", async () => {
+      const res = await fetchWithToken(port, "/workflow/runs/missing-run");
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/workflow/runs/run-1");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /approvals", () => {
+    it("returns 200 with empty approvals list", async () => {
+      const res = await fetchWithToken(port, "/approvals");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ approvals: [] });
+      expect(handle.listApprovals).toHaveBeenCalled();
+    });
+
+    it("returns approvals from handle", async () => {
+      const approval = { id: "appr-1", tool: "Bash", input: { command: "ls" }, risk: "dangerous" as const, reason: "needs approval", createdAt: "2026-01-01T00:00:00.000Z", status: "pending" as const };
+      handle = makeHandle({ listApprovals: vi.fn(() => [approval]) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/approvals");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approvals).toHaveLength(1);
+      expect(body.approvals[0].id).toBe("appr-1");
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/approvals");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /approvals/:id/approve", () => {
+    it("returns 200 with approval when found", async () => {
+      const approval = { id: "appr-1", tool: "Bash", input: { command: "ls" }, risk: "dangerous" as const, reason: "needs approval", createdAt: "2026-01-01T00:00:00.000Z", status: "approved" as const, resolvedAt: "2026-01-01T00:01:00.000Z" };
+      handle = makeHandle({ approveApproval: vi.fn(() => approval) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/approvals/appr-1/approve", { method: "POST" });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approval.id).toBe("appr-1");
+      expect(handle.approveApproval).toHaveBeenCalledWith("appr-1");
+    });
+
+    it("returns 404 when approval not found", async () => {
+      const res = await fetchWithToken(port, "/approvals/missing/approve", { method: "POST" });
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/approvals/appr-1/approve", { method: "POST" });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /approvals/:id/reject", () => {
+    it("returns 200 with approval when found", async () => {
+      const approval = { id: "appr-1", tool: "Bash", input: { command: "ls" }, risk: "dangerous" as const, reason: "needs approval", createdAt: "2026-01-01T00:00:00.000Z", status: "rejected" as const, resolvedAt: "2026-01-01T00:01:00.000Z", rejectionReason: "too risky" };
+      handle = makeHandle({ rejectApproval: vi.fn(() => approval) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/approvals/appr-1/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "too risky" }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approval.id).toBe("appr-1");
+      expect(handle.rejectApproval).toHaveBeenCalledWith("appr-1", "too risky");
+    });
+
+    it("accepts reject without a reason body", async () => {
+      const approval = { id: "appr-1", tool: "Bash", input: {}, risk: "safe" as const, reason: "test", createdAt: "2026-01-01T00:00:00.000Z", status: "rejected" as const };
+      handle = makeHandle({ rejectApproval: vi.fn(() => approval) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/approvals/appr-1/reject", { method: "POST" });
+      expect(res.status).toBe(200);
+      expect(handle.rejectApproval).toHaveBeenCalledWith("appr-1", undefined);
+    });
+
+    it("returns 404 when approval not found", async () => {
+      const res = await fetchWithToken(port, "/approvals/missing/reject", { method: "POST" });
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/approvals/appr-1/reject", { method: "POST" });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /tasks", () => {
+    it("returns 200 with task status", async () => {
+      const res = await fetchWithToken(port, "/tasks");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 },
+        tasks: { doing: [], ready: [], backlog: [], blocked: [] },
+      });
+      expect(handle.getTaskStatus).toHaveBeenCalled();
+    });
+
+    it("returns task data from handle", async () => {
+      const taskStatus = {
+        counts: { inbox: 0, ready: 1, backlog: 0, doing: 0, blocked: 0 },
+        tasks: {
+          doing: [],
+          ready: [{ id: "task-1", title: "Fix bug", priority: "p1", area: "core", summary: "A bug", body: "" }],
+          backlog: [],
+          blocked: [],
+        },
+      };
+      handle = makeHandle({ getTaskStatus: vi.fn(() => taskStatus) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/tasks");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.counts.ready).toBe(1);
+      expect(body.tasks.ready).toHaveLength(1);
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/tasks");
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe("unknown routes", () => {
     it("returns 404 for an unrecognized path", async () => {
       const res = await fetchWithToken(port, "/does-not-exist");

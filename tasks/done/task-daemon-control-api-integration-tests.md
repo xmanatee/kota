@@ -1,7 +1,7 @@
 ---
 id: task-daemon-control-api-integration-tests
 title: Extend daemon control API integration tests to cover approvals, tasks, and history
-status: ready
+status: done
 priority: p3
 area: testing
 summary: src/scheduler/daemon-control.test.ts already covers auth, /status, /events, /workflow controls, and /webhooks end-to-end, but GET/POST /approvals, GET /tasks, GET /workflow/history, and session-related routes have no test coverage.
