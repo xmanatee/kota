@@ -214,6 +214,11 @@ export function validateWorkflowDefinitions(
         "dailyBudgetUsd",
         definitionPath,
       ),
+      concurrencyGroup: expectOptionalString(
+        definition.concurrencyGroup,
+        "concurrencyGroup",
+        definitionPath,
+      ),
       definitionPath,
       triggers: (() => {
         const triggers = definition.triggers.map((trigger, triggerIndex) =>

@@ -146,6 +146,13 @@ export type WorkflowDefinitionInput = {
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
   dailyBudgetUsd?: number;
+  /**
+   * Named concurrency group for this workflow. Workflows in the same named group
+   * run at most one at a time. Omit to use type-based defaults: agent-step
+   * workflows use the built-in "agent" group (agentConcurrency cap), code-only
+   * workflows use the "code" group (codeConcurrency cap).
+   */
+  concurrencyGroup?: string;
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -219,6 +226,11 @@ export type WorkflowDefinition = {
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
   dailyBudgetUsd?: number;
+  /**
+   * Named concurrency group. Workflows in the same named group run at most one
+   * at a time. Omit to use type-based defaults ("agent" or "code").
+   */
+  concurrencyGroup?: string;
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

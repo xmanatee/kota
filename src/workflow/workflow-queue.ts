@@ -135,7 +135,7 @@ export class WorkflowQueueManager {
     );
   }
 
-  pick(): WorkflowQueuedRun | null {
+  pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {
     const now = Date.now();
     const activeAgentBackoff = this.config.getActiveBackoff();
     const eligible = this.queue
@@ -154,8 +154,11 @@ export class WorkflowQueueManager {
         ) {
           return false;
         }
-        if (!activeAgentBackoff) return true;
-        return !definition || !this.config.workflowUsesAgent(definition);
+        if (activeAgentBackoff && definition && this.config.workflowUsesAgent(definition)) {
+          return false;
+        }
+        if (canDispatch && definition && !canDispatch(definition)) return false;
+        return true;
       })
       .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
 

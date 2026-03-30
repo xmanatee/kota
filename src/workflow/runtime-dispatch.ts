@@ -34,12 +34,50 @@ export interface WorkflowRuntimeDispatchState {
     { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController }
   >;
   backoff: AgentBackoffManager;
-  maxConcurrentRuns: number;
+  /** Max concurrent agent-step workflow runs. Default 1. */
+  agentConcurrency: number;
+  /** Max concurrent code-only workflow runs. Default 4. */
+  codeConcurrency: number;
   runtimeConfig: WorkflowRuntimeConfig;
   model?: string;
   idleIntervalMs: number;
   workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   log(message: string): void;
+}
+
+/**
+ * Returns the concurrency group for a workflow definition.
+ * Named groups serialize within themselves (cap 1).
+ * Unnamed workflows fall into "agent" or "code" based on step types.
+ */
+function getConcurrencyGroup(definition: WorkflowDefinition): string {
+  if (definition.concurrencyGroup) return definition.concurrencyGroup;
+  return workflowUsesAgent(definition) ? "agent" : "code";
+}
+
+function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string): number {
+  let count = 0;
+  for (const workflowName of state.activeRuns.keys()) {
+    const def = state.definitions.find((d) => d.name === workflowName);
+    if (def && getConcurrencyGroup(def) === group) count++;
+  }
+  return count;
+}
+
+function canDispatchDefinition(
+  state: WorkflowRuntimeDispatchState,
+  definition: WorkflowDefinition,
+): boolean {
+  const group = getConcurrencyGroup(definition);
+  let limit: number;
+  if (group === "agent") {
+    limit = state.agentConcurrency;
+  } else if (group === "code") {
+    limit = state.codeConcurrency;
+  } else {
+    limit = 1;
+  }
+  return activeCountForGroup(state, group) < limit;
 }
 
 function nextUtcMidnightIso(now = new Date()): string {
@@ -94,11 +132,9 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
   const budget = state.config?.dailyBudgetUsd;
   if (budget != null && state.budgetGuard.check(state.store, budget, (msg) => state.log(msg))) return;
 
-  while (state.activeRuns.size < state.maxConcurrentRuns) {
-    const queued = state.wfQueue.pick();
-    if (!queued) break;
-
-    const definition = state.definitions.find((d) => d.name === queued.workflowName);
+  let queued: ReturnType<typeof state.wfQueue.pick>;
+  while ((queued = state.wfQueue.pick((def) => canDispatchDefinition(state, def)))) {
+    const definition = state.definitions.find((d) => d.name === queued!.workflowName);
     if (!definition) continue;
 
     if (definition.dailyBudgetUsd == null) {
@@ -120,8 +156,8 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
       state.store.clearWorkflowBudgetPause(definition.name);
     }
 
-    state.log(`Dispatching workflow "${queued.workflowName}"`);
-    void runWorkflow(state, definition, queued.trigger);
+    state.log(`Dispatching workflow "${queued!.workflowName}"`);
+    void runWorkflow(state, definition, queued!.trigger);
   }
 }
 

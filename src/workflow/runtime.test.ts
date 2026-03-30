@@ -1399,8 +1399,8 @@ describe("WorkflowRuntime", () => {
     expect(metadata.steps[0].error).toContain('timed out after 30ms');
   });
 
-  describe("concurrent runs (maxConcurrentRuns > 1)", () => {
-    it("runs two different workflows simultaneously when maxConcurrentRuns=2", async () => {
+  describe("concurrent runs", () => {
+    it("runs two different agent workflows simultaneously when agentConcurrency=2", async () => {
       const bus = new EventBus();
       const startTimes: Record<string, number> = {};
       const completeTimes: Record<string, number> = {};
@@ -1458,7 +1458,7 @@ describe("WorkflowRuntime", () => {
         bus,
         projectDir,
         idleIntervalMs: 10,
-        maxConcurrentRuns: 2,
+        agentConcurrency: 2,
         workflows: [
           registerWorkflowDefinition("test/builder.ts", {
             name: "builder",
@@ -1500,7 +1500,7 @@ describe("WorkflowRuntime", () => {
       expect(runIds.length).toBe(2);
     });
 
-    it("serializes the same workflow when maxConcurrentRuns=2", async () => {
+    it("serializes the same workflow when agentConcurrency=2", async () => {
       const bus = new EventBus();
       const completedWorkflows: string[] = [];
 
@@ -1512,7 +1512,7 @@ describe("WorkflowRuntime", () => {
         bus,
         projectDir,
         idleIntervalMs: 10,
-        maxConcurrentRuns: 2,
+        agentConcurrency: 2,
         workflows: [
           registerWorkflowDefinition("test/builder.ts", {
             name: "builder",
@@ -1531,7 +1531,7 @@ describe("WorkflowRuntime", () => {
       const runsDir = join(projectDir, ".kota", "runs");
       const runIds = readdirSync(runsDir);
       // At most one builder run would have happened per idle tick
-      // (same workflow serialized even with maxConcurrentRuns=2)
+      // (same workflow serialized even with agentConcurrency=2)
       for (const runId of runIds) {
         const metadata = JSON.parse(
           readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
@@ -1588,7 +1588,7 @@ describe("WorkflowRuntime", () => {
         bus,
         projectDir,
         idleIntervalMs: 10,
-        maxConcurrentRuns: 2,
+        agentConcurrency: 2,
         workflows: [
           registerWorkflowDefinition("test/builder.ts", {
             name: "builder",
@@ -1626,6 +1626,129 @@ describe("WorkflowRuntime", () => {
 
       const stateAfter = store.readState();
       expect(stateAfter.activeRuns).toEqual([]);
+    });
+
+    it("runs code-only workflow concurrently with a blocked agent workflow", async () => {
+      const bus = new EventBus();
+      const startTimes: Record<string, number> = {};
+      const completeTimes: Record<string, number> = {};
+
+      bus.on("workflow.started", (payload) => {
+        startTimes[payload.workflow] = Date.now();
+      });
+      bus.on("workflow.completed", (payload) => {
+        completeTimes[payload.workflow] = Date.now();
+      });
+
+      let releaseAgent: (() => void) | null = null;
+      mockedExecuteWithAgentSDK.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseAgent = () =>
+              resolve({
+                text: "done",
+                streamedText: "",
+                turns: 1,
+                subtype: "success",
+                isError: false,
+              });
+          }),
+      );
+
+      writeFileSync(
+        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+
+      // agentConcurrency=1 (default): agent workflow fills the agent slot
+      // codeConcurrency=4 (default): code-only workflow can still run
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 10,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+            ],
+          }),
+          registerWorkflowDefinition("test/notifier.ts", {
+            name: "notifier",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "notify", type: "emit", event: "notifier.done" },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(50);
+
+      // agent workflow should be running (held by the mock)
+      expect(startTimes.builder).toBeDefined();
+      // code-only workflow should have already completed independently
+      expect(startTimes.notifier).toBeDefined();
+      expect(completeTimes.notifier).toBeDefined();
+      // agent workflow still in progress
+      expect(completeTimes.builder).toBeUndefined();
+
+      releaseAgent!();
+      await wait(40);
+      await runtime.stop();
+
+      expect(completeTimes.builder).toBeDefined();
+    });
+
+    it("serializes workflows in the same named concurrency group", async () => {
+      const bus = new EventBus();
+      const completedWorkflows: string[] = [];
+
+      bus.on("workflow.completed", (payload) => {
+        completedWorkflows.push(payload.workflow);
+      });
+
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 10,
+        // both code-only so they'd run concurrently without a group
+        // but we assign them to the same concurrencyGroup
+        workflows: [
+          registerWorkflowDefinition("test/alpha.ts", {
+            name: "alpha",
+            concurrencyGroup: "shared-group",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [{ id: "run", type: "emit", event: "alpha.done" }],
+          }),
+          registerWorkflowDefinition("test/beta.ts", {
+            name: "beta",
+            concurrencyGroup: "shared-group",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [{ id: "run", type: "emit", event: "beta.done" }],
+          }),
+        ],
+      });
+
+      runtime.start();
+      // Give it time: both are code-only and fast, but only one should
+      // start at a time due to the shared concurrency group (cap 1).
+      // Both should complete sequentially.
+      await wait(80);
+      await runtime.stop();
+
+      const runsDir = join(projectDir, ".kota", "runs");
+      const runIds = readdirSync(runsDir);
+      // Both ran, but not simultaneously
+      expect(runIds.length).toBeGreaterThanOrEqual(2);
+      for (const runId of runIds) {
+        const metadata = JSON.parse(
+          readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+        );
+        expect(metadata.status).toBe("success");
+      }
     });
   });
 });

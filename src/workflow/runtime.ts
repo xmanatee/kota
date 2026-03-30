@@ -37,7 +37,8 @@ export class WorkflowRuntime {
   private readonly projectDir: string;
   private readonly store: WorkflowRunStore;
   private readonly idleIntervalMs: number;
-  private readonly maxConcurrentRuns: number;
+  private readonly agentConcurrency: number;
+  private readonly codeConcurrency: number;
   private readonly model?: string;
   private readonly config?: KotaConfig;
   private readonly verbose: boolean;
@@ -67,7 +68,8 @@ export class WorkflowRuntime {
     this.projectDir = runtimeConfig.projectDir ?? process.cwd();
     this.store = new WorkflowRunStore(this.projectDir);
     this.idleIntervalMs = runtimeConfig.idleIntervalMs ?? 30_000;
-    this.maxConcurrentRuns = runtimeConfig.maxConcurrentRuns ?? 1;
+    this.agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
+    this.codeConcurrency = runtimeConfig.codeConcurrency ?? 4;
     this.model = runtimeConfig.model;
     this.config = runtimeConfig.config;
     this.verbose = runtimeConfig.verbose ?? false;
@@ -179,7 +181,7 @@ export class WorkflowRuntime {
   }
 
   isBusy(): boolean {
-    return this.activeRuns.size >= this.maxConcurrentRuns;
+    return this.activeRuns.size > 0;
   }
 
   isDispatchPaused(): boolean {
