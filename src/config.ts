@@ -58,6 +58,18 @@ export type KotaConfig = {
 
   /** Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded. */
   dailyBudgetUsd?: number;
+
+  /**
+   * Run artifact retention policy for `.kota/runs/`.
+   * Applied when `kota workflow gc` is run explicitly.
+   * Defaults: retentionDays=7, minKeepPerWorkflow=10.
+   */
+  runsGc?: {
+    /** Delete runs older than this many days (default: 7). */
+    retentionDays?: number;
+    /** Always keep at least this many recent runs per workflow (default: 10). */
+    minKeepPerWorkflow?: number;
+  };
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -146,6 +158,14 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
   if (typeof raw.approvalTtlMs === "number" && raw.approvalTtlMs > 0) out.approvalTtlMs = raw.approvalTtlMs;
   if (typeof raw.dailyBudgetUsd === "number" && raw.dailyBudgetUsd > 0) out.dailyBudgetUsd = raw.dailyBudgetUsd;
 
+  if (typeof raw.runsGc === "object" && raw.runsGc !== null && !Array.isArray(raw.runsGc)) {
+    const gc: KotaConfig["runsGc"] = {};
+    const src = raw.runsGc as Record<string, unknown>;
+    if (typeof src.retentionDays === "number" && src.retentionDays > 0) gc.retentionDays = src.retentionDays;
+    if (typeof src.minKeepPerWorkflow === "number" && src.minKeepPerWorkflow >= 0) gc.minKeepPerWorkflow = src.minKeepPerWorkflow;
+    out.runsGc = gc;
+  }
+
   if (typeof raw.modelTiers === "object" && raw.modelTiers !== null && !Array.isArray(raw.modelTiers)) {
     const tiers: ModelTiers = {};
     const src = raw.modelTiers as Record<string, unknown>;
@@ -186,6 +206,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.modelProvider = { ...a.modelProvider, ...(val as KotaConfig["modelProvider"]) };
     } else if (key === "modelTiers" && typeof val === "object") {
       merged.modelTiers = { ...a.modelTiers, ...(val as ModelTiers) };
+    } else if (key === "runsGc" && typeof val === "object") {
+      merged.runsGc = { ...a.runsGc, ...(val as KotaConfig["runsGc"]) };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];

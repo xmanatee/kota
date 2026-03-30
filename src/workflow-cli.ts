@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { registerControlCommands } from "./workflow-cli/control.js";
 import { registerDefinitionsCommand } from "./workflow-cli/definitions.js";
 import { registerFollowCommand } from "./workflow-cli/follow.js";
+import { registerGcCommand } from "./workflow-cli/gc.js";
 import { registerLogsCommand } from "./workflow-cli/logs.js";
 import { registerRunCommand } from "./workflow-cli/run.js";
 import { registerCostCommand } from "./workflow-cli/run-cost.js";
@@ -31,4 +32,5 @@ export function registerWorkflowCommands(program: Command): void {
   registerTriggerCommands(wfCmd);
   registerControlCommands(wfCmd);
   registerRunCommand(wfCmd);
+  registerGcCommand(wfCmd);
 }

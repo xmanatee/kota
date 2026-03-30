@@ -28,7 +28,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `task-cli.ts` — `registerTaskCommands`: CLI subcommands for the task store (`kota task`).
 - `memory-cli.ts` — `registerMemoryCommands` and `registerKnowledgeCommands`: CLI subcommands for the memory and knowledge stores (`kota memory`, `kota knowledge`).
 - `extension-cli.ts` — `registerExtensionCommands`: CLI subcommands for inspecting loaded extensions (`kota extension list`, `kota extension inspect <name>`).
-- `workflow-cli.ts` — `registerWorkflowCommands`: entry point that registers all `kota workflow` subcommands (list, show, history, definitions, cost, logs, follow, trigger, control, run).
+- `workflow-cli.ts` — `registerWorkflowCommands`: entry point that registers all `kota workflow` subcommands (list, show, history, definitions, cost, logs, follow, trigger, control, run, gc).
 - `channel.ts` — `ChannelAdapter`, `ChannelDef`, `ChannelWorkflowStatus`, and `ChannelStartContext` types; defines the channel contribution protocol for extensions.
 
 ## AgentLoopState Cast Pattern

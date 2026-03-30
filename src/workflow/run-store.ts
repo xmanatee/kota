@@ -184,6 +184,8 @@ export class WorkflowRunStore {
     retentionDays?: number;
     minKeepPerWorkflow?: number;
     dryRun?: boolean;
+    /** Additional run IDs to protect (e.g. from daemon live state). */
+    protectedRunIds?: Set<string>;
   }): string[] {
     const retentionDays = opts?.retentionDays ?? 7;
     const minKeepPerWorkflow = opts?.minKeepPerWorkflow ?? 10;
@@ -197,7 +199,7 @@ export class WorkflowRunStore {
     }
 
     const state = this.readState();
-    const protectedIds = new Set<string>();
+    const protectedIds = new Set<string>(opts?.protectedRunIds);
     for (const run of state.activeRuns ?? []) protectedIds.add(run.runId);
 
     type RunEntry = { id: string; workflow: string; startedAtMs: number };
