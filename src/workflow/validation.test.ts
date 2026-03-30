@@ -437,4 +437,59 @@ describe("workflow validation", () => {
 
     expect(definitions.every((definition) => definition.dailyBudgetUsd == null)).toBe(true);
   });
+
+  it("rejects a workflow.completed trigger with no workflow filter (self-trigger loop)", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/notifier.ts", {
+            name: "notifier",
+            triggers: [{ event: "workflow.completed" }],
+            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/infinite loop/);
+  });
+
+  it("rejects a workflow.completed trigger whose workflow filter includes its own name", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/notifier.ts", {
+            name: "notifier",
+            triggers: [
+              {
+                event: "workflow.completed",
+                filter: { workflow: ["explorer", "notifier"] },
+              },
+            ],
+            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/infinite loop/);
+  });
+
+  it("accepts a workflow.completed trigger with a workflow filter that excludes itself", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/notifier.ts", {
+            name: "notifier",
+            triggers: [
+              {
+                event: "workflow.completed",
+                filter: { workflow: ["explorer", "builder"] },
+              },
+            ],
+            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
+  });
 });

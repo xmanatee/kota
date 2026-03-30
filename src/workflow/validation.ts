@@ -215,9 +215,35 @@ export function validateWorkflowDefinitions(
         definitionPath,
       ),
       definitionPath,
-      triggers: definition.triggers.map((trigger, triggerIndex) =>
-        validateTrigger(trigger, definitionPath, triggerIndex),
-      ),
+      triggers: (() => {
+        const triggers = definition.triggers.map((trigger, triggerIndex) =>
+          validateTrigger(trigger, definitionPath, triggerIndex),
+        );
+        for (const trigger of triggers) {
+          if (trigger.event === "workflow.completed") {
+            const workflowFilter = trigger.filter?.workflow;
+            if (!workflowFilter) {
+              throw new WorkflowDefinitionError(
+                `workflow "${name}" has a "workflow.completed" trigger with no "workflow" filter — ` +
+                  `this would trigger after the workflow's own completion and create an infinite loop. ` +
+                  `Add filter: { workflow: [...other workflow names...] } that excludes "${name}".`,
+                definitionPath,
+              );
+            }
+            const filterValues = Array.isArray(workflowFilter)
+              ? workflowFilter
+              : [workflowFilter];
+            if (filterValues.includes(name)) {
+              throw new WorkflowDefinitionError(
+                `workflow "${name}" has a "workflow.completed" trigger with a filter that includes ` +
+                  `its own name — this would trigger after its own completion and create an infinite loop.`,
+                definitionPath,
+              );
+            }
+          }
+        }
+        return triggers;
+      })(),
       steps,
     };
   });
