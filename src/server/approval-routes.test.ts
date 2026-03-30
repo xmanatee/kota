@@ -53,6 +53,15 @@ function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
 	return req as unknown as IncomingMessage;
 }
 
+function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
+	return {
+		listApprovals: vi.fn(async () => null),
+		approveApproval: vi.fn(async () => null),
+		rejectApproval: vi.fn(async () => null),
+		...overrides,
+	} as unknown as import("./daemon-client.js").DaemonControlClient;
+}
+
 describe("approval-routes", () => {
 	let queue: ApprovalQueue;
 
@@ -62,6 +71,45 @@ describe("approval-routes", () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	describe("daemon client proxy", () => {
+		it("handleListApprovals returns daemon response when client succeeds", async () => {
+			const approvals = [{ id: "a1", tool: "shell", status: "pending" }];
+			const client = mockClient({ listApprovals: vi.fn(async () => ({ approvals })) });
+			const { res, result } = mockResponse();
+			await handleListApprovals(res, client, makeQueue());
+			expect(result.status).toBe(200);
+			expect((result.body as { approvals: unknown[] }).approvals).toEqual(approvals);
+		});
+
+		it("handleListApprovals falls back to direct read when client returns null", async () => {
+			const client = mockClient({ listApprovals: vi.fn(async () => null) });
+			const q = makeQueue();
+			q.enqueue("shell", { command: "echo" }, "safe", "test");
+			const { res, result } = mockResponse();
+			await handleListApprovals(res, client, q);
+			expect(result.status).toBe(200);
+			expect((result.body as { approvals: unknown[] }).approvals).toHaveLength(1);
+		});
+
+		it("handleApproveApproval returns daemon response when client succeeds", async () => {
+			const approval = { id: "a1", tool: "shell", status: "approved" };
+			const client = mockClient({ approveApproval: vi.fn(async () => ({ approval })) });
+			const { res, result } = mockResponse();
+			await handleApproveApproval(res, "a1", client, makeQueue());
+			expect(result.status).toBe(200);
+			expect((result.body as { approval: unknown }).approval).toEqual(approval);
+		});
+
+		it("handleRejectApproval returns daemon response when client succeeds", async () => {
+			const approval = { id: "a1", tool: "shell", status: "rejected" };
+			const client = mockClient({ rejectApproval: vi.fn(async () => ({ approval })) });
+			const { res, result } = mockResponse();
+			await handleRejectApproval(mockRequest(), res, "a1", client, makeQueue());
+			expect(result.status).toBe(200);
+			expect((result.body as { approval: unknown }).approval).toEqual(approval);
+		});
 	});
 
 	describe("handleListApprovals", () => {

@@ -43,6 +43,13 @@ function mockResponse() {
   return { res, result };
 }
 
+function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    getTaskStatus: vi.fn(async () => null),
+    ...overrides,
+  } as unknown as import("./daemon-client.js").DaemonControlClient;
+}
+
 describe("task-routes", () => {
   let projectDir: string;
 
@@ -52,6 +59,30 @@ describe("task-routes", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  describe("daemon client proxy", () => {
+    it("returns daemon response when client succeeds", async () => {
+      const daemonResponse = {
+        counts: { inbox: 1, ready: 2, backlog: 3, doing: 0, blocked: 0 },
+        tasks: { doing: [], ready: [], backlog: [], blocked: [] },
+      };
+      const client = mockClient({ getTaskStatus: vi.fn(async () => daemonResponse) });
+      const { res, result } = mockResponse();
+      await handleTaskStatus(res, client, makeProjectDir());
+      expect(result.status).toBe(200);
+      expect((result.body as typeof daemonResponse).counts.ready).toBe(2);
+    });
+
+    it("falls back to direct read when client returns null", async () => {
+      const client = mockClient({ getTaskStatus: vi.fn(async () => null) });
+      const dir = makeProjectDir();
+      writeTaskFile(dir, "ready", "t1", { id: "task-t1", title: "T1", priority: "p2" });
+      const { res, result } = mockResponse();
+      await handleTaskStatus(res, client, dir);
+      expect(result.status).toBe(200);
+      expect((result.body as { counts: Record<string, number> }).counts.ready).toBe(1);
+    });
   });
 
   describe("handleTaskStatus", () => {
