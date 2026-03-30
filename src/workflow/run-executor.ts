@@ -147,6 +147,21 @@ export function executeWorkflowRun(
         if (completed.status === "success") previousOutput = completed.output;
         else if (completed.continueOnFailure) { hadWarnings = true; }
         else if (thrownError) throw thrownError;
+
+        if (definition.costLimitUsd !== undefined) {
+          const accumulatedCost = run.metadata.steps.reduce((sum, s) => {
+            if (s.output && typeof s.output === "object" && !Array.isArray(s.output)) {
+              const cost = (s.output as Record<string, unknown>).totalCostUsd;
+              if (typeof cost === "number") return sum + cost;
+            }
+            return sum;
+          }, 0);
+          if (accumulatedCost > definition.costLimitUsd) {
+            throw new Error(
+              `Workflow "${definition.name}" exceeded per-run cost cap of $${definition.costLimitUsd.toFixed(2)}: accumulated $${accumulatedCost.toFixed(2)}`,
+            );
+          }
+        }
       }
 
       const finalStatus = hadWarnings ? "completed-with-warnings" : "success";

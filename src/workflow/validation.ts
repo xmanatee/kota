@@ -214,6 +214,11 @@ export function validateWorkflowDefinitions(
         "dailyBudgetUsd",
         definitionPath,
       ),
+      costLimitUsd: expectOptionalPositiveNumber(
+        definition.costLimitUsd,
+        "costLimitUsd",
+        definitionPath,
+      ),
       concurrencyGroup: expectOptionalString(
         definition.concurrencyGroup,
         "concurrencyGroup",

@@ -162,6 +162,13 @@ export type WorkflowDefinitionInput = {
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
   dailyBudgetUsd?: number;
   /**
+   * Maximum spend (USD) for a single run. If accumulated agent cost exceeds this
+   * after any step, the run fails immediately with a descriptive error and the
+   * normal failure path executes (failed record, workflow.failure.alert emitted).
+   * Omit to allow unlimited spend per run. The global dailyBudgetUsd is unaffected.
+   */
+  costLimitUsd?: number;
+  /**
    * Named concurrency group for this workflow. Workflows in the same named group
    * run at most one at a time. Omit to use type-based defaults: agent-step
    * workflows use the built-in "agent" group (agentConcurrency cap), code-only
@@ -240,6 +247,11 @@ export type WorkflowDefinition = {
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
   dailyBudgetUsd?: number;
+  /**
+   * Maximum spend (USD) for a single run. If accumulated agent cost exceeds this
+   * after any step, the run fails with a descriptive error.
+   */
+  costLimitUsd?: number;
   /**
    * Named concurrency group. Workflows in the same named group run at most one
    * at a time. Omit to use type-based defaults ("agent" or "code").

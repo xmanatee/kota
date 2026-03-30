@@ -59,6 +59,7 @@ export function registerDefinitionsCommand(wfCmd: Command): void {
         if (def.description) console.log(`Description: ${def.description}`);
         console.log(`Source:      ${def.definitionPath}`);
         if (def.dailyBudgetUsd != null) console.log(`Daily budget: $${def.dailyBudgetUsd}`);
+        if (def.costLimitUsd != null) console.log(`Cost cap:     $${def.costLimitUsd}/run`);
         if (def.runTimeoutMs != null) console.log(`Run timeout:  ${formatDuration(def.runTimeoutMs)}`);
         if (def.concurrencyGroup) console.log(`Concurrency: ${def.concurrencyGroup}`);
         console.log(`\nTriggers (${def.triggers.length}):`);
@@ -105,12 +106,13 @@ export function registerDefinitionsCommand(wfCmd: Command): void {
         console.log(`${name}  ${enabled}  ${steps}  ${triggers}`);
       }
       console.log(`\n${definitions.length} definition(s) loaded.`);
-      if (definitions.some((d) => d.dailyBudgetUsd != null || d.runTimeoutMs != null)) {
+      if (definitions.some((d) => d.dailyBudgetUsd != null || d.costLimitUsd != null || d.runTimeoutMs != null)) {
         console.log("\nConfig:");
         for (const def of definitions) {
-          if (def.dailyBudgetUsd != null || def.runTimeoutMs != null) {
+          if (def.dailyBudgetUsd != null || def.costLimitUsd != null || def.runTimeoutMs != null) {
             const parts: string[] = [];
             if (def.dailyBudgetUsd != null) parts.push(`budget=$${def.dailyBudgetUsd}/day`);
+            if (def.costLimitUsd != null) parts.push(`cap=$${def.costLimitUsd}/run`);
             if (def.runTimeoutMs != null) parts.push(`timeout=${formatDuration(def.runTimeoutMs)}`);
             console.log(`  ${def.name}: ${parts.join(", ")}`);
           }

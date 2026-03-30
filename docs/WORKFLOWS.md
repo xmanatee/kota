@@ -64,6 +64,24 @@ Built-in autonomy workflows should default to no `dailyBudgetUsd`. Use
 preflight checks, backoff, repair loops, and better queue shaping before adding
 hard spend caps to explorer, builder, or improver.
 
+### Per-Run Cost Cap
+
+`costLimitUsd` on a workflow definition limits total agent spend for a single run.
+After each step, the executor checks the accumulated `totalCostUsd` across all
+completed steps. If it exceeds the cap, the run fails immediately with a clear
+error message and follows the normal failure path (`workflow.failure.alert` emitted).
+
+```typescript
+const myWorkflow: WorkflowDefinitionInput = {
+  name: "my-extension/bounded-job",
+  costLimitUsd: 0.50,   // fail if a single run spends more than $0.50
+  // ...
+};
+```
+
+The global `dailyBudgetUsd` and the per-run `costLimitUsd` are independent. Omit
+`costLimitUsd` to allow unlimited spend per run.
+
 ### Hook-like reaction
 
 React to a file change or a workflow completion:
