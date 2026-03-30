@@ -34,6 +34,7 @@ Routes are tagged with a capability scope:
 
 - **`read`** — observe daemon and workflow state, subscribe to events:
   `GET /status`, `GET /workflow/status`, `GET /events`,
+  `GET /workflow/runs`, `GET /workflow/runs/:id`,
   `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
   `GET /sessions`
 - **`control`** — mutate workflow dispatch and data:
@@ -112,6 +113,70 @@ Returns live workflow runtime state only.
   "paused": false
 }
 ```
+
+### GET /workflow/runs
+
+Returns recent workflow run summaries.
+
+**Query parameters:**
+- `workflow` (optional string) — filter by workflow name
+- `limit` (optional integer, default 20, max 200)
+
+**Response:**
+
+```json
+{
+  "runs": [
+    {
+      "id": "2026-03-30T18-12-57-615Z-builder-tplfx4",
+      "workflow": "builder",
+      "status": "success",
+      "triggerEvent": "workflow.completed",
+      "startedAt": "2026-03-30T18:12:57.615Z",
+      "durationMs": 304802,
+      "totalCostUsd": 0.47,
+      "triggeredByRunId": "2026-03-30T18-07-52-809Z-explorer-45lcon"
+    }
+  ]
+}
+```
+
+### GET /workflow/runs/:id
+
+Returns full run detail for a specific run: metadata plus per-step status,
+duration, error, and cost. Does not return full agent log output.
+
+**Response:**
+
+```json
+{
+  "id": "2026-03-30T18-12-57-615Z-builder-tplfx4",
+  "workflow": "builder",
+  "status": "success",
+  "triggerEvent": "workflow.completed",
+  "startedAt": "2026-03-30T18:12:57.615Z",
+  "completedAt": "2026-03-30T18:18:00.000Z",
+  "durationMs": 304802,
+  "totalCostUsd": 0.47,
+  "steps": [
+    {
+      "id": "inspect-ready-queue",
+      "type": "code",
+      "status": "success",
+      "durationMs": 120
+    },
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "success",
+      "durationMs": 300000,
+      "costUsd": 0.47
+    }
+  ]
+}
+```
+
+Returns `404` if the run is not found.
 
 ### POST /workflow/pause
 
@@ -411,6 +476,7 @@ API. The stable endpoints are:
 
 - **Status**: `GET /status` — daemon health, active workflow sessions
 - **Workflow control**: pause/resume/abort/reload/trigger, SSE events
+- **Workflow run history**: `GET /workflow/runs` — recent run list; `GET /workflow/runs/:id` — step detail
 - **History**: list, get, delete conversations
 - **Approvals**: list pending, approve, reject
 - **Task queue**: `GET /tasks` — full task state with priorities

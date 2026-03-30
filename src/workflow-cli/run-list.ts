@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { DaemonControlClient } from "../server/daemon-client.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { HistoryStats } from "../workflow-history.js";
@@ -12,19 +13,41 @@ export function registerRunListCommands(wfCmd: Command): void {
     .option("-n, --limit <n>", "Number of runs to show", "20")
     .option("-w, --workflow <name>", "Filter by workflow name")
     .option("-s, --status <status>", "Filter by run status (success, failed, interrupted, completed-with-warnings, running)")
-    .action((opts) => {
+    .action(async (opts) => {
       const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
       if (opts.status && !validStatuses.includes(opts.status)) {
         console.error(`Unknown status "${opts.status}". Valid values: ${validStatuses.join(", ")}`);
         process.exit(1);
       }
       const limit = Number.parseInt(opts.limit, 10) || 20;
+
+      type RunRow = { id: string; workflow: string; status: string; durationMs?: number; totalCostUsd?: number; startedAt: string; trigger: { event: string }; retryOf?: string; triggeredByRunId?: string };
+      let page: RunRow[];
       const store = new WorkflowRunStore();
-      const runs = listRuns(store, limit * 3); // over-fetch to allow filtering
-      const filtered = runs
-        .filter((r) => !opts.workflow || r.workflow === opts.workflow)
-        .filter((r) => !opts.status || r.status === opts.status);
-      const page = filtered.slice(0, limit);
+
+      const daemonClient = DaemonControlClient.fromStateDir();
+      const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, limit * 3) : null;
+
+      if (daemonRuns) {
+        const filtered = daemonRuns.runs.filter((r) => !opts.status || r.status === opts.status);
+        page = filtered.slice(0, limit).map((r) => ({
+          id: r.id,
+          workflow: r.workflow,
+          status: r.status,
+          durationMs: r.durationMs,
+          totalCostUsd: r.totalCostUsd,
+          startedAt: r.startedAt,
+          trigger: { event: r.triggerEvent },
+          retryOf: r.retryOf,
+          triggeredByRunId: r.triggeredByRunId,
+        }));
+      } else {
+        const runs = listRuns(store, limit * 3); // over-fetch to allow filtering
+        const filtered = runs
+          .filter((r) => !opts.workflow || r.workflow === opts.workflow)
+          .filter((r) => !opts.status || r.status === opts.status);
+        page = filtered.slice(0, limit);
+      }
 
       if (page.length === 0) {
         console.log("No runs found.");

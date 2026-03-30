@@ -9,6 +9,8 @@ import type {
   DaemonSseEventType,
   DaemonTaskStatusResponse,
   WorkflowLiveStatus,
+  WorkflowRunDetail,
+  WorkflowRunSummary,
 } from "../scheduler/daemon-control.js";
 
 const FETCH_TIMEOUT_MS = 2_000;
@@ -206,6 +208,30 @@ export class DaemonControlClient {
       const res = await fetchWithTimeout(`${this.baseUrl}/tasks`, { headers: this.authHeaders() });
       if (!res.ok) return null;
       return (await res.json()) as DaemonTaskStatusResponse;
+    } catch {
+      return null;
+    }
+  }
+
+  async listWorkflowRuns(workflow?: string, limit?: number): Promise<{ runs: WorkflowRunSummary[] } | null> {
+    try {
+      const params = new URLSearchParams();
+      if (workflow) params.set("workflow", workflow);
+      if (limit !== undefined) params.set("limit", String(limit));
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs${query}`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as { runs: WorkflowRunSummary[] };
+    } catch {
+      return null;
+    }
+  }
+
+  async getWorkflowRun(id: string): Promise<WorkflowRunDetail | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(id)}`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as WorkflowRunDetail;
     } catch {
       return null;
     }

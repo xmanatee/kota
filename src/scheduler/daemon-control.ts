@@ -57,6 +57,34 @@ export type DaemonSseEvent = {
   payload: Record<string, unknown>;
 };
 
+export type WorkflowRunSummary = {
+  id: string;
+  workflow: string;
+  status: string;
+  triggerEvent: string;
+  startedAt: string;
+  durationMs?: number;
+  totalCostUsd?: number;
+  triggeredByRunId?: string;
+  retryOf?: string;
+};
+
+export type WorkflowRunStepSummary = {
+  id: string;
+  type: string;
+  status: string;
+  durationMs: number;
+  error?: string;
+  costUsd?: number;
+};
+
+export type WorkflowRunDetail = WorkflowRunSummary & {
+  triggeredByRunId?: string;
+  retryOf?: string;
+  completedAt?: string;
+  steps: WorkflowRunStepSummary[];
+};
+
 export type DaemonTaskDetail = {
   id: string;
   title: string;
@@ -101,6 +129,9 @@ export type DaemonControlHandle = {
   rejectApproval(id: string, reason?: string): PendingApproval | null;
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;
+  // Workflow runs
+  listWorkflowRuns(workflow?: string, limit?: number): WorkflowRunSummary[];
+  getWorkflowRun(id: string): WorkflowRunDetail | null;
   // Interactive sessions
   registerSession(id: string, createdAt: string): void;
   unregisterSession(id: string): void;
@@ -123,6 +154,8 @@ const ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "GET /approvals": "read",
   "POST /approvals/:id/approve": "control",
   "POST /approvals/:id/reject": "control",
+  "GET /workflow/runs": "read",
+  "GET /workflow/runs/:id": "read",
   "GET /tasks": "read",
   "GET /sessions": "read",
   "POST /sessions/register": "control",
@@ -275,6 +308,25 @@ export class DaemonControlServer {
 
     if (method === "GET" && path === "/workflow/status") {
       jsonResponse(res, 200, this.handle.getWorkflowLiveStatus());
+      return;
+    }
+
+    if (method === "GET" && path === "/workflow/runs") {
+      const workflow = url.searchParams.get("workflow") ?? undefined;
+      const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
+      const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 200);
+      const runs = this.handle.listWorkflowRuns(workflow, limit);
+      jsonResponse(res, 200, { runs });
+      return;
+    }
+
+    if (method === "GET" && params.id && path.startsWith("/workflow/runs/")) {
+      const run = this.handle.getWorkflowRun(params.id);
+      if (!run) {
+        jsonResponse(res, 404, { error: "Run not found" });
+        return;
+      }
+      jsonResponse(res, 200, run);
       return;
     }
 

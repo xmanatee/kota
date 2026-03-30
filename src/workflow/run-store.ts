@@ -249,6 +249,29 @@ export class WorkflowRunStore {
     return toDelete;
   }
 
+  listRuns(opts?: { workflow?: string; limit?: number }): WorkflowRunMetadata[] {
+    const limit = opts?.limit ?? 20;
+    let dirs: string[];
+    try {
+      dirs = readdirSync(this.runsDir).sort().reverse();
+    } catch {
+      return [];
+    }
+    const runs: WorkflowRunMetadata[] = [];
+    for (const dir of dirs) {
+      if (runs.length >= limit) break;
+      const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
+      if (!meta) continue;
+      if (opts?.workflow && meta.workflow !== opts.workflow) continue;
+      runs.push(meta);
+    }
+    return runs;
+  }
+
+  getRun(id: string): WorkflowRunMetadata | null {
+    return readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, id, "metadata.json"));
+  }
+
   getDailySpendUsd(workflowName?: string): number {
     const todayUtc = new Date().toISOString().slice(0, 10);
     let dirs: string[];

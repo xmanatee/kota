@@ -9,9 +9,10 @@ import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { getHistory } from "../memory/history.js";
 import { CliTransport, type Transport } from "../transport.js";
+import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
-import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession } from "./daemon-control.js";
+import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -48,6 +49,7 @@ export class Daemon {
   private readonly projectDir: string;
   private readonly controlServer: DaemonControlServer;
   private readonly token: string;
+  private readonly runStore: WorkflowRunStore;
 
   private state: DaemonState;
   private unsubscribe: (() => void) | null = null;
@@ -66,6 +68,7 @@ export class Daemon {
     this.stateDir = config.stateDir ?? join(this.projectDir, ".kota");
 
     this.bus = initEventBus();
+    this.runStore = new WorkflowRunStore(this.projectDir);
     initTaskStore(this.projectDir);
     initScheduler(this.projectDir);
     initExtensionLogStore(this.projectDir);
@@ -141,6 +144,47 @@ export class Daemon {
       listApprovals: () => getApprovalQueue().list("pending"),
       approveApproval: (id: string) => getApprovalQueue().approve(id),
       rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
+      listWorkflowRuns: (workflow?: string, limit?: number): WorkflowRunSummary[] =>
+        this.runStore.listRuns({ workflow, limit }).map((m) => ({
+          id: m.id,
+          workflow: m.workflow,
+          status: m.status,
+          triggerEvent: m.trigger.event,
+          startedAt: m.startedAt,
+          ...(m.durationMs != null && { durationMs: m.durationMs }),
+          ...(m.totalCostUsd != null && { totalCostUsd: m.totalCostUsd }),
+          ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
+          ...(m.retryOf != null && { retryOf: m.retryOf }),
+        })),
+      getWorkflowRun: (id: string): WorkflowRunDetail | null => {
+        const m = this.runStore.getRun(id);
+        if (!m) return null;
+        return {
+          id: m.id,
+          workflow: m.workflow,
+          status: m.status,
+          triggerEvent: m.trigger.event,
+          startedAt: m.startedAt,
+          ...(m.completedAt != null && { completedAt: m.completedAt }),
+          ...(m.durationMs != null && { durationMs: m.durationMs }),
+          ...(m.totalCostUsd != null && { totalCostUsd: m.totalCostUsd }),
+          ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
+          ...(m.retryOf != null && { retryOf: m.retryOf }),
+          steps: m.steps.map((s) => {
+            const agentCost = s.type === "agent" && typeof (s.output as { totalCostUsd?: unknown } | null | undefined)?.totalCostUsd === "number"
+              ? (s.output as { totalCostUsd: number }).totalCostUsd
+              : undefined;
+            return {
+              id: s.id,
+              type: s.type,
+              status: s.status,
+              durationMs: s.durationMs,
+              ...(s.error != null && { error: s.error }),
+              ...(agentCost != null && { costUsd: agentCost }),
+            };
+          }),
+        };
+      },
       getTaskStatus: () => this.readTaskStatus(),
       registerSession: (id: string, createdAt: string) => {
         this.sessions.set(id, { id, createdAt, lastActive: Date.now() });

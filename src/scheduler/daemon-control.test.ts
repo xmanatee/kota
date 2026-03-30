@@ -38,6 +38,8 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     approveApproval: vi.fn(() => null),
     rejectApproval: vi.fn(() => null),
     getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
+    listWorkflowRuns: vi.fn(() => []),
+    getWorkflowRun: vi.fn(() => null),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),

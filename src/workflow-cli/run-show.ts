@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { readOptionalJsonFile } from "../json-file.js";
+import { DaemonControlClient } from "../server/daemon-client.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { RepairSummary } from "../workflow/run-store-helpers.js";
 import { extractRepairSummary } from "../workflow/run-store-helpers.js";
@@ -22,10 +23,11 @@ export function registerRunShowCommand(wfCmd: Command): void {
     .command("show <run-id>")
     .description("Show step-level details for a specific run")
     .option("--step <step-id>", "Print the full output of a specific step as JSON")
-    .action((runId, options) => {
+    .action(async (runId, options) => {
       const stepId = options.step as string | undefined;
       const store = new WorkflowRunStore();
-      // Support prefix matching
+
+      // Support prefix matching via disk
       let resolvedId = runId;
       if (!runId.includes("Z-")) {
         try {
@@ -42,11 +44,46 @@ export function registerRunShowCommand(wfCmd: Command): void {
         }
       }
 
-      const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
-      const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-      if (!metadata) {
-        console.error(`Run "${resolvedId}" not found.`);
-        process.exit(1);
+      // Try daemon API first, fall back to disk.
+      // Skip daemon when --step is requested since that needs full step output.
+      const daemonClient = stepId === undefined ? DaemonControlClient.fromStateDir() : null;
+      const daemonRun = daemonClient ? await daemonClient.getWorkflowRun(resolvedId) : null;
+
+      let metadata: WorkflowRunMetadata;
+      if (daemonRun) {
+        // Reconstruct a WorkflowRunMetadata-compatible shape from daemon response
+        metadata = {
+          id: daemonRun.id,
+          workflow: daemonRun.workflow,
+          definitionPath: "",
+          trigger: { event: daemonRun.triggerEvent, payload: {} },
+          startedAt: daemonRun.startedAt,
+          status: daemonRun.status as WorkflowRunMetadata["status"],
+          runDir: "",
+          steps: daemonRun.steps.map((s) => ({
+            id: s.id,
+            type: s.type as WorkflowRunMetadata["steps"][number]["type"],
+            status: s.status as "success" | "failed" | "skipped",
+            startedAt: daemonRun.startedAt,
+            completedAt: daemonRun.completedAt ?? daemonRun.startedAt,
+            durationMs: s.durationMs,
+            error: s.error,
+            ...(s.costUsd != null && { output: { totalCostUsd: s.costUsd } }),
+          })),
+          ...(daemonRun.completedAt != null && { completedAt: daemonRun.completedAt }),
+          ...(daemonRun.durationMs != null && { durationMs: daemonRun.durationMs }),
+          ...(daemonRun.totalCostUsd != null && { totalCostUsd: daemonRun.totalCostUsd }),
+          ...(daemonRun.triggeredByRunId != null && { triggeredByRunId: daemonRun.triggeredByRunId }),
+          ...(daemonRun.retryOf != null && { retryOf: daemonRun.retryOf }),
+        };
+      } else {
+        const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
+        const diskMeta = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+        if (!diskMeta) {
+          console.error(`Run "${resolvedId}" not found.`);
+          process.exit(1);
+        }
+        metadata = diskMeta;
       }
 
       if (stepId !== undefined) {
