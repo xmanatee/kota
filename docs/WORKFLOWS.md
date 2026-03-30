@@ -16,6 +16,33 @@ should be expressed as a workflow, not as a parallel engine.
 Add `filter` to narrow event triggers. Add `cooldownMs` to prevent back-to-back
 runs on noisy events.
 
+## Concurrency Model
+
+Workflows run concurrently based on their step types, unless configured otherwise.
+
+| Type | Default concurrency | Config field |
+|---|---|---|
+| Agent-step (any `type: "agent"` step) | 1 | `agentConcurrency` |
+| Code-only (all steps are `type: "code"`) | 4 | `codeConcurrency` |
+| Named group | 1 (serialized) | `concurrencyGroup` on the definition |
+
+The runtime classifies each workflow at dispatch time. Agent-step workflows
+queue behind `agentConcurrency`; code-only workflows run freely up to
+`codeConcurrency`. Both limits are enforced simultaneously, so a code-only
+workflow (e.g. an attention digest) can run while an agent workflow occupies
+its slot.
+
+Use `concurrencyGroup` to explicitly serialize two or more workflows that must
+not overlap, regardless of their step types:
+
+```typescript
+const myWorkflow: WorkflowDefinitionInput = {
+  name: "my-extension/heavy-job",
+  concurrencyGroup: "my-extension/heavy",
+  // ...
+};
+```
+
 ## Common Patterns
 
 ## Agent Step Contract
