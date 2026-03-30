@@ -198,6 +198,45 @@ export const STYLES_PANELS_CSS = `
 .wf-ctrl-btn.trigger:hover { background: #6c63ff22; }
 .wf-ctrl-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* Workflow history filter */
+#workflow-history-filter {
+  padding: 2px 0 4px;
+}
+.wf-filter-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.wf-filter-select {
+  flex: 1;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  min-width: 0;
+  cursor: pointer;
+}
+.wf-filter-select:focus { outline: none; border-color: var(--accent); color: var(--text); }
+.wf-filter-dates {
+  display: flex;
+  gap: 3px;
+}
+.wf-date-btn {
+  flex: 1;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wf-date-btn:hover { border-color: var(--accent); color: var(--text); }
+.wf-date-btn.active { border-color: var(--accent); color: var(--accent); background: #6c63ff22; }
+
 /* Mobile */
 @media (max-width: 768px) {
   #sidebar { position: fixed; z-index: 10; height: 100%; }

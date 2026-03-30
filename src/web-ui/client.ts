@@ -31,6 +31,7 @@ export const WEB_UI_JS = /* js */ `
   const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
   const $workflowControls = document.getElementById("workflow-controls");
+  const $workflowHistoryFilter = document.getElementById("workflow-history-filter");
   const $costList = document.getElementById("cost-summary-list");
   const $runDetail = document.getElementById("run-detail");
   const $inputArea = document.getElementById("input-area");

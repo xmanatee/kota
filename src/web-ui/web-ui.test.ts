@@ -121,4 +121,37 @@ describe("getWebUI", () => {
   it("renders empty state when no approvals are pending", () => {
     expect(html).toContain("No pending approvals");
   });
+
+  it("includes workflow history filter element", () => {
+    expect(html).toContain('id="workflow-history-filter"');
+  });
+
+  it("includes renderHistoryFilter function", () => {
+    expect(html).toContain("renderHistoryFilter");
+  });
+
+  it("includes applyHistoryFilter function", () => {
+    expect(html).toContain("applyHistoryFilter");
+  });
+
+  it("includes workflow name and status filter selects", () => {
+    expect(html).toContain("wf-filter-select");
+    expect(html).toContain("wf-filter-row");
+  });
+
+  it("includes date range filter buttons", () => {
+    expect(html).toContain("wf-date-btn");
+    expect(html).toContain("wf-filter-dates");
+    expect(html).toContain("data-range");
+  });
+
+  it("includes filter state variables", () => {
+    expect(html).toContain("wfFilter");
+    expect(html).toContain("_allRecentRuns");
+    expect(html).toContain("_allActiveRuns");
+  });
+
+  it("fetches 50 runs for filterable history", () => {
+    expect(html).toContain("limit=50");
+  });
 });

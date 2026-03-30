@@ -40,6 +40,7 @@ ${WEB_UI_CSS}
     <div class="sidebar-section">
       <h3>Workflows</h3>
       <div id="workflow-controls"></div>
+      <div id="workflow-history-filter"></div>
       <div id="workflow-runs-list"></div>
     </div>
     <div class="sidebar-section">
