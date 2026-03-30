@@ -1,12 +1,13 @@
 ---
 id: task-build-mobile-client
 title: Build a mobile client for the KOTA daemon
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Build a mobile client (iOS and/or Android) that connects to the KOTA daemon control API and lets operators inspect and control their autonomous development system from their phone.
 created_at: 2026-03-30T16:19:34Z
-updated_at: 2026-03-30T17:00:00Z
+updated_at: 2026-03-30T18:50:00Z
+blocked_reason: Requires building a full native mobile app (React Native or SwiftUI). Too large to complete in a single builder run without a dedicated design pass. Needs UI/UX design, auth flow, navigation structure, and full API integration before implementation can begin productively.
 ---
 
 ## Problem

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { ForeignExtensionConfig } from "./foreign-extension.js";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
 import type { ModelTiers } from "./model/model-router.js";
 
@@ -39,6 +40,13 @@ export type KotaConfig = {
 
   /** Per-extension configuration. Keys are extension names, values are extension-specific settings. */
   extensions?: Record<string, Record<string, unknown>>;
+
+  /**
+   * Foreign-language (out-of-process) extensions.
+   * Each entry declares a subprocess to spawn and communicate with via KEMP.
+   * See `docs/FOREIGN-EXTENSIONS.md` for the protocol specification.
+   */
+  foreignExtensions?: ForeignExtensionConfig[];
 
   /** Provider overrides. Keys are service types (e.g. "memory", "knowledge"), values are provider names. */
   providers?: Record<string, string>;
@@ -175,6 +183,30 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
   }
 
+  if (Array.isArray(raw.foreignExtensions)) {
+    const fexts: ForeignExtensionConfig[] = [];
+    for (const entry of raw.foreignExtensions) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const src = entry as Record<string, unknown>;
+      if (src.transport !== "stdio") continue;
+      if (typeof src.command !== "string" || !src.command) continue;
+      const fext: ForeignExtensionConfig = { transport: "stdio", command: src.command };
+      if (Array.isArray(src.args)) {
+        fext.args = src.args.filter((a): a is string => typeof a === "string");
+      }
+      if (typeof src.env === "object" && src.env !== null && !Array.isArray(src.env)) {
+        const env: Record<string, string> = {};
+        for (const [k, v] of Object.entries(src.env as Record<string, unknown>)) {
+          if (typeof v === "string") env[k] = v;
+        }
+        if (Object.keys(env).length > 0) fext.env = env;
+      }
+      if (typeof src.cwd === "string" && src.cwd) fext.cwd = src.cwd;
+      fexts.push(fext);
+    }
+    if (fexts.length > 0) out.foreignExtensions = fexts;
+  }
+
   return out;
 }
 
@@ -211,6 +243,9 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];
+    } else if (key === "foreignExtensions" && Array.isArray(val)) {
+      // Project foreign extensions append to global
+      merged.foreignExtensions = [...(a.foreignExtensions ?? []), ...(val as ForeignExtensionConfig[])];
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

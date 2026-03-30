@@ -113,6 +113,13 @@ adding a parallel surface.
 - `channel` protocol: session routing, inbound/outbound transport, and operator
   identity.
 - `extension` protocol: contribution bundle for the concepts above.
+- `foreign extension` protocol: KEMP (KOTA External Module Protocol) — a
+  transport-agnostic newline-delimited JSON message protocol for extensions
+  implemented outside the in-process TypeScript runtime. The protocol covers
+  capability declaration (`manifest`), tool invocation (`invoke`/`result`), and
+  lifecycle (`init`, `shutdown`). The stdio transport spawns a subprocess; the
+  protocol is the same over any stream. A foreign extension is wrapped as a
+  normal `KotaExtension` at load time. See `docs/FOREIGN-EXTENSIONS.md`.
 
 ## Context Gathering
 

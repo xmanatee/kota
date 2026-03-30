@@ -9,6 +9,7 @@ import { topoSort } from "./extension-deps.js";
 import { getExtensionDependents, type LifecycleState, reloadExtension, unloadAllExtensions, unloadExtension } from "./extension-lifecycle.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
+import { loadForeignExtensions } from "./foreign-extension-loader.js";
 import { getProviderRegistry } from "./providers.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { executeTool, getExtensionToolNames, registerTool } from "./tools/index.js";
@@ -170,6 +171,21 @@ export class ExtensionLoader {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[kota] Extension "${ext.name}" failed to load: ${msg}`);
+      }
+    }
+    if (this.config.foreignExtensions && this.config.foreignExtensions.length > 0 && !this.commandsOnly) {
+      const foreign = await loadForeignExtensions(
+        this.config.foreignExtensions,
+        this.cwd,
+        this.config.extensions,
+      );
+      for (const ext of foreign) {
+        try {
+          await this.load(ext);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[kota] Foreign extension "${ext.name}" failed to register: ${msg}`);
+        }
       }
     }
     this.activateConfiguredProviders();

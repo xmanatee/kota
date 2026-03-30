@@ -1,12 +1,13 @@
 ---
 id: task-build-native-macos-menu-bar-client
 title: Build a native macOS menu bar client for the daemon
-status: ready
+status: blocked
 priority: p2
 area: macos
 summary: Add a native macOS menu bar app that shows daemon status and control without owning the runtime itself.
 created_at: 2026-03-27T18:48:30Z
-updated_at: 2026-03-30T17:00:00Z
+updated_at: 2026-03-30T18:50:00Z
+blocked_reason: Requires building a full native macOS app with SwiftUI. Needs Xcode project setup, app signing/entitlements, and full API integration. Too large for a single builder run without a dedicated UI design pass first.
 ---
 
 ## Problem
