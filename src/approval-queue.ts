@@ -56,6 +56,7 @@ export class ApprovalQueue {
 		};
 		writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "" });
+		tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
 		return item;
 	}
 
@@ -81,6 +82,7 @@ export class ApprovalQueue {
 		item.resolvedAt = new Date().toISOString();
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.resolved", { id, tool: item.tool, approved: true, reason: "" });
+		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });
 		return item;
 	}
 
@@ -92,6 +94,7 @@ export class ApprovalQueue {
 		item.rejectionReason = reason;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "" });
+		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });
 		return item;
 	}
 
@@ -105,6 +108,7 @@ export class ApprovalQueue {
 				item.rejectionReason = "expired";
 				writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
 				tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: false, reason: "expired" });
+				tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
 				expired.push(item);
 			}
 		}

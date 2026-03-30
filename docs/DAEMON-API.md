@@ -251,12 +251,33 @@ Connection: keep-alive
 
 **Event types:**
 
-| Event type                | When emitted                                      |
-|---------------------------|---------------------------------------------------|
-| `workflow.started`        | A workflow run begins                             |
-| `workflow.completed`      | A workflow run finishes (success, failed, etc.)   |
-| `workflow.step.completed` | An individual workflow step finishes              |
-| `queue.changed`           | After `workflow.started` or `workflow.completed`  |
+| Event type                | When emitted                                          |
+|---------------------------|-------------------------------------------------------|
+| `workflow.started`        | A workflow run begins                                 |
+| `workflow.completed`      | A workflow run finishes (success, failed, etc.)       |
+| `workflow.step.completed` | An individual workflow step finishes                  |
+| `queue.changed`           | After `workflow.started` or `workflow.completed`      |
+| `approval.changed`        | An approval is enqueued, approved, rejected, expired  |
+| `task.changed`            | An agent session task is created, updated, or cleared |
+
+**`approval.changed` payload:**
+
+```json
+{ "id": "a1b2c3d4", "pendingCount": 2 }
+```
+
+`id` is the affected approval id. `pendingCount` is the number of approvals
+still in `pending` state after the mutation. Clients can use `pendingCount > 0`
+to show a badge without polling `GET /approvals`.
+
+**`task.changed` payload:**
+
+```json
+{ "counts": { "pending": 3, "in_progress": 1, "done": 7 } }
+```
+
+Counts reflect the agent session task store (TodoWrite tool) state after the
+mutation. Clients can react to task queue depth changes without polling.
 
 Each event is formatted as standard SSE:
 

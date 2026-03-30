@@ -50,7 +50,9 @@ export type DaemonSseEventType =
   | "workflow.started"
   | "workflow.completed"
   | "workflow.step.completed"
-  | "queue.changed";
+  | "queue.changed"
+  | "approval.changed"
+  | "task.changed";
 
 export type DaemonSseEvent = {
   type: DaemonSseEventType;

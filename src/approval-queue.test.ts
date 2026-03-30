@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 
+const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("./event-bus.js", () => ({
-	tryEmit: vi.fn(),
+	tryEmit: tryEmitMock,
 	getEventBus: () => null,
 }));
 
@@ -163,6 +164,62 @@ describe("ApprovalQueue", () => {
 			expect(queue.list("pending")).toHaveLength(0);
 			expect(queue.list("expired")).toHaveLength(1);
 		});
+	});
+});
+
+describe("approval.changed events", () => {
+	let dir: string;
+	let queue: ApprovalQueue;
+
+	beforeEach(() => {
+		dir = mkdtempSync(join(tmpdir(), "approval-event-test-"));
+		queue = new ApprovalQueue(dir);
+		tryEmitMock.mockClear();
+	});
+
+	afterEach(() => {
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("emits approval.changed on enqueue with pending count and id", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 1 });
+	});
+
+	it("emits approval.changed on approve with decremented pending count", () => {
+		queue.enqueue("shell", { command: "a" }, "dangerous", "r");
+		const item2 = queue.enqueue("git", { command: "b" }, "dangerous", "r");
+		tryEmitMock.mockClear();
+
+		queue.approve(item2.id);
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item2.id, pendingCount: 1 });
+	});
+
+	it("emits approval.changed on reject with decremented pending count", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		tryEmitMock.mockClear();
+
+		queue.reject(item.id, "too risky");
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 0 });
+	});
+
+	it("emits approval.changed on expireStale", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		const stored = queue.get(item.id)!;
+		stored.createdAt = new Date(Date.now() - 5000).toISOString();
+		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		tryEmitMock.mockClear();
+
+		queue.expireStale(1000);
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 0 });
 	});
 });
 

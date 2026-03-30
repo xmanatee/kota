@@ -135,6 +135,12 @@ export class Daemon {
           this.bus.on("workflow.step.completed", (p) =>
             handler({ type: "workflow.step.completed", payload: p as unknown as Record<string, unknown> }),
           ),
+          this.bus.on("approval.changed", (p) =>
+            handler({ type: "approval.changed", payload: p as unknown as Record<string, unknown> }),
+          ),
+          this.bus.on("task.changed", (p) =>
+            handler({ type: "task.changed", payload: p as unknown as Record<string, unknown> }),
+          ),
         ];
         return () => stops.forEach((s) => s());
       },

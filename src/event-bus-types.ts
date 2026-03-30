@@ -130,6 +130,13 @@ export type BusEvents = {
     text: string;
     pauseSignalFile: string;
   };
+  "approval.changed": {
+    id: string;
+    pendingCount: number;
+  };
+  "task.changed": {
+    counts: { pending: number; in_progress: number; done: number };
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { tryEmit } from "../event-bus.js";
 import { projectHash } from "./schedule-parser.js";
 import type { Task, TaskFileData, TaskPriority, TaskStatus } from "./task-store-types.js";
 
@@ -58,6 +59,13 @@ export class TaskStore {
     if (tasks.length === 0) return 1;
     const maxId = Math.max(...tasks.map(t => (typeof t.id === "number" ? t.id : 0)));
     return maxId + 1;
+  }
+
+  private emitChanged(): void {
+    const pending = this.tasks.filter(t => t.status === "pending").length;
+    const in_progress = this.tasks.filter(t => t.status === "in_progress").length;
+    const done = this.tasks.filter(t => t.status === "done").length;
+    tryEmit("task.changed", { counts: { pending, in_progress, done } });
   }
 
   private persist(): void {
@@ -128,6 +136,7 @@ export class TaskStore {
     if (opts?.notes) item.notes = opts.notes;
     this.tasks.push(item);
     this.persist();
+    this.emitChanged();
     return item;
   }
 
@@ -167,6 +176,7 @@ export class TaskStore {
     if (changes.priority) item.priority = changes.priority;
     if (changes.notes !== undefined) item.notes = changes.notes;
     this.persist();
+    this.emitChanged();
     return item;
   }
 
@@ -193,14 +203,19 @@ export class TaskStore {
       const data: TaskFileData = { project: this.project, tasks: [], nextId: 1 };
       writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
     }
+    this.emitChanged();
   }
 
   archiveCompleted(): number {
     this.ensureLoaded();
     const before = this.tasks.length;
     this.tasks = this.tasks.filter(t => t.status !== "done");
-    if (this.tasks.length < before) this.persist();
-    return before - this.tasks.length;
+    const removed = before - this.tasks.length;
+    if (removed > 0) {
+      this.persist();
+      this.emitChanged();
+    }
+    return removed;
   }
 
   /** Summary of active tasks for session warmup. */
