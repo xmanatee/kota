@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ForeignExtensionConfig } from "./foreign-extension.js";
@@ -308,6 +308,22 @@ export function buildUserProfile(config: KotaConfig): string {
   if (config.user.context) parts.push(config.user.context);
   if (parts.length === 0) return "";
   return `\n\n## User Profile\n\n${parts.join("\n")}`;
+}
+
+/**
+ * Update the project-local `.kota/config.json` by applying a mutation function to the raw
+ * (unsanitized) config object. Creates the file and directory if they do not exist.
+ */
+export function updateProjectConfig(
+  cwd: string,
+  update: (raw: Partial<KotaConfig>) => Partial<KotaConfig>,
+): void {
+  const configDir = join(cwd, PROJECT_DIR);
+  const configPath = join(configDir, CONFIG_FILENAME);
+  const existing = readConfigFile(configPath) ?? {};
+  const updated = update(existing);
+  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+  writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, "utf-8");
 }
 
 /** Expand aliases in a prompt. If prompt starts with an alias key, prepend the alias value. */

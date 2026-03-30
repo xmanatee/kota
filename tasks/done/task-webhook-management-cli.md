@@ -1,7 +1,7 @@
 ---
 id: task-webhook-management-cli
 title: Add kota webhook CLI commands for managing inbound webhook secrets
-status: ready
+status: done
 priority: p3
 area: cli
 summary: The inbound webhook trigger lets workflows accept external HTTP calls, but operators must manually edit .kota/config.json to configure and rotate secrets. A kota webhook subcommand closes this operational gap.

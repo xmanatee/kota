@@ -24,6 +24,7 @@ import { registerKnowledgeCommands, registerMemoryCommands } from "./memory-cli.
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
 import { registerSessionCommands } from "./session-cli.js";
 import { registerTaskCommands } from "./task-cli.js";
+import { registerWebhookCommands } from "./webhook-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
 
 export { parseIntOption } from "./cli-history.js";
@@ -177,6 +178,7 @@ registerExtensionCommands(program);
 registerSessionCommands(program);
 registerAgentCommands(program);
 registerSkillCommands(program);
+registerWebhookCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {
