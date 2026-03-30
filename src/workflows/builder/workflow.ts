@@ -44,6 +44,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "build",
       type: "agent",
       agentName: "builder",
+      timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: ({ stepOutputs }) =>
         isRepoTaskQueueSnapshot(stepOutputs["inspect-ready-queue"]) &&

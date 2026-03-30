@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig } from "./step-executor.js";
@@ -77,7 +77,7 @@ const SUCCESS_RESULT = {
   isError: false,
 };
 
-describe("executeAgentStep timeout", () => {
+describe("executeAgentStep", () => {
   let projectDir: string;
   let agentConfig: AgentStepConfig;
 
@@ -95,36 +95,26 @@ describe("executeAgentStep timeout", () => {
     mockedExecuteWithAgentSDK.mockReset();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("completes successfully when step finishes before timeout", async () => {
+  it("completes successfully", async () => {
     mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
-
-    const abortController = new AbortController();
-    const abortSpy = vi.spyOn(abortController, "abort");
-    const step = makeStep({ timeoutMs: 60_000 });
 
     const result = await executeAgentStep(
       makeDefinition(),
-      step,
+      makeStep(),
       makeMetadata(),
       TRIGGER,
-      abortController,
+      new AbortController(),
       () => {},
       () => {},
       agentConfig,
     );
 
     expect(result).toMatchObject({ content: "done", turns: 1 });
-    expect(abortSpy).not.toHaveBeenCalled();
   });
 
-  it("aborts the step after timeoutMs elapses", async () => {
+  it("aborts when the provided abort controller is triggered externally", async () => {
     const abortController = new AbortController();
 
-    // Mock returns a promise that rejects when aborted
     mockedExecuteWithAgentSDK.mockImplementation((_prompt, options) => {
       return new Promise<typeof SUCCESS_RESULT>((_resolve, reject) => {
         options?.abortController?.signal.addEventListener("abort", () => {
@@ -133,7 +123,9 @@ describe("executeAgentStep timeout", () => {
       });
     });
 
-    const step = makeStep({ timeoutMs: 20 });
+    const step = makeStep();
+    const rejectReason = new Error("external abort");
+    setTimeout(() => abortController.abort(rejectReason), 10);
 
     await expect(
       executeAgentStep(
@@ -146,30 +138,9 @@ describe("executeAgentStep timeout", () => {
         () => {},
         agentConfig,
       ),
-    ).rejects.toThrow('Agent step "test-step" timed out after 20ms');
+    ).rejects.toThrow("external abort");
 
     expect(abortController.signal.aborted).toBe(true);
-  });
-
-  it("does not abort when timeoutMs is undefined", async () => {
-    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
-
-    const abortController = new AbortController();
-    const abortSpy = vi.spyOn(abortController, "abort");
-    const step = makeStep(); // no timeoutMs
-
-    await executeAgentStep(
-      makeDefinition(),
-      step,
-      makeMetadata(),
-      TRIGGER,
-      abortController,
-      () => {},
-      () => {},
-      agentConfig,
-    );
-
-    expect(abortSpy).not.toHaveBeenCalled();
   });
 
   it("retries on failure and succeeds on second attempt", async () => {

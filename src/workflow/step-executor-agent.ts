@@ -155,15 +155,6 @@ export async function executeAgentStep(
     typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
   writeInputs(systemPromptAppend, agentPrompt.prompt);
 
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  if (step.timeoutMs !== undefined) {
-    timeoutHandle = setTimeout(() => {
-      abortController.abort(
-        new Error(`Agent step "${step.id}" timed out after ${step.timeoutMs}ms`),
-      );
-    }, step.timeoutMs);
-  }
-
   const runAttempt = async () => {
     try {
       const result = await executeWithAgentSDK(agentPrompt.prompt, {
@@ -217,14 +208,9 @@ export async function executeAgentStep(
     }
   };
 
-  let result: Awaited<ReturnType<typeof executeWithAgentSDK>>;
-  try {
-    result = step.retry
-      ? await withRetry(runAttempt, step.retry, agentConfig.log)
-      : await runAttempt();
-  } finally {
-    clearTimeout(timeoutHandle);
-  }
+  const result = step.retry
+    ? await withRetry(runAttempt, step.retry, agentConfig.log)
+    : await runAttempt();
 
   return {
     content: result.text,

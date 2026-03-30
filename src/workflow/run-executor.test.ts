@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
+import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 
@@ -235,4 +236,118 @@ describe("continueOnFailure", () => {
     expect((capturedResult as { status: string }).status).toBe("failed");
     expect((capturedResult as { error: string }).error).toBe("non-critical");
   });
+});
+
+describe("step timeout", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-timeout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("DEFAULT_STEP_TIMEOUT_MS is 30 minutes", () => {
+    expect(DEFAULT_STEP_TIMEOUT_MS).toBe(30 * 60 * 1000);
+  });
+
+  it("fails the run when a step exceeds its timeoutMs", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "hanging-step",
+          type: "code",
+          timeoutMs: 50,
+          run: () => new Promise(() => {}), // never resolves
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    const errorLog = (log.mock.calls as string[][]).flat().find((msg) => msg.includes("Failed"));
+    expect(errorLog).toContain("hanging-step");
+    expect(errorLog).toContain("timed out");
+  }, 10_000);
+
+  it("run status is 'failed' (not 'interrupted') on step timeout", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "slow-step",
+          type: "code",
+          timeoutMs: 50,
+          run: () => new Promise(() => {}),
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+  }, 10_000);
+
+  it("subsequent steps do not run after a timeout failure", async () => {
+    const executed: string[] = [];
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "slow-step",
+          type: "code",
+          timeoutMs: 50,
+          run: () => new Promise(() => {}),
+        },
+        {
+          id: "unreachable-step",
+          type: "code",
+          run: () => { executed.push("unreachable-step"); },
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    await promise;
+
+    expect(executed).toEqual([]);
+  }, 10_000);
+
+  it("emits workflow.failure.alert on step timeout", async () => {
+    const { subscribeWorkflowFailureAlert } = await import("./failure-alert.js");
+    subscribeWorkflowFailureAlert(bus, projectDir);
+
+    const alerts: unknown[] = [];
+    bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
+
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "stuck-step",
+          type: "code",
+          timeoutMs: 50,
+          run: () => new Promise(() => {}),
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    await promise;
+
+    expect(alerts).toHaveLength(1);
+    expect((alerts[0] as { status: string }).status).toBe("failed");
+  }, 10_000);
 });

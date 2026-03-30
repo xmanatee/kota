@@ -66,6 +66,14 @@ type WorkflowBaseStep = {
   when?: WorkflowPredicate;
   continueOnFailure?: boolean;
   /**
+   * Maximum time in milliseconds this step is allowed to run. If the step does
+   * not complete within this deadline the run fails with a timeout error and the
+   * normal failure path executes (failed record, workflow.failure.alert emitted).
+   * When omitted, the executor applies DEFAULT_STEP_TIMEOUT_MS (30 minutes).
+   * Set to a larger value for known long-running steps.
+   */
+  timeoutMs?: number;
+  /**
    * When true, this step's output is injected into later agent-step prompts.
    * Keep this off by default and only expose runtime-only facts that the agent
    * cannot reasonably discover from the repository itself.
@@ -96,7 +104,6 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
-  timeoutMs?: number;
   permissionMode?: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];
@@ -176,7 +183,6 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
-  timeoutMs?: number;
   permissionMode: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];

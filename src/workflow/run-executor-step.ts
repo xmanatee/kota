@@ -14,6 +14,9 @@ import type {
   WorkflowStep,
 } from "./types.js";
 
+/** Default step timeout when no timeoutMs is specified on the step definition. */
+export const DEFAULT_STEP_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
 type StepAccumulators = {
   stepOutputsById: Record<string, unknown>;
   stepResultsById: Record<string, WorkflowStepResult>;
@@ -76,24 +79,41 @@ export async function executeWorkflowStep(
   run: Pick<ActiveWorkflowRunHandle, "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs">,
   trigger: WorkflowRunTrigger,
   context: WorkflowStepContext,
-  abortController: AbortController,
+  runAbortController: AbortController,
   agentConfig: AgentStepConfig,
   acc: StepAccumulators,
   deps: StepDeps,
   stepStartedAt: number,
 ): Promise<SingleStepResult> {
+  // Per-step abort controller: forwards run-level aborts and enforces the step deadline.
+  // Agent steps respond to the abort signal; code/tool steps use Promise.race as a fallback.
+  const stepAbortController = new AbortController();
+  const forwardRunAbort = () => stepAbortController.abort(runAbortController.signal.reason);
+  runAbortController.signal.addEventListener("abort", forwardRunAbort, { once: true });
+
+  const timeoutMs = "timeoutMs" in step ? (step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS) : DEFAULT_STEP_TIMEOUT_MS;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      const err = new Error(`Step "${step.id}" timed out after ${timeoutMs}ms`);
+      stepAbortController.abort(err);
+      reject(err);
+    }, timeoutMs);
+  });
+
   try {
-    const output = await executeStep(
+    const stepPromise = executeStep(
       definition,
       step,
       run.metadata,
       trigger,
       context,
-      abortController,
+      stepAbortController,
       (message) => run.appendAgentMessage(step.id, message),
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       agentConfig,
     );
+    const output = await Promise.race([stepPromise, timeoutPromise]);
 
     const completed: WorkflowStepResult = {
       id: step.id,
@@ -122,9 +142,18 @@ export async function executeWorkflowStep(
     );
     return { completed };
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
+    // If the step-level controller was aborted by the deadline (not the run-level abort),
+    // surface a plain Error so the run gets status "failed" rather than "interrupted".
+    const isStepTimeout = stepAbortController.signal.aborted && !runAbortController.signal.aborted;
+    const err = isStepTimeout
+      ? (() => {
+          const reason = stepAbortController.signal.reason;
+          return new Error(reason instanceof Error ? reason.message : `Step "${step.id}" timed out`);
+        })()
+      : error instanceof Error ? error : new Error(String(error));
+
     let agentBackoff: WorkflowAgentBackoffSignal | undefined;
-    if (err instanceof AgentStepRuntimeError) {
+    if (!isStepTimeout && err instanceof AgentStepRuntimeError) {
       agentBackoff = { kind: err.kind, reason: err.message };
     }
     const failed: WorkflowStepResult = {
@@ -144,5 +173,8 @@ export async function executeWorkflowStep(
       `Failed step "${failed.id}" (${failed.type}) in workflow "${definition.name}": ${failed.error ?? "unknown error"}`,
     );
     return { completed: failed, agentBackoff, thrownError: err };
+  } finally {
+    clearTimeout(timeoutHandle);
+    runAbortController.signal.removeEventListener("abort", forwardRunAbort);
   }
 }
