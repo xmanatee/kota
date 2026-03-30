@@ -73,6 +73,7 @@ export async function executeToolCalls(
         if (assessment.policy === "queue") {
           const queued = getApprovalQueue().enqueue(
             block.name, input, assessment.risk, assessment.reason, sessionId,
+            guardrailsConfig.approvalTimeoutMs,
           );
           return {
             tool_use_id: block.id,

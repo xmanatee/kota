@@ -20,6 +20,8 @@ export type GuardrailsConfig = {
   policies: Record<RiskLevel, Policy>;
   /** Override policy for specific tool names (bypasses risk classification). */
   toolOverrides?: Record<string, Policy>;
+  /** TTL in ms for approval requests created in this context. Stored on each queued item. */
+  approvalTimeoutMs?: number;
 };
 
 export type Assessment = {
@@ -85,6 +87,7 @@ export function nonInteractiveConfig(
   return {
     policies: { ...NON_INTERACTIVE_POLICIES },
     toolOverrides: base?.toolOverrides,
+    ...(base?.approvalTimeoutMs !== undefined && { approvalTimeoutMs: base.approvalTimeoutMs }),
   };
 }
 
@@ -122,6 +125,10 @@ export function sanitizeGuardrailsConfig(
     if (Object.keys(overrides).length > 0) {
       config.toolOverrides = overrides;
     }
+  }
+
+  if (typeof raw.approvalTimeoutMs === "number" && raw.approvalTimeoutMs > 0) {
+    config.approvalTimeoutMs = raw.approvalTimeoutMs;
   }
 
   return config;

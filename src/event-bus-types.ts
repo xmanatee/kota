@@ -130,6 +130,10 @@ export type BusEvents = {
     text: string;
     pauseSignalFile: string;
   };
+  "approval.expired": {
+    id: string;
+    tool: string;
+  };
   "approval.changed": {
     id: string;
     pendingCount: number;

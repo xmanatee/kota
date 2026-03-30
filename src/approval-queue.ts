@@ -27,6 +27,7 @@ export type PendingApproval = {
 	status: ApprovalStatus;
 	resolvedAt?: string;
 	rejectionReason?: string;
+	timeoutMs?: number;
 };
 
 let _enqueueSeq = 0;
@@ -42,6 +43,7 @@ export class ApprovalQueue {
 		risk: RiskLevel,
 		reason: string,
 		source?: string,
+		timeoutMs?: number,
 	): PendingApproval {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
@@ -53,6 +55,7 @@ export class ApprovalQueue {
 			source,
 			createdAt: new Date().toISOString(),
 			status: "pending",
+			...(timeoutMs !== undefined && { timeoutMs }),
 		};
 		writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "" });
@@ -98,19 +101,21 @@ export class ApprovalQueue {
 		return item;
 	}
 
-	expireStale(ttlMs: number): PendingApproval[] {
-		const cutoff = new Date(Date.now() - ttlMs).toISOString();
+	expireStale(defaultTtlMs?: number): PendingApproval[] {
+		const now = Date.now();
 		const expired: PendingApproval[] = [];
 		for (const item of this.list("pending")) {
-			if (item.createdAt < cutoff) {
-				item.status = "expired";
-				item.resolvedAt = new Date().toISOString();
-				item.rejectionReason = "expired";
-				writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
-				tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: false, reason: "expired" });
-				tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
-				expired.push(item);
-			}
+			const ttl = item.timeoutMs ?? defaultTtlMs;
+			if (!ttl) continue;
+			if (now < new Date(item.createdAt).getTime() + ttl) continue;
+			item.status = "expired";
+			item.resolvedAt = new Date().toISOString();
+			item.rejectionReason = "expired";
+			writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
+			tryEmit("approval.expired", { id: item.id, tool: item.tool });
+			tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: false, reason: "expired" });
+			tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
+			expired.push(item);
 		}
 		return expired;
 	}

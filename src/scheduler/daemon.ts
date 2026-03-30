@@ -243,6 +243,7 @@ export class Daemon {
       bus: this.bus,
       projectDir: this.projectDir,
       pollIntervalMs: pollMs,
+      approvalTtlMs: this.config.config?.approvalTtlMs,
       onDueItems: (items) => this.handleDueItems(items),
       onWorkflowCompleted: (payload) => {
         this.state.completedRuns += 1;

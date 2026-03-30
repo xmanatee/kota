@@ -1,3 +1,4 @@
+import { getApprovalQueue } from "../approval-queue.js";
 import type { BusEvents, EventBus } from "../event-bus.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import type { ScheduledItem } from "./scheduler.js";
@@ -11,6 +12,7 @@ export type DaemonSubscriptionsOptions = {
   onWorkflowCompleted: (payload: BusEvents["workflow.completed"]) => void;
   onRestartRequested: (reason: string) => void;
   onLog: (message: string) => void;
+  approvalTtlMs?: number;
 };
 
 export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
@@ -22,6 +24,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onWorkflowCompleted,
     onRestartRequested,
     onLog,
+    approvalTtlMs,
   } = opts;
 
   const scheduler = getScheduler();
@@ -39,11 +42,17 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
 
   const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog);
 
+  const approvalSweepTimer = setInterval(() => {
+    getApprovalQueue().expireStale(approvalTtlMs);
+  }, pollIntervalMs);
+  approvalSweepTimer.unref();
+
   return () => {
     stopBus();
     stopSchedulerTimer();
     stopWorkflowListener();
     stopRestartListener();
     stopFailureAlert();
+    clearInterval(approvalSweepTimer);
   };
 }

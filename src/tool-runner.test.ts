@@ -368,6 +368,7 @@ describe("guardrails confirm gate", () => {
       "dangerous",
       "destructive command pattern detected",
       "session-1",
+      undefined,
     );
   });
 

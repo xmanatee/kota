@@ -164,6 +164,42 @@ describe("ApprovalQueue", () => {
 			expect(queue.list("pending")).toHaveLength(0);
 			expect(queue.list("expired")).toHaveLength(1);
 		});
+
+		it("expires item using per-item timeoutMs when no defaultTtlMs provided", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000);
+			backdate(item.id, 2000);
+
+			const expired = queue.expireStale();
+			expect(expired).toHaveLength(1);
+			expect(expired[0].status).toBe("expired");
+		});
+
+		it("per-item timeoutMs takes precedence over defaultTtlMs", () => {
+			// item has 500ms timeout, but global TTL is 10 minutes
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
+			backdate(item.id, 2000);
+
+			const expired = queue.expireStale(600_000);
+			expect(expired).toHaveLength(1);
+			expect(queue.get(item.id)!.timeoutMs).toBe(500);
+		});
+
+		it("skips items with no TTL when defaultTtlMs is undefined", () => {
+			queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			const expired = queue.expireStale();
+			expect(expired).toHaveLength(0);
+		});
+
+		it("stores timeoutMs on enqueued item", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 5000);
+			expect(item.timeoutMs).toBe(5000);
+			expect(queue.get(item.id)!.timeoutMs).toBe(5000);
+		});
+
+		it("does not store timeoutMs when not provided", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			expect(item.timeoutMs).toBeUndefined();
+		});
 	});
 });
 
@@ -220,6 +256,32 @@ describe("approval.changed events", () => {
 		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 0 });
+	});
+
+	it("emits approval.expired on expireStale", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		const stored = queue.get(item.id)!;
+		stored.createdAt = new Date(Date.now() - 5000).toISOString();
+		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		tryEmitMock.mockClear();
+
+		queue.expireStale(1000);
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.expired");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool });
+	});
+
+	it("emits approval.expired for item with per-item timeoutMs", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
+		const stored = queue.get(item.id)!;
+		stored.createdAt = new Date(Date.now() - 2000).toISOString();
+		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		tryEmitMock.mockClear();
+
+		queue.expireStale();
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.expired");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool });
 	});
 });
 
