@@ -1,12 +1,12 @@
 ---
 id: task-workflow-runs-daemon-api
 title: Expose workflow run history and step detail via daemon control API
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: The daemon control API has no endpoint for workflow run history or step detail. Mobile and desktop clients that must be thin over the API cannot show run history or diagnose failures without reading .kota/ files directly — defeating the API-first architecture.
 created_at: 2026-03-30T17:22:39Z
-updated_at: 2026-03-30T17:22:39Z
+updated_at: 2026-03-30T17:44:28Z
 ---
 
 ## Problem

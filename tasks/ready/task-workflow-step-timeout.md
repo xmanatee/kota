@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-timeout
 title: Add per-step timeout to workflow step definitions
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: A workflow step that runs a hung agent can block a run indefinitely. There is no per-step timeout, so a single stuck step can tie up the autonomous loop forever with no observable failure.
 created_at: 2026-03-30T17:10:57Z
-updated_at: 2026-03-30T17:10:57Z
+updated_at: 2026-03-30T17:44:28Z
 ---
 
 ## Problem
