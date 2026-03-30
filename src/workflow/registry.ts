@@ -1,3 +1,4 @@
+import attentionDigestWorkflow from "../workflows/attention-digest/workflow.js";
 import builderWorkflow from "../workflows/builder/workflow.js";
 import explorerWorkflow from "../workflows/explorer/workflow.js";
 import improverWorkflow from "../workflows/improver/workflow.js";
@@ -17,6 +18,10 @@ export function getBuiltinWorkflowDefinitions(): RegisteredWorkflowDefinitionInp
     registerWorkflowDefinition(
       "src/workflows/improver/workflow.ts",
       improverWorkflow,
+    ),
+    registerWorkflowDefinition(
+      "src/workflows/attention-digest/workflow.ts",
+      attentionDigestWorkflow,
     ),
   ];
 }

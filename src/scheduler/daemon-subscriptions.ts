@@ -1,6 +1,5 @@
 import type { BusEvents, EventBus } from "../event-bus.js";
 import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
-import { subscribeAttentionDigest } from "../workflow/attention-digest.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import type { StatusInfo } from "../workflow/telegram-status-poll.js";
 import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
@@ -10,7 +9,6 @@ import { getScheduler } from "./scheduler.js";
 export type DaemonSubscriptionsOptions = {
   bus: EventBus;
   projectDir: string;
-  runsDir: string;
   pollIntervalMs: number;
   onDueItems: (items: ScheduledItem[]) => void;
   onWorkflowCompleted: (payload: BusEvents["workflow.completed"]) => void;
@@ -23,7 +21,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
   const {
     bus,
     projectDir,
-    runsDir,
     pollIntervalMs,
     onDueItems,
     onWorkflowCompleted,
@@ -47,7 +44,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
 
   const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog);
   const stopApprovalNotification = subscribeApprovalNotification(bus, onLog);
-  const stopAttentionDigest = subscribeAttentionDigest(bus, projectDir, runsDir, onLog);
 
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
   const telegramChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
@@ -63,7 +59,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     stopRestartListener();
     stopFailureAlert();
     stopApprovalNotification();
-    stopAttentionDigest();
     stopTelegramStatusPoll?.();
   };
 }

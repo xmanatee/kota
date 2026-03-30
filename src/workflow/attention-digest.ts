@@ -1,6 +1,5 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { EventBus } from "../event-bus.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { countRepoTasks } from "../repo-tasks.js";
 import { callTelegramApi } from "../telegram-client.js";
@@ -102,59 +101,63 @@ function buildDigestText(items: AttentionItem[]): string {
   return `${header}\n${body}`;
 }
 
-export function subscribeAttentionDigest(
-  bus: EventBus,
+/**
+ * Run one attention digest step. Increments the persistent counter and, every
+ * DIGEST_EVERY_N_RUNS invocations, checks for attention items and sends a
+ * Telegram message when any are found.
+ *
+ * Called directly by the attention-digest workflow code step.
+ */
+export function runAttentionDigestStep(
   projectDir: string,
   runsDir: string,
   log?: (message: string) => void,
-): () => void {
+): void {
   // Counter is persisted so it survives daemon restarts (which happen after every builder build).
   const counterFile = join(runsDir, "..", "attention-digest-counter.json");
 
-  return bus.on("workflow.completed", () => {
-    const saved = readOptionalJsonFile<{ count: number }>(counterFile);
-    const count = (saved?.count ?? 0) + 1;
-    writeJsonFileAtomic(counterFile, { count });
-    if (count % DIGEST_EVERY_N_RUNS !== 0) return;
+  const saved = readOptionalJsonFile<{ count: number }>(counterFile);
+  const count = (saved?.count ?? 0) + 1;
+  writeJsonFileAtomic(counterFile, { count });
+  if (count % DIGEST_EVERY_N_RUNS !== 0) return;
 
-    const recentRuns = loadRecentRuns(runsDir);
-    const totalCost = Object.values(computeCostByWorkflow(recentRuns)).reduce(
-      (a, b) => a + b,
-      0,
-    );
-    const hardLimit =
-      Number(process.env.KOTA_COST_HARD_LIMIT_USD) || DEFAULT_COST_HARD_LIMIT_USD;
+  const recentRuns = loadRecentRuns(runsDir);
+  const totalCost = Object.values(computeCostByWorkflow(recentRuns)).reduce(
+    (a, b) => a + b,
+    0,
+  );
+  const hardLimit =
+    Number(process.env.KOTA_COST_HARD_LIMIT_USD) || DEFAULT_COST_HARD_LIMIT_USD;
 
-    if (totalCost > hardLimit) {
-      writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
-      const token = process.env.TELEGRAM_BOT_TOKEN;
-      const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-      if (token && chatId) {
-        void callTelegramApi(token, "sendMessage", {
-          chat_id: chatId,
-          text: `Cost circuit breaker tripped: $${totalCost.toFixed(2)} spent in last 24h (hard limit: $${hardLimit}). Autonomous dispatch paused. Delete \`.kota/${PAUSE_SIGNAL_FILE}\` to resume.`,
-          parse_mode: "Markdown",
-        }).catch((err: unknown) => {
-          log?.(`Failed to send circuit breaker alert: ${(err as Error).message}`);
-        });
-      }
-      return;
-    }
-
+  if (totalCost > hardLimit) {
+    writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-    if (!token || !chatId) return;
+    if (token && chatId) {
+      void callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: `Cost circuit breaker tripped: $${totalCost.toFixed(2)} spent in last 24h (hard limit: $${hardLimit}). Autonomous dispatch paused. Delete \`.kota/${PAUSE_SIGNAL_FILE}\` to resume.`,
+        parse_mode: "Markdown",
+      }).catch((err: unknown) => {
+        log?.(`Failed to send circuit breaker alert: ${(err as Error).message}`);
+      });
+    }
+    return;
+  }
 
-    const items = detectAttentionItems(projectDir, recentRuns);
-    if (items.length === 0) return;
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+  if (!token || !chatId) return;
 
-    const text = buildDigestText(items);
-    void callTelegramApi(token, "sendMessage", {
-      chat_id: chatId,
-      text,
-      parse_mode: "Markdown",
-    }).catch((err: unknown) => {
-      log?.(`Failed to send attention digest: ${(err as Error).message}`);
-    });
+  const items = detectAttentionItems(projectDir, recentRuns);
+  if (items.length === 0) return;
+
+  const text = buildDigestText(items);
+  void callTelegramApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "Markdown",
+  }).catch((err: unknown) => {
+    log?.(`Failed to send attention digest: ${(err as Error).message}`);
   });
 }

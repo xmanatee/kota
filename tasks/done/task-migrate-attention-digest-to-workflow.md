@@ -1,7 +1,7 @@
 ---
 id: task-migrate-attention-digest-to-workflow
 title: Migrate attention digest to a built-in workflow definition
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The attention digest fires as a raw daemon subscription today, bypassing the workflow surface. Moving it to a proper workflow definition makes it observable, testable, and consistent with ARCHITECTURE.md's single-automation-surface principle.

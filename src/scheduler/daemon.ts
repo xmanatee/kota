@@ -172,7 +172,6 @@ export class Daemon {
     this.unsubscribe = subscribeDaemon({
       bus: this.bus,
       projectDir: this.projectDir,
-      runsDir,
       pollIntervalMs: pollMs,
       onDueItems: (items) => this.handleDueItems(items),
       onWorkflowCompleted: (payload) => {

@@ -415,7 +415,7 @@ describe("workflow validation", () => {
     ).not.toThrow();
   });
 
-  it("exposes the built-in explorer, builder, and improver workflows", () => {
+  it("exposes the built-in explorer, builder, improver, and attention-digest workflows", () => {
     const definitions = validateWorkflowDefinitions(
       getBuiltinWorkflowDefinitions(),
       process.cwd(),
@@ -425,6 +425,7 @@ describe("workflow validation", () => {
       "explorer",
       "builder",
       "improver",
+      "attention-digest",
     ]);
   });
 
