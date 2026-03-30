@@ -48,6 +48,7 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - Every non-inbox task body must include all four required sections in order: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - `## Done When` must stay consistent with `## Desired Outcome`. Do not promise a broader result than the task actually asks for.
 - Use ISO 8601 datetime for `created_at` and `updated_at` (for example `2026-03-27T06:40:18Z`). Date-only values lose same-day precision when the queue is sorted or compared.
+- When moving a task file between directories, always update the `status:` frontmatter to match the target directory name (`inbox`, `backlog`, `ready`, `doing`, `blocked`, `done`, `dropped`). The validation checks that the file path and `status:` field agree.
 
 ## Finish
 
