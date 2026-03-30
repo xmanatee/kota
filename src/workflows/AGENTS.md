@@ -15,9 +15,12 @@ test suite. The validation layer enforces this at definition load time as a hard
 
 ## Per-Step Timeout
 
-Every step has an optional `timeoutMs` field (defined on the base step type). When the step does
-not complete within the deadline, the run fails with a descriptive error and the normal failure path
-executes — failed run record, `workflow.failure.alert` emitted, operator notified.
+All step types except `parallel` groups have an optional `timeoutMs` field (defined on
+`WorkflowBaseStep`). `WorkflowParallelGroup` does not extend `WorkflowBaseStep` and therefore
+has no `timeoutMs`; parallel groups run outside `executeWorkflowStep` and are not subject to the
+default timeout. When a non-parallel step does not complete within the deadline, the run fails
+with a descriptive error and the normal failure path executes — failed run record,
+`workflow.failure.alert` emitted, operator notified.
 
 When `timeoutMs` is not specified, `DEFAULT_STEP_TIMEOUT_MS` (30 minutes) applies automatically.
 Set a larger value on known long-running agent steps; the builder's `build` step uses 60 minutes
