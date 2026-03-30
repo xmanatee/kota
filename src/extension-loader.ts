@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Command } from "commander";
+import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { createExtensionContext, type ExtensionContextParams } from "./extension-context.js";
@@ -25,6 +26,7 @@ export class ExtensionLoader {
   private extensionToolCounts = new Map<string, number>();
   private skillContents: string[] = [];
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
+  private contributedChannels: ChannelDef[] = [];
   private bus: EventBus | null = null;
   private verbose: boolean;
   private config: KotaConfig;
@@ -69,6 +71,7 @@ export class ExtensionLoader {
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
       getContributedWorkflows: () => this.getContributedWorkflows(),
+      getContributedChannels: () => this.getContributedChannels(),
       sessionFactory: this.sessionFactory,
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ExtensionLoader.MAX_TOOL_CALL_DEPTH) {
@@ -114,6 +117,12 @@ export class ExtensionLoader {
     if (mod.workflows && !this.commandsOnly) {
       for (const def of mod.workflows) {
         this.contributedWorkflows.push({ ...def, definitionPath: `extensions/${mod.name}` });
+      }
+    }
+
+    if (mod.channels && !this.commandsOnly) {
+      for (const def of mod.channels) {
+        this.contributedChannels.push(def);
       }
     }
 
@@ -193,6 +202,10 @@ export class ExtensionLoader {
 
   getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] {
     return this.contributedWorkflows;
+  }
+
+  getContributedChannels(): ChannelDef[] {
+    return this.contributedChannels;
   }
 
   setBus(bus: EventBus): void {

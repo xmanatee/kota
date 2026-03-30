@@ -1,3 +1,4 @@
+import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { getExtensionLogStore } from "./extension-log.js";
@@ -19,6 +20,7 @@ export interface ExtensionContextParams {
   getBus: () => EventBus | null;
   getRoutes: () => RouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
+  getContributedChannels: () => ChannelDef[];
   sessionFactory: ((opts: CreateSessionOptions) => ExtensionSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }
@@ -47,7 +49,7 @@ function createEventProxy(
 }
 
 export function createExtensionContext(params: ExtensionContextParams, extensionName?: string): ExtensionContext {
-  const { cwd, verbose, config, extensionStorages, getBus, getRoutes, getContributedWorkflows, sessionFactory, callTool } = params;
+  const { cwd, verbose, config, extensionStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, sessionFactory, callTool } = params;
   const storage = extensionName
     ? getOrCreateStorage(extensionName, cwd, extensionStorages)
     : new ExtensionStorage(cwd, "_default");
@@ -80,6 +82,7 @@ export function createExtensionContext(params: ExtensionContextParams, extension
     },
     getRoutes,
     getContributedWorkflows,
+    getContributedChannels,
     getExtensionConfig: <T = Record<string, unknown>>(): T | undefined => {
       if (!extensionName) return undefined;
       return config.extensions?.[extensionName] as T | undefined;

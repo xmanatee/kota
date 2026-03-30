@@ -1,7 +1,7 @@
 ---
 id: task-formalize-extension-channel-contributions
 title: Formalize channel contributions in the extension protocol
-status: ready
+status: done
 priority: p2
 area: extensions
 summary: ARCHITECTURE.md states that extensions can contribute channels, but KotaExtension has no channels field. The Telegram channel is hardcoded in the daemon rather than contributed via the extension protocol. Formalizing this closes the gap between the stated architecture and the implementation.

@@ -165,6 +165,20 @@ describe("ExtensionLoader", () => {
     expect(workflows[0].definitionPath).toBe("extensions/workflow-provider");
   });
 
+  it("collects channel definitions from extensions and exposes via getContributedChannels", async () => {
+    const loader = new ExtensionLoader({});
+    const mockCreate = () => null;
+
+    await loader.load({
+      name: "channel-provider",
+      channels: [{ name: "test-channel", description: "A test channel", create: mockCreate }],
+    });
+
+    const channels = loader.getContributedChannels();
+    expect(channels).toHaveLength(1);
+    expect(channels[0].name).toBe("test-channel");
+  });
+
   it("exposes contributed workflows via ctx.getContributedWorkflows()", async () => {
     const loader = new ExtensionLoader({});
 

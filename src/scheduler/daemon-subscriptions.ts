@@ -1,8 +1,6 @@
 import type { BusEvents, EventBus } from "../event-bus.js";
 import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
-import type { StatusInfo } from "../workflow/telegram-status-poll.js";
-import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
 import type { ScheduledItem } from "./scheduler.js";
 import { getScheduler } from "./scheduler.js";
 
@@ -14,7 +12,6 @@ export type DaemonSubscriptionsOptions = {
   onWorkflowCompleted: (payload: BusEvents["workflow.completed"]) => void;
   onRestartRequested: (reason: string) => void;
   onLog: (message: string) => void;
-  getTelegramState?: () => StatusInfo;
 };
 
 export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
@@ -26,7 +23,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onWorkflowCompleted,
     onRestartRequested,
     onLog,
-    getTelegramState,
   } = opts;
 
   const scheduler = getScheduler();
@@ -45,13 +41,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
   const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog);
   const stopApprovalNotification = subscribeApprovalNotification(bus, onLog);
 
-  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  const telegramChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-  const stopTelegramStatusPoll =
-    telegramToken && telegramChatId && getTelegramState
-      ? startTelegramStatusPoll(telegramToken, telegramChatId, getTelegramState, onLog)
-      : null;
-
   return () => {
     stopBus();
     stopSchedulerTimer();
@@ -59,6 +48,5 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     stopRestartListener();
     stopFailureAlert();
     stopApprovalNotification();
-    stopTelegramStatusPoll?.();
   };
 }

@@ -15,10 +15,19 @@
  * `channel` is optional — a channel manages a pool of sessions on behalf of
  * external users. Channels handle input routing, user identity, and lifecycle
  * (one session per chat/user). Autonomous workflows skip channels entirely.
+ *
+ * ## Channel Contributions
+ *
+ * Extensions contribute channels via `KotaExtension.channels`. The daemon
+ * collects contributed channels at startup and manages their lifecycle.
+ * Each `ChannelDef` is a named descriptor plus a factory. The factory receives
+ * a `ChannelStartContext` from the daemon and returns a `ChannelAdapter`, or
+ * null if the channel cannot start (e.g., missing credentials).
  */
 
 import type { AgentSession } from "./loop.js";
 import type { ProxyTransport } from "./transport.js";
+import type { WorkflowRuntimeState } from "./workflow/run-types.js";
 
 /**
  * A session managed by a channel adapter — one AgentSession per user/chat.
@@ -46,4 +55,46 @@ export type ChannelSession = {
 export type ChannelAdapter = {
   start(): Promise<void>;
   stop(): void | Promise<void>;
+};
+
+/**
+ * Runtime workflow status exposed to channels that need to monitor or
+ * report on the daemon's execution state (e.g., Telegram status poll).
+ */
+export type ChannelWorkflowStatus = {
+  runtimeState: WorkflowRuntimeState;
+  dispatchPaused: boolean;
+  runsDir: string;
+};
+
+/**
+ * Context provided to a channel factory when the daemon starts it.
+ */
+export type ChannelStartContext = {
+  /** Project root directory. */
+  projectDir: string;
+  /** Logger for channel messages. */
+  log: (message: string) => void;
+  /** Current workflow runtime status for monitoring/alerting channels. */
+  getWorkflowStatus: () => ChannelWorkflowStatus;
+};
+
+/**
+ * ChannelDef — descriptor for a channel contributed by an extension.
+ *
+ * Extensions declare channels in `KotaExtension.channels`. The daemon
+ * collects them at startup, calls `create()` for each one, and manages
+ * their lifecycle alongside workflows and stores.
+ */
+export type ChannelDef = {
+  /** Unique identifier for this channel (e.g., "telegram-status"). */
+  name: string;
+  /** Short description of what this channel does. */
+  description?: string;
+  /**
+   * Creates the ChannelAdapter that manages this channel's lifecycle.
+   * Return null if the channel cannot start (missing credentials, disabled
+   * config, etc.) — the daemon skips null channels silently.
+   */
+  create(ctx: ChannelStartContext): ChannelAdapter | null;
 };

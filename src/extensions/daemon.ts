@@ -128,6 +128,7 @@ const daemonModule: KotaExtension = {
           idleIntervalMs: parseIntOption(opts.idleInterval, "idle-interval") * 1000,
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
           workflows: resolveDaemonWorkflowDefinitions(ctx.getContributedWorkflows()),
+          channels: ctx.getContributedChannels(),
         });
 
         await daemon.start();

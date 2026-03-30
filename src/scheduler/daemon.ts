@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { getApprovalQueue } from "../approval-queue.js";
+import type { ChannelAdapter, ChannelDef } from "../channel.js";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { initExtensionLogStore } from "../extension-log.js";
@@ -28,6 +29,7 @@ export type DaemonConfig = {
   pollIntervalMs?: number;
   stateDir?: string;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
+  channels?: readonly ChannelDef[];
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -49,6 +51,7 @@ export class Daemon {
 
   private state: DaemonState;
   private unsubscribe: (() => void) | null = null;
+  private activeChannels: ChannelAdapter[] = [];
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -184,14 +187,27 @@ export class Daemon {
       },
       onRestartRequested: (reason) => this.requestRestart(reason),
       onLog: (message) => this.log(message),
-      getTelegramState: () => ({
+    });
+
+    this.workflows.start();
+
+    const channelCtx = {
+      projectDir: this.projectDir,
+      log: (message: string) => this.log(message),
+      getWorkflowStatus: () => ({
         runtimeState: this.workflows.getState(),
         dispatchPaused: this.workflows.isDispatchPaused(),
         runsDir,
       }),
-    });
-
-    this.workflows.start();
+    };
+    for (const def of this.config.channels ?? []) {
+      const adapter = def.create(channelCtx);
+      if (adapter) {
+        this.activeChannels.push(adapter);
+        await adapter.start();
+        this.log(`Channel started: ${def.name}`);
+      }
+    }
 
     this.log(`Daemon running (pid ${process.pid})`);
     this.log(`  Scheduler poll: ${pollMs}ms`);
@@ -214,6 +230,11 @@ export class Daemon {
     if (this.stopping) return;
     this.stopping = true;
     this.log("Daemon shutting down...");
+
+    for (const adapter of this.activeChannels) {
+      await adapter.stop();
+    }
+    this.activeChannels = [];
 
     await this.workflows.stop(timeoutMs);
     await this.controlServer.stop();

@@ -15,6 +15,7 @@ const stubCtx: ExtensionContext = {
   registerGroup: () => {},
   getRoutes: () => [],
   getContributedWorkflows: () => [],
+  getContributedChannels: () => [],
   getExtensionConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,

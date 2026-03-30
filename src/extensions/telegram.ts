@@ -1,20 +1,47 @@
 /**
- * Telegram module — makes KOTA accessible via Telegram messaging.
+ * Telegram extension — makes KOTA accessible via Telegram messaging.
  *
- * First module to register a CLI command via the KotaExtension protocol,
- * proving the `commands` part of the module system works end-to-end.
- * The actual bot logic lives in src/telegram.ts; this module wires
- * it into the CLI as `kota telegram`.
+ * Contributes:
+ * - `kota telegram` CLI command (interactive bot)
+ * - `telegram-status` channel (daemon status poll — responds to /status)
+ *
+ * The CLI command starts the full interactive TelegramBot.
+ * The channel contribution registers a status-only poll with the daemon
+ * so operators can query workflow state via `/status` in Telegram.
  */
 
 import { Command } from "commander";
+import type { ChannelDef } from "../channel.js";
 import type { KotaExtension } from "../extension-types.js";
 import { TelegramBot } from "../telegram.js";
+import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
+
+const telegramStatusChannel: ChannelDef = {
+  name: "telegram-status",
+  description: "Responds to /status commands in Telegram with current workflow state",
+  create(ctx) {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    if (!token || !chatId) return null;
+
+    let stop: (() => void) | null = null;
+    return {
+      async start() {
+        stop = startTelegramStatusPoll(token, chatId, ctx.getWorkflowStatus, ctx.log);
+      },
+      stop() {
+        stop?.();
+      },
+    };
+  },
+};
 
 const telegramModule: KotaExtension = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
+
+  channels: [telegramStatusChannel],
 
   commands: (ctx) => {
     const cmd = new Command("telegram")

@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
 import type { AgentDef, SkillDef } from "./agent-types.js";
+import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { ToolMiddlewareFn } from "./tool-middleware.js";
@@ -74,6 +75,8 @@ export type ExtensionContext = {
   getRoutes: () => RouteRegistration[];
   /** Get workflow definitions contributed by loaded extensions. */
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
+  /** Get channel definitions contributed by loaded extensions. */
+  getContributedChannels: () => ChannelDef[];
   /** Get this extension's config section from the KOTA config. */
   getExtensionConfig: <T = Record<string, unknown>>() => T | undefined;
   /** Scoped logger — messages prefixed with `[extension:<name>]`. */
@@ -145,6 +148,14 @@ export type KotaExtension = {
    * automation instead of subscribing to the event bus directly.
    */
   workflows?: WorkflowDefinitionInput[];
+
+  /**
+   * Channel definitions this extension contributes.
+   * Channels are daemon-owned interaction surfaces that map external I/O to sessions.
+   * The daemon starts contributed channels at startup and stops them on shutdown.
+   * A channel returns null from its factory if it cannot start (missing credentials).
+   */
+  channels?: ChannelDef[];
 
   /**
    * Skills this extension contributes — named, file-backed guidance blocks.

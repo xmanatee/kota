@@ -77,6 +77,16 @@ adding a parallel surface.
   SessionPool) is still a parallel runtime entry point separate from the daemon.
   The next step is routing the HTTP server's session management through the
   daemon so there is one unified runtime host. See `docs/DAEMON-API.md`.
+- `KotaExtension` now has a `channels` field following the same pattern as
+  `workflows`, `tools`, and `agents`. A `ChannelDef` type in `src/channel.ts`
+  captures the channel protocol: name, description, and a factory that receives
+  a `ChannelStartContext` (projectDir, log, getWorkflowStatus) and returns a
+  `ChannelAdapter`. The daemon collects contributed channels at startup, calls
+  each factory, and manages lifecycle (start on daemon start, stop on shutdown).
+  The Telegram status poll is contributed via the Telegram extension rather than
+  hardcoded in daemon-subscriptions. A second extension can now add a channel
+  (Slack, email, web chat) by declaring a `ChannelDef` without touching daemon
+  internals.
 
 ## Protocol Boundaries
 
@@ -122,9 +132,11 @@ the daemon and route traffic to sessions. Clients such as a native macOS app,
 CLI daemon mode, web dashboard, or mobile app are not channels unless they also
 own message routing for sessions.
 
-`ChannelSession` and `ChannelAdapter` are defined in `src/channel.ts` and used
-by both the HTTP server (`ManagedSession`) and the Telegram bot. This is the
-shared channel session model — new channels should use the same types.
+`ChannelSession`, `ChannelAdapter`, and `ChannelDef` are defined in
+`src/channel.ts`. `ChannelAdapter` is the runtime interface (`start`/`stop`);
+`ChannelDef` is the extension contribution descriptor (name, description, and
+a `create(ctx: ChannelStartContext)` factory). New channels should use these
+types and be contributed via `KotaExtension.channels`.
 
 ## Migration Principles
 

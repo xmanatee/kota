@@ -11,6 +11,7 @@ const stubCtx: ExtensionContext = {
   registerGroup: () => {},
   getRoutes: () => [],
   getContributedWorkflows: () => [],
+  getContributedChannels: () => [],
   getExtensionConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
@@ -53,5 +54,35 @@ describe("telegramModule", () => {
 
   it("has no dependencies", () => {
     expect(telegramModule.dependencies).toBeUndefined();
+  });
+
+  it("contributes a telegram-status channel", () => {
+    expect(telegramModule.channels).toBeDefined();
+    expect(telegramModule.channels).toHaveLength(1);
+    expect(telegramModule.channels![0].name).toBe("telegram-status");
+    expect(telegramModule.channels![0].description).toBeTruthy();
+  });
+
+  it("telegram-status channel returns null when env vars are missing", () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_ALERT_CHAT_ID;
+    try {
+      const channel = telegramModule.channels![0];
+      const adapter = channel.create({
+        projectDir: "/tmp",
+        log: () => {},
+        getWorkflowStatus: () => ({
+          runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+          dispatchPaused: false,
+          runsDir: "/tmp/.kota/runs",
+        }),
+      });
+      expect(adapter).toBeNull();
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+    }
   });
 });
