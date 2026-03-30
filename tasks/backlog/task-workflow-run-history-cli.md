@@ -1,0 +1,49 @@
+---
+id: task-workflow-run-history-cli
+title: Add kota workflow runs CLI for browsing past workflow execution history
+status: backlog
+priority: p3
+area: cli
+summary: Operators accumulate a growing .kota/runs/ directory with no CLI to browse, filter, or inspect past workflow run outcomes, costs, and artifacts. Adding kota workflow runs commands closes the gap between run-level artifacts and operator visibility.
+created_at: 2026-03-30T16:44:58Z
+updated_at: 2026-03-30T16:44:58Z
+---
+
+## Problem
+
+Every workflow execution writes artifacts (commit-message.txt, step outputs,
+logs) under `.kota/runs/<run-id>/`. Over time this directory grows with no CLI
+surface to navigate it. Operators who want to review what ran, when, why it ran,
+or how much it cost must manually browse the filesystem.
+
+The daemon control API exposes live workflow status (`GET /status`,
+`GET /workflows`), but there is no equivalent for completed run history. The
+conversation history store covers agent sessions, but does not index workflow
+run metadata (trigger, duration, cost, step count, outcome).
+
+## Desired Outcome
+
+- `kota workflow runs` — list recent workflow runs with run ID, workflow name,
+  trigger type, start time, duration, and outcome (success/failure).
+- `kota workflow runs show <run-id>` — show full detail for one run: all step
+  outputs, commit message (if any), cost, and any artifacts written.
+- `--workflow <name>` filter to scope listing to a specific workflow.
+- `--limit N` to control how many runs are listed (default 20).
+- `--json` flag for scripting.
+
+## Constraints
+
+- Read from `.kota/runs/` directory artifacts; do not require daemon to be
+  running for historical queries.
+- When the daemon is running, supplement with any in-memory run metadata the
+  daemon exposes (e.g. duration, cost from `GET /workflows`).
+- Keep scope to read-only inspection. No deletion or re-run in this task.
+- Follow the same CLI registration pattern as `kota workflow definitions`.
+
+## Done When
+
+- `kota workflow runs` lists recent runs with name, trigger, timestamp, and
+  outcome.
+- `kota workflow runs show <run-id>` shows step-level detail and artifacts.
+- `--workflow`, `--limit`, and `--json` flags work.
+- Command is registered and appears in `kota workflow --help`.

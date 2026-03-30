@@ -1,12 +1,12 @@
 ---
 id: task-extension-inspect-cli
 title: Add kota extension CLI for operator visibility into loaded extensions
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: Operators have no CLI way to list or inspect what extensions are loaded or what each one contributes. As the extension set grows and contributed workflows/tools become more common, a kota extension list/inspect command helps operators understand what is running.
 created_at: 2026-03-30T15:00:00Z
-updated_at: 2026-03-30T15:00:00Z
+updated_at: 2026-03-30T16:44:58Z
 ---
 
 ## Problem
