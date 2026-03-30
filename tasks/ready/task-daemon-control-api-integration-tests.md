@@ -1,53 +1,45 @@
 ---
 id: task-daemon-control-api-integration-tests
-title: Add integration tests for the daemon control API
+title: Extend daemon control API integration tests to cover approvals, tasks, and history
 status: ready
 priority: p3
 area: testing
-summary: DaemonControlServer exposes a growing HTTP+JSON+SSE API used by the CLI, web dashboard, and planned mobile/desktop clients. No integration tests verify the HTTP interface end-to-end, leaving regressions to be caught only at runtime.
+summary: src/scheduler/daemon-control.test.ts already covers auth, /status, /events, /workflow controls, and /webhooks end-to-end, but GET/POST /approvals, GET /tasks, GET /workflow/history, and session-related routes have no test coverage.
 created_at: 2026-03-30T18:46:25Z
-updated_at: 2026-03-30T19:57:00Z
+updated_at: 2026-03-30T21:20:00Z
 ---
 
 ## Problem
 
-`DaemonControlServer` exposes a multi-endpoint control API used by every KOTA client surface:
+`src/scheduler/daemon-control.test.ts` provides solid HTTP integration coverage for:
+auth enforcement, `GET /status`, `GET /workflow/status`, workflow control routes
+(`POST /workflow/pause`, `POST /resume`, `POST /abort`, `POST /reload`),
+`GET /events` SSE, and `POST /webhooks/:name`.
 
-- `GET /status` — daemon health, active runs, sessions
-- `GET /workflow/history` — run history with step detail
-- `POST /pause`, `POST /resume` — daemon control
+The following critical-path endpoints have no test coverage:
+
+- `GET /workflow/history` and `GET /workflow/history/:id` — run history detail
 - `GET /approvals`, `POST /approvals/:id/approve`, `POST /approvals/:id/reject`
 - `GET /tasks`, `POST /tasks/:id/move`
-- `GET /events` — SSE stream for real-time updates
 
-As mobile, macOS, and web clients are built against this API, regressions in any
-endpoint become cross-surface failures. Today there are no integration tests that
-start a real server and verify HTTP response shape, status codes, auth enforcement,
-and SSE event delivery end-to-end.
+Regressions in these endpoints are caught only at runtime by operator-facing clients.
 
 ## Desired Outcome
 
-An integration test suite that spins up a `DaemonControlServer` on a random port
-and drives it with real HTTP requests, asserting on response shape, status codes,
-headers, and SSE stream behavior.
+The existing `daemon-control.test.ts` is extended with `describe` blocks for each
+missing endpoint, using the same `makeHandle()` stub pattern already in place.
 
 ## Constraints
 
-- Use vitest and the existing test infrastructure.
-- Start a real HTTP server — do not mock the HTTP layer itself.
-- Use minimal stub implementations of underlying stores (approval queue, task store,
-  history store) rather than mocking individual route handlers.
-- Cover the critical path at minimum: `GET /status`, `GET /workflow/history`,
-  `GET /approvals`, `POST /approvals/:id/approve`, `GET /tasks`, `GET /events`.
-- Auth tests: requests missing or providing a bad `X-Kota-Token` must return 401.
-- SSE test: connect to `GET /events`, emit a bus event, verify the client receives it.
-- Keep test setup fast — no full daemon process; construct `DaemonControlServer`
-  directly with injected dependencies.
+- Extend `src/scheduler/daemon-control.test.ts` — do not create a separate file.
+- Use the existing `makeHandle()` + `fetchWithToken()`/`fetchNoToken()` helpers.
+- Each new block needs at least one success case and one auth-failure case.
+- Keep tests fast — no process spawning; inject stubs via `makeHandle()`.
 
 ## Done When
 
-- Integration tests exist covering all listed critical-path endpoints.
-- Each covered endpoint has at least one success case and one auth-failure case.
-- `GET /events` test verifies SSE connect and receipt of at least one emitted event.
-- All tests pass in CI.
-- `docs/DAEMON-API.md` notes the integration test location.
+- `GET /workflow/history` and `GET /workflow/history/:id` are covered.
+- `GET /approvals`, `POST /approvals/:id/approve`, `POST /approvals/:id/reject` are covered.
+- `GET /tasks` and `POST /tasks/:id/move` are covered.
+- All new tests pass alongside the existing suite.
+- `docs/DAEMON-API.md` notes the test file location.
