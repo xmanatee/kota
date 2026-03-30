@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { registerControlCommands } from "./workflow-cli/control.js";
+import { registerDefinitionsCommand } from "./workflow-cli/definitions.js";
 import { registerFollowCommand } from "./workflow-cli/follow.js";
 import { registerLogsCommand } from "./workflow-cli/logs.js";
 import { registerRunCommand } from "./workflow-cli/run.js";
@@ -17,11 +18,13 @@ export function registerWorkflowCommands(program: Command): void {
       "  Control commands (status, pause, resume, abort, reload) use the daemon\n" +
       "  control API when a daemon is running, and fall back to signal files when\n" +
       "  no daemon is reachable.\n\n" +
-      "  Inspection commands (list, show, logs, follow) read run artifacts directly.",
+      "  Inspection commands (list, show, definitions, logs, follow) read artifacts\n" +
+      "  or static definitions directly.",
     );
 
   registerRunListCommands(wfCmd);
   registerRunShowCommand(wfCmd);
+  registerDefinitionsCommand(wfCmd);
   registerCostCommand(wfCmd);
   registerLogsCommand(wfCmd);
   registerFollowCommand(wfCmd);
