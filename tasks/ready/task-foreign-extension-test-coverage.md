@@ -1,12 +1,12 @@
 ---
 id: task-foreign-extension-test-coverage
 title: Add test coverage for the foreign extension stdio transport
-status: backlog
+status: ready
 priority: p3
 area: reliability
 summary: The foreign extension modules (foreign-extension.ts, foreign-extension-stdio.ts) are critical code paths for integrating external tools via stdio, but have no test coverage. Failures surface as silent hangs or cryptic subprocess errors at runtime.
 created_at: 2026-03-30T22:38:33Z
-updated_at: 2026-03-30T22:38:33Z
+updated_at: 2026-03-31T00:00:00Z
 ---
 
 ## Problem
