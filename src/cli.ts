@@ -18,6 +18,7 @@ import { ExtensionLoader } from "./extension-loader.js";
 import { builtinExtensions } from "./extensions/index.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
+import { registerKnowledgeCommands, registerMemoryCommands } from "./memory-cli.js";
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
 import { registerTaskCommands } from "./task-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
@@ -167,6 +168,8 @@ registerHistoryCommands(program);
 registerWorkflowCommands(program);
 registerApprovalCommands(program);
 registerTaskCommands(program);
+registerMemoryCommands(program);
+registerKnowledgeCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {
