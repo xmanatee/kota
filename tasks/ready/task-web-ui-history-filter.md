@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-history-filter
 title: Add filter and search to the workflow run history panel in the web UI
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web UI history panel lists all workflow runs in reverse chronological order with no way to filter by workflow name, status, or date. As run history grows, finding a specific run requires manual scrolling.
