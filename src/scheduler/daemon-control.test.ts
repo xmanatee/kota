@@ -31,6 +31,13 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 3 })),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
     subscribeToEvents: vi.fn(() => () => {}),
+    listHistory: vi.fn(() => []),
+    getHistory: vi.fn(() => null),
+    deleteHistory: vi.fn(() => false),
+    listApprovals: vi.fn(() => []),
+    approveApproval: vi.fn(() => null),
+    rejectApproval: vi.fn(() => null),
+    getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
     ...overrides,
   };
 }

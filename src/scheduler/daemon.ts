@@ -1,14 +1,16 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { getApprovalQueue } from "../approval-queue.js";
 import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
+import { getHistory } from "../memory/history.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
-import { DaemonControlServer } from "./daemon-control.js";
+import { DaemonControlServer, type DaemonTaskStatusResponse } from "./daemon-control.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -129,6 +131,13 @@ export class Daemon {
         ];
         return () => stops.forEach((s) => s());
       },
+      listHistory: (search?: string, limit = 20) => getHistory().list({ search, limit }),
+      getHistory: (id: string) => getHistory().load(id) ?? null,
+      deleteHistory: (id: string) => getHistory().remove(id),
+      listApprovals: () => getApprovalQueue().list("pending"),
+      approveApproval: (id: string) => getApprovalQueue().approve(id),
+      rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
+      getTaskStatus: () => this.readTaskStatus(),
     }, this.token);
   }
 
@@ -289,6 +298,54 @@ export class Daemon {
   private saveState(): void {
     const path = join(this.stateDir, STATE_FILE);
     writeJsonFileAtomic(path, this.state);
+  }
+
+  private readTaskStatus(): DaemonTaskStatusResponse {
+    const tasksDir = join(this.projectDir, "tasks");
+    const countedStates = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
+    const detailStates = ["doing", "ready", "backlog", "blocked"] as const;
+
+    const listFiles = (state: string): string[] => {
+      const dir = join(tasksDir, state);
+      try {
+        return readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
+      } catch {
+        return [];
+      }
+    };
+
+    const parseFm = (content: string): Record<string, string> => {
+      const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      if (!m) return {};
+      const fields: Record<string, string> = {};
+      for (const line of m[1].split(/\r?\n/)) {
+        const colon = line.indexOf(":");
+        if (colon === -1) continue;
+        fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+      }
+      return fields;
+    };
+
+    const extractBody = (content: string): string => {
+      const bm = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);
+      return bm ? bm[1].trim() : "";
+    };
+
+    const readState = (state: string): DaemonTaskStatusResponse["tasks"]["doing"] =>
+      listFiles(state).flatMap((file) => {
+        try {
+          const content = readFileSync(join(tasksDir, state, file), "utf-8");
+          const fm = parseFm(content);
+          if (!fm.id || !fm.title) return [];
+          return [{ id: fm.id, title: fm.title, priority: fm.priority ?? "", area: fm.area ?? "", summary: fm.summary ?? "", body: extractBody(content) }];
+        } catch {
+          return [];
+        }
+      });
+
+    const counts = Object.fromEntries(countedStates.map((s) => [s, listFiles(s).length])) as DaemonTaskStatusResponse["counts"];
+    const tasks = Object.fromEntries(detailStates.map((s) => [s, readState(s)])) as DaemonTaskStatusResponse["tasks"];
+    return { counts, tasks };
   }
 
   private log(message: string): void {

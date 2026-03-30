@@ -1,12 +1,12 @@
 ---
 id: task-make-web-and-mobile-clients-daemon-backed
 title: Complete web operator dashboard and prepare mobile API contract
-status: ready
+status: done
 priority: p1
 area: api
 summary: The workflow panel now uses daemon SSE (migration step 4 done), but the remaining web panels (History, Approvals, Tasks) still read from files or standalone routes rather than the daemon API. Unify all web panels to the daemon API and document the contract for mobile clients.
 created_at: 2026-03-27T18:48:30Z
-updated_at: 2026-03-30T06:00:00Z
+updated_at: 2026-03-30T01:00:00Z
 ---
 
 ## Problem

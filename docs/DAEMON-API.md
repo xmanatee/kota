@@ -1,8 +1,8 @@
 # Daemon Control API
 
 When the KOTA daemon is running, it exposes a loopback HTTP control API. This
-is the canonical live source of truth for daemon status, workflow state, and
-workflow control.
+is the canonical live source of truth for daemon status, workflow state,
+history, approvals, and task queue.
 
 ## Discovery
 
@@ -33,12 +33,15 @@ must include an `Authorization: Bearer <token>` header matching the token in
 Routes are tagged with a capability scope:
 
 - **`read`** — observe daemon and workflow state, subscribe to events:
-  `GET /status`, `GET /workflow/status`, `GET /events`
-- **`control`** — mutate workflow dispatch:
+  `GET /status`, `GET /workflow/status`, `GET /events`,
+  `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`
+- **`control`** — mutate workflow dispatch and data:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
-  `POST /workflow/reload`, `POST /workflow/trigger`
+  `POST /workflow/reload`, `POST /workflow/trigger`,
+  `DELETE /history/:id`, `POST /approvals/:id/approve`,
+  `POST /approvals/:id/reject`
 
-## Endpoints
+## Workflow Endpoints
 
 ### GET /status
 
@@ -73,6 +76,9 @@ Returns the full live daemon status including workflow state.
   }
 }
 ```
+
+The `workflow.activeRuns` array exposes all currently running workflow agent
+sessions. Each entry represents a live daemon session.
 
 ### GET /workflow/status
 
@@ -186,23 +192,151 @@ data: {"workflow":"builder","runId":"2026-03-28T...","triggerEvent":"runtime.idl
 subscribes to this endpoint. Web clients can use the proxied
 `GET /api/daemon/events` route on the HTTP server instead.
 
+## History Endpoints
+
+### GET /history
+
+Lists conversation history records.
+
+**Query parameters:** `search` (optional string), `limit` (optional integer, default 20, max 1000)
+
+**Response:**
+
+```json
+{
+  "conversations": [
+    {
+      "id": "abc123",
+      "title": "My conversation",
+      "createdAt": "2026-03-27T12:00:00.000Z",
+      "updatedAt": "2026-03-27T12:01:00.000Z",
+      "model": "claude-opus-4-6",
+      "messageCount": 8,
+      "cwd": "/Users/user/project",
+      "source": "user"
+    }
+  ]
+}
+```
+
+### GET /history/:id
+
+Returns the full conversation data for a given conversation ID.
+
+**Response:** Full `ConversationData` object (record + messages).
+
+Returns `404` if not found.
+
+### DELETE /history/:id
+
+Deletes a conversation by ID.
+
+**Response:** `204 No Content` on success, `404` if not found.
+
+## Approval Endpoints
+
+### GET /approvals
+
+Lists all pending approval requests.
+
+**Response:**
+
+```json
+{
+  "approvals": [
+    {
+      "id": "a1b2c3d4",
+      "tool": "shell",
+      "input": { "command": "rm -rf /tmp/old" },
+      "risk": "dangerous",
+      "reason": "cleanup script",
+      "createdAt": "2026-03-27T12:00:00.000Z",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+### POST /approvals/:id/approve
+
+Approves a pending approval request.
+
+**Response:** `{ "approval": <PendingApproval> }` with status `approved`.
+
+Returns `404` if not found or not pending.
+
+### POST /approvals/:id/reject
+
+Rejects a pending approval request.
+
+**Request body (optional):** `{ "reason": "optional rejection reason" }`
+
+**Response:** `{ "approval": <PendingApproval> }` with status `rejected`.
+
+Returns `404` if not found or not pending.
+
+## Task Endpoints
+
+### GET /tasks
+
+Returns the current task queue status from the `tasks/` directory.
+
+**Response:**
+
+```json
+{
+  "counts": {
+    "inbox": 0,
+    "ready": 3,
+    "backlog": 5,
+    "doing": 1,
+    "blocked": 0
+  },
+  "tasks": {
+    "doing": [
+      {
+        "id": "task-foo",
+        "title": "Implement foo",
+        "priority": "p1",
+        "area": "runtime",
+        "summary": "Short description",
+        "body": "Full markdown body..."
+      }
+    ],
+    "ready": [...],
+    "backlog": [...],
+    "blocked": [...]
+  }
+}
+```
+
 ## Server Routes Backed By Daemon API
 
 The KOTA HTTP server (`kota serve`) proxies these routes to the daemon control
 API when the daemon is running:
 
-| Server route              | Daemon endpoint          |
-|---------------------------|--------------------------|
-| GET /api/daemon/status    | GET /status              |
-| GET /api/daemon/events    | GET /events (SSE proxy)  |
-| GET /api/workflow/status  | GET /workflow/status     |
-| POST /api/workflow/pause  | POST /workflow/pause     |
-| POST /api/workflow/resume | POST /workflow/resume    |
-| POST /api/workflow/abort  | POST /workflow/abort     |
-| POST /api/workflow/reload | POST /workflow/reload    |
+| Server route                        | Daemon endpoint               |
+|-------------------------------------|-------------------------------|
+| GET /api/daemon/status              | GET /status                   |
+| GET /api/daemon/events              | GET /events (SSE proxy)       |
+| GET /api/workflow/status            | GET /workflow/status          |
+| POST /api/workflow/pause            | POST /workflow/pause          |
+| POST /api/workflow/resume           | POST /workflow/resume         |
+| POST /api/workflow/abort            | POST /workflow/abort          |
+| POST /api/workflow/reload           | POST /workflow/reload         |
+| GET /api/history                    | GET /history                  |
+| GET /api/history/:id                | GET /history/:id              |
+| DELETE /api/history/:id             | DELETE /history/:id           |
+| GET /api/approvals                  | GET /approvals                |
+| POST /api/approvals/:id/approve     | POST /approvals/:id/approve   |
+| POST /api/approvals/:id/reject      | POST /approvals/:id/reject    |
+| GET /api/tasks                      | GET /tasks                    |
 
-When the daemon is not running, `/api/daemon/status` returns `{ daemon: null }`.
-The workflow status routes return empty state. Pause and resume return 503.
+When the daemon is not running:
+- `/api/daemon/status` returns `{ daemon: null }`.
+- Workflow status routes return empty state. Pause and resume return 503.
+- History, approvals, and task routes fall back to reading from the local
+  process state (in-process stores and `tasks/` files directly).
 
 Queuing a workflow (`POST /api/workflow/trigger`) writes directly to the
 persistent run queue in `.kota/workflow-state.json`, which the daemon polls.
@@ -213,7 +347,21 @@ the server for run listing and streaming.
 
 When the daemon is running:
 
-- Use the daemon control API for live status and control (not `.kota/` files).
+- Use the daemon control API for live status, history, approvals, and task state.
 - `.kota/` files are persistence and audit evidence, not the live control surface.
 - Run artifacts (`.kota/runs/`) are durable records that are valid to read
   directly; they are not live control state.
+
+## Mobile Client Contract
+
+A thin mobile client can implement full operator functionality using only this
+API. The stable endpoints are:
+
+- **Status**: `GET /status` — daemon health, active workflow sessions
+- **Workflow control**: pause/resume/abort/reload/trigger, SSE events
+- **History**: list, get, delete conversations
+- **Approvals**: list pending, approve, reject
+- **Task queue**: `GET /tasks` — full task state with priorities
+
+All endpoints require the `Authorization: Bearer <token>` header. The token
+and port are discovered from `.kota/daemon-control.json`.

@@ -1,10 +1,13 @@
 import { join } from "node:path";
+import type { PendingApproval } from "../approval-queue.js";
 import { readOptionalJsonFile } from "../json-file.js";
+import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
 import type {
   DaemonControlAddress,
   DaemonLiveStatus,
   DaemonSseEvent,
   DaemonSseEventType,
+  DaemonTaskStatusResponse,
   WorkflowLiveStatus,
 } from "../scheduler/daemon-control.js";
 
@@ -120,6 +123,89 @@ export class DaemonControlClient {
       if (res.status === 409) return { ok: false, alreadyQueued: true };
       if (!res.ok) return null;
       return (await res.json()) as { ok: boolean; queued?: string };
+    } catch {
+      return null;
+    }
+  }
+
+  async listHistory(search?: string, limit?: number): Promise<{ conversations: ConversationRecord[] } | null> {
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (limit !== undefined) params.set("limit", String(limit));
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetchWithTimeout(`${this.baseUrl}/history${query}`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as { conversations: ConversationRecord[] };
+    } catch {
+      return null;
+    }
+  }
+
+  async getHistory(id: string): Promise<ConversationData | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/history/${encodeURIComponent(id)}`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as ConversationData;
+    } catch {
+      return null;
+    }
+  }
+
+  async deleteHistory(id: string): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/history/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: this.authHeaders(),
+      });
+      return res.status === 204;
+    } catch {
+      return false;
+    }
+  }
+
+  async listApprovals(): Promise<{ approvals: PendingApproval[] } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/approvals`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as { approvals: PendingApproval[] };
+    } catch {
+      return null;
+    }
+  }
+
+  async approveApproval(id: string): Promise<{ approval: PendingApproval } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/${encodeURIComponent(id)}/approve`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { approval: PendingApproval };
+    } catch {
+      return null;
+    }
+  }
+
+  async rejectApproval(id: string, reason?: string): Promise<{ approval: PendingApproval } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/${encodeURIComponent(id)}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { approval: PendingApproval };
+    } catch {
+      return null;
+    }
+  }
+
+  async getTaskStatus(): Promise<DaemonTaskStatusResponse | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/tasks`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as DaemonTaskStatusResponse;
     } catch {
       return null;
     }

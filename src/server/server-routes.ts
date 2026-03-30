@@ -119,18 +119,24 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/history") {
-      handleListHistory(res, url);
+      handleListHistory(res, url, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
     const historyMatch = path.match(/^\/api\/history\/([^/]+)$/);
     if (req.method === "GET" && historyMatch) {
-      handleGetHistory(res, historyMatch[1]);
+      handleGetHistory(res, historyMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
     if (req.method === "DELETE" && historyMatch) {
-      handleDeleteHistory(req, res, historyMatch[1]);
+      handleDeleteHistory(req, res, historyMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
@@ -150,7 +156,9 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/approvals") {
-      handleListApprovals(res);
+      handleListApprovals(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
@@ -159,9 +167,11 @@ export function buildRequestHandler(ctx: ServerContext) {
       const approvalId = approvalActionMatch[1];
       const action = approvalActionMatch[2];
       if (action === "approve") {
-        handleApproveApproval(res, approvalId);
+        handleApproveApproval(res, approvalId, DaemonControlClient.fromStateDir()).catch((err) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+        });
       } else {
-        handleRejectApproval(req, res, approvalId).catch((err) => {
+        handleRejectApproval(req, res, approvalId, DaemonControlClient.fromStateDir()).catch((err) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
         });
       }
@@ -169,7 +179,9 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/tasks") {
-      handleTaskStatus(res);
+      handleTaskStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 

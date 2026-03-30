@@ -55,9 +55,9 @@ describe("task-routes", () => {
   });
 
   describe("handleTaskStatus", () => {
-    it("returns 200 with zero counts when tasks directory is missing", () => {
+    it("returns 200 with zero counts when tasks directory is missing", async () => {
       const { res, result } = mockResponse();
-      handleTaskStatus(res, projectDir);
+      await handleTaskStatus(res, null, projectDir);
       expect(result.status).toBe(200);
       const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts).toMatchObject({ inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 });
@@ -65,14 +65,14 @@ describe("task-routes", () => {
       expect(body.tasks.ready).toEqual([]);
     });
 
-    it("counts tasks in each state", () => {
+    it("counts tasks in each state", async () => {
       writeTaskFile(projectDir, "ready", "task-a", { id: "task-a", title: "Task A", priority: "p1" });
       writeTaskFile(projectDir, "ready", "task-b", { id: "task-b", title: "Task B", priority: "p2" });
       writeTaskFile(projectDir, "backlog", "task-c", { id: "task-c", title: "Task C", priority: "p3" });
       writeTaskFile(projectDir, "blocked", "task-d", { id: "task-d", title: "Task D", priority: "p2" });
 
       const { res, result } = mockResponse();
-      handleTaskStatus(res, projectDir);
+      await handleTaskStatus(res, null, projectDir);
       expect(result.status).toBe(200);
       const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts.ready).toBe(2);
@@ -84,7 +84,7 @@ describe("task-routes", () => {
       expect(body.tasks.ready).toHaveLength(2);
     });
 
-    it("returns doing task metadata", () => {
+    it("returns doing task metadata", async () => {
       writeTaskFile(projectDir, "doing", "active", {
         id: "task-active",
         title: "Active task",
@@ -94,7 +94,7 @@ describe("task-routes", () => {
       });
 
       const { res, result } = mockResponse();
-      handleTaskStatus(res, projectDir);
+      await handleTaskStatus(res, null, projectDir);
       expect(result.status).toBe(200);
       const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts.doing).toBe(1);
@@ -108,13 +108,13 @@ describe("task-routes", () => {
       expect(task.body).toContain("Some problem.");
     });
 
-    it("returns tasks for ready, backlog, blocked states", () => {
+    it("returns tasks for ready, backlog, blocked states", async () => {
       writeTaskFile(projectDir, "ready", "r1", { id: "task-r1", title: "Ready task", priority: "p2", area: "ui" });
       writeTaskFile(projectDir, "backlog", "b1", { id: "task-b1", title: "Backlog task", priority: "p3" });
       writeTaskFile(projectDir, "blocked", "bl1", { id: "task-bl1", title: "Blocked task", priority: "p1" });
 
       const { res, result } = mockResponse();
-      handleTaskStatus(res, projectDir);
+      await handleTaskStatus(res, null, projectDir);
       const body = result.body as { tasks: Record<string, Array<Record<string, string>>> };
       expect(body.tasks.ready).toHaveLength(1);
       expect(body.tasks.ready[0].title).toBe("Ready task");
@@ -123,13 +123,13 @@ describe("task-routes", () => {
       expect(body.tasks.blocked).toHaveLength(1);
     });
 
-    it("ignores AGENTS.md in task directories", () => {
+    it("ignores AGENTS.md in task directories", async () => {
       mkdirSync(join(projectDir, "tasks", "ready"), { recursive: true });
       writeFileSync(join(projectDir, "tasks", "ready", "AGENTS.md"), "# Agents");
       writeTaskFile(projectDir, "ready", "real-task", { id: "task-real", title: "Real", priority: "p2" });
 
       const { res, result } = mockResponse();
-      handleTaskStatus(res, projectDir);
+      await handleTaskStatus(res, null, projectDir);
       const body = result.body as { counts: Record<string, number> };
       expect(body.counts.ready).toBe(1);
     });

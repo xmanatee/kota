@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { join } from "node:path";
+import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse } from "./session-pool.js";
 
 type TaskDetail = {
@@ -83,7 +84,19 @@ function readStateTasks(tasksDir: string, state: string): TaskDetail[] {
   return result;
 }
 
-export function handleTaskStatus(res: ServerResponse, projectDir = process.cwd()): void {
+export async function handleTaskStatus(
+  res: ServerResponse,
+  client: DaemonControlClient | null = null,
+  projectDir = process.cwd(),
+): Promise<void> {
+  if (client) {
+    const result = await client.getTaskStatus();
+    if (result) {
+      jsonResponse(res, 200, result);
+      return;
+    }
+  }
+
   const tasksDir = join(projectDir, "tasks");
   const counts = Object.fromEntries(
     COUNTED_STATES.map((state) => [state, listTaskFiles(tasksDir, state).length]),

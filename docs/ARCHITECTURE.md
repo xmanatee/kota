@@ -62,15 +62,21 @@ adding a parallel surface.
   documented as stores in one runtime state subsystem (`docs/STORES.md`).
   They remain separate implementations sharing a provider registry, but the
   public model treats them as typed stores rather than many parallel products.
-- The daemon now exposes a loopback HTTP+JSON control API (`DaemonControlServer`
-  in `src/scheduler/daemon-control.ts`). Live daemon and workflow status come
-  from this API; the server no longer reads `.kota/` files for live control.
-  The CLI operates in daemon-client mode when the daemon is running (control
-  commands route to the daemon API) and falls back to standalone mode otherwise.
-  The daemon/client split is partially formalized: the daemon is the live state
-  owner, clients talk to the daemon API, but the HTTP/session server and daemon
-  are still separate runtime entry points. The next step is making the server
-  daemon-backed instead of a parallel runtime. See `docs/DAEMON-API.md`.
+- The daemon exposes a loopback HTTP+JSON control API (`DaemonControlServer`
+  in `src/scheduler/daemon-control.ts`). Live daemon and workflow status,
+  history, approvals, and task queue all come from this API when the daemon is
+  running. The HTTP server proxies all operator dashboard routes — Workflow,
+  History, Approvals, Tasks — to the daemon control API, falling back to
+  direct reads when offline. The daemon API surface is stable and documented
+  in `docs/DAEMON-API.md`; it is sufficient for thin mobile or desktop clients
+  to perform all common operator actions without bespoke server routes.
+  Active workflow agent sessions are visible via `GET /status` (workflow.activeRuns).
+  The daemon/client split is formalized for operator data: clients query the
+  daemon API rather than reading `.kota/` files directly for live state.
+  The remaining gap is that the HTTP session server (interactive chat sessions,
+  SessionPool) is still a parallel runtime entry point separate from the daemon.
+  The next step is routing the HTTP server's session management through the
+  daemon so there is one unified runtime host. See `docs/DAEMON-API.md`.
 
 ## Protocol Boundaries
 
