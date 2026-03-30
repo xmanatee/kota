@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-history-cli
 title: Add kota workflow runs CLI for browsing past workflow execution history
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: Operators accumulate a growing .kota/runs/ directory with no CLI to browse, filter, or inspect past workflow run outcomes, costs, and artifacts. Adding kota workflow runs commands closes the gap between run-level artifacts and operator visibility.
 created_at: 2026-03-30T16:44:58Z
-updated_at: 2026-03-30T16:44:58Z
+updated_at: 2026-03-30T16:58:10Z
 ---
 
 ## Problem
