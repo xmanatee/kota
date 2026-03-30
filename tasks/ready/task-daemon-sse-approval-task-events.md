@@ -1,7 +1,7 @@
 ---
 id: task-daemon-sse-approval-task-events
 title: Emit SSE events for approval queue and task store mutations
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: The daemon SSE stream only emits workflow-lifecycle events. Approvals and task mutations are invisible to streaming clients, forcing mobile and macOS clients to poll these endpoints on a timer rather than react instantly.

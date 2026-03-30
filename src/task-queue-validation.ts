@@ -250,3 +250,36 @@ export function assertTaskQueueRecommendations(
   }
   return result;
 }
+
+/**
+ * Throws if p1/p2 tasks are sitting in backlog while the ready queue is below the recommended
+ * minimum. These tasks should be promoted to ready rather than waiting for a follow-up explorer run.
+ */
+export function assertNoHighPriorityBacklogStrandedTasks(
+  projectDir: string,
+  options: { recommendedMinReady: number },
+): void {
+  const entries = listTaskEntries(projectDir);
+  const readyCount = entries.filter((e) => e.state === "ready").length;
+
+  if (readyCount >= options.recommendedMinReady) {
+    return;
+  }
+
+  const stranded = entries
+    .filter((e) => e.state === "backlog")
+    .filter((e) => {
+      const { attrs } = parseFlatFrontMatter(e.raw);
+      const priority = String(attrs.priority ?? "");
+      return priority === "p1" || priority === "p2";
+    });
+
+  if (stranded.length === 0) {
+    return;
+  }
+
+  const taskList = stranded.map((e) => `  - ${e.taskId}`).join("\n");
+  throw new Error(
+    `tasks/ready has ${readyCount} task(s) (target: ${options.recommendedMinReady}), but these p1/p2 tasks are still in backlog — promote them to ready:\n${taskList}`,
+  );
+}

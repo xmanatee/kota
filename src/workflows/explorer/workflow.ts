@@ -1,6 +1,7 @@
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
+  assertNoHighPriorityBacklogStrandedTasks,
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
 } from "../../task-queue-validation.js";
@@ -96,6 +97,14 @@ const explorerWorkflow: WorkflowDefinitionInput = {
               assertTaskQueueRecommendations(projectDir, {
                 recommendedMinReady: READY_TASK_TARGET,
                 recommendedMinBacklog: BACKLOG_TASK_TARGET,
+              }),
+          },
+          {
+            id: "high-priority-placement",
+            type: "code",
+            run: ({ projectDir }) =>
+              assertNoHighPriorityBacklogStrandedTasks(projectDir, {
+                recommendedMinReady: READY_TASK_TARGET,
               }),
           },
         ],
