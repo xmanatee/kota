@@ -27,6 +27,8 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - Avoid converging on only tiny maintenance work. Keep a healthy mix of capability work, reliability work, operator experience work, concept cleanup, and maintenance/refactor work.
 - Keep at most one pure mechanical split, rename, or dedup task in `ready/` unless multiple are clearly blocking a larger change.
 - Before creating a new task, scan existing open and terminal task states. If a related task already exists, enrich, reprioritize, or move it instead of creating a duplicate.
+- Before creating or promoting a task that adds a CLI command, feature, or API surface: verify that surface does not already exist in the codebase. Read the relevant source files (CLI registrars, command handlers, types). Promoting a task for something already implemented wastes a builder run and creates cleanup work.
+- If `tasks/backlog/` is below the recommended minimum, actively look for new work rather than waiting. Use the codebase, docs, git history, recent runs, and external sources to find worthwhile tasks. Do not leave the run with a thin backlog if there are obvious gaps to fill.
 - Prefer larger, higher-leverage work over easy queue filler. Think in terms of roadmap quality, not just queue occupancy.
 - When recent work has stayed mostly local to one subsystem, one file family, or one kind of cleanup, deliberately widen your search before deciding the queue is healthy.
 - File size alone is not enough to promote a split task. Only queue a split when the large file is actively hindering change, obscuring a core concept, or repeatedly causing mistakes.
