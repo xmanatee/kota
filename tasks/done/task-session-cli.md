@@ -1,7 +1,7 @@
 ---
 id: task-session-cli
 title: Add kota session CLI commands for operator visibility
-status: ready
+status: done
 priority: p3
 area: cli
 summary: Active sessions are tracked by the daemon and exposed via GET /status, but there are no CLI commands for operators to inspect or list them without querying the API directly.

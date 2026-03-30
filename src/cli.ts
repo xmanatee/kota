@@ -21,6 +21,7 @@ import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { registerKnowledgeCommands, registerMemoryCommands } from "./memory-cli.js";
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
+import { registerSessionCommands } from "./session-cli.js";
 import { registerTaskCommands } from "./task-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
 
@@ -172,6 +173,7 @@ registerTaskCommands(program);
 registerMemoryCommands(program);
 registerKnowledgeCommands(program);
 registerExtensionCommands(program);
+registerSessionCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {
