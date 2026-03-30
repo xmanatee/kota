@@ -1,7 +1,7 @@
 ---
 id: task-dedup-architect-retry
 title: Deduplicate STREAM_MAX_RETRIES/streamBackoff in architect module
-status: ready
+status: done
 priority: p3
 area: refactor
 summary: architect.ts exports STREAM_MAX_RETRIES and streamBackoff that nobody outside the directory imports, and architect-editor.ts duplicates private copies of both. Extract to src/architect/retry.ts so both files share one definition.

@@ -7,13 +7,7 @@ import { extractModifiedFiles } from "../tools/delegate-format.js";
 import { executeTool, getAllTools } from "../tools/index.js";
 import type { Transport } from "../transport.js";
 import { createFailureTracker, detectReplanTrigger, invokeReplanner, recordStep } from "./replan.js";
-
-const STREAM_MAX_RETRIES = 2;
-
-function streamBackoff(attempt: number): Promise<void> {
-  const delay = Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 500;
-  return new Promise((r) => setTimeout(r, delay));
-}
+import { STREAM_MAX_RETRIES, streamBackoff } from "./retry.js";
 
 const EDITOR_SYSTEM = `You are a precise task executor. Execute the plan step-by-step using the provided tools.
 

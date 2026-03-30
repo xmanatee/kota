@@ -3,13 +3,7 @@ import type { CostTracker } from "../cost.js";
 import type { ModelClient } from "../model/model-client.js";
 import { isRetryable } from "../model/streaming.js";
 import type { Transport } from "../transport.js";
-
-export const STREAM_MAX_RETRIES = 2;
-
-export function streamBackoff(attempt: number): Promise<void> {
-  const delay = Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 500;
-  return new Promise((r) => setTimeout(r, delay));
-}
+import { STREAM_MAX_RETRIES, streamBackoff } from "./retry.js";
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.
 
