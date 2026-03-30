@@ -154,4 +154,22 @@ describe("getWebUI", () => {
   it("fetches 50 runs for filterable history", () => {
     expect(html).toContain("limit=50");
   });
+
+  it("includes active sessions panel element", () => {
+    expect(html).toContain('id="active-sessions-list"');
+  });
+
+  it("loads active sessions from GET /api/daemon/status on init", () => {
+    expect(html).toContain("refreshActiveSessions");
+    expect(html).toContain("/api/daemon/status");
+  });
+
+  it("renders empty state when no sessions are active", () => {
+    expect(html).toContain("No active sessions");
+  });
+
+  it("refreshes sessions on session.registered and session.unregistered SSE events", () => {
+    expect(html).toContain("session.registered");
+    expect(html).toContain("session.unregistered");
+  });
 });

@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-session-panel
 title: Add active sessions panel to the web UI dashboard
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The daemon tracks active interactive and workflow agent sessions, but the web dashboard has no panel showing live session activity alongside workflow runs and approvals.

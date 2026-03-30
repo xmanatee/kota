@@ -217,6 +217,8 @@ export const CLIENT_WORKFLOWS_JS = `
     src.addEventListener("queue.changed", onQueueEvent);
     src.addEventListener("approval.changed", function() { refreshApprovals(); });
     src.addEventListener("task.changed", function() { refreshTasks(); });
+    src.addEventListener("session.registered", function() { refreshActiveSessions(); });
+    src.addEventListener("session.unregistered", function() { refreshActiveSessions(); });
 
     src.onerror = function() {
       src.close();

@@ -44,6 +44,10 @@ ${WEB_UI_CSS}
       <div id="workflow-runs-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Sessions</h3>
+      <div id="active-sessions-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Cost (24h)</h3>
       <div id="cost-summary-list"></div>
     </div>

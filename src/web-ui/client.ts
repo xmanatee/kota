@@ -1,6 +1,7 @@
 /** Client-side JavaScript for the KOTA web UI (browser template literal).
  * Assembles section modules into a single IIFE exported as WEB_UI_JS. */
 
+import { CLIENT_ACTIVE_SESSIONS_JS } from "./client-active-sessions.js";
 import { CLIENT_APPROVALS_JS } from "./client-approvals.js";
 import { CLIENT_CHAT_JS } from "./client-chat.js";
 import { CLIENT_COST_JS } from "./client-cost.js";
@@ -28,6 +29,7 @@ export const WEB_UI_JS = /* js */ `
   const $sessionList = document.getElementById("session-list");
   const $historyList = document.getElementById("history-list");
   const $approvalList = document.getElementById("approval-list");
+  const $activeSessionsList = document.getElementById("active-sessions-list");
   const $taskList = document.getElementById("task-queue-list");
   const $workflowList = document.getElementById("workflow-runs-list");
   const $workflowControls = document.getElementById("workflow-controls");
@@ -48,6 +50,7 @@ ${CLIENT_WORKFLOWS_JS}
 ${CLIENT_TASKS_JS}
 ${CLIENT_APPROVALS_JS}
 ${CLIENT_COST_JS}
+${CLIENT_ACTIVE_SESSIONS_JS}
 
   // --- Event listeners ---
 
@@ -82,6 +85,7 @@ ${CLIENT_COST_JS}
   refreshTasks();
   refreshCost();
   refreshApprovals();
+  refreshActiveSessions();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   startWorkflowUpdates();
@@ -89,6 +93,7 @@ ${CLIENT_COST_JS}
   setInterval(refreshTasks, 30000);
   setInterval(refreshCost, 5000);
   setInterval(refreshApprovals, 30000);
+  setInterval(refreshActiveSessions, 30000);
   $input.focus();
 })();
 `;

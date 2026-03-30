@@ -141,6 +141,12 @@ export class Daemon {
           this.bus.on("task.changed", (p) =>
             handler({ type: "task.changed", payload: p as unknown as Record<string, unknown> }),
           ),
+          this.bus.on("session.registered", (p) =>
+            handler({ type: "session.registered", payload: p as unknown as Record<string, unknown> }),
+          ),
+          this.bus.on("session.unregistered", (p) =>
+            handler({ type: "session.unregistered", payload: p as unknown as Record<string, unknown> }),
+          ),
         ];
         return () => stops.forEach((s) => s());
       },
@@ -194,9 +200,11 @@ export class Daemon {
       getTaskStatus: () => this.readTaskStatus(),
       registerSession: (id: string, createdAt: string) => {
         this.sessions.set(id, { id, createdAt, lastActive: Date.now() });
+        this.bus.emit("session.registered", { id, createdAt });
       },
       unregisterSession: (id: string) => {
         this.sessions.delete(id);
+        this.bus.emit("session.unregistered", { id });
       },
       listSessions: () => [...this.sessions.values()],
       triggerWebhookRun: (name: string, secret: string, payload: { body: unknown; headers: Record<string, string>; timestamp: string }) => {

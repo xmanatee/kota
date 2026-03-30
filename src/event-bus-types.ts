@@ -141,6 +141,13 @@ export type BusEvents = {
   "task.changed": {
     counts: { pending: number; in_progress: number; done: number };
   };
+  "session.registered": {
+    id: string;
+    createdAt: string;
+  };
+  "session.unregistered": {
+    id: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */
