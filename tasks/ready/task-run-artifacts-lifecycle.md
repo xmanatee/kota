@@ -1,12 +1,12 @@
 ---
 id: task-run-artifacts-lifecycle
 title: Add run artifact retention policy and compaction for .kota/runs/
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: .kota/runs/ grows unboundedly — each workflow run writes artifacts that are never cleaned up. At hundreds of runs and counting, operators have no policy control over retention, and disk usage will grow indefinitely without intervention.
 created_at: 2026-03-30T16:58:10Z
-updated_at: 2026-03-30T16:58:10Z
+updated_at: 2026-03-30T17:10:57Z
 ---
 
 ## Problem
