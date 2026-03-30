@@ -1,12 +1,12 @@
 ---
 id: task-daemon-control-api-integration-tests
 title: Add integration tests for the daemon control API
-status: backlog
+status: ready
 priority: p3
 area: testing
 summary: DaemonControlServer exposes a growing HTTP+JSON+SSE API used by the CLI, web dashboard, and planned mobile/desktop clients. No integration tests verify the HTTP interface end-to-end, leaving regressions to be caught only at runtime.
 created_at: 2026-03-30T18:46:25Z
-updated_at: 2026-03-30T18:46:25Z
+updated_at: 2026-03-30T19:57:00Z
 ---
 
 ## Problem
