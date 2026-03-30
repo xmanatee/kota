@@ -1,12 +1,12 @@
 ---
 id: task-decouple-telegram-from-workflow-notifications
 title: Decouple Telegram from workflow runtime notification callers
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Four workflow-runtime modules call Telegram directly via callTelegramApi and TELEGRAM_* env vars — failure-alert.ts, approval-notification.ts, budget-guard.ts, and attention-digest.ts. This couples the workflow domain to the Telegram transport, contradicting the channel contribution model used for telegram-status-poll and violating the no-cross-layer-leakage principle.
 created_at: 2026-03-30T16:00:00Z
-updated_at: 2026-03-30T16:00:00Z
+updated_at: 2026-03-30T16:19:34Z
 ---
 
 ## Problem
@@ -54,6 +54,9 @@ read Telegram env vars. Instead:
 - `src/workflow/` must not import from `src/telegram-client.ts` after the change.
 - Prefer bus events over injected callbacks where the event is already a
   naturally useful domain signal (e.g. `workflow.budget.exceeded`).
+- `ExtensionEventProxy` currently only has `emit` — no `subscribe`. Add a
+  `subscribe` method to `ExtensionEventProxy` so the Telegram extension can
+  listen for events in its `onLoad` handler without importing `EventBus` directly.
 - Existing tests must pass; improve testability as a side effect.
 
 ## Done When
