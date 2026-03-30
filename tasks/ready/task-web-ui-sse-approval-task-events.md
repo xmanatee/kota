@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-sse-approval-task-events
 title: Replace web UI approval/task polling with SSE event listeners
-status: backlog
+status: ready
 priority: p3
 area: web-ui
 summary: The web dashboard polls approvals and tasks every 5 seconds. Once the daemon emits approval.changed and task.changed SSE events, the web UI can react instantly via event listeners instead of polling.
 created_at: 2026-03-30T18:28:41Z
-updated_at: 2026-03-30T18:28:41Z
+updated_at: 2026-03-30T18:46:25Z
 ---
 
 ## Problem
@@ -23,8 +23,8 @@ src.addEventListener("workflow.completed", onQueueEvent);
 ```
 
 The same `EventSource` connection is already open. Adding listeners for `approval.changed` and
-`task.changed` on that existing stream is a small change, but polling cannot be removed until the
-daemon emits those events (task-daemon-sse-approval-task-events must land first).
+`task.changed` on that existing stream is a small change. The daemon now emits these events
+(commit 6aa9be1), so the prerequisite is met.
 
 ## Desired Outcome
 
@@ -36,7 +36,6 @@ daemon emits those events (task-daemon-sse-approval-task-events must land first)
 
 ## Constraints
 
-- Depends on `task-daemon-sse-approval-task-events` landing first (daemon must emit these events).
 - The existing EventSource connection is initialized in `client-workflows.ts`; coordinate access
   or promote it to a shared module rather than opening a second connection.
 - Do not remove the polling without the SSE events backend in place — keep polling as a fallback
