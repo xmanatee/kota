@@ -350,11 +350,14 @@ Lists all pending approval requests.
       "risk": "dangerous",
       "reason": "cleanup script",
       "createdAt": "2026-03-27T12:00:00.000Z",
-      "status": "pending"
+      "status": "pending",
+      "timeoutMs": 3600000
     }
   ]
 }
 ```
+
+`timeoutMs` is optional. When present, the item auto-expires after that many milliseconds from `createdAt`. The daemon sweeps for stale approvals periodically; expired items transition to `status: "expired"` and are removed from the pending list. A global sweep TTL can be configured via `approvalTtlMs` in `.kota/config.json` (applies when no per-item `timeoutMs` is set).
 
 ### POST /approvals/:id/approve
 
