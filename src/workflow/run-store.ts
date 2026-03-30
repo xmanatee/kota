@@ -299,7 +299,9 @@ export class WorkflowRunStore {
     trigger: WorkflowRunTrigger,
   ) {
     const state = this.readState();
-    const id = formatRunId(workflow.name);
+    const id = typeof trigger.payload._runId === "string" && trigger.payload._runId
+      ? trigger.payload._runId
+      : formatRunId(workflow.name);
     const runDirPath = join(this.runsDir, id);
     ensureDir(runDirPath);
     ensureDir(join(runDirPath, "steps"));

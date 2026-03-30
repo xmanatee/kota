@@ -1,7 +1,7 @@
 ---
 id: task-workflow-webhook-trigger
 title: Add inbound webhook trigger type for workflows
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Workflows can only start from runtime events, cron, interval, or idle. A webhook trigger lets external systems (CI/CD pipelines, GitHub Actions, monitoring tools) start a workflow via a signed HTTP POST to the daemon.

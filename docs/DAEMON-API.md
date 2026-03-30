@@ -442,6 +442,59 @@ persistent run queue in `.kota/workflow-state.json`, which the daemon polls.
 Run artifacts in `.kota/runs/` are durable evidence and are read directly by
 the server for run listing and streaming.
 
+## Webhook Trigger Endpoint
+
+### POST /webhooks/:name
+
+Triggers a workflow run from an external system. This endpoint uses a separate
+per-workflow secret and does **not** require the daemon Bearer token.
+
+**Auth:** Include the configured secret in the `X-Kota-Webhook-Secret` header.
+The secret is configured in `.kota/config.json` under `webhooks.<workflowName>.secret`.
+The workflow definition must include `trigger: { webhook: true }`.
+
+**Request body:** Optional JSON body. Sent as `body` in `stepOutputs.trigger`.
+
+**Response (200):**
+
+```json
+{ "runId": "2026-03-30T21-00-00-000Z-my-workflow-abc123" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 401 | Missing or invalid `X-Kota-Webhook-Secret` |
+| 404 | Workflow not found or has no `webhook: true` trigger |
+| 409 | Workflow is already running |
+
+**Trigger payload** available to steps as `stepOutputs.trigger`:
+
+```json
+{
+  "body": { "ref": "refs/heads/main" },
+  "headers": { "content-type": "application/json" },
+  "timestamp": "2026-03-30T21:00:00.000Z"
+}
+```
+
+**Configuration example** (`.kota/config.json`, keep gitignored):
+
+```json
+{
+  "webhooks": {
+    "my-workflow": { "secret": "your-secret-here" }
+  }
+}
+```
+
+**Workflow definition example:**
+
+```ts
+triggers: [{ webhook: true }]
+```
+
 ## Session Endpoints
 
 These endpoints let `kota serve` register and unregister interactive chat

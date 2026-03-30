@@ -61,6 +61,14 @@ export type KotaConfig = {
   /** Model tier mapping for adaptive routing. Keys: fast, balanced, capable. */
   modelTiers?: ModelTiers;
 
+  /**
+   * Per-workflow webhook secrets for `POST /webhooks/:workflowName`.
+   * Keys are workflow names; each entry must have a `secret` string.
+   * Keep this in `.kota/config.json` (project-local, gitignored) to avoid
+   * committing secrets.
+   */
+  webhooks?: Record<string, { secret: string }>;
+
   /** TTL for pending approval items in milliseconds. Default: 86400000 (24 hours). */
   approvalTtlMs?: number;
 
@@ -163,6 +171,19 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (mp.type || mp.baseUrl) out.modelProvider = mp;
   }
 
+  if (typeof raw.webhooks === "object" && raw.webhooks !== null && !Array.isArray(raw.webhooks)) {
+    const webhooks: Record<string, { secret: string }> = {};
+    for (const [name, val] of Object.entries(raw.webhooks)) {
+      if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+        const entry = val as Record<string, unknown>;
+        if (typeof entry.secret === "string" && entry.secret) {
+          webhooks[name] = { secret: entry.secret };
+        }
+      }
+    }
+    if (Object.keys(webhooks).length > 0) out.webhooks = webhooks;
+  }
+
   if (typeof raw.approvalTtlMs === "number" && raw.approvalTtlMs > 0) out.approvalTtlMs = raw.approvalTtlMs;
   if (typeof raw.dailyBudgetUsd === "number" && raw.dailyBudgetUsd > 0) out.dailyBudgetUsd = raw.dailyBudgetUsd;
 
@@ -240,6 +261,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.modelTiers = { ...a.modelTiers, ...(val as ModelTiers) };
     } else if (key === "runsGc" && typeof val === "object") {
       merged.runsGc = { ...a.runsGc, ...(val as KotaConfig["runsGc"]) };
+    } else if (key === "webhooks" && typeof val === "object") {
+      merged.webhooks = { ...a.webhooks, ...(val as Record<string, { secret: string }>) };
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];

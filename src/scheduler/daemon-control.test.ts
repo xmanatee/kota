@@ -43,6 +43,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
+    triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     ...overrides,
   };
 }
@@ -354,6 +355,131 @@ describe("DaemonControlServer", () => {
       expect(received).toContain("event: workflow.started");
       expect(received).toContain('"workflow":"builder"');
       controller.abort();
+    });
+  });
+
+  describe("POST /webhooks/:name", () => {
+    const WEBHOOK_SECRET = "test-webhook-secret";
+
+    function makeWebhookHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControlHandle {
+      return makeHandle({
+        triggerWebhookRun: vi.fn((_name: string, secret: string, _payload: unknown) => {
+          if (secret !== WEBHOOK_SECRET) return { ok: false, unauthorized: true };
+          return { ok: true, runId: "2026-01-01T00-00-00-000Z-deploy-abc123" };
+        }),
+        ...overrides,
+      });
+    }
+
+    it("returns 200 with runId when secret is correct", async () => {
+      handle = makeWebhookHandle();
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET, "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: "refs/heads/main" }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ runId: "2026-01-01T00-00-00-000Z-deploy-abc123" });
+    });
+
+    it("returns 401 when secret is missing", async () => {
+      handle = makeWebhookHandle();
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 401 when secret is wrong", async () => {
+      handle = makeWebhookHandle();
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Secret": "wrong-secret" },
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when workflow not found", async () => {
+      handle = makeHandle({
+        triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/unknown`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET },
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 409 when workflow is already running", async () => {
+      handle = makeHandle({
+        triggerWebhookRun: vi.fn(() => ({ ok: false, alreadyRunning: true })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET },
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it("does not require daemon Bearer token", async () => {
+      handle = makeWebhookHandle();
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      // No Authorization header, only webhook secret
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET },
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it("passes request body and headers to handle", async () => {
+      const triggerFn = vi.fn(() => ({ ok: true, runId: "test-run-id" }));
+      handle = makeHandle({ triggerWebhookRun: triggerFn });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET, "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "push" }),
+      });
+
+      expect(triggerFn).toHaveBeenCalledWith(
+        "deploy",
+        WEBHOOK_SECRET,
+        expect.objectContaining({
+          body: { event: "push" },
+          headers: expect.objectContaining({ "content-type": "application/json" }),
+          timestamp: expect.any(String),
+        }),
+      );
     });
   });
 

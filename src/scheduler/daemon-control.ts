@@ -138,6 +138,12 @@ export type DaemonControlHandle = {
   registerSession(id: string, createdAt: string): void;
   unregisterSession(id: string): void;
   listSessions(): InteractiveSession[];
+  // Webhook triggers
+  triggerWebhookRun(
+    name: string,
+    secret: string,
+    payload: { body: unknown; headers: Record<string, string>; timestamp: string },
+  ): { ok: boolean; runId?: string; unauthorized?: boolean; notFound?: boolean; alreadyRunning?: boolean; error?: string };
 };
 
 // Map each route key (method + " " + path pattern) to its required capability scope.
@@ -271,6 +277,13 @@ export class DaemonControlServer {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
     const method = req.method ?? "GET";
+
+    // Webhook triggers use their own secret auth, not the daemon Bearer token.
+    if (method === "POST" && path.startsWith("/webhooks/")) {
+      const workflowName = decodeURIComponent(path.slice("/webhooks/".length));
+      this.handleWebhookRequest(req, res, workflowName);
+      return;
+    }
 
     const match = matchRouteKey(method, path);
     if (!match) {
@@ -492,5 +505,54 @@ export class DaemonControlServer {
     }
 
     jsonResponse(res, 404, { error: "Not found" });
+  }
+
+  private handleWebhookRequest(req: IncomingMessage, res: ServerResponse, workflowName: string): void {
+    if (!workflowName || !/^[a-zA-Z0-9_-]+$/.test(workflowName)) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+    readBody(req)
+      .then((buf) => {
+        const secret = req.headers["x-kota-webhook-secret"];
+        if (!secret || typeof secret !== "string") {
+          jsonResponse(res, 401, { error: "Missing X-Kota-Webhook-Secret header" });
+          return;
+        }
+        let body: unknown = null;
+        if (buf.length > 0) {
+          try {
+            body = JSON.parse(buf.toString()) as unknown;
+          } catch {
+            body = buf.toString();
+          }
+        }
+        const headers: Record<string, string> = {};
+        for (const [key, val] of Object.entries(req.headers)) {
+          if (key !== "x-kota-webhook-secret" && typeof val === "string") {
+            headers[key] = val;
+          }
+        }
+        const payload = { body, headers, timestamp: new Date().toISOString() };
+        const result = this.handle.triggerWebhookRun(workflowName, secret, payload);
+        if (result.unauthorized) {
+          jsonResponse(res, 401, { error: "Invalid webhook secret" });
+          return;
+        }
+        if (result.notFound) {
+          jsonResponse(res, 404, { error: `Workflow "${workflowName}" not found or has no webhook trigger` });
+          return;
+        }
+        if (result.alreadyRunning) {
+          jsonResponse(res, 409, { error: `Workflow "${workflowName}" is already running` });
+          return;
+        }
+        if (!result.ok) {
+          jsonResponse(res, 400, { error: result.error ?? "Failed to start workflow" });
+          return;
+        }
+        jsonResponse(res, 200, { runId: result.runId });
+      })
+      .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
   }
 }

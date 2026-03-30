@@ -199,6 +199,15 @@ export class Daemon {
         this.sessions.delete(id);
       },
       listSessions: () => [...this.sessions.values()],
+      triggerWebhookRun: (name: string, secret: string, payload: { body: unknown; headers: Record<string, string>; timestamp: string }) => {
+        const expectedSecret = this.config.config?.webhooks?.[name]?.secret;
+        if (!expectedSecret || secret !== expectedSecret) return { ok: false, unauthorized: true };
+        const result = this.workflows.enqueueWebhookRun(name, payload);
+        if (result.error?.startsWith("Unknown workflow") || result.error?.includes("no webhook trigger")) {
+          return { ok: false, notFound: true };
+        }
+        return result;
+      },
     }, this.token);
   }
 

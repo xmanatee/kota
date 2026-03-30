@@ -438,6 +438,36 @@ describe("workflow validation", () => {
     expect(definitions.every((definition) => definition.dailyBudgetUsd == null)).toBe(true);
   });
 
+  it("accepts webhook trigger type", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/deploy.ts", {
+          name: "deploy",
+          triggers: [{ webhook: true }],
+          steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.triggers[0]).toEqual({ event: "webhook", cooldownMs: 0, webhook: true });
+  });
+
+  it("rejects webhook trigger combined with event", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/deploy.ts", {
+            name: "deploy",
+            triggers: [{ webhook: true, event: "runtime.idle" } as never],
+            steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(WorkflowDefinitionError);
+  });
+
   it("rejects a workflow.completed trigger with no workflow filter (self-trigger loop)", () => {
     expect(() =>
       validateWorkflowDefinitions(

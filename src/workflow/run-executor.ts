@@ -68,6 +68,12 @@ export function executeWorkflowRun(
     let previousOutput = retryState.previousOutput;
     let hadWarnings = retryState.hadWarnings;
     const acc = { stepOutputsById, stepResultsById, stepOutputs };
+
+    // Inject webhook trigger payload so steps can access it via stepOutputs.trigger
+    if (trigger.event === "webhook") {
+      const { _runId: _ignored, ...webhookPayload } = trigger.payload as { _runId?: string; body: unknown; headers: Record<string, string>; timestamp: string };
+      stepOutputsById.trigger = webhookPayload;
+    }
     const stepDeps = { bus: deps.bus, log: deps.log };
 
     try {

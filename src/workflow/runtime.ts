@@ -7,6 +7,7 @@ import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
 import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import {
@@ -219,6 +220,29 @@ export class WorkflowRuntime {
     this.store.setPendingRuns([...state.pendingRuns, { workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
     this.maybeStartNext();
     return { ok: true, queued: name };
+  }
+
+  enqueueWebhookRun(
+    name: string,
+    webhookPayload: { body: unknown; headers: Record<string, string>; timestamp: string },
+  ): { ok: boolean; runId?: string; alreadyRunning?: boolean; error?: string } {
+    const definition = this.definitions.find((d) => d.name === name);
+    if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
+    if (!definition.enabled) return { ok: false, error: `Workflow "${name}" is disabled` };
+    if (!definition.triggers.some((t) => t.webhook === true)) {
+      return { ok: false, error: `Workflow "${name}" has no webhook trigger` };
+    }
+    if (this.activeRuns.has(name)) return { ok: false, alreadyRunning: true };
+    const runId = formatRunId(name);
+    const now = Date.now();
+    const trigger: WorkflowRunTrigger = {
+      event: "webhook",
+      payload: { ...webhookPayload, _runId: runId },
+    };
+    const state = this.store.readState();
+    this.store.setPendingRuns([...state.pendingRuns, { workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
+    this.maybeStartNext();
+    return { ok: true, runId };
   }
 
   getDefinitionCount(): number {

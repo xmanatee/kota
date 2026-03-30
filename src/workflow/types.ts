@@ -44,6 +44,12 @@ export type WorkflowTriggerInput = {
   schedule?: string;
   /** Interval in milliseconds. Fires immediately on first run, then every N ms. */
   intervalMs?: number;
+  /**
+   * When true, this trigger fires when the daemon receives a signed HTTP POST
+   * to `POST /webhooks/:workflowName`. Secret is configured in daemon config
+   * under `webhooks.<workflowName>.secret`.
+   */
+  webhook?: boolean;
 };
 
 export type WorkflowTrigger = {
@@ -54,6 +60,8 @@ export type WorkflowTrigger = {
   schedule?: string;
   /** Interval in milliseconds, if this is an interval trigger. */
   intervalMs?: number;
+  /** When true, this trigger fires via the daemon webhook endpoint. */
+  webhook?: boolean;
 };
 
 export type WorkflowRunTrigger = {

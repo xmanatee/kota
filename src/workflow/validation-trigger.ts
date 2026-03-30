@@ -19,6 +19,16 @@ export function validateTrigger(
     );
   }
 
+  if (trigger.webhook === true) {
+    if (trigger.event != null || trigger.filter != null || trigger.schedule != null || trigger.intervalMs != null) {
+      throw new WorkflowDefinitionError(
+        `triggers[${index}]: webhook triggers do not support event, filter, schedule, or intervalMs`,
+        definitionPath,
+      );
+    }
+    return { event: "webhook", cooldownMs: 0, webhook: true };
+  }
+
   const isSchedule = trigger.schedule != null || trigger.intervalMs != null;
 
   if (isSchedule && trigger.filter != null) {
