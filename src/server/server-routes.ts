@@ -49,6 +49,7 @@ export type ServerContext = {
   bus: EventBus;
   moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
+  daemonClient?: DaemonControlClient | null;
 };
 
 export function buildRequestHandler(ctx: ServerContext) {
@@ -78,12 +79,18 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "POST" && path === "/api/sessions") {
-      handleCreateSession(res, ctx.pool, ctx.makeAgent);
+      const sessionId = handleCreateSession(res, ctx.pool, ctx.makeAgent);
+      if (sessionId && ctx.daemonClient) {
+        void ctx.daemonClient.registerSession(sessionId, new Date().toISOString());
+      }
       return;
     }
 
     if (req.method === "POST" && path === "/api/chat") {
-      handleChat(req, res, ctx.pool, ctx.makeAgent).catch((err) => {
+      const onSessionCreate = ctx.daemonClient
+        ? (id: string) => { void ctx.daemonClient!.registerSession(id, new Date().toISOString()); }
+        : undefined;
+      handleChat(req, res, ctx.pool, ctx.makeAgent, onSessionCreate).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
@@ -114,7 +121,11 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     const deleteSessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
     if (req.method === "DELETE" && deleteSessionMatch) {
-      handleDeleteSession(res, ctx.pool, deleteSessionMatch[1]);
+      const sessionId = deleteSessionMatch[1];
+      handleDeleteSession(res, ctx.pool, sessionId);
+      if (ctx.daemonClient) {
+        void ctx.daemonClient.unregisterSession(sessionId);
+      }
       return;
     }
 

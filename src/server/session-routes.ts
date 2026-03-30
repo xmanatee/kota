@@ -38,6 +38,7 @@ export async function handleChat(
   res: ServerResponse,
   pool: SessionPool,
   makeAgent: (transport: Transport) => AgentSession,
+  onSessionCreate?: (id: string) => void,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -65,6 +66,7 @@ export async function handleChat(
   } else {
     try {
       session = pool.create(makeAgent);
+      onSessionCreate?.(session.id);
     } catch (err) {
       jsonResponse(res, 503, { error: (err as Error).message });
       return;
@@ -88,12 +90,14 @@ export function handleCreateSession(
   res: ServerResponse,
   pool: SessionPool,
   makeAgent: (transport: Transport) => AgentSession,
-): void {
+): string | null {
   try {
     const session = pool.create(makeAgent);
     jsonResponse(res, 201, { session_id: session.id });
+    return session.id;
   } catch (err) {
     jsonResponse(res, 503, { error: (err as Error).message });
+    return null;
   }
 }
 

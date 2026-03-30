@@ -34,12 +34,14 @@ Routes are tagged with a capability scope:
 
 - **`read`** — observe daemon and workflow state, subscribe to events:
   `GET /status`, `GET /workflow/status`, `GET /events`,
-  `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`
+  `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
+  `GET /sessions`
 - **`control`** — mutate workflow dispatch and data:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
   `POST /workflow/reload`, `POST /workflow/trigger`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
-  `POST /approvals/:id/reject`
+  `POST /approvals/:id/reject`,
+  `POST /sessions/register`, `DELETE /sessions/:id`
 
 ## Workflow Endpoints
 
@@ -78,7 +80,18 @@ Returns the full live daemon status including workflow state.
 ```
 
 The `workflow.activeRuns` array exposes all currently running workflow agent
-sessions. Each entry represents a live daemon session.
+sessions. The `sessions` array lists active interactive sessions registered by
+`kota serve`.
+
+**Response includes:**
+
+```json
+{
+  "sessions": [
+    { "id": "a1b2c3d4", "createdAt": "2026-03-30T16:00:00.000Z", "lastActive": 1743350400000 }
+  ]
+}
+```
 
 ### GET /workflow/status
 
@@ -342,6 +355,45 @@ Queuing a workflow (`POST /api/workflow/trigger`) writes directly to the
 persistent run queue in `.kota/workflow-state.json`, which the daemon polls.
 Run artifacts in `.kota/runs/` are durable evidence and are read directly by
 the server for run listing and streaming.
+
+## Session Endpoints
+
+These endpoints let `kota serve` register and unregister interactive chat
+sessions so the daemon is the single source of truth for live session state.
+
+### GET /sessions
+
+Returns all currently registered interactive sessions.
+
+**Response:**
+
+```json
+{
+  "sessions": [
+    { "id": "a1b2c3d4", "createdAt": "2026-03-30T16:00:00.000Z", "lastActive": 1743350400000 }
+  ]
+}
+```
+
+### POST /sessions/register
+
+Registers an interactive session with the daemon. Called by `kota serve` when
+a new session is created.
+
+**Request body:**
+
+```json
+{ "id": "a1b2c3d4", "createdAt": "2026-03-30T16:00:00.000Z" }
+```
+
+**Response:** `{ "ok": true }`
+
+### DELETE /sessions/:id
+
+Unregisters a session. Called by `kota serve` when a session is deleted or
+the server shuts down.
+
+**Response:** `204 No Content`
 
 ## Source Of Truth Boundary
 

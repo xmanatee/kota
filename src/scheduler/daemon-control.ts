@@ -43,6 +43,7 @@ export type WorkflowLiveStatus = {
 export type DaemonLiveStatus = DaemonState & {
   running: boolean;
   workflow: WorkflowLiveStatus;
+  sessions: InteractiveSession[];
 };
 
 export type DaemonSseEventType =
@@ -75,6 +76,12 @@ export type DaemonTaskStatusResponse = {
   };
 };
 
+export type InteractiveSession = {
+  id: string;
+  createdAt: string;
+  lastActive: number;
+};
+
 export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
   getWorkflowLiveStatus(): WorkflowLiveStatus;
@@ -94,6 +101,10 @@ export type DaemonControlHandle = {
   rejectApproval(id: string, reason?: string): PendingApproval | null;
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;
+  // Interactive sessions
+  registerSession(id: string, createdAt: string): void;
+  unregisterSession(id: string): void;
+  listSessions(): InteractiveSession[];
 };
 
 // Map each route key (method + " " + path pattern) to its required capability scope.
@@ -113,6 +124,9 @@ const ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "POST /approvals/:id/approve": "control",
   "POST /approvals/:id/reject": "control",
   "GET /tasks": "read",
+  "GET /sessions": "read",
+  "POST /sessions/register": "control",
+  "DELETE /sessions/:id": "control",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -253,7 +267,8 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/status") {
       const daemonState = this.handle.getDaemonLiveState();
       const workflowStatus = this.handle.getWorkflowLiveStatus();
-      const body: DaemonLiveStatus = { ...daemonState, workflow: workflowStatus };
+      const sessions = this.handle.listSessions();
+      const body: DaemonLiveStatus = { ...daemonState, workflow: workflowStatus, sessions };
       jsonResponse(res, 200, body);
       return;
     }
@@ -384,6 +399,41 @@ export class DaemonControlServer {
 
     if (method === "GET" && path === "/tasks") {
       jsonResponse(res, 200, this.handle.getTaskStatus());
+      return;
+    }
+
+    if (method === "GET" && path === "/sessions") {
+      jsonResponse(res, 200, { sessions: this.handle.listSessions() });
+      return;
+    }
+
+    if (method === "POST" && path === "/sessions/register") {
+      readBody(req)
+        .then((buf) => {
+          let body: Record<string, unknown>;
+          try {
+            body = JSON.parse(buf.toString()) as Record<string, unknown>;
+          } catch {
+            jsonResponse(res, 400, { error: "Invalid JSON body" });
+            return;
+          }
+          const id = body.id;
+          const createdAt = body.createdAt;
+          if (!id || typeof id !== "string" || !createdAt || typeof createdAt !== "string") {
+            jsonResponse(res, 400, { error: "id and createdAt are required strings" });
+            return;
+          }
+          this.handle.registerSession(id, createdAt);
+          jsonResponse(res, 200, { ok: true });
+        })
+        .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
+      return;
+    }
+
+    if (method === "DELETE" && params.id && path.startsWith("/sessions/")) {
+      this.handle.unregisterSession(params.id);
+      res.writeHead(204);
+      res.end();
       return;
     }
 

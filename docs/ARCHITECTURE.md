@@ -73,10 +73,14 @@ adding a parallel surface.
   Active workflow agent sessions are visible via `GET /status` (workflow.activeRuns).
   The daemon/client split is formalized for operator data: clients query the
   daemon API rather than reading `.kota/` files directly for live state.
-  The remaining gap is that the HTTP session server (interactive chat sessions,
-  SessionPool) is still a parallel runtime entry point separate from the daemon.
-  The next step is routing the HTTP server's session management through the
-  daemon so there is one unified runtime host. See `docs/DAEMON-API.md`.
+  When the daemon is running, `kota serve` connects to it as a client: it
+  registers and unregisters interactive sessions via the daemon control API
+  (`POST /sessions/register`, `DELETE /sessions/:id`) so the daemon is the
+  single source of truth for all live sessions. `GET /status` returns active
+  interactive sessions alongside workflow active runs. `kota serve` skips
+  starting its own disk-backed scheduler when the daemon is detected, falling
+  back to standalone mode (own scheduler and session pool) when no daemon is
+  running. See `docs/DAEMON-API.md`.
 - `KotaExtension` now has a `channels` field following the same pattern as
   `workflows`, `tools`, and `agents`. A `ChannelDef` type in `src/channel.ts`
   captures the channel protocol: name, description, and a factory that receives

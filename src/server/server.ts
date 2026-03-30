@@ -15,6 +15,7 @@ import type { RouteRegistration } from "../extension-types.js";
 import { AgentSession, type LoopOptions } from "../loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
+import { DaemonControlClient } from "./daemon-client.js";
 import { NotificationHub } from "./server-notifications.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
@@ -33,20 +34,32 @@ export function startServer(options: ServerOptions = {}): Server {
   const config = options.config ?? loadConfig();
   const pool = new SessionPool();
 
+  const daemonClient = DaemonControlClient.fromStateDir();
+  const daemonRunning = daemonClient !== null;
+
   const bus = initEventBus();
-  initScheduler(process.cwd());
+  // When the daemon is running, it owns the scheduler. Use an in-memory-only
+  // scheduler here so the server does not start a second disk-backed instance.
+  if (daemonRunning) {
+    initScheduler(process.cwd(), null);
+  } else {
+    initScheduler(process.cwd());
+  }
   initExtensionLogStore(process.cwd());
   const scheduler = getScheduler();
 
   const hub = new NotificationHub();
 
-  const stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
-    hub.handleDueItems(dueItems);
-  });
-
-  const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
-    hub.handleDueItems(dueItems);
-  });
+  let stopBusConnection = (): void => {};
+  let stopScheduler = (): void => {};
+  if (!daemonRunning) {
+    stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
+      hub.handleDueItems(dueItems);
+    });
+    stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
+      hub.handleDueItems(dueItems);
+    });
+  }
 
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
   cleanupTimer.unref();
@@ -69,6 +82,7 @@ export function startServer(options: ServerOptions = {}): Server {
     bus,
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
+    daemonClient,
   });
 
   const server = createServer(handleRequest);

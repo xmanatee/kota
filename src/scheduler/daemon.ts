@@ -11,7 +11,7 @@ import { getHistory } from "../memory/history.js";
 import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
-import { DaemonControlServer, type DaemonTaskStatusResponse } from "./daemon-control.js";
+import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession } from "./daemon-control.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -52,6 +52,7 @@ export class Daemon {
   private state: DaemonState;
   private unsubscribe: (() => void) | null = null;
   private activeChannels: ChannelAdapter[] = [];
+  private sessions = new Map<string, InteractiveSession>();
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -141,6 +142,13 @@ export class Daemon {
       approveApproval: (id: string) => getApprovalQueue().approve(id),
       rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
       getTaskStatus: () => this.readTaskStatus(),
+      registerSession: (id: string, createdAt: string) => {
+        this.sessions.set(id, { id, createdAt, lastActive: Date.now() });
+      },
+      unregisterSession: (id: string) => {
+        this.sessions.delete(id);
+      },
+      listSessions: () => [...this.sessions.values()],
     }, this.token);
   }
 

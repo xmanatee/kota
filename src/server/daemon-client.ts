@@ -211,6 +211,31 @@ export class DaemonControlClient {
     }
   }
 
+  async registerSession(id: string, createdAt: string): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ id, createdAt }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async unregisterSession(id: string): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: this.authHeaders(),
+      });
+      return res.ok || res.status === 204;
+    } catch {
+      return false;
+    }
+  }
+
   async *events(): AsyncGenerator<DaemonSseEvent> {
     let res: Response;
     try {
