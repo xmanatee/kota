@@ -6,20 +6,21 @@ priority: p2
 area: runtime
 summary: The workflow runtime serializes all runs through a single active-run slot. Independent workflows block on each other, creating head-of-line blocking that limits throughput as the workflow set grows.
 created_at: 2026-03-27T23:05:32Z
-updated_at: 2026-03-29T22:35:00Z
+updated_at: 2026-03-30T01:00:00Z
 ---
 
 ## Problem
 
-`WorkflowQueue` and `WorkflowRuntime` allow at most one active run at a time.
-A slow builder or explorer run blocks every other workflow — including
-lightweight code-only workflows, status checks, and alert handlers — until it
-completes or times out.
+`WorkflowRuntime` has a `maxConcurrentRuns` config, but it defaults to 1 and
+applies a single global cap with no distinction between agent-step workflows
+and lightweight code-only workflows.
 
-As KOTA gains more workflows (explorer, builder, improver, cost reporters,
-attention digests, etc.), serial execution means unrelated work queues behind
-whatever happens to be running. An explorer run that takes 5 minutes blocks an
-attention-digest that takes 10 seconds.
+A slow builder or explorer run (agent step, long-running) blocks every other
+workflow — including lightweight code-only workflows like the attention digest
+— until it completes or times out. As KOTA gains more workflows (explorer,
+builder, improver, cost reporters, attention digests, etc.), serial execution
+means unrelated work queues behind whatever happens to be running. An explorer
+run that takes 5 minutes blocks an attention-digest that takes 10 seconds.
 
 ## Desired Outcome
 

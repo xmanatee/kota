@@ -1,12 +1,12 @@
 ---
 id: task-workflow-definitions-inspect-cli
 title: Add kota workflow definitions CLI for operator visibility
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: Operators have no CLI command to list or inspect loaded workflow definitions. As the workflow set grows beyond the three built-ins, operators need a fast way to see what workflows are loaded, what triggers they respond to, and how they are configured.
 created_at: 2026-03-30T00:00:00Z
-updated_at: 2026-03-30T00:00:00Z
+updated_at: 2026-03-30T01:00:00Z
 ---
 
 ## Problem
