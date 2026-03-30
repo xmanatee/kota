@@ -141,6 +141,17 @@ export function validateTaskQueue(
         paths: [entry.path],
       });
     }
+    const REQUIRED_ATTRS = ["title", "priority", "area", "summary", "created_at", "updated_at"] as const;
+    for (const attr of REQUIRED_ATTRS) {
+      if (typeof attrs[attr] !== "string" || String(attrs[attr]).trim().length === 0) {
+        findings.push({
+          code: "task-missing-required-attr",
+          severity: "error",
+          message: `${entry.path} is missing required frontmatter field: ${attr}`,
+          paths: [entry.path],
+        });
+      }
+    }
   }
 
   for (const [taskId, states] of seenTaskStates) {
