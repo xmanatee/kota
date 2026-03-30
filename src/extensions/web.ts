@@ -46,15 +46,15 @@ const webModule: KotaExtension = {
           process.exit(1);
         }
 
-        // Collect routes from all loaded modules via ExtensionContext
-        const moduleRoutes = ctx.getRoutes();
+        // Collect routes from all loaded extensions via ExtensionContext
+        const extensionRoutes = ctx.getRoutes();
 
         startServer({
           port,
           model: opts.model || ctx.config.model,
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
-          moduleRoutes,
+          extensionRoutes,
         });
       });
 

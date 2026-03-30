@@ -25,8 +25,8 @@ export type ServerOptions = {
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
-  /** Routes registered by modules (e.g., vercel-adapter). */
-  moduleRoutes?: RouteRegistration[];
+  /** Routes registered by extensions (e.g., vercel-adapter). */
+  extensionRoutes?: RouteRegistration[];
 };
 
 export function startServer(options: ServerOptions = {}): Server {
@@ -80,7 +80,7 @@ export function startServer(options: ServerOptions = {}): Server {
     scheduler,
     hub,
     bus,
-    moduleRoutes: options.moduleRoutes ?? [],
+    extensionRoutes: options.extensionRoutes ?? [],
     makeAgent,
     daemonClient,
   });

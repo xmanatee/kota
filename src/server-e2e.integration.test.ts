@@ -113,8 +113,8 @@ beforeAll(async () => {
   console.log = () => {};
   const loader = new ExtensionLoader({} as any, false, { commandsOnly: true });
   await loader.loadAll(builtinExtensions);
-  const moduleRoutes = loader.getRoutes();
-  server = startServer({ port: 0, config: {} as any, moduleRoutes });
+  const extensionRoutes = loader.getRoutes();
+  server = startServer({ port: 0, config: {} as any, extensionRoutes });
   const port = await waitForPort(server);
   console.log = origLog;
   baseUrl = `http://localhost:${port}`;

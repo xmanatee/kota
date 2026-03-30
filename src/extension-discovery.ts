@@ -24,7 +24,7 @@ const PACKAGES_DIR = ".kota/packages";
  */
 export async function discoverExtensions(cwd?: string, verbose = false): Promise<KotaExtension[]> {
   const base = cwd || process.cwd();
-  const modules: KotaExtension[] = [];
+  const extensions: KotaExtension[] = [];
 
   // 1. File-based plugins from .kota/plugins/
   const pluginDir = resolve(base, PLUGIN_DIR);
@@ -35,8 +35,8 @@ export async function discoverExtensions(cwd?: string, verbose = false): Promise
 
     for (const file of files) {
       try {
-        const mod = await importPlugin(join(pluginDir, file), file);
-        modules.push(mod);
+        const ext = await importPlugin(join(pluginDir, file), file);
+        extensions.push(ext);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[kota] Plugin ${file} failed to load: ${msg}`);
@@ -45,26 +45,26 @@ export async function discoverExtensions(cwd?: string, verbose = false): Promise
   }
 
   // 2. npm-installed packages from .kota/packages/
-  const npmModules = await discoverNpmPackages(base);
-  modules.push(...npmModules);
+  const npmExtensions = await discoverNpmPackages(base);
+  extensions.push(...npmExtensions);
 
   // 3. Manifest-based extensions from .kota/extensions/*/manifest.json
   const manifestExtensions = discoverManifestExtensions(base);
-  modules.push(...manifestExtensions);
+  extensions.push(...manifestExtensions);
 
-  if (modules.length > 0 && verbose) {
-    const toolCount = modules.reduce((n, m) => n + (m.tools?.length ?? 0), 0);
-    console.error(`[kota] Discovered ${modules.length} plugin(s) with ${toolCount} tool(s)`);
+  if (extensions.length > 0 && verbose) {
+    const toolCount = extensions.reduce((n, ext) => n + (ext.tools?.length ?? 0), 0);
+    console.error(`[kota] Discovered ${extensions.length} extension(s) with ${toolCount} tool(s)`);
   }
 
-  return modules;
+  return extensions;
 }
 
 /** Import a single plugin file and adapt its export to KotaExtension. */
 async function importPlugin(absPath: string, displayName: string): Promise<KotaExtension> {
   const url = pathToFileURL(absPath).href;
-  const mod = await import(url);
-  return adaptExport(mod.default ?? mod, displayName);
+  const imported = await import(url);
+  return adaptExport(imported.default ?? imported, displayName);
 }
 
 /** Discover npm packages from .kota/packages/node_modules/. */
@@ -83,17 +83,17 @@ async function discoverNpmPackages(cwd: string): Promise<KotaExtension[]> {
   const nodeModules = resolve(cwd, PACKAGES_DIR, "node_modules");
   if (!existsSync(nodeModules)) return [];
 
-  const modules: KotaExtension[] = [];
+  const extensions: KotaExtension[] = [];
   for (const pkgName of Object.keys(deps).sort()) {
     try {
-      const mod = await importNpmPackage(nodeModules, pkgName);
-      modules.push(mod);
+      const ext = await importNpmPackage(nodeModules, pkgName);
+      extensions.push(ext);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[kota] npm package "${pkgName}" failed to load: ${msg}`);
     }
   }
-  return modules;
+  return extensions;
 }
 
 /** Import a single npm package and adapt its export to KotaExtension. */

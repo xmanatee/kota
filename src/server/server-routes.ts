@@ -47,7 +47,7 @@ export type ServerContext = {
   scheduler: Scheduler;
   hub: NotificationHub;
   bus: EventBus;
-  moduleRoutes: RouteRegistration[];
+  extensionRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
   daemonClient?: DaemonControlClient | null;
 };
@@ -287,7 +287,7 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
-    for (const route of ctx.moduleRoutes) {
+    for (const route of ctx.extensionRoutes) {
       if (req.method === route.method && path === route.path) {
         Promise.resolve(route.handler(req, res)).catch((err) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });

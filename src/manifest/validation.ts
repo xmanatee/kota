@@ -5,9 +5,9 @@
 import { getCoreRegistrations } from "../tools/index.js";
 import type { ValidationError } from "./types.js";
 
-const MODULE_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
+const EXTENSION_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
 
-const BUILTIN_MODULE_NAMES = new Set([
+const BUILTIN_EXTENSION_NAMES = new Set([
 	"working-memory",
 	"secrets",
 	"memory",
@@ -49,16 +49,16 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 	// Name
 	if (typeof m.name !== "string" || !m.name) {
 		errors.push({ field: "name", message: "name is required (string)" });
-	} else if (!MODULE_NAME_RE.test(m.name)) {
+	} else if (!EXTENSION_NAME_RE.test(m.name)) {
 		errors.push({
 			field: "name",
 			message:
 				"name must be 3-50 chars, lowercase letters/digits/hyphens/underscores",
 		});
-	} else if (BUILTIN_MODULE_NAMES.has(m.name)) {
+	} else if (BUILTIN_EXTENSION_NAMES.has(m.name)) {
 		errors.push({
 			field: "name",
-			message: `"${m.name}" conflicts with a built-in module`,
+			message: `"${m.name}" conflicts with a built-in extension`,
 		});
 	}
 

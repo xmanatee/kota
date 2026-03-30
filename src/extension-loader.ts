@@ -6,7 +6,7 @@ import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { createExtensionContext, type ExtensionContextParams } from "./extension-context.js";
 import { topoSort } from "./extension-deps.js";
-import { getExtensionDependents, type LifecycleState, reloadExtension, unloadAllModules, unloadExtension } from "./extension-lifecycle.js";
+import { getExtensionDependents, type LifecycleState, reloadExtension, unloadAllExtensions, unloadExtension } from "./extension-lifecycle.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
@@ -15,7 +15,7 @@ import { executeTool, getExtensionToolNames, registerTool } from "./tools/index.
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
 
 export type ExtensionLoaderOptions = {
-  /** Skip tool registration — only load modules for command/route discovery. */
+  /** Skip tool registration — only load extensions for command/route discovery. */
   commandsOnly?: boolean;
 };
 
@@ -102,74 +102,74 @@ export class ExtensionLoader {
     return createExtensionContext(params, extensionName);
   }
 
-  async load(mod: KotaExtension): Promise<void> {
-    if (this.extensions.some((m) => m.name === mod.name)) {
-      throw new Error(`Duplicate extension name: "${mod.name}"`);
+  async load(ext: KotaExtension): Promise<void> {
+    if (this.extensions.some((e) => e.name === ext.name)) {
+      throw new Error(`Duplicate extension name: "${ext.name}"`);
     }
 
-    if (mod.dependencies) {
-      for (const dep of mod.dependencies) {
-        if (!this.extensions.some((m) => m.name === dep)) {
-          throw new Error(`Extension "${mod.name}" requires "${dep}" which is not loaded`);
+    if (ext.dependencies) {
+      for (const dep of ext.dependencies) {
+        if (!this.extensions.some((e) => e.name === dep)) {
+          throw new Error(`Extension "${ext.name}" requires "${dep}" which is not loaded`);
         }
       }
     }
 
-    const ctx = this.createContext(mod.name);
-    const tools: ToolDef[] | undefined = mod.tools
-      ? typeof mod.tools === "function" ? mod.tools(ctx) : mod.tools
+    const ctx = this.createContext(ext.name);
+    const tools: ToolDef[] | undefined = ext.tools
+      ? typeof ext.tools === "function" ? ext.tools(ctx) : ext.tools
       : undefined;
 
     if (tools && !this.commandsOnly) {
       for (const def of tools) {
-        registerTool(def.tool, def.runner, mod.name);
+        registerTool(def.tool, def.runner, ext.name);
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }
-      this.extensionToolCounts.set(mod.name, tools.length);
+      this.extensionToolCounts.set(ext.name, tools.length);
     }
 
-    if (mod.workflows && !this.commandsOnly) {
-      for (const def of mod.workflows) {
-        this.contributedWorkflows.push({ ...def, definitionPath: `extensions/${mod.name}` });
+    if (ext.workflows && !this.commandsOnly) {
+      for (const def of ext.workflows) {
+        this.contributedWorkflows.push({ ...def, definitionPath: `extensions/${ext.name}` });
       }
     }
 
-    if (mod.channels && !this.commandsOnly) {
-      for (const def of mod.channels) {
+    if (ext.channels && !this.commandsOnly) {
+      for (const def of ext.channels) {
         this.contributedChannels.push(def);
       }
     }
 
-    if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
+    if (ext.onLoad && !this.commandsOnly) await ext.onLoad(ctx);
 
-    if (mod.skills && !this.commandsOnly) {
-      for (const skill of mod.skills) {
+    if (ext.skills && !this.commandsOnly) {
+      for (const skill of ext.skills) {
         try {
           const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
           if (content) this.skillContents.push(`### ${skill.name}\n${content}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Extension "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
+          console.error(`[kota] Extension "${ext.name}" skill "${skill.name}" failed to load: ${msg}`);
         }
       }
     }
 
-    this.extensions.push(mod);
-    this.extensionRegistry.set(mod.name, mod);
+    this.extensions.push(ext);
+    this.extensionRegistry.set(ext.name, ext);
     if (this.verbose) {
-      const tc = this.extensionToolCounts.get(mod.name) ?? 0;
-      console.error(`[kota] Extension "${mod.name}" loaded (${tc} tools)`);
+      const tc = this.extensionToolCounts.get(ext.name) ?? 0;
+      console.error(`[kota] Extension "${ext.name}" loaded (${tc} tools)`);
     }
   }
 
-  async loadAll(modules: KotaExtension[]): Promise<void> {
-    const sorted = topoSort(modules);
-    for (const mod of sorted) {
+  async loadAll(extensions: KotaExtension[]): Promise<void> {
+    const sorted = topoSort(extensions);
+    for (const ext of sorted) {
       try {
-        await this.load(mod);
+        await this.load(ext);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Extension "${mod.name}" failed to load: ${msg}`);
+        console.error(`[kota] Extension "${ext.name}" failed to load: ${msg}`);
       }
     }
     this.activateConfiguredProviders();
@@ -180,13 +180,13 @@ export class ExtensionLoader {
 
   getCommands(): Command[] {
     const commands: Command[] = [];
-    for (const mod of this.extensions) {
-      if (mod.commands) {
+    for (const ext of this.extensions) {
+      if (ext.commands) {
         try {
-          commands.push(...mod.commands(this.createContext(mod.name)));
+          commands.push(...ext.commands(this.createContext(ext.name)));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Extension "${mod.name}" command registration failed: ${msg}`);
+          console.error(`[kota] Extension "${ext.name}" command registration failed: ${msg}`);
         }
       }
     }
@@ -198,13 +198,13 @@ export class ExtensionLoader {
     this.collectingRoutes = true;
     try {
       const routes: RouteRegistration[] = [];
-      for (const mod of this.extensions) {
-        if (mod.routes) {
+      for (const ext of this.extensions) {
+        if (ext.routes) {
           try {
-            routes.push(...mod.routes(this.createContext(mod.name)));
+            routes.push(...ext.routes(this.createContext(ext.name)));
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Extension "${mod.name}" route registration failed: ${msg}`);
+            console.error(`[kota] Extension "${ext.name}" route registration failed: ${msg}`);
           }
         }
       }
@@ -243,7 +243,7 @@ export class ExtensionLoader {
     return reloadExtension(
       extensionName,
       this.lifecycleState,
-      (mod) => this.load(mod),
+      (ext) => this.load(ext),
     );
   }
 
@@ -252,7 +252,7 @@ export class ExtensionLoader {
   }
 
   async unloadAll(): Promise<void> {
-    await unloadAllModules(this.lifecycleState);
+    await unloadAllExtensions(this.lifecycleState);
     this.bus = null;
   }
 
@@ -274,7 +274,7 @@ export class ExtensionLoader {
   }
 
   getLoadedExtensions(): string[] {
-    return this.extensions.map((m) => m.name);
+    return this.extensions.map((e) => e.name);
   }
 
   getExtensionCount(): number {

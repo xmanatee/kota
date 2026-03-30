@@ -14,12 +14,12 @@ export interface LifecycleState {
 
 export function getExtensionDependents(extensionName: string, extensions: KotaExtension[]): string[] {
   return extensions
-    .filter((m) => m.dependencies?.includes(extensionName))
-    .map((m) => m.name);
+    .filter((e) => e.dependencies?.includes(extensionName))
+    .map((e) => e.name);
 }
 
 export async function unloadExtension(extensionName: string, state: LifecycleState): Promise<boolean> {
-  const idx = state.extensions.findIndex((m) => m.name === extensionName);
+  const idx = state.extensions.findIndex((e) => e.name === extensionName);
   if (idx < 0) return false;
 
   const dependents = getExtensionDependents(extensionName, state.extensions);
@@ -29,11 +29,11 @@ export async function unloadExtension(extensionName: string, state: LifecycleSta
     );
   }
 
-  const mod = state.extensions[idx];
+  const ext = state.extensions[idx];
 
-  if (mod.onUnload) {
+  if (ext.onUnload) {
     try {
-      await mod.onUnload();
+      await ext.onUnload();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[kota] Extension "${extensionName}" unload error: ${msg}`);
@@ -53,34 +53,34 @@ export async function unloadExtension(extensionName: string, state: LifecycleSta
 export async function reloadExtension(
   extensionName: string,
   state: LifecycleState,
-  loadFn: (mod: KotaExtension) => Promise<void>,
+  loadFn: (ext: KotaExtension) => Promise<void>,
 ): Promise<boolean> {
-  const mod = state.extensionRegistry.get(extensionName);
-  if (!mod) return false;
+  const ext = state.extensionRegistry.get(extensionName);
+  if (!ext) return false;
 
-  if (state.extensions.some((m) => m.name === extensionName)) {
+  if (state.extensions.some((e) => e.name === extensionName)) {
     await unloadExtension(extensionName, state);
   }
 
-  await loadFn(mod);
+  await loadFn(ext);
 
   if (state.verbose) console.error(`[kota] Extension "${extensionName}" reloaded`);
   return true;
 }
 
-export async function unloadAllModules(state: LifecycleState): Promise<void> {
-  for (const mod of [...state.extensions].reverse()) {
-    if (mod.onUnload) {
+export async function unloadAllExtensions(state: LifecycleState): Promise<void> {
+  for (const ext of [...state.extensions].reverse()) {
+    if (ext.onUnload) {
       try {
-        await mod.onUnload();
+        await ext.onUnload();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Extension "${mod.name}" unload error: ${msg}`);
+        console.error(`[kota] Extension "${ext.name}" unload error: ${msg}`);
       }
     }
   }
 
-  for (const mod of [...state.extensions]) deregisterExtensionTools(mod.name);
+  for (const ext of [...state.extensions]) deregisterExtensionTools(ext.name);
   state.extensions.splice(0);
   state.extensionRegistry.clear();
   state.extensionStorages.clear();
