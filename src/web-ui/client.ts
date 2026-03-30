@@ -85,9 +85,9 @@ ${CLIENT_COST_JS}
   setInterval(refreshSessions, 15000);
   startWorkflowUpdates();
   setInterval(refreshWorkflows, 30000);
-  setInterval(refreshTasks, 5000);
+  setInterval(refreshTasks, 30000);
   setInterval(refreshCost, 5000);
-  setInterval(refreshApprovals, 5000);
+  setInterval(refreshApprovals, 30000);
   $input.focus();
 })();
 `;

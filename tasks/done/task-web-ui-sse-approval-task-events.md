@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-sse-approval-task-events
 title: Replace web UI approval/task polling with SSE event listeners
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The web dashboard polls approvals and tasks every 5 seconds. Once the daemon emits approval.changed and task.changed SSE events, the web UI can react instantly via event listeners instead of polling.
 created_at: 2026-03-30T18:28:41Z
-updated_at: 2026-03-30T18:46:25Z
+updated_at: 2026-03-30T20:14:00Z
 ---
 
 ## Problem

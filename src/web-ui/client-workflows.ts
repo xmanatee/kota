@@ -125,6 +125,8 @@ export const CLIENT_WORKFLOWS_JS = `
     src.addEventListener("workflow.completed", onQueueEvent);
     src.addEventListener("workflow.step.completed", onQueueEvent);
     src.addEventListener("queue.changed", onQueueEvent);
+    src.addEventListener("approval.changed", function() { refreshApprovals(); });
+    src.addEventListener("task.changed", function() { refreshTasks(); });
 
     src.onerror = function() {
       src.close();

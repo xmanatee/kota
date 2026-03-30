@@ -4,6 +4,7 @@ title: Add HTTP transport for KEMP foreign extensions
 status: backlog
 priority: p3
 area: runtime
+summary: Add HTTP transport to KEMP so foreign extensions can connect to already-running HTTP servers instead of requiring a subprocess per extension.
 created_at: 2026-03-30T19:10:00Z
 updated_at: 2026-03-30T19:10:00Z
 ---
