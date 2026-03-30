@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-history-cli
 title: Add kota workflow runs CLI for browsing past workflow execution history
-status: ready
+status: done
 priority: p3
 area: cli
 summary: Operators accumulate a growing .kota/runs/ directory with no CLI to browse, filter, or inspect past workflow run outcomes, costs, and artifacts. Adding kota workflow runs commands closes the gap between run-level artifacts and operator visibility.
 created_at: 2026-03-30T16:44:58Z
-updated_at: 2026-03-30T16:58:10Z
+updated_at: 2026-03-30T18:00:00Z
 ---
 
 ## Problem
@@ -47,3 +47,18 @@ run metadata (trigger, duration, cost, step count, outcome).
 - `kota workflow runs show <run-id>` shows step-level detail and artifacts.
 - `--workflow`, `--limit`, and `--json` flags work.
 - Command is registered and appears in `kota workflow --help`.
+
+## Resolution
+
+This capability already exists under different command names:
+- `kota workflow list` — lists recent runs with ID, name, trigger, start time,
+  duration, cost, and status. Supports `--workflow`, `--limit`/`-n`,
+  `--status` filters. Implemented in `src/workflow-cli/run-list.ts`.
+- `kota workflow show <run-id>` — shows step-level detail, cost, repair
+  summary, and error text. Supports `--step <step-id>` for raw step output.
+  Implemented in `src/workflow-cli/run-show.ts`.
+- `kota workflow history` — aggregate stats by workflow (count, success rate,
+  cost, duration percentiles). `--workflow` and `--days` filters.
+
+The `--json` flag is absent from `list` and `show` (though present on
+`definitions` and `cost`). This is a minor gap not worth a separate task.
