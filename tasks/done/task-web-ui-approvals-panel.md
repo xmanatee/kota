@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-approvals-panel
 title: Add approvals management panel to web UI dashboard
-status: ready
+status: done
 priority: p2
 area: operator-ux
 summary: Pending guardrail approvals can only be resolved via CLI or Telegram; operators watching the web dashboard must context-switch to a terminal to unblock autonomous runs. All required infrastructure (SSE approval.changed, GET/POST /approvals endpoints) already exists.

@@ -99,4 +99,26 @@ describe("getWebUI", () => {
   it("is deterministic — same output on repeated calls", () => {
     expect(getWebUI()).toBe(html);
   });
+
+  it("includes approvals panel element", () => {
+    expect(html).toContain('id="approval-list"');
+  });
+
+  it("loads approvals from GET /api/approvals on init", () => {
+    expect(html).toContain("/api/approvals");
+    expect(html).toContain("refreshApprovals");
+  });
+
+  it("calls correct endpoints for approve and reject actions", () => {
+    expect(html).toContain("/approve");
+    expect(html).toContain("/reject");
+  });
+
+  it("refreshes approvals on approval.changed SSE event", () => {
+    expect(html).toContain("approval.changed");
+  });
+
+  it("renders empty state when no approvals are pending", () => {
+    expect(html).toContain("No pending approvals");
+  });
 });
