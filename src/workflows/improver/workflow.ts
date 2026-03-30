@@ -28,6 +28,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       id: "improve",
       type: "agent",
       agentName: "improver",
+      timeoutMs: 60 * 60 * 1000, // 60 minutes — improver analysis can be thorough
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       repairLoop: {
         maxRepairAttempts: 3,
