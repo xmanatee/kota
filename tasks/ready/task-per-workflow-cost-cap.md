@@ -1,12 +1,12 @@
 ---
 id: task-per-workflow-cost-cap
 title: Add per-workflow run cost cap to workflow definitions
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The global daily budget guard halts all dispatch when the daily limit is hit, but there is no way to cap spend on a single workflow run. A long-running builder or improver run can consume an outsized share before the guard fires.
 created_at: 2026-03-30T21:20:00Z
-updated_at: 2026-03-30T21:20:00Z
+updated_at: 2026-03-30T22:30:00Z
 ---
 
 ## Problem

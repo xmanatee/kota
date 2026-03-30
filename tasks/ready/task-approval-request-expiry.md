@@ -1,12 +1,12 @@
 ---
 id: task-approval-request-expiry
 title: Add configurable TTL and auto-expiry for pending approval requests
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Approval requests sit pending indefinitely when no operator is available. A configurable TTL auto-rejects expired requests with a recorded reason and a bus event, preventing workflows from blocking forever.
 created_at: 2026-03-30T20:33:00Z
-updated_at: 2026-03-30T20:33:00Z
+updated_at: 2026-03-30T22:30:00Z
 ---
 
 ## Problem
