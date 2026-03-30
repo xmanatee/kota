@@ -11,12 +11,26 @@ import type { ExtensionStorage } from "./extension-storage.js";
 import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
 import { registerCustomGroup } from "./tool-groups.js";
-import { executeTool, registerTool } from "./tools/index.js";
+import { executeTool, getExtensionToolNames, registerTool } from "./tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
 
 export type ExtensionLoaderOptions = {
   /** Skip tool registration — only load modules for command/route discovery. */
   commandsOnly?: boolean;
+};
+
+export type ExtensionSummary = {
+  name: string;
+  version?: string;
+  description?: string;
+  dependencies: string[];
+  toolNames: string[];
+  workflowNames: string[];
+  channelNames: string[];
+  skillNames: string[];
+  agentNames: string[];
+  commandNames: string[];
+  routeSummaries: string[];
 };
 
 export class ExtensionLoader {
@@ -272,5 +286,41 @@ export class ExtensionLoader {
     let total = 0;
     for (const count of this.extensionToolCounts.values()) total += count;
     return total;
+  }
+
+  getExtensionSummaries(): ExtensionSummary[] {
+    return this.extensions.map((ext) => {
+      const commandNames: string[] = [];
+      if (ext.commands) {
+        try {
+          const cmds = ext.commands(this.createContext(ext.name));
+          for (const cmd of cmds) commandNames.push(cmd.name());
+        } catch {
+          // ignore errors from command factory
+        }
+      }
+      const routeSummaries: string[] = [];
+      if (ext.routes) {
+        try {
+          const routes = ext.routes(this.createContext(ext.name));
+          for (const r of routes) routeSummaries.push(`${r.method} ${r.path}`);
+        } catch {
+          // ignore errors from route factory
+        }
+      }
+      return {
+        name: ext.name,
+        version: ext.version,
+        description: ext.description,
+        dependencies: ext.dependencies ?? [],
+        toolNames: getExtensionToolNames(ext.name),
+        workflowNames: (ext.workflows ?? []).map((w) => w.name),
+        channelNames: (ext.channels ?? []).map((c) => c.name),
+        skillNames: (ext.skills ?? []).map((s) => s.name),
+        agentNames: (ext.agents ?? []).map((a) => a.name),
+        commandNames,
+        routeSummaries,
+      };
+    });
   }
 }

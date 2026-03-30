@@ -13,6 +13,7 @@ import {
 } from "./cli-history.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
+import { registerExtensionCommands } from "./extension-cli.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import { builtinExtensions } from "./extensions/index.js";
@@ -170,6 +171,7 @@ registerApprovalCommands(program);
 registerTaskCommands(program);
 registerMemoryCommands(program);
 registerKnowledgeCommands(program);
+registerExtensionCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

@@ -234,6 +234,11 @@ export function getRegisteredTools(): Anthropic.Tool[] {
   return tools.filter((t) => customToolNames.has(t.name));
 }
 
+/** Returns the names of all tools registered by a given extension. */
+export function getExtensionToolNames(extensionName: string): string[] {
+  return [...(extensionToolOwners.get(extensionName) ?? [])];
+}
+
 export function clearCustomTools(): void {
   ensureInit();
   for (const name of customToolNames) {
