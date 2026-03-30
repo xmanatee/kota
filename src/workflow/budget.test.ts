@@ -242,8 +242,8 @@ describe("WorkflowRuntime budget enforcement", () => {
     expect(logs.some((l) => l.includes("budget"))).toBe(true);
     expect(budgetEvents.length).toBeGreaterThan(0);
     const event = budgetEvents[0];
-    expect(event["text"] as string).toContain("budget");
-    expect(event["text"] as string).toContain("1.0000");
+    expect(event.text as string).toContain("budget");
+    expect(event.text as string).toContain("1.0000");
   });
 
   it("does not pause dispatch when spend is below budget", async () => {

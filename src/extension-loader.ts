@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Command } from "commander";
+import type { AgentDef, SkillDef } from "./agent-types.js";
 import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
@@ -30,6 +31,8 @@ export type ExtensionSummary = {
   channelNames: string[];
   skillNames: string[];
   agentNames: string[];
+  agents: AgentDef[];
+  skills: SkillDef[];
   commandNames: string[];
   routeSummaries: string[];
 };
@@ -334,6 +337,8 @@ export class ExtensionLoader {
         channelNames: (ext.channels ?? []).map((c) => c.name),
         skillNames: (ext.skills ?? []).map((s) => s.name),
         agentNames: (ext.agents ?? []).map((a) => a.name),
+        agents: ext.agents ?? [],
+        skills: ext.skills ?? [],
         commandNames,
         routeSummaries,
       };

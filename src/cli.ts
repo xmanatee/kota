@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { registerAgentCommands, registerSkillCommands } from "./agent-cli.js";
 import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
@@ -174,6 +175,8 @@ registerMemoryCommands(program);
 registerKnowledgeCommands(program);
 registerExtensionCommands(program);
 registerSessionCommands(program);
+registerAgentCommands(program);
+registerSkillCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

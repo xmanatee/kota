@@ -1,7 +1,7 @@
 ---
 id: task-agent-skill-list-cli
 title: Add kota agent and kota skill CLI commands for operator visibility
-status: ready
+status: done
 priority: p3
 area: cli
 summary: Operators have no CLI way to list registered agents or available skills. As extensions contribute more agents and skills, operators need a direct way to inspect what's loaded without reading source files.
