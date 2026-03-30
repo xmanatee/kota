@@ -1,5 +1,4 @@
 import type { BusEvents, EventBus } from "../event-bus.js";
-import { subscribeApprovalNotification } from "../workflow/approval-notification.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import type { ScheduledItem } from "./scheduler.js";
 import { getScheduler } from "./scheduler.js";
@@ -39,7 +38,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
   });
 
   const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog);
-  const stopApprovalNotification = subscribeApprovalNotification(bus, onLog);
 
   return () => {
     stopBus();
@@ -47,6 +45,5 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     stopWorkflowListener();
     stopRestartListener();
     stopFailureAlert();
-    stopApprovalNotification();
   };
 }

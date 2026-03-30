@@ -1,7 +1,7 @@
 ---
 id: task-decouple-telegram-from-workflow-notifications
 title: Decouple Telegram from workflow runtime notification callers
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Four workflow-runtime modules call Telegram directly via callTelegramApi and TELEGRAM_* env vars — failure-alert.ts, approval-notification.ts, budget-guard.ts, and attention-digest.ts. This couples the workflow domain to the Telegram transport, contradicting the channel contribution model used for telegram-status-poll and violating the no-cross-layer-leakage principle.

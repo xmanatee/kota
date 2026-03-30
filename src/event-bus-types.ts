@@ -107,6 +107,29 @@ export type BusEvents = {
     approved: boolean;
     reason: string;
   };
+  "workflow.failure.alert": {
+    workflow: string;
+    runId: string;
+    status: "failed" | "interrupted";
+    durationMs: number;
+    errorSummary: string;
+    text: string;
+  };
+  "workflow.budget.exceeded": {
+    dailySpend: number;
+    budget: number;
+    text: string;
+  };
+  "workflow.attention.digest": {
+    items: { label: string; detail: string }[];
+    text: string;
+  };
+  "workflow.cost.limit.reached": {
+    totalCost: number;
+    hardLimit: number;
+    text: string;
+    pauseSignalFile: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

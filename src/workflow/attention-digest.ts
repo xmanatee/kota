@@ -2,7 +2,6 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import { countRepoTasks } from "../repo-tasks.js";
-import { callTelegramApi } from "../telegram-client.js";
 import {
   computeCostByWorkflow,
   loadRecentRuns,
@@ -103,15 +102,16 @@ function buildDigestText(items: AttentionItem[]): string {
 
 /**
  * Run one attention digest step. Increments the persistent counter and, every
- * DIGEST_EVERY_N_RUNS invocations, checks for attention items and sends a
- * Telegram message when any are found.
+ * DIGEST_EVERY_N_RUNS invocations, checks for attention items and emits bus
+ * events when any are found.
  *
  * Called directly by the attention-digest workflow code step.
  */
 export function runAttentionDigestStep(
   projectDir: string,
   runsDir: string,
-  log?: (message: string) => void,
+  _log?: (message: string) => void,
+  emit?: (event: string, payload: Record<string, unknown>) => void,
 ): void {
   // Counter is persisted so it survives daemon restarts (which happen after every builder build).
   const counterFile = join(runsDir, "..", "attention-digest-counter.json");
@@ -131,33 +131,22 @@ export function runAttentionDigestStep(
 
   if (totalCost > hardLimit) {
     writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-    if (token && chatId) {
-      void callTelegramApi(token, "sendMessage", {
-        chat_id: chatId,
-        text: `Cost circuit breaker tripped: $${totalCost.toFixed(2)} spent in last 24h (hard limit: $${hardLimit}). Autonomous dispatch paused. Delete \`.kota/${PAUSE_SIGNAL_FILE}\` to resume.`,
-        parse_mode: "Markdown",
-      }).catch((err: unknown) => {
-        log?.(`Failed to send circuit breaker alert: ${(err as Error).message}`);
-      });
-    }
+    const text = `Cost circuit breaker tripped: $${totalCost.toFixed(2)} spent in last 24h (hard limit: $${hardLimit}). Autonomous dispatch paused. Delete \`.kota/${PAUSE_SIGNAL_FILE}\` to resume.`;
+    emit?.("workflow.cost.limit.reached", {
+      totalCost,
+      hardLimit,
+      text,
+      pauseSignalFile: PAUSE_SIGNAL_FILE,
+    });
     return;
   }
-
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-  if (!token || !chatId) return;
 
   const items = detectAttentionItems(projectDir, recentRuns);
   if (items.length === 0) return;
 
   const text = buildDigestText(items);
-  void callTelegramApi(token, "sendMessage", {
-    chat_id: chatId,
+  emit?.("workflow.attention.digest", {
+    items,
     text,
-    parse_mode: "Markdown",
-  }).catch((err: unknown) => {
-    log?.(`Failed to send attention digest: ${(err as Error).message}`);
   });
 }

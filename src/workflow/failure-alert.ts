@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { EventBus } from "../event-bus.js";
-import { callTelegramApi } from "../telegram-client.js";
 
 const MAX_ERROR_LENGTH = 300;
 
@@ -39,14 +38,10 @@ function buildAlertText(
 export function subscribeWorkflowFailureAlert(
   bus: EventBus,
   projectDir: string,
-  log?: (message: string) => void,
+  _log?: (message: string) => void,
 ): () => void {
   return bus.on("workflow.completed", (payload) => {
     if (payload.status !== "failed" && payload.status !== "interrupted") return;
-
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-    if (!token || !chatId) return;
 
     const errorSummary = readErrorFile(projectDir, payload.runDir);
     const text = buildAlertText(
@@ -57,12 +52,13 @@ export function subscribeWorkflowFailureAlert(
       errorSummary,
     );
 
-    void callTelegramApi(token, "sendMessage", {
-      chat_id: chatId,
+    bus.emit("workflow.failure.alert", {
+      workflow: payload.workflow,
+      runId: payload.runId,
+      status: payload.status,
+      durationMs: payload.durationMs,
+      errorSummary,
       text,
-      parse_mode: "Markdown",
-    }).catch((err: unknown) => {
-      log?.(`Failed to send workflow failure alert: ${(err as Error).message}`);
     });
   });
 }

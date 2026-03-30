@@ -7,18 +7,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { callTelegramApi } from "../telegram-client.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runAttentionDigestStep } from "./attention-digest.js";
-
-vi.mock("../telegram-client.js", () => ({
-  callTelegramApi: vi.fn(),
-}));
-
-const mockedCallTelegramApi = vi.mocked(callTelegramApi);
-
-const FAKE_TOKEN = "bot-token-test";
-const FAKE_CHAT_ID = "123456789";
 
 function makeTaskDir(projectDir: string, state: string, count: number): void {
   const dir = join(projectDir, "tasks", state);
@@ -60,6 +50,8 @@ function writeRunMetadata(
 describe("runAttentionDigestStep", () => {
   let projectDir: string;
   let runsDir: string;
+  let emittedEvents: Array<{ event: string; payload: Record<string, unknown> }>;
+  let emit: (event: string, payload: Record<string, unknown>) => void;
 
   beforeEach(() => {
     projectDir = join(
@@ -68,206 +60,155 @@ describe("runAttentionDigestStep", () => {
     );
     runsDir = join(projectDir, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
-    mockedCallTelegramApi.mockReset();
-    mockedCallTelegramApi.mockResolvedValue({ ok: true, result: {} } as never);
-    process.env.TELEGRAM_BOT_TOKEN = FAKE_TOKEN;
-    process.env.TELEGRAM_ALERT_CHAT_ID = FAKE_CHAT_ID;
+    emittedEvents = [];
+    emit = (event, payload) => emittedEvents.push({ event, payload });
+    delete process.env.KOTA_DIGEST_COST_THRESHOLD;
+    delete process.env.KOTA_COST_HARD_LIMIT_USD;
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
-    delete process.env.TELEGRAM_BOT_TOKEN;
-    delete process.env.TELEGRAM_ALERT_CHAT_ID;
     delete process.env.KOTA_DIGEST_COST_THRESHOLD;
     delete process.env.KOTA_COST_HARD_LIMIT_USD;
   });
 
   function runSteps(n: number): void {
     for (let i = 0; i < n; i++) {
-      runAttentionDigestStep(projectDir, runsDir);
+      runAttentionDigestStep(projectDir, runsDir, undefined, emit);
     }
   }
 
-  it("does not send digest before 10 invocations", async () => {
+  it("does not emit before 10 invocations", () => {
     runSteps(9);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    expect(emittedEvents).toHaveLength(0);
   });
 
-  it("does not send digest at 10 invocations when nothing warrants attention", async () => {
+  it("does not emit at 10 invocations when nothing warrants attention", () => {
     makeTaskDir(projectDir, "ready", 1);
     makeTaskDir(projectDir, "backlog", 1);
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    expect(emittedEvents).toHaveLength(0);
   });
 
-  it("sends digest at exactly 10 invocations when builder failure streak >= 3", async () => {
-    // Seed 3 consecutive builder failures in runsDir (most-recent-first by name)
+  it("emits workflow.attention.digest at exactly 10 invocations when builder failure streak >= 3", () => {
     writeRunMetadata(runsDir, "2026-03-27-run-c", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Builder failure streak");
-    expect(body.text).toContain("consecutive failures");
+    expect(emittedEvents).toHaveLength(1);
+    expect(emittedEvents[0].event).toBe("workflow.attention.digest");
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Builder failure streak");
+    expect(text).toContain("consecutive failures");
   });
 
-  it("does not send digest at 10 invocations when builder failures < 3", async () => {
+  it("does not emit at 10 invocations when builder failures < 3", () => {
     makeTaskDir(projectDir, "ready", 1);
     makeTaskDir(projectDir, "backlog", 1);
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    expect(emittedEvents).toHaveLength(0);
   });
 
-  it("sends digest for high spend when total exceeds threshold", async () => {
+  it("emits digest for high spend when total exceeds threshold", () => {
     process.env.KOTA_DIGEST_COST_THRESHOLD = "5";
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
 
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Budget pressure");
-    expect(body.text).toContain("$10.00");
+    expect(emittedEvents).toHaveLength(1);
+    expect(emittedEvents[0].event).toBe("workflow.attention.digest");
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Budget pressure");
+    expect(text).toContain("$10.00");
   });
 
-  it("sends digest for stalled work when doing count >= 2", async () => {
+  it("emits digest for stalled work when doing count >= 2", () => {
     makeTaskDir(projectDir, "doing", 2);
 
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Stalled work");
-    expect(body.text).toContain("2 tasks stuck in doing");
+    expect(emittedEvents).toHaveLength(1);
+    expect(emittedEvents[0].event).toBe("workflow.attention.digest");
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Stalled work");
+    expect(text).toContain("2 tasks stuck in doing");
   });
 
-  it("sends digest for blocked backlog when blocked count >= 2", async () => {
+  it("emits digest for blocked backlog when blocked count >= 2", () => {
     makeTaskDir(projectDir, "blocked", 2);
 
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Blocked backlog");
-    expect(body.text).toContain("2 blocked tasks");
+    expect(emittedEvents).toHaveLength(1);
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Blocked backlog");
+    expect(text).toContain("2 blocked tasks");
   });
 
-  it("sends digest when ready queue is empty", async () => {
+  it("emits digest when ready queue is empty", () => {
     makeTaskDir(projectDir, "backlog", 1);
-    // ready dir intentionally not created (count == 0)
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Empty ready queue");
-    expect(body.text).toContain("Builder has nothing to pull");
+    expect(emittedEvents).toHaveLength(1);
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Empty ready queue");
+    expect(text).toContain("Builder has nothing to pull");
   });
 
-  it("sends digest when backlog is empty", async () => {
+  it("emits digest when backlog is empty", () => {
     makeTaskDir(projectDir, "ready", 1);
-    // backlog dir intentionally not created (count == 0)
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Empty backlog");
-    expect(body.text).toContain("No reserves for explorer to promote");
+    expect(emittedEvents).toHaveLength(1);
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Empty backlog");
+    expect(text).toContain("No reserves for explorer to promote");
   });
 
-  it("does not send empty-queue items when ready and backlog are populated", async () => {
+  it("does not emit when ready and backlog are populated and nothing else warrants attention", () => {
     makeTaskDir(projectDir, "ready", 2);
     makeTaskDir(projectDir, "backlog", 1);
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    expect(emittedEvents).toHaveLength(0);
   });
 
-  it("includes multiple attention items in one digest", async () => {
+  it("includes multiple attention items in one digest", () => {
     makeTaskDir(projectDir, "doing", 3);
     makeTaskDir(projectDir, "blocked", 2);
     makeTaskDir(projectDir, "ready", 1);
     makeTaskDir(projectDir, "backlog", 1);
 
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toContain("Stalled work");
-    expect(body.text).toContain("Blocked backlog");
-    expect(body.text).toContain("2 items");
+    expect(emittedEvents).toHaveLength(1);
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toContain("Stalled work");
+    expect(text).toContain("Blocked backlog");
+    expect(text).toContain("2 items");
   });
 
-  it("sends digest every 10 invocations, not just once", async () => {
+  it("emits digest every 10 invocations, not just once", () => {
     makeTaskDir(projectDir, "doing", 2);
 
     runSteps(20);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledTimes(2);
+    expect(emittedEvents).toHaveLength(2);
   });
 
-  it("does not send when TELEGRAM_BOT_TOKEN is missing", async () => {
-    delete process.env.TELEGRAM_BOT_TOKEN;
+  it("digest text starts with attention digest header", () => {
     makeTaskDir(projectDir, "doing", 2);
     runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    const text = emittedEvents[0].payload.text as string;
+    expect(text).toMatch(/^Attention digest \(\d+ items?\):/);
   });
 
-  it("does not send when TELEGRAM_ALERT_CHAT_ID is missing", async () => {
-    delete process.env.TELEGRAM_ALERT_CHAT_ID;
+  it("emits digest without emit callback (no-op, no throw)", () => {
     makeTaskDir(projectDir, "doing", 2);
-    runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
-  });
-
-  it("uses correct chat_id and parse_mode", async () => {
-    makeTaskDir(projectDir, "doing", 2);
-    runSteps(10);
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
-      FAKE_TOKEN,
-      "sendMessage",
-      expect.objectContaining({
-        chat_id: FAKE_CHAT_ID,
-        parse_mode: "Markdown",
-      }),
-    );
-  });
-
-  it("catches and logs Telegram API errors without throwing", async () => {
-    const logs: string[] = [];
-    makeTaskDir(projectDir, "doing", 2);
-    mockedCallTelegramApi.mockRejectedValue(new Error("timeout"));
-    runAttentionDigestStep(projectDir, runsDir, (msg) => logs.push(msg));
-    // run to count 10
-    for (let i = 1; i < 10; i++) {
-      runAttentionDigestStep(projectDir, runsDir, (msg) => logs.push(msg));
+    // runSteps without emit — should not throw
+    for (let i = 0; i < 10; i++) {
+      runAttentionDigestStep(projectDir, runsDir);
     }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain("timeout");
-  });
-
-  it("digest text starts with attention digest header", async () => {
-    makeTaskDir(projectDir, "doing", 2);
-    runSteps(10);
-    await Promise.resolve();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(body.text).toMatch(/^Attention digest \(\d+ items?\):/);
+    expect(emittedEvents).toHaveLength(0); // our callback was never attached
   });
 
   it("lists all run dirs to verify test isolation", () => {
-    // Sanity check: each test starts with a fresh runsDir
     const entries = readdirSync(runsDir);
     expect(entries).toHaveLength(0);
   });
@@ -275,61 +216,53 @@ describe("runAttentionDigestStep", () => {
   describe("cost circuit breaker", () => {
     const pausePath = () => join(projectDir, ".kota", "dispatch-paused");
 
-    it("does not write pause file when spend is below hard limit", async () => {
+    it("does not write pause file when spend is below hard limit", () => {
       process.env.KOTA_COST_HARD_LIMIT_USD = "50";
       writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
       runSteps(10);
-      await Promise.resolve();
       expect(existsSync(pausePath())).toBe(false);
     });
 
-    it("does not write pause file when soft threshold exceeded but hard limit is not", async () => {
+    it("does not write pause file when soft threshold exceeded but hard limit is not", () => {
       process.env.KOTA_DIGEST_COST_THRESHOLD = "5";
       process.env.KOTA_COST_HARD_LIMIT_USD = "50";
       writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
       runSteps(10);
-      await Promise.resolve();
       expect(existsSync(pausePath())).toBe(false);
-      // Soft warn digest should still fire
-      expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-      const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-      expect(body.text).toContain("Budget pressure");
+      expect(emittedEvents).toHaveLength(1);
+      expect(emittedEvents[0].event).toBe("workflow.attention.digest");
+      expect(emittedEvents[0].payload.text as string).toContain("Budget pressure");
     });
 
-    it("writes pause file and sends alert when hard limit is exceeded", async () => {
+    it("writes pause file and emits cost.limit.reached when hard limit is exceeded", () => {
       process.env.KOTA_COST_HARD_LIMIT_USD = "5";
       writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
       runSteps(10);
-      await Promise.resolve();
       expect(existsSync(pausePath())).toBe(true);
-      expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-      const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-      expect(body.text).toContain("circuit breaker tripped");
-      expect(body.text).toContain("$10.00");
-      expect(body.text).toContain("dispatch-paused");
+      expect(emittedEvents).toHaveLength(1);
+      expect(emittedEvents[0].event).toBe("workflow.cost.limit.reached");
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("circuit breaker tripped");
+      expect(text).toContain("$10.00");
+      expect(text).toContain("dispatch-paused");
     });
 
-    it("writes pause file even when Telegram is not configured", async () => {
+    it("writes pause file even when no emit callback is provided", () => {
       process.env.KOTA_COST_HARD_LIMIT_USD = "5";
-      delete process.env.TELEGRAM_BOT_TOKEN;
-      delete process.env.TELEGRAM_ALERT_CHAT_ID;
       writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-      runSteps(10);
-      await Promise.resolve();
+      for (let i = 0; i < 10; i++) {
+        runAttentionDigestStep(projectDir, runsDir);
+      }
       expect(existsSync(pausePath())).toBe(true);
-      expect(mockedCallTelegramApi).not.toHaveBeenCalled();
     });
 
-    it("does not send regular digest when hard limit is exceeded", async () => {
+    it("does not emit regular digest when hard limit is exceeded", () => {
       process.env.KOTA_COST_HARD_LIMIT_USD = "5";
       writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
       makeTaskDir(projectDir, "doing", 3);
       runSteps(10);
-      await Promise.resolve();
-      // Only one call — the circuit breaker alert, not a separate digest
-      expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-      const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-      expect(body.text).toContain("circuit breaker tripped");
+      expect(emittedEvents).toHaveLength(1);
+      expect(emittedEvents[0].event).toBe("workflow.cost.limit.reached");
     });
   });
 });

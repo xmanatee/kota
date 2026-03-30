@@ -18,9 +18,9 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
     {
       id: "digest",
       type: "code",
-      run: ({ projectDir }) => {
+      run: ({ projectDir, emit }) => {
         const runsDir = join(projectDir, ".kota", "runs");
-        runAttentionDigestStep(projectDir, runsDir);
+        runAttentionDigestStep(projectDir, runsDir, undefined, emit);
       },
     },
   ],

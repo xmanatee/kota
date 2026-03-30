@@ -182,7 +182,7 @@ describe("WorkflowRuntime budget enforcement", () => {
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
   });
 
-  it("pauses dispatch and sends Telegram alert when daily budget is reached", async () => {
+  it("pauses dispatch and emits workflow.budget.exceeded event when daily budget is reached", async () => {
     writeFileSync(
       join(projectDir, "src", "workflows", "builder", "prompt.md"),
       "Build something useful.\n",
@@ -205,8 +205,12 @@ describe("WorkflowRuntime budget enforcement", () => {
     writeRunMetadata(store.runsDir, "prior-run", 1.0, `${todayUtc}T06:00:00.000Z`);
 
     const logs: string[] = [];
+    const bus = new EventBus();
+    const budgetEvents: Record<string, unknown>[] = [];
+    bus.on("workflow.budget.exceeded", (payload) => budgetEvents.push(payload));
+
     const runtime = new WorkflowRuntime({
-      bus: new EventBus(),
+      bus,
       projectDir,
       idleIntervalMs: 10,
       onLog: (msg) => logs.push(msg),
@@ -236,15 +240,10 @@ describe("WorkflowRuntime budget enforcement", () => {
     expect(runIds).toHaveLength(0);
 
     expect(logs.some((l) => l.includes("budget"))).toBe(true);
-    await wait(20);
-    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
-      "test-token",
-      "sendMessage",
-      expect.objectContaining({ chat_id: "test-chat" }),
-    );
-    const callBody = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
-    expect(callBody.text).toContain("budget");
-    expect(callBody.text).toContain("1.0000");
+    expect(budgetEvents.length).toBeGreaterThan(0);
+    const event = budgetEvents[0];
+    expect(event["text"] as string).toContain("budget");
+    expect(event["text"] as string).toContain("1.0000");
   });
 
   it("does not pause dispatch when spend is below budget", async () => {

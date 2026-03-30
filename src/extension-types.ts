@@ -29,6 +29,8 @@ export type ExtensionLogger = {
 export type ExtensionEventProxy = {
   /** Emit an event on the bus. No-op if bus not available. */
   emit(event: string, payload: Record<string, unknown>): void;
+  /** Subscribe to a bus event. Returns an unsubscribe function. No-op (returns noop) if bus not available. */
+  subscribe(event: string, handler: (payload: Record<string, unknown>) => void): () => void;
 };
 
 /** Minimal session interface returned by ctx.createSession(). */

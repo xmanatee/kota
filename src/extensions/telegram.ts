@@ -4,17 +4,43 @@
  * Contributes:
  * - `kota telegram` CLI command (interactive bot)
  * - `telegram-status` channel (daemon status poll — responds to /status)
+ * - Notification subscriptions for workflow events (failure alerts, budget alerts,
+ *   attention digests, cost limit alerts, approval requests)
  *
  * The CLI command starts the full interactive TelegramBot.
  * The channel contribution registers a status-only poll with the daemon
  * so operators can query workflow state via `/status` in Telegram.
+ * The onLoad handler subscribes to domain bus events and forwards them to Telegram.
  */
 
 import { Command } from "commander";
 import type { ChannelDef } from "../channel.js";
-import type { KotaExtension } from "../extension-types.js";
+import type { ExtensionContext, KotaExtension } from "../extension-types.js";
 import { TelegramBot } from "../telegram.js";
+import { callTelegramApi } from "../telegram-client.js";
 import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
+
+async function sendTelegramMessage(
+  token: string,
+  chatId: string,
+  text: string,
+  log: ExtensionContext["log"],
+): Promise<void> {
+  void callTelegramApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "Markdown",
+  }).catch((err: unknown) => {
+    log.warn(`Failed to send Telegram message: ${(err as Error).message}`);
+  });
+}
+
+function getCredentials(): { token: string; chatId: string } | null {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+  if (!token || !chatId) return null;
+  return { token, chatId };
+}
 
 const telegramStatusChannel: ChannelDef = {
   name: "telegram-status",
@@ -36,12 +62,62 @@ const telegramStatusChannel: ChannelDef = {
   },
 };
 
+let notificationUnsubs: (() => void)[] = [];
+
 const telegramModule: KotaExtension = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
 
   channels: [telegramStatusChannel],
+
+  onLoad: (ctx) => {
+    notificationUnsubs = [
+      ctx.events.subscribe("workflow.failure.alert", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
+      ctx.events.subscribe("workflow.budget.exceeded", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
+      ctx.events.subscribe("workflow.attention.digest", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
+      ctx.events.subscribe("workflow.cost.limit.reached", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
+      ctx.events.subscribe("approval.requested", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        const id = payload.id as string;
+        const tool = payload.tool as string;
+        const risk = payload.risk as string;
+        const reason = payload.reason as string;
+        const text = [
+          `Approval required: *${tool}*`,
+          `Risk: ${risk}`,
+          `Reason: ${reason}`,
+          `ID: \`${id}\``,
+          ``,
+          `kota approval approve ${id}`,
+          `kota approval reject ${id}`,
+        ].join("\n");
+        void sendTelegramMessage(creds.token, creds.chatId, text, ctx.log);
+      }),
+    ];
+  },
+
+  onUnload: () => {
+    for (const unsub of notificationUnsubs) unsub();
+    notificationUnsubs = [];
+  },
 
   commands: (ctx) => {
     const cmd = new Command("telegram")
@@ -73,7 +149,7 @@ const telegramModule: KotaExtension = {
         const token = opts.token || process.env.TELEGRAM_BOT_TOKEN;
         if (!token) {
           console.error(
-            "Telegram bot token required. Use --token or set TELEGRAM_BOT_TOKEN env var.",
+            "Telegram bot token required. Use --token or set TELEGRAM_BOT_TOKEN.",
           );
           process.exit(1);
         }

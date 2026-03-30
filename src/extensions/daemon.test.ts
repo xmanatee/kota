@@ -20,7 +20,7 @@ const stubCtx: ExtensionContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
-  events: { emit: () => {} },
+  events: { emit: () => {}, subscribe: () => () => {} },
   createSession: () => ({ send: async () => "", close: () => {} }),
   registerProvider: () => {},
   getProvider: () => null,

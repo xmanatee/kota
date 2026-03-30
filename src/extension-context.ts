@@ -45,6 +45,11 @@ function createEventProxy(
     emit: (event: string, payload: Record<string, unknown>) => {
       getBus()?.emit(event, payload);
     },
+    subscribe: (event: string, handler: (payload: Record<string, unknown>) => void): () => void => {
+      const bus = getBus();
+      if (!bus) return () => {};
+      return bus.on(event, handler as never);
+    },
   };
 }
 
