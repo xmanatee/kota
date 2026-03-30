@@ -1,4 +1,3 @@
-import { assertTaskQueueValid } from "../../task-queue-validation.js";
 import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
@@ -35,8 +34,12 @@ const improverWorkflow: WorkflowDefinitionInput = {
         checks: [
           {
             id: "task-queue-valid",
-            type: "code",
-            run: ({ projectDir }) => assertTaskQueueValid(projectDir),
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm run validate-tasks",
+              stream_output: false,
+              cwd: ctx.projectDir,
+            }),
           },
           {
             id: "typecheck",

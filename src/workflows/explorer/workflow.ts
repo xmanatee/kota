@@ -3,7 +3,6 @@ import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
   assertNoHighPriorityBacklogStrandedTasks,
   assertTaskQueueRecommendations,
-  assertTaskQueueValid,
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
@@ -86,8 +85,12 @@ const explorerWorkflow: WorkflowDefinitionInput = {
         checks: [
           {
             id: "task-queue-valid",
-            type: "code",
-            run: ({ projectDir }) => assertTaskQueueValid(projectDir, { minReady: 1 }),
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm run validate-tasks -- --min-ready 1",
+              stream_output: false,
+              cwd: ctx.projectDir,
+            }),
           },
           {
             id: "task-queue-range",

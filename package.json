@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:workflow-critical": "vitest run src/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/modules/daemon.test.ts src/scheduler/daemon.test.ts src/task-files.test.ts src/workflow/runtime.test.ts src/workflow/validation.test.ts",
     "lint": "biome check src/",
-    "lint:fix": "biome check --write src/"
+    "lint:fix": "biome check --write src/",
+    "validate-tasks": "node dist/validate-queue.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.77",

@@ -83,7 +83,7 @@ function readTaskGitStatus(projectDir: string): {
         untracked.push(path);
         continue;
       }
-      if (status.includes("D")) {
+      if (status[1] === "D") {
         deleted.push(path);
       }
     }

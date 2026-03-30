@@ -3,7 +3,6 @@ import {
   isRepoTaskQueueSnapshot,
 } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
-import { assertTaskQueueValid } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { stepCommitted, stepSucceeded } from "../shared.js";
@@ -54,8 +53,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
         checks: [
           {
             id: "task-queue-valid",
-            type: "code",
-            run: ({ projectDir }) => assertTaskQueueValid(projectDir),
+            tool: "shell",
+            input: (ctx) => ({
+              command: "npm run validate-tasks",
+              stream_output: false,
+              cwd: ctx.projectDir,
+            }),
           },
           {
             id: "typecheck",
