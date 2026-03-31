@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-server-auth
 title: Add token-based auth to the kota serve HTTP server
-status: backlog
+status: ready
 priority: p2
 area: reliability
 summary: kota serve binds to all interfaces with no authentication. Any host on the local network can access the chat API and trigger agent sessions. A simple bearer token would close this gap without requiring a full identity layer.
 created_at: 2026-03-31T00:05:00Z
-updated_at: 2026-03-31T00:05:00Z
+updated_at: 2026-03-31T00:20:16Z
 ---
 
 ## Problem
