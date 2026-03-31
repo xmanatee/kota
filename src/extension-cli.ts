@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { Command } from "commander";
 import { loadConfig } from "./config.js";
 import { discoverExtensions } from "./extension-discovery.js";
@@ -83,6 +85,154 @@ export function registerExtensionCommands(program: Command): void {
       printSection("Skills", ext.skillNames);
       printSection("Agents", ext.agentNames);
     });
+
+  extCmd
+    .command("new <name>")
+    .description("Scaffold a new extension starter in a new directory")
+    .option("--dir <path>", "Target directory (default: ./<name>)")
+    .action((name: string, opts: { dir?: string }) => {
+      const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      const targetDir = resolve(opts.dir ?? safeName);
+
+      if (existsSync(targetDir)) {
+        console.error(`Error: directory already exists: ${targetDir}`);
+        process.exit(1);
+      }
+
+      generateExtensionScaffold(name, safeName, targetDir);
+
+      console.log(`Extension scaffold created at: ${targetDir}`);
+      console.log("");
+      console.log("Next steps:");
+      console.log(`  cd ${targetDir}`);
+      console.log("  npm install          # install devDependencies");
+      console.log("  npm run typecheck    # verify types");
+      console.log("  npm run build        # compile to dist/");
+      console.log("");
+      console.log("To use without building, copy dist/index.js to .kota/plugins/");
+    });
+}
+
+function generateExtensionScaffold(name: string, safeName: string, dir: string): void {
+  const srcDir = join(dir, "src");
+  mkdirSync(srcDir, { recursive: true });
+
+  writeFileSync(join(dir, "package.json"), packageJson(safeName));
+  writeFileSync(join(dir, "tsconfig.json"), tsconfig());
+  writeFileSync(join(srcDir, "index.ts"), indexTs(name, safeName));
+  writeFileSync(join(dir, "AGENTS.md"), agentsMd(name));
+}
+
+function packageJson(safeName: string): string {
+  return `${JSON.stringify(
+    {
+      name: safeName,
+      version: "0.1.0",
+      description: "",
+      type: "module",
+      main: "dist/index.js",
+      exports: { ".": "./dist/index.js" },
+      scripts: {
+        build: "tsc",
+        typecheck: "tsc --noEmit",
+      },
+      peerDependencies: {
+        kota: "*",
+      },
+      devDependencies: {
+        kota: "*",
+        typescript: "^5.7.0",
+      },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function tsconfig(): string {
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        outDir: "dist",
+        declaration: true,
+        strict: true,
+        skipLibCheck: true,
+      },
+      include: ["src"],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function indexTs(name: string, safeName: string): string {
+  const toolName = `${safeName.replace(/-/g, "_")}_hello`;
+  return `import type { KotaExtension, ToolDef } from "kota/extension";
+
+// KotaExtension supports: tools, commands, routes, workflows, channels,
+// skills, agents, onLoad, onUnload. Add fields as your extension grows.
+
+const helloTool: ToolDef = {
+  tool: {
+    name: "${toolName}",
+    description: "A stub tool — replace with real logic.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        message: { type: "string", description: "Message to echo" },
+      },
+      required: ["message"],
+    },
+  },
+  runner: async (input) => {
+    const { message } = input as { message: string };
+    return { content: \`${name}: \${message}\` };
+  },
+};
+
+const extension: KotaExtension = {
+  name: "${safeName}",
+  version: "0.1.0",
+  description: "${name} extension",
+  tools: [helloTool],
+  // onLoad: (ctx) => { /* initialize — ctx.log, ctx.storage, ctx.config */ },
+  // onUnload: () => { /* clean up connections, timers */ },
+};
+
+export default extension;
+`;
+}
+
+function agentsMd(name: string): string {
+  return `# ${name} Extension
+
+This directory contains the \`${name}\` KOTA extension.
+
+## Purpose
+
+<!-- Describe what this extension does and why it exists. -->
+
+## Boundaries
+
+- Contribute tools, commands, routes, workflows, channels, skills, or agents
+  via the \`KotaExtension\` export in \`src/index.ts\`.
+- Do not import KOTA internals directly; use the \`ExtensionContext\` API
+  passed to \`onLoad\` for runtime services (storage, logging, config).
+
+## Development
+
+\`\`\`sh
+npm install          # install devDependencies (including kota for types)
+npm run typecheck    # verify types against KotaExtension
+npm run build        # compile to dist/ for npm-based use
+\`\`\`
+
+For local drop-in use without npm, compile and copy \`dist/index.js\` to
+\`.kota/plugins/${name}.js\` in your KOTA project.
+`;
 }
 
 function printSection(label: string, items: string[]): void {

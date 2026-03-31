@@ -6,6 +6,12 @@
   "bin": {
     "kota": "./dist/cli.js"
   },
+  "exports": {
+    "./extension": {
+      "types": "./dist/extension-api.d.ts",
+      "default": "./dist/extension-api.js"
+    }
+  },
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsup",
