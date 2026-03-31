@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import type { KotaExtension } from "../extension-types.js";
 import { readOptionalJsonFile } from "../json-file.js";
+import type { LogFormat } from "../log-format.js";
 import { Daemon, RESTART_EXIT_CODE } from "../scheduler/daemon.js";
 import type { DaemonControlAddress } from "../scheduler/daemon-control.js";
 import { DaemonControlClient } from "../server/daemon-client.js";
@@ -25,6 +26,7 @@ export function buildDaemonChildArgs(opts: {
   verbose?: boolean;
   idleInterval: string;
   pollInterval: string;
+  logFormat?: LogFormat;
 }): string[] {
   const args = [
     process.argv[1]!,
@@ -36,6 +38,7 @@ export function buildDaemonChildArgs(opts: {
   ];
   if (opts.model) args.push("--model", opts.model);
   if (opts.verbose) args.push("--verbose");
+  if (opts.logFormat) args.push("--log-format", opts.logFormat);
   return args;
 }
 
@@ -114,13 +117,25 @@ const daemonModule: KotaExtension = {
         "30",
       )
       .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
+      .option("--log-format <format>", "Log format: text (default) or json", (v) => {
+        if (v !== "text" && v !== "json") {
+          console.error(`Error: --log-format must be "text" or "json", got "${v}"`);
+          process.exit(1);
+        }
+        return v as LogFormat;
+      })
       .action(async (opts) => {
+        const logFormat: LogFormat | undefined =
+          opts.logFormat ??
+          (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
+
         if (process.env[DAEMON_CHILD_ENV] !== "1") {
           await runDaemonSupervisor({
             model: opts.model || ctx.config.model,
             verbose: opts.verbose || ctx.config.verbose,
             idleInterval: opts.idleInterval,
             pollInterval: opts.pollInterval,
+            logFormat,
           });
           return;
         }
@@ -133,6 +148,7 @@ const daemonModule: KotaExtension = {
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
           workflows: resolveDaemonWorkflowDefinitions(ctx.getContributedWorkflows()),
           channels: ctx.getContributedChannels(),
+          logFormat,
         });
 
         await daemon.start();

@@ -7,12 +7,13 @@ import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
+import type { LogFormat } from "../log-format.js";
 import { getHistory } from "../memory/history.js";
-import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowCostEntry, type WorkflowDefinitionSummary, type WorkflowMetricCounts, type WorkflowRunCountEntry, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
+import { DaemonLogger } from "./daemon-logger.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -41,6 +42,12 @@ export type DaemonConfig = {
    * 0 = drain indefinitely. Default: 60000 (60 s), or `daemon.shutdownGracePeriodMs` from kota.config.
    */
   shutdownGracePeriodMs?: number;
+  /**
+   * Log format for daemon operational output.
+   * "json" emits NDJSON; "text" (default) emits human-readable lines.
+   * Also controlled by KOTA_DAEMON_LOG_FORMAT=json env var.
+   */
+  logFormat?: LogFormat;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -52,7 +59,7 @@ const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
 
 export class Daemon {
   private readonly bus: EventBus;
-  private readonly transport: Transport;
+  private readonly logger: DaemonLogger;
   private readonly config: DaemonConfig;
   private readonly stateDir: string;
   private readonly workflows: WorkflowRuntime;
@@ -74,7 +81,7 @@ export class Daemon {
 
   constructor(config: DaemonConfig) {
     this.config = config;
-    this.transport = new CliTransport(config.verbose);
+    this.logger = new DaemonLogger(config.logFormat);
     this.projectDir = config.projectDir ?? process.cwd();
     this.stateDir = config.stateDir ?? join(this.projectDir, ".kota");
 
@@ -511,6 +518,6 @@ export class Daemon {
   }
 
   private log(message: string): void {
-    this.transport.emit({ type: "status", message: `[kota-daemon] ${message}` });
+    this.logger.line(message);
   }
 }

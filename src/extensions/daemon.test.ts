@@ -50,6 +50,7 @@ describe("daemonModule", () => {
     expect(optNames).toContain("--verbose");
     expect(optNames).toContain("--idle-interval");
     expect(optNames).toContain("--poll-interval");
+    expect(optNames).toContain("--log-format");
   });
 
   it("does not register tools or routes", () => {
@@ -77,6 +78,18 @@ describe("daemonModule", () => {
     expect(args).toContain("--model");
     expect(args).toContain("claude-sonnet-4-6");
     expect(args).toContain("--verbose");
+    expect(args).not.toContain("--log-format");
+  });
+
+  it("forwards --log-format json to child args", () => {
+    const args = buildDaemonChildArgs({
+      idleInterval: "5",
+      pollInterval: "30",
+      logFormat: "json",
+    });
+
+    expect(args).toContain("--log-format");
+    expect(args).toContain("json");
   });
 
   it("includes built-in workflows when no extension workflows are contributed", () => {

@@ -1,7 +1,7 @@
 ---
 id: task-daemon-structured-logs
 title: Add JSON structured logging mode to the daemon
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: The daemon writes plain-text log lines to stderr. Operators using log aggregators (Loki, Datadog, CloudWatch) must write brittle regex parsers to extract workflow names, run IDs, and levels. A JSON log mode would make daemon output directly ingestible.

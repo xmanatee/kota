@@ -8,6 +8,7 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 ## Key Modules
 
 - `daemon.ts` — `Daemon` class; orchestration, state management, and public API.
+- `daemon-logger.ts` — `DaemonLogger` class; structured stderr output in text or NDJSON format; reads format from constructor arg or `KOTA_DAEMON_LOG_FORMAT` env var.
 - `daemon-control.ts` — `DaemonControlServer` class; HTTP server wiring, route dispatch, SSE, and authorization. Re-exports all public types from `daemon-control-types.ts`.
 - `daemon-control-types.ts` — all shared types for the control API: `DaemonControlHandle`, `DaemonLiveStatus`, `DaemonSseEvent`, `InteractiveSession`, workflow run/status/definition types, and `CapabilityScope`.
 - `daemon-control-utils.ts` — `jsonResponse` helper shared by route modules.
