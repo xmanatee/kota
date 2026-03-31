@@ -81,7 +81,7 @@ describe("McpServer", () => {
 			expect(resp.id).toBe(1);
 			const result = resp.result as Record<string, unknown>;
 			expect(result.protocolVersion).toBe("2024-11-05");
-			expect(result.capabilities).toEqual({ tools: {}, resources: {} });
+			expect(result.capabilities).toEqual({ tools: {}, resources: {}, prompts: {} });
 			expect(result.serverInfo).toEqual({ name: "kota", version: "0.1.0" });
 
 			server.stop();
@@ -257,7 +257,7 @@ describe("McpServer", () => {
 			const server = new McpServer({ input, output, log: () => {} });
 			await initServer(server, input, output);
 
-			sendRequest(input, 2, "prompts/list");
+			sendRequest(input, 2, "unknown/method");
 			const resp = await readResponse(output);
 
 			expect(resp.error).toBeDefined();
@@ -535,5 +535,178 @@ describe("toolResultToMcp", () => {
 	it("falls back to content string when blocks is empty", () => {
 		const content = toolResultToMcp({ content: "fallback", blocks: [] });
 		expect(content).toEqual([{ type: "text", text: "fallback" }]);
+	});
+});
+
+describe("prompts", () => {
+	describe("prompts/list", () => {
+		it("returns the three KOTA prompt templates", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list");
+			const resp = await readResponse(output);
+
+			expect(resp.id).toBe(2);
+			const result = resp.result as { prompts: Array<{ name: string; description: string }> };
+			expect(Array.isArray(result.prompts)).toBe(true);
+			const names = result.prompts.map((p) => p.name);
+			expect(names).toContain("kota-create-task");
+			expect(names).toContain("kota-trigger-workflow");
+			expect(names).toContain("kota-summarize-run");
+
+			server.stop();
+		});
+
+		it("each prompt has name, description, and arguments", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as {
+				prompts: Array<{ name: string; description: string; arguments?: unknown[] }>;
+			};
+			for (const prompt of result.prompts) {
+				expect(typeof prompt.name).toBe("string");
+				expect(typeof prompt.description).toBe("string");
+				expect(Array.isArray(prompt.arguments)).toBe(true);
+			}
+
+			server.stop();
+		});
+
+		it("rejects prompts/list before initialization", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "prompts/list");
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number };
+			expect(err.code).toBe(-32002);
+
+			server.stop();
+		});
+	});
+
+	describe("prompts/get", () => {
+		it("returns rendered messages for kota-create-task", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "kota-create-task",
+				arguments: { title: "My Test Task", priority: "p1" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.id).toBe(2);
+			const result = resp.result as {
+				description: string;
+				messages: Array<{ role: string; content: { type: string; text: string } }>;
+			};
+			expect(typeof result.description).toBe("string");
+			expect(Array.isArray(result.messages)).toBe(true);
+			expect(result.messages.length).toBeGreaterThan(0);
+			expect(result.messages[0].role).toBe("user");
+			expect(result.messages[0].content.type).toBe("text");
+			expect(result.messages[0].content.text).toContain("My Test Task");
+			expect(result.messages[0].content.text).toContain("p1");
+
+			server.stop();
+		});
+
+		it("returns rendered messages for kota-trigger-workflow", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "kota-trigger-workflow",
+				arguments: { workflow: "builder" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.id).toBe(2);
+			const result = resp.result as {
+				messages: Array<{ content: { text: string } }>;
+			};
+			expect(result.messages[0].content.text).toContain("builder");
+
+			server.stop();
+		});
+
+		it("returns rendered messages for kota-summarize-run", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "kota-summarize-run",
+				arguments: { run_id: "2026-03-31T11-58-51-088Z-builder-pohafg" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.id).toBe(2);
+			const result = resp.result as {
+				messages: Array<{ content: { text: string } }>;
+			};
+			expect(result.messages[0].content.text).toContain("2026-03-31T11-58-51-088Z-builder-pohafg");
+
+			server.stop();
+		});
+
+		it("returns error for unknown prompt name", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", { name: "nonexistent-prompt" });
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Unknown prompt");
+
+			server.stop();
+		});
+
+		it("returns error when name is missing", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", { arguments: {} });
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number };
+			expect(err.code).toBe(-32602);
+
+			server.stop();
+		});
+
+		it("rejects prompts/get before initialization", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "prompts/get", { name: "kota-create-task" });
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number };
+			expect(err.code).toBe(-32002);
+
+			server.stop();
+		});
 	});
 });

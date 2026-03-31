@@ -9,6 +9,7 @@
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
+import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
 	KNOWN_RESOURCE_URIS,
 	KOTA_RESOURCES,
@@ -147,6 +148,10 @@ export class McpServer {
 				return this.handleResourcesList(msg);
 			case "resources/read":
 				return this.handleResourcesRead(msg);
+			case "prompts/list":
+				return this.handlePromptsList(msg);
+			case "prompts/get":
+				return this.handlePromptsGet(msg);
 			case "ping":
 				return this.sendResult(msg, {});
 			case "shutdown":
@@ -164,6 +169,7 @@ export class McpServer {
 			capabilities: {
 				tools: {},
 				resources: {},
+				prompts: {},
 			},
 			serverInfo: {
 				name: this.serverName,
@@ -199,6 +205,34 @@ export class McpServer {
 		this.sendResult(msg, {
 			contents: [{ uri, mimeType: "application/json", text }],
 		});
+	}
+
+	private handlePromptsList(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		this.sendResult(msg, { prompts: KOTA_PROMPTS });
+	}
+
+	private handlePromptsGet(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		const params = msg.params ?? {};
+		const name = params.name as string | undefined;
+		if (!name || typeof name !== "string") {
+			this.sendError(msg, -32602, "Missing required parameter: name");
+			return;
+		}
+		if (!isKnownPrompt(name)) {
+			this.sendError(msg, -32602, `Unknown prompt: ${name}`);
+			return;
+		}
+		const args = (params.arguments ?? {}) as Record<string, string>;
+		const result = renderPrompt(name, args);
+		this.sendResult(msg, result);
 	}
 
 	private handleToolsList(msg: JsonRpcRequest): void {
