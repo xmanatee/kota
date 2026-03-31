@@ -1,12 +1,12 @@
 ---
 id: task-workflow-dry-run
 title: Add workflow dry-run mode to validate definitions without executing steps
-status: backlog
+status: dropped
 priority: p3
 area: runtime
 summary: Operators cannot test a workflow definition without triggering a real run. A dry-run mode would validate the definition, resolve triggers, and report what steps would execute — without invoking any agents, tools, or side effects.
 created_at: 2026-03-31T05:28:00Z
-updated_at: 2026-03-31T05:28:00Z
+updated_at: 2026-03-31T06:00:00Z
 ---
 
 ## Problem

@@ -1,12 +1,12 @@
 ---
 id: task-extension-scaffold-cli
 title: Add kota extension new command to scaffold extension starters
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: No CLI to bootstrap a new KOTA extension. Contributors must read source to understand the required directory layout, TypeScript types, and contribution patterns before writing a single line of code.
 created_at: 2026-03-30T17:44:28Z
-updated_at: 2026-03-30T17:44:28Z
+updated_at: 2026-03-31T06:00:00Z
 ---
 
 ## Problem
