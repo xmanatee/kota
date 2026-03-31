@@ -1,12 +1,12 @@
 ---
 id: task-agent-session-compaction
 title: Add automatic context compaction for long-running agent sessions
-status: backlog
+status: done
 priority: p2
 area: runtime
 summary: Long builder or explorer sessions accumulate context that approaches model token limits. Without compaction, sessions fail with context-length errors and the operator must restart the run manually.
 created_at: 2026-03-31T12:22:00Z
-updated_at: 2026-03-31T12:22:00Z
+updated_at: 2026-03-31T13:03:00Z
 ---
 
 ## Problem

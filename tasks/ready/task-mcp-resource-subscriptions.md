@@ -1,12 +1,12 @@
 ---
 id: task-mcp-resource-subscriptions
 title: Add MCP resource subscription push notifications to KOTA MCP server
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The KOTA MCP server exposes static resources but does not support resource subscriptions. MCP hosts that subscribe to resource changes would immediately see task queue or workflow status updates without re-polling.
 created_at: 2026-03-31T12:22:00Z
-updated_at: 2026-03-31T12:22:00Z
+updated_at: 2026-03-31T13:03:00Z
 ---
 
 ## Problem
