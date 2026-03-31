@@ -12,6 +12,8 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 - `daemon-subscriptions.ts` — `subscribeDaemon`; sets up all event/bus/scheduler subscriptions and returns a single `unsubscribe()` function.
 - `daemon-state.ts` — `DaemonState` type and assertion helper.
 - `scheduler.ts` — `Scheduler` singleton; timer and bus connection logic.
+- `scheduler-store.ts` — file I/O helpers for the Scheduler; reads/writes schedule JSON files, handles cleanup of excess fired and cancelled items.
+- `schedule-parser.ts` — pure parsing, formatting, and type definitions for the scheduler; `ScheduledItem`, `parseTime`, `parseRepeat`, `matchesFilter`, `formatRelative`.
 - `task-store.ts` — task persistence and lookup.
 - `task-store-types.ts` — `Task`, `TaskPriority`, `TaskStatus`, and `TaskFileData` type declarations.
 - `task-router.ts` — `routeTask`, `formatTaskHint`; exported `TaskType` and `TaskRoute` types.
