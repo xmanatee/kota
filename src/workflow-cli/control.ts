@@ -44,6 +44,31 @@ export function registerControlCommands(wfCmd: Command): void {
     });
 
   wfCmd
+    .command("cancel <run-id>")
+    .description("Cancel a queued (pending) workflow run before it starts")
+    .action(async (runId: string) => {
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("No running daemon found. Cannot cancel a queued run without a daemon.");
+        process.exit(1);
+      }
+      const result = await client.cancelRun(runId);
+      if (!result) {
+        console.error("Failed to reach daemon.");
+        process.exit(1);
+      }
+      if (result.notFound) {
+        console.error(`Run "${runId}" not found in the queue.`);
+        process.exit(1);
+      }
+      if (result.active) {
+        console.error(`Run "${runId}" is active. Use \`kota workflow abort\` to cancel active runs.`);
+        process.exit(1);
+      }
+      console.log(`Cancelled queued run ${runId}.`);
+    });
+
+  wfCmd
     .command("pause")
     .description("Pause dispatching new workflow runs (current run completes normally)")
     .action(async () => {
@@ -162,7 +187,7 @@ export function registerControlCommands(wfCmd: Command): void {
 
 type StatusOptions = {
   activeRuns: Array<{ runId: string; workflow: string; startedAt?: string }>;
-  pendingRuns: Array<{ workflowName: string; trigger: { event: string }; notBeforeMs: number }>;
+  pendingRuns: Array<{ runId?: string; workflowName: string; trigger: { event: string }; notBeforeMs: number }>;
   paused: boolean;
   pendingAbort: boolean;
   completedRuns: number;
@@ -210,7 +235,8 @@ function printWorkflowStatus(opts: StatusOptions): void {
       const notBefore = q.notBeforeMs > Date.now()
         ? ` (not before ${new Date(q.notBeforeMs).toLocaleTimeString()})`
         : "";
-      console.log(`  • ${q.workflowName} — ${q.trigger.event}${notBefore}`);
+      const idSuffix = q.runId ? `  [${q.runId}]` : "";
+      console.log(`  • ${q.workflowName} — ${q.trigger.event}${notBefore}${idSuffix}`);
     }
   }
 

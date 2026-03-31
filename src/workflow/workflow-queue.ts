@@ -1,5 +1,6 @@
 import { getEligibleAtMs } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
+import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import type {
   WorkflowAgentBackoffState,
@@ -99,13 +100,12 @@ export class WorkflowQueueManager {
       (queued) => queued.workflowName === definition.name,
     );
     const state = this.config.store.readState();
+    const existing = existingIndex >= 0 ? this.queue[existingIndex] : undefined;
     const queuedRun: WorkflowQueuedRun = {
+      runId: existing?.runId ?? formatRunId(definition.name),
       workflowName: definition.name,
       trigger,
-      enqueuedAtMs:
-        existingIndex >= 0
-          ? this.queue[existingIndex].enqueuedAtMs
-          : Date.now(),
+      enqueuedAtMs: existing ? existing.enqueuedAtMs : Date.now(),
       notBeforeMs: getEligibleAtMs(
         definition.name,
         triggerConfig.cooldownMs,
@@ -117,7 +117,7 @@ export class WorkflowQueueManager {
       this.queue[existingIndex] = {
         ...queuedRun,
         notBeforeMs: Math.max(
-          this.queue[existingIndex].notBeforeMs,
+          existing!.notBeforeMs,
           queuedRun.notBeforeMs,
         ),
       };
@@ -133,6 +133,14 @@ export class WorkflowQueueManager {
     this.config.log(
       `${this.config.isActiveRun(definition.name) ? "Queued rerun for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}"`,
     );
+  }
+
+  cancel(runId: string): { cancelled: boolean } {
+    const index = this.queue.findIndex((item) => item.runId === runId);
+    if (index === -1) return { cancelled: false };
+    this.queue.splice(index, 1);
+    this.persist();
+    return { cancelled: true };
   }
 
   pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {

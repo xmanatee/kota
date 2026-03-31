@@ -156,6 +156,7 @@ export class Daemon {
           }),
         })),
       enqueuePendingRun: (name: string) => this.workflows.enqueuePendingRun(name),
+      cancelQueuedRun: (runId: string) => this.workflows.cancelQueuedRun(runId),
       subscribeToEvents: (handler) => {
         const stops = [
           this.bus.on("workflow.started", (p) => {

@@ -151,6 +151,7 @@ export type DaemonControlHandle = {
   reloadWorkflowDefinitions(): { count: number };
   getWorkflowDefinitions(): WorkflowDefinitionSummary[];
   enqueuePendingRun(name: string, tags?: string[]): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
+  cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   // History
   listHistory(search?: string, limit?: number): ConversationRecord[];

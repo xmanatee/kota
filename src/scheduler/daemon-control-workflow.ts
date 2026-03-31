@@ -55,6 +55,23 @@ export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerRes
   jsonResponse(res, 200, { ok: true, count });
 }
 
+export function handleCancelWorkflowRun(
+  handle: DaemonControlHandle,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  const result = handle.cancelQueuedRun(params.id);
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: "Run not found" });
+    return;
+  }
+  if (result.active) {
+    jsonResponse(res, 409, { error: "Run is active; use POST /workflow/abort to cancel active runs" });
+    return;
+  }
+  jsonResponse(res, 200, { ok: true });
+}
+
 export function handleTriggerWorkflow(
   handle: DaemonControlHandle,
   req: IncomingMessage,

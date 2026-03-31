@@ -21,6 +21,7 @@ export type WorkflowActiveRun = {
 };
 
 export type WorkflowQueuedRun = {
+  runId?: string;
   workflowName: string;
   trigger: WorkflowRunTrigger;
   enqueuedAtMs: number;

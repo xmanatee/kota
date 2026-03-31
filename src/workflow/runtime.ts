@@ -217,14 +217,16 @@ export class WorkflowRuntime {
     const state = this.store.readState();
     if (state.pendingRuns.some((r) => r.workflowName === name)) return { ok: false, alreadyQueued: true };
     const now = Date.now();
+    const runId = formatRunId(name);
     const trigger = {
       event: "manual",
       payload: {
         triggeredAt: new Date().toISOString(),
+        _runId: runId,
         ...(tags && tags.length > 0 && { tags }),
       },
     };
-    this.store.setPendingRuns([...state.pendingRuns, { workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
+    this.store.setPendingRuns([...state.pendingRuns, { runId, workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
     this.maybeStartNext();
     return { ok: true, queued: name };
   }
@@ -247,9 +249,18 @@ export class WorkflowRuntime {
       payload: { ...webhookPayload, _runId: runId },
     };
     const state = this.store.readState();
-    this.store.setPendingRuns([...state.pendingRuns, { workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
+    this.store.setPendingRuns([...state.pendingRuns, { runId, workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
     this.maybeStartNext();
     return { ok: true, runId };
+  }
+
+  cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean } {
+    const { cancelled } = this.wfQueue.cancel(runId);
+    if (cancelled) return { ok: true };
+    const state = this.store.readState();
+    const isActive = (state.activeRuns ?? []).some((r) => r.runId === runId);
+    if (isActive) return { ok: false, active: true };
+    return { ok: false, notFound: true };
   }
 
   getDefinitionCount(): number {

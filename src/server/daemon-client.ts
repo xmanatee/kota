@@ -141,6 +141,21 @@ export class DaemonControlClient {
     }
   }
 
+  async cancelRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(runId)}`, {
+        method: "DELETE",
+        headers: this.authHeaders(),
+      });
+      if (res.status === 404) return { ok: false, notFound: true };
+      if (res.status === 409) return { ok: false, active: true };
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean };
+    } catch {
+      return null;
+    }
+  }
+
   async listHistory(search?: string, limit?: number): Promise<{ conversations: ConversationRecord[] } | null> {
     try {
       const params = new URLSearchParams();

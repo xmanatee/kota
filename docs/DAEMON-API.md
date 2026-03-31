@@ -40,6 +40,7 @@ Routes are tagged with a capability scope:
 - **`control`** — mutate workflow dispatch and data:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
   `POST /workflow/reload`, `POST /workflow/trigger`,
+  `DELETE /workflow/runs/:id`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
   `POST /approvals/:id/reject`,
   `POST /sessions/register`, `DELETE /sessions/:id`
@@ -313,6 +314,29 @@ If already running (not paused):
 ```json
 { "ok": true, "paused": false, "already": true }
 ```
+
+### DELETE /workflow/runs/:id
+
+Cancels a queued (pending) workflow run before it starts. Has no effect on
+active runs; use `POST /workflow/abort` for those.
+
+**Path parameter:** `:id` — the run ID shown in `GET /workflow/status`
+`pendingRuns[].runId` and in `kota workflow status`.
+
+**Response:**
+
+```json
+{ "ok": true }
+```
+
+**Error responses:**
+
+- `404` — no queued run with that ID exists.
+- `409` — the run is currently active; use `POST /workflow/abort` instead.
+
+**Scope:** `control`
+
+---
 
 ### POST /workflow/abort
 

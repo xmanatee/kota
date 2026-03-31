@@ -33,6 +33,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 3 })),
     getWorkflowDefinitions: vi.fn(() => []),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
+    cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
     listHistory: vi.fn(() => []),
     getHistory: vi.fn(() => null),
@@ -899,6 +900,45 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(503);
       const body = await res.json();
       expect(body.status).toBe("degraded");
+    });
+  });
+
+  describe("DELETE /workflow/runs/:id", () => {
+    it("returns 200 when run is successfully cancelled", async () => {
+      handle = makeHandle({ cancelQueuedRun: vi.fn(() => ({ ok: true })) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs/2026-01-01T00-00-00-000Z-builder-abc123", { method: "DELETE" });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ ok: true });
+      expect(handle.cancelQueuedRun).toHaveBeenCalledWith("2026-01-01T00-00-00-000Z-builder-abc123");
+    });
+
+    it("returns 404 when run is not found", async () => {
+      const res = await fetchWithToken(port, "/workflow/runs/unknown-run-id", { method: "DELETE" });
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("returns 409 when run is active", async () => {
+      handle = makeHandle({ cancelQueuedRun: vi.fn(() => ({ ok: false, active: true })) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs/some-active-run-id", { method: "DELETE" });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("requires auth", async () => {
+      const res = await fetchNoToken(port, "/workflow/runs/some-run-id", { method: "DELETE" });
+      expect(res.status).toBe(401);
     });
   });
 

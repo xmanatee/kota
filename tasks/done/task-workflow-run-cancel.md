@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-cancel
 title: Add API and CLI command to cancel a queued workflow run before it starts
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: The daemon supports aborting active runs but offers no way to cancel a run that is queued but has not started yet. Operators who want to pull back an accidentally triggered run must restart the daemon.
