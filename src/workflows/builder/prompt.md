@@ -30,7 +30,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   reality when your change affects them. If a local `AGENTS.md` contains an
   inventory such as `Key Modules`, update it when your change would otherwise
   leave it stale — for example, when you add a new file to `src/`, check
-  `src/AGENTS.md` Key Modules and add an entry if the file belongs there. If a
+  `src/AGENTS.md` Key Modules and add an entry if the file belongs there; when
+  you add subcommands to an existing CLI file, check whether the existing Key
+  Modules entry enumerates specific subcommands and update it if so. If a
   `docs/` file documents a protocol, API, or behavior that you changed, update
   it in the same run.
 - If implementation uncovers a genuinely useful follow-up, capture it lightly in `tasks/inbox/` or enrich the current task instead of creating duplicate work. Use ISO 8601 datetime for `created_at` and `updated_at` in any task files you create (e.g. `2026-03-27T11:40:00Z`).
