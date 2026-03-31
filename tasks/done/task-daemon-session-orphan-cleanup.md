@@ -1,7 +1,7 @@
 ---
 id: task-daemon-session-orphan-cleanup
 title: Clean up orphaned daemon sessions from crashed or disconnected clients
-status: ready
+status: done
 priority: p3
 area: reliability
 summary: When kota serve dies without calling DELETE /sessions/:id, the daemon retains stale session entries indefinitely; GET /status reports phantom active sessions with no TTL-based cleanup path.

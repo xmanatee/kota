@@ -16,3 +16,4 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 - `task-store-types.ts` — `Task`, `TaskPriority`, `TaskStatus`, and `TaskFileData` type declarations.
 - `task-router.ts` — `routeTask`, `formatTaskHint`; exported `TaskType` and `TaskRoute` types.
 - `task-router-data.ts` — `TASK_PATTERNS`, `STRATEGIES`, `GROUP_RECOMMENDATIONS`, and `PatternEntry` type; static data only.
+- `session-sweep.ts` — `sweepExpiredSessions`; pure function that removes idle sessions from a `Map` and returns the expired IDs.

@@ -537,6 +537,20 @@ the server shuts down.
 
 **Response:** `204 No Content`
 
+### Idle TTL and Sweep
+
+Sessions are automatically removed by a periodic server-side sweep. A session
+is considered stale once `now - lastActive > idleTtlMs`.
+
+Defaults (configurable via `DaemonConfig`):
+- `sessionIdleTtlMs`: `300_000` (5 minutes)
+- `sessionSweepIntervalMs`: `60_000` (1 minute)
+
+When a session is swept, the daemon emits a `session.unregistered` SSE event
+(same as explicit `DELETE /sessions/:id`), so connected clients observe a clean
+status update. Clients do not need to implement any heartbeat — the TTL is
+enforced server-side only.
+
 ## Source Of Truth Boundary
 
 When the daemon is running:

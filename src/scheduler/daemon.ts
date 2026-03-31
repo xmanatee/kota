@@ -16,6 +16,7 @@ import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSes
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
+import { sweepExpiredSessions } from "./session-sweep.js";
 import { initTaskStore } from "./task-store.js";
 
 export type { DaemonControlAddress } from "./daemon-control.js";
@@ -31,6 +32,10 @@ export type DaemonConfig = {
   stateDir?: string;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
   channels?: readonly ChannelDef[];
+  /** How long a session may be idle before it is swept. Default: 5 minutes. */
+  sessionIdleTtlMs?: number;
+  /** How often to run the session sweep. Default: 1 minute. */
+  sessionSweepIntervalMs?: number;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -55,6 +60,7 @@ export class Daemon {
   private unsubscribe: (() => void) | null = null;
   private activeChannels: ChannelAdapter[] = [];
   private sessions = new Map<string, InteractiveSession>();
+  private sessionSweepTimer: ReturnType<typeof setInterval> | null = null;
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -244,6 +250,15 @@ export class Daemon {
     });
     this.log(`Control API on http://127.0.0.1:${controlPort}`);
 
+    const idleTtlMs = this.config.sessionIdleTtlMs ?? 5 * 60_000;
+    const sweepMs = this.config.sessionSweepIntervalMs ?? 60_000;
+    this.sessionSweepTimer = setInterval(() => {
+      const expired = sweepExpiredSessions(this.sessions, Date.now(), idleTtlMs);
+      for (const id of expired) {
+        this.bus.emit("session.unregistered", { id });
+      }
+    }, sweepMs);
+
     const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
     const runsDir = join(this.stateDir, "runs");
 
@@ -306,6 +321,11 @@ export class Daemon {
     if (this.stopping) return;
     this.stopping = true;
     this.log("Daemon shutting down...");
+
+    if (this.sessionSweepTimer !== null) {
+      clearInterval(this.sessionSweepTimer);
+      this.sessionSweepTimer = null;
+    }
 
     for (const adapter of this.activeChannels) {
       await adapter.stop();
