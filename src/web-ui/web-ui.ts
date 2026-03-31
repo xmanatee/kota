@@ -61,6 +61,11 @@ ${WEB_UI_CSS}
       <div id="knowledge-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Memory</h3>
+      <input id="memory-filter" type="text" placeholder="Filter…" style="width:100%;box-sizing:border-box;margin-bottom:4px;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;" />
+      <div id="memory-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Extensions</h3>
       <div id="extensions-list"></div>
     </div>

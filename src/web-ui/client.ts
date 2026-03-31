@@ -7,6 +7,7 @@ import { CLIENT_CHAT_JS } from "./client-chat.js";
 import { CLIENT_COST_JS } from "./client-cost.js";
 import { CLIENT_EXTENSIONS_JS } from "./client-extensions.js";
 import { CLIENT_KNOWLEDGE_JS } from "./client-knowledge.js";
+import { CLIENT_MEMORY_JS } from "./client-memory.js";
 import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
 import { CLIENT_SCHEDULES_JS } from "./client-schedules.js";
 import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
@@ -57,6 +58,8 @@ export const WEB_UI_JS = /* js */ `
   const $extensionsList = document.getElementById("extensions-list");
   const $knowledgeList = document.getElementById("knowledge-list");
   const $knowledgeFilter = document.getElementById("knowledge-filter");
+  const $memoryList = document.getElementById("memory-list");
+  const $memoryFilter = document.getElementById("memory-filter");
   const $runDetail = document.getElementById("run-detail");
   const $inputArea = document.getElementById("input-area");
   const $historyViewBar = document.getElementById("history-view-bar");
@@ -76,6 +79,7 @@ ${CLIENT_ACTIVE_SESSIONS_JS}
 ${CLIENT_SCHEDULES_JS}
 ${CLIENT_EXTENSIONS_JS}
 ${CLIENT_KNOWLEDGE_JS}
+${CLIENT_MEMORY_JS}
 
   // --- Event listeners ---
 
@@ -114,6 +118,7 @@ ${CLIENT_KNOWLEDGE_JS}
   refreshSchedules();
   refreshExtensions();
   refreshKnowledge();
+  refreshMemory();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   startWorkflowUpdates();
