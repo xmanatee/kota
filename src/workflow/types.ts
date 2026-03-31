@@ -137,6 +137,46 @@ export type WorkflowCodeStepInput = WorkflowBaseStep & {
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
 };
 
+/**
+ * A typed code step with a compile-time output accessor.
+ * Extends WorkflowCodeStepInput and is assignable wherever WorkflowCodeStepInput is accepted.
+ */
+export type TypedCodeStepInput<T> = WorkflowBaseStep & {
+  type: "code";
+  run: (context: WorkflowStepContext) => Promise<T> | T;
+  /** Returns this step's output from a step context, typed as T. */
+  output: (context: WorkflowStepContext) => T;
+};
+
+/**
+ * Creates a typed code step. The returned step's `output(context)` accessor returns
+ * the step's persisted output as `T`, avoiding manual casts in downstream `when`
+ * predicates and `run` functions.
+ *
+ * @example
+ * ```ts
+ * const myStep = typedCodeStep({
+ *   id: "my-step",
+ *   run: (): MyOutputType => ({ ... }),
+ * });
+ *
+ * // In a downstream step:
+ * when: (ctx) => myStep.output(ctx).someField > 0,
+ * ```
+ */
+export function typedCodeStep<T>(
+  def: WorkflowBaseStep & {
+    type: "code";
+    run: (context: WorkflowStepContext) => Promise<T> | T;
+  },
+): TypedCodeStepInput<T> {
+  return {
+    ...def,
+    output: (context: WorkflowStepContext): T =>
+      context.stepOutputs[def.id] as T,
+  };
+}
+
 export type WorkflowParallelGroupInput = {
   id: string;
   type: "parallel";

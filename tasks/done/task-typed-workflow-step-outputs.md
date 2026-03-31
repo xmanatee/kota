@@ -1,7 +1,7 @@
 ---
 id: task-typed-workflow-step-outputs
 title: Add TypeScript generic types for workflow step outputs
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Workflow step outputs are currently typed as unknown in stepOutputs. As step chaining grows — builder's inspect-ready-queue feeding the build step's when predicate, for example — silent type mismatches cause subtle bugs. Adding a typed generic to step definitions would catch these at definition time.

@@ -7,7 +7,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 ## Key Modules
 
-- `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, and related config. 215 lines.
+- `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, `typedCodeStep` factory, and related config.
 - `run-types.ts` — Runtime execution types: run status, step status, active run, queued run, execution context, predicates, repair config, step/run results.
 - `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. ~236 lines.
 - `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface.
@@ -31,3 +31,27 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `active-run-handle.ts` — `ActiveWorkflowRunHandle` and `createActiveRunHandle`: append messages, record steps, finish runs.
 - `run-store-helpers.ts` — Runtime-state validation/assertion helpers, snapshot and summary builders. Re-exports from `run-io.ts`.
 - `run-io.ts` — Generic file IO utilities: `ensureDir`, `safeJsonStringify`, `writeJsonFile`, `formatRunId`.
+
+## Typed Code Step Pattern
+
+Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by downstream
+steps or `when` predicates. It returns a `TypedCodeStepInput<T>` that is assignable to any
+`WorkflowCodeStepInput` slot and adds an `output(context)` accessor typed as `T`:
+
+```ts
+import { typedCodeStep } from "../workflow/types.js";
+
+const myStep = typedCodeStep<MyOutputType>({
+  id: "my-step",
+  type: "code",
+  run: (): MyOutputType => ({ ... }),
+});
+
+// Use myStep directly in the steps array.
+// Downstream steps access the output without casts:
+when: (ctx) => myStep.output(ctx).someField > 0,
+```
+
+The runtime representation is unchanged (`stepOutputs` remains `Record<string, unknown>`).
+Untyped code steps are still valid — only adopt this pattern when downstream type safety
+is needed.

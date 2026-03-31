@@ -1,22 +1,19 @@
-import {
-  getRepoTaskQueueSnapshot,
-  isRepoTaskQueueSnapshot,
-} from "../../repo-tasks.js";
+import type { RepoTaskQueueSnapshot } from "../../repo-tasks.js";
+import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
+import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { stepCommitted, stepSucceeded } from "../shared.js";
 
-function shouldRunBuilder(stepOutputs: Record<string, unknown>): boolean {
-  const inspectOutput = stepOutputs["inspect-ready-queue"];
-  return Boolean(
-    inspectOutput &&
-      typeof inspectOutput === "object" &&
-      "actionableCount" in inspectOutput &&
-      typeof inspectOutput.actionableCount === "number" &&
-      inspectOutput.actionableCount > 0,
-  );
-}
+const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
+  id: "inspect-ready-queue",
+  type: "code",
+  run: ({ projectDir }) => {
+    assertRepoWorktreeClean(projectDir);
+    return getRepoTaskQueueSnapshot(projectDir);
+  },
+});
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -31,23 +28,14 @@ const builderWorkflow: WorkflowDefinitionInput = {
     },
   ],
   steps: [
-    {
-      id: "inspect-ready-queue",
-      type: "code",
-      run: ({ projectDir }) => {
-        assertRepoWorktreeClean(projectDir);
-        return getRepoTaskQueueSnapshot(projectDir);
-      },
-    },
+    inspectReadyQueue,
     {
       id: "build",
       type: "agent",
       agentName: "builder",
       timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: ({ stepOutputs }) =>
-        isRepoTaskQueueSnapshot(stepOutputs["inspect-ready-queue"]) &&
-        shouldRunBuilder(stepOutputs),
+      when: (ctx) => inspectReadyQueue.output(ctx).actionableCount > 0,
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [
