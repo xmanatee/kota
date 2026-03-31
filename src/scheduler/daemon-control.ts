@@ -5,6 +5,19 @@ import type { WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from 
 import type { WorkflowAgentBackoffState } from "../workflow/types.js";
 import type { DaemonState } from "./daemon-state.js";
 
+export type WorkflowDefinitionTriggerSummary =
+  | { type: "event"; event: string }
+  | { type: "cron"; schedule: string }
+  | { type: "interval"; intervalMs: number }
+  | { type: "webhook" };
+
+export type WorkflowDefinitionSummary = {
+  name: string;
+  enabled: boolean;
+  stepCount: number;
+  triggers: WorkflowDefinitionTriggerSummary[];
+};
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -121,6 +134,7 @@ export type DaemonControlHandle = {
   resumeWorkflowDispatch(): { already: boolean };
   abortActiveRuns(): { aborted: number };
   reloadWorkflowDefinitions(): { count: number };
+  getWorkflowDefinitions(): WorkflowDefinitionSummary[];
   enqueuePendingRun(name: string): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   // History
@@ -164,6 +178,7 @@ const ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "GET /approvals": "read",
   "POST /approvals/:id/approve": "control",
   "POST /approvals/:id/reject": "control",
+  "GET /workflow/definitions": "read",
   "GET /workflow/runs": "read",
   "GET /workflow/runs/:id": "read",
   "GET /tasks": "read",
@@ -325,6 +340,11 @@ export class DaemonControlServer {
 
     if (method === "GET" && path === "/workflow/status") {
       jsonResponse(res, 200, this.handle.getWorkflowLiveStatus());
+      return;
+    }
+
+    if (method === "GET" && path === "/workflow/definitions") {
+      jsonResponse(res, 200, { definitions: this.handle.getWorkflowDefinitions() });
       return;
     }
 

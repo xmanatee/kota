@@ -8,6 +8,7 @@ import type {
   DaemonSseEvent,
   DaemonSseEventType,
   DaemonTaskStatusResponse,
+  WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
   WorkflowRunSummary,
@@ -58,6 +59,16 @@ export class DaemonControlClient {
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/status`, { headers: this.authHeaders() });
       if (!res.ok) return null;
       return (await res.json()) as WorkflowLiveStatus;
+    } catch {
+      return null;
+    }
+  }
+
+  async getWorkflowDefinitions(): Promise<{ definitions: WorkflowDefinitionSummary[] } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/definitions`, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as { definitions: WorkflowDefinitionSummary[] };
     } catch {
       return null;
     }

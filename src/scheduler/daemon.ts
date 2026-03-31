@@ -12,7 +12,7 @@ import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
-import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
+import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowDefinitionSummary, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -127,6 +127,18 @@ export class Daemon {
       },
       abortActiveRuns: () => this.workflows.abortActiveRuns(),
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
+      getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
+        this.workflows.getDefinitions().map((def) => ({
+          name: def.name,
+          enabled: def.enabled,
+          stepCount: def.steps.length,
+          triggers: def.triggers.map((t): WorkflowDefinitionSummary["triggers"][number] => {
+            if (t.webhook) return { type: "webhook" };
+            if (t.schedule) return { type: "cron", schedule: t.schedule };
+            if (t.intervalMs != null) return { type: "interval", intervalMs: t.intervalMs };
+            return { type: "event", event: t.event };
+          }),
+        })),
       enqueuePendingRun: (name: string) => this.workflows.enqueuePendingRun(name),
       subscribeToEvents: (handler) => {
         const stops = [

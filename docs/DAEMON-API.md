@@ -33,7 +33,7 @@ must include an `Authorization: Bearer <token>` header matching the token in
 Routes are tagged with a capability scope:
 
 - **`read`** — observe daemon and workflow state, subscribe to events:
-  `GET /status`, `GET /workflow/status`, `GET /events`,
+  `GET /status`, `GET /workflow/status`, `GET /workflow/definitions`, `GET /events`,
   `GET /workflow/runs`, `GET /workflow/runs/:id`,
   `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
   `GET /sessions`
@@ -113,6 +113,40 @@ Returns live workflow runtime state only.
   "paused": false
 }
 ```
+
+### GET /workflow/definitions
+
+Returns the currently loaded workflow definitions. Use this to show trigger
+types, cron schedules, step counts, and enabled state in thin clients without
+reading config files directly.
+
+**Response:**
+
+```json
+{
+  "definitions": [
+    {
+      "name": "builder",
+      "enabled": true,
+      "stepCount": 5,
+      "triggers": [
+        { "type": "event", "event": "workflow.completed" },
+        { "type": "cron", "schedule": "0 * * * *" },
+        { "type": "interval", "intervalMs": 3600000 },
+        { "type": "webhook" }
+      ]
+    }
+  ]
+}
+```
+
+Each trigger entry has a `type` discriminant:
+- `"event"` — event-triggered; `event` is the bus event name
+- `"cron"` — cron schedule; `schedule` is a standard 5-field cron expression
+- `"interval"` — interval trigger; `intervalMs` is the repeat interval in milliseconds
+- `"webhook"` — fires via `POST /webhooks/:name`
+
+**Client method:** `DaemonControlClient.getWorkflowDefinitions()`
 
 ### GET /workflow/runs
 

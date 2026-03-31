@@ -249,6 +249,10 @@ export class WorkflowRuntime {
     return this.definitions.length;
   }
 
+  getDefinitions(): WorkflowDefinition[] {
+    return this.definitions;
+  }
+
   getState(): WorkflowRuntimeState & { queueLength: number } {
     const state = this.store.readState();
     return {

@@ -29,6 +29,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 3 })),
+    getWorkflowDefinitions: vi.fn(() => []),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
     subscribeToEvents: vi.fn(() => () => {}),
     listHistory: vi.fn(() => []),
@@ -310,6 +311,40 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, count: 3 });
+    });
+  });
+
+  describe("GET /workflow/definitions", () => {
+    it("returns 200 with definitions list", async () => {
+      handle = makeHandle({
+        getWorkflowDefinitions: vi.fn(() => [
+          {
+            name: "builder",
+            enabled: true,
+            stepCount: 3,
+            triggers: [{ type: "event" as const, event: "runtime.idle" }],
+          },
+        ]),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/definitions");
+      expect(res.status).toBe(200);
+      const body = await res.json() as { definitions: unknown[] };
+      expect(body.definitions).toHaveLength(1);
+      expect(body.definitions[0]).toMatchObject({
+        name: "builder",
+        enabled: true,
+        stepCount: 3,
+        triggers: [{ type: "event", event: "runtime.idle" }],
+      });
+    });
+
+    it("requires auth", async () => {
+      const res = await fetchNoToken(port, "/workflow/definitions");
+      expect(res.status).toBe(401);
     });
   });
 
