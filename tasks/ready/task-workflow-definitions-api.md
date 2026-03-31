@@ -1,12 +1,12 @@
 ---
 id: task-workflow-definitions-api
 title: Expose loaded workflow definitions via daemon control API
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: runtime
 summary: The daemon control API exposes workflow run state and history but not the loaded workflow definitions themselves. Thin clients (web UI, mobile apps) cannot show trigger types, cron expressions, step counts, or enabled state without reading config files directly.
 created_at: 2026-03-31T00:36:00Z
-updated_at: 2026-03-31T00:36:00Z
+updated_at: 2026-03-31T01:15:00Z
 ---
 
 ## Problem

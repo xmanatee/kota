@@ -1,12 +1,12 @@
 ---
 id: task-daemon-stop-status-cli
 title: Add kota daemon stop and kota daemon status subcommands
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: cli
 summary: kota daemon only starts the daemon. There is no kota daemon stop to send SIGTERM, no kota daemon status to check health, and no kota daemon pid to find the running process. Operators managing the daemon from scripts or shell must write their own wrappers.
 created_at: 2026-03-31T00:36:00Z
-updated_at: 2026-03-31T00:36:00Z
+updated_at: 2026-03-31T01:15:00Z
 ---
 
 ## Problem
