@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-guardrail-audit-panel
 title: Add guardrail audit trail panel to the web UI dashboard
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The guardrail audit trail (`.kota/audit.jsonl`) records every tool call assessment but is invisible in the web UI. A panel browsing recent assessments would let operators quickly spot blocked calls, understand risk patterns, and verify policy enforcement.
 created_at: 2026-03-31T05:28:00Z
-updated_at: 2026-03-31T05:28:00Z
+updated_at: 2026-03-31T06:42:08Z
 ---
 
 ## Problem
