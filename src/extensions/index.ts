@@ -21,6 +21,7 @@ import toolCacheModule from "./tool-cache.js";
 import toolRetryModule from "./tool-retry.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 import webModule from "./web.js";
+import webhookModule from "./webhook.js";
 import workingMemoryModule from "./working-memory.js";
 
 /** All built-in modules, in dependency order. */
@@ -35,6 +36,7 @@ export const builtinExtensions: KotaExtension[] = [
   historyModule,
   schedulerModule,
   telegramModule,
+  webhookModule,
   daemonModule,
   vercelAdapterModule,
   webModule,

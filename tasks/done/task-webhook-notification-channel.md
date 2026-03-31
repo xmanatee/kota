@@ -1,7 +1,7 @@
 ---
 id: task-webhook-notification-channel
 title: Generic HTTP webhook notification channel extension
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Telegram is the only notification channel today. A generic HTTP webhook channel lets operators route alerts and digests to Slack, Discord, PagerDuty, or any custom endpoint without building a dedicated extension for each service.
