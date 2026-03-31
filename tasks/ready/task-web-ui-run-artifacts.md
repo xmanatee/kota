@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-run-artifacts
 title: Add run artifact detail view to the web UI workflow history panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The workflow history panel lists runs but provides no way to inspect what a run produced. Operators need to drill into individual runs to see step outputs, commit messages, and other artifacts left in .kota/runs/.
 created_at: 2026-03-31T00:20:16Z
-updated_at: 2026-03-31T01:59:40Z
+updated_at: 2026-03-31T02:42:57Z
 ---
 
 ## Problem
