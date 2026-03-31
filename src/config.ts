@@ -100,6 +100,12 @@ export type KotaConfig = {
     noAuth?: boolean;
   };
 
+  /** Log output settings. */
+  log?: {
+    /** Output format. "text" is human-readable (default); "json" emits newline-delimited JSON for log aggregators. Overridden by LOG_FORMAT env var. */
+    format?: "text" | "json";
+  };
+
   /** Daemon lifecycle settings. */
   daemon?: {
     /**
@@ -232,6 +238,11 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
       if (typeof val === "string" && val) agentModels[name] = val;
     }
     if (Object.keys(agentModels).length > 0) out.agentModels = agentModels;
+  }
+
+  if (typeof raw.log === "object" && raw.log !== null && !Array.isArray(raw.log)) {
+    const src = raw.log as Record<string, unknown>;
+    if (src.format === "text" || src.format === "json") out.log = { format: src.format };
   }
 
   if (typeof raw.daemon === "object" && raw.daemon !== null && !Array.isArray(raw.daemon)) {

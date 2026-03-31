@@ -4,6 +4,7 @@ import type { EventBus } from "./event-bus.js";
 import { getExtensionLogStore } from "./extension-log.js";
 import { ExtensionStorage } from "./extension-storage.js";
 import type { CreateSessionOptions, ExtensionContext, ExtensionEventProxy, ExtensionSession, ExtensionSummary, RouteRegistration } from "./extension-types.js";
+import { resolveLogFormatter } from "./log-format.js";
 import { getProviderRegistry } from "./providers.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
@@ -60,21 +61,22 @@ export function createExtensionContext(params: ExtensionContextParams, extension
     ? getOrCreateStorage(extensionName, cwd, extensionStorages)
     : new ExtensionStorage(cwd, "_default");
   const prefix = extensionName ? `[extension:${extensionName}]` : "[extension]";
+  const formatLine = resolveLogFormatter(config.log?.format);
   const log = {
     info: (msg: string, data?: unknown) => {
-      console.error(`${prefix} ${msg}`);
+      console.error(formatLine("info", prefix, msg, data));
       getExtensionLogStore()?.append(extensionName ?? "_default", "info", msg, data);
     },
     warn: (msg: string, data?: unknown) => {
-      console.error(`${prefix} WARN: ${msg}`);
+      console.error(formatLine("warn", prefix, msg, data));
       getExtensionLogStore()?.append(extensionName ?? "_default", "warn", msg, data);
     },
     error: (msg: string, data?: unknown) => {
-      console.error(`${prefix} ERROR: ${msg}`);
+      console.error(formatLine("error", prefix, msg, data));
       getExtensionLogStore()?.append(extensionName ?? "_default", "error", msg, data);
     },
     debug: (msg: string, data?: unknown) => {
-      if (verbose) console.error(`${prefix} DEBUG: ${msg}`);
+      if (verbose) console.error(formatLine("debug", prefix, msg, data));
       getExtensionLogStore()?.append(extensionName ?? "_default", "debug", msg, data);
     },
   };
