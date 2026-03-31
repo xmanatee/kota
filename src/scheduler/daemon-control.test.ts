@@ -185,7 +185,7 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, queued: "builder" });
-      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder");
+      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder", undefined);
     });
 
     it("returns 400 for invalid JSON body", async () => {

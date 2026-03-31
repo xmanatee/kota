@@ -201,6 +201,7 @@ export class Daemon {
           ...(m.totalCostUsd != null && { totalCostUsd: m.totalCostUsd }),
           ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
+          ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
         })),
       getWorkflowRun: (id: string): WorkflowRunDetail | null => {
         const m = this.runStore.getRun(id);
@@ -216,6 +217,7 @@ export class Daemon {
           ...(m.totalCostUsd != null && { totalCostUsd: m.totalCostUsd }),
           ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
+          ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
           steps: m.steps.map((s) => {
             const agentCost = s.type === "agent" && typeof (s.output as { totalCostUsd?: unknown } | null | undefined)?.totalCostUsd === "number"
               ? (s.output as { totalCostUsd: number }).totalCostUsd

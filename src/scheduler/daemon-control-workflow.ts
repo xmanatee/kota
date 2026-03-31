@@ -73,7 +73,11 @@ export function handleTriggerWorkflow(
         jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
         return;
       }
-      const result = handle.enqueuePendingRun(name);
+      const tags =
+        Array.isArray(body.tags) && (body.tags as unknown[]).every((t) => typeof t === "string")
+          ? (body.tags as string[])
+          : undefined;
+      const result = handle.enqueuePendingRun(name, tags);
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;

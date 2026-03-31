@@ -13,6 +13,7 @@ export function registerRunListCommands(wfCmd: Command): void {
     .option("-n, --limit <n>", "Number of runs to show", "20")
     .option("-w, --workflow <name>", "Filter by workflow name")
     .option("-s, --status <status>", "Filter by run status (success, failed, interrupted, completed-with-warnings, running)")
+    .option("-t, --tag <tag>", "Filter by tag")
     .action(async (opts) => {
       const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
       if (opts.status && !validStatuses.includes(opts.status)) {
@@ -21,7 +22,7 @@ export function registerRunListCommands(wfCmd: Command): void {
       }
       const limit = Number.parseInt(opts.limit, 10) || 20;
 
-      type RunRow = { id: string; workflow: string; status: string; durationMs?: number; totalCostUsd?: number; startedAt: string; trigger: { event: string }; retryOf?: string; triggeredByRunId?: string };
+      type RunRow = { id: string; workflow: string; status: string; durationMs?: number; totalCostUsd?: number; startedAt: string; trigger: { event: string }; retryOf?: string; triggeredByRunId?: string; tags?: string[] };
       let page: RunRow[];
       const store = new WorkflowRunStore();
 
@@ -29,7 +30,9 @@ export function registerRunListCommands(wfCmd: Command): void {
       const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, limit * 3) : null;
 
       if (daemonRuns) {
-        const filtered = daemonRuns.runs.filter((r) => !opts.status || r.status === opts.status);
+        const filtered = daemonRuns.runs
+          .filter((r) => !opts.status || r.status === opts.status)
+          .filter((r) => !opts.tag || (r.tags ?? []).includes(opts.tag as string));
         page = filtered.slice(0, limit).map((r) => ({
           id: r.id,
           workflow: r.workflow,
@@ -40,12 +43,14 @@ export function registerRunListCommands(wfCmd: Command): void {
           trigger: { event: r.triggerEvent },
           retryOf: r.retryOf,
           triggeredByRunId: r.triggeredByRunId,
+          tags: r.tags,
         }));
       } else {
         const runs = listRuns(store, limit * 3); // over-fetch to allow filtering
         const filtered = runs
           .filter((r) => !opts.workflow || r.workflow === opts.workflow)
-          .filter((r) => !opts.status || r.status === opts.status);
+          .filter((r) => !opts.status || r.status === opts.status)
+          .filter((r) => !opts.tag || (r.tags ?? []).includes(opts.tag as string));
         page = filtered.slice(0, limit);
       }
 
@@ -78,7 +83,8 @@ export function registerRunListCommands(wfCmd: Command): void {
           : r.triggeredByRunId
           ? `${r.trigger.event} ← ${r.triggeredByRunId}`
           : r.trigger.event;
-        console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}`);
+        const tagStr = r.tags && r.tags.length > 0 ? ` [${r.tags.join(",")}]` : "";
+        console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}${tagStr}`);
       }
 
       const definitions = getBuiltinWorkflowDefinitions();

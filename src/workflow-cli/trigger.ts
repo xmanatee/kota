@@ -14,7 +14,8 @@ export function registerTriggerCommands(wfCmd: Command): void {
     .command("trigger <name>")
     .description("Manually enqueue a workflow run")
     .option("--force", "Ignore cooldown and enqueue immediately")
-    .action(async (name: string, opts: { force?: boolean }) => {
+    .option("--tag <tag>", "Attach a tag to this run (repeatable)", (val, prev: string[]) => [...prev, val], [] as string[])
+    .action(async (name: string, opts: { force?: boolean; tag: string[] }) => {
       const store = new WorkflowRunStore();
       const definitions = validateWorkflowDefinitions(
         getBuiltinWorkflowDefinitions(),
@@ -55,9 +56,11 @@ export function registerTriggerCommands(wfCmd: Command): void {
         process.exit(1);
       }
 
+      const tags = opts.tag.length > 0 ? opts.tag : undefined;
+
       const client = DaemonControlClient.fromStateDir();
       if (client) {
-        const result = await client.trigger(name);
+        const result = await client.trigger(name, tags);
         if (result) {
           if (result.alreadyQueued) {
             console.error(`Workflow "${name}" is already queued.`);
@@ -69,7 +72,13 @@ export function registerTriggerCommands(wfCmd: Command): void {
       }
 
       const notBeforeMs = opts.force ? now : eligibleAtMs;
-      const trigger = { event: "manual", payload: { triggeredAt: new Date().toISOString() } };
+      const trigger = {
+        event: "manual",
+        payload: {
+          triggeredAt: new Date().toISOString(),
+          ...(tags !== undefined && { tags }),
+        },
+      };
       state.pendingRuns = [
         ...state.pendingRuns,
         {

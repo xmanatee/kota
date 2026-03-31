@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowDefinition } from "./types.js";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -162,5 +163,82 @@ describe("WorkflowRunStore.pruneRuns", () => {
     for (let i = 0; i < 3; i++) {
       expect(existsSync(join(runsDir, `run-old-${i}`))).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WorkflowRunStore — tags
+// ---------------------------------------------------------------------------
+
+const minimalWorkflow: WorkflowDefinition = {
+  name: "builder",
+  description: "test",
+  enabled: true,
+  definitionPath: "src/workflows/builder/workflow.ts",
+  triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+  steps: [],
+};
+
+describe("WorkflowRunStore tags", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-tags-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("persists tags from trigger payload in metadata.json", () => {
+    const trigger = {
+      event: "manual",
+      payload: { triggeredAt: new Date().toISOString(), tags: ["release-v2", "debug"] },
+    };
+    const handle = store.createRun(minimalWorkflow, trigger);
+    const meta = store.getRun(handle.metadata.id);
+    expect(meta?.tags).toEqual(["release-v2", "debug"]);
+  });
+
+  it("omits tags field when trigger payload has no tags", () => {
+    const trigger = { event: "manual", payload: { triggeredAt: new Date().toISOString() } };
+    const handle = store.createRun(minimalWorkflow, trigger);
+    const meta = store.getRun(handle.metadata.id);
+    expect(meta?.tags).toBeUndefined();
+  });
+
+  it("listRuns with tag filter returns only matching runs", () => {
+    const triggerA = {
+      event: "manual",
+      payload: { triggeredAt: new Date().toISOString(), tags: ["alpha"] },
+    };
+    const triggerB = {
+      event: "manual",
+      payload: { triggeredAt: new Date().toISOString(), tags: ["beta"] },
+    };
+    const triggerC = {
+      event: "manual",
+      payload: { triggeredAt: new Date().toISOString() },
+    };
+    store.createRun(minimalWorkflow, triggerA);
+    store.createRun(minimalWorkflow, triggerB);
+    store.createRun(minimalWorkflow, triggerC);
+
+    const alphaRuns = store.listRuns({ tag: "alpha", limit: 10 });
+    expect(alphaRuns).toHaveLength(1);
+    expect(alphaRuns[0].tags).toEqual(["alpha"]);
+
+    const betaRuns = store.listRuns({ tag: "beta", limit: 10 });
+    expect(betaRuns).toHaveLength(1);
+    expect(betaRuns[0].tags).toEqual(["beta"]);
+
+    const allRuns = store.listRuns({ limit: 10 });
+    expect(allRuns).toHaveLength(3);
   });
 });

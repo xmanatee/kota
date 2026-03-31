@@ -74,6 +74,7 @@ export type WorkflowRunSummary = {
   totalCostUsd?: number;
   triggeredByRunId?: string;
   retryOf?: string;
+  tags?: string[];
 };
 
 export type WorkflowRunStepSummary = {
@@ -149,7 +150,7 @@ export type DaemonControlHandle = {
   abortActiveRuns(): { aborted: number };
   reloadWorkflowDefinitions(): { count: number };
   getWorkflowDefinitions(): WorkflowDefinitionSummary[];
-  enqueuePendingRun(name: string): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
+  enqueuePendingRun(name: string, tags?: string[]): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   // History
   listHistory(search?: string, limit?: number): ConversationRecord[];

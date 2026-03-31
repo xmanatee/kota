@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-tags
 title: Add operator-assignable tags to workflow runs for filtering and grouping
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: Workflow runs are identified by ID and workflow name, but operators have no way to annotate runs with custom tags (e.g. "release-v2", "debug", "customer-abc"). Tags would enable filtered views in kota workflow list and the web UI without requiring separate workflow definitions.

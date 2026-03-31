@@ -210,14 +210,20 @@ export class WorkflowRuntime {
     return { count: defs.length };
   }
 
-  enqueuePendingRun(name: string): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string } {
+  enqueuePendingRun(name: string, tags?: string[]): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string } {
     const definition = this.definitions.find((d) => d.name === name);
     if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
     if (!definition.enabled) return { ok: false, error: `Workflow "${name}" is disabled` };
     const state = this.store.readState();
     if (state.pendingRuns.some((r) => r.workflowName === name)) return { ok: false, alreadyQueued: true };
     const now = Date.now();
-    const trigger = { event: "manual", payload: { triggeredAt: new Date().toISOString() } };
+    const trigger = {
+      event: "manual",
+      payload: {
+        triggeredAt: new Date().toISOString(),
+        ...(tags && tags.length > 0 && { tags }),
+      },
+    };
     this.store.setPendingRuns([...state.pendingRuns, { workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now }]);
     this.maybeStartNext();
     return { ok: true, queued: name };

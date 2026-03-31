@@ -126,12 +126,12 @@ export class DaemonControlClient {
     }
   }
 
-  async trigger(name: string): Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null> {
+  async trigger(name: string, tags?: string[]): Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/trigger`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ...(tags && tags.length > 0 && { tags }) }),
       });
       if (res.status === 409) return { ok: false, alreadyQueued: true };
       if (!res.ok) return null;

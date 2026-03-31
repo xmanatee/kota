@@ -181,11 +181,15 @@ export const CLIENT_WORKFLOWS_JS = `
       var badgeClass = r.status === "success" ? "success" : r.status === "failed" ? "failed" : "interrupted";
       var icon = r.status === "success" ? "✓" : r.status === "failed" ? "✗" : "⚡";
       var meta = (r.durationMs ? fmtDuration(r.durationMs) : "") + (r.totalCostUsd != null ? " $" + r.totalCostUsd.toFixed(3) : "");
+      var tagBadges = "";
+      if (r.tags && r.tags.length > 0) {
+        tagBadges = r.tags.map(function(t) { return '<span class="run-tag">' + escapeHtml(t) + '</span>'; }).join("");
+      }
       var ri = document.createElement("div");
       ri.className = "run-item";
       ri.style.cursor = "pointer";
       ri.innerHTML = '<span class="run-badge ' + badgeClass + '">' + icon + '</span>' +
-        '<span class="run-name">' + escapeHtml(r.workflow) + '</span>' +
+        '<span class="run-name">' + escapeHtml(r.workflow) + tagBadges + '</span>' +
         '<span class="run-meta">' + meta.trim() + '</span>';
       ri.onclick = (function(id) { return function() { showRunDetail(id); }; })(r.id);
       if (r.status === "failed" || r.status === "interrupted") {

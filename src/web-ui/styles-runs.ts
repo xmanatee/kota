@@ -47,6 +47,18 @@ export const STYLES_RUNS_CSS = `
   font-size: 12px;
   font-style: italic;
 }
+.run-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #6c63ff33;
+  color: var(--accent);
+  margin-left: 4px;
+  vertical-align: middle;
+  letter-spacing: 0.03em;
+}
 
 /* Cost analytics panel */
 #cost-summary-list {

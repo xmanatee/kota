@@ -110,6 +110,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
         console.log(`Retry of: ${metadata.retryOf}`);
       }
       console.log(`Trigger:  ${metadata.trigger.event}`);
+      if (metadata.tags && metadata.tags.length > 0) {
+        console.log(`Tags:     ${metadata.tags.join(", ")}`);
+      }
       console.log(`Started:  ${new Date(metadata.startedAt).toLocaleString()}`);
       if (metadata.completedAt) {
         console.log(`Finished: ${new Date(metadata.completedAt).toLocaleString()}`);

@@ -249,7 +249,7 @@ export class WorkflowRunStore {
     return toDelete;
   }
 
-  listRuns(opts?: { workflow?: string; limit?: number }): WorkflowRunMetadata[] {
+  listRuns(opts?: { workflow?: string; tag?: string; limit?: number }): WorkflowRunMetadata[] {
     const limit = opts?.limit ?? 20;
     let dirs: string[];
     try {
@@ -263,6 +263,7 @@ export class WorkflowRunStore {
       const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
       if (!meta) continue;
       if (opts?.workflow && meta.workflow !== opts.workflow) continue;
+      if (opts?.tag && !(meta.tags ?? []).includes(opts.tag)) continue;
       runs.push(meta);
     }
     return runs;
@@ -310,6 +311,11 @@ export class WorkflowRunStore {
       typeof trigger.payload.runId === "string" ? trigger.payload.runId : undefined;
     const retryOf =
       typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
+    const tags =
+      Array.isArray(trigger.payload.tags) &&
+      (trigger.payload.tags as unknown[]).every((t) => typeof t === "string")
+        ? [...(trigger.payload.tags as string[])]
+        : undefined;
 
     const metadata: WorkflowRunMetadata = {
       id,
@@ -318,6 +324,7 @@ export class WorkflowRunStore {
       trigger,
       ...(triggeredByRunId !== undefined && { triggeredByRunId }),
       ...(retryOf !== undefined && { retryOf }),
+      ...(tags !== undefined && tags.length > 0 && { tags }),
       startedAt: new Date().toISOString(),
       status: "running",
       runDir: relative(this.projectDir, runDirPath),
