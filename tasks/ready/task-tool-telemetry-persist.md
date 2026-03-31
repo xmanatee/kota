@@ -1,12 +1,12 @@
 ---
 id: task-tool-telemetry-persist
 title: Persist tool telemetry data into workflow run artifacts
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Tool call timing and failure rates are tracked per session via ToolTelemetry but are never written to disk. Saving this data to run artifacts would let operators and the improver analyze which tools are slow or error-prone on specific runs.
 created_at: 2026-03-31T06:00:00Z
-updated_at: 2026-03-31T06:00:00Z
+updated_at: 2026-03-31T07:37:58Z
 ---
 
 ## Problem
