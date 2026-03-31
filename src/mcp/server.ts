@@ -9,6 +9,11 @@
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
+import {
+	KNOWN_RESOURCE_URIS,
+	KOTA_RESOURCES,
+	readKotaResource,
+} from "./resources.js";
 
 type JsonRpcRequest = {
 	jsonrpc: "2.0";
@@ -40,6 +45,8 @@ export type McpServerOptions = {
 	output?: NodeJS.WritableStream;
 	/** Logger for diagnostics (default: console.error). */
 	log?: (msg: string) => void;
+	/** Project root used for resource reads (default: process.cwd()). */
+	projectDir?: string;
 };
 
 export class McpServer {
@@ -52,6 +59,7 @@ export class McpServer {
 	private input: NodeJS.ReadableStream;
 	private output: NodeJS.WritableStream;
 	private log: (msg: string) => void;
+	private projectDir: string;
 
 	constructor(options: McpServerOptions = {}) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -60,6 +68,7 @@ export class McpServer {
 		this.input = options.input ?? process.stdin;
 		this.output = options.output ?? process.stdout;
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
+		this.projectDir = options.projectDir ?? process.cwd();
 	}
 
 	/** Start listening for JSON-RPC messages on stdio. */
@@ -134,6 +143,10 @@ export class McpServer {
 				return this.handleToolsList(msg);
 			case "tools/call":
 				return this.handleToolsCall(msg);
+			case "resources/list":
+				return this.handleResourcesList(msg);
+			case "resources/read":
+				return this.handleResourcesRead(msg);
 			case "ping":
 				return this.sendResult(msg, {});
 			case "shutdown":
@@ -150,6 +163,7 @@ export class McpServer {
 			protocolVersion: "2024-11-05",
 			capabilities: {
 				tools: {},
+				resources: {},
 			},
 			serverInfo: {
 				name: this.serverName,
@@ -157,6 +171,34 @@ export class McpServer {
 			},
 		});
 		this.log("Initialized successfully");
+	}
+
+	private handleResourcesList(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		this.sendResult(msg, { resources: KOTA_RESOURCES });
+	}
+
+	private handleResourcesRead(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		const uri = (msg.params as Record<string, unknown> | undefined)?.uri as string | undefined;
+		if (!uri || typeof uri !== "string") {
+			this.sendError(msg, -32602, "Missing required parameter: uri");
+			return;
+		}
+		if (!KNOWN_RESOURCE_URIS.has(uri)) {
+			this.sendError(msg, -32002, `Unknown resource: ${uri}`);
+			return;
+		}
+		const text = readKotaResource(uri, this.projectDir);
+		this.sendResult(msg, {
+			contents: [{ uri, mimeType: "application/json", text }],
+		});
 	}
 
 	private handleToolsList(msg: JsonRpcRequest): void {

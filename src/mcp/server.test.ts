@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { anthropicToMcp, McpServer, toolResultToMcp } from "./server.js";
@@ -78,7 +81,7 @@ describe("McpServer", () => {
 			expect(resp.id).toBe(1);
 			const result = resp.result as Record<string, unknown>;
 			expect(result.protocolVersion).toBe("2024-11-05");
-			expect(result.capabilities).toEqual({ tools: {} });
+			expect(result.capabilities).toEqual({ tools: {}, resources: {} });
 			expect(result.serverInfo).toEqual({ name: "kota", version: "0.1.0" });
 
 			server.stop();
@@ -254,7 +257,7 @@ describe("McpServer", () => {
 			const server = new McpServer({ input, output, log: () => {} });
 			await initServer(server, input, output);
 
-			sendRequest(input, 2, "resources/list");
+			sendRequest(input, 2, "prompts/list");
 			const resp = await readResponse(output);
 
 			expect(resp.error).toBeDefined();
@@ -342,6 +345,131 @@ describe("McpServer", () => {
 
 			server.stop();
 		});
+	});
+});
+
+describe("resources", () => {
+	function makeProjectDir(): string {
+		const dir = mkdtempSync(join(tmpdir(), "kota-mcp-test-"));
+		mkdirSync(join(dir, "tasks", "ready"), { recursive: true });
+		mkdirSync(join(dir, ".kota", "runs"), { recursive: true });
+		writeFileSync(
+			join(dir, "tasks", "ready", "task-one.md"),
+			[
+				"---",
+				"id: task-one",
+				"title: First Task",
+				"priority: p1",
+				"summary: A test task",
+				"status: ready",
+				"---",
+				"Body",
+			].join("\n"),
+		);
+		return dir;
+	}
+
+	it("resources/list returns three KOTA resources", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/list");
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(2);
+		const result = resp.result as { resources: Array<{ uri: string }> };
+		expect(Array.isArray(result.resources)).toBe(true);
+		const uris = result.resources.map((r) => r.uri);
+		expect(uris).toContain("kota://tasks/ready");
+		expect(uris).toContain("kota://workflow/status");
+		expect(uris).toContain("kota://workflow/runs/recent");
+
+		server.stop();
+	});
+
+	it("resources/read returns tasks/ready content", async () => {
+		const projectDir = makeProjectDir();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "kota://tasks/ready" });
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(2);
+		const result = resp.result as {
+			contents: Array<{ uri: string; mimeType: string; text: string }>;
+		};
+		expect(result.contents).toHaveLength(1);
+		expect(result.contents[0].uri).toBe("kota://tasks/ready");
+		expect(result.contents[0].mimeType).toBe("application/json");
+		const tasks = JSON.parse(result.contents[0].text) as Array<{
+			id: string;
+			title: string;
+		}>;
+		expect(tasks).toHaveLength(1);
+		expect(tasks[0].id).toBe("task-one");
+		expect(tasks[0].title).toBe("First Task");
+
+		server.stop();
+	});
+
+	it("resources/read returns workflow/status content", async () => {
+		const projectDir = makeProjectDir();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", {
+			uri: "kota://workflow/status",
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(2);
+		const result = resp.result as {
+			contents: Array<{ text: string }>;
+		};
+		const status = JSON.parse(result.contents[0].text) as {
+			activeRunCount: number;
+			paused: boolean;
+		};
+		expect(typeof status.activeRunCount).toBe("number");
+		expect(typeof status.paused).toBe("boolean");
+
+		server.stop();
+	});
+
+	it("resources/read returns error for unknown URI", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", {
+			uri: "kota://nonexistent/resource",
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeDefined();
+		const err = resp.error as { code: number };
+		expect(err.code).toBe(-32002);
+
+		server.stop();
+	});
+
+	it("resources/list rejects before initialization", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await server.start();
+
+		sendRequest(input, 1, "resources/list");
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeDefined();
+		const err = resp.error as { code: number };
+		expect(err.code).toBe(-32002);
+
+		server.stop();
 	});
 });
 

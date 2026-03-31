@@ -1,12 +1,12 @@
 ---
 id: task-mcp-server-resources
 title: Expose workflow and task queue state as MCP resources
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: The KOTA MCP server exposes tools but no resources. Adding resources for workflow status, active runs, and the ready task queue lets MCP hosts (Claude Code, Cursor) read live KOTA state without a separate API call.
 created_at: 2026-03-31T02:42:57Z
-updated_at: 2026-03-31T07:15:00Z
+updated_at: 2026-03-31T08:35:00Z
 ---
 
 ## Problem
