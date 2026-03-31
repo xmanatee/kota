@@ -232,4 +232,28 @@ describe("getWebUI", () => {
   it("renders empty state when no extensions are loaded", () => {
     expect(html).toContain("No extensions loaded");
   });
+
+  it("uses long polling interval (≥5 min) for event-driven panels", () => {
+    expect(html).toContain("setInterval(refreshWorkflows, 300000)");
+    expect(html).toContain("setInterval(refreshApprovals, 300000)");
+    expect(html).toContain("setInterval(refreshTasks, 300000)");
+    expect(html).toContain("setInterval(refreshActiveSessions, 300000)");
+    expect(html).toContain("setInterval(refreshSchedules, 300000)");
+  });
+
+  it("shows reconnecting indicator when SSE disconnects", () => {
+    expect(html).toContain("warn");
+    expect(html).toContain("Reconnecting...");
+  });
+
+  it("starts fallback polling when SSE disconnects", () => {
+    expect(html).toContain("_startSseFallback");
+    expect(html).toContain("_clearSseFallback");
+    expect(html).toContain("_sseFallbackIntervals");
+  });
+
+  it("clears fallback polling and restores indicator when SSE reconnects", () => {
+    expect(html).toContain("src.onopen");
+    expect(html).toContain("_clearSseFallback");
+  });
 });

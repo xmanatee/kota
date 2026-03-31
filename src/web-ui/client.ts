@@ -128,12 +128,12 @@ ${CLIENT_AUDIT_JS}
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   startWorkflowUpdates();
-  setInterval(refreshWorkflows, 30000);
-  setInterval(refreshTasks, 30000);
+  setInterval(refreshWorkflows, 300000);
+  setInterval(refreshTasks, 300000);
   setInterval(refreshCost, 5000);
-  setInterval(refreshApprovals, 30000);
-  setInterval(refreshActiveSessions, 30000);
-  setInterval(refreshSchedules, 30000);
+  setInterval(refreshApprovals, 300000);
+  setInterval(refreshActiveSessions, 300000);
+  setInterval(refreshSchedules, 300000);
   $input.focus();
 })();
 `;

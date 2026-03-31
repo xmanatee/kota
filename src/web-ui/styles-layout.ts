@@ -126,6 +126,7 @@ body {
 #health-status { font-size: 10px; }
 #health-status.ok { color: #4caf50; }
 #health-status.err { color: #f44336; }
+#health-status.warn { color: #ff9800; }
 .icon-btn {
   background: none;
   border: none;

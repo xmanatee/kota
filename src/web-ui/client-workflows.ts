@@ -251,12 +251,34 @@ export const CLIENT_WORKFLOWS_JS = `
 
   var _daemonEventsSource = null;
   var _daemonEventsRetryTimer = null;
+  var _sseFallbackIntervals = [];
+
+  function _clearSseFallback() {
+    for (var i = 0; i < _sseFallbackIntervals.length; i++) clearInterval(_sseFallbackIntervals[i]);
+    _sseFallbackIntervals = [];
+  }
+
+  function _startSseFallback() {
+    _clearSseFallback();
+    _sseFallbackIntervals.push(setInterval(function() { refreshWorkflows(); refreshSchedules(); refreshCost(); }, 30000));
+    _sseFallbackIntervals.push(setInterval(refreshApprovals, 30000));
+    _sseFallbackIntervals.push(setInterval(refreshTasks, 30000));
+    _sseFallbackIntervals.push(setInterval(refreshActiveSessions, 30000));
+  }
 
   function connectDaemonEvents() {
     if (_daemonEventsSource) return;
     var eventsUrl = API + "/api/daemon/events" + (authToken ? "?token=" + encodeURIComponent(authToken) : "");
     var src = new EventSource(eventsUrl);
     _daemonEventsSource = src;
+
+    src.onopen = function() {
+      _clearSseFallback();
+      if ($health.className !== "err") {
+        $health.className = "ok";
+        $health.title = "Connected";
+      }
+    };
 
     function onQueueEvent() { refreshWorkflows(); refreshSchedules(); refreshCost(); }
     src.addEventListener("workflow.started", onQueueEvent);
@@ -271,6 +293,11 @@ export const CLIENT_WORKFLOWS_JS = `
     src.onerror = function() {
       src.close();
       _daemonEventsSource = null;
+      if ($health.className !== "err") {
+        $health.className = "warn";
+        $health.title = "Reconnecting...";
+      }
+      _startSseFallback();
       _daemonEventsRetryTimer = setTimeout(connectDaemonEvents, 10000);
     };
   }
