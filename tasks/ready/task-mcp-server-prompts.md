@@ -1,12 +1,12 @@
 ---
 id: task-mcp-server-prompts
 title: Add MCP prompts capability to the KOTA MCP server
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The KOTA MCP server declares only tools and resources capabilities. Adding prompts support would let MCP hosts like Claude Code surface KOTA-specific prompt templates (e.g., task creation, workflow trigger) directly in their UI.
 created_at: 2026-03-31T07:37:58Z
-updated_at: 2026-03-31T07:37:58Z
+updated_at: 2026-03-31T08:16:57Z
 ---
 
 ## Problem

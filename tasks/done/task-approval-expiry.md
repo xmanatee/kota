@@ -1,12 +1,12 @@
 ---
 id: task-approval-expiry
 title: Add configurable timeout for pending workflow approvals
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Pending approvals sit indefinitely by default, blocking workflow runs. A configurable expiry lets operators set maximum wait times after which approvals auto-expire and the run fails with a clear message.
 created_at: 2026-03-31T03:26:11Z
-updated_at: 2026-03-31T06:00:00Z
+updated_at: 2026-03-31T08:16:57Z
 ---
 
 ## Problem
