@@ -34,7 +34,7 @@ export const CLIENT_APPROVALS_JS = `
         btn.onclick = async function() {
           btn.disabled = true;
           try {
-            await fetch(API + "/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", { method: "POST" });
+            await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", { method: "POST" });
             refreshApprovals();
           } catch { btn.disabled = false; }
         };
@@ -45,7 +45,7 @@ export const CLIENT_APPROVALS_JS = `
         btn.onclick = async function() {
           btn.disabled = true;
           try {
-            await fetch(API + "/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/reject", { method: "POST" });
+            await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/reject", { method: "POST" });
             refreshApprovals();
           } catch { btn.disabled = false; }
         };
@@ -55,7 +55,7 @@ export const CLIENT_APPROVALS_JS = `
 
   async function refreshApprovals() {
     try {
-      var res = await fetch(API + "/api/approvals");
+      var res = await apiFetch(API +"/api/approvals");
       if (!res.ok) return;
       var data = await res.json();
       renderApprovals(data.approvals || []);

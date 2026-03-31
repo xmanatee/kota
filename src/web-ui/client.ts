@@ -22,6 +22,21 @@ export const WEB_UI_JS = /* js */ `
   var collapsedGroups = {};
   var cachedTasks = {};
 
+  // Auth token — read from URL param on first load, persist in localStorage
+  var _urlToken = new URLSearchParams(window.location.search).get("token");
+  if (_urlToken) {
+    localStorage.setItem("kota-auth-token", _urlToken);
+    history.replaceState(null, "", window.location.pathname);
+  }
+  var authToken = localStorage.getItem("kota-auth-token") || "";
+
+  function apiFetch(url, options) {
+    options = options || {};
+    options.headers = Object.assign({}, options.headers);
+    if (authToken) options.headers["Authorization"] = "Bearer " + authToken;
+    return fetch(url, options);
+  }
+
   const $messages = document.getElementById("messages");
   const $input = document.getElementById("input");
   const $send = document.getElementById("send");

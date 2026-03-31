@@ -44,7 +44,7 @@ export const CLIENT_CHAT_JS = `
     let fullText = "";
 
     try {
-      const res = await fetch(API + "/api/chat", {
+      const res = await apiFetch(API +"/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, session_id: sessionId }),
@@ -120,7 +120,7 @@ export const CLIENT_CHAT_JS = `
     $messages.innerHTML = '<div class="message status">Loading\\u2026</div>';
 
     try {
-      const res = await fetch(API + "/api/history/" + encodeURIComponent(id));
+      const res = await apiFetch(API +"/api/history/" + encodeURIComponent(id));
       if (!res.ok) {
         $messages.innerHTML = '<div class="message error">Could not load conversation</div>';
         refreshHistory();

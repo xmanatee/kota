@@ -6,6 +6,7 @@
  * for real, exercising it beyond CliTransport for the first time.
  */
 
+import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { KotaConfig } from "../config.js";
 import { loadConfig } from "../config.js";
@@ -25,6 +26,12 @@ export type ServerOptions = {
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
+  noAuth?: boolean;
+  /**
+   * Override the generated auth token. Useful in tests to use a known value.
+   * Has no effect when noAuth is true.
+   */
+  authToken?: string;
   /** Routes registered by extensions (e.g., vercel-adapter). */
   extensionRoutes?: RouteRegistration[];
 };
@@ -33,6 +40,9 @@ export function startServer(options: ServerOptions = {}): Server {
   const port = options.port ?? 3000;
   const config = options.config ?? loadConfig();
   const pool = new SessionPool();
+
+  const noAuth = options.noAuth ?? config.serve?.noAuth ?? false;
+  const authToken = noAuth ? undefined : (options.authToken ?? randomBytes(32).toString("hex"));
 
   const daemonClient = DaemonControlClient.fromStateDir();
   const daemonRunning = daemonClient !== null;
@@ -83,6 +93,7 @@ export function startServer(options: ServerOptions = {}): Server {
     extensionRoutes: options.extensionRoutes ?? [],
     makeAgent,
     daemonClient,
+    authToken,
   });
 
   const server = createServer(handleRequest);
@@ -98,7 +109,13 @@ export function startServer(options: ServerOptions = {}): Server {
 
   server.listen(port, () => {
     console.log(`KOTA server listening on http://localhost:${port}`);
-    console.log(`Web UI: http://localhost:${port}/`);
+    if (authToken) {
+      console.log(`Auth token: ${authToken}`);
+      console.log(`Web UI:     http://localhost:${port}/?token=${authToken}`);
+    } else {
+      console.log(`Web UI:     http://localhost:${port}/`);
+      console.log("Warning: auth disabled (--no-auth). Do not expose this server on a shared network.");
+    }
     console.log("API endpoints:");
     console.log("  POST /api/chat           — Send message (SSE streaming)");
     console.log("  POST /api/chat/vercel    — Vercel AI SDK Data Stream Protocol");

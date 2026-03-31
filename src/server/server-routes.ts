@@ -50,6 +50,8 @@ export type ServerContext = {
   extensionRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
   daemonClient?: DaemonControlClient | null;
+  /** Bearer token required on all /api/* requests. Undefined means no auth. */
+  authToken?: string;
 };
 
 export function buildRequestHandler(ctx: ServerContext) {
@@ -62,6 +64,15 @@ export function buildRequestHandler(ctx: ServerContext) {
       res.writeHead(204);
       res.end();
       return;
+    }
+
+    if (ctx.authToken && path.startsWith("/api/")) {
+      const header = req.headers.authorization;
+      const queryToken = url.searchParams.get("token");
+      if (header !== `Bearer ${ctx.authToken}` && queryToken !== ctx.authToken) {
+        jsonResponse(res, 401, { error: "Unauthorized" });
+        return;
+      }
     }
 
     if (req.method === "GET" && path === "/api/health") {

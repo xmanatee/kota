@@ -31,7 +31,7 @@ export const CLIENT_COST_JS = `
   async function refreshCost() {
     try {
       var since = Date.now() - 24 * 60 * 60 * 1000;
-      var res = await fetch(API + "/api/workflow/runs?since=" + since);
+      var res = await apiFetch(API +"/api/workflow/runs?since=" + since);
       if (!res.ok) return;
       var data = await res.json();
       var totals = {};

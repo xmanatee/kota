@@ -30,6 +30,7 @@ const webModule: KotaExtension = {
       .option("-p, --port <port>", "Port to listen on", "3000")
       .option("-m, --model <model>", "Model to use")
       .option("-v, --verbose", "Show debug output")
+      .option("--no-auth", "Disable bearer token auth (dev/localhost only)")
       .action((opts) => {
         const port = parseIntOption(opts.port, "port");
 
@@ -54,6 +55,7 @@ const webModule: KotaExtension = {
           model: opts.model || ctx.config.model,
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
+          noAuth: opts.auth === false,
           extensionRoutes,
         });
       });

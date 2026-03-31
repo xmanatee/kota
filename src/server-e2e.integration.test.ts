@@ -43,6 +43,7 @@ import { startServer } from "./server/server.js";
 
 let server: Server;
 let baseUrl: string;
+const TEST_AUTH_TOKEN = "test-e2e-auth-token-abc123";
 
 /** Collect session IDs created during tests for cleanup. */
 const createdSessionIds: string[] = [];
@@ -81,12 +82,15 @@ function httpReq(opts: {
   path: string;
   body?: unknown;
   rawBody?: string;
+  noAuth?: boolean;
 }): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   const url = new URL(opts.path, baseUrl);
+  const baseHeaders: Record<string, string> = opts.noAuth ? {} : { Authorization: `Bearer ${TEST_AUTH_TOKEN}` };
+  if (opts.body !== undefined || opts.rawBody) baseHeaders["Content-Type"] = "application/json";
   return new Promise((resolve, reject) => {
     const r = http.request(url, {
       method: opts.method,
-      headers: (opts.body !== undefined || opts.rawBody) ? { "Content-Type": "application/json" } : {},
+      headers: baseHeaders,
     }, (res) => {
       const chunks: string[] = [];
       res.setEncoding("utf-8");
@@ -114,7 +118,7 @@ beforeAll(async () => {
   const loader = new ExtensionLoader({} as any, false, { commandsOnly: true });
   await loader.loadAll(builtinExtensions);
   const extensionRoutes = loader.getRoutes();
-  server = startServer({ port: 0, config: {} as any, extensionRoutes });
+  server = startServer({ port: 0, config: {} as any, extensionRoutes, authToken: TEST_AUTH_TOKEN });
   const port = await waitForPort(server);
   console.log = origLog;
   baseUrl = `http://localhost:${port}`;
@@ -132,6 +136,48 @@ afterEach(async () => {
 });
 
 describe("HTTP Server E2E", () => {
+  describe("auth", () => {
+    it("returns 401 on /api/* without auth token", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/health", noAuth: true });
+      expect(res.status).toBe(401);
+      expect(JSON.parse(res.body)).toMatchObject({ error: "Unauthorized" });
+    });
+
+    it("returns 401 with wrong auth token", async () => {
+      const url = new URL("/api/health", baseUrl);
+      const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const r = http.request(url, {
+          method: "GET",
+          headers: { Authorization: "Bearer wrong-token" },
+        }, (resp) => {
+          const chunks: string[] = [];
+          resp.setEncoding("utf-8");
+          resp.on("data", (c) => chunks.push(c));
+          resp.on("end", () => resolve({ status: resp.statusCode!, body: chunks.join("") }));
+        });
+        r.on("error", reject);
+        r.end();
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it("allows /api/* with valid bearer token", async () => {
+      const res = await httpReq({ method: "GET", path: "/api/health" });
+      expect(res.status).toBe(200);
+    });
+
+    it("allows /api/* with valid token query param", async () => {
+      const res = await httpReq({ method: "GET", path: `/api/health?token=${TEST_AUTH_TOKEN}`, noAuth: true });
+      expect(res.status).toBe(200);
+    });
+
+    it("allows GET / without auth (web UI)", async () => {
+      const res = await httpReq({ method: "GET", path: "/", noAuth: true });
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/html");
+    });
+  });
+
   describe("routing", () => {
     it("GET /api/health returns server status", async () => {
       const res = await httpReq({ method: "GET", path: "/api/health" });
@@ -486,7 +532,7 @@ describe("HTTP Server E2E", () => {
     it("establishes SSE connection and sends connected event", async () => {
       const res = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
         const url = new URL("/api/notifications", baseUrl);
-        const r = http.request(url, { method: "GET" }, (res) => {
+        const r = http.request(url, { method: "GET", headers: { Authorization: `Bearer ${TEST_AUTH_TOKEN}` } }, (res) => {
           const chunks: string[] = [];
           res.setEncoding("utf-8");
           res.on("data", (c) => {

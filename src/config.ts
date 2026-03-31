@@ -86,6 +86,12 @@ export type KotaConfig = {
     /** Always keep at least this many recent runs per workflow (default: 10). */
     minKeepPerWorkflow?: number;
   };
+
+  /** HTTP server settings for `kota serve`. */
+  serve?: {
+    /** Disable bearer-token auth (default: auth enabled). For localhost-only dev use. */
+    noAuth?: boolean;
+  };
 };
 
 const CONFIG_FILENAME = "config.json";

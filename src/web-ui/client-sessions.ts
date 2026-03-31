@@ -4,7 +4,7 @@ export const CLIENT_SESSIONS_JS = `
   // --- Session management ---
 
   async function createSession() {
-    const res = await fetch(API + "/api/sessions", { method: "POST" });
+    const res = await apiFetch(API +"/api/sessions", { method: "POST" });
     const data = await res.json();
     sessionId = data.session_id;
     $messages.innerHTML = "";
@@ -15,7 +15,7 @@ export const CLIENT_SESSIONS_JS = `
 
   async function refreshSessions() {
     try {
-      const res = await fetch(API + "/api/sessions");
+      const res = await apiFetch(API +"/api/sessions");
       const data = await res.json();
       renderSessions(data.sessions || []);
     } catch {}
@@ -35,7 +35,7 @@ export const CLIENT_SESSIONS_JS = `
       del.textContent = "×";
       del.onclick = async (e) => {
         e.stopPropagation();
-        await fetch(API + "/api/sessions/" + s.id, { method: "DELETE" });
+        await apiFetch(API +"/api/sessions/" + s.id, { method: "DELETE" });
         if (s.id === sessionId) { sessionId = null; $messages.innerHTML = ""; showWelcome(); }
         refreshSessions();
       };
@@ -55,7 +55,7 @@ export const CLIENT_SESSIONS_JS = `
 
   async function refreshHistory() {
     try {
-      const res = await fetch(API + "/api/history?limit=15");
+      const res = await apiFetch(API +"/api/history?limit=15");
       const data = await res.json();
       renderHistory(data.conversations || []);
     } catch {}
@@ -79,7 +79,7 @@ export const CLIENT_SESSIONS_JS = `
 
   async function checkHealth() {
     try {
-      const res = await fetch(API + "/api/health");
+      const res = await apiFetch(API +"/api/health");
       if (res.ok) {
         $health.className = "ok";
         $health.title = "Connected";

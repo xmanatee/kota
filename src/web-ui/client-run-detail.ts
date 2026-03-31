@@ -27,7 +27,7 @@ export const CLIENT_RUN_DETAIL_JS = `
     $runDetail.innerHTML = '<div style="color:var(--text-muted);padding:24px">Loading\u2026</div>';
     $runDetail.classList.add("visible");
     try {
-      var res = await fetch(API + "/api/workflow/runs/" + encodeURIComponent(runId));
+      var res = await apiFetch(API +"/api/workflow/runs/" + encodeURIComponent(runId));
       if (!res.ok) {
         $runDetail.innerHTML = '<div style="color:#f44336;padding:24px">Run not found</div>';
         return;
@@ -127,7 +127,7 @@ export const CLIENT_RUN_DETAIL_JS = `
       }
     };
 
-    fetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/stream")
+    apiFetch(API +"/api/workflow/runs/" + encodeURIComponent(runId) + "/stream")
       .then(function(res) {
         if (!res.ok) { showRunDetail(runId); return; }
         if (cancelled) return;

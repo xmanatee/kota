@@ -14,7 +14,7 @@ export const CLIENT_WORKFLOWS_JS = `
     pauseBtn.onclick = async function() {
       pauseBtn.disabled = true;
       try {
-        await fetch(API + (paused ? "/api/workflow/resume" : "/api/workflow/pause"), { method: "POST" });
+        await apiFetch(API +(paused ? "/api/workflow/resume" : "/api/workflow/pause"), { method: "POST" });
         await refreshWorkflows();
       } finally {
         pauseBtn.disabled = false;
@@ -31,7 +31,7 @@ export const CLIENT_WORKFLOWS_JS = `
         btn.onclick = async function() {
           btn.disabled = true;
           try {
-            var r = await fetch(API + "/api/workflow/trigger", {
+            var r = await apiFetch(API +"/api/workflow/trigger", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: name }),
@@ -181,8 +181,8 @@ export const CLIENT_WORKFLOWS_JS = `
 
   async function refreshWorkflows() {
     try {
-      var statusRes = await fetch(API + "/api/workflow/status");
-      var runsRes = await fetch(API + "/api/workflow/runs?limit=50");
+      var statusRes = await apiFetch(API +"/api/workflow/status");
+      var runsRes = await apiFetch(API +"/api/workflow/runs?limit=50");
       if (!statusRes.ok || !runsRes.ok) return;
       var statusData = await statusRes.json();
       var runsData = await runsRes.json();
@@ -207,7 +207,8 @@ export const CLIENT_WORKFLOWS_JS = `
 
   function connectDaemonEvents() {
     if (_daemonEventsSource) return;
-    var src = new EventSource(API + "/api/daemon/events");
+    var eventsUrl = API + "/api/daemon/events" + (authToken ? "?token=" + encodeURIComponent(authToken) : "");
+    var src = new EventSource(eventsUrl);
     _daemonEventsSource = src;
 
     function onQueueEvent() { refreshWorkflows(); }

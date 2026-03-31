@@ -27,7 +27,7 @@ export const CLIENT_ACTIVE_SESSIONS_JS = `
 
   async function refreshActiveSessions() {
     try {
-      var res = await fetch(API + "/api/daemon/status");
+      var res = await apiFetch(API +"/api/daemon/status");
       if (!res.ok) return;
       var data = await res.json();
       renderActiveSessions((data.daemon && data.daemon.sessions) || []);

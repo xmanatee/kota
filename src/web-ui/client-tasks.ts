@@ -70,7 +70,7 @@ export const CLIENT_TASKS_JS = `
 
   async function refreshTasks() {
     try {
-      var res = await fetch(API + "/api/tasks");
+      var res = await apiFetch(API +"/api/tasks");
       if (!res.ok) return;
       var data = await res.json();
       cachedTasks = data.tasks || {};
