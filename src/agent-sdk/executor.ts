@@ -27,6 +27,8 @@ export type ExecutorOptions = {
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: SDKMessage) => void | Promise<void>;
+  thinkingEnabled?: boolean;
+  thinkingBudget?: number;
 };
 
 export type ExecutorResult = {
@@ -119,6 +121,9 @@ export function detectLocalClaudeCodeExecutable(): string | undefined {
 
 export function buildQueryOptions(options?: ExecutorOptions): SDKQueryOptions {
   const permissionMode = options?.permissionMode ?? "bypassPermissions";
+  const thinking = options?.thinkingEnabled
+    ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
+    : undefined;
   return {
     model: options?.model,
     maxTurns: options?.maxTurns,
@@ -136,6 +141,7 @@ export function buildQueryOptions(options?: ExecutorOptions): SDKQueryOptions {
     abortController: options?.abortController,
     enableFileCheckpointing: options?.enableFileCheckpointing,
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
+    thinking,
   };
 }
 

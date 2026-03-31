@@ -230,6 +230,17 @@ export function validateAgentStep(
       `steps[${index}].maxBudgetUsd`,
       definitionPath,
     ),
+    thinkingEnabled: expectOptionalBoolean(
+      step.thinkingEnabled,
+      `steps[${index}].thinkingEnabled`,
+      definitionPath,
+    ),
+    thinkingBudget: expectOptionalInteger(
+      step.thinkingBudget,
+      `steps[${index}].thinkingBudget`,
+      definitionPath,
+      1024,
+    ),
     permissionMode: permissionMode as WorkflowAgentStep["permissionMode"],
     allowedTools: expectOptionalStringArray(
       step.allowedTools,

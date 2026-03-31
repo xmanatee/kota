@@ -82,6 +82,41 @@ const myWorkflow: WorkflowDefinitionInput = {
 The global `dailyBudgetUsd` and the per-run `costLimitUsd` are independent. Omit
 `costLimitUsd` to allow unlimited spend per run.
 
+### Agent Step Fields
+
+`type: "agent"` steps accept the following fields beyond the common step fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `agentName` | `string` | — | Name of a registered `AgentDef`. Provides `promptPath`, `model`, `permissionMode`, and `settingSources` as defaults. |
+| `promptPath` | `string` | — | Path to the prompt markdown file (relative to project root). Required when `agentName` is not set. |
+| `model` | `string` | config default | Model to use for this step. Overrides `agentName` model default. |
+| `maxTurns` | `number` | unlimited | Maximum agent turns before the step is interrupted. |
+| `maxBudgetUsd` | `number` | — | Per-step spend cap in USD. |
+| `thinkingEnabled` | `boolean` | `false` | Enable extended thinking (Claude reasons before responding). |
+| `thinkingBudget` | `number` | `10000` | Token budget for thinking when `thinkingEnabled` is `true`. Minimum 1024. |
+| `permissionMode` | `SDKPermissionMode` | `"bypassPermissions"` | Tool permission mode. |
+| `allowedTools` | `string[]` | — | Restrict available tools to this list. |
+| `disallowedTools` | `string[]` | — | Exclude these tools. |
+
+```typescript
+steps: [
+  {
+    id: "analyze",
+    type: "agent",
+    promptPath: "src/workflows/my-workflow/prompt.md",
+    model: "claude-opus-4-6",
+    thinkingEnabled: true,
+    thinkingBudget: 15000,
+    maxTurns: 30,
+  },
+]
+```
+
+Extended thinking is off by default. Enable it on steps where deeper reasoning
+improves output quality (e.g., complex planning or architecture steps). It increases
+cost and latency proportionally to the token budget.
+
 ### Hook-like reaction
 
 React to a file change or a workflow completion:

@@ -231,6 +231,8 @@ export async function executeAgentStep(
         systemPrompt,
         maxTurns: step.maxTurns,
         maxBudgetUsd: step.maxBudgetUsd,
+        thinkingEnabled: step.thinkingEnabled,
+        thinkingBudget: step.thinkingBudget,
         allowedTools: step.allowedTools,
         disallowedTools: step.disallowedTools,
         permissionMode: step.permissionMode,

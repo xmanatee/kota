@@ -14,6 +14,11 @@ export type SDKSystemPrompt =
       append?: string;
     };
 
+export type SDKThinkingConfig =
+  | { type: "adaptive" }
+  | { type: "enabled"; budgetTokens?: number }
+  | { type: "disabled" };
+
 export type SDKQueryOptions = {
   model?: string;
   maxTurns?: number;
@@ -31,6 +36,7 @@ export type SDKQueryOptions = {
   allowDangerouslySkipPermissions?: boolean;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
+  thinking?: SDKThinkingConfig;
 };
 
 export type SDKContentBlock = {
