@@ -1,8 +1,9 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
+import { getToolTelemetry, resetToolTelemetry } from "../tool-telemetry.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig } from "./step-executor.js";
 import {
@@ -214,6 +215,56 @@ describe("executeAgentStep", () => {
     ).rejects.toThrow("one-shot error");
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
+  describe("tool telemetry artifact", () => {
+    afterEach(() => {
+      resetToolTelemetry();
+    });
+
+    it("writes tool-telemetry.json when tool calls were recorded", async () => {
+      mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+      mkdirSync(join(projectDir, ".kota", "runs", "run-1", "steps"), { recursive: true });
+      getToolTelemetry().record("shell", 200, true);
+      getToolTelemetry().record("file_read", 100, false, "not found");
+
+      await executeAgentStep(
+        makeDefinition(),
+        makeStep(),
+        makeMetadata(),
+        TRIGGER,
+        new AbortController(),
+        () => {},
+        () => {},
+        agentConfig,
+      );
+
+      const telemetryPath = join(projectDir, ".kota", "runs", "run-1", "steps", "test-step.tool-telemetry.json");
+      expect(existsSync(telemetryPath)).toBe(true);
+      const data = JSON.parse(readFileSync(telemetryPath, "utf-8"));
+      expect(data.summary).toContain("2 tool calls");
+      expect(data.tools.shell).toMatchObject({ calls: 1, successes: 1, failures: 0, avgMs: 200 });
+      expect(data.tools.file_read).toMatchObject({ calls: 1, failures: 1, lastError: "not found" });
+    });
+
+    it("skips writing when no tool calls were recorded", async () => {
+      mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+      mkdirSync(join(projectDir, ".kota", "runs", "run-1", "steps"), { recursive: true });
+
+      await executeAgentStep(
+        makeDefinition(),
+        makeStep(),
+        makeMetadata(),
+        TRIGGER,
+        new AbortController(),
+        () => {},
+        () => {},
+        agentConfig,
+      );
+
+      const telemetryPath = join(projectDir, ".kota", "runs", "run-1", "steps", "test-step.tool-telemetry.json");
+      expect(existsSync(telemetryPath)).toBe(false);
+    });
   });
 });
 

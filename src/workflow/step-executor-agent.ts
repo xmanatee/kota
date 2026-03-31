@@ -1,11 +1,12 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
 } from "../agent-sdk/index.js";
 import type { SDKMessage } from "../agent-sdk/types.js";
 import type { KotaConfig } from "../config.js";
+import { getToolTelemetry } from "../tool-telemetry.js";
 import type { ToolResult } from "../tools/index.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import {
@@ -125,6 +126,31 @@ export function buildAgentPrompt(
   };
 }
 
+function writeToolTelemetryArtifact(
+  stepId: string,
+  metadata: WorkflowRunMetadata,
+  projectDir: string,
+): void {
+  const telemetry = getToolTelemetry();
+  if (telemetry.getTotalCalls() === 0) return;
+  const tools: Record<string, Record<string, unknown>> = {};
+  for (const [name, s] of telemetry.getStats()) {
+    const avgMs = s.calls > 0 ? Math.round(s.totalMs / s.calls) : 0;
+    const entry: Record<string, unknown> = {
+      calls: s.calls,
+      successes: s.successes,
+      failures: s.failures,
+      totalMs: s.totalMs,
+      avgMs,
+    };
+    if (s.lastError !== undefined) entry.lastError = s.lastError;
+    tools[name] = entry;
+  }
+  const payload = { summary: telemetry.getSummary(), tools };
+  const filePath = join(resolve(projectDir, metadata.runDir), "steps", `${stepId}.tool-telemetry.json`);
+  writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+}
+
 export async function executeAgentStep(
   definition: WorkflowDefinition,
   step: WorkflowAgentStep,
@@ -211,6 +237,8 @@ export async function executeAgentStep(
   const result = step.retry
     ? await withRetry(runAttempt, step.retry, agentConfig.log)
     : await runAttempt();
+
+  writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir);
 
   return {
     content: result.text,
