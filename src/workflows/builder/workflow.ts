@@ -5,6 +5,7 @@ import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { stepCommitted, stepSucceeded } from "../shared.js";
+import { autoResetDirtyWorktree } from "./dirty-state-recovery.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 
@@ -12,6 +13,7 @@ const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
   id: "inspect-ready-queue",
   type: "code",
   run: ({ projectDir }) => {
+    autoResetDirtyWorktree(projectDir, (msg) => console.warn(msg));
     assertRepoWorktreeClean(projectDir);
     return getRepoTaskQueueSnapshot(projectDir);
   },

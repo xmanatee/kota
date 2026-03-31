@@ -1,7 +1,7 @@
 ---
 id: task-builder-dirty-state-recovery
 title: Auto-reset dirty worktree before builder preflight to unblock stranded runs
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: When the builder fails mid-run before the commit step, it leaves uncommitted changes in the worktree. The next builder run hits assertRepoWorktreeClean and refuses to start, stranding the queue until an operator manually resets.
