@@ -90,6 +90,7 @@ ${WEB_UI_CSS}
     </div>
     <div class="sidebar-footer">
       <span id="health-status">●</span>
+      <button id="theme-toggle" class="icon-btn" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">☾</button>
       <button id="toggle-sidebar" class="icon-btn" title="Toggle sidebar">☰</button>
     </div>
   </aside>

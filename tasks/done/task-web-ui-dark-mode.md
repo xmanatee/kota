@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-dark-mode
 title: Add light/dark theme toggle to the web UI dashboard
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The web UI dashboard is dark-only. Operators working in bright environments have no way to switch to a light theme. A toggle that persists the preference to localStorage would make the dashboard usable across different lighting conditions.

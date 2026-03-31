@@ -13,6 +13,7 @@ import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
 import { CLIENT_SCHEDULES_JS } from "./client-schedules.js";
 import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
 import { CLIENT_TASKS_JS } from "./client-tasks.js";
+import { CLIENT_THEME_JS } from "./client-theme.js";
 import { CLIENT_UTILS_JS } from "./client-utils.js";
 import { CLIENT_WORKFLOWS_JS } from "./client-workflows.js";
 
@@ -85,6 +86,7 @@ ${CLIENT_EXTENSIONS_JS}
 ${CLIENT_KNOWLEDGE_JS}
 ${CLIENT_MEMORY_JS}
 ${CLIENT_AUDIT_JS}
+${CLIENT_THEME_JS}
 
   // --- Event listeners ---
 

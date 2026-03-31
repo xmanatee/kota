@@ -285,4 +285,25 @@ describe("getWebUI", () => {
     expect(html).toContain("src.onopen");
     expect(html).toContain("_clearSseFallback");
   });
+
+  it("includes theme toggle button in sidebar footer", () => {
+    expect(html).toContain('id="theme-toggle"');
+    expect(html).toContain("Toggle light/dark theme");
+  });
+
+  it("includes theme toggle and apply functions", () => {
+    expect(html).toContain("toggleTheme");
+    expect(html).toContain("applyTheme");
+    expect(html).toContain("kota.theme");
+  });
+
+  it("includes light theme CSS overrides", () => {
+    expect(html).toContain("body.light");
+    expect(html).toContain("--bg:");
+  });
+
+  it("restores theme preference from localStorage on init", () => {
+    expect(html).toContain('localStorage.getItem("kota.theme")');
+    expect(html).toContain('localStorage.setItem("kota.theme"');
+  });
 });
