@@ -1,7 +1,7 @@
 ---
 id: task-daemon-health-endpoint
 title: Add GET /health endpoint to daemon control API
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The daemon control API has no dedicated health endpoint. Container orchestrators (k8s, Docker) and reverse proxies need a lightweight liveness/readiness probe that does not require authentication or full status enumeration.

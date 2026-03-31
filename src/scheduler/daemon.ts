@@ -105,6 +105,10 @@ export class Daemon {
     this.token = randomBytes(32).toString("hex");
 
     this.controlServer = new DaemonControlServer({
+      getHealthStatus: () => ({
+        scheduler: "ok" as const,
+        extensions: "ok" as const,
+      }),
       getDaemonLiveState: () => ({ ...this.state, running: this.isRunning() }),
       getWorkflowLiveStatus: () => {
         const wfState = this.workflows.getState();

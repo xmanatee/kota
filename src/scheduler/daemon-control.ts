@@ -20,6 +20,7 @@ import {
 
 export type {
   CapabilityScope,
+  ComponentStatus,
   DaemonControlAddress,
   DaemonControlHandle,
   DaemonLiveStatus,
@@ -27,6 +28,7 @@ export type {
   DaemonSseEventType,
   DaemonTaskDetail,
   DaemonTaskStatusResponse,
+  HealthStatus,
   InteractiveSession,
   WorkflowCostEntry,
   WorkflowDefinitionSummary,
@@ -166,6 +168,21 @@ export class DaemonControlServer {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
     const method = req.method ?? "GET";
+
+    // Health check requires no auth — must be checked before auth middleware.
+    if (method === "GET" && path === "/health") {
+      const health = this.handle.getHealthStatus();
+      const state = this.handle.getDaemonLiveState();
+      const uptimeMs = Date.now() - new Date(state.startedAt).getTime();
+      const degraded = health.scheduler === "error" || health.extensions === "error";
+      jsonResponse(res, degraded ? 503 : 200, {
+        status: degraded ? "degraded" : "ok",
+        version: "0.1.0",
+        uptimeMs,
+        components: health,
+      });
+      return;
+    }
 
     // Webhook triggers use their own secret auth, not the daemon Bearer token.
     if (method === "POST" && path.startsWith("/webhooks/")) {

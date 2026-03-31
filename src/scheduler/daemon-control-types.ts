@@ -133,8 +133,16 @@ export type WorkflowMetricCounts = {
   costTotals: WorkflowCostEntry[];
 };
 
+export type ComponentStatus = "ok" | "error";
+
+export type HealthStatus = {
+  scheduler: ComponentStatus;
+  extensions: ComponentStatus;
+};
+
 export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
+  getHealthStatus(): HealthStatus;
   getWorkflowLiveStatus(): WorkflowLiveStatus;
   pauseWorkflowDispatch(): { already: boolean };
   resumeWorkflowDispatch(): { already: boolean };

@@ -44,6 +44,45 @@ Routes are tagged with a capability scope:
   `POST /approvals/:id/reject`,
   `POST /sessions/register`, `DELETE /sessions/:id`
 
+`GET /health` requires **no authentication** and is intended for liveness/readiness probes.
+
+## Health Endpoint
+
+### GET /health
+
+Returns daemon liveness and component health. No authentication required.
+
+**Response (200 — healthy):**
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "uptimeMs": 12345,
+  "components": {
+    "scheduler": "ok",
+    "extensions": "ok"
+  }
+}
+```
+
+**Response (503 — degraded):**
+
+```json
+{
+  "status": "degraded",
+  "version": "0.1.0",
+  "uptimeMs": 12345,
+  "components": {
+    "scheduler": "ok",
+    "extensions": "error"
+  }
+}
+```
+
+Returns `200` when all components report `"ok"`, `503` when any component reports `"error"`.
+`uptimeMs` is the milliseconds elapsed since the daemon started.
+
 ## Workflow Endpoints
 
 ### GET /status
