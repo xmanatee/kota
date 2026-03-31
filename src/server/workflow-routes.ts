@@ -58,6 +58,22 @@ export async function handleWorkflowResume(
   jsonResponse(res, 200, result);
 }
 
+export async function handleWorkflowAbort(
+  res: ServerResponse,
+  client: DaemonControlClient | null = null,
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
+  const result = await client.abort();
+  if (!result) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  jsonResponse(res, 200, result);
+}
+
 export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,

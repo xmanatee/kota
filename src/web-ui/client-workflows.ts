@@ -3,7 +3,7 @@
 export const CLIENT_WORKFLOWS_JS = `
   // --- Workflow controls ---
 
-  function renderWorkflowControls(paused, workflowNames) {
+  function renderWorkflowControls(paused, workflowNames, activeRunCount) {
     $workflowControls.innerHTML = "";
     var row = document.createElement("div");
     row.className = "wf-controls";
@@ -21,6 +21,24 @@ export const CLIENT_WORKFLOWS_JS = `
       }
     };
     row.appendChild(pauseBtn);
+
+    if (activeRunCount > 0) {
+      var abortBtn = document.createElement("button");
+      abortBtn.className = "wf-ctrl-btn abort";
+      abortBtn.textContent = "⏹ Abort";
+      abortBtn.title = "Abort all active runs";
+      abortBtn.onclick = async function() {
+        if (!confirm("Abort all active workflow runs?")) return;
+        abortBtn.disabled = true;
+        try {
+          await apiFetch(API +"/api/workflow/abort", { method: "POST" });
+          await refreshWorkflows();
+        } finally {
+          abortBtn.disabled = false;
+        }
+      };
+      row.appendChild(abortBtn);
+    }
 
     for (var i = 0; i < workflowNames.length; i++) {
       (function(name) {
@@ -189,7 +207,7 @@ export const CLIENT_WORKFLOWS_JS = `
       _allActiveRuns = statusData.activeRuns || [];
       _allRecentRuns = runsData.runs || [];
       var wfNames = Object.keys(statusData.workflows || {}).sort();
-      renderWorkflowControls(!!statusData.paused, wfNames);
+      renderWorkflowControls(!!statusData.paused, wfNames, _allActiveRuns.length);
       var historyNames = [];
       var seen = {};
       for (var i = 0; i < _allRecentRuns.length; i++) {

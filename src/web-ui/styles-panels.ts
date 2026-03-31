@@ -196,6 +196,8 @@ export const STYLES_PANELS_CSS = `
 .wf-ctrl-btn.resume:hover { background: #34d39922; }
 .wf-ctrl-btn.trigger { color: var(--accent); border-color: #6c63ff55; }
 .wf-ctrl-btn.trigger:hover { background: #6c63ff22; }
+.wf-ctrl-btn.abort { color: #f87171; border-color: #f8717155; }
+.wf-ctrl-btn.abort:hover { background: #f8717122; }
 .wf-ctrl-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Workflow history filter */

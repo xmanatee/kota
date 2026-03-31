@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-workflow-abort
 title: Add abort active run control to the web UI dashboard
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The web UI dashboard lets operators pause and resume workflow dispatch but has no way to abort an actively running workflow. Operators who need to stop a run mid-flight must switch to the terminal to run kota workflow abort.

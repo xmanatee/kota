@@ -7,6 +7,7 @@ import type { WorkflowLiveStatus } from "../scheduler/daemon-control.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import {
+  handleWorkflowAbort,
   handleWorkflowPause,
   handleWorkflowResume,
   handleWorkflowStatus,
@@ -82,6 +83,7 @@ function mockClient(overrides: Partial<{
   getWorkflowStatus: () => Promise<WorkflowLiveStatus | null>;
   pause: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
   resume: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
+  abort: () => Promise<{ ok: boolean; aborted: number } | null>;
   trigger: (name: string) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
 }>): DaemonControlClient {
   return {
@@ -94,6 +96,7 @@ function mockClient(overrides: Partial<{
     }),
     pause: vi.fn().mockResolvedValue({ ok: true, paused: true }),
     resume: vi.fn().mockResolvedValue({ ok: true, paused: false }),
+    abort: vi.fn().mockResolvedValue({ ok: true, aborted: 0 }),
     trigger: vi.fn().mockResolvedValue(null),
     getDaemonStatus: vi.fn().mockResolvedValue(null),
     ...overrides,
@@ -230,6 +233,30 @@ describe("workflow-routes", () => {
       const { res, result } = mockResponse();
       await handleWorkflowResume(res, client);
       expect((result.body as Record<string, unknown>).already).toBe(true);
+    });
+  });
+
+  describe("handleWorkflowAbort", () => {
+    it("returns 503 when daemon not running (null client)", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowAbort(res, null);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns 503 when daemon unreachable (client returns null)", async () => {
+      const client = mockClient({ abort: async () => null });
+      const { res, result } = mockResponse();
+      await handleWorkflowAbort(res, client);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns ok and aborted count from daemon", async () => {
+      const client = mockClient({ abort: async () => ({ ok: true, aborted: 2 }) });
+      const { res, result } = mockResponse();
+      await handleWorkflowAbort(res, client);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).ok).toBe(true);
+      expect((result.body as Record<string, unknown>).aborted).toBe(2);
     });
   });
 

@@ -30,6 +30,7 @@ import {
 } from "./session-routes.js";
 import { handleTaskStatus } from "./task-routes.js";
 import {
+  handleWorkflowAbort,
   handleWorkflowPause,
   handleWorkflowResume,
   handleWorkflowStatus,
@@ -223,6 +224,13 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "POST" && path === "/api/workflow/resume") {
       handleWorkflowResume(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/workflow/abort") {
+      handleWorkflowAbort(res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
