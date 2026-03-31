@@ -4,44 +4,50 @@ title: Add workflow schedule management panel to the web UI dashboard
 status: ready
 priority: p3
 area: operator-ux
-summary: The daemon exposes /api/schedules for listing and managing workflow schedules, but the web dashboard has no panel for it. Operators must use CLI commands to view or control scheduled workflows.
+summary: The web dashboard has no panel showing which workflows have scheduled triggers, when they last ran, or when they fire next. Operators must switch to the terminal to use kota workflow definitions / kota workflow status.
 created_at: 2026-03-31T00:00:00Z
-updated_at: 2026-03-31T00:00:00Z
+updated_at: 2026-03-31T00:36:00Z
 ---
 
 ## Problem
 
-Workflow cron and interval schedules are managed via `kota workflow` CLI subcommands
-(`list`, `definitions`, etc.) but the web dashboard has no visibility into active
-schedules. An operator watching the dashboard cannot see which workflows are scheduled,
-when they last ran, or when they will next fire — without switching to the terminal.
+Workflow cron and interval schedules are visible via `kota workflow definitions` and
+`kota workflow status` in the CLI, but the web dashboard has no equivalent surface. An
+operator watching the dashboard cannot see which workflows have scheduled triggers, when
+they last ran, or when they will next fire — without switching to the terminal.
 
-The server already exposes `/api/schedules` (and related routes in `server-routes.ts`)
-to support this; it is only the UI that is missing.
+Note: `/api/schedules` in `server-routes.ts` returns user-created reminder items from
+the `Scheduler` service (e.g., `remind me at 3pm`), not workflow cron/interval
+triggers. The correct data source for workflow scheduling is `/api/workflow/status`,
+which returns `workflows[name].nextScheduledAt`, `lastStatus`, and `lastCompletedAt`
+from `WorkflowRuntimeState`. Trigger descriptions (cron expression, interval duration)
+are not currently exposed via the daemon API.
 
 ## Desired Outcome
 
 A "Schedules" panel in the web UI dashboard that:
-- Lists active workflow schedules with workflow name, trigger type (cron/interval), and
-  next-run time.
-- Shows last-run status (success/failed/never) for each schedule.
+- Lists workflows that have at least one scheduled trigger, showing workflow name,
+  next-run time (`nextScheduledAt`), and last-run status.
+- Shows last-run status (success/failed/never) for each scheduled workflow.
 - Follows the same panel component pattern as the approvals, tasks, and sessions panels
-  (SSE-updated, consistent layout).
-- Refreshes automatically when schedule state changes via the existing SSE `/events`
-  stream or polling of `/api/schedules`.
+  (consistent layout, refreshes on `workflow.completed` SSE events).
 
 No schedule editing is required in this task — read-only display is enough.
 
 ## Constraints
 
-- Use the existing SSE client wiring and panel component patterns from other panels.
-- Inspect `/api/schedules` response shape in `server-routes.ts` before building the
-  panel to confirm what fields are available.
-- No new daemon API endpoints needed; use what `server-routes.ts` already exposes.
+- Source runtime schedule data from `GET /api/workflow/status` (field:
+  `workflows[name].nextScheduledAt / lastStatus / lastCompletedAt`).
+- If trigger-type descriptions (cron expression, interval) are needed, add a small
+  `GET /api/workflow/definitions` endpoint to the daemon control server that returns
+  name, enabled, and trigger descriptions. Read `src/scheduler/daemon-control.ts` and
+  the daemon runtime to understand how definitions are accessible.
 - Panel sits alongside the existing workflow, approvals, tasks, and sessions panels.
+- Use the existing SSE client wiring and panel component patterns from other panels.
 
 ## Done When
 
-- Schedules panel renders in the web UI showing active schedules from `/api/schedules`.
-- Panel shows correct empty state when no schedules are active.
+- Schedules panel renders in the web UI showing scheduled workflows with next-run time
+  and last-run status from `/api/workflow/status`.
+- Panel shows correct empty state when no workflows have scheduled triggers.
 - Existing web UI tests pass; new behavior covered by at least one test.
