@@ -14,6 +14,7 @@ import {
 } from "./cli-history.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
+import { registerDoctorCommand } from "./doctor-cli.js";
 import { registerExtensionCommands } from "./extension-cli.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
@@ -179,6 +180,7 @@ registerSessionCommands(program);
 registerAgentCommands(program);
 registerSkillCommands(program);
 registerWebhookCommands(program);
+registerDoctorCommand(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

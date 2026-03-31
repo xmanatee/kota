@@ -1,7 +1,7 @@
 ---
 id: task-kota-doctor
 title: Add `kota doctor` command for runtime health diagnostics
-status: ready
+status: done
 priority: p2
 area: cli
 summary: Operators debugging KOTA setup issues currently have no single command to check runtime health. A `kota doctor` command would verify daemon connectivity, extension loading, provider availability, and common misconfigurations in one pass.
