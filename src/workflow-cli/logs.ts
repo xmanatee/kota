@@ -4,7 +4,7 @@ import type { Command } from "commander";
 import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../workflow/run-types.js";
-import { buildRunLogs, followRunLogs } from "../workflow-logs.js";
+import { buildRunLogs, filterWithContext, followRunLogs } from "../workflow-logs.js";
 
 export function registerLogsCommand(wfCmd: Command): void {
   wfCmd
@@ -12,7 +12,10 @@ export function registerLogsCommand(wfCmd: Command): void {
     .description("Print agent conversation transcript for a run")
     .option("--step <step-id>", "Show only the named step")
     .option("-f, --follow", "Stream output for the active run in real time (500 ms poll)")
-    .action(async (runId: string | undefined, opts: { step?: string; follow?: boolean }) => {
+    .option("--grep <pattern>", "Filter output to lines matching pattern (substring by default)")
+    .option("--regex", "Treat --grep pattern as a regular expression")
+    .option("-C, --context <n>", "Lines of context around each --grep match (default: 3)")
+    .action(async (runId: string | undefined, opts: { step?: string; follow?: boolean; grep?: string; regex?: boolean; context?: string }) => {
       const store = new WorkflowRunStore();
 
       if (!runId && !opts.follow) {
@@ -52,7 +55,17 @@ export function registerLogsCommand(wfCmd: Command): void {
         process.exit(1);
       }
 
-      const stepLogs = buildRunLogs(store.runsDir, resolvedId!, metadata, opts.step);
+      const grepPattern = opts.grep;
+      const isRegex = !!opts.regex;
+      const contextN = Math.max(0, Number.parseInt(opts.context ?? "3", 10) || 0);
+
+      const rawLogs = buildRunLogs(store.runsDir, resolvedId!, metadata, opts.step);
+      const stepLogs = grepPattern
+        ? rawLogs.map(({ stepId, lines }) => ({
+            stepId,
+            lines: filterWithContext(lines, grepPattern, isRegex, contextN),
+          }))
+        : rawLogs;
 
       if (stepLogs.length === 0) {
         console.log(opts.step
@@ -64,7 +77,7 @@ export function registerLogsCommand(wfCmd: Command): void {
       for (const { stepId, lines } of stepLogs) {
         console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
         if (lines.length === 0) {
-          console.log("  (no events)");
+          console.log(grepPattern ? "  (no matching lines)" : "  (no events)");
         } else {
           for (const line of lines) console.log(line);
         }

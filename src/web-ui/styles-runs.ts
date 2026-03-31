@@ -246,6 +246,29 @@ export const STYLES_RUNS_CSS = `
   margin-top: 2px;
 }
 .step-show-more:hover { text-decoration: underline; }
+.log-search-bar {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto 8px;
+}
+.log-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+}
+.log-search-input:focus { border-color: var(--accent); }
+mark.log-match {
+  background: #ff0;
+  color: #000;
+  border-radius: 2px;
+  padding: 0 1px;
+}
 
 /* Run artifact summary */
 .run-artifacts {

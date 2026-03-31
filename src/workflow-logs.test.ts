@@ -3,7 +3,40 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowRunMetadata } from "./workflow/run-types.js";
-import { followRunLogs, formatAgentMessage, formatContentBlock, truncateContent } from "./workflow-logs.js";
+import { filterWithContext, followRunLogs, formatAgentMessage, formatContentBlock, truncateContent } from "./workflow-logs.js";
+
+describe("filterWithContext", () => {
+  const lines = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"];
+
+  it("returns all lines when pattern is empty", () => {
+    expect(filterWithContext(lines, "", false, 0)).toEqual(lines);
+  });
+
+  it("returns only matching lines when context is 0", () => {
+    expect(filterWithContext(lines, "beta", false, 0)).toEqual(["beta"]);
+  });
+
+  it("includes context lines around matches", () => {
+    expect(filterWithContext(lines, "beta", false, 1)).toEqual(["alpha", "beta", "gamma"]);
+  });
+
+  it("clips context at array boundaries", () => {
+    expect(filterWithContext(lines, "alpha", false, 2)).toEqual(["alpha", "beta", "gamma"]);
+  });
+
+  it("includes context up to boundary", () => {
+    // "beta" at index 1 with context 2 → indices 0..3 = alpha, beta, gamma, delta
+    expect(filterWithContext(lines, "bet", false, 2)).toEqual(["alpha", "beta", "gamma", "delta"]);
+  });
+
+  it("supports regex mode", () => {
+    expect(filterWithContext(lines, "^(beta|zeta)$", true, 0)).toEqual(["beta", "zeta"]);
+  });
+
+  it("returns empty array when no match found", () => {
+    expect(filterWithContext(lines, "nope", false, 3)).toEqual([]);
+  });
+});
 
 describe("truncateContent", () => {
   it("returns short text unchanged", () => {

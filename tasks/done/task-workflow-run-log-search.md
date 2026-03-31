@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-log-search
 title: Add full-text search to workflow run logs in CLI and web UI
-status: ready
+status: done
 priority: p2
 area: operator-ux
 summary: Operators have no way to search through workflow run output. Finding a specific error, tool call, or agent message requires manually scrolling through all log lines. Full-text search on run output would make debugging multi-hour runs practical.

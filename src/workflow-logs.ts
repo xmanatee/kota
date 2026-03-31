@@ -98,6 +98,28 @@ export function readStepEvents(eventsPath: string): SDKMessage[] {
     .filter((m): m is SDKMessage => m !== null);
 }
 
+export function filterWithContext(
+  lines: string[],
+  pattern: string,
+  isRegex: boolean,
+  context: number,
+): string[] {
+  if (!pattern) return lines;
+  const re = isRegex ? new RegExp(pattern) : null;
+  const matches = (line: string) => (re ? re.test(line) : line.includes(pattern));
+  const include = new Set<number>();
+  for (let i = 0; i < lines.length; i++) {
+    if (matches(lines[i])) {
+      for (let c = Math.max(0, i - context); c <= Math.min(lines.length - 1, i + context); c++) {
+        include.add(c);
+      }
+    }
+  }
+  return Array.from(include)
+    .sort((a, b) => a - b)
+    .map((i) => lines[i]);
+}
+
 type StepLog = { stepId: string; lines: string[] };
 
 export function buildRunLogs(
