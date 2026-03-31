@@ -8,6 +8,7 @@ import { registerRunCommand } from "./workflow-cli/run.js";
 import { registerCostCommand } from "./workflow-cli/run-cost.js";
 import { registerRunListCommands } from "./workflow-cli/run-list.js";
 import { registerRunShowCommand } from "./workflow-cli/run-show.js";
+import { registerStatsCommand } from "./workflow-cli/run-stats.js";
 import { registerTriggerCommands } from "./workflow-cli/trigger.js";
 
 export function registerWorkflowCommands(program: Command): void {
@@ -24,6 +25,7 @@ export function registerWorkflowCommands(program: Command): void {
     );
 
   registerRunListCommands(wfCmd);
+  registerStatsCommand(wfCmd);
   registerRunShowCommand(wfCmd);
   registerDefinitionsCommand(wfCmd);
   registerCostCommand(wfCmd);

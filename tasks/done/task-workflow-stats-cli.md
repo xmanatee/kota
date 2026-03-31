@@ -1,7 +1,7 @@
 ---
 id: task-workflow-stats-cli
 title: Add kota workflow stats command for aggregate run health summary
-status: ready
+status: done
 priority: p3
 area: cli
 summary: Operators have no quick way to see overall workflow health — success rates, error patterns, and cost trends require piecing together output from kota workflow history and kota workflow cost. A stats command would surface this in one view.
