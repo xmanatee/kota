@@ -1,12 +1,12 @@
 ---
 id: task-builder-run-summary
 title: Write structured run summary artifact at end of each builder run
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Builder runs produce commits and .kota/runs/ directories but no human-readable summary of what was done. Operators and the improver must read raw conversation logs to understand what a builder run accomplished.
 created_at: 2026-03-31T01:15:00Z
-updated_at: 2026-03-31T01:15:00Z
+updated_at: 2026-03-31T01:43:23Z
 ---
 
 ## Problem

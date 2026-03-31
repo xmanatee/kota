@@ -1,12 +1,12 @@
 ---
 id: task-daemon-graceful-shutdown
 title: Implement graceful SIGTERM shutdown for the daemon
-status: backlog
+status: ready
 priority: p3
 area: reliability
 summary: The daemon terminates immediately on SIGTERM, which can kill active workflow runs mid-step and leave partial run artifacts or orphaned processes. A grace period that waits for active runs before stopping would prevent data loss and improve reliability under process managers.
 created_at: 2026-03-31T00:20:16Z
-updated_at: 2026-03-31T00:20:16Z
+updated_at: 2026-03-31T01:43:23Z
 ---
 
 ## Problem
