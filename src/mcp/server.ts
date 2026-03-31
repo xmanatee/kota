@@ -8,6 +8,8 @@
 
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { EventBus } from "../event-bus.js";
+import { getEventBus } from "../event-bus.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
@@ -48,6 +50,8 @@ export type McpServerOptions = {
 	log?: (msg: string) => void;
 	/** Project root used for resource reads (default: process.cwd()). */
 	projectDir?: string;
+	/** Event bus to drive resource subscription notifications (default: global singleton). */
+	eventBus?: EventBus | null;
 };
 
 export class McpServer {
@@ -61,6 +65,9 @@ export class McpServer {
 	private output: NodeJS.WritableStream;
 	private log: (msg: string) => void;
 	private projectDir: string;
+	private eventBusOverride: EventBus | null | undefined;
+	private subscriptions = new Set<string>();
+	private busUnsubs: (() => void)[] = [];
 
 	constructor(options: McpServerOptions = {}) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -70,6 +77,7 @@ export class McpServer {
 		this.output = options.output ?? process.stdout;
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
 		this.projectDir = options.projectDir ?? process.cwd();
+		this.eventBusOverride = options.eventBus;
 	}
 
 	/** Start listening for JSON-RPC messages on stdio. */
@@ -81,14 +89,17 @@ export class McpServer {
 		this.rl.on("line", (line) => this.handleLine(line));
 		this.rl.on("close", () => {
 			this.running = false;
+			this.cleanupBusSubscriptions();
 		});
 
+		this.registerBusListeners();
 		this.log("MCP server started, waiting for initialize...");
 	}
 
 	/** Stop the server. */
 	stop(): void {
 		this.running = false;
+		this.cleanupBusSubscriptions();
 		this.rl?.close();
 		this.rl = null;
 	}
@@ -148,6 +159,10 @@ export class McpServer {
 				return this.handleResourcesList(msg);
 			case "resources/read":
 				return this.handleResourcesRead(msg);
+			case "resources/subscribe":
+				return this.handleResourcesSubscribe(msg);
+			case "resources/unsubscribe":
+				return this.handleResourcesUnsubscribe(msg);
 			case "prompts/list":
 				return this.handlePromptsList(msg);
 			case "prompts/get":
@@ -168,7 +183,7 @@ export class McpServer {
 			protocolVersion: "2024-11-05",
 			capabilities: {
 				tools: {},
-				resources: {},
+				resources: { subscribe: true },
 				prompts: {},
 			},
 			serverInfo: {
@@ -177,6 +192,68 @@ export class McpServer {
 			},
 		});
 		this.log("Initialized successfully");
+	}
+
+	private handleResourcesSubscribe(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		const uri = (msg.params as Record<string, unknown> | undefined)?.uri as string | undefined;
+		if (!uri || typeof uri !== "string") {
+			this.sendError(msg, -32602, "Missing required parameter: uri");
+			return;
+		}
+		if (!KNOWN_RESOURCE_URIS.has(uri)) {
+			this.sendError(msg, -32002, `Unknown resource: ${uri}`);
+			return;
+		}
+		this.subscriptions.add(uri);
+		this.sendResult(msg, {});
+	}
+
+	private handleResourcesUnsubscribe(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		const uri = (msg.params as Record<string, unknown> | undefined)?.uri as string | undefined;
+		if (!uri || typeof uri !== "string") {
+			this.sendError(msg, -32602, "Missing required parameter: uri");
+			return;
+		}
+		this.subscriptions.delete(uri);
+		this.sendResult(msg, {});
+	}
+
+	private registerBusListeners(): void {
+		const bus = this.eventBusOverride !== undefined ? this.eventBusOverride : getEventBus();
+		if (!bus) return;
+
+		const notifyWorkflowStatus = () => {
+			if (this.subscriptions.has("kota://workflow/status")) {
+				this.sendNotification("notifications/resources/updated", { uri: "kota://workflow/status" });
+			}
+		};
+
+		const notifyTasksReady = () => {
+			if (this.subscriptions.has("kota://tasks/ready")) {
+				this.sendNotification("notifications/resources/updated", { uri: "kota://tasks/ready" });
+			}
+		};
+
+		this.busUnsubs.push(bus.on("workflow.started", notifyWorkflowStatus));
+		this.busUnsubs.push(bus.on("workflow.completed", notifyWorkflowStatus));
+		this.busUnsubs.push(bus.on("task.changed", notifyTasksReady));
+	}
+
+	private cleanupBusSubscriptions(): void {
+		for (const unsub of this.busUnsubs) unsub();
+		this.busUnsubs = [];
+	}
+
+	private sendNotification(method: string, params: Record<string, unknown>): void {
+		this.send({ jsonrpc: "2.0", method, params });
 	}
 
 	private handleResourcesList(msg: JsonRpcRequest): void {

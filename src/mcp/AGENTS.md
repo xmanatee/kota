@@ -7,7 +7,7 @@ This directory contains Model Context Protocol client/server/manager integration
 
 ## Key Modules
 
-- `server.ts` — `McpServer` class; JSON-RPC 2.0 over stdio server that exposes KOTA tools, resources, and prompts to MCP-compatible hosts.
+- `server.ts` — `McpServer` class; JSON-RPC 2.0 over stdio server that exposes KOTA tools, resources, and prompts to MCP-compatible hosts. Supports `resources/subscribe` and `resources/unsubscribe` per MCP 2024-11-05; sends `notifications/resources/updated` via the EventBus when workflow status or task queue changes.
 - `client.ts` — `McpClient` class; spawns a subprocess and communicates over stdio to consume tools from an external MCP server.
 - `manager.ts` — `McpManager`; manages the lifecycle of multiple `McpClient` instances from extension config.
 - `resources.ts` — static resource definitions and readers; exposes KOTA state (task queue, workflow status, recent runs) as `kota://` URIs.

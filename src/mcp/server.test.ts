@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { EventBus } from "../event-bus.js";
 import { anthropicToMcp, McpServer, toolResultToMcp } from "./server.js";
 
 // --- Helper: send a JSON-RPC request and read the response ---
@@ -81,7 +82,7 @@ describe("McpServer", () => {
 			expect(resp.id).toBe(1);
 			const result = resp.result as Record<string, unknown>;
 			expect(result.protocolVersion).toBe("2024-11-05");
-			expect(result.capabilities).toEqual({ tools: {}, resources: {}, prompts: {} });
+			expect(result.capabilities).toEqual({ tools: {}, resources: { subscribe: true }, prompts: {} });
 			expect(result.serverInfo).toEqual({ name: "kota", version: "0.1.0" });
 
 			server.stop();
@@ -708,5 +709,168 @@ describe("prompts", () => {
 
 			server.stop();
 		});
+	});
+});
+
+describe("resource subscriptions", () => {
+	async function readNotification(output: PassThrough): Promise<Record<string, unknown>> {
+		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => reject(new Error("Timeout waiting for notification")), 2000);
+			const chunks: string[] = [];
+			const onData = (chunk: Buffer) => {
+				chunks.push(chunk.toString());
+				const all = chunks.join("");
+				const lines = all.split("\n").filter((l) => l.trim());
+				for (const line of lines) {
+					try {
+						const msg = JSON.parse(line) as Record<string, unknown>;
+						if (!("id" in msg)) {
+							clearTimeout(timeout);
+							output.off("data", onData);
+							resolve(msg);
+							return;
+						}
+					} catch {
+						// not valid JSON yet
+					}
+				}
+			};
+			output.on("data", onData);
+		});
+	}
+
+	it("resources/subscribe registers URI and returns empty result", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(2);
+		expect(resp.result).toEqual({});
+
+		server.stop();
+	});
+
+	it("resources/unsubscribe returns empty result", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		await readResponse(output);
+
+		sendRequest(input, 3, "resources/unsubscribe", { uri: "kota://tasks/ready" });
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(3);
+		expect(resp.result).toEqual({});
+
+		server.stop();
+	});
+
+	it("resources/subscribe returns error for unknown URI", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://nonexistent" });
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeDefined();
+		const err = resp.error as { code: number };
+		expect(err.code).toBe(-32002);
+
+		server.stop();
+	});
+
+	it("sends notifications/resources/updated when workflow.completed fires for subscribed URI", async () => {
+		const bus = new EventBus();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://workflow/status" });
+		await readResponse(output);
+
+		const notifPromise = readNotification(output);
+		bus.emit("workflow.completed", {
+			workflow: "builder",
+			runId: "test-run-id",
+			status: "success",
+			triggerEvent: "runtime.idle",
+			durationMs: 1000,
+			definitionPath: "src/workflows/builder/workflow.ts",
+			runDir: ".kota/runs/test-run-id",
+		});
+
+		const notif = await notifPromise;
+		expect(notif.method).toBe("notifications/resources/updated");
+		const params = notif.params as Record<string, unknown>;
+		expect(params.uri).toBe("kota://workflow/status");
+
+		server.stop();
+	});
+
+	it("sends notifications/resources/updated when task.changed fires for subscribed URI", async () => {
+		const bus = new EventBus();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		await readResponse(output);
+
+		const notifPromise = readNotification(output);
+		bus.emit("task.changed", { counts: { pending: 1, in_progress: 0, done: 0 } });
+
+		const notif = await notifPromise;
+		expect(notif.method).toBe("notifications/resources/updated");
+		const params = notif.params as Record<string, unknown>;
+		expect(params.uri).toBe("kota://tasks/ready");
+
+		server.stop();
+	});
+
+	it("does not send notification for unsubscribed URI", async () => {
+		const bus = new EventBus();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		await readResponse(output);
+
+		bus.emit("workflow.completed", {
+			workflow: "builder",
+			runId: "test-run-id",
+			status: "success",
+			triggerEvent: "runtime.idle",
+			durationMs: 1000,
+			definitionPath: "src/workflows/builder/workflow.ts",
+			runDir: ".kota/runs/test-run-id",
+		});
+
+		const noNotif = await Promise.race([
+			readNotification(output).then(() => "got-notif"),
+			new Promise<string>((r) => setTimeout(() => r("no-notif"), 100)),
+		]);
+		expect(noNotif).toBe("no-notif");
+
+		server.stop();
+	});
+
+	it("stops sending notifications after stop()", async () => {
+		const bus = new EventBus();
+		expect(bus.listenerCount("workflow.completed")).toBe(0);
+
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+		await server.start();
+		expect(bus.listenerCount("workflow.completed")).toBe(1);
+
+		server.stop();
+		expect(bus.listenerCount("workflow.completed")).toBe(0);
 	});
 });
