@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-extension-status
 title: Add extension status panel to the web UI dashboard
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: Extensions are the sole integration unit in KOTA but their load state and health are only visible via the CLI. The web dashboard has no panel showing which extensions are loaded, what tools/agents they contribute, or whether any failed to load.

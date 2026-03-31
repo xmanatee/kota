@@ -55,6 +55,10 @@ ${WEB_UI_CSS}
       <h3>Analytics</h3>
       <div id="cost-summary-list"></div>
     </div>
+    <div class="sidebar-section">
+      <h3>Extensions</h3>
+      <div id="extensions-list"></div>
+    </div>
     <div class="sidebar-footer">
       <span id="health-status">●</span>
       <button id="toggle-sidebar" class="icon-btn" title="Toggle sidebar">☰</button>

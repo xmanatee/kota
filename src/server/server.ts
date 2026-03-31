@@ -12,7 +12,7 @@ import type { KotaConfig } from "../config.js";
 import { loadConfig } from "../config.js";
 import { initEventBus, resetEventBus } from "../event-bus.js";
 import { initExtensionLogStore } from "../extension-log.js";
-import type { RouteRegistration } from "../extension-types.js";
+import type { ExtensionSummary, RouteRegistration } from "../extension-types.js";
 import { AgentSession, type LoopOptions } from "../loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
@@ -34,6 +34,8 @@ export type ServerOptions = {
   authToken?: string;
   /** Routes registered by extensions (e.g., vercel-adapter). */
   extensionRoutes?: RouteRegistration[];
+  /** Returns current extension summaries for /api/extensions. */
+  getExtensionSummaries?: () => ExtensionSummary[];
 };
 
 export function startServer(options: ServerOptions = {}): Server {
@@ -93,6 +95,7 @@ export function startServer(options: ServerOptions = {}): Server {
     extensionRoutes: options.extensionRoutes ?? [],
     makeAgent,
     daemonClient,
+    getExtensionSummaries: options.getExtensionSummaries,
     authToken,
   });
 

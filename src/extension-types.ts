@@ -17,6 +17,23 @@ import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "./workflow/types.js";
 
+/** Summary of a loaded extension's metadata and contributions. */
+export type ExtensionSummary = {
+  name: string;
+  version?: string;
+  description?: string;
+  dependencies: string[];
+  toolNames: string[];
+  workflowNames: string[];
+  channelNames: string[];
+  skillNames: string[];
+  agentNames: string[];
+  agents: AgentDef[];
+  skills: SkillDef[];
+  commandNames: string[];
+  routeSummaries: string[];
+};
+
 /** Scoped logger available to extensions via ExtensionContext. */
 export type ExtensionLogger = {
   info: (msg: string, data?: unknown) => void;
@@ -99,6 +116,8 @@ export type ExtensionContext = {
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   /** Register a middleware that wraps tool execution. Lower priority runs first. */
   registerMiddleware: (name: string, fn: ToolMiddlewareFn, priority?: number) => void;
+  /** Get summaries of all loaded extensions (name, version, contribution counts). */
+  getExtensionSummaries: () => ExtensionSummary[];
 };
 
 /**

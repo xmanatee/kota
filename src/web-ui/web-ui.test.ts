@@ -218,4 +218,18 @@ describe("getWebUI", () => {
     expect(html).toContain("workflow.completed");
     expect(html).toContain("refreshCost");
   });
+
+  it("includes extensions panel element", () => {
+    expect(html).toContain('id="extensions-list"');
+    expect(html).toContain("Extensions");
+  });
+
+  it("loads extensions from GET /api/extensions on init", () => {
+    expect(html).toContain("refreshExtensions");
+    expect(html).toContain("/api/extensions");
+  });
+
+  it("renders empty state when no extensions are loaded", () => {
+    expect(html).toContain("No extensions loaded");
+  });
 });

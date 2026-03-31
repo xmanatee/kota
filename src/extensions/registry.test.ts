@@ -12,6 +12,7 @@ const stubCtx: ExtensionContext = {
   getRoutes: () => [],
   getContributedWorkflows: () => [],
   getContributedChannels: () => [],
+  getExtensionSummaries: () => [],
   getExtensionConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,

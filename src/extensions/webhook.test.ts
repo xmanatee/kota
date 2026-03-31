@@ -18,6 +18,7 @@ function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ExtensionContext 
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+  getExtensionSummaries: () => [],
     getExtensionConfig: () => webhookConfig as never,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { EventBus } from "../event-bus.js";
-import type { RouteRegistration } from "../extension-types.js";
+import type { ExtensionSummary, RouteRegistration } from "../extension-types.js";
 import type { AgentSession } from "../loop.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
@@ -14,6 +14,7 @@ import {
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
+import { handleListExtensions } from "./extension-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
@@ -54,6 +55,8 @@ export type ServerContext = {
   extensionRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
   daemonClient?: DaemonControlClient | null;
+  /** Returns current extension summaries for /api/extensions. */
+  getExtensionSummaries?: () => ExtensionSummary[];
   /** Bearer token required on all /api/* requests. Undefined means no auth. */
   authToken?: string;
 };
@@ -208,6 +211,11 @@ export function buildRequestHandler(ctx: ServerContext) {
       handleTaskStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/extensions") {
+      handleListExtensions(res, ctx.getExtensionSummaries ? ctx.getExtensionSummaries() : []);
       return;
     }
 

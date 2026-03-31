@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import type { AgentDef, SkillDef } from "./agent-types.js";
 import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
@@ -9,32 +8,18 @@ import { createExtensionContext, type ExtensionContextParams } from "./extension
 import { topoSort } from "./extension-deps.js";
 import { getExtensionDependents, type LifecycleState, reloadExtension, unloadAllExtensions, unloadExtension } from "./extension-lifecycle.js";
 import type { ExtensionStorage } from "./extension-storage.js";
-import type { CreateSessionOptions, ExtensionContext, ExtensionSession, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
+import type { CreateSessionOptions, ExtensionContext, ExtensionSession, ExtensionSummary, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
 import { loadForeignExtensions } from "./foreign-extension-loader.js";
 import { getProviderRegistry } from "./providers.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { executeTool, getExtensionToolNames, registerTool } from "./tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
 
+export type { ExtensionSummary } from "./extension-types.js";
+
 export type ExtensionLoaderOptions = {
   /** Skip tool registration — only load extensions for command/route discovery. */
   commandsOnly?: boolean;
-};
-
-export type ExtensionSummary = {
-  name: string;
-  version?: string;
-  description?: string;
-  dependencies: string[];
-  toolNames: string[];
-  workflowNames: string[];
-  channelNames: string[];
-  skillNames: string[];
-  agentNames: string[];
-  agents: AgentDef[];
-  skills: SkillDef[];
-  commandNames: string[];
-  routeSummaries: string[];
 };
 
 export class ExtensionLoader {
@@ -90,6 +75,7 @@ export class ExtensionLoader {
       getRoutes: () => this.getRoutes(),
       getContributedWorkflows: () => this.getContributedWorkflows(),
       getContributedChannels: () => this.getContributedChannels(),
+      getExtensionSummaries: () => this.getExtensionSummaries(),
       sessionFactory: this.sessionFactory,
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ExtensionLoader.MAX_TOOL_CALL_DEPTH) {

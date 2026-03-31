@@ -306,6 +306,7 @@ describe("resolveExtensionTools", () => {
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+    getExtensionSummaries: () => [],
     getExtensionConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,

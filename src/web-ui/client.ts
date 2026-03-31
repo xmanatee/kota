@@ -5,6 +5,7 @@ import { CLIENT_ACTIVE_SESSIONS_JS } from "./client-active-sessions.js";
 import { CLIENT_APPROVALS_JS } from "./client-approvals.js";
 import { CLIENT_CHAT_JS } from "./client-chat.js";
 import { CLIENT_COST_JS } from "./client-cost.js";
+import { CLIENT_EXTENSIONS_JS } from "./client-extensions.js";
 import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
 import { CLIENT_SCHEDULES_JS } from "./client-schedules.js";
 import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
@@ -52,6 +53,7 @@ export const WEB_UI_JS = /* js */ `
   const $workflowHistoryFilter = document.getElementById("workflow-history-filter");
   const $costList = document.getElementById("cost-summary-list");
   const $schedulesList = document.getElementById("schedules-list");
+  const $extensionsList = document.getElementById("extensions-list");
   const $runDetail = document.getElementById("run-detail");
   const $inputArea = document.getElementById("input-area");
   const $historyViewBar = document.getElementById("history-view-bar");
@@ -69,6 +71,7 @@ ${CLIENT_APPROVALS_JS}
 ${CLIENT_COST_JS}
 ${CLIENT_ACTIVE_SESSIONS_JS}
 ${CLIENT_SCHEDULES_JS}
+${CLIENT_EXTENSIONS_JS}
 
   // --- Event listeners ---
 
@@ -105,6 +108,7 @@ ${CLIENT_SCHEDULES_JS}
   refreshApprovals();
   refreshActiveSessions();
   refreshSchedules();
+  refreshExtensions();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
   startWorkflowUpdates();

@@ -57,6 +57,7 @@ const webModule: KotaExtension = {
           config: ctx.config,
           noAuth: opts.auth === false,
           extensionRoutes,
+          getExtensionSummaries: () => ctx.getExtensionSummaries(),
         });
       });
 

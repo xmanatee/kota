@@ -3,7 +3,7 @@ import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
 import { getExtensionLogStore } from "./extension-log.js";
 import { ExtensionStorage } from "./extension-storage.js";
-import type { CreateSessionOptions, ExtensionContext, ExtensionEventProxy, ExtensionSession, RouteRegistration } from "./extension-types.js";
+import type { CreateSessionOptions, ExtensionContext, ExtensionEventProxy, ExtensionSession, ExtensionSummary, RouteRegistration } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
@@ -21,6 +21,7 @@ export interface ExtensionContextParams {
   getRoutes: () => RouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   getContributedChannels: () => ChannelDef[];
+  getExtensionSummaries: () => ExtensionSummary[];
   sessionFactory: ((opts: CreateSessionOptions) => ExtensionSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }
@@ -54,7 +55,7 @@ function createEventProxy(
 }
 
 export function createExtensionContext(params: ExtensionContextParams, extensionName?: string): ExtensionContext {
-  const { cwd, verbose, config, extensionStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, sessionFactory, callTool } = params;
+  const { cwd, verbose, config, extensionStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getExtensionSummaries, sessionFactory, callTool } = params;
   const storage = extensionName
     ? getOrCreateStorage(extensionName, cwd, extensionStorages)
     : new ExtensionStorage(cwd, "_default");
@@ -88,6 +89,7 @@ export function createExtensionContext(params: ExtensionContextParams, extension
     getRoutes,
     getContributedWorkflows,
     getContributedChannels,
+    getExtensionSummaries,
     getExtensionConfig: <T = Record<string, unknown>>(): T | undefined => {
       if (!extensionName) return undefined;
       return config.extensions?.[extensionName] as T | undefined;

@@ -19,6 +19,7 @@ HTTP API server with session management and real-time notifications.
 | `daemon-routes.ts` | `queryDaemonStatus` — reads live daemon status via `DaemonControlClient` |
 | `daemon-client.ts` | `DaemonControlClient` — queries the running daemon's loopback HTTP control API |
 | `event-routes.ts` | `handleEventTrigger` — emits a named event onto the bus |
+| `extension-routes.ts` | `handleListExtensions` — returns loaded extension metadata for `GET /api/extensions` |
 
 ## Proxy Pattern
 
