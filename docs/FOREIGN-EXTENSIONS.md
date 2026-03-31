@@ -216,19 +216,19 @@ Add `foreignExtensions` to your `.kota/config.json`:
 | `transport` | yes      | `"http"` |
 | `url`       | yes      | Base URL of the running KEMP HTTP server. |
 
-Per-extension config can be passed under the extension's declared name in
-`config.extensions`:
+Per-extension config can be passed in `config.extensions`, keyed by the
+extension's `url` (for HTTP) or `command` path (for stdio):
 
 ```json
 {
   "extensions": {
-    "my-python-tools": {"api_key": "..."}
+    "http://localhost:8765": {"api_key": "..."}
   }
 }
 ```
 
-KOTA looks up the extension's declared `name` from the manifest to find this
-config block and passes it as `config` in the `init` message.
+KOTA looks up the config block by transport address before sending `init`, and
+passes it as the `config` field in the `init` message.
 
 ---
 
