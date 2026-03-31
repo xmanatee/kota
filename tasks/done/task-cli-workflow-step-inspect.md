@@ -1,7 +1,7 @@
 ---
 id: task-cli-workflow-step-inspect
 title: Add kota workflow step-inspect command to view step output from a run
-status: ready
+status: done
 priority: p3
 area: cli
 summary: There is no CLI command to inspect the output of a specific step within a completed run. Operators must locate the run directory and read raw JSON files to debug step outputs, which is tedious for runs with many steps.
