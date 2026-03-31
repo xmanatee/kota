@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-session-labels
 title: Add operator-assigned labels to web UI chat sessions
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: Chat sessions in the web UI are identified only by their UUID, making it impossible to distinguish "debugging run" from "feature exploration" at a glance. Letting operators assign short labels would make session management usable beyond a single tab.
 created_at: 2026-03-31T07:37:58Z
-updated_at: 2026-03-31T07:37:58Z
+updated_at: 2026-03-31T15:07:46Z
 ---
 
 ## Problem
