@@ -104,7 +104,7 @@ export function handleTriggerWorkflow(
         jsonResponse(res, 400, { error: result.error ?? "Failed to enqueue workflow" });
         return;
       }
-      jsonResponse(res, 200, { ok: true, queued: result.queued });
+      jsonResponse(res, 200, { ok: true, queued: result.queued, runId: result.runId });
     })
     .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
 }

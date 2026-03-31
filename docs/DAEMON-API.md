@@ -272,8 +272,10 @@ Enqueues a workflow run manually.
 **Response (200):**
 
 ```json
-{ "ok": true, "queued": "builder" }
+{ "ok": true, "queued": "builder", "runId": "2026-03-31T17-36-31-565Z-builder-abc123" }
 ```
+
+`runId` is the stable ID assigned to the queued run. Pass it to `DELETE /workflow/runs/:id` to cancel the run before it starts.
 
 **Error responses:**
 
