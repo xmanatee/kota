@@ -1,8 +1,8 @@
 # Notification Channels
 
 KOTA emits workflow notification events on its internal event bus. Built-in
-extensions (Telegram, webhook) subscribe to these events and forward alerts to
-external services.
+extensions (Telegram, webhook, Slack) subscribe to these events and forward
+alerts to external services.
 
 ## Notification Events
 
@@ -80,6 +80,45 @@ The `text` field is ready to display as-is. Each additional field comes from
 the event payload and varies per event type.
 
 POSTs are fire-and-forget — no retry is attempted on failure.
+
+## Slack
+
+The built-in `slack` extension sends Block Kit formatted messages to a Slack
+Incoming Webhook on each notification event. It also forwards `approval.requested`
+so operators can act on approvals from Slack.
+
+No OAuth app or bot token required — only a webhook URL from Slack's
+**Incoming Webhooks** app integration.
+
+Configure it in your KOTA config under the `slack` key:
+
+```json
+{
+  "extensions": {
+    "slack": {
+      "webhookUrl": "https://hooks.slack.com/services/T000/B000/xxxx"
+    }
+  }
+}
+```
+
+To forward only a subset of the four notification events, add an `events` array.
+`approval.requested` is always forwarded regardless of the filter.
+
+```json
+{
+  "extensions": {
+    "slack": {
+      "webhookUrl": "https://hooks.slack.com/services/T000/B000/xxxx",
+      "events": ["workflow.failure.alert", "workflow.cost.limit.reached"]
+    }
+  }
+}
+```
+
+Messages use Block Kit and include at minimum: an event type header, workflow
+name, run ID, and relevant detail (error summary, cost figures, approval
+command). POSTs are fire-and-forget — no retry is attempted on failure.
 
 ## Alert Cooldown
 

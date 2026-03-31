@@ -1,7 +1,7 @@
 ---
 id: task-slack-notification-extension
 title: Add Slack notification extension for workflow events
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: KOTA supports Telegram and HTTP webhook notifications but has no Slack extension. Teams using Slack for ops visibility cannot get workflow failure alerts, approval requests, or attention digests without a custom webhook workaround.

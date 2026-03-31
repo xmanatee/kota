@@ -75,7 +75,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.loadAll(builtinExtensions);
 
     const names = loader.getLoadedExtensions();
-    expect(names).toHaveLength(16);
+    expect(names).toHaveLength(17);
     expect(names).toContain("tool-cache");
     expect(names).toContain("working-memory");
     expect(names).toContain("memory");
@@ -139,7 +139,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     const loader = new ExtensionLoader({});
     await loader.loadAll(builtinExtensions);
 
-    expect(loader.getExtensionCount()).toBe(16);
+    expect(loader.getExtensionCount()).toBe(17);
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
 
     await loader.unloadAll();
@@ -196,7 +196,7 @@ describe("module error resilience", () => {
     // But all builtin modules should still load
     expect(loader.getLoadedExtensions()).toContain("memory");
     expect(loader.getLoadedExtensions()).toContain("scheduler");
-    expect(loader.getExtensionCount()).toBe(16);
+    expect(loader.getExtensionCount()).toBe(17);
 
     errSpy.mockRestore();
     await loader.unloadAll();
@@ -306,7 +306,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // First cycle
     await loader.loadAll(builtinExtensions);
-    expect(loader.getExtensionCount()).toBe(16);
+    expect(loader.getExtensionCount()).toBe(17);
     const memResult1 = await executeTool("memory", { action: "list" });
     expect(memResult1.is_error).toBeFalsy();
 
@@ -316,7 +316,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     // Second cycle — should work identically
     const loader2 = new ExtensionLoader({});
     await loader2.loadAll(builtinExtensions);
-    expect(loader2.getExtensionCount()).toBe(16);
+    expect(loader2.getExtensionCount()).toBe(17);
     const memResult2 = await executeTool("memory", { action: "list" });
     expect(memResult2.is_error).toBeFalsy();
 
