@@ -6,46 +6,53 @@ priority: p3
 area: operator-ux
 summary: The workflow history panel lists runs but provides no way to inspect what a run produced. Operators need to drill into individual runs to see step outputs, commit messages, and other artifacts left in .kota/runs/.
 created_at: 2026-03-31T00:20:16Z
-updated_at: 2026-03-31T00:20:16Z
+updated_at: 2026-03-31T01:59:40Z
 ---
 
 ## Problem
 
 The workflow run history panel shows per-run metadata (status, cost, duration) but
-clicking a run does nothing. Operators have no in-browser way to see what a run
-actually produced: which steps ran, what each step returned, whether a commit message
-was written, or what files changed. Currently they must `ls .kota/runs/<id>/` in a
-terminal, which defeats the purpose of the web UI.
+clicking a run does nothing useful beyond the basic step list. Operators have no
+in-browser way to see what a run actually produced: commit messages, files changed,
+and structured artifact data. Currently they must `ls .kota/runs/<id>/` in a terminal,
+which defeats the purpose of the web UI.
+
+The builder workflow now writes `run-summary.json` to the run directory on every
+successful run; it contains `commitSha`, `commitMessage`, `filesChanged`, `taskId`,
+and `taskTitle` in a well-known format. This is the primary artifact to surface, but
+the detail view should handle other known artifact files too.
 
 ## Desired Outcome
 
-Clicking a run in the history panel opens a detail view (modal or expanded row) that
-shows:
+The run detail view (already clickable per run) is extended to show artifact file
+contents:
 
-- Per-step status (completed / failed / skipped) and duration.
-- Step output contents, rendered as plain text (truncated with a "show more" toggle for
-  large outputs).
-- `commit-message.txt` if present, displayed prominently.
+- `run-summary.json` if present: display commit SHA, commit message, files changed,
+  and task title in a structured summary section at the top of the run detail.
+- `commit-message.txt` if present: display alongside or instead of the raw commit
+  message field from `run-summary.json`.
+- Step output contents: "show more" toggle for outputs currently truncated at 300 chars.
 - Any other `.txt` or `.md` artifact files in the run directory, listed with their
   content.
 
-Backed by a new daemon control API endpoint `GET /workflow/runs/:runId/artifacts` that
-reads the run directory and returns a structured list of artifact files.
+Backed by a new server route `GET /api/workflow/runs/:runId/artifacts` that reads the
+run directory and returns a structured list of artifact files and the parsed
+`run-summary.json` if present.
 
 ## Constraints
 
 - Read-only. No mutation of run artifacts from the UI.
-- Endpoint must gracefully handle missing or incomplete run directories (e.g. a run
-  that was interrupted before writing any artifacts).
-- Follows existing panel patterns (Lit components, SSE where appropriate, no
-  framework additions).
-- New endpoint documented in `docs/DAEMON-API.md`.
-- Out of scope: binary file preview, live streaming of in-progress step outputs (a
-  separate task).
+- The new route (`GET /api/workflow/runs/:runId/artifacts`) lives in `workflow-run-routes.ts`
+  and is registered in `server-routes.ts`, following the existing route handler pattern.
+- Must gracefully handle missing or incomplete run directories (run interrupted before
+  writing artifacts).
+- No new daemon control API changes — artifacts are read from disk by the server directly.
+- Out of scope: binary file preview, live streaming of in-progress step outputs.
 
 ## Done When
 
-- Clicking a run in the history panel shows per-step results and any artifact file
-  contents.
-- `GET /workflow/runs/:runId/artifacts` returns structured data and is documented.
-- Basic test coverage for the new endpoint.
+- The run detail view shows a structured artifact section when `run-summary.json` is
+  present, including commit SHA, commit message, and files changed.
+- Step output "show more" toggle works for outputs longer than 300 characters.
+- `GET /api/workflow/runs/:runId/artifacts` returns the parsed artifact data.
+- Basic test coverage for the new route handler.
