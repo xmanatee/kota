@@ -120,7 +120,7 @@ function generateExtensionScaffold(name: string, safeName: string, dir: string):
   writeFileSync(join(dir, "package.json"), packageJson(safeName));
   writeFileSync(join(dir, "tsconfig.json"), tsconfig());
   writeFileSync(join(srcDir, "index.ts"), indexTs(name, safeName));
-  writeFileSync(join(dir, "AGENTS.md"), agentsMd(name));
+  writeFileSync(join(dir, "AGENTS.md"), agentsMd(name, safeName));
 }
 
 function packageJson(safeName: string): string {
@@ -206,7 +206,7 @@ export default extension;
 `;
 }
 
-function agentsMd(name: string): string {
+function agentsMd(name: string, safeName: string): string {
   return `# ${name} Extension
 
 This directory contains the \`${name}\` KOTA extension.
@@ -231,7 +231,7 @@ npm run build        # compile to dist/ for npm-based use
 \`\`\`
 
 For local drop-in use without npm, compile and copy \`dist/index.js\` to
-\`.kota/plugins/${name}.js\` in your KOTA project.
+\`.kota/plugins/${safeName}.js\` in your KOTA project.
 `;
 }
 
