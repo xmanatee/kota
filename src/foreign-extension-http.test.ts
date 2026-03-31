@@ -19,7 +19,7 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-type Handler = (msg: KempOutbound) => KempInbound | null;
+type Handler = (msg: KempOutbound, req: IncomingMessage) => KempInbound | null;
 
 function startKempServer(handler: Handler): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve, reject) => {
@@ -27,7 +27,7 @@ function startKempServer(handler: Handler): Promise<{ url: string; close: () => 
       try {
         const body = await readBody(req);
         const msg = JSON.parse(body) as KempOutbound;
-        const reply = handler(msg);
+        const reply = handler(msg, req);
         if (reply === null) {
           res.writeHead(200).end();
         } else {
@@ -144,5 +144,52 @@ describe("HttpTransport", () => {
     await expect(
       transport.send({ id: "x", type: "shutdown" }),
     ).rejects.toThrow("Transport closed");
+  });
+
+  it("bearerToken string: Authorization header is sent on every request", async () => {
+    const receivedHeaders: string[] = [];
+    const { url, close } = await startKempServer((_msg, req) => {
+      receivedHeaders.push(req.headers["authorization"] ?? "");
+      return null;
+    });
+    closeServer = close;
+
+    transport = new HttpTransport({ transport: "http", url, bearerToken: "secret-token" });
+    await transport.send({ id: "s1", type: "shutdown" });
+    expect(receivedHeaders).toHaveLength(1);
+    expect(receivedHeaders[0]).toBe("Bearer secret-token");
+  });
+
+  it("bearerToken env ref: reads value from environment variable", async () => {
+    const receivedHeaders: string[] = [];
+    const { url, close } = await startKempServer((_msg, req) => {
+      receivedHeaders.push(req.headers["authorization"] ?? "");
+      return null;
+    });
+    closeServer = close;
+
+    process.env.KEMP_TEST_TOKEN = "env-secret";
+    try {
+      transport = new HttpTransport({ transport: "http", url, bearerToken: { env: "KEMP_TEST_TOKEN" } });
+      await transport.send({ id: "s1", type: "shutdown" });
+      expect(receivedHeaders).toHaveLength(1);
+      expect(receivedHeaders[0]).toBe("Bearer env-secret");
+    } finally {
+      delete process.env.KEMP_TEST_TOKEN;
+    }
+  });
+
+  it("no bearerToken: Authorization header is absent", async () => {
+    const receivedHeaders: string[] = [];
+    const { url, close } = await startKempServer((_msg, req) => {
+      receivedHeaders.push(req.headers["authorization"] ?? "absent");
+      return null;
+    });
+    closeServer = close;
+
+    transport = new HttpTransport({ transport: "http", url });
+    await transport.send({ id: "s1", type: "shutdown" });
+    expect(receivedHeaders).toHaveLength(1);
+    expect(receivedHeaders[0]).toBe("absent");
   });
 });

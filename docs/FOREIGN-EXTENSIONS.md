@@ -205,16 +205,18 @@ Add `foreignExtensions` to your `.kota/config.json`:
   "foreignExtensions": [
     {
       "transport": "http",
-      "url": "http://localhost:8765"
+      "url": "http://localhost:8765",
+      "bearerToken": { "env": "MY_EXT_SECRET" }
     }
   ]
 }
 ```
 
-| Field       | Required | Description |
-|-------------|----------|-------------|
-| `transport` | yes      | `"http"` |
-| `url`       | yes      | Base URL of the running KEMP HTTP server. |
+| Field         | Required | Description |
+|---------------|----------|-------------|
+| `transport`   | yes      | `"http"` |
+| `url`         | yes      | Base URL of the running KEMP HTTP server. |
+| `bearerToken` | no       | Bearer token sent as `Authorization: Bearer <token>` on every request. Supply a string literal or `{ "env": "ENV_VAR_NAME" }` to read from an environment variable. Omit to send no Authorization header. |
 
 Per-extension config can be passed in `config.extensions`, keyed by the
 extension's `url` (for HTTP) or `command` path (for stdio):

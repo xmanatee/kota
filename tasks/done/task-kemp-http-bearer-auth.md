@@ -1,7 +1,7 @@
 ---
 id: task-kemp-http-bearer-auth
 title: Add bearer token authentication to the KEMP HTTP transport
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: The KEMP HTTP transport sends bare POST requests with no authentication. Any process that can reach the foreign extension URL can invoke it. Adding optional bearer token auth protects deployed foreign extensions from unauthorized callers.

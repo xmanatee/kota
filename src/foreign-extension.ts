@@ -155,6 +155,12 @@ export type HttpForeignExtensionConfig = {
   transport: "http";
   /** Base URL of the KEMP HTTP server (e.g. "http://localhost:8765"). */
   url: string;
+  /**
+   * Optional bearer token sent as `Authorization: Bearer <token>` on every request.
+   * Supply a string literal or `{ env: "ENV_VAR_NAME" }` to read from an environment variable.
+   * The token is never logged.
+   */
+  bearerToken?: string | { env: string };
 };
 
 /** Configuration for a single foreign-language extension entry. */

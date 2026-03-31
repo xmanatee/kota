@@ -11,6 +11,12 @@
 
 import type { HttpForeignExtensionConfig, KempInbound, KempOutbound, KempTransport } from "./foreign-extension.js";
 
+function resolveToken(bearerToken: string | { env: string } | undefined): string | undefined {
+  if (bearerToken === undefined) return undefined;
+  if (typeof bearerToken === "string") return bearerToken;
+  return process.env[bearerToken.env];
+}
+
 export class HttpTransport implements KempTransport {
   private closed = false;
   private msgQueue: KempInbound[] = [];
@@ -24,11 +30,15 @@ export class HttpTransport implements KempTransport {
   async send(msg: KempOutbound): Promise<void> {
     if (this.closed) throw new Error("Transport closed");
 
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = resolveToken(this.config.bearerToken);
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     let response: Response;
     try {
       response = await fetch(this.config.url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(msg),
       });
     } catch (err) {
