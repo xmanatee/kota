@@ -1,12 +1,12 @@
 ---
 id: task-kota-status-command
 title: Add kota status command for a quick operational overview
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: Operators must run kota workflow list, kota approval list, and kota session list separately to understand the current system state. A single kota status command would give a quick dashboard-style overview combining daemon connectivity, active runs, pending approvals, and today's cost.
 created_at: 2026-03-31T17:30:00Z
-updated_at: 2026-03-31T17:30:00Z
+updated_at: 2026-03-31T17:52:00Z
 ---
 
 ## Problem
