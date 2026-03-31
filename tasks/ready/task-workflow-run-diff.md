@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-diff
 title: Add workflow run comparison (diff) to CLI and web UI
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: Operators can view individual run details but have no way to compare two runs side-by-side — e.g., to understand why a builder run cost more than yesterday's. A diff view showing changed step durations, costs, and outputs would close this gap.
 created_at: 2026-03-31T07:37:58Z
-updated_at: 2026-03-31T07:37:58Z
+updated_at: 2026-03-31T12:22:00Z
 ---
 
 ## Problem
