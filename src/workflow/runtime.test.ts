@@ -1751,4 +1751,120 @@ describe("WorkflowRuntime", () => {
       }
     });
   });
+
+  describe("graceful drain on stop", () => {
+    it("stops cleanly with no active runs", async () => {
+      const runtime = new WorkflowRuntime({
+        bus: new EventBus(),
+        projectDir,
+        idleIntervalMs: 60_000,
+        workflows: [],
+      });
+      runtime.start();
+      await wait(10);
+      await runtime.stop(100);
+
+      const runsDir = join(projectDir, ".kota", "runs");
+      expect(existsSync(runsDir)).toBe(true);
+      expect(readdirSync(runsDir).length).toBe(0);
+    });
+
+    it("waits for an active run to complete within the grace period", async () => {
+      writeFileSync(
+        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      mockedExecuteWithAgentSDK.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  text: "done",
+                  streamedText: "",
+                  turns: 1,
+                  subtype: "success",
+                  isError: false,
+                }),
+              60,
+            ),
+          ),
+      );
+
+      const runtime = new WorkflowRuntime({
+        bus: new EventBus(),
+        projectDir,
+        idleIntervalMs: 10,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/workflows/builder/prompt.md",
+              },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(20); // let the run start
+      await runtime.stop(500); // grace period well beyond 60ms step delay
+
+      const runsDir = join(projectDir, ".kota", "runs");
+      const [runId] = readdirSync(runsDir);
+      const metadata = JSON.parse(
+        readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+      );
+      expect(metadata.status).toBe("success");
+    });
+
+    it("marks an active run as interrupted when grace period is exceeded", async () => {
+      writeFileSync(
+        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      mockedExecuteWithAgentSDK.mockImplementation(
+        async (_prompt, options) =>
+          new Promise((_resolve, reject) => {
+            options?.abortController?.signal.addEventListener("abort", () => {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            });
+          }),
+      );
+
+      const runtime = new WorkflowRuntime({
+        bus: new EventBus(),
+        projectDir,
+        idleIntervalMs: 10,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/workflows/builder/prompt.md",
+              },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(30); // let the run start
+      await runtime.stop(50); // grace period expires before the mock resolves
+
+      const runsDir = join(projectDir, ".kota", "runs");
+      const [runId] = readdirSync(runsDir);
+      const metadata = JSON.parse(
+        readFileSync(join(runsDir, runId, "metadata.json"), "utf-8"),
+      );
+      expect(metadata.status).toBe("interrupted");
+    });
+  });
 });

@@ -36,6 +36,11 @@ export type DaemonConfig = {
   sessionIdleTtlMs?: number;
   /** How often to run the session sweep. Default: 1 minute. */
   sessionSweepIntervalMs?: number;
+  /**
+   * How long (ms) to wait for active runs before aborting them on SIGTERM.
+   * 0 = drain indefinitely. Default: 60000 (60 s), or `daemon.shutdownGracePeriodMs` from kota.config.
+   */
+  shutdownGracePeriodMs?: number;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -43,7 +48,7 @@ export const RESTART_EXIT_CODE = 75;
 const STATE_FILE = "daemon-state.json";
 const CONTROL_FILE = "daemon-control.json";
 const DEFAULT_POLL_INTERVAL = 30_000;
-const SIGNAL_STOP_TIMEOUT_MS = 5_000;
+const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
 
 export class Daemon {
   private readonly bus: EventBus;
@@ -247,8 +252,9 @@ export class Daemon {
     this.saveState();
 
     // Register signal handlers before any awaits so callers can observe them immediately.
+    const gracePeriodMs = this.config.shutdownGracePeriodMs ?? this.config.config?.daemon?.shutdownGracePeriodMs ?? DEFAULT_SHUTDOWN_GRACE_PERIOD_MS;
     this.shutdownHandler = () => {
-      void this.stop(SIGNAL_STOP_TIMEOUT_MS);
+      void this.stop(gracePeriodMs);
     };
     process.on("SIGINT", this.shutdownHandler);
     process.on("SIGTERM", this.shutdownHandler);
@@ -329,7 +335,7 @@ export class Daemon {
     });
   }
 
-  async stop(timeoutMs = 30_000): Promise<void> {
+  async stop(gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS): Promise<void> {
     if (this.stopping) return;
     this.stopping = true;
     this.log("Daemon shutting down...");
@@ -344,7 +350,7 @@ export class Daemon {
     }
     this.activeChannels = [];
 
-    await this.workflows.stop(timeoutMs);
+    await this.workflows.stop(gracePeriodMs);
     await this.controlServer.stop();
 
     const controlPath = join(this.stateDir, CONTROL_FILE);

@@ -92,6 +92,15 @@ export type KotaConfig = {
     /** Disable bearer-token auth (default: auth enabled). For localhost-only dev use. */
     noAuth?: boolean;
   };
+
+  /** Daemon lifecycle settings. */
+  daemon?: {
+    /**
+     * How long (ms) to wait for active workflow runs to complete before aborting them
+     * during shutdown. 0 = drain indefinitely. Default: 60000 (60 s).
+     */
+    shutdownGracePeriodMs?: number;
+  };
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -208,6 +217,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (typeof src.balanced === "string" && src.balanced) tiers.balanced = src.balanced;
     if (typeof src.capable === "string" && src.capable) tiers.capable = src.capable;
     if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
+  }
+
+  if (typeof raw.daemon === "object" && raw.daemon !== null && !Array.isArray(raw.daemon)) {
+    const src = raw.daemon as Record<string, unknown>;
+    const d: KotaConfig["daemon"] = {};
+    if (typeof src.shutdownGracePeriodMs === "number" && src.shutdownGracePeriodMs >= 0) {
+      d.shutdownGracePeriodMs = src.shutdownGracePeriodMs;
+    }
+    if (Object.keys(d).length > 0) out.daemon = d;
   }
 
   if (Array.isArray(raw.foreignExtensions)) {

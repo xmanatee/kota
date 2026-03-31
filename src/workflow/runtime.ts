@@ -146,7 +146,7 @@ export class WorkflowRuntime {
     this.emitIdleEvent();
   }
 
-  async stop(timeoutMs = 30_000): Promise<void> {
+  async stop(gracePeriodMs = 60_000): Promise<void> {
     this.stopping = true;
 
     if (this.idleTimer) {
@@ -161,23 +161,24 @@ export class WorkflowRuntime {
 
     if (this.activeRuns.size === 0) return;
 
-    for (const { abortController } of this.activeRuns.values()) {
-      abortController.abort();
+    const promises = [...this.activeRuns.values()].map((r) => r.promise);
+
+    if (gracePeriodMs === 0) {
+      await Promise.all(promises);
+      return;
     }
 
-    const abortTimer = setTimeout(() => {
+    const graceTimer = setTimeout(() => {
       for (const { abortController } of this.activeRuns.values()) {
         abortController.abort();
       }
-    }, timeoutMs);
-    abortTimer.unref();
+    }, gracePeriodMs);
+    graceTimer.unref();
 
     try {
-      await Promise.all(
-        [...this.activeRuns.values()].map((r) => r.promise),
-      );
+      await Promise.all(promises);
     } finally {
-      clearTimeout(abortTimer);
+      clearTimeout(graceTimer);
     }
   }
 
