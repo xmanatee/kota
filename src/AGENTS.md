@@ -33,6 +33,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `session-cli.ts` — `registerSessionCommands`: CLI subcommands for inspecting active sessions (`kota session list`, `kota session inspect <id>`).
 - `webhook-cli.ts` — `registerWebhookCommands`: CLI subcommands for managing inbound webhook secrets (`kota webhook list`, `kota webhook secret generate <workflow>`, `kota webhook secret remove <workflow>`).
 - `doctor-cli.ts` — `registerDoctorCommand` and `runDoctorChecks`: `kota doctor` health check command; verifies daemon connectivity, config validity, extensions, providers, workflow definitions, and disk state.
+- `config-cli.ts` — `registerConfigCommands`: `kota config validate` command; prints resolved merged config and warns about unknown top-level keys.
 - `channel.ts` — `ChannelAdapter`, `ChannelDef`, `ChannelWorkflowStatus`, and `ChannelStartContext` types; defines the channel contribution protocol for extensions.
 
 ## AgentLoopState Cast Pattern
