@@ -208,11 +208,14 @@ Returns recent workflow run summaries.
       "startedAt": "2026-03-30T18:12:57.615Z",
       "durationMs": 304802,
       "totalCostUsd": 0.47,
-      "triggeredByRunId": "2026-03-30T18-07-52-809Z-explorer-45lcon"
+      "triggeredByRunId": "2026-03-30T18-07-52-809Z-explorer-45lcon",
+      "tags": ["ci", "pr-42"]
     }
   ]
 }
 ```
+
+`tags` is optional; omitted when no tags were attached at trigger time.
 
 ### GET /workflow/runs/:id
 
@@ -231,6 +234,7 @@ duration, error, and cost. Does not return full agent log output.
   "completedAt": "2026-03-30T18:18:00.000Z",
   "durationMs": 304802,
   "totalCostUsd": 0.47,
+  "tags": ["ci", "pr-42"],
   "steps": [
     {
       "id": "inspect-ready-queue",
@@ -250,6 +254,31 @@ duration, error, and cost. Does not return full agent log output.
 ```
 
 Returns `404` if the run is not found.
+
+### POST /workflow/trigger
+
+Enqueues a workflow run manually.
+
+**Request body:**
+
+```json
+{ "name": "builder", "tags": ["ci", "pr-42"] }
+```
+
+`name` (required) — workflow name. `tags` (optional) — array of strings attached to the run for filtering and grouping; available on run summaries returned by `GET /workflow/runs`.
+
+**Response (200):**
+
+```json
+{ "ok": true, "queued": "builder" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | `name` missing, invalid, or unknown workflow |
+| 409 | Workflow is already queued |
 
 ### POST /workflow/pause
 
@@ -499,6 +528,7 @@ API when the daemon is running:
 | POST /api/workflow/resume           | POST /workflow/resume         |
 | POST /api/workflow/abort            | POST /workflow/abort          |
 | POST /api/workflow/reload           | POST /workflow/reload         |
+| POST /api/workflow/trigger          | POST /workflow/trigger        |
 | GET /api/history                    | GET /history                  |
 | GET /api/history/:id                | GET /history/:id              |
 | DELETE /api/history/:id             | DELETE /history/:id           |
@@ -513,8 +543,8 @@ When the daemon is not running:
 - History, approvals, and task routes fall back to reading from the local
   process state (in-process stores and `tasks/` files directly).
 
-Queuing a workflow (`POST /api/workflow/trigger`) writes directly to the
-persistent run queue in `.kota/workflow-state.json`, which the daemon polls.
+Queuing a workflow (`POST /api/workflow/trigger`) proxies to the daemon when
+available, or writes directly to `.kota/workflow-state.json` as a fallback.
 Run artifacts in `.kota/runs/` are durable evidence and are read directly by
 the server for run listing and streaming.
 

@@ -158,8 +158,13 @@ export async function handleWorkflowTrigger(
     return;
   }
 
+  const tags =
+    Array.isArray(body.tags) && (body.tags as unknown[]).every((t) => typeof t === "string")
+      ? (body.tags as string[])
+      : undefined;
+
   if (client) {
-    const result = await client.trigger(name);
+    const result = await client.trigger(name, tags);
     if (result) {
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
@@ -178,7 +183,13 @@ export async function handleWorkflowTrigger(
   }
 
   const now = Date.now();
-  const trigger = { event: "manual", payload: { triggeredAt: new Date().toISOString() } };
+  const trigger = {
+    event: "manual",
+    payload: {
+      triggeredAt: new Date().toISOString(),
+      ...(tags && tags.length > 0 && { tags }),
+    },
+  };
   const queued: WorkflowQueuedRun = {
     workflowName: name,
     trigger,

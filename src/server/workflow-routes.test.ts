@@ -87,7 +87,7 @@ function mockClient(overrides: Partial<{
   pause: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
   resume: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
   abort: () => Promise<{ ok: boolean; aborted: number } | null>;
-  trigger: (name: string) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
+  trigger: (name: string, tags?: string[]) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
 }>): DaemonControlClient {
   return {
     getWorkflowStatus: vi.fn().mockResolvedValue({
@@ -471,6 +471,36 @@ describe("workflow-routes", () => {
       await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, null);
       expect(result.status).toBe(200);
       expect(store.readState().pendingRuns).toHaveLength(1);
+    });
+
+    it("passes tags to daemon client", async () => {
+      let capturedTags: string[] | undefined;
+      const client = mockClient({
+        trigger: async (name, tags) => {
+          capturedTags = tags;
+          return { ok: true, queued: name };
+        },
+      });
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: ["ci", "pr-42"] }), res, store, client);
+      expect(result.status).toBe(200);
+      expect(capturedTags).toEqual(["ci", "pr-42"]);
+    });
+
+    it("includes tags in trigger payload for offline path", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: ["nightly"] }), res, store, null);
+      expect(result.status).toBe(200);
+      const queued = store.readState().pendingRuns[0];
+      expect((queued.trigger.payload as Record<string, unknown>).tags).toEqual(["nightly"]);
+    });
+
+    it("ignores invalid tags field", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: "not-an-array" }), res, store, null);
+      expect(result.status).toBe(200);
+      const queued = store.readState().pendingRuns[0];
+      expect((queued.trigger.payload as Record<string, unknown>).tags).toBeUndefined();
     });
   });
 
