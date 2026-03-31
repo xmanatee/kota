@@ -15,6 +15,7 @@ import {
   handleWorkflowTrigger,
 } from "./workflow-routes.js";
 import {
+  handleWorkflowRunArtifacts,
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
@@ -614,6 +615,77 @@ describe("workflow-routes", () => {
       rmSync(join(projectDir, ".kota", "runs"), { recursive: true });
       const runs = listRunMetadata(store, 10, 0);
       expect(runs).toEqual([]);
+    });
+  });
+
+  describe("handleWorkflowRunArtifacts", () => {
+    it("returns 400 for path traversal attempt", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "../etc/passwd", store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 404 for unknown run ID", () => {
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "nonexistent-run", store);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns null fields when no artifact files exist", () => {
+      writeRunMetadata(runsDir, "run-artifacts-001", "builder", "success");
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "run-artifacts-001", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(body.runSummary).toBeNull();
+      expect(body.commitMessage).toBeNull();
+      expect(body.textFiles).toEqual([]);
+    });
+
+    it("returns parsed run-summary.json when present", () => {
+      writeRunMetadata(runsDir, "run-artifacts-002", "builder", "success");
+      const summary = {
+        runId: "run-artifacts-002",
+        workflow: "builder",
+        taskId: "task-foo",
+        taskTitle: "Foo task",
+        outcome: "success",
+        commitSha: "abc123def456",
+        commitMessage: "Fix foo",
+        filesChanged: ["src/foo.ts"],
+        costUsd: 0.05,
+        durationMs: 1000,
+        completedAt: new Date().toISOString(),
+      };
+      writeFileSync(join(runsDir, "run-artifacts-002", "run-summary.json"), JSON.stringify(summary));
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "run-artifacts-002", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(body.runSummary).toMatchObject({ taskId: "task-foo", commitSha: "abc123def456" });
+    });
+
+    it("returns commit-message.txt content when present", () => {
+      writeRunMetadata(runsDir, "run-artifacts-003", "builder", "success");
+      writeFileSync(join(runsDir, "run-artifacts-003", "commit-message.txt"), "My commit\n\nDetails here");
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "run-artifacts-003", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      expect(body.commitMessage).toBe("My commit\n\nDetails here");
+    });
+
+    it("lists other .txt and .md artifact files", () => {
+      writeRunMetadata(runsDir, "run-artifacts-004", "builder", "success");
+      writeFileSync(join(runsDir, "run-artifacts-004", "notes.md"), "# Notes\n\nSome notes");
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "run-artifacts-004", store);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, unknown>;
+      const files = body.textFiles as Array<{ name: string; content: string }>;
+      expect(files).toHaveLength(1);
+      expect(files[0].name).toBe("notes.md");
+      expect(files[0].content).toContain("Some notes");
     });
   });
 });

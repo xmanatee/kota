@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../workflow/run-types.js";
+import type { BuilderRunSummary } from "../workflows/builder/run-summary.js";
 import { jsonResponse, SseTransport, setCors } from "./session-pool.js";
 
 type RunSummary = {
@@ -231,4 +232,61 @@ export function handleWorkflowRunStream(
   const intervalId = setInterval(poll, 500);
   poll();
   res.on("close", () => clearInterval(intervalId));
+}
+
+const ARTIFACT_SKIP = new Set(["metadata.json", "workflow.json", "trigger.json"]);
+
+export type RunArtifacts = {
+  runSummary: BuilderRunSummary | null;
+  commitMessage: string | null;
+  textFiles: Array<{ name: string; content: string }>;
+};
+
+export function handleWorkflowRunArtifacts(
+  res: ServerResponse,
+  runId: string,
+  store = new WorkflowRunStore(),
+): void {
+  if (!runId || runId.includes("/") || runId.includes("..")) {
+    jsonResponse(res, 400, { error: "Invalid run ID" });
+    return;
+  }
+  const runDir = join(store.runsDir, runId);
+  if (!existsSync(runDir)) {
+    jsonResponse(res, 404, { error: "Run not found" });
+    return;
+  }
+
+  const runSummary = readOptionalJsonFile<BuilderRunSummary>(join(runDir, "run-summary.json"));
+
+  let commitMessage: string | null = null;
+  const commitMsgPath = join(runDir, "commit-message.txt");
+  if (existsSync(commitMsgPath)) {
+    try {
+      commitMessage = readFileSync(commitMsgPath, "utf-8").trim();
+    } catch {
+      // unreadable — leave null
+    }
+  }
+
+  const textFiles: Array<{ name: string; content: string }> = [];
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(runDir);
+  } catch {
+    // directory gone — return what we have
+  }
+  for (const name of entries) {
+    if (ARTIFACT_SKIP.has(name) || name === "run-summary.json" || name === "commit-message.txt") continue;
+    const ext = extname(name);
+    if (ext !== ".txt" && ext !== ".md") continue;
+    try {
+      textFiles.push({ name, content: readFileSync(join(runDir, name), "utf-8") });
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  const artifacts: RunArtifacts = { runSummary, commitMessage, textFiles };
+  jsonResponse(res, 200, artifacts);
 }

@@ -195,10 +195,70 @@ export const STYLES_RUNS_CSS = `
   font-family: "SF Mono", "Fira Code", monospace;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 60px;
   overflow: hidden;
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
+}
+.step-show-more {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 2px;
+}
+.step-show-more:hover { text-decoration: underline; }
+
+/* Run artifact summary */
+.run-artifacts {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+}
+.run-artifacts-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.run-artifact-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.run-artifact-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  min-width: 52px;
+  flex-shrink: 0;
+}
+.run-artifact-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.run-artifact-pre {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  margin: 0;
+  color: var(--text-muted);
+}
+.run-artifacts code {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  background: #0a0a1a;
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 `;

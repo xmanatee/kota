@@ -33,7 +33,12 @@ export const CLIENT_RUN_DETAIL_JS = `
         return;
       }
       var run = await res.json();
-      renderRunDetail(run);
+      var artifacts = null;
+      try {
+        var aRes = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/artifacts");
+        if (aRes.ok) artifacts = await aRes.json();
+      } catch {}
+      renderRunDetail(run, artifacts);
       if (run.status === "running") {
         startRunStream(runId);
       }
@@ -42,7 +47,7 @@ export const CLIENT_RUN_DETAIL_JS = `
     }
   }
 
-  function renderRunDetail(run) {
+  function renderRunDetail(run, artifacts) {
     var badgeClass = run.status === "success" ? "success" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "interrupted";
     var icon = run.status === "success" ? "\\u2713" : run.status === "failed" ? "\\u2717" : run.status === "running" ? "\\u25b6" : "\\u26a1";
     var duration = run.durationMs ? fmtDuration(run.durationMs) : (run.status === "running" ? fmtDuration(Date.now() - new Date(run.startedAt).getTime()) : "\\u2014");
@@ -60,6 +65,24 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '<span>Started: ' + escapeHtml(started) + '</span>';
     html += '<span>Completed: ' + escapeHtml(completed) + '</span>';
     html += '</div></div>';
+
+    if (artifacts && artifacts.runSummary) {
+      var s = artifacts.runSummary;
+      html += '<div class="run-artifacts">';
+      html += '<div class="run-artifacts-title">Run Summary</div>';
+      if (s.taskTitle) html += '<div class="run-artifact-row"><span class="run-artifact-label">Task</span><span>' + escapeHtml(s.taskTitle) + '</span></div>';
+      html += '<div class="run-artifact-row"><span class="run-artifact-label">Commit</span><code>' + escapeHtml(s.commitSha.slice(0, 8)) + '</code> ' + escapeHtml(s.commitMessage) + '</div>';
+      if (s.filesChanged && s.filesChanged.length > 0) {
+        html += '<div class="run-artifact-row"><span class="run-artifact-label">Files</span><span class="run-artifact-files">' + s.filesChanged.map(function(f) { return '<code>' + escapeHtml(f) + '</code>'; }).join(' ') + '</span></div>';
+      }
+      html += '</div>';
+    } else if (artifacts && artifacts.commitMessage) {
+      html += '<div class="run-artifacts">';
+      html += '<div class="run-artifacts-title">Commit</div>';
+      html += '<div class="run-artifact-row"><pre class="run-artifact-pre">' + escapeHtml(artifacts.commitMessage) + '</pre></div>';
+      html += '</div>';
+    }
+
     var completedMap = {};
     var allSteps = run.steps || [];
     for (var ci = 0; ci < allSteps.length; ci++) {
@@ -89,21 +112,25 @@ export const CLIENT_RUN_DETAIL_JS = `
         var sb = step.status === "success" ? "success" : step.status === "failed" ? "failed" : step.status === "running" ? "running" : "interrupted";
         var si = step.status === "success" ? "\\u2713" : step.status === "failed" ? "\\u2717" : step.status === "running" ? "\\u25b6" : "\\u26a1";
         var sm = step.durationMs ? fmtDuration(step.durationMs) : "";
-        var outputText = "";
+        var rawOutput = "";
         if (step.output != null) {
-          var raw = typeof step.output === "string" ? step.output : JSON.stringify(step.output, null, 2);
-          outputText = raw.length > 300 ? raw.slice(0, 300) + "\\u2026" : raw;
+          rawOutput = typeof step.output === "string" ? step.output : JSON.stringify(step.output, null, 2);
         } else if (step.error) {
-          outputText = "Error: " + step.error;
+          rawOutput = "Error: " + step.error;
         }
-        html += '<div class="step-row">';
+        var truncated = rawOutput.length > 300;
+        var outputText = truncated ? rawOutput.slice(0, 300) : rawOutput;
+        html += '<div class="step-row" id="step-row-' + escapeHtml(step.id) + '">';
         html += '<div class="step-row-header">';
-        html += '<span class="run-badge ' + sb + '">' + si + '</span>';
+        html += '<span class="run-badge ' + sb + '" id="step-badge-' + escapeHtml(step.id) + '">' + si + '</span>';
         html += '<span class="step-row-name">' + escapeHtml(step.id) + '</span>';
-        html += '<span class="step-row-meta">' + escapeHtml(sm) + '</span>';
+        html += '<span class="step-row-meta" id="step-meta-' + escapeHtml(step.id) + '">' + escapeHtml(sm) + '</span>';
         html += '</div>';
-        if (outputText) {
-          html += '<div class="step-row-output">' + escapeHtml(outputText) + '</div>';
+        if (rawOutput) {
+          html += '<div class="step-row-output" id="step-output-' + escapeHtml(step.id) + '" data-full="' + escapeHtml(rawOutput) + '" data-truncated="' + (truncated ? '1' : '0') + '">' + escapeHtml(outputText) + (truncated ? '\\u2026' : '') + '</div>';
+          if (truncated) {
+            html += '<button class="step-show-more" data-step="' + escapeHtml(step.id) + '">Show more</button>';
+          }
         }
         html += '</div>';
       }
@@ -111,6 +138,23 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '</div>';
     $runDetail.innerHTML = html;
     document.getElementById("run-detail-back").onclick = showChat;
+    $runDetail.querySelectorAll(".step-show-more").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var stepId = btn.getAttribute("data-step");
+        var outputEl = document.getElementById("step-output-" + stepId);
+        if (!outputEl) return;
+        if (outputEl.getAttribute("data-truncated") === "1") {
+          outputEl.textContent = outputEl.getAttribute("data-full") || "";
+          outputEl.setAttribute("data-truncated", "0");
+          btn.textContent = "Show less";
+        } else {
+          var full = outputEl.getAttribute("data-full") || "";
+          outputEl.textContent = full.slice(0, 300) + (full.length > 300 ? "\\u2026" : "");
+          outputEl.setAttribute("data-truncated", "1");
+          btn.textContent = "Show more";
+        }
+      });
+    });
   }
 
   function startRunStream(runId) {

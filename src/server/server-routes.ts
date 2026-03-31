@@ -38,6 +38,7 @@ import {
   handleWorkflowTrigger,
 } from "./workflow-routes.js";
 import {
+  handleWorkflowRunArtifacts,
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
@@ -269,6 +270,12 @@ export function buildRequestHandler(ctx: ServerContext) {
     const workflowRunStreamMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/stream$/);
     if (req.method === "GET" && workflowRunStreamMatch) {
       handleWorkflowRunStream(res, workflowRunStreamMatch[1]);
+      return;
+    }
+
+    const workflowRunArtifactsMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/artifacts$/);
+    if (req.method === "GET" && workflowRunArtifactsMatch) {
+      handleWorkflowRunArtifacts(res, workflowRunArtifactsMatch[1]);
       return;
     }
 
