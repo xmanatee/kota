@@ -259,6 +259,11 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     for (const entry of raw.foreignExtensions) {
       if (typeof entry !== "object" || entry === null) continue;
       const src = entry as Record<string, unknown>;
+      if (src.transport === "http") {
+        if (typeof src.url !== "string" || !src.url) continue;
+        fexts.push({ transport: "http", url: src.url });
+        continue;
+      }
       if (src.transport !== "stdio") continue;
       if (typeof src.command !== "string" || !src.command) continue;
       const fext: ForeignExtensionConfig = { transport: "stdio", command: src.command };

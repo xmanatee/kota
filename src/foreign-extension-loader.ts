@@ -9,6 +9,7 @@
 import { resolve } from "node:path";
 import type { KotaExtension, ToolDef } from "./extension-types.js";
 import type { ForeignExtensionConfig, KempInbound, KempTransport } from "./foreign-extension.js";
+import { HttpTransport } from "./foreign-extension-http.js";
 import { StdioTransport } from "./foreign-extension-stdio.js";
 import type { ToolResult } from "./tools/tool-result.js";
 
@@ -107,11 +108,15 @@ async function startForeignExtension(
   projectCwd: string,
   extensionConfig?: Record<string, unknown>,
 ): Promise<KotaExtension> {
-  const transport = new StdioTransport(config, projectCwd);
+  const transport: KempTransport =
+    config.transport === "http"
+      ? new HttpTransport(config)
+      : new StdioTransport(config, projectCwd);
   const initId = newId();
 
+  const label = config.transport === "http" ? config.url : config.command;
   // We need a temporary session to complete the handshake before we know the name.
-  const tempSession = new ForeignExtensionSession(transport, config.command);
+  const tempSession = new ForeignExtensionSession(transport, label);
 
   const manifestMsg = await tempSession.request(
     initId,
@@ -173,13 +178,14 @@ export async function loadForeignExtensions(
 ): Promise<KotaExtension[]> {
   const results: KotaExtension[] = [];
   for (const config of configs) {
+    const label = config.transport === "http" ? config.url : config.command;
     try {
-      const extConfig = extensionConfigs?.[config.command];
+      const extConfig = extensionConfigs?.[label];
       const ext = await startForeignExtension(config, resolve(projectCwd), extConfig);
       results.push(ext);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Foreign extension "${config.command}" failed to start: ${msg}`);
+      console.error(`[kota] Foreign extension "${label}" failed to start: ${msg}`);
     }
   }
   return results;

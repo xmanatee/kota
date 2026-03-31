@@ -8,7 +8,7 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import type { ForeignExtensionConfig, KempInbound, KempOutbound, KempTransport } from "./foreign-extension.js";
+import type { KempInbound, KempOutbound, KempTransport, StdioForeignExtensionConfig } from "./foreign-extension.js";
 
 export class StdioTransport implements KempTransport {
   private proc: ChildProcess;
@@ -17,7 +17,7 @@ export class StdioTransport implements KempTransport {
   private waiters: Array<(msg: KempInbound | null) => void> = [];
   private label: string;
 
-  constructor(config: ForeignExtensionConfig, projectCwd: string) {
+  constructor(config: StdioForeignExtensionConfig, projectCwd: string) {
     const cwd = config.cwd
       ? config.cwd.startsWith("/") ? config.cwd : `${projectCwd}/${config.cwd}`
       : projectCwd;

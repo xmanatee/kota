@@ -134,23 +134,47 @@ Levels: `"debug"`, `"info"`, `"warn"`, `"error"`.
 
 ## Transports
 
-### stdio (current)
+### stdio
 
 KOTA spawns the module as a subprocess. Messages go:
 - KOTA → Module: process stdin
 - Module → KOTA: process stdout
 - Module stderr: forwarded to KOTA stderr (debug only)
 
-### Future transports
+### http
 
-The protocol is transport-agnostic. Future transports may include Unix domain
-sockets and HTTP long-poll, using the same NDJSON message format.
+KOTA connects to an already-running HTTP server. Each KEMP message is sent
+as a JSON `POST` body; the server replies with the corresponding inbound
+message as a JSON body.
+
+```
+POST /  (or any path — KOTA always posts to the configured url)
+Content-Type: application/json
+
+{"id":"1","type":"init","cwd":"/path/to/project"}
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"id":"1","type":"manifest","name":"my-http-tools","version":"1.0.0","tools":[...]}
+```
+
+Use this transport to connect KOTA to an already-running service (a Python
+FastAPI server, a Go binary, a remote tool host) without spawning a subprocess.
+The server must handle concurrent requests if KOTA sends overlapping invocations.
+
+A working Node.js example server lives at `examples/extensions/kota-demo-http.js`.
 
 ---
 
 ## Configuration
 
 Add `foreignExtensions` to your `.kota/config.json`:
+
+**stdio transport:**
 
 ```json
 {
@@ -168,11 +192,29 @@ Add `foreignExtensions` to your `.kota/config.json`:
 
 | Field       | Required | Description |
 |-------------|----------|-------------|
-| `transport` | yes      | Transport kind. Currently `"stdio"` only. |
+| `transport` | yes      | `"stdio"` |
 | `command`   | yes      | Executable to run. |
 | `args`      | no       | Arguments passed to the executable. |
 | `env`       | no       | Additional environment variables. |
 | `cwd`       | no       | Working directory (default: project root). |
+
+**http transport:**
+
+```json
+{
+  "foreignExtensions": [
+    {
+      "transport": "http",
+      "url": "http://localhost:8765"
+    }
+  ]
+}
+```
+
+| Field       | Required | Description |
+|-------------|----------|-------------|
+| `transport` | yes      | `"http"` |
+| `url`       | yes      | Base URL of the running KEMP HTTP server. |
 
 Per-extension config can be passed under the extension's declared name in
 `config.extensions`:
@@ -231,6 +273,7 @@ The TypeScript side of the protocol is in:
 
 - `src/foreign-extension.ts` — KEMP message types and `ForeignExtensionConfig`.
 - `src/foreign-extension-stdio.ts` — `StdioTransport` implementation.
+- `src/foreign-extension-http.ts` — `HttpTransport` implementation.
 - `src/foreign-extension-loader.ts` — handshake, wrapping as `KotaExtension`.
 
 From the rest of KOTA's perspective, a foreign extension is a normal

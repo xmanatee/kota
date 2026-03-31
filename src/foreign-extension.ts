@@ -133,12 +133,8 @@ export type KempTransport = {
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-/** Configuration for a single foreign-language extension entry. */
-export type ForeignExtensionConfig = {
-  /**
-   * Transport kind. Currently only "stdio" is supported.
-   * Future transports: "unix_socket", "http".
-   */
+/** Stdio transport — spawns a subprocess and communicates over stdin/stdout. */
+export type StdioForeignExtensionConfig = {
   transport: "stdio";
   /** Executable to run (e.g. "python3", "/usr/bin/ruby"). */
   command: string;
@@ -153,3 +149,13 @@ export type ForeignExtensionConfig = {
    */
   cwd?: string;
 };
+
+/** HTTP transport — connects to an already-running HTTP server that speaks KEMP. */
+export type HttpForeignExtensionConfig = {
+  transport: "http";
+  /** Base URL of the KEMP HTTP server (e.g. "http://localhost:8765"). */
+  url: string;
+};
+
+/** Configuration for a single foreign-language extension entry. */
+export type ForeignExtensionConfig = StdioForeignExtensionConfig | HttpForeignExtensionConfig;

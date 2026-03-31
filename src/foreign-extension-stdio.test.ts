@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type {
-  ForeignExtensionConfig,
   KempManifest,
   KempResult,
+  StdioForeignExtensionConfig,
 } from "./foreign-extension.js";
 import { StdioTransport } from "./foreign-extension-stdio.js";
 
 const PROJECT_CWD = process.cwd();
 
-function nodeScript(script: string): ForeignExtensionConfig {
+function nodeScript(script: string): StdioForeignExtensionConfig {
   return { transport: "stdio", command: "node", args: ["-e", script] };
 }
 
