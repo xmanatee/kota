@@ -6,7 +6,7 @@ priority: p3
 area: operator-ux
 summary: The web dashboard has no panel showing which workflows have scheduled triggers, when they last ran, or when they fire next. Operators must switch to the terminal to use kota workflow definitions / kota workflow status.
 created_at: 2026-03-31T00:00:00Z
-updated_at: 2026-03-31T00:36:00Z
+updated_at: 2026-03-31T01:40:00Z
 ---
 
 ## Problem
@@ -38,10 +38,11 @@ No schedule editing is required in this task — read-only display is enough.
 
 - Source runtime schedule data from `GET /api/workflow/status` (field:
   `workflows[name].nextScheduledAt / lastStatus / lastCompletedAt`).
-- If trigger-type descriptions (cron expression, interval) are needed, add a small
-  `GET /api/workflow/definitions` endpoint to the daemon control server that returns
-  name, enabled, and trigger descriptions. Read `src/scheduler/daemon-control.ts` and
-  the daemon runtime to understand how definitions are accessible.
+- Trigger-type descriptions (cron expression, interval) are available via
+  `GET /workflow/definitions` on the daemon control API (`DaemonControlClient.getWorkflowDefinitions()`
+  is already implemented). To expose this to the web UI, add a `GET /api/workflow/definitions`
+  proxy route in `server-routes.ts` following the same pattern as the existing
+  `/api/workflow/status` proxy.
 - Panel sits alongside the existing workflow, approvals, tasks, and sessions panels.
 - Use the existing SSE client wiring and panel component patterns from other panels.
 
