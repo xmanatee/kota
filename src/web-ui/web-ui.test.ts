@@ -306,4 +306,23 @@ describe("getWebUI", () => {
     expect(html).toContain('localStorage.getItem("kota.theme")');
     expect(html).toContain('localStorage.setItem("kota.theme"');
   });
+
+  it("renders collapsible input section in approval items", () => {
+    expect(html).toContain("approval-input");
+    expect(html).toContain("approval-input-toggle");
+    expect(html).toContain("approval-input-pre");
+    expect(html).toContain("<details");
+    expect(html).toContain("<summary");
+  });
+
+  it("truncates large approval inputs and shows Show full input button", () => {
+    expect(html).toContain("data-full=");
+    expect(html).toContain("Show full input");
+    expect(html).toContain("approval-input-full");
+  });
+
+  it("approval input section is collapsed by default via details element", () => {
+    // <details> is closed by default; no 'open' attribute in template
+    expect(html).toContain('<details class="approval-input">');
+  });
 });

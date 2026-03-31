@@ -21,6 +21,17 @@ export const CLIENT_APPROVALS_JS = `
         '<span class="run-meta">' + fmtDuration(ageMs) + '</span>' +
         '</div>' +
         '<div class="approval-reason">' + escapeHtml(a.reason) + '</div>' +
+        (function() {
+          if (!a.input) return '';
+          var inputJson = JSON.stringify(a.input, null, 2);
+          var truncated = inputJson.length > 2048;
+          var displayJson = truncated ? inputJson.slice(0, 2048) : inputJson;
+          return '<details class="approval-input">' +
+            '<summary class="approval-input-toggle">Input</summary>' +
+            '<pre class="approval-input-pre"' + (truncated ? ' data-full="' + escapeHtml(inputJson) + '"' : '') + '>' + escapeHtml(displayJson) + (truncated ? '\n\u2026 (truncated)' : '') + '</pre>' +
+            (truncated ? '<button class="approval-input-full" onclick="var p=this.previousElementSibling;p.textContent=p.dataset.full;this.remove()">Show full input</button>' : '') +
+            '</details>';
+        })() +
         '<div class="approval-actions">' +
         '<button class="approval-btn approval-approve" data-id="' + escapeHtml(a.id) + '">\u2713 Approve</button>' +
         '<button class="approval-btn approval-reject" data-id="' + escapeHtml(a.id) + '">\u2717 Reject</button>' +

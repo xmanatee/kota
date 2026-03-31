@@ -64,6 +64,41 @@ export const STYLES_PANELS_CSS = `
 .approval-approve:hover:not(:disabled) { background: #1e4a1e; }
 .approval-reject { background: #3a1a1a; color: #f44336; }
 .approval-reject:hover:not(:disabled) { background: #4a1e1e; }
+.approval-input {
+  margin: 4px 0;
+  font-size: 11px;
+}
+.approval-input-toggle {
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 11px;
+  padding: 1px 0;
+}
+.approval-input-toggle:focus { outline: 1px dashed var(--accent); }
+.approval-input-pre {
+  margin: 4px 0 2px;
+  padding: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: monospace;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 180px;
+  overflow-y: auto;
+  color: var(--text);
+}
+.approval-input-full {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: none;
+  border-radius: 3px;
+  background: var(--assistant-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.approval-input-full:hover { color: var(--text); }
 
 /* Task queue panel */
 #task-queue-list {
