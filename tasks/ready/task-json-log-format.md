@@ -1,7 +1,7 @@
 ---
 id: task-json-log-format
 title: Add structured JSON log format for production log aggregation
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The current log output is human-readable text suitable for development but not for production deployments that aggregate logs with tools like Datadog, Loki, or ELK. A configurable JSON log format would let operators pipe KOTA logs into standard observability stacks without custom parsers.
