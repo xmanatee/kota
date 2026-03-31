@@ -1,12 +1,12 @@
 ---
 id: task-kota-init-command
 title: Add kota init command to scaffold a new KOTA project
-status: backlog
+status: ready
 priority: p2
 area: cli
 summary: There is no guided setup path for new KOTA projects. Operators must manually create kota.config.ts, directory structure, and extensions. A kota init command would lower the barrier to adoption and reduce misconfiguration errors.
 created_at: 2026-03-31T13:43:00Z
-updated_at: 2026-03-31T13:43:00Z
+updated_at: 2026-03-31T14:10:00Z
 ---
 
 ## Problem
