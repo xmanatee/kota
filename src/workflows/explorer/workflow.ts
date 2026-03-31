@@ -5,6 +5,7 @@ import {
   assertTaskQueueRecommendations,
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
+import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import {
   BACKLOG_TASK_TARGET,
@@ -42,15 +43,17 @@ function buildExplorerAssessment(
   };
 }
 
-function shouldRunExplorer(stepOutputs: Record<string, unknown>): boolean {
-  const inspectOutput = stepOutputs["inspect-queue"];
-  return Boolean(
-    inspectOutput &&
-      typeof inspectOutput === "object" &&
-      "needsAttention" in inspectOutput &&
-      inspectOutput.needsAttention === true,
-  );
-}
+const inspectQueue = typedCodeStep<ExplorerAssessment>({
+  id: "inspect-queue",
+  type: "code",
+  run: ({ projectDir, readRuntimeState }) => {
+    assertRepoWorktreeClean(projectDir);
+    return buildExplorerAssessment(
+      projectDir,
+      readRuntimeState().workflows.explorer?.lastCompletedAt,
+    );
+  },
+});
 
 const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
@@ -63,23 +66,13 @@ const explorerWorkflow: WorkflowDefinitionInput = {
     },
   ],
   steps: [
-    {
-      id: "inspect-queue",
-      type: "code",
-      run: ({ projectDir, readRuntimeState }) => {
-        assertRepoWorktreeClean(projectDir);
-        return buildExplorerAssessment(
-          projectDir,
-          readRuntimeState().workflows.explorer?.lastCompletedAt,
-        );
-      },
-    },
+    inspectQueue,
     {
       id: "explore",
       type: "agent",
       agentName: "explorer",
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: ({ stepOutputs }) => shouldRunExplorer(stepOutputs),
+      when: (ctx) => inspectQueue.output(ctx).needsAttention,
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [
