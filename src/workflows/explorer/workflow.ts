@@ -73,6 +73,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       id: "explore",
       type: "agent",
       agentName: "explorer",
+      timeoutMs: 45 * 60 * 1000, // 45 minutes — explorer can do broad external research
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectQueue.output(ctx).needsAttention,
       repairLoop: {
