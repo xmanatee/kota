@@ -69,6 +69,8 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
       const pendingApprovals = approvalResult
         ? approvalResult.approvals.filter((a) => a.status === "pending").length
         : 0;
+      const store = new WorkflowRunStore(projectDir);
+      const dailySpend = store.getDailySpendUsd();
 
       return {
         daemonRunning: true,
@@ -78,7 +80,7 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
         queuedRuns: status.workflow.queueLength,
         sessions: status.sessions.length,
         pendingApprovals,
-        dailySpendUsd: undefined,
+        dailySpendUsd: dailySpend > 0 ? dailySpend : undefined,
         dailyBudgetUsd: config.dailyBudgetUsd,
       };
     }
