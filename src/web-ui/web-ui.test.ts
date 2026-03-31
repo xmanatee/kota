@@ -100,6 +100,35 @@ describe("getWebUI", () => {
     expect(getWebUI()).toBe(html);
   });
 
+  it("includes session label localStorage helpers", () => {
+    expect(html).toContain("getSessionLabel");
+    expect(html).toContain("setSessionLabel");
+    expect(html).toContain("clearSessionLabel");
+    expect(html).toContain("kota-session-label:");
+  });
+
+  it("includes inline session label edit interaction", () => {
+    expect(html).toContain("startSessionLabelEdit");
+    expect(html).toContain("session-label-input");
+    expect(html).toContain("ondblclick");
+    expect(html).toContain("session-edit-btn");
+  });
+
+  it("session label cleared on session delete", () => {
+    expect(html).toContain("clearSessionLabel(s.id)");
+  });
+
+  it("session list shows label when set, short UUID when not", () => {
+    expect(html).toContain("getSessionLabel(s.id)");
+    expect(html).toContain("session-label");
+    expect(html).toContain("s.id.slice(0, 8)");
+  });
+
+  it("session label CSS styles are present", () => {
+    expect(html).toContain("session-label-input");
+    expect(html).toContain("session-edit-btn");
+  });
+
   it("includes approvals panel element", () => {
     expect(html).toContain('id="approval-list"');
   });

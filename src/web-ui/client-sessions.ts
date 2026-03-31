@@ -1,6 +1,24 @@
 /** Session management, history, and health-check functions for the KOTA web UI. */
 
 export const CLIENT_SESSIONS_JS = `
+  // --- Session labels (localStorage) ---
+
+  function getSessionLabel(id) {
+    return localStorage.getItem("kota-session-label:" + id) || "";
+  }
+
+  function setSessionLabel(id, label) {
+    if (label) {
+      localStorage.setItem("kota-session-label:" + id, label);
+    } else {
+      localStorage.removeItem("kota-session-label:" + id);
+    }
+  }
+
+  function clearSessionLabel(id) {
+    localStorage.removeItem("kota-session-label:" + id);
+  }
+
   // --- Session management ---
 
   async function createSession() {
@@ -21,30 +39,77 @@ export const CLIENT_SESSIONS_JS = `
     } catch {}
   }
 
+  function startSessionLabelEdit(id, labelSpan) {
+    const current = getSessionLabel(id);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "session-label-input";
+    input.value = current;
+    input.placeholder = id.slice(0, 8);
+    input.title = id;
+
+    function save() {
+      const val = input.value.trim();
+      setSessionLabel(id, val);
+      refreshSessions();
+    }
+
+    input.onblur = save;
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = current; input.blur(); }
+      e.stopPropagation();
+    };
+    input.onclick = (e) => e.stopPropagation();
+
+    labelSpan.replaceWith(input);
+    input.focus();
+    input.select();
+  }
+
   function renderSessions(sessions) {
     $sessionList.innerHTML = "";
     for (const s of sessions) {
       const div = document.createElement("div");
       div.className = "session-item" + (s.id === sessionId ? " active" : "");
+
       const label = document.createElement("span");
-      label.textContent = s.id + (s.busy ? " (busy)" : "");
+      label.className = "session-label";
+      const stored = getSessionLabel(s.id);
+      label.textContent = stored || s.id.slice(0, 8) + (s.busy ? " (busy)" : "");
+      label.title = s.id;
+      if (stored && s.busy) label.textContent += " (busy)";
       div.appendChild(label);
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "session-edit-btn";
+      editBtn.textContent = "✎";
+      editBtn.title = "Rename session";
+      editBtn.onclick = (e) => {
+        e.stopPropagation();
+        startSessionLabelEdit(s.id, div.querySelector(".session-label"));
+      };
+      div.appendChild(editBtn);
 
       const del = document.createElement("button");
       del.className = "delete-btn";
       del.textContent = "×";
       del.onclick = async (e) => {
         e.stopPropagation();
+        clearSessionLabel(s.id);
         await apiFetch(API +"/api/sessions/" + s.id, { method: "DELETE" });
         if (s.id === sessionId) { sessionId = null; $messages.innerHTML = ""; showWelcome(); }
         refreshSessions();
       };
       div.appendChild(del);
 
+      div.ondblclick = () => startSessionLabelEdit(s.id, div.querySelector(".session-label"));
+
       div.onclick = () => {
         sessionId = s.id;
         $messages.innerHTML = "";
-        addMessage("status", "Switched to session " + s.id);
+        const displayName = getSessionLabel(s.id) || s.id;
+        addMessage("status", "Switched to session " + displayName);
         refreshSessions();
       };
       $sessionList.appendChild(div);

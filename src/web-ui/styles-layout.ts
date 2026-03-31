@@ -113,6 +113,28 @@ body {
   padding: 0 4px;
 }
 .session-item:hover .delete-btn, .history-item:hover .delete-btn { opacity: 1; }
+.session-edit-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+}
+.session-item:hover .session-edit-btn { opacity: 1; }
+.session-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.session-label-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 13px;
+  outline: none;
+}
 
 .sidebar-footer {
   padding: 12px 16px;
