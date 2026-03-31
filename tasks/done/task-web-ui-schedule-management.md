@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-schedule-management
 title: Add workflow schedule management panel to the web UI dashboard
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The web dashboard has no panel showing which workflows have scheduled triggers, when they last ran, or when they fire next. Operators must switch to the terminal to use kota workflow definitions / kota workflow status.

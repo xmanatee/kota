@@ -8,6 +8,7 @@ import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import {
   handleWorkflowAbort,
+  handleWorkflowDefinitions,
   handleWorkflowPause,
   handleWorkflowResume,
   handleWorkflowRetry,
@@ -175,6 +176,36 @@ describe("workflow-routes", () => {
       const { res, result } = mockResponse();
       await handleWorkflowStatus(res, client);
       expect((result.body as Record<string, unknown>).paused).toBe(true);
+    });
+  });
+
+  describe("handleWorkflowDefinitions", () => {
+    it("returns empty definitions when daemon not running (null client)", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowDefinitions(res, null);
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ definitions: [] });
+    });
+
+    it("returns empty definitions when daemon unreachable (client returns null)", async () => {
+      const client = { getWorkflowDefinitions: vi.fn().mockResolvedValue(null) } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowDefinitions(res, client);
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ definitions: [] });
+    });
+
+    it("returns definitions from daemon", async () => {
+      const defs = [
+        { name: "builder", enabled: true, stepCount: 2, triggers: [{ type: "event", event: "runtime.idle" }] },
+        { name: "hourly", enabled: true, stepCount: 1, triggers: [{ type: "interval", intervalMs: 3600000 }] },
+      ];
+      const client = { getWorkflowDefinitions: vi.fn().mockResolvedValue({ definitions: defs }) } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowDefinitions(res, client);
+      expect(result.status).toBe(200);
+      const body = result.body as { definitions: unknown[] };
+      expect(body.definitions).toHaveLength(2);
     });
   });
 

@@ -258,7 +258,7 @@ export const CLIENT_WORKFLOWS_JS = `
     var src = new EventSource(eventsUrl);
     _daemonEventsSource = src;
 
-    function onQueueEvent() { refreshWorkflows(); }
+    function onQueueEvent() { refreshWorkflows(); refreshSchedules(); }
     src.addEventListener("workflow.started", onQueueEvent);
     src.addEventListener("workflow.completed", onQueueEvent);
     src.addEventListener("workflow.step.completed", onQueueEvent);

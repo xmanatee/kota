@@ -48,6 +48,10 @@ ${WEB_UI_CSS}
       <div id="active-sessions-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Schedules</h3>
+      <div id="schedules-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Cost (24h)</h3>
       <div id="cost-summary-list"></div>
     </div>

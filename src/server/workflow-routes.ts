@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkflowLiveStatus } from "../scheduler/daemon-control.js";
+import type { WorkflowDefinitionSummary, WorkflowLiveStatus } from "../scheduler/daemon-control.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowQueuedRun } from "../workflow/run-types.js";
 import type { DaemonControlClient } from "./daemon-client.js";
@@ -24,6 +24,18 @@ export async function handleWorkflowStatus(
   }
   const status = await client.getWorkflowStatus();
   jsonResponse(res, 200, status ?? EMPTY_WORKFLOW_STATUS);
+}
+
+export async function handleWorkflowDefinitions(
+  res: ServerResponse,
+  client: DaemonControlClient | null = null,
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 200, { definitions: [] as WorkflowDefinitionSummary[] });
+    return;
+  }
+  const result = await client.getWorkflowDefinitions();
+  jsonResponse(res, 200, result ?? { definitions: [] });
 }
 
 export async function handleWorkflowPause(

@@ -172,4 +172,21 @@ describe("getWebUI", () => {
     expect(html).toContain("session.registered");
     expect(html).toContain("session.unregistered");
   });
+
+  it("includes schedules panel element", () => {
+    expect(html).toContain('id="schedules-list"');
+  });
+
+  it("loads schedules from GET /api/workflow/definitions on init", () => {
+    expect(html).toContain("refreshSchedules");
+    expect(html).toContain("/api/workflow/definitions");
+  });
+
+  it("renders empty state when no workflows have scheduled triggers", () => {
+    expect(html).toContain("No scheduled workflows");
+  });
+
+  it("refreshes schedules on workflow.completed SSE event", () => {
+    expect(html).toContain("refreshSchedules");
+  });
 });

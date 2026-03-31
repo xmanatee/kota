@@ -31,6 +31,7 @@ import {
 import { handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowAbort,
+  handleWorkflowDefinitions,
   handleWorkflowPause,
   handleWorkflowResume,
   handleWorkflowRetry,
@@ -212,6 +213,13 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/workflow/status") {
       handleWorkflowStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/workflow/definitions") {
+      handleWorkflowDefinitions(res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
