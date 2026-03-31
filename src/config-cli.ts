@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, updateProjectConfig } from "./config.js";
 
 const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>([
   "model",
@@ -99,5 +99,55 @@ export function registerConfigCommands(program: Command): void {
 
       console.log("Resolved config:");
       console.log(JSON.stringify(resolved, null, 2));
+    });
+
+  config
+    .command("get <key>")
+    .description("Print the value of a config key from the resolved merged config")
+    .action((key: string) => {
+      const projectDir = process.cwd();
+      const resolved = loadConfig(projectDir);
+      const parts = key.split(".");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let current: any = resolved;
+      for (const part of parts) {
+        if (current === null || typeof current !== "object" || !(part in current)) {
+          console.error(`Error: key "${key}" not found in resolved config`);
+          process.exit(1);
+        }
+        current = current[part];
+      }
+      if (typeof current === "string") {
+        process.stdout.write(`${current}\n`);
+      } else {
+        process.stdout.write(`${JSON.stringify(current, null, 2)}\n`);
+      }
+    });
+
+  config
+    .command("set <key> <value>")
+    .description("Set a config key in the project-level .kota/config.json")
+    .action((key: string, value: string) => {
+      const projectDir = process.cwd();
+      const topKey = key.split(".")[0];
+      if (!KNOWN_CONFIG_KEYS.has(topKey)) {
+        console.error(`Warning: "${topKey}" is not a recognised config key`);
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(value);
+      } catch {
+        parsed = value;
+      }
+      const parts = key.split(".");
+      updateProjectConfig(projectDir, (raw) => {
+        if (parts.length === 1) {
+          return { ...raw, [parts[0]]: parsed };
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nested: any = { ...(typeof (raw as any)[parts[0]] === "object" && (raw as any)[parts[0]] !== null ? (raw as any)[parts[0]] : {}) };
+        nested[parts[1]] = parsed;
+        return { ...raw, [parts[0]]: nested };
+      });
     });
 }

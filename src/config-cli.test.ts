@@ -1,4 +1,4 @@
-import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
@@ -162,5 +162,114 @@ describe("kota config validate", () => {
     expect(err).toBe("");
     const parsed = JSON.parse(out.trim());
     expect(parsed).toBeDefined();
+  });
+});
+
+describe("kota config get", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("prints top-level string value", () => {
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ model: "claude-opus-4-6" }),
+    );
+
+    const { out } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "get", "model"]);
+    });
+    expect(out.trim()).toBe("claude-opus-4-6");
+  });
+
+  it("prints nested value via dot-notation", () => {
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ daemon: { shutdownGracePeriodMs: 12345 } }),
+    );
+
+    const { out } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "get", "daemon.shutdownGracePeriodMs"]);
+    });
+    expect(out.trim()).toBe("12345");
+  });
+
+  it("exits non-zero for missing key", () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((_code) => {
+      throw new Error("process.exit");
+    });
+    expect(() => {
+      captureOutput(() => {
+        makeProgram().parse(["node", "kota", "config", "get", "nonexistent"]);
+      });
+    }).toThrow();
+    exitSpy.mockRestore();
+  });
+});
+
+describe("kota config set", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("writes numeric value to project config", () => {
+    captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "set", "dailyBudgetUsd", "5"]);
+    });
+    const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
+    expect(written.dailyBudgetUsd).toBe(5);
+  });
+
+  it("writes string value when not valid JSON", () => {
+    captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "set", "model", "claude-opus-4-6"]);
+    });
+    const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
+    expect(written.model).toBe("claude-opus-4-6");
+  });
+
+  it("creates project config file if it does not exist", () => {
+    expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(false);
+    captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "set", "dailyBudgetUsd", "10"]);
+    });
+    expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(true);
+  });
+
+  it("supports nested key via dot-notation", () => {
+    captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "set", "daemon.shutdownGracePeriodMs", "9000"]);
+    });
+    const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
+    expect(written.daemon.shutdownGracePeriodMs).toBe(9000);
+  });
+
+  it("warns for unrecognised key", () => {
+    const { err } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "set", "unknownKey", "value"]);
+    });
+    expect(err).toContain("not a recognised config key");
   });
 });
