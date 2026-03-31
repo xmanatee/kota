@@ -42,6 +42,17 @@ CLI flags take highest precedence over both files.
 
 **Environment variable**: `LOG_FORMAT=json` sets the format at the process level and takes effect when `log.format` is not set in config. Config wins over the env var when both are present.
 
+## Daemon log format
+
+The `log.format` setting above controls agent session and extension log output. The daemon's own operational logs (startup, workflow start/finish, errors) use a separate mechanism:
+
+- `kota daemon start --log-format json` — emit NDJSON to stderr for the current daemon process.
+- `KOTA_DAEMON_LOG_FORMAT=json kota daemon start` — equivalent env var form.
+
+Each line has the shape: `{"ts":"…","level":"info|warn|error","msg":"…","workflow":"…","runId":"…"}`.
+
+This is intentionally separate from `log.format`: setting `"log": {"format": "json"}` in config does **not** affect daemon operational output. Use `--log-format` or `KOTA_DAEMON_LOG_FORMAT` for daemon logs.
+
 ## Other notable settings
 
 See `src/config.ts` (`KotaConfig` type) for the full list of supported fields and their types. Key areas:
