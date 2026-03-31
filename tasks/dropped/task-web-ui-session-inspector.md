@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-session-inspector
 title: Add active session inspector panel to the web UI dashboard
-status: backlog
+status: dropped
 priority: p3
 area: operator-ux
 summary: Active interactive sessions (kota serve instances) are visible via GET /status but have no web dashboard panel. An inspector panel lets operators see who is connected, how long they have been running, and their session metadata without using the CLI.
 created_at: 2026-03-31T03:42:35Z
-updated_at: 2026-03-31T03:42:35Z
+updated_at: 2026-03-31T04:25:00Z
 ---
 
 ## Problem

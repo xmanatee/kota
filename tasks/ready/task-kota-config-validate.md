@@ -2,11 +2,11 @@
 id: task-kota-config-validate
 title: Add kota config validate command for config introspection
 summary: Add a CLI command to validate and inspect the merged kota config, warning about unknown keys.
-status: backlog
+status: ready
 priority: p3
 area: cli
 created_at: 2026-03-31T03:00:00Z
-updated_at: 2026-03-31T03:00:00Z
+updated_at: 2026-03-31T04:25:00Z
 ---
 
 ## Problem
