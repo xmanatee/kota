@@ -156,6 +156,38 @@ export function registerKnowledgeCommands(program: Command): void {
 		});
 
 	kCmd
+		.command("add")
+		.description("Create a new knowledge entry")
+		.requiredOption("--title <title>", "Entry title")
+		.option("--content <text>", "Entry content (reads from stdin if omitted)")
+		.option("--type <type>", "Entry type", "note")
+		.option("--tag <tag>", "Tag (repeatable)", (val: string, acc: string[]) => [...acc, val], [] as string[])
+		.option("--status <status>", "Entry status", "active")
+		.option("--scope <scope>", "Storage scope: project or global", "project")
+		.action(async (opts: { title: string; content?: string; type: string; tag: string[]; status: string; scope: string }) => {
+			if (opts.scope !== "project" && opts.scope !== "global") {
+				console.error(`Invalid scope "${opts.scope}". Use "project" or "global".`);
+				process.exit(1);
+			}
+			let content = opts.content;
+			if (content === undefined) {
+				const chunks: Buffer[] = [];
+				for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+				content = Buffer.concat(chunks).toString("utf-8").trimEnd();
+			}
+			const store = getKnowledgeStore(process.cwd());
+			const id = store.create({
+				title: opts.title,
+				content,
+				type: opts.type,
+				tags: opts.tag,
+				status: opts.status,
+				scope: opts.scope as "project" | "global",
+			});
+			console.log(id);
+		});
+
+	kCmd
 		.command("delete <id>")
 		.description("Delete a knowledge entry by ID")
 		.action((id: string) => {

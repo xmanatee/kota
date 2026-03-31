@@ -1,7 +1,7 @@
 ---
 id: task-knowledge-add-cli
 title: Add kota knowledge add subcommand for manual entry creation
-status: ready
+status: done
 priority: p2
 area: operator-ux
 summary: The knowledge CLI has list/search/show/delete but no add subcommand. Operators cannot create knowledge entries from the shell without writing files manually or using the agent API.
