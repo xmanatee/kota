@@ -16,13 +16,18 @@ async function loadAgentsAndSkills(): Promise<{ agents: AgentEntry[]; skills: Sk
   await loader.loadAll([...builtinExtensions, ...discovered]);
   const summaries = loader.getExtensionSummaries();
 
-  const agents: AgentEntry[] = BUILTIN_AGENTS.map((a) => ({ ...a, source: "built-in" }));
+  const agentModels = config.agentModels ?? {};
+  const agents: AgentEntry[] = BUILTIN_AGENTS.map((a) => ({
+    ...a,
+    model: agentModels[a.name] ?? a.model,
+    source: "built-in",
+  }));
   const skills: SkillEntry[] = [];
 
   for (const summary of summaries) {
     for (const agent of summary.agents) {
       if (!agents.find((a) => a.name === agent.name)) {
-        agents.push({ ...agent, source: summary.name });
+        agents.push({ ...agent, model: agentModels[agent.name] ?? agent.model, source: summary.name });
       }
     }
     for (const skill of summary.skills) {

@@ -158,7 +158,7 @@ export async function executeAgentStep(
   const runAttempt = async () => {
     try {
       const result = await executeWithAgentSDK(agentPrompt.prompt, {
-        model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
+        model: (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ?? step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
         cwd: agentConfig.projectDir,
         systemPrompt,
         maxTurns: step.maxTurns,

@@ -62,6 +62,13 @@ export type KotaConfig = {
   modelTiers?: ModelTiers;
 
   /**
+   * Per-agent model overrides. Keys are agent names (built-in or extension-contributed);
+   * values are model IDs. Takes effect at agent resolve time; invalid model strings are
+   * passed through without validation, same as the top-level `model` field.
+   */
+  agentModels?: Record<string, string>;
+
+  /**
    * Per-workflow webhook secrets for `POST /webhooks/:workflowName`.
    * Keys are workflow names; each entry must have a `secret` string.
    * Keep this in `.kota/config.json` (project-local, gitignored) to avoid
@@ -219,6 +226,14 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
   }
 
+  if (typeof raw.agentModels === "object" && raw.agentModels !== null && !Array.isArray(raw.agentModels)) {
+    const agentModels: Record<string, string> = {};
+    for (const [name, val] of Object.entries(raw.agentModels)) {
+      if (typeof val === "string" && val) agentModels[name] = val;
+    }
+    if (Object.keys(agentModels).length > 0) out.agentModels = agentModels;
+  }
+
   if (typeof raw.daemon === "object" && raw.daemon !== null && !Array.isArray(raw.daemon)) {
     const src = raw.daemon as Record<string, unknown>;
     const d: KotaConfig["daemon"] = {};
@@ -283,6 +298,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.modelProvider = { ...a.modelProvider, ...(val as KotaConfig["modelProvider"]) };
     } else if (key === "modelTiers" && typeof val === "object") {
       merged.modelTiers = { ...a.modelTiers, ...(val as ModelTiers) };
+    } else if (key === "agentModels" && typeof val === "object") {
+      merged.agentModels = { ...a.agentModels, ...(val as Record<string, string>) };
     } else if (key === "runsGc" && typeof val === "object") {
       merged.runsGc = { ...a.runsGc, ...(val as KotaConfig["runsGc"]) };
     } else if (key === "webhooks" && typeof val === "object") {

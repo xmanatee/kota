@@ -2,11 +2,11 @@
 id: task-per-agent-model-override
 title: Allow per-agent model override in kota config
 summary: Add agentModels config field to override the model for named built-in and extension agents.
-status: ready
+status: done
 priority: p3
 area: runtime
 created_at: 2026-03-31T03:00:00Z
-updated_at: 2026-03-31T03:26:11Z
+updated_at: 2026-03-31T03:36:00Z
 ---
 
 ## Problem

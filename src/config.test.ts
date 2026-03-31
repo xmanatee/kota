@@ -102,6 +102,46 @@ describe("loadConfig", () => {
     expect(config.aliases?.["/draft"]).toBe("Draft: ");            // preserved
   });
 
+  it("loads agentModels as a string map", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ agentModels: { builder: "claude-opus-4-6", explorer: "claude-haiku-4-5-20251001" } }),
+    );
+
+    const config = loadConfig(tmpDir);
+    expect(config.agentModels?.builder).toBe("claude-opus-4-6");
+    expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("sanitizes agentModels: drops non-string and empty values", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ agentModels: { valid: "claude-opus-4-6", bad: 42, empty: "" } }),
+    );
+
+    const config = loadConfig(tmpDir);
+    expect(config.agentModels?.valid).toBe("claude-opus-4-6");
+    expect(config.agentModels?.bad).toBeUndefined();
+    expect(config.agentModels?.empty).toBeUndefined();
+  });
+
+  it("merges agentModels across config layers", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ agentModels: { builder: "claude-opus-4-6", explorer: "claude-sonnet-4-6" } }),
+    );
+
+    const config = loadConfig(tmpDir, { agentModels: { explorer: "claude-haiku-4-5-20251001" } });
+    expect(config.agentModels?.builder).toBe("claude-opus-4-6");      // from file
+    expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001"); // overridden
+  });
+
   it("handles malformed JSON gracefully", () => {
     const configDir = join(tmpDir, ".kota");
     mkdirSync(configDir, { recursive: true });
