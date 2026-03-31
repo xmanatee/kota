@@ -66,6 +66,25 @@ ${WEB_UI_CSS}
       <div id="memory-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Guardrail Audit</h3>
+      <div style="display:flex;gap:4px;margin-bottom:4px;">
+        <select id="audit-risk-filter" style="flex:1;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;">
+          <option value="">All risk</option>
+          <option value="safe">Safe</option>
+          <option value="moderate">Moderate</option>
+          <option value="dangerous">Dangerous</option>
+        </select>
+        <select id="audit-policy-filter" style="flex:1;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;">
+          <option value="">All policy</option>
+          <option value="allow">Allow</option>
+          <option value="confirm">Confirm</option>
+          <option value="deny">Deny</option>
+          <option value="queue">Queue</option>
+        </select>
+      </div>
+      <div id="audit-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Extensions</h3>
       <div id="extensions-list"></div>
     </div>

@@ -11,6 +11,7 @@ import {
   handleListApprovals,
   handleRejectApproval,
 } from "./approval-routes.js";
+import { handleListAudit } from "./audit-routes.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
@@ -240,6 +241,11 @@ export function buildRequestHandler(ctx: ServerContext) {
     const memoryEntryMatch = path.match(/^\/api\/memory\/([^/]+)$/);
     if (req.method === "GET" && memoryEntryMatch) {
       handleGetMemory(res, memoryEntryMatch[1]);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/audit") {
+      handleListAudit(req, res);
       return;
     }
 
