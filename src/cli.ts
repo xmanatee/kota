@@ -26,6 +26,7 @@ import { getHistory } from "./memory/history.js";
 import { registerKnowledgeCommands, registerMemoryCommands } from "./memory-cli.js";
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
 import { registerSessionCommands } from "./session-cli.js";
+import { registerStatusCommand } from "./status-cli.js";
 import { registerTaskCommands } from "./task-cli.js";
 import { registerWebhookCommands } from "./webhook-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
@@ -183,6 +184,7 @@ registerAgentCommands(program);
 registerSkillCommands(program);
 registerWebhookCommands(program);
 registerDoctorCommand(program);
+registerStatusCommand(program);
 registerConfigCommands(program);
 registerInitCommand(program);
 
