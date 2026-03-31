@@ -1,7 +1,7 @@
 ---
 id: task-workflow-run-export
 title: Add kota workflow export command to dump run data as JSON or CSV
-status: ready
+status: done
 priority: p3
 area: cli
 summary: Run data lives in .kota/runs/ as individual JSON files. Operators who want to analyze cost trends, error patterns, or step timing across many runs must parse raw files manually. A kota workflow export command would produce a structured, consumable dump.

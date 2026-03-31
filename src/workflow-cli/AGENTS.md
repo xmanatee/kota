@@ -6,6 +6,7 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `definitions.ts` — `kota workflow definitions`; lists all loaded definitions or shows full detail for one via `--name`. Supports `--json`.
 - `run-cost.ts` — `kota workflow cost`; daily cost breakdown by workflow with `--days`, `--workflow`, `--runs`, and `--json` options.
 - `run-stats.ts` — `kota workflow stats`; aggregate health table (runs, success/failure counts, avg duration, total cost) with `--days`, `--workflow`, and `--json` options.
+- `run-export.ts` — `kota workflow export`; exports run summaries as JSON array (default) or CSV with `--workflow`, `--status`, `--since`, `--last`, `--format`, and `--output` options.
 - `run-show.ts` — `kota workflow show <runId>` step-level display.
 - `logs.ts` — `kota workflow logs` log streaming.
 - `follow.ts` — `kota workflow follow [run-id]` live run output streaming with SSE and file-poll fallback.
