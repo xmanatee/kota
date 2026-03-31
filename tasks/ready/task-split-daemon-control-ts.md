@@ -1,12 +1,12 @@
 ---
 id: task-split-daemon-control-ts
 title: Split daemon-control.ts into focused route modules
-status: backlog
+status: ready
 priority: p3
 area: refactor
 summary: daemon-control.ts is 653 lines, more than double the 300-line limit. The file handles HTTP parsing, routing, approval commands, session registration, workflow control, history, and metrics — all mixed together. Splitting into route modules would make each area easier to extend independently.
 created_at: 2026-03-31T08:16:57Z
-updated_at: 2026-03-31T08:16:57Z
+updated_at: 2026-03-31T08:31:48Z
 ---
 
 ## Problem

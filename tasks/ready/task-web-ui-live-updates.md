@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-live-updates
 title: Replace web UI dashboard polling with SSE-based live updates
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web UI dashboard refreshes workflow status, sessions, tasks, and approvals via setInterval polling (every 5–30 seconds). The daemon already supports SSE for workflow events. Switching the dashboard panels to SSE would make status changes instant and eliminate unnecessary round-trips.
 created_at: 2026-03-31T08:16:57Z
-updated_at: 2026-03-31T08:16:57Z
+updated_at: 2026-03-31T08:31:48Z
 ---
 
 ## Problem
