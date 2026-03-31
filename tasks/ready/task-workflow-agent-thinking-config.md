@@ -1,12 +1,12 @@
 ---
 id: task-workflow-agent-thinking-config
 title: Add extended thinking configuration to workflow agent steps
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Workflow agent steps cannot enable Claude's extended thinking mode. The core session options support thinkingEnabled and thinkingBudget, but these are absent from WorkflowAgentStepInput, leaving builders and other long-horizon agent steps without the benefit of deeper reasoning.
 created_at: 2026-03-31T13:22:00Z
-updated_at: 2026-03-31T13:22:00Z
+updated_at: 2026-03-31T13:43:00Z
 ---
 
 ## Problem
