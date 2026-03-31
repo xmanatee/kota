@@ -30,7 +30,10 @@ export function autoResetDirtyWorktree(
     : [];
   const savedTasks = doingTaskFiles.map((file) => ({
     file,
-    content: readFileSync(join(doingDir, file), "utf8"),
+    content: readFileSync(join(doingDir, file), "utf8").replace(
+      /^status: doing$/m,
+      "status: ready",
+    ),
   }));
 
   warn(

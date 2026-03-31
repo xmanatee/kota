@@ -1,5 +1,5 @@
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -65,9 +65,15 @@ describe("autoResetDirtyWorktree", () => {
     expect(warn).toHaveBeenCalledTimes(2);
     expect(warn.mock.calls[0][0]).toContain("README.md");
     expect(warn.mock.calls[1][0]).toContain("task-active.md");
-    // Doing task moved to ready/
+    // Doing task moved to ready/ with status updated to "ready"
     expect(existsSync(join(projectDir, "tasks", "ready", "task-active.md"))).toBe(true);
     expect(existsSync(join(projectDir, "tasks", "doing", "task-active.md"))).toBe(false);
+    const rescuedContent = readFileSync(
+      join(projectDir, "tasks", "ready", "task-active.md"),
+      "utf8",
+    );
+    expect(rescuedContent).toContain("status: ready");
+    expect(rescuedContent).not.toContain("status: doing");
     // Original dirty state is reset; only the re-queued task in ready/ remains
     expect(gitStatus(projectDir)).not.toContain("README.md");
     expect(gitStatus(projectDir)).toContain("tasks/ready/task-active.md");
