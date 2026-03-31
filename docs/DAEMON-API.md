@@ -193,6 +193,7 @@ Returns recent workflow run summaries.
 
 **Query parameters:**
 - `workflow` (optional string) — filter by workflow name
+- `tag` (optional string) — filter to runs that include this tag
 - `limit` (optional integer, default 20, max 200)
 
 **Response:**
