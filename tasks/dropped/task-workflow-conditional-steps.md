@@ -1,12 +1,13 @@
 ---
 id: task-workflow-conditional-steps
 title: Add conditional step execution to workflow definitions
-status: backlog
+status: dropped
 priority: p3
 area: runtime
 summary: Workflow steps always execute in sequence; there is no way to branch based on a prior step's output or run-time conditions.
 created_at: 2026-03-31T14:40:00Z
-updated_at: 2026-03-31T14:40:00Z
+updated_at: 2026-03-31T16:06:00Z
+dropped_reason: Already implemented. WorkflowBaseStep has a `when` predicate field (WorkflowPredicate in run-types.ts). shouldRunStep() in step-executor.ts evaluates it and run-executor-step.ts records skipped steps with status "skipped". No work needed.
 ---
 
 ## Problem
