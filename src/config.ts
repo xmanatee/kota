@@ -114,6 +114,16 @@ export type KotaConfig = {
      */
     shutdownGracePeriodMs?: number;
   };
+
+  /** Notification settings. */
+  notifications?: {
+    /**
+     * Minimum milliseconds between failure alerts for the same workflow.
+     * Default: 0 (no cooldown — every failure fires an alert).
+     * Example: 300000 suppresses repeated alerts within 5 minutes.
+     */
+    alertCooldownMs?: number;
+  };
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -254,6 +264,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(d).length > 0) out.daemon = d;
   }
 
+  if (typeof raw.notifications === "object" && raw.notifications !== null && !Array.isArray(raw.notifications)) {
+    const src = raw.notifications as Record<string, unknown>;
+    const n: KotaConfig["notifications"] = {};
+    if (typeof src.alertCooldownMs === "number" && src.alertCooldownMs >= 0) {
+      n.alertCooldownMs = src.alertCooldownMs;
+    }
+    if (Object.keys(n).length > 0) out.notifications = n;
+  }
+
   if (Array.isArray(raw.foreignExtensions)) {
     const fexts: ForeignExtensionConfig[] = [];
     for (const entry of raw.foreignExtensions) {
@@ -326,6 +345,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
     } else if (key === "foreignExtensions" && Array.isArray(val)) {
       // Project foreign extensions append to global
       merged.foreignExtensions = [...(a.foreignExtensions ?? []), ...(val as ForeignExtensionConfig[])];
+    } else if (key === "notifications" && typeof val === "object") {
+      merged.notifications = { ...a.notifications, ...(val as KotaConfig["notifications"]) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

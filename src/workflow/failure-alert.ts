@@ -35,13 +35,28 @@ function buildAlertText(
   return lines.join("\n");
 }
 
+export type FailureAlertOptions = {
+  alertCooldownMs?: number;
+};
+
 export function subscribeWorkflowFailureAlert(
   bus: EventBus,
   projectDir: string,
   _log?: (message: string) => void,
+  opts?: FailureAlertOptions,
 ): () => void {
+  const cooldownMs = opts?.alertCooldownMs ?? 0;
+  const lastAlertAt = new Map<string, number>();
+
   return bus.on("workflow.completed", (payload) => {
     if (payload.status !== "failed" && payload.status !== "interrupted") return;
+
+    if (cooldownMs > 0) {
+      const last = lastAlertAt.get(payload.workflow);
+      const now = Date.now();
+      if (last !== undefined && now - last < cooldownMs) return;
+      lastAlertAt.set(payload.workflow, now);
+    }
 
     const errorSummary = readErrorFile(projectDir, payload.runDir);
     const text = buildAlertText(

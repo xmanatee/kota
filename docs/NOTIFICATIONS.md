@@ -81,6 +81,26 @@ the event payload and varies per event type.
 
 POSTs are fire-and-forget — no retry is attempted on failure.
 
+## Alert Cooldown
+
+By default every failure emits an alert. To suppress repeated alerts for the
+same workflow within a quiet window, set `notifications.alertCooldownMs` in
+your KOTA config:
+
+```json
+{
+  "notifications": {
+    "alertCooldownMs": 300000
+  }
+}
+```
+
+This suppresses duplicate `workflow.failure.alert` events for the same workflow
+for 5 minutes after the first alert. The first failure (or the first after the
+window expires) always fires. Cooldown is per-workflow: a builder failure does
+not suppress an explorer failure alert. The cooldown state is in-memory and
+resets on daemon restart. Default: `0` (no cooldown — every failure fires).
+
 ## Adding a custom notification consumer
 
 Subscribe to notification events in an extension's `onLoad` via `ctx.events.subscribe`:

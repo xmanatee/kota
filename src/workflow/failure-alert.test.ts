@@ -109,3 +109,73 @@ describe("subscribeWorkflowFailureAlert", () => {
     expect(emittedAlerts).toHaveLength(0);
   });
 });
+
+describe("subscribeWorkflowFailureAlert — cooldown", () => {
+  let projectDir: string;
+  let bus: EventBus;
+  let unsubscribe: () => void;
+  let emittedAlerts: BusEvents["workflow.failure.alert"][];
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    bus = new EventBus();
+    emittedAlerts = [];
+    bus.on("workflow.failure.alert", (payload) => {
+      emittedAlerts.push(payload);
+    });
+  });
+
+  afterEach(() => {
+    unsubscribe?.();
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("fires on first failure when cooldown is set", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, { alertCooldownMs: 60_000 });
+    bus.emit("workflow.completed", makePayload("failed"));
+    expect(emittedAlerts).toHaveLength(1);
+  });
+
+  it("suppresses second failure within cooldown window", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, { alertCooldownMs: 60_000 });
+    bus.emit("workflow.completed", makePayload("failed", { runId: "run-1" }));
+    bus.emit("workflow.completed", makePayload("failed", { runId: "run-2" }));
+    expect(emittedAlerts).toHaveLength(1);
+    expect(emittedAlerts[0].runId).toBe("run-1");
+  });
+
+  it("fires again after cooldown window expires", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, { alertCooldownMs: 1 });
+    bus.emit("workflow.completed", makePayload("failed", { runId: "run-1" }));
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        bus.emit("workflow.completed", makePayload("failed", { runId: "run-2" }));
+        expect(emittedAlerts).toHaveLength(2);
+        expect(emittedAlerts[1].runId).toBe("run-2");
+        resolve();
+      }, 5);
+    });
+  });
+
+  it("cooldown is per-workflow — suppresses builder but not explorer", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, { alertCooldownMs: 60_000 });
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "builder", runId: "b-1" }));
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "builder", runId: "b-2" }));
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "explorer", runId: "e-1" }));
+    expect(emittedAlerts).toHaveLength(2);
+    expect(emittedAlerts[0].workflow).toBe("builder");
+    expect(emittedAlerts[1].workflow).toBe("explorer");
+  });
+
+  it("zero cooldown fires on every failure", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, { alertCooldownMs: 0 });
+    bus.emit("workflow.completed", makePayload("failed", { runId: "run-1" }));
+    bus.emit("workflow.completed", makePayload("failed", { runId: "run-2" }));
+    bus.emit("workflow.completed", makePayload("failed", { runId: "run-3" }));
+    expect(emittedAlerts).toHaveLength(3);
+  });
+});

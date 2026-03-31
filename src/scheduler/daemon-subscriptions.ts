@@ -13,6 +13,7 @@ export type DaemonSubscriptionsOptions = {
   onRestartRequested: (reason: string) => void;
   onLog: (message: string) => void;
   approvalTtlMs?: number;
+  alertCooldownMs?: number;
 };
 
 export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
@@ -25,6 +26,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onRestartRequested,
     onLog,
     approvalTtlMs,
+    alertCooldownMs,
   } = opts;
 
   const scheduler = getScheduler();
@@ -40,7 +42,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onRestartRequested(payload.reason ?? "workflow requested restart");
   });
 
-  const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog);
+  const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog, { alertCooldownMs });
 
   const approvalSweepTimer = setInterval(() => {
     getApprovalQueue().expireStale(approvalTtlMs);

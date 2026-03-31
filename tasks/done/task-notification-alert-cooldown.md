@@ -1,12 +1,12 @@
 ---
 id: task-notification-alert-cooldown
 title: Add per-workflow notification cooldown to suppress repeated failure alerts
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: When a workflow fails multiple times in quick succession, every failure emits a separate alert. A cooldown window per workflow suppresses duplicate alerts and reduces notification noise without missing genuine failures.
 created_at: 2026-03-31T06:27:52Z
-updated_at: 2026-03-31T06:42:08Z
+updated_at: 2026-03-31T07:52:00Z
 ---
 
 ## Problem
