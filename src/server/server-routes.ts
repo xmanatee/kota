@@ -33,6 +33,7 @@ import {
   handleWorkflowAbort,
   handleWorkflowPause,
   handleWorkflowResume,
+  handleWorkflowRetry,
   handleWorkflowStatus,
   handleWorkflowTrigger,
 } from "./workflow-routes.js";
@@ -231,6 +232,18 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "POST" && path === "/api/workflow/abort") {
       handleWorkflowAbort(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/workflow/retry") {
+      handleWorkflowRetry(
+        req,
+        res,
+        new WorkflowRunStore(),
+        DaemonControlClient.fromStateDir(),
+      ).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

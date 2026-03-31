@@ -74,6 +74,58 @@ export async function handleWorkflowAbort(
   jsonResponse(res, 200, result);
 }
 
+export async function handleWorkflowRetry(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store = new WorkflowRunStore(),
+  client: DaemonControlClient | null = null,
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const runId = body.runId as string | undefined;
+  if (!runId || typeof runId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(runId)) {
+    jsonResponse(res, 400, { error: "runId must be a non-empty string" });
+    return;
+  }
+
+  const run = store.getRun(runId);
+  if (!run) {
+    jsonResponse(res, 404, { error: `Run "${runId}" not found` });
+    return;
+  }
+
+  if (run.status !== "failed" && run.status !== "interrupted") {
+    jsonResponse(res, 409, { error: `Run "${runId}" cannot be retried (status: ${run.status})` });
+    return;
+  }
+
+  const state = store.readState();
+  const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === run.workflow);
+  if (alreadyQueued) {
+    jsonResponse(res, 409, { error: `Workflow "${run.workflow}" is already queued` });
+    return;
+  }
+
+  const now = Date.now();
+  const trigger = { event: "retry", payload: { retryOf: runId, triggeredAt: new Date().toISOString() } };
+  store.setPendingRuns([
+    ...state.pendingRuns,
+    { workflowName: run.workflow, trigger, enqueuedAtMs: now, notBeforeMs: now },
+  ]);
+  jsonResponse(res, 200, { ok: true, queued: run.workflow });
+}
+
 export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,

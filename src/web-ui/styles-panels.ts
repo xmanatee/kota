@@ -198,7 +198,10 @@ export const STYLES_PANELS_CSS = `
 .wf-ctrl-btn.trigger:hover { background: #6c63ff22; }
 .wf-ctrl-btn.abort { color: #f87171; border-color: #f8717155; }
 .wf-ctrl-btn.abort:hover { background: #f8717122; }
+.wf-ctrl-btn.retry { color: #a78bfa; border-color: #a78bfa55; }
+.wf-ctrl-btn.retry:hover { background: #a78bfa22; }
 .wf-ctrl-btn:disabled { opacity: 0.5; cursor: default; }
+.run-retry-btn { margin-left: auto; }
 
 /* Workflow history filter */
 #workflow-history-filter {

@@ -10,6 +10,7 @@ import {
   handleWorkflowAbort,
   handleWorkflowPause,
   handleWorkflowResume,
+  handleWorkflowRetry,
   handleWorkflowStatus,
   handleWorkflowTrigger,
 } from "./workflow-routes.js";
@@ -257,6 +258,104 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(200);
       expect((result.body as Record<string, unknown>).ok).toBe(true);
       expect((result.body as Record<string, unknown>).aborted).toBe(2);
+    });
+  });
+
+  describe("handleWorkflowRetry", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const json = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: unknown) => void) => {
+          if (event === "data") cb(Buffer.from(json));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("returns 503 when daemon not running (null client)", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "run-abc" }), res, store, null);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns 400 for missing runId", async () => {
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({}), res, store, client);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 400 for invalid runId characters", async () => {
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "../etc/passwd" }), res, store, client);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 404 when run does not exist", async () => {
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "nonexistent" }), res, store, client);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 409 for successful run", async () => {
+      writeRunMetadata(runsDir, "run-success-01", "builder", "success");
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "run-success-01" }), res, store, client);
+      expect(result.status).toBe(409);
+    });
+
+    it("returns 409 for running run", async () => {
+      writeRunMetadata(runsDir, "run-running-01", "builder", "running");
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "run-running-01" }), res, store, client);
+      expect(result.status).toBe(409);
+    });
+
+    it("enqueues retry for failed run and returns ok", async () => {
+      writeRunMetadata(runsDir, "run-failed-01", "builder", "failed");
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "run-failed-01" }), res, store, client);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).ok).toBe(true);
+      expect((result.body as Record<string, unknown>).queued).toBe("builder");
+      const state = store.readState();
+      expect(state.pendingRuns).toHaveLength(1);
+      expect(state.pendingRuns[0].workflowName).toBe("builder");
+      expect(state.pendingRuns[0].trigger.event).toBe("retry");
+    });
+
+    it("enqueues retry for interrupted run and returns ok", async () => {
+      writeRunMetadata(runsDir, "run-interrupted-01", "builder", "interrupted");
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "run-interrupted-01" }), res, store, client);
+      expect(result.status).toBe(200);
+      const state = store.readState();
+      expect(state.pendingRuns[0].trigger.event).toBe("retry");
+      expect((state.pendingRuns[0].trigger.payload as Record<string, unknown>).retryOf).toBe("run-interrupted-01");
+    });
+
+    it("returns 409 when workflow already queued", async () => {
+      writeRunMetadata(runsDir, "run-failed-02", "builder", "failed");
+      const state = store.readState();
+      state.pendingRuns = [{
+        workflowName: "builder",
+        trigger: { event: "manual", payload: {} },
+        enqueuedAtMs: Date.now(),
+        notBeforeMs: Date.now(),
+      }];
+      store.setPendingRuns(state.pendingRuns);
+
+      const client = mockClient({});
+      const { res, result } = mockResponse();
+      await handleWorkflowRetry(makeRequest({ runId: "run-failed-02" }), res, store, client);
+      expect(result.status).toBe(409);
     });
   });
 

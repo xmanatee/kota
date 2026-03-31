@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-workflow-retry
 title: Add retry failed run control to the web UI workflow history panel
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The CLI has kota workflow retry to re-queue a failed or aborted run, but the web UI provides no equivalent control. Operators must switch to the terminal to retry a failed builder or improver run.

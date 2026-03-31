@@ -188,6 +188,35 @@ export const CLIENT_WORKFLOWS_JS = `
         '<span class="run-name">' + escapeHtml(r.workflow) + '</span>' +
         '<span class="run-meta">' + meta.trim() + '</span>';
       ri.onclick = (function(id) { return function() { showRunDetail(id); }; })(r.id);
+      if (r.status === "failed" || r.status === "interrupted") {
+        (function(runId) {
+          var retryBtn = document.createElement("button");
+          retryBtn.className = "wf-ctrl-btn retry run-retry-btn";
+          retryBtn.textContent = "↺ Retry";
+          retryBtn.title = "Retry this run";
+          retryBtn.onclick = async function(e) {
+            e.stopPropagation();
+            retryBtn.disabled = true;
+            try {
+              var r2 = await apiFetch(API + "/api/workflow/retry", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ runId: runId }),
+              });
+              if (!r2.ok) {
+                var d = await r2.json();
+                retryBtn.title = d.error || "Error";
+              } else {
+                retryBtn.title = "Queued!";
+              }
+              await refreshWorkflows();
+            } finally {
+              retryBtn.disabled = false;
+            }
+          };
+          ri.appendChild(retryBtn);
+        })(r.id);
+      }
       $workflowList.appendChild(ri);
       shown++;
     }
