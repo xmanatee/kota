@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-knowledge-panel
 title: Add knowledge store browser panel to the web UI dashboard
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The knowledge store is only accessible via the CLI (`kota knowledge`). The web dashboard has no surface for browsing or searching knowledge entries, leaving operators without a fast way to inspect what structured reference data the agents are working with.

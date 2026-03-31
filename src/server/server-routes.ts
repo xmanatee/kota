@@ -16,6 +16,7 @@ import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
 import { handleListExtensions } from "./extension-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
+import { handleGetKnowledge, handleListKnowledge } from "./knowledge-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,
@@ -216,6 +217,17 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/extensions") {
       handleListExtensions(res, ctx.getExtensionSummaries ? ctx.getExtensionSummaries() : []);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/knowledge") {
+      handleListKnowledge(res);
+      return;
+    }
+
+    const knowledgeEntryMatch = path.match(/^\/api\/knowledge\/([^/]+)$/);
+    if (req.method === "GET" && knowledgeEntryMatch) {
+      handleGetKnowledge(res, knowledgeEntryMatch[1]);
       return;
     }
 
