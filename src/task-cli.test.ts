@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { findTask, listTasksForStates, registerTaskCommands, slugify } from "./task-cli.js";
+import { findTask, gcTerminalTasks, listTasksForStates, registerTaskCommands, slugify } from "./task-cli.js";
 
 vi.mock("node:child_process", () => ({
   execSync: vi.fn(),
@@ -383,5 +383,75 @@ describe("kota task add", () => {
       errSpy.mockRestore();
       exitSpy.mockRestore();
     }
+  });
+});
+
+describe("gcTerminalTasks", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  function writeTerminalTask(
+    state: "done" | "dropped",
+    id: string,
+    updatedAt: string,
+  ): void {
+    const dir = join(projectDir, "tasks", state);
+    mkdirSync(dir, { recursive: true });
+    const content = `---\nid: ${id}\ntitle: Title\nstatus: ${state}\nupdated_at: ${updatedAt}\n---\n\n## Done.\n`;
+    writeFileSync(join(dir, `${id}.md`), content);
+  }
+
+  it("archives tasks older than threshold", () => {
+    writeTerminalTask("done", "task-old", "2020-01-01");
+    const result = gcTerminalTasks(projectDir, { days: 30 });
+    expect(result.archived).toHaveLength(1);
+    expect(result.archived[0]).toBe("task-old.md");
+    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-old.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "tasks", "done", "task-old.md"))).toBe(false);
+  });
+
+  it("does not archive tasks newer than threshold", () => {
+    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    writeTerminalTask("done", "task-recent", recent);
+    const result = gcTerminalTasks(projectDir, { days: 30 });
+    expect(result.archived).toHaveLength(0);
+    expect(existsSync(join(projectDir, "tasks", "done", "task-recent.md"))).toBe(true);
+  });
+
+  it("deletes instead of archiving when delete option is set", () => {
+    writeTerminalTask("dropped", "task-drop-old", "2020-01-01");
+    const result = gcTerminalTasks(projectDir, { days: 30, delete: true });
+    expect(result.deleted).toHaveLength(1);
+    expect(existsSync(join(projectDir, "tasks", "dropped", "task-drop-old.md"))).toBe(false);
+    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-drop-old.md"))).toBe(false);
+  });
+
+  it("dry-run returns affected list without mutating files", () => {
+    writeTerminalTask("done", "task-dry", "2020-01-01");
+    const result = gcTerminalTasks(projectDir, { days: 30, dryRun: true });
+    expect(result.archived).toHaveLength(1);
+    expect(existsSync(join(projectDir, "tasks", "done", "task-dry.md"))).toBe(true);
+    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-dry.md"))).toBe(false);
+  });
+
+  it("handles both done and dropped states", () => {
+    writeTerminalTask("done", "task-done-old", "2020-01-01");
+    writeTerminalTask("dropped", "task-dropped-old", "2020-02-01");
+    const result = gcTerminalTasks(projectDir, { days: 30 });
+    expect(result.archived).toHaveLength(2);
+  });
+
+  it("does not touch open state tasks", () => {
+    writeTaskFile(projectDir, "ready", "task-ready-skip", { updated_at: "2020-01-01" });
+    const result = gcTerminalTasks(projectDir, { days: 30 });
+    expect(result.archived).toHaveLength(0);
+    expect(existsSync(join(projectDir, "tasks", "ready", "task-ready-skip.md"))).toBe(true);
   });
 });

@@ -1,11 +1,12 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Command } from "commander";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "./frontmatter.js";
 import { REPO_TASK_STATES, type RepoTaskState } from "./repo-tasks.js";
 
 const OPEN_STATES: RepoTaskState[] = ["inbox", "backlog", "ready", "doing", "blocked"];
+const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
 
 type TaskEntry = {
   id: string;
@@ -63,6 +64,60 @@ export function slugify(title: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .slice(0, 50);
+}
+
+type GcResult = {
+  archived: string[];
+  deleted: string[];
+};
+
+export function gcTerminalTasks(
+  projectDir: string,
+  opts: { days?: number; delete?: boolean; dryRun?: boolean } = {},
+): GcResult {
+  const days = opts.days ?? 30;
+  const deleteMode = opts.delete ?? false;
+  const dryRun = opts.dryRun ?? false;
+  const tasksDir = join(projectDir, "tasks");
+  const archiveDir = join(projectDir, ".kota", "task-archive");
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const archived: string[] = [];
+  const deleted: string[] = [];
+
+  for (const state of TERMINAL_STATES) {
+    const dir = join(tasksDir, state);
+    let files: string[];
+    try {
+      files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
+    } catch {
+      continue;
+    }
+    for (const file of files) {
+      const filePath = join(dir, file);
+      let updatedAt: Date | null = null;
+      try {
+        const content = readFileSync(filePath, "utf-8");
+        const { attrs } = parseFlatFrontMatter(content);
+        const raw = attrs.updated_at;
+        if (raw) updatedAt = new Date(String(raw));
+      } catch {
+        // skip unreadable files
+      }
+      if (!updatedAt || Number.isNaN(updatedAt.getTime()) || updatedAt >= cutoff) continue;
+      if (deleteMode) {
+        if (!dryRun) rmSync(filePath);
+        deleted.push(file);
+      } else {
+        if (!dryRun) {
+          mkdirSync(archiveDir, { recursive: true });
+          renameSync(filePath, join(archiveDir, file));
+        }
+        archived.push(file);
+      }
+    }
+  }
+
+  return { archived, deleted };
 }
 
 export function registerTaskCommands(program: Command): void {
@@ -154,6 +209,42 @@ export function registerTaskCommands(program: Command): void {
       execSync(`git add "${dstPath}"`, { cwd: process.cwd() });
 
       console.log(`Moved "${id}" from "${found.state}" to "${targetState}".`);
+    });
+
+  taskCmd
+    .command("gc")
+    .description(
+      "Archive or delete terminal tasks (done, dropped) older than a threshold.\n\n" +
+      "  Tasks are moved to .kota/task-archive/ by default. Pass --delete to remove\n" +
+      "  them permanently. Only done and dropped tasks are eligible.",
+    )
+    .option("--days <n>", "Archive tasks older than N days (default: 30)")
+    .option("--delete", "Permanently delete instead of archiving")
+    .option("--dry-run", "Print what would be done without mutating anything")
+    .action((opts: { days?: string; delete?: boolean; dryRun?: boolean }) => {
+      const days = opts.days != null ? Number.parseInt(opts.days, 10) : 30;
+      if (Number.isNaN(days) || days <= 0) {
+        console.error("--days must be a positive number");
+        process.exit(1);
+      }
+      const result = gcTerminalTasks(process.cwd(), {
+        days,
+        delete: opts.delete,
+        dryRun: opts.dryRun,
+      });
+      const affected = opts.delete ? result.deleted : result.archived;
+      if (affected.length === 0) {
+        console.log("Nothing to archive.");
+        return;
+      }
+      const verb = opts.dryRun
+        ? opts.delete ? "Would delete" : "Would archive"
+        : opts.delete ? "Deleted" : "Archived";
+      console.log(`${verb} ${affected.length} task${affected.length === 1 ? "" : "s"}:`);
+      for (const f of affected) {
+        console.log(`  ${f}`);
+      }
+      if (opts.dryRun) console.log("\n(dry run — nothing was changed)");
     });
 
   taskCmd
