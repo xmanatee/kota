@@ -1,9 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
-import { getToolTelemetry, resetToolTelemetry } from "../tool-telemetry.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig } from "./step-executor.js";
 import {
@@ -218,15 +217,36 @@ describe("executeAgentStep", () => {
   });
 
   describe("tool telemetry artifact", () => {
-    afterEach(() => {
-      resetToolTelemetry();
-    });
-
-    it("writes tool-telemetry.json when tool calls were recorded", async () => {
-      mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+    it("writes tool-telemetry.json when tool calls were recorded via SDK messages", async () => {
+      mockedExecuteWithAgentSDK.mockImplementation(async (_prompt, options) => {
+        options?.onMessage?.({
+          type: "assistant",
+          message: {
+            content: [
+              { type: "tool_use", id: "tu-1", name: "shell", input: {} },
+              { type: "tool_use", id: "tu-2", name: "file_read", input: {} },
+            ],
+          },
+        } as never);
+        options?.onMessage?.({
+          type: "user",
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "tu-1", content: "ok", is_error: false },
+            ],
+          },
+        } as never);
+        options?.onMessage?.({
+          type: "user",
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "tu-2", content: "not found", is_error: true },
+            ],
+          },
+        } as never);
+        return SUCCESS_RESULT;
+      });
       mkdirSync(join(projectDir, ".kota", "runs", "run-1", "steps"), { recursive: true });
-      getToolTelemetry().record("shell", 200, true);
-      getToolTelemetry().record("file_read", 100, false, "not found");
 
       await executeAgentStep(
         makeDefinition(),
@@ -243,7 +263,7 @@ describe("executeAgentStep", () => {
       expect(existsSync(telemetryPath)).toBe(true);
       const data = JSON.parse(readFileSync(telemetryPath, "utf-8"));
       expect(data.summary).toContain("2 tool calls");
-      expect(data.tools.shell).toMatchObject({ calls: 1, successes: 1, failures: 0, avgMs: 200 });
+      expect(data.tools.shell).toMatchObject({ calls: 1, successes: 1, failures: 0 });
       expect(data.tools.file_read).toMatchObject({ calls: 1, failures: 1, lastError: "not found" });
     });
 

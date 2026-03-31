@@ -6,7 +6,7 @@ import {
 } from "../agent-sdk/index.js";
 import type { SDKMessage } from "../agent-sdk/types.js";
 import type { KotaConfig } from "../config.js";
-import { getToolTelemetry } from "../tool-telemetry.js";
+import { ToolTelemetry } from "../tool-telemetry.js";
 import type { ToolResult } from "../tools/index.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import {
@@ -126,12 +126,51 @@ export function buildAgentPrompt(
   };
 }
 
+function makeToolTelemetryTracker(
+  telemetry: ToolTelemetry,
+  onMessage: (message: SDKMessage) => void,
+): (message: SDKMessage) => void {
+  const pending = new Map<string, { name: string; startMs: number }>();
+  return (message: SDKMessage) => {
+    onMessage(message);
+    if (message.type === "assistant") {
+      const raw = message as unknown as { message?: { content?: unknown[] }; content?: unknown[] };
+      const content = raw.message?.content ?? raw.content ?? [];
+      for (const block of content) {
+        const b = block as { type?: string; id?: string; name?: string };
+        if (b.type === "tool_use" && b.id && b.name) {
+          pending.set(b.id, { name: b.name, startMs: Date.now() });
+        }
+      }
+    }
+    if (message.type === "user") {
+      const raw = message as unknown as { message?: { content?: unknown[] } };
+      const content = raw.message?.content ?? [];
+      for (const block of content) {
+        const b = block as { type?: string; tool_use_id?: string; content?: unknown; is_error?: boolean };
+        if (b.type === "tool_result" && b.tool_use_id) {
+          const entry = pending.get(b.tool_use_id);
+          if (entry) {
+            const durationMs = Date.now() - entry.startMs;
+            const isError = b.is_error === true;
+            const errorMsg = isError
+              ? (typeof b.content === "string" ? b.content : JSON.stringify(b.content)).slice(0, 200)
+              : undefined;
+            telemetry.record(entry.name, durationMs, !isError, errorMsg);
+            pending.delete(b.tool_use_id);
+          }
+        }
+      }
+    }
+  };
+}
+
 function writeToolTelemetryArtifact(
   stepId: string,
   metadata: WorkflowRunMetadata,
   projectDir: string,
+  telemetry: ToolTelemetry,
 ): void {
-  const telemetry = getToolTelemetry();
   if (telemetry.getTotalCalls() === 0) return;
   const tools: Record<string, Record<string, unknown>> = {};
   for (const [name, s] of telemetry.getStats()) {
@@ -181,6 +220,9 @@ export async function executeAgentStep(
     typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
   writeInputs(systemPromptAppend, agentPrompt.prompt);
 
+  const stepTelemetry = new ToolTelemetry();
+  const trackedMessage = makeToolTelemetryTracker(stepTelemetry, appendMessage);
+
   const runAttempt = async () => {
     try {
       const result = await executeWithAgentSDK(agentPrompt.prompt, {
@@ -195,7 +237,7 @@ export async function executeAgentStep(
         persistSession: false,
         settingSources: step.settingSources,
         abortController,
-        onMessage: appendMessage,
+        onMessage: trackedMessage,
       }, {
         write: () => true,
       });
@@ -238,7 +280,7 @@ export async function executeAgentStep(
     ? await withRetry(runAttempt, step.retry, agentConfig.log)
     : await runAttempt();
 
-  writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir);
+  writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
 
   return {
     content: result.text,
