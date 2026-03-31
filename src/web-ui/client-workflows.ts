@@ -76,6 +76,7 @@ export const CLIENT_WORKFLOWS_JS = `
 
   var _allRecentRuns = [];
   var _allActiveRuns = [];
+  var _allPendingRuns = [];
   var wfFilter = { workflow: "", status: "", dateRange: "all", tag: "" };
 
   function renderHistoryFilter(workflowNames, tagNames) {
@@ -167,14 +168,51 @@ export const CLIENT_WORKFLOWS_JS = `
       if (wfFilter.tag && !(r.tags && r.tags.indexOf(wfFilter.tag) !== -1)) return false;
       return true;
     });
-    renderWorkflows(_allActiveRuns, filtered);
+    renderWorkflows(_allActiveRuns, filtered, _allPendingRuns);
   }
 
   // --- Workflow runs panel ---
 
-  function renderWorkflows(activeRuns, recentRuns) {
+  function renderWorkflows(activeRuns, recentRuns, pendingRuns) {
     $workflowList.innerHTML = "";
     var shown = 0;
+    pendingRuns = pendingRuns || [];
+
+    for (var pi = 0; pi < pendingRuns.length; pi++) {
+      (function(pending) {
+        var item = document.createElement("div");
+        item.className = "run-item";
+        item.innerHTML = '<span class="run-badge interrupted">⏳</span>' +
+          '<span class="run-name">' + escapeHtml(pending.workflowName) + '</span>' +
+          '<span class="run-meta">queued</span>';
+        if (pending.runId) {
+          var cancelBtn = document.createElement("button");
+          cancelBtn.className = "wf-ctrl-btn abort run-cancel-btn";
+          cancelBtn.textContent = "✕ Cancel";
+          cancelBtn.title = "Cancel this queued run";
+          cancelBtn.onclick = async function(e) {
+            e.stopPropagation();
+            cancelBtn.disabled = true;
+            try {
+              var r = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(pending.runId), { method: "DELETE" });
+              if (!r.ok) {
+                var d = await r.json();
+                cancelBtn.title = d.error || "Error";
+                cancelBtn.disabled = false;
+              } else {
+                item.remove();
+                await refreshWorkflows();
+              }
+            } catch {
+              cancelBtn.disabled = false;
+            }
+          };
+          item.appendChild(cancelBtn);
+        }
+        $workflowList.appendChild(item);
+        shown++;
+      })(pendingRuns[pi]);
+    }
 
     for (var i = 0; i < activeRuns.length; i++) {
       var run = activeRuns[i];
@@ -256,6 +294,7 @@ export const CLIENT_WORKFLOWS_JS = `
       var statusData = await statusRes.json();
       var runsData = await runsRes.json();
       _allActiveRuns = statusData.activeRuns || [];
+      _allPendingRuns = statusData.pendingRuns || [];
       _allRecentRuns = runsData.runs || [];
       var wfNames = Object.keys(statusData.workflows || {}).sort();
       renderWorkflowControls(!!statusData.paused, wfNames, _allActiveRuns.length);

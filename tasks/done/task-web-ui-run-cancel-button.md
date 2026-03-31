@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-run-cancel-button
 title: Add cancel button for queued runs in the web UI
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The daemon now exposes DELETE /workflow/runs/:id to cancel queued runs, and the CLI has kota workflow cancel, but the web UI run history panel has no cancel action. Operators who want to cancel a queued run must use the CLI.

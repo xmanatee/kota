@@ -138,6 +138,35 @@ export async function handleWorkflowRetry(
   jsonResponse(res, 200, { ok: true, queued: run.workflow });
 }
 
+export async function handleWorkflowCancel(
+  res: ServerResponse,
+  runId: string,
+  client: DaemonControlClient | null = null,
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
+  if (!runId || runId.includes("/") || runId.includes("..")) {
+    jsonResponse(res, 400, { error: "Invalid run ID" });
+    return;
+  }
+  const result = await client.cancelRun(runId);
+  if (!result) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: `Run "${runId}" not found` });
+    return;
+  }
+  if (result.active) {
+    jsonResponse(res, 409, { error: `Run "${runId}" is already active and cannot be cancelled` });
+    return;
+  }
+  jsonResponse(res, 200, { ok: true });
+}
+
 export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,

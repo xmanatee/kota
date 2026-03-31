@@ -8,6 +8,7 @@ import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import {
   handleWorkflowAbort,
+  handleWorkflowCancel,
   handleWorkflowDefinitions,
   handleWorkflowPause,
   handleWorkflowResume,
@@ -290,6 +291,58 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(200);
       expect((result.body as Record<string, unknown>).ok).toBe(true);
       expect((result.body as Record<string, unknown>).aborted).toBe(2);
+    });
+  });
+
+  describe("handleWorkflowCancel", () => {
+    it("returns 503 when daemon not running (null client)", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowCancel(res, "run-abc", null);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns 503 when daemon unreachable (client returns null)", async () => {
+      const client = { cancelRun: vi.fn().mockResolvedValue(null) } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowCancel(res, "run-abc", client);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns 400 for invalid run ID with path traversal", async () => {
+      const client = { cancelRun: vi.fn() } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowCancel(res, "../etc/passwd", client);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 404 when run not found", async () => {
+      const client = { cancelRun: vi.fn().mockResolvedValue({ ok: false, notFound: true }) } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowCancel(res, "run-abc", client);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 409 when run is already active", async () => {
+      const client = { cancelRun: vi.fn().mockResolvedValue({ ok: false, active: true }) } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowCancel(res, "run-abc", client);
+      expect(result.status).toBe(409);
+    });
+
+    it("returns 200 ok when run is cancelled successfully", async () => {
+      const client = { cancelRun: vi.fn().mockResolvedValue({ ok: true }) } as unknown as DaemonControlClient;
+      const { res, result } = mockResponse();
+      await handleWorkflowCancel(res, "run-abc", client);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).ok).toBe(true);
+    });
+
+    it("calls cancelRun with the provided runId", async () => {
+      const cancelRun = vi.fn().mockResolvedValue({ ok: true });
+      const client = { cancelRun } as unknown as DaemonControlClient;
+      const { res } = mockResponse();
+      await handleWorkflowCancel(res, "run-xyz-123", client);
+      expect(cancelRun).toHaveBeenCalledWith("run-xyz-123");
     });
   });
 
