@@ -1,7 +1,11 @@
 import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { Command } from "commander";
 import type { KotaExtension } from "../extension-types.js";
+import { readOptionalJsonFile } from "../json-file.js";
 import { Daemon, RESTART_EXIT_CODE } from "../scheduler/daemon.js";
+import type { DaemonControlAddress } from "../scheduler/daemon-control.js";
+import { DaemonControlClient } from "../server/daemon-client.js";
 import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 
@@ -132,6 +136,102 @@ const daemonModule: KotaExtension = {
         });
 
         await daemon.start();
+      });
+
+    cmd
+      .command("status")
+      .description("Show daemon health summary (exits 0 if reachable)")
+      .option("--json", "Output as JSON")
+      .action(async (opts: { json?: boolean }) => {
+        const client = DaemonControlClient.fromStateDir();
+        if (!client) {
+          if (opts.json) {
+            console.log(JSON.stringify({ running: false }));
+          } else {
+            console.error("Daemon is not running.");
+          }
+          process.exitCode = 1;
+          return;
+        }
+        const status = await client.getDaemonStatus();
+        if (!status) {
+          if (opts.json) {
+            console.log(JSON.stringify({ running: false }));
+          } else {
+            console.error("Daemon is not reachable.");
+          }
+          process.exitCode = 1;
+          return;
+        }
+        if (opts.json) {
+          console.log(JSON.stringify(status));
+          return;
+        }
+        const wf = status.workflow;
+        const uptimeSec = status.startedAt
+          ? Math.floor((Date.now() - new Date(status.startedAt).getTime()) / 1000)
+          : null;
+        const uptime = uptimeSec !== null ? `${uptimeSec}s` : "unknown";
+        console.log(`running:  yes`);
+        console.log(`pid:      ${status.pid}`);
+        console.log(`uptime:   ${uptime}`);
+        console.log(`started:  ${status.startedAt}`);
+        console.log(`active:   ${wf.activeRuns.length} run(s)`);
+        console.log(`pending:  ${wf.pendingRuns.length} run(s)`);
+        console.log(`sessions: ${status.sessions.length}`);
+        console.log(`paused:   ${wf.paused}`);
+      });
+
+    cmd
+      .command("pid")
+      .description("Print the PID of the running daemon (exits non-zero if not running)")
+      .action(() => {
+        const address = readOptionalJsonFile<DaemonControlAddress>(
+          join(process.cwd(), ".kota", "daemon-control.json"),
+        );
+        if (!address || typeof address.pid !== "number") {
+          console.error("Daemon is not running.");
+          process.exitCode = 1;
+          return;
+        }
+        console.log(String(address.pid));
+      });
+
+    cmd
+      .command("stop")
+      .description("Gracefully stop the running daemon (exits 0 on success)")
+      .option("--timeout <seconds>", "Seconds to wait for clean exit", "10")
+      .action(async (opts: { timeout: string }) => {
+        const address = readOptionalJsonFile<DaemonControlAddress>(
+          join(process.cwd(), ".kota", "daemon-control.json"),
+        );
+        if (!address || typeof address.pid !== "number") {
+          console.error("Daemon is not running.");
+          process.exitCode = 1;
+          return;
+        }
+        const pid = address.pid;
+        try {
+          process.kill(pid, 0);
+        } catch {
+          console.error("Daemon process is not running (stale control file).");
+          process.exitCode = 1;
+          return;
+        }
+        process.kill(pid, "SIGTERM");
+        const timeoutSec = Math.max(1, Number.parseInt(opts.timeout, 10) || 10);
+        const deadline = Date.now() + timeoutSec * 1000;
+        while (Date.now() < deadline) {
+          await new Promise<void>((r) => setTimeout(r, 500));
+          try {
+            process.kill(pid, 0);
+          } catch {
+            console.log("Daemon stopped.");
+            return;
+          }
+        }
+        console.error(`Daemon did not stop within ${timeoutSec}s.`);
+        process.exitCode = 1;
       });
 
     return [cmd];
