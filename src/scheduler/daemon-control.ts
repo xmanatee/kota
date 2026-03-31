@@ -127,6 +127,22 @@ export type InteractiveSession = {
   lastActive: number;
 };
 
+export type WorkflowRunCountEntry = {
+  workflow: string;
+  status: string;
+  count: number;
+};
+
+export type WorkflowCostEntry = {
+  workflow: string;
+  costUsd: number;
+};
+
+export type WorkflowMetricCounts = {
+  runCounts: WorkflowRunCountEntry[];
+  costTotals: WorkflowCostEntry[];
+};
+
 export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
   getWorkflowLiveStatus(): WorkflowLiveStatus;
@@ -150,6 +166,8 @@ export type DaemonControlHandle = {
   // Workflow runs
   listWorkflowRuns(workflow?: string, limit?: number): WorkflowRunSummary[];
   getWorkflowRun(id: string): WorkflowRunDetail | null;
+  // Metrics
+  getWorkflowMetricCounts(): WorkflowMetricCounts;
   // Interactive sessions
   registerSession(id: string, createdAt: string): void;
   unregisterSession(id: string): void;
@@ -185,6 +203,7 @@ const ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "GET /sessions": "read",
   "POST /sessions/register": "control",
   "DELETE /sessions/:id": "control",
+  "GET /metrics": "read",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -222,6 +241,49 @@ function jsonResponse(res: ServerResponse, status: number, body: unknown): void 
   const data = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(data);
+}
+
+function sanitizeLabelValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+function buildPrometheusMetrics(
+  metricCounts: WorkflowMetricCounts,
+  activeSessions: number,
+  pendingApprovals: number,
+  dispatchPaused: boolean,
+): string {
+  const lines: string[] = [];
+
+  lines.push("# HELP kota_workflow_runs_total Lifetime workflow run counts by workflow and status");
+  lines.push("# TYPE kota_workflow_runs_total counter");
+  for (const entry of metricCounts.runCounts) {
+    const wf = sanitizeLabelValue(entry.workflow);
+    const st = sanitizeLabelValue(entry.status);
+    lines.push(`kota_workflow_runs_total{workflow="${wf}",status="${st}"} ${entry.count}`);
+  }
+
+  lines.push("# HELP kota_workflow_cost_usd_total Cumulative agent spend in USD per workflow");
+  lines.push("# TYPE kota_workflow_cost_usd_total counter");
+  for (const entry of metricCounts.costTotals) {
+    const wf = sanitizeLabelValue(entry.workflow);
+    lines.push(`kota_workflow_cost_usd_total{workflow="${wf}"} ${entry.costUsd}`);
+  }
+
+  lines.push("# HELP kota_active_sessions_total Current number of active interactive sessions");
+  lines.push("# TYPE kota_active_sessions_total gauge");
+  lines.push(`kota_active_sessions_total ${activeSessions}`);
+
+  lines.push("# HELP kota_pending_approvals_total Current number of pending approval requests");
+  lines.push("# TYPE kota_pending_approvals_total gauge");
+  lines.push(`kota_pending_approvals_total ${pendingApprovals}`);
+
+  lines.push("# HELP kota_dispatch_paused 1 if workflow dispatch is paused, 0 otherwise");
+  lines.push("# TYPE kota_dispatch_paused gauge");
+  lines.push(`kota_dispatch_paused ${dispatchPaused ? 1 : 0}`);
+
+  lines.push("");
+  return lines.join("\n");
 }
 
 export class DaemonControlServer {
@@ -523,6 +585,17 @@ export class DaemonControlServer {
       this.handle.unregisterSession(params.id);
       res.writeHead(204);
       res.end();
+      return;
+    }
+
+    if (method === "GET" && path === "/metrics") {
+      const metricCounts = this.handle.getWorkflowMetricCounts();
+      const activeSessions = this.handle.listSessions().length;
+      const pendingApprovals = this.handle.listApprovals().length;
+      const { paused } = this.handle.getWorkflowLiveStatus();
+      const body = buildPrometheusMetrics(metricCounts, activeSessions, pendingApprovals, paused);
+      res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
+      res.end(body);
       return;
     }
 

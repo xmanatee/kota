@@ -4,6 +4,7 @@ import {
   DaemonControlServer,
   type DaemonSseEvent,
   type WorkflowLiveStatus,
+  type WorkflowMetricCounts,
 } from "./daemon-control.js";
 
 const TEST_TOKEN = "test-secret-token-abc123";
@@ -41,6 +42,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
+    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [] })),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
@@ -782,6 +784,63 @@ describe("DaemonControlServer", () => {
 
     it("returns 401 without token", async () => {
       const res = await fetchNoToken(port, "/tasks");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /metrics", () => {
+    it("returns 200 with Prometheus text format", async () => {
+      const res = await fetchWithToken(port, "/metrics");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/plain");
+      const text = await res.text();
+      expect(text).toContain("# TYPE kota_workflow_runs_total counter");
+      expect(text).toContain("# TYPE kota_workflow_cost_usd_total counter");
+      expect(text).toContain("# TYPE kota_active_sessions_total gauge");
+      expect(text).toContain("# TYPE kota_pending_approvals_total gauge");
+      expect(text).toContain("# TYPE kota_dispatch_paused gauge");
+      expect(text).toContain("kota_active_sessions_total 0");
+      expect(text).toContain("kota_pending_approvals_total 0");
+      expect(text).toContain("kota_dispatch_paused 0");
+    });
+
+    it("includes per-workflow run counts and costs", async () => {
+      const metricCounts: WorkflowMetricCounts = {
+        runCounts: [
+          { workflow: "builder", status: "success", count: 10 },
+          { workflow: "builder", status: "failed", count: 2 },
+          { workflow: "explorer", status: "success", count: 5 },
+        ],
+        costTotals: [
+          { workflow: "builder", costUsd: 1.5 },
+        ],
+      };
+      handle = makeHandle({
+        getWorkflowMetricCounts: vi.fn(() => metricCounts),
+        listSessions: vi.fn(() => [{ id: "s1", createdAt: "2026-01-01T00:00:00Z", lastActive: 0 }]),
+        listApprovals: vi.fn(() => [{ id: "a1", tool: "Bash", input: {}, risk: "moderate" as const, reason: "test", createdAt: "2026-01-01T00:00:00Z", status: "pending" as const }]),
+        getWorkflowLiveStatus: vi.fn(() => ({
+          activeRuns: [], pendingRuns: [], queueLength: 0, completedRuns: 17, workflows: {}, paused: true,
+        })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/metrics");
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toContain('kota_workflow_runs_total{workflow="builder",status="success"} 10');
+      expect(text).toContain('kota_workflow_runs_total{workflow="builder",status="failed"} 2');
+      expect(text).toContain('kota_workflow_runs_total{workflow="explorer",status="success"} 5');
+      expect(text).toContain('kota_workflow_cost_usd_total{workflow="builder"} 1.5');
+      expect(text).toContain("kota_active_sessions_total 1");
+      expect(text).toContain("kota_pending_approvals_total 1");
+      expect(text).toContain("kota_dispatch_paused 1");
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/metrics");
       expect(res.status).toBe(401);
     });
   });

@@ -36,7 +36,7 @@ Routes are tagged with a capability scope:
   `GET /status`, `GET /workflow/status`, `GET /workflow/definitions`, `GET /events`,
   `GET /workflow/runs`, `GET /workflow/runs/:id`,
   `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
-  `GET /sessions`
+  `GET /sessions`, `GET /metrics`
 - **`control`** — mutate workflow dispatch and data:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
   `POST /workflow/reload`, `POST /workflow/trigger`,
@@ -570,6 +570,42 @@ Unregisters a session. Called by `kota serve` when a session is deleted or
 the server shuts down.
 
 **Response:** `204 No Content`
+
+### GET /metrics
+
+Returns daemon metrics in [Prometheus text exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/).
+Suitable as a Prometheus scrape target.
+
+**Response:** `text/plain; version=0.0.4; charset=utf-8`
+
+```
+# HELP kota_workflow_runs_total Lifetime workflow run counts by workflow and status
+# TYPE kota_workflow_runs_total counter
+kota_workflow_runs_total{workflow="builder",status="success"} 10
+kota_workflow_runs_total{workflow="builder",status="failed"} 2
+# HELP kota_workflow_cost_usd_total Cumulative agent spend in USD per workflow
+# TYPE kota_workflow_cost_usd_total counter
+kota_workflow_cost_usd_total{workflow="builder"} 1.5
+# HELP kota_active_sessions_total Current number of active interactive sessions
+# TYPE kota_active_sessions_total gauge
+kota_active_sessions_total 1
+# HELP kota_pending_approvals_total Current number of pending approval requests
+# TYPE kota_pending_approvals_total gauge
+kota_pending_approvals_total 0
+# HELP kota_dispatch_paused 1 if workflow dispatch is paused, 0 otherwise
+# TYPE kota_dispatch_paused gauge
+kota_dispatch_paused 0
+```
+
+Metric families:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `kota_workflow_runs_total` | counter | `workflow`, `status` | Lifetime run counts by workflow and terminal status (`success`, `failed`, `interrupted`, etc.) |
+| `kota_workflow_cost_usd_total` | counter | `workflow` | Cumulative agent spend in USD per workflow |
+| `kota_active_sessions_total` | gauge | — | Current number of active interactive sessions |
+| `kota_pending_approvals_total` | gauge | — | Current number of pending approval requests |
+| `kota_dispatch_paused` | gauge | — | `1` if workflow dispatch is paused, `0` otherwise |
 
 ### Idle TTL and Sweep
 

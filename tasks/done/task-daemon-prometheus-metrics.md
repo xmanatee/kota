@@ -1,7 +1,7 @@
 ---
 id: task-daemon-prometheus-metrics
 title: Expose daemon metrics in Prometheus format
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Add a GET /metrics endpoint to the daemon control API that exposes workflow run counts, cost totals, active session counts, and approval queue depth in Prometheus text format, enabling standard monitoring stack integration.

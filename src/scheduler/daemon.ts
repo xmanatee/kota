@@ -12,7 +12,7 @@ import { CliTransport, type Transport } from "../transport.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
-import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowDefinitionSummary, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
+import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowCostEntry, type WorkflowDefinitionSummary, type WorkflowMetricCounts, type WorkflowRunCountEntry, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
@@ -221,6 +221,29 @@ export class Daemon {
         };
       },
       getTaskStatus: () => this.readTaskStatus(),
+      getWorkflowMetricCounts: (): WorkflowMetricCounts => {
+        const runs = this.runStore.listRuns({ limit: 100_000 });
+        const countMap = new Map<string, number>();
+        const costMap = new Map<string, number>();
+        for (const run of runs) {
+          if (!run.workflow || !run.status || run.status === "running") continue;
+          const countKey = `${run.workflow}\x00${run.status}`;
+          countMap.set(countKey, (countMap.get(countKey) ?? 0) + 1);
+          if (typeof run.totalCostUsd === "number") {
+            costMap.set(run.workflow, (costMap.get(run.workflow) ?? 0) + run.totalCostUsd);
+          }
+        }
+        const runCounts: WorkflowRunCountEntry[] = [];
+        for (const [key, count] of countMap) {
+          const sep = key.indexOf("\x00");
+          runCounts.push({ workflow: key.slice(0, sep), status: key.slice(sep + 1), count });
+        }
+        const costTotals: WorkflowCostEntry[] = [];
+        for (const [workflow, costUsd] of costMap) {
+          costTotals.push({ workflow, costUsd });
+        }
+        return { runCounts, costTotals };
+      },
       registerSession: (id: string, createdAt: string) => {
         this.sessions.set(id, { id, createdAt, lastActive: Date.now() });
         this.bus.emit("session.registered", { id, createdAt });
