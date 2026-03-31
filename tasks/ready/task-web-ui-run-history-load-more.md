@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-run-history-load-more
 title: Add load-more pagination to web UI run history panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The run history panel fetches at most 50 runs on load and has no way to see older runs. Active KOTA instances accumulate hundreds of runs; operators have no browser-based way to page through them.
 created_at: 2026-03-31T22:36:31Z
-updated_at: 2026-03-31T22:36:31Z
+updated_at: 2026-04-01T00:00:00Z
 ---
 
 ## Problem

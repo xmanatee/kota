@@ -1,12 +1,12 @@
 ---
 id: task-config-get-set-cli
 title: Add kota config get and kota config set subcommands
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: kota config validate prints the full merged config but offers no targeted read/write API. Operators scripting KOTA in CI or shell workflows must either parse the JSON output or edit config files directly.
 created_at: 2026-03-31T22:36:31Z
-updated_at: 2026-03-31T22:36:31Z
+updated_at: 2026-04-01T00:00:00Z
 ---
 
 ## Problem
