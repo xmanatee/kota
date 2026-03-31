@@ -1,12 +1,12 @@
 ---
 id: task-task-gc-command
 title: Add kota task gc command to archive terminal tasks
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: The tasks/done/ and tasks/dropped/ directories grow without bound as the autonomous loop runs. A gc command would let operators archive or prune old terminal tasks to keep the queue directory manageable.
 created_at: 2026-03-31T05:01:00Z
-updated_at: 2026-03-31T05:01:00Z
+updated_at: 2026-03-31T05:28:00Z
 ---
 
 ## Problem

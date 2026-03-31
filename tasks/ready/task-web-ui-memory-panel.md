@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-memory-panel
 title: Add memory store browser panel to the web UI dashboard
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: Agent memory entries are only accessible via the CLI (`kota memory`). A web UI panel for browsing and inspecting memory entries would give operators a fast read-only view of what agents are retaining across sessions.
 created_at: 2026-03-31T05:01:00Z
-updated_at: 2026-03-31T05:01:00Z
+updated_at: 2026-03-31T05:28:00Z
 ---
 
 ## Problem
@@ -34,7 +34,7 @@ entry. Read-only; no create/edit/delete from the web UI.
 ## Constraints
 
 - Add server routes in a new `src/server/memory-routes.ts` following the pattern of
-  `src/server/knowledge-routes.ts` (once it lands).
+  `src/server/knowledge-routes.ts` (already landed).
 - Use `MemoryProvider` from `ProviderRegistry`; do not bypass the provider abstraction.
 - No changes to the memory store itself.
 - Panel is static on load (no SSE needed).
