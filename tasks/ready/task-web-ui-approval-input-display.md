@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-approval-input-display
 title: Show tool input details in web UI approval panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The approval panel shows tool name and risk level but hides the actual tool input, forcing operators to approve or reject without seeing what the tool will do. Rendering the input JSON gives operators the context needed to make informed decisions.
