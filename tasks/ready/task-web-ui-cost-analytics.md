@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-cost-analytics
 title: Add cost and performance analytics panel to the web UI dashboard
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web dashboard shows workflow run history and status but no aggregate cost or performance summary. An analytics panel gives operators a visual overview of where spend is concentrated without using the CLI.
 created_at: 2026-03-30T20:33:00Z
-updated_at: 2026-03-30T20:33:00Z
+updated_at: 2026-03-31T03:42:35Z
 ---
 
 ## Problem
