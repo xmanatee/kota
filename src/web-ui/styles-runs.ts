@@ -48,12 +48,30 @@ export const STYLES_RUNS_CSS = `
   font-style: italic;
 }
 
-/* Cost summary panel */
+/* Cost analytics panel */
 #cost-summary-list {
-  max-height: 120px;
+  max-height: 260px;
   overflow-y: auto;
   padding: 2px 0;
 }
+.cost-window-btns {
+  display: flex;
+  gap: 3px;
+  padding: 2px 12px 6px;
+}
+.cost-window-btn {
+  flex: 1;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cost-window-btn:hover { border-color: var(--accent); color: var(--text); }
+.cost-window-btn.active { border-color: var(--accent); color: var(--accent); background: #6c63ff22; }
 .cost-row {
   display: flex;
   justify-content: space-between;
@@ -81,6 +99,24 @@ export const STYLES_RUNS_CSS = `
   font-weight: 600;
 }
 .cost-total .cost-amount { color: var(--text); }
+.cost-top-header {
+  padding: 6px 12px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.cost-top-run {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 12px;
+  font-size: 11px;
+  border-radius: var(--radius);
+}
+.cost-top-run:hover { background: var(--border); }
 
 /* Step progress panel */
 .step-progress {

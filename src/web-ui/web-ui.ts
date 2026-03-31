@@ -52,7 +52,7 @@ ${WEB_UI_CSS}
       <div id="schedules-list"></div>
     </div>
     <div class="sidebar-section">
-      <h3>Cost (24h)</h3>
+      <h3>Analytics</h3>
       <div id="cost-summary-list"></div>
     </div>
     <div class="sidebar-footer">

@@ -189,4 +189,33 @@ describe("getWebUI", () => {
   it("refreshes schedules on workflow.completed SSE event", () => {
     expect(html).toContain("refreshSchedules");
   });
+
+  it("includes analytics panel element", () => {
+    expect(html).toContain('id="cost-summary-list"');
+    expect(html).toContain("Analytics");
+  });
+
+  it("renders per-workflow cost breakdown from API data", () => {
+    expect(html).toContain("renderCost");
+    expect(html).toContain("refreshCost");
+    expect(html).toContain("/api/workflow/runs?since=");
+  });
+
+  it("includes configurable time window selector buttons", () => {
+    expect(html).toContain("cost-window-btn");
+    expect(html).toContain("cost-window-btns");
+    expect(html).toContain("costWindowMs");
+  });
+
+  it("renders top-N most expensive runs with clickable links", () => {
+    expect(html).toContain("cost-top-run");
+    expect(html).toContain("cost-top-header");
+    expect(html).toContain("Top runs");
+    expect(html).toContain("showRunDetail");
+  });
+
+  it("refreshes cost panel on workflow.completed SSE event", () => {
+    expect(html).toContain("workflow.completed");
+    expect(html).toContain("refreshCost");
+  });
 });
