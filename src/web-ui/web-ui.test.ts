@@ -325,4 +325,22 @@ describe("getWebUI", () => {
     // <details> is closed by default; no 'open' attribute in template
     expect(html).toContain('<details class="approval-input">');
   });
+
+  it("includes tag filter select in run history filter", () => {
+    expect(html).toContain("wf-filter-tag");
+    expect(html).toContain("All tags");
+  });
+
+  it("tag filter state is tracked in wfFilter", () => {
+    expect(html).toContain('wfFilter.tag');
+  });
+
+  it("applyHistoryFilter filters runs by tag", () => {
+    expect(html).toContain("r.tags && r.tags.indexOf(wfFilter.tag)");
+  });
+
+  it("renderHistoryFilter collects tag names from run list", () => {
+    expect(html).toContain("historyTags");
+    expect(html).toContain("seenTag");
+  });
 });

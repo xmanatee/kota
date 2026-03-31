@@ -611,7 +611,13 @@ describe("DaemonControlServer", () => {
     it("passes workflow filter and limit to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?workflow=builder&limit=5");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith("builder", 5);
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith("builder", 5, undefined);
+    });
+
+    it("passes tag filter to handle", async () => {
+      const res = await fetchWithToken(port, "/workflow/runs?tag=my-tag");
+      expect(res.status).toBe(200);
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith(undefined, 20, "my-tag");
     });
 
     it("returns 401 without token", async () => {

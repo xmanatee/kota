@@ -190,8 +190,8 @@ export class Daemon {
       listApprovals: () => getApprovalQueue().list("pending"),
       approveApproval: (id: string) => getApprovalQueue().approve(id),
       rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
-      listWorkflowRuns: (workflow?: string, limit?: number): WorkflowRunSummary[] =>
-        this.runStore.listRuns({ workflow, limit }).map((m) => ({
+      listWorkflowRuns: (workflow?: string, limit?: number, tag?: string): WorkflowRunSummary[] =>
+        this.runStore.listRuns({ workflow, limit, tag }).map((m) => ({
           id: m.id,
           workflow: m.workflow,
           status: m.status,

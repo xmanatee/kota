@@ -163,7 +163,7 @@ export type DaemonControlHandle = {
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;
   // Workflow runs
-  listWorkflowRuns(workflow?: string, limit?: number): WorkflowRunSummary[];
+  listWorkflowRuns(workflow?: string, limit?: number, tag?: string): WorkflowRunSummary[];
   getWorkflowRun(id: string): WorkflowRunDetail | null;
   // Metrics
   getWorkflowMetricCounts(): WorkflowMetricCounts;

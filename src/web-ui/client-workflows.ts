@@ -76,9 +76,9 @@ export const CLIENT_WORKFLOWS_JS = `
 
   var _allRecentRuns = [];
   var _allActiveRuns = [];
-  var wfFilter = { workflow: "", status: "", dateRange: "all" };
+  var wfFilter = { workflow: "", status: "", dateRange: "all", tag: "" };
 
-  function renderHistoryFilter(workflowNames) {
+  function renderHistoryFilter(workflowNames, tagNames) {
     $workflowHistoryFilter.innerHTML = "";
 
     var row1 = document.createElement("div");
@@ -114,6 +114,23 @@ export const CLIENT_WORKFLOWS_JS = `
     stSel.onchange = function() { wfFilter.status = stSel.value; applyHistoryFilter(); };
     row1.appendChild(stSel);
 
+    var tagSel = document.createElement("select");
+    tagSel.className = "wf-filter-select wf-filter-tag";
+    tagSel.title = "Filter by tag";
+    var allTagOpt = document.createElement("option");
+    allTagOpt.value = "";
+    allTagOpt.textContent = "All tags";
+    tagSel.appendChild(allTagOpt);
+    for (var j = 0; j < tagNames.length; j++) {
+      var tagOpt = document.createElement("option");
+      tagOpt.value = tagNames[j];
+      tagOpt.textContent = tagNames[j];
+      tagSel.appendChild(tagOpt);
+    }
+    tagSel.value = wfFilter.tag;
+    tagSel.onchange = function() { wfFilter.tag = tagSel.value; applyHistoryFilter(); };
+    row1.appendChild(tagSel);
+
     $workflowHistoryFilter.appendChild(row1);
 
     var row2 = document.createElement("div");
@@ -147,6 +164,7 @@ export const CLIENT_WORKFLOWS_JS = `
       if (wfFilter.workflow && r.workflow !== wfFilter.workflow) return false;
       if (wfFilter.status && r.status !== wfFilter.status) return false;
       if (cutoff && new Date(r.startedAt).getTime() < cutoff) return false;
+      if (wfFilter.tag && !(r.tags && r.tags.indexOf(wfFilter.tag) !== -1)) return false;
       return true;
     });
     renderWorkflows(_allActiveRuns, filtered);
@@ -242,13 +260,20 @@ export const CLIENT_WORKFLOWS_JS = `
       var wfNames = Object.keys(statusData.workflows || {}).sort();
       renderWorkflowControls(!!statusData.paused, wfNames, _allActiveRuns.length);
       var historyNames = [];
-      var seen = {};
+      var seenWf = {};
+      var historyTags = [];
+      var seenTag = {};
       for (var i = 0; i < _allRecentRuns.length; i++) {
         var name = _allRecentRuns[i].workflow;
-        if (name && !seen[name]) { seen[name] = true; historyNames.push(name); }
+        if (name && !seenWf[name]) { seenWf[name] = true; historyNames.push(name); }
+        var runTags = _allRecentRuns[i].tags || [];
+        for (var t = 0; t < runTags.length; t++) {
+          if (!seenTag[runTags[t]]) { seenTag[runTags[t]] = true; historyTags.push(runTags[t]); }
+        }
       }
       historyNames.sort();
-      renderHistoryFilter(historyNames);
+      historyTags.sort();
+      renderHistoryFilter(historyNames, historyTags);
       applyHistoryFilter();
     } catch {}
   }
