@@ -297,4 +297,93 @@ export const STYLES_RUNS_CSS = `
   padding: 1px 5px;
   border-radius: 3px;
 }
+
+/* Run diff / compare */
+.run-compare-section {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+.run-compare-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.run-compare-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.run-compare-select {
+  flex: 1;
+  min-width: 180px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.run-compare-btn {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.run-compare-btn:hover:not(:disabled) { background: #6c63ff22; }
+.run-compare-btn:disabled { opacity: 0.4; cursor: default; }
+.run-diff-wrap {
+  margin-top: 12px;
+}
+.run-diff-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.run-diff-subtitle code {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 10px;
+  background: #0a0a1a;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.run-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.run-diff-table th {
+  text-align: left;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.run-diff-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+.run-diff-table tr:last-child td { border-bottom: none; }
+.run-diff-table tr.diff-regressed td { background: rgba(244, 67, 54, 0.07); }
+.run-diff-table tr.diff-improved td { background: rgba(76, 175, 80, 0.07); }
+.diff-worse { color: #f44336; }
+.diff-better { color: #4caf50; }
 `;

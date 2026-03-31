@@ -8,6 +8,7 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `run-stats.ts` — `kota workflow stats`; aggregate health table (runs, success/failure counts, avg duration, total cost) with `--days`, `--workflow`, and `--json` options.
 - `run-export.ts` — `kota workflow export`; exports run summaries as JSON array (default) or CSV with `--workflow`, `--status`, `--since`, `--last`, `--format`, and `--output` options.
 - `run-show.ts` — `kota workflow show <runId>` step-level display.
+- `run-diff.ts` — `kota workflow diff <run-id-a> <run-id-b>` step-level comparison table; exports `buildRunDiff` and `formatRunDiff` for testing.
 - `logs.ts` — `kota workflow logs` log streaming.
 - `follow.ts` — `kota workflow follow [run-id]` live run output streaming with SSE and file-poll fallback.
 - `trigger.ts` — `kota workflow trigger` and manual-trigger commands.
