@@ -5,6 +5,8 @@ import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { stepCommitted, stepSucceeded } from "../shared.js";
+import type { BuilderRunSummary } from "./run-summary.js";
+import { writeBuilderRunSummary } from "./run-summary.js";
 
 const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
   id: "inspect-ready-queue",
@@ -94,6 +96,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: stepSucceeded("build"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
+    typedCodeStep<BuilderRunSummary>({
+      id: "write-run-summary",
+      type: "code",
+      when: stepCommitted("commit"),
+      run: (ctx) => writeBuilderRunSummary(ctx),
+    }),
     {
       id: "request-restart",
       type: "restart",
