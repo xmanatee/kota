@@ -1,5 +1,17 @@
 # Configuration Reference
 
+## First-time setup
+
+Run `kota init` in a new directory to scaffold the required project structure:
+- `kota.config.ts` — project config with commented-out extension blocks
+- `tasks/` — task queue subdirectories (`inbox/`, `ready/`, `doing/`, `backlog/`, `blocked/`, `done/`, `dropped/`)
+- `docs/` — documentation directory
+- `.kota/` — runtime state directory
+
+`kota init` is idempotent: running it again skips existing files. Pass `--force` to overwrite `kota.config.ts` only. After scaffolding, run `kota doctor` to verify the setup.
+
+## Config files
+
 KOTA loads config from two JSON files merged in order (project overrides global):
 
 - Global: `~/.kota/config.json`

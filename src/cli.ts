@@ -20,6 +20,7 @@ import { registerExtensionCommands } from "./extension-cli.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import { builtinExtensions } from "./extensions/index.js";
+import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { registerKnowledgeCommands, registerMemoryCommands } from "./memory-cli.js";
@@ -183,6 +184,7 @@ registerSkillCommands(program);
 registerWebhookCommands(program);
 registerDoctorCommand(program);
 registerConfigCommands(program);
+registerInitCommand(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {
