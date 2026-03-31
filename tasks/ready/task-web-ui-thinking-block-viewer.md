@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-thinking-block-viewer
 title: Display extended thinking blocks in the web UI run detail view
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The thinkingEnabled/thinkingBudget feature lets workflow agent steps use extended thinking, but the thinking content is not surfaced in the web UI run detail view. Operators cannot inspect the model's reasoning without reading raw run logs.

@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-run-tag-filter
 title: Add tag filter to web UI run history panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The run history panel shows tags on run items but has no way to filter by tag, making operator-assigned tags useful only as visual labels rather than a navigation tool.
