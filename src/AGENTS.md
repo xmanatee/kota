@@ -38,7 +38,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `config-cli.ts` — `registerConfigCommands`: `kota config validate` command; prints resolved merged config and warns about unknown top-level keys.
 - `channel.ts` — `ChannelAdapter`, `ChannelDef`, `ChannelWorkflowStatus`, and `ChannelStartContext` types; defines the channel contribution protocol for extensions.
 - `foreign-extension.ts` — KEMP (KOTA External Module Protocol) core: transport-agnostic types (`KempTransport`, `KempInbound`, `KempOutbound`), config types (`ForeignExtensionConfig`, `HttpForeignExtensionConfig`), and protocol constants. Entry point for understanding the foreign extension protocol.
-- `foreign-extension-loader.ts` — `loadForeignExtension`: wraps an out-of-process KEMP module as a `KotaExtension`; handles init/manifest handshake and proxies tool invocations over the transport.
+- `foreign-extension-loader.ts` — `loadForeignExtensions`: wraps out-of-process KEMP modules as `KotaExtension`; handles init/manifest handshake, proxies tool invocations, and manages automatic subprocess restart with exponential backoff and optional ping health checks.
 - `foreign-extension-http.ts` — `HttpTransport`: HTTP transport for KEMP; POSTs outbound messages and receives inbound responses; supports optional `Authorization: Bearer` auth.
 - `foreign-extension-stdio.ts` — `StdioTransport`: stdio transport for KEMP; spawns a subprocess and exchanges NDJSON over stdin/stdout.
 

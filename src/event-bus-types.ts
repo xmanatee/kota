@@ -148,6 +148,10 @@ export type BusEvents = {
   "session.unregistered": {
     id: string;
   };
+  "extension.failed": {
+    name: string;
+    reason: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

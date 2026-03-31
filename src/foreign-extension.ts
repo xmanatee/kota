@@ -59,7 +59,13 @@ export type KempShutdown = {
   type: "shutdown";
 };
 
-export type KempOutbound = KempInit | KempInvoke | KempShutdown;
+/** Optional health check. Module should reply with `pong` using the same `id`. */
+export type KempPing = {
+  id: string;
+  type: "ping";
+};
+
+export type KempOutbound = KempInit | KempInvoke | KempShutdown | KempPing;
 
 // ─── Inbound (Module → KOTA) ─────────────────────────────────────────────────
 
@@ -94,6 +100,12 @@ export type KempShutdownAck = {
   type: "shutdown_ack";
 };
 
+/** Response to `ping`. Echo the same `id`. */
+export type KempPong = {
+  id: string;
+  type: "pong";
+};
+
 /** Sent when the module encounters a protocol or runtime error. */
 export type KempError = {
   id?: string;
@@ -108,7 +120,7 @@ export type KempLog = {
   message: string;
 };
 
-export type KempInbound = KempManifest | KempResult | KempShutdownAck | KempError | KempLog;
+export type KempInbound = KempManifest | KempResult | KempShutdownAck | KempError | KempLog | KempPong;
 export type KempMessage = KempOutbound | KempInbound;
 
 // ─── Transport abstraction ───────────────────────────────────────────────────
@@ -148,6 +160,25 @@ export type StdioForeignExtensionConfig = {
    * Defaults to the KOTA project root.
    */
   cwd?: string;
+  /**
+   * Maximum number of automatic restart attempts after an unexpected exit.
+   * Set to 0 to disable restart. Default: 3.
+   */
+  maxRestarts?: number;
+  /**
+   * Milliseconds to wait for a `pong` response before declaring the subprocess
+   * hung and triggering a restart. Default: 5000. Set to 0 to disable pings.
+   */
+  pingTimeoutMs?: number;
+  /**
+   * How often (ms) to send a health-check ping. Default: 30000.
+   * Set to 0 to disable periodic pings.
+   */
+  pingIntervalMs?: number;
+  /**
+   * Base milliseconds for exponential restart backoff. Default: 2000.
+   */
+  restartBackoffBaseMs?: number;
 };
 
 /** HTTP transport — connects to an already-running HTTP server that speaks KEMP. */

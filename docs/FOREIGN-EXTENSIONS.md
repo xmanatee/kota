@@ -112,6 +112,28 @@ Optional acknowledgement. Module should exit after sending this.
 {"id":"3","type":"shutdown_ack"}
 ```
 
+#### `ping` (KOTA → Module)
+
+Optional health check sent periodically by KOTA. The module should reply with
+`pong` using the same `id`. If no `pong` is received within `pingTimeoutMs`
+(default: 5 seconds), KOTA treats the subprocess as hung and triggers the
+restart logic.
+
+```json
+{"id":"4","type":"ping"}
+```
+
+#### `pong` (Module → KOTA)
+
+Response to `ping`. Echo the same `id`.
+
+```json
+{"id":"4","type":"pong"}
+```
+
+Modules that do not implement ping will silently time out and be restarted —
+ping/pong is fully optional and backward compatible.
+
 #### `error` (Module → KOTA)
 
 Sent when the module encounters a protocol or runtime error.
@@ -170,6 +192,34 @@ A working Node.js example server lives at `examples/extensions/kota-demo-http.js
 
 ---
 
+---
+
+## Subprocess Recovery (stdio only)
+
+KOTA automatically restarts crashed or hung stdio subprocesses. Recovery is
+controlled by optional config fields on each stdio extension entry:
+
+| Field | Default | Description |
+|---|---|---|
+| `maxRestarts` | `3` | Maximum restart attempts. Set `0` to disable. |
+| `pingTimeoutMs` | `5000` | Milliseconds to wait for a `pong` before declaring the process hung. Set `0` to disable pings. |
+| `pingIntervalMs` | `30000` | How often KOTA sends a health-check ping. Set `0` to disable. |
+| `restartBackoffBaseMs` | `2000` | Base ms for exponential restart backoff. |
+
+When a subprocess exits unexpectedly, KOTA:
+
+1. Detects the exit via its internal receive loop.
+2. Logs the event to stderr.
+3. Attempts to respawn up to `maxRestarts` times with exponential backoff
+   (`backoffBase × 2^(attempt-1)` ms).
+4. Resets the restart counter after a successful restart.
+5. Emits bus event `extension.failed` when all attempts are exhausted.
+
+In-flight tool invocations during a restart return an error result immediately
+(they do not hang).
+
+---
+
 ## Configuration
 
 Add `foreignExtensions` to your `.kota/config.json`:
@@ -197,6 +247,9 @@ Add `foreignExtensions` to your `.kota/config.json`:
 | `args`      | no       | Arguments passed to the executable. |
 | `env`       | no       | Additional environment variables. |
 | `cwd`       | no       | Working directory (default: project root). |
+| `maxRestarts` | no     | Max restart attempts on crash (default: 3, set 0 to disable). |
+| `pingTimeoutMs` | no   | Ping response deadline in ms (default: 5000, set 0 to disable). |
+| `pingIntervalMs` | no  | Health-check ping interval in ms (default: 30000, set 0 to disable). |
 
 **http transport:**
 

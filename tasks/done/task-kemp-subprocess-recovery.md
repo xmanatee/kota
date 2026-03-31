@@ -1,7 +1,7 @@
 ---
 id: task-kemp-subprocess-recovery
 title: Add subprocess health monitoring and restart for KEMP foreign extensions
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: If a KEMP foreign extension subprocess crashes or becomes unresponsive mid-session, KOTA has no recovery path beyond a full daemon restart. Adding a health check and restart mechanism would let KOTA self-heal without operator intervention.
