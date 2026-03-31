@@ -47,11 +47,12 @@ describe("autoResetDirtyWorktree", () => {
     expect(gitStatus(projectDir)).toBe("");
   });
 
-  it("is a no-op when dirty but there are active doing tasks", () => {
+  it("moves stranded doing tasks to ready/ and resets when dirty", () => {
     // Make the worktree dirty
     writeFileSync(join(projectDir, "README.md"), "changed\n");
-    // Add a doing task
+    // Add a stranded doing task (left by a timed-out builder run)
     mkdirSync(join(projectDir, "tasks", "doing"), { recursive: true });
+    mkdirSync(join(projectDir, "tasks", "ready"), { recursive: true });
     writeFileSync(
       join(projectDir, "tasks", "doing", "task-active.md"),
       "---\nid: task-active\ntitle: Active\nstatus: doing\n---\n",
@@ -59,9 +60,17 @@ describe("autoResetDirtyWorktree", () => {
 
     const warn = vi.fn();
     autoResetDirtyWorktree(projectDir, warn);
-    expect(warn).not.toHaveBeenCalled();
-    // File should still be dirty — not reset
-    expect(gitStatus(projectDir)).toContain("README.md");
+
+    // Should have warned about the dirty state and the task move
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[0][0]).toContain("README.md");
+    expect(warn.mock.calls[1][0]).toContain("task-active.md");
+    // Doing task moved to ready/
+    expect(existsSync(join(projectDir, "tasks", "ready", "task-active.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "tasks", "doing", "task-active.md"))).toBe(false);
+    // Original dirty state is reset; only the re-queued task in ready/ remains
+    expect(gitStatus(projectDir)).not.toContain("README.md");
+    expect(gitStatus(projectDir)).toContain("tasks/ready/task-active.md");
   });
 
   it("auto-resets tracked modifications when dirty with no doing tasks", () => {

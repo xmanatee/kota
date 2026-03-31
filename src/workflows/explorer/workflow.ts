@@ -6,6 +6,7 @@ import {
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
+import { autoResetDirtyWorktree } from "../builder/dirty-state-recovery.js";
 import { commitWorkflowChanges } from "../commit.js";
 import {
   BACKLOG_TASK_TARGET,
@@ -47,6 +48,7 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
   id: "inspect-queue",
   type: "code",
   run: ({ projectDir, readRuntimeState }) => {
+    autoResetDirtyWorktree(projectDir, (msg) => console.warn(msg));
     assertRepoWorktreeClean(projectDir);
     return buildExplorerAssessment(
       projectDir,

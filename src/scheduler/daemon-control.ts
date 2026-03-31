@@ -1,187 +1,46 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { PendingApproval } from "../approval-queue.js";
-import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
-import type { WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "../workflow/run-types.js";
-import type { WorkflowAgentBackoffState } from "../workflow/types.js";
-import type { DaemonState } from "./daemon-state.js";
+import { handleApproveApproval, handleListApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
+import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
+import { handleMetrics } from "./daemon-control-metrics.js";
+import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
+import type { DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
+import { jsonResponse } from "./daemon-control-utils.js";
+import { handleWebhookRequest } from "./daemon-control-webhook.js";
+import {
+  handleAbortWorkflow,
+  handleGetWorkflowDefinitions,
+  handleGetWorkflowRun,
+  handleGetWorkflowStatus,
+  handleListWorkflowRuns,
+  handlePauseWorkflow,
+  handleReloadWorkflow,
+  handleResumeWorkflow,
+  handleTriggerWorkflow,
+} from "./daemon-control-workflow.js";
 
-export type WorkflowDefinitionTriggerSummary =
-  | { type: "event"; event: string }
-  | { type: "cron"; schedule: string }
-  | { type: "interval"; intervalMs: number }
-  | { type: "webhook" };
-
-export type WorkflowDefinitionSummary = {
-  name: string;
-  enabled: boolean;
-  stepCount: number;
-  triggers: WorkflowDefinitionTriggerSummary[];
-};
-
-function readBody(req: IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
-
-export type DaemonControlAddress = {
-  port: number;
-  pid: number;
-  startedAt: string;
-  token: string;
-};
-
-/**
- * Capability scopes for daemon control access.
- * - read: observe daemon and workflow state, subscribe to events
- * - control: mutate workflow dispatch (pause/resume/abort/reload/trigger)
- */
-export type CapabilityScope = "read" | "control";
-
-export type WorkflowLiveStatus = {
-  activeRuns: WorkflowActiveRun[];
-  pendingRuns: WorkflowQueuedRun[];
-  queueLength: number;
-  completedRuns: number;
-  totalCostUsd?: number;
-  agentBackoff?: WorkflowAgentBackoffState;
-  definitionsLoadedAt?: string;
-  workflows: WorkflowRuntimeState["workflows"];
-  paused: boolean;
-};
-
-export type DaemonLiveStatus = DaemonState & {
-  running: boolean;
-  workflow: WorkflowLiveStatus;
-  sessions: InteractiveSession[];
-};
-
-export type DaemonSseEventType =
-  | "workflow.started"
-  | "workflow.completed"
-  | "workflow.step.completed"
-  | "queue.changed"
-  | "approval.changed"
-  | "task.changed"
-  | "session.registered"
-  | "session.unregistered";
-
-export type DaemonSseEvent = {
-  type: DaemonSseEventType;
-  payload: Record<string, unknown>;
-};
-
-export type WorkflowRunSummary = {
-  id: string;
-  workflow: string;
-  status: string;
-  triggerEvent: string;
-  startedAt: string;
-  durationMs?: number;
-  totalCostUsd?: number;
-  triggeredByRunId?: string;
-  retryOf?: string;
-};
-
-export type WorkflowRunStepSummary = {
-  id: string;
-  type: string;
-  status: string;
-  durationMs: number;
-  error?: string;
-  costUsd?: number;
-};
-
-export type WorkflowRunDetail = WorkflowRunSummary & {
-  triggeredByRunId?: string;
-  retryOf?: string;
-  completedAt?: string;
-  steps: WorkflowRunStepSummary[];
-};
-
-export type DaemonTaskDetail = {
-  id: string;
-  title: string;
-  priority: string;
-  area: string;
-  summary: string;
-  body: string;
-};
-
-export type DaemonTaskStatusResponse = {
-  counts: { inbox: number; ready: number; backlog: number; doing: number; blocked: number };
-  tasks: {
-    doing: DaemonTaskDetail[];
-    ready: DaemonTaskDetail[];
-    backlog: DaemonTaskDetail[];
-    blocked: DaemonTaskDetail[];
-  };
-};
-
-export type InteractiveSession = {
-  id: string;
-  createdAt: string;
-  lastActive: number;
-};
-
-export type WorkflowRunCountEntry = {
-  workflow: string;
-  status: string;
-  count: number;
-};
-
-export type WorkflowCostEntry = {
-  workflow: string;
-  costUsd: number;
-};
-
-export type WorkflowMetricCounts = {
-  runCounts: WorkflowRunCountEntry[];
-  costTotals: WorkflowCostEntry[];
-};
-
-export type DaemonControlHandle = {
-  getDaemonLiveState(): DaemonState & { running: boolean };
-  getWorkflowLiveStatus(): WorkflowLiveStatus;
-  pauseWorkflowDispatch(): { already: boolean };
-  resumeWorkflowDispatch(): { already: boolean };
-  abortActiveRuns(): { aborted: number };
-  reloadWorkflowDefinitions(): { count: number };
-  getWorkflowDefinitions(): WorkflowDefinitionSummary[];
-  enqueuePendingRun(name: string): { ok: boolean; queued?: string; alreadyQueued?: boolean; error?: string };
-  subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
-  // History
-  listHistory(search?: string, limit?: number): ConversationRecord[];
-  getHistory(id: string): ConversationData | null;
-  deleteHistory(id: string): boolean;
-  // Approvals
-  listApprovals(): PendingApproval[];
-  approveApproval(id: string): PendingApproval | null;
-  rejectApproval(id: string, reason?: string): PendingApproval | null;
-  // Tasks
-  getTaskStatus(): DaemonTaskStatusResponse;
-  // Workflow runs
-  listWorkflowRuns(workflow?: string, limit?: number): WorkflowRunSummary[];
-  getWorkflowRun(id: string): WorkflowRunDetail | null;
-  // Metrics
-  getWorkflowMetricCounts(): WorkflowMetricCounts;
-  // Interactive sessions
-  registerSession(id: string, createdAt: string): void;
-  unregisterSession(id: string): void;
-  listSessions(): InteractiveSession[];
-  // Webhook triggers
-  triggerWebhookRun(
-    name: string,
-    secret: string,
-    payload: { body: unknown; headers: Record<string, string>; timestamp: string },
-  ): { ok: boolean; runId?: string; unauthorized?: boolean; notFound?: boolean; alreadyRunning?: boolean; error?: string };
-};
+export type {
+  CapabilityScope,
+  DaemonControlAddress,
+  DaemonControlHandle,
+  DaemonLiveStatus,
+  DaemonSseEvent,
+  DaemonSseEventType,
+  DaemonTaskDetail,
+  DaemonTaskStatusResponse,
+  InteractiveSession,
+  WorkflowCostEntry,
+  WorkflowDefinitionSummary,
+  WorkflowDefinitionTriggerSummary,
+  WorkflowLiveStatus,
+  WorkflowMetricCounts,
+  WorkflowRunCountEntry,
+  WorkflowRunDetail,
+  WorkflowRunStepSummary,
+  WorkflowRunSummary,
+} from "./daemon-control-types.js";
 
 // Map each route key (method + " " + path pattern) to its required capability scope.
-const ROUTE_SCOPES: Record<string, CapabilityScope> = {
+const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "GET /status": "read",
   "GET /workflow/status": "read",
   "GET /events": "read",
@@ -235,55 +94,6 @@ function matchRouteKey(
     if (params) return { key, params };
   }
   return null;
-}
-
-function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
-  const data = JSON.stringify(body);
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(data);
-}
-
-function sanitizeLabelValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
-}
-
-function buildPrometheusMetrics(
-  metricCounts: WorkflowMetricCounts,
-  activeSessions: number,
-  pendingApprovals: number,
-  dispatchPaused: boolean,
-): string {
-  const lines: string[] = [];
-
-  lines.push("# HELP kota_workflow_runs_total Lifetime workflow run counts by workflow and status");
-  lines.push("# TYPE kota_workflow_runs_total counter");
-  for (const entry of metricCounts.runCounts) {
-    const wf = sanitizeLabelValue(entry.workflow);
-    const st = sanitizeLabelValue(entry.status);
-    lines.push(`kota_workflow_runs_total{workflow="${wf}",status="${st}"} ${entry.count}`);
-  }
-
-  lines.push("# HELP kota_workflow_cost_usd_total Cumulative agent spend in USD per workflow");
-  lines.push("# TYPE kota_workflow_cost_usd_total counter");
-  for (const entry of metricCounts.costTotals) {
-    const wf = sanitizeLabelValue(entry.workflow);
-    lines.push(`kota_workflow_cost_usd_total{workflow="${wf}"} ${entry.costUsd}`);
-  }
-
-  lines.push("# HELP kota_active_sessions_total Current number of active interactive sessions");
-  lines.push("# TYPE kota_active_sessions_total gauge");
-  lines.push(`kota_active_sessions_total ${activeSessions}`);
-
-  lines.push("# HELP kota_pending_approvals_total Current number of pending approval requests");
-  lines.push("# TYPE kota_pending_approvals_total gauge");
-  lines.push(`kota_pending_approvals_total ${pendingApprovals}`);
-
-  lines.push("# HELP kota_dispatch_paused 1 if workflow dispatch is paused, 0 otherwise");
-  lines.push("# TYPE kota_dispatch_paused gauge");
-  lines.push(`kota_dispatch_paused ${dispatchPaused ? 1 : 0}`);
-
-  lines.push("");
-  return lines.join("\n");
 }
 
 export class DaemonControlServer {
@@ -360,7 +170,7 @@ export class DaemonControlServer {
     // Webhook triggers use their own secret auth, not the daemon Bearer token.
     if (method === "POST" && path.startsWith("/webhooks/")) {
       const workflowName = decodeURIComponent(path.slice("/webhooks/".length));
-      this.handleWebhookRequest(req, res, workflowName);
+      handleWebhookRequest(this.handle, req, res, workflowName);
       return;
     }
 
@@ -376,278 +186,51 @@ export class DaemonControlServer {
     }
 
     const { params } = match;
+    const h = this.handle;
 
     if (method === "GET" && path === "/events") {
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      });
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
       res.write(":\n\n");
       this.sseClients.add(res);
-      req.on("close", () => {
-        this.sseClients.delete(res);
-      });
+      req.on("close", () => { this.sseClients.delete(res); });
       return;
     }
 
     if (method === "GET" && path === "/status") {
-      const daemonState = this.handle.getDaemonLiveState();
-      const workflowStatus = this.handle.getWorkflowLiveStatus();
-      const sessions = this.handle.listSessions();
+      const daemonState = h.getDaemonLiveState();
+      const workflowStatus = h.getWorkflowLiveStatus();
+      const sessions = h.listSessions();
       const body: DaemonLiveStatus = { ...daemonState, workflow: workflowStatus, sessions };
       jsonResponse(res, 200, body);
       return;
     }
 
-    if (method === "GET" && path === "/workflow/status") {
-      jsonResponse(res, 200, this.handle.getWorkflowLiveStatus());
-      return;
-    }
+    if (method === "GET" && path === "/workflow/status") { handleGetWorkflowStatus(h, res); return; }
+    if (method === "GET" && path === "/workflow/definitions") { handleGetWorkflowDefinitions(h, res); return; }
+    if (method === "GET" && path === "/workflow/runs") { handleListWorkflowRuns(h, res, url); return; }
+    if (method === "GET" && params.id && path.startsWith("/workflow/runs/")) { handleGetWorkflowRun(h, res, params); return; }
+    if (method === "POST" && path === "/workflow/pause") { handlePauseWorkflow(h, res); return; }
+    if (method === "POST" && path === "/workflow/resume") { handleResumeWorkflow(h, res); return; }
+    if (method === "POST" && path === "/workflow/abort") { handleAbortWorkflow(h, res); return; }
+    if (method === "POST" && path === "/workflow/reload") { handleReloadWorkflow(h, res); return; }
+    if (method === "POST" && path === "/workflow/trigger") { handleTriggerWorkflow(h, req, res); return; }
 
-    if (method === "GET" && path === "/workflow/definitions") {
-      jsonResponse(res, 200, { definitions: this.handle.getWorkflowDefinitions() });
-      return;
-    }
+    if (method === "GET" && path === "/history") { handleListHistory(h, res, url); return; }
+    if (method === "GET" && params.id && path.startsWith("/history/")) { handleGetHistory(h, res, params); return; }
+    if (method === "DELETE" && params.id && path.startsWith("/history/")) { handleDeleteHistory(h, req, res, params); return; }
 
-    if (method === "GET" && path === "/workflow/runs") {
-      const workflow = url.searchParams.get("workflow") ?? undefined;
-      const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
-      const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 200);
-      const runs = this.handle.listWorkflowRuns(workflow, limit);
-      jsonResponse(res, 200, { runs });
-      return;
-    }
+    if (method === "GET" && path === "/approvals") { handleListApprovals(h, res); return; }
+    if (method === "POST" && params.id && path.endsWith("/approve")) { handleApproveApproval(h, res, params); return; }
+    if (method === "POST" && params.id && path.endsWith("/reject")) { handleRejectApproval(h, req, res, params); return; }
 
-    if (method === "GET" && params.id && path.startsWith("/workflow/runs/")) {
-      const run = this.handle.getWorkflowRun(params.id);
-      if (!run) {
-        jsonResponse(res, 404, { error: "Run not found" });
-        return;
-      }
-      jsonResponse(res, 200, run);
-      return;
-    }
+    if (method === "GET" && path === "/tasks") { jsonResponse(res, 200, h.getTaskStatus()); return; }
 
-    if (method === "POST" && path === "/workflow/pause") {
-      const { already } = this.handle.pauseWorkflowDispatch();
-      jsonResponse(res, 200, { ok: true, paused: true, ...(already && { already: true }) });
-      return;
-    }
+    if (method === "GET" && path === "/sessions") { handleListSessions(h, res); return; }
+    if (method === "POST" && path === "/sessions/register") { handleRegisterSession(h, req, res); return; }
+    if (method === "DELETE" && params.id && path.startsWith("/sessions/")) { handleUnregisterSession(h, res, params); return; }
 
-    if (method === "POST" && path === "/workflow/resume") {
-      const { already } = this.handle.resumeWorkflowDispatch();
-      jsonResponse(res, 200, { ok: true, paused: false, ...(already && { already: true }) });
-      return;
-    }
-
-    if (method === "POST" && path === "/workflow/abort") {
-      const { aborted } = this.handle.abortActiveRuns();
-      jsonResponse(res, 200, { ok: true, aborted });
-      return;
-    }
-
-    if (method === "POST" && path === "/workflow/reload") {
-      const { count } = this.handle.reloadWorkflowDefinitions();
-      jsonResponse(res, 200, { ok: true, count });
-      return;
-    }
-
-    if (method === "POST" && path === "/workflow/trigger") {
-      readBody(req)
-        .then((buf) => {
-          let body: Record<string, unknown>;
-          try {
-            body = JSON.parse(buf.toString()) as Record<string, unknown>;
-          } catch {
-            jsonResponse(res, 400, { error: "Invalid JSON body" });
-            return;
-          }
-          const name = body.name;
-          if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
-            jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
-            return;
-          }
-          const result = this.handle.enqueuePendingRun(name);
-          if (result.alreadyQueued) {
-            jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
-            return;
-          }
-          if (!result.ok) {
-            jsonResponse(res, 400, { error: result.error ?? "Failed to enqueue workflow" });
-            return;
-          }
-          jsonResponse(res, 200, { ok: true, queued: result.queued });
-        })
-        .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
-      return;
-    }
-
-    if (method === "GET" && path === "/history") {
-      const search = url.searchParams.get("search") ?? undefined;
-      const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
-      const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 1000);
-      jsonResponse(res, 200, { conversations: this.handle.listHistory(search, limit) });
-      return;
-    }
-
-    if (method === "GET" && params.id && path.startsWith("/history/")) {
-      const data = this.handle.getHistory(params.id);
-      if (!data) {
-        jsonResponse(res, 404, { error: "Conversation not found" });
-        return;
-      }
-      jsonResponse(res, 200, data);
-      return;
-    }
-
-    if (method === "DELETE" && params.id && path.startsWith("/history/")) {
-      const deleted = this.handle.deleteHistory(params.id);
-      if (!deleted) {
-        jsonResponse(res, 404, { error: "Conversation not found" });
-        return;
-      }
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    if (method === "GET" && path === "/approvals") {
-      jsonResponse(res, 200, { approvals: this.handle.listApprovals() });
-      return;
-    }
-
-    if (method === "POST" && params.id && path.endsWith("/approve")) {
-      const item = this.handle.approveApproval(params.id);
-      if (!item) {
-        jsonResponse(res, 404, { error: "Approval not found or not pending" });
-        return;
-      }
-      jsonResponse(res, 200, { approval: item });
-      return;
-    }
-
-    if (method === "POST" && params.id && path.endsWith("/reject")) {
-      readBody(req)
-        .then((buf) => {
-          let reason: string | undefined;
-          try {
-            const body = JSON.parse(buf.toString()) as Record<string, unknown>;
-            reason = typeof body.reason === "string" ? body.reason : undefined;
-          } catch {
-            // reason is optional
-          }
-          const item = this.handle.rejectApproval(params.id, reason);
-          if (!item) {
-            jsonResponse(res, 404, { error: "Approval not found or not pending" });
-            return;
-          }
-          jsonResponse(res, 200, { approval: item });
-        })
-        .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
-      return;
-    }
-
-    if (method === "GET" && path === "/tasks") {
-      jsonResponse(res, 200, this.handle.getTaskStatus());
-      return;
-    }
-
-    if (method === "GET" && path === "/sessions") {
-      jsonResponse(res, 200, { sessions: this.handle.listSessions() });
-      return;
-    }
-
-    if (method === "POST" && path === "/sessions/register") {
-      readBody(req)
-        .then((buf) => {
-          let body: Record<string, unknown>;
-          try {
-            body = JSON.parse(buf.toString()) as Record<string, unknown>;
-          } catch {
-            jsonResponse(res, 400, { error: "Invalid JSON body" });
-            return;
-          }
-          const id = body.id;
-          const createdAt = body.createdAt;
-          if (!id || typeof id !== "string" || !createdAt || typeof createdAt !== "string") {
-            jsonResponse(res, 400, { error: "id and createdAt are required strings" });
-            return;
-          }
-          this.handle.registerSession(id, createdAt);
-          jsonResponse(res, 200, { ok: true });
-        })
-        .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
-      return;
-    }
-
-    if (method === "DELETE" && params.id && path.startsWith("/sessions/")) {
-      this.handle.unregisterSession(params.id);
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    if (method === "GET" && path === "/metrics") {
-      const metricCounts = this.handle.getWorkflowMetricCounts();
-      const activeSessions = this.handle.listSessions().length;
-      const pendingApprovals = this.handle.listApprovals().length;
-      const { paused } = this.handle.getWorkflowLiveStatus();
-      const body = buildPrometheusMetrics(metricCounts, activeSessions, pendingApprovals, paused);
-      res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
-      res.end(body);
-      return;
-    }
+    if (method === "GET" && path === "/metrics") { handleMetrics(h, res); return; }
 
     jsonResponse(res, 404, { error: "Not found" });
-  }
-
-  private handleWebhookRequest(req: IncomingMessage, res: ServerResponse, workflowName: string): void {
-    if (!workflowName || !/^[a-zA-Z0-9_-]+$/.test(workflowName)) {
-      jsonResponse(res, 404, { error: "Not found" });
-      return;
-    }
-    readBody(req)
-      .then((buf) => {
-        const secret = req.headers["x-kota-webhook-secret"];
-        if (!secret || typeof secret !== "string") {
-          jsonResponse(res, 401, { error: "Missing X-Kota-Webhook-Secret header" });
-          return;
-        }
-        let body: unknown = null;
-        if (buf.length > 0) {
-          try {
-            body = JSON.parse(buf.toString()) as unknown;
-          } catch {
-            body = buf.toString();
-          }
-        }
-        const headers: Record<string, string> = {};
-        for (const [key, val] of Object.entries(req.headers)) {
-          if (key !== "x-kota-webhook-secret" && typeof val === "string") {
-            headers[key] = val;
-          }
-        }
-        const payload = { body, headers, timestamp: new Date().toISOString() };
-        const result = this.handle.triggerWebhookRun(workflowName, secret, payload);
-        if (result.unauthorized) {
-          jsonResponse(res, 401, { error: "Invalid webhook secret" });
-          return;
-        }
-        if (result.notFound) {
-          jsonResponse(res, 404, { error: `Workflow "${workflowName}" not found or has no webhook trigger` });
-          return;
-        }
-        if (result.alreadyRunning) {
-          jsonResponse(res, 409, { error: `Workflow "${workflowName}" is already running` });
-          return;
-        }
-        if (!result.ok) {
-          jsonResponse(res, 400, { error: result.error ?? "Failed to start workflow" });
-          return;
-        }
-        jsonResponse(res, 200, { runId: result.runId });
-      })
-      .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
   }
 }
