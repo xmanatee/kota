@@ -29,7 +29,7 @@ export function registerRunListCommands(wfCmd: Command): void {
       const store = new WorkflowRunStore();
 
       const daemonClient = DaemonControlClient.fromStateDir();
-      const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, causedByRunId ? undefined : limit * 3, undefined, causedByRunId) : null;
+      const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, limit * 3, undefined, causedByRunId) : null;
 
       if (daemonRuns) {
         const filtered = daemonRuns.runs
