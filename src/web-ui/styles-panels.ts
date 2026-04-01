@@ -276,6 +276,21 @@ export const STYLES_PANELS_CSS = `
 }
 .wf-date-btn:hover { border-color: var(--accent); color: var(--text); }
 .wf-date-btn.active { border-color: var(--accent); color: var(--accent); background: #6c63ff22; }
+.wf-load-more-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  font-size: 10px;
+  padding: 4px 0;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+}
+.wf-load-more-btn:hover { border-color: var(--accent); color: var(--text); }
+.wf-load-more-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Mobile */
 @media (max-width: 768px) {

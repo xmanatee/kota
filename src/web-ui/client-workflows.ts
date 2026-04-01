@@ -77,6 +77,9 @@ export const CLIENT_WORKFLOWS_JS = `
   var _allRecentRuns = [];
   var _allActiveRuns = [];
   var _allPendingRuns = [];
+  var _runsOffset = 0;
+  var _runsLoading = false;
+  var _canLoadMore = false;
   var wfFilter = { workflow: "", status: "", dateRange: "all", tag: "" };
 
   function renderHistoryFilter(workflowNames, tagNames) {
@@ -231,7 +234,7 @@ export const CLIENT_WORKFLOWS_JS = `
     var activeIds = {};
     for (var j = 0; j < activeRuns.length; j++) activeIds[activeRuns[j].runId] = true;
 
-    for (var k = 0; k < recentRuns.length && shown < 50; k++) {
+    for (var k = 0; k < recentRuns.length; k++) {
       var r = recentRuns[k];
       if (r.status === "running" || activeIds[r.id]) continue;
       var badgeClass = r.status === "success" ? "success" : r.status === "failed" ? "failed" : "interrupted";
@@ -284,6 +287,35 @@ export const CLIENT_WORKFLOWS_JS = `
     if (shown === 0) {
       $workflowList.innerHTML = '<div class="run-empty">No recent runs</div>';
     }
+
+    if (_canLoadMore) {
+      var loadMoreBtn = document.createElement("button");
+      loadMoreBtn.id = "wf-load-more";
+      loadMoreBtn.className = "wf-load-more-btn";
+      loadMoreBtn.textContent = _runsLoading ? "Loading…" : "Load more";
+      loadMoreBtn.disabled = _runsLoading;
+      loadMoreBtn.onclick = loadMoreRuns;
+      $workflowList.appendChild(loadMoreBtn);
+    }
+  }
+
+  async function loadMoreRuns() {
+    if (_runsLoading || !_canLoadMore) return;
+    _runsLoading = true;
+    var btn = document.getElementById("wf-load-more");
+    if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+    try {
+      var res = await apiFetch(API + "/api/workflow/runs?limit=50&offset=" + _runsOffset);
+      if (!res.ok) return;
+      var data = await res.json();
+      var newRuns = data.runs || [];
+      _runsOffset += 50;
+      _canLoadMore = newRuns.length >= 50;
+      _allRecentRuns = _allRecentRuns.concat(newRuns);
+      applyHistoryFilter();
+    } catch {} finally {
+      _runsLoading = false;
+    }
   }
 
   async function refreshWorkflows() {
@@ -296,6 +328,8 @@ export const CLIENT_WORKFLOWS_JS = `
       _allActiveRuns = statusData.activeRuns || [];
       _allPendingRuns = statusData.pendingRuns || [];
       _allRecentRuns = runsData.runs || [];
+      _runsOffset = 50;
+      _canLoadMore = _allRecentRuns.length >= 50;
       var wfNames = Object.keys(statusData.workflows || {}).sort();
       renderWorkflowControls(!!statusData.paused, wfNames, _allActiveRuns.length);
       var historyNames = [];
