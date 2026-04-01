@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-nested-step-detail
 title: Show foreach iteration and branch substep detail in web UI run detail
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web UI run detail renders steps as a flat list. Foreach iterations and branch substeps are collapsed into a single step row with no way to inspect per-iteration or per-branch step results, making it hard to diagnose failures in these compound steps.
 created_at: 2026-04-01T09:21:00Z
-updated_at: 2026-04-01T09:21:00Z
+updated_at: 2026-04-01T09:44:18Z
 ---
 
 ## Problem
