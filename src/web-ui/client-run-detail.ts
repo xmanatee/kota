@@ -57,6 +57,9 @@ export const CLIENT_RUN_DETAIL_JS = `
     var completed = run.completedAt ? new Date(run.completedAt).toLocaleString() : "\\u2014";
     var html = '<div class="run-detail-header">';
     html += '<button class="run-detail-back" id="run-detail-back">\\u2190 Back</button>';
+    if (run.status !== "running") {
+      html += '<button class="run-detail-replay" id="run-detail-replay">\\u21ba Replay</button>';
+    }
     html += '<div class="run-detail-title"><span class="run-badge ' + badgeClass + '">' + icon + '</span>' + escapeHtml(run.workflow) + '</div>';
     html += '<div class="run-detail-meta">';
     html += '<span>ID: <code>' + escapeHtml(run.id) + '</code></span>';
@@ -140,6 +143,38 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '</div>';
     $runDetail.innerHTML = html;
     document.getElementById("run-detail-back").onclick = showChat;
+    var $replayBtn = document.getElementById("run-detail-replay");
+    if ($replayBtn) {
+      $replayBtn.onclick = async function() {
+        $replayBtn.disabled = true;
+        $replayBtn.textContent = "Replaying\\u2026";
+        try {
+          var res = await apiFetch(API + "/api/workflow/replay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ runId: run.id }),
+          });
+          var data = await res.json();
+          if (res.ok && data.ok) {
+            $replayBtn.textContent = "\\u2713 Queued";
+            if (data.runId) {
+              var notice = document.createElement("div");
+              notice.style.cssText = "margin-top:8px;font-size:12px;color:var(--text-muted)";
+              notice.textContent = "New run: " + data.runId;
+              $replayBtn.parentNode.insertBefore(notice, $replayBtn.nextSibling);
+            }
+          } else {
+            $replayBtn.textContent = "\\u21ba Replay";
+            $replayBtn.disabled = false;
+            alert(data.error || "Replay failed");
+          }
+        } catch (err) {
+          $replayBtn.textContent = "\\u21ba Replay";
+          $replayBtn.disabled = false;
+          alert("Replay failed: " + err.message);
+        }
+      };
+    }
 
     var $logSearch = document.getElementById("log-search-input");
     if ($logSearch) {

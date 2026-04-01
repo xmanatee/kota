@@ -326,6 +326,45 @@ type HarnessStepResult = {
 };
 ```
 
+## Operator Commands
+
+### Trigger a run manually
+
+```
+kota workflow trigger <name> [--payload <json>] [--force]
+```
+
+Enqueues a new run. `--payload` merges extra fields into the trigger payload.
+`--force` bypasses cooldown.
+
+### Replay a completed run
+
+```
+kota workflow replay <run-id>
+```
+
+Reads the trigger payload from the stored run record and enqueues a new run of
+the same workflow using that payload. The new run's trigger event is
+`workflow.replay`; the payload includes a `replayOf` field pointing to the
+original run ID so the two runs are traceable.
+
+- Works for any terminal status (success, failed, interrupted).
+- Fails if the run is still active (`status: running`).
+- Fails if the workflow definition no longer exists.
+- If the workflow is already queued, the command exits with an error.
+
+The run detail view in the web UI also shows a **Replay** button for completed
+runs that performs the same action and shows the new run ID inline.
+
+### Retry a failed run
+
+```
+kota workflow retry <run-id>
+```
+
+Re-fires a failed or interrupted run. Unlike replay, retry is restricted to
+non-successful runs and uses `event: "retry"` in the trigger payload.
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of

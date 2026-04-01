@@ -6,6 +6,7 @@ import { DaemonControlClient } from "../server/daemon-client.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { getEligibleAtMs } from "../workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
+import { formatRunId } from "../workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "../workflow/run-types.js";
 import { validateWorkflowDefinitions } from "../workflow/validation.js";
 
@@ -182,6 +183,104 @@ export function registerTriggerCommands(wfCmd: Command): void {
       ];
       store.setPendingRuns(state.pendingRuns);
       console.log(`Queued retry of "${original.workflow}" (original run: ${resolvedId}).`);
+    });
+
+  wfCmd
+    .command("replay <run-id>")
+    .description("Replay a completed workflow run using its original trigger payload")
+    .action(async (runId: string) => {
+      const store = new WorkflowRunStore();
+
+      let resolvedId = runId;
+      if (!runId.includes("Z-")) {
+        try {
+          const dirs = readdirSync(store.runsDir).sort().reverse();
+          const match = dirs.find((d) => d.startsWith(runId));
+          if (!match) {
+            console.error(`Run "${runId}" not found.`);
+            process.exit(1);
+          }
+          resolvedId = match;
+        } catch {
+          console.error(`Run "${runId}" not found.`);
+          process.exit(1);
+        }
+      }
+
+      const original = store.getRun(resolvedId);
+      if (!original) {
+        console.error(`Run "${resolvedId}" not found.`);
+        process.exit(1);
+      }
+
+      if (original.status === "running") {
+        console.error(`Run "${resolvedId}" is still running. Cannot replay an active run.`);
+        process.exit(1);
+      }
+
+      const definitions = validateWorkflowDefinitions(
+        getBuiltinWorkflowDefinitions(),
+        process.cwd(),
+      );
+      const definition = definitions.find((d) => d.name === original.workflow);
+      if (!definition) {
+        console.error(`Workflow "${original.workflow}" is no longer defined.`);
+        process.exit(1);
+      }
+
+      if (!definition.enabled) {
+        console.error(`Workflow "${original.workflow}" is disabled.`);
+        process.exit(1);
+      }
+
+      const state = store.readState();
+      const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === original.workflow);
+      if (alreadyQueued) {
+        console.error(`Workflow "${original.workflow}" is already queued.`);
+        process.exit(1);
+      }
+
+      const now = Date.now();
+      const originalPayload = typeof original.trigger?.payload === "object" && original.trigger.payload !== null
+        ? (original.trigger.payload as Record<string, unknown>)
+        : {};
+      const { _runId: _discarded, ...cleanPayload } = originalPayload as Record<string, unknown> & { _runId?: unknown };
+
+      const client = DaemonControlClient.fromStateDir();
+      if (client) {
+        const result = await client.trigger(original.workflow, undefined, {
+          ...cleanPayload,
+          replayOf: resolvedId,
+          replayTriggeredAt: new Date().toISOString(),
+        });
+        if (result) {
+          if (result.alreadyQueued) {
+            console.error(`Workflow "${original.workflow}" is already queued.`);
+            process.exit(1);
+          }
+          const newRunId = result.queued ?? original.workflow;
+          console.log(`Replaying "${original.workflow}" (original: ${resolvedId}).`);
+          if (newRunId !== original.workflow) console.log(`New run ID: ${newRunId}`);
+          return;
+        }
+      }
+
+      const runId2 = formatRunId(original.workflow);
+      const trigger = {
+        event: "workflow.replay",
+        payload: {
+          ...cleanPayload,
+          replayOf: resolvedId,
+          replayTriggeredAt: new Date().toISOString(),
+          _runId: runId2,
+        },
+      };
+      store.setPendingRuns([
+        ...state.pendingRuns,
+        { runId: runId2, workflowName: original.workflow, trigger, enqueuedAtMs: now, notBeforeMs: now },
+      ]);
+      console.log(`Replaying "${original.workflow}" (original: ${resolvedId}).`);
+      console.log(`New run ID: ${runId2}`);
     });
 
   wfCmd

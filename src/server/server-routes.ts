@@ -38,6 +38,7 @@ import {
   handleWorkflowCancel,
   handleWorkflowDefinitions,
   handleWorkflowPause,
+  handleWorkflowReplay,
   handleWorkflowResume,
   handleWorkflowRetry,
   handleWorkflowStatus,
@@ -291,6 +292,17 @@ export function buildRequestHandler(ctx: ServerContext) {
         res,
         new WorkflowRunStore(),
         DaemonControlClient.fromStateDir(),
+      ).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/workflow/replay") {
+      handleWorkflowReplay(
+        req,
+        res,
+        new WorkflowRunStore(),
       ).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });

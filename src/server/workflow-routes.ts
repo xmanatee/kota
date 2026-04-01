@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkflowDefinitionSummary, WorkflowLiveStatus } from "../scheduler/daemon-control.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
+import { formatRunId } from "../workflow/run-store-helpers.js";
 import type { WorkflowQueuedRun } from "../workflow/run-types.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, readBody } from "./session-pool.js";
@@ -165,6 +166,71 @@ export async function handleWorkflowCancel(
     return;
   }
   jsonResponse(res, 200, { ok: true });
+}
+
+export async function handleWorkflowReplay(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store = new WorkflowRunStore(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const runId = body.runId as string | undefined;
+  if (!runId || typeof runId !== "string" || !/^[a-zA-Z0-9._-]+$/.test(runId)) {
+    jsonResponse(res, 400, { error: "runId must be a non-empty string" });
+    return;
+  }
+
+  const original = store.getRun(runId);
+  if (!original) {
+    jsonResponse(res, 404, { error: `Run "${runId}" not found` });
+    return;
+  }
+
+  if (original.status === "running") {
+    jsonResponse(res, 409, { error: `Run "${runId}" is still running. Cannot replay an active run.` });
+    return;
+  }
+
+  const state = store.readState();
+  const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === original.workflow);
+  if (alreadyQueued) {
+    jsonResponse(res, 409, { error: `Workflow "${original.workflow}" is already queued` });
+    return;
+  }
+
+  const originalPayload =
+    typeof original.trigger?.payload === "object" && original.trigger.payload !== null
+      ? (original.trigger.payload as Record<string, unknown>)
+      : {};
+  const { _runId: _discarded, ...cleanPayload } = originalPayload as Record<string, unknown> & { _runId?: unknown };
+
+  const now = Date.now();
+  const newRunId = formatRunId(original.workflow);
+  const trigger = {
+    event: "workflow.replay",
+    payload: {
+      ...cleanPayload,
+      replayOf: runId,
+      replayTriggeredAt: new Date().toISOString(),
+      _runId: newRunId,
+    },
+  };
+  const queued: WorkflowQueuedRun = {
+    runId: newRunId,
+    workflowName: original.workflow,
+    trigger,
+    enqueuedAtMs: now,
+    notBeforeMs: now,
+  };
+  store.setPendingRuns([...state.pendingRuns, queued]);
+  jsonResponse(res, 200, { ok: true, queued: original.workflow, runId: newRunId });
 }
 
 export async function handleWorkflowTrigger(

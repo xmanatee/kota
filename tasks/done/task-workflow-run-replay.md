@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-replay
 title: Replay a completed workflow run with its original trigger payload
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: Operators iterating on workflow definitions must manually re-trigger runs with the correct payload. A replay command that re-fires a past run using the recorded trigger payload would tighten the edit-test loop.
 created_at: 2026-04-01T02:26:00Z
-updated_at: 2026-04-01T02:26:00Z
+updated_at: 2026-04-01T05:00:00Z
 ---
 
 ## Problem

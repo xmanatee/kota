@@ -11,6 +11,7 @@ import {
   handleWorkflowCancel,
   handleWorkflowDefinitions,
   handleWorkflowPause,
+  handleWorkflowReplay,
   handleWorkflowResume,
   handleWorkflowRetry,
   handleWorkflowStatus,
@@ -440,6 +441,83 @@ describe("workflow-routes", () => {
       const client = mockClient({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-failed-02" }), res, store, client);
+      expect(result.status).toBe(409);
+    });
+  });
+
+  describe("handleWorkflowReplay", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const json = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: unknown) => void) => {
+          if (event === "data") cb(Buffer.from(json));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("returns 400 for missing runId", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({}), res, store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 400 for invalid runId characters", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({ runId: "../etc/passwd" }), res, store);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 404 when run does not exist", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({ runId: "nonexistent" }), res, store);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 409 for running run", async () => {
+      writeRunMetadata(runsDir, "run-running-replay", "builder", "running");
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({ runId: "run-running-replay" }), res, store);
+      expect(result.status).toBe(409);
+    });
+
+    it("enqueues replay for successful run and returns ok with runId", async () => {
+      writeRunMetadata(runsDir, "run-success-replay", "builder", "success");
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay" }), res, store);
+      expect(result.status).toBe(200);
+      expect((result.body as Record<string, unknown>).ok).toBe(true);
+      expect((result.body as Record<string, unknown>).queued).toBe("builder");
+      expect(typeof (result.body as Record<string, unknown>).runId).toBe("string");
+      const state = store.readState();
+      expect(state.pendingRuns).toHaveLength(1);
+      expect(state.pendingRuns[0].workflowName).toBe("builder");
+      expect(state.pendingRuns[0].trigger.event).toBe("workflow.replay");
+      expect((state.pendingRuns[0].trigger.payload as Record<string, unknown>).replayOf).toBe("run-success-replay");
+    });
+
+    it("enqueues replay for failed run", async () => {
+      writeRunMetadata(runsDir, "run-failed-replay", "builder", "failed");
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({ runId: "run-failed-replay" }), res, store);
+      expect(result.status).toBe(200);
+      const state = store.readState();
+      expect(state.pendingRuns[0].trigger.event).toBe("workflow.replay");
+    });
+
+    it("returns 409 when workflow already queued", async () => {
+      writeRunMetadata(runsDir, "run-success-replay2", "builder", "success");
+      const state = store.readState();
+      state.pendingRuns = [{
+        workflowName: "builder",
+        trigger: { event: "manual", payload: {} },
+        enqueuedAtMs: Date.now(),
+        notBeforeMs: Date.now(),
+      }];
+      store.setPendingRuns(state.pendingRuns);
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay2" }), res, store);
       expect(result.status).toBe(409);
     });
   });
