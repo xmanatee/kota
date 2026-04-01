@@ -6,6 +6,7 @@ import {
 } from "../agent-sdk/index.js";
 import type { SDKMessage } from "../agent-sdk/types.js";
 import type { KotaConfig } from "../config.js";
+import { tryEmit } from "../event-bus.js";
 import { ToolTelemetry } from "../tool-telemetry.js";
 import type { ToolResult } from "../tools/index.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
@@ -243,6 +244,15 @@ export async function executeAgentStep(
       }, {
         write: () => true,
       });
+      if (result.subtype === "error_max_budget_usd") {
+        tryEmit("workflow.cost.ceiling.exceeded", {
+          workflow: definition.name,
+          runId: metadata.id,
+          stepId: step.id,
+          budgetUsd: step.maxBudgetUsd!,
+          actualCostUsd: result.totalCostUsd,
+        });
+      }
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";

@@ -114,7 +114,7 @@ const myWorkflow: WorkflowDefinitionInput = {
 | `promptPath` | `string` | — | Path to the prompt markdown file (relative to project root). Required when `agentName` is not set. |
 | `model` | `string` | config default | Model to use for this step. Overrides `agentName` model default. |
 | `maxTurns` | `number` | unlimited | Maximum agent turns before the step is interrupted. |
-| `maxBudgetUsd` | `number` | — | Per-step spend cap in USD. |
+| `maxBudgetUsd` | `number` | — | Per-step spend cap in USD. When the ceiling is hit the step fails and a `workflow.cost.ceiling.exceeded` bus event is emitted carrying `workflow`, `runId`, `stepId`, `budgetUsd`, and `actualCostUsd`. |
 | `thinkingEnabled` | `boolean` | `false` | Enable extended thinking (Claude reasons before responding). |
 | `thinkingBudget` | `number` | `10000` | Token budget for thinking when `thinkingEnabled` is `true`. Minimum 1024. |
 | `permissionMode` | `SDKPermissionMode` | `"bypassPermissions"` | Tool permission mode. |

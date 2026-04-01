@@ -138,6 +138,13 @@ export type BusEvents = {
     threshold: number;
     text: string;
   };
+  "workflow.cost.ceiling.exceeded": {
+    workflow: string;
+    runId: string;
+    stepId: string;
+    budgetUsd: number;
+    actualCostUsd?: number;
+  };
   "approval.expired": {
     id: string;
     tool: string;
