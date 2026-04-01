@@ -50,9 +50,14 @@ describe("WatchTriggerManager", () => {
     lastHandler?.({ watchId, path: tmpDir, changes });
   }
 
-  function getWatcherId(): string {
-    const entries = (mgr as unknown as { entries: Map<string, { watcherId: string }> }).entries;
-    return [...entries.values()][0]?.watcherId ?? "w1";
+  async function waitForWatcherId(): Promise<string> {
+    const entries = (mgr as unknown as { entries: Map<string, { watcherId: string | null }> }).entries;
+    for (let i = 0; i < 40; i++) {
+      const id = [...entries.values()][0]?.watcherId;
+      if (id) return id;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    return "w1";
   }
 
   beforeEach(async () => {
@@ -80,10 +85,7 @@ describe("WatchTriggerManager", () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
     mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
 
-    // Allow watcher to fully start
-    await new Promise((r) => setTimeout(r, 100));
-
-    const watcherId = getWatcherId();
+    const watcherId = await waitForWatcherId();
     emitFileChanged(watcherId, [{ path: "src/foo.ts", type: "change" }]);
 
     await new Promise((r) => setTimeout(r, 150));
@@ -98,8 +100,7 @@ describe("WatchTriggerManager", () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
     mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
 
-    await new Promise((r) => setTimeout(r, 100));
-    const watcherId = getWatcherId();
+    const watcherId = await waitForWatcherId();
 
     emitFileChanged(watcherId, [{ path: "README.md", type: "change" }]);
 
@@ -112,8 +113,7 @@ describe("WatchTriggerManager", () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 100);
     mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
 
-    await new Promise((r) => setTimeout(r, 100));
-    const watcherId = getWatcherId();
+    const watcherId = await waitForWatcherId();
 
     emitFileChanged(watcherId, [{ path: "src/a.ts", type: "change" }]);
     await new Promise((r) => setTimeout(r, 30));
@@ -131,10 +131,8 @@ describe("WatchTriggerManager", () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
     mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
 
-    await new Promise((r) => setTimeout(r, 100));
-
+    const watcherId = await waitForWatcherId();
     isStopping = true;
-    const watcherId = getWatcherId();
     emitFileChanged(watcherId, [{ path: "src/foo.ts", type: "change" }]);
 
     await new Promise((r) => setTimeout(r, 150));
@@ -146,9 +144,7 @@ describe("WatchTriggerManager", () => {
     const def = makeDefinition("watcher", ["src/**/*.ts", "test/**/*.ts"], 50);
     mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
 
-    await new Promise((r) => setTimeout(r, 100));
-    const watcherId = getWatcherId();
-
+    const watcherId = await waitForWatcherId();
     emitFileChanged(watcherId, [{ path: "test/foo.test.ts", type: "change" }]);
 
     await new Promise((r) => setTimeout(r, 150));

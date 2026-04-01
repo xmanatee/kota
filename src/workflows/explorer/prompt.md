@@ -33,8 +33,8 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - Prefer larger, higher-leverage work over easy queue filler. Think in terms of roadmap quality, not just queue occupancy.
 - When recent work has stayed mostly local to one subsystem, one file family, or one kind of cleanup, deliberately widen your search before deciding the queue is healthy.
 - File size alone is not enough to promote a split task. Only queue a split when the large file is actively hindering change, obscuring a core concept, or repeatedly causing mistakes.
-- Use outside research when it materially improves the roadmap. Do not stop at one source when the topic is important; cross-check and compare.
-- For strategically important topics, do at least one real scouting pass outside the repo before concluding there is nothing better to queue. Use official docs, issue trackers, discussion forums, and comparable tools when they can change the roadmap.
+- Use outside research when it materially improves the roadmap. Keep external lookups targeted and brief: 1-2 searches per topic. Complete local analysis (codebase, tasks, docs, recent runs) before turning to external sources.
+- For strategically important topics, a single targeted pass using official docs or issue trackers is sufficient. Do not attempt exhaustive multi-source research per topic — a focused run that commits quality updates is better than a broad run that times out.
 - When external research is useful, link to the source briefly inside the task body rather than copying long explanations.
 - If a task is too large, keep it outcome-focused and concise; do not bury it in implementation detail.
 - Leave most development detail to builder. Good tasks define the problem,
