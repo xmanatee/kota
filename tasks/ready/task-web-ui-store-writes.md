@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-store-writes
 title: Add write support for memory and knowledge entries in the web UI
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web UI knowledge and memory panels are read-only. Adding POST and DELETE API routes plus inline create/delete UI would bring parity with the kota memory and kota knowledge CLI commands without leaving the dashboard.

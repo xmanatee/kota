@@ -1,7 +1,7 @@
 ---
 id: task-workflow-file-watch-trigger
 title: Add file-watch trigger type to workflow definitions
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Workflows can only trigger on bus events, cron schedules, intervals, or webhooks. A file-watch trigger would let operators react to file system changes — running tests when source files change, or kicking off a builder pass when a diff lands.

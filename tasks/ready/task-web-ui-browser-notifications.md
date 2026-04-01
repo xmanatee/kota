@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-browser-notifications
 title: Add browser push notifications for workflow events when the tab is unfocused
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web UI receives real-time workflow events via SSE but has no browser Notification API integration. Operators who leave the tab open in the background miss failure alerts and approval requests until they return to the tab.
