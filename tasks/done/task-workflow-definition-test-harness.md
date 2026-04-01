@@ -1,7 +1,7 @@
 ---
 id: task-workflow-definition-test-harness
 title: Add a lightweight test harness for workflow definitions
-status: ready
+status: done
 priority: p2
 area: dx
 summary: Extension authors and operators have no structured way to unit-test their workflow definitions. They must run a full daemon to verify step logic, trigger conditions, and predicate evaluation. A test harness that simulates step execution without a real agent would close this gap.

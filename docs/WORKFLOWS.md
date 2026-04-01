@@ -256,6 +256,76 @@ Individual agent steps inside a parallel group accept `timeoutMs` (defaults to 3
 
 A child step failure causes the group to fail unless the child sets `continueOnFailure: true`. The group result output contains the inner step results as `{ steps: [...] }`.
 
+## Testing Workflow Definitions
+
+The `kota/testing` sub-path exports a `WorkflowTestHarness` that runs a workflow
+definition in a lightweight in-process environment — no daemon, no real agent
+session, no network required.
+
+```ts
+import { WorkflowTestHarness } from "kota/testing";
+import myWorkflow from "./workflow.js";
+
+test("skips deploy step when no changes", async () => {
+  const harness = new WorkflowTestHarness(myWorkflow, {
+    trigger: { event: "runtime.idle", payload: {} },
+    stepMocks: {
+      "check-changes": { output: { changed: false } },
+      "deploy": {},  // agent steps require a mock; missing mocks throw
+    },
+  });
+  const result = await harness.run();
+  expect(result.steps["deploy"].status).toBe("skipped");
+});
+```
+
+### How it works
+
+| Step type | Harness behavior |
+|-----------|-----------------|
+| `code` | Calls the real `run` function with a mock `WorkflowStepContext`. |
+| `agent` | Returns the value from `stepMocks[stepId]`. Throws if no mock is provided. |
+| `tool` | Returns `stepMocks[stepId]` if provided; otherwise calls `contextOverrides.runTool`. |
+| `emit` | Fires the `emit` closure; collected in `result.emitted`. |
+| `restart` | Records `restartRequested` in the result; does not halt execution. |
+| `trigger` | Returns `stepMocks[stepId]` if provided; otherwise calls `contextOverrides.triggerWorkflow`. |
+| `parallel` | Runs child steps serially by default. Pass `parallel: true` for real concurrency. |
+
+`when` predicates are evaluated with real predicate logic using the accumulated
+step outputs from prior steps — the same way the production executor evaluates them.
+
+### HarnessOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `trigger` | `{ event, payload? }` | Trigger payload available as `ctx.trigger`. Defaults to `runtime.idle`. |
+| `stepMocks` | `Record<string, unknown>` | Mock outputs for agent (required) and tool/trigger (optional) steps. |
+| `runtimeState` | `{ completedRuns?, pendingRuns?, workflows? }` | State returned by `ctx.readRuntimeState()`. |
+| `contextOverrides` | `{ runTool?, readPrompt?, triggerWorkflow? }` | Override individual context methods for code-step testing. |
+| `parallel` | `boolean` | Run parallel groups truly in parallel. Default: `false`. |
+
+### HarnessRunResult
+
+```ts
+type HarnessRunResult = {
+  status: "success" | "failed";
+  steps: Record<string, HarnessStepResult>;
+  error?: string;
+  emitted: Array<{ event: string; payload: Record<string, unknown> }>;
+  restartRequested?: string;
+};
+
+type HarnessStepResult = {
+  id: string;
+  type: string;
+  status: "success" | "failed" | "skipped";
+  output?: unknown;
+  error?: string;
+  skipReason?: string;
+  costUsd?: number;
+};
+```
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of

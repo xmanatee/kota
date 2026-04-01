@@ -20,4 +20,13 @@ export default defineConfig([
     sourcemap: true,
     dts: true,
   },
+  {
+    entry: ["src/workflow-testing/testing-api.ts"],
+    format: ["esm"],
+    target: "node22",
+    outDir: "dist",
+    clean: false,
+    sourcemap: true,
+    dts: true,
+  },
 ]);

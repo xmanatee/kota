@@ -10,6 +10,10 @@
     "./extension": {
       "types": "./dist/extension-api.d.ts",
       "default": "./dist/extension-api.js"
+    },
+    "./testing": {
+      "types": "./dist/testing-api.d.ts",
+      "default": "./dist/testing-api.js"
     }
   },
   "scripts": {

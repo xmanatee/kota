@@ -33,6 +33,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `memory-cli.ts` — `registerMemoryCommands` and `registerKnowledgeCommands`: CLI subcommands for the memory and knowledge stores (`kota memory`, `kota knowledge`).
 - `extension-cli.ts` — `registerExtensionCommands`: CLI subcommands for inspecting loaded extensions (`kota extension list`, `kota extension inspect <name>`, `kota extension new <name>`).
 - `extension-api.ts` — public re-export surface for extension authors; consumed via `kota/extension` sub-path import; built to `dist/extension-api.js` + `dist/extension-api.d.ts`.
+- `workflow-testing/index.ts` — `WorkflowTestHarness` class; lightweight in-process harness for unit-testing workflow definitions without a daemon or real agent; exported via `kota/testing` sub-path import through `workflow-testing/testing-api.ts`.
 - `workflow-cli.ts` — `registerWorkflowCommands`: entry point that registers all `kota workflow` subcommands (list, stats, export, show, history, definitions, cost, logs, follow, trigger, control, run, gc).
 - `agent-cli.ts` — `registerAgentCommands` and `registerSkillCommands`: CLI subcommands for inspecting registered agents and skills (`kota agent list`, `kota agent inspect <name>`, `kota skill list`).
 - `session-cli.ts` — `registerSessionCommands`: CLI subcommands for inspecting active sessions (`kota session list`, `kota session inspect <id>`).

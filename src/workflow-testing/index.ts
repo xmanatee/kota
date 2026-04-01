@@ -1,0 +1,398 @@
+import type { ToolResult } from "../tools/tool-result.js";
+import type {
+  WorkflowRuntimeState,
+  WorkflowStepContext,
+  WorkflowStepResult,
+} from "../workflow/run-types.js";
+import type {
+  WorkflowCodeStepInput,
+  WorkflowDefinitionInput,
+  WorkflowParallelGroupInput,
+  WorkflowStepInput,
+} from "../workflow/types.js";
+
+export type HarnessStepResult = {
+  id: string;
+  type: string;
+  status: "success" | "failed" | "skipped";
+  output?: unknown;
+  error?: string;
+  skipReason?: string;
+  costUsd?: number;
+};
+
+export type HarnessRunResult = {
+  status: "success" | "failed";
+  steps: Record<string, HarnessStepResult>;
+  error?: string;
+  emitted: Array<{ event: string; payload: Record<string, unknown> }>;
+  restartRequested?: string;
+};
+
+export type HarnessTrigger = {
+  event: string;
+  payload?: Record<string, unknown>;
+};
+
+export type HarnessOptions = {
+  trigger?: HarnessTrigger;
+  projectDir?: string;
+  /**
+   * Mock outputs for agent steps and (optionally) tool steps.
+   * Agent steps require a mock; a missing mock throws a clear error.
+   * Tool steps use the mock when provided; otherwise context.runTool is called.
+   */
+  stepMocks?: Record<string, unknown>;
+  /**
+   * Override the runtime state returned by context.readRuntimeState().
+   */
+  runtimeState?: Partial<
+    Pick<WorkflowRuntimeState, "completedRuns" | "pendingRuns" | "workflows">
+  >;
+  /**
+   * Override individual context methods. Useful for testing code steps that
+   * call runTool, triggerWorkflow, or readPrompt.
+   */
+  contextOverrides?: {
+    runTool?: (
+      name: string,
+      input: Record<string, unknown>,
+    ) => Promise<ToolResult>;
+    readPrompt?: (promptPath: string) => string;
+    triggerWorkflow?: (
+      workflowName: string,
+      payload: Record<string, unknown>,
+      waitFor: "queued" | "completed",
+      signal?: AbortSignal,
+    ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
+  };
+  /**
+   * When true, parallel step groups run their child steps concurrently.
+   * Default: false (serial execution for deterministic tests).
+   */
+  parallel?: boolean;
+};
+
+function makeStepResult(
+  id: string,
+  type: string,
+  status: "success" | "failed" | "skipped",
+  output: unknown,
+  error: string | undefined,
+  skipReason: string | undefined,
+): { harness: HarnessStepResult; internal: WorkflowStepResult } {
+  const now = new Date().toISOString();
+  const harness: HarnessStepResult = {
+    id,
+    type,
+    status,
+    ...(output !== undefined ? { output } : {}),
+    ...(error !== undefined ? { error } : {}),
+    ...(skipReason !== undefined ? { skipReason } : {}),
+  };
+  const internal: WorkflowStepResult = {
+    id,
+    type: type as WorkflowStepResult["type"],
+    status,
+    startedAt: now,
+    completedAt: now,
+    durationMs: 0,
+    ...(output !== undefined ? { output } : {}),
+    ...(error !== undefined ? { error } : {}),
+  };
+  return { harness, internal };
+}
+
+/**
+ * A lightweight harness for unit-testing workflow definitions without a running
+ * daemon or real agent session.
+ *
+ * - Code steps execute their real `run` function via a mock WorkflowStepContext.
+ * - Agent steps are interceptable via `stepMocks`; missing mocks throw.
+ * - `when` predicates are evaluated with real predicate logic.
+ * - Parallel groups run serially by default (opt-in `parallel: true` for concurrency).
+ */
+export class WorkflowTestHarness {
+  readonly #workflow: WorkflowDefinitionInput;
+  readonly #options: HarnessOptions;
+
+  constructor(workflow: WorkflowDefinitionInput, options: HarnessOptions = {}) {
+    this.#workflow = workflow;
+    this.#options = options;
+  }
+
+  async run(): Promise<HarnessRunResult> {
+    const trigger = {
+      event: this.#options.trigger?.event ?? "runtime.idle",
+      payload: this.#options.trigger?.payload ?? {},
+    };
+    const projectDir = this.#options.projectDir ?? process.cwd();
+    const stepMocks = this.#options.stepMocks ?? {};
+    const runParallel = this.#options.parallel ?? false;
+
+    const stepOutputsById: Record<string, unknown> = {};
+    const stepResultsById: Record<string, WorkflowStepResult> = {};
+    const stepOutputList: unknown[] = [];
+    const emitted: Array<{ event: string; payload: Record<string, unknown> }> =
+      [];
+    let restartRequested: string | undefined;
+
+    const allStepResults: Record<string, HarnessStepResult> = {};
+    let runFailed = false;
+    let runError: string | undefined;
+
+    const buildContext = (): WorkflowStepContext => {
+      const previousOutput =
+        stepOutputList.length > 0
+          ? stepOutputList[stepOutputList.length - 1]
+          : undefined;
+
+      const runtimeState: WorkflowRuntimeState = {
+        completedRuns: this.#options.runtimeState?.completedRuns ?? 0,
+        pendingRuns: this.#options.runtimeState?.pendingRuns ?? [],
+        workflows: this.#options.runtimeState?.workflows ?? {},
+      };
+
+      return {
+        projectDir,
+        workflow: {
+          name: this.#workflow.name,
+          definitionPath: "test",
+          runId: "harness-run-id",
+          runDir: ".kota/runs/harness",
+          runDirPath: `${projectDir}/.kota/runs/harness`,
+        },
+        trigger,
+        previousOutput,
+        stepOutputs: { ...stepOutputsById },
+        stepResults: { ...stepResultsById },
+        stepOutputList: [...stepOutputList],
+        runTool:
+          this.#options.contextOverrides?.runTool ??
+          (() => {
+            throw new Error(
+              "runTool called but no contextOverrides.runTool mock was provided",
+            );
+          }),
+        emit: (event, payload) => emitted.push({ event, payload }),
+        requestRestart: (reason) => {
+          restartRequested = reason;
+        },
+        readPrompt:
+          this.#options.contextOverrides?.readPrompt ?? (() => ""),
+        readRuntimeState: () => runtimeState,
+        triggerWorkflow:
+          this.#options.contextOverrides?.triggerWorkflow ??
+          (() => {
+            throw new Error(
+              "triggerWorkflow called but no contextOverrides.triggerWorkflow mock was provided",
+            );
+          }),
+      };
+    };
+
+    const recordResult = (
+      harness: HarnessStepResult,
+      internal: WorkflowStepResult,
+      output: unknown,
+    ) => {
+      allStepResults[harness.id] = harness;
+      stepResultsById[harness.id] = internal;
+      if (output !== undefined) {
+        stepOutputsById[harness.id] = output;
+        stepOutputList.push(output);
+      }
+    };
+
+    const executeStep = async (
+      step: WorkflowCodeStepInput | WorkflowStepInput,
+    ): Promise<void> => {
+      const context = buildContext();
+
+      // Evaluate when predicate
+      const shouldRun = step.when
+        ? Boolean(await step.when(context))
+        : true;
+
+      if (!shouldRun) {
+        const { harness, internal } = makeStepResult(
+          step.id,
+          step.type,
+          "skipped",
+          undefined,
+          undefined,
+          "when predicate returned false",
+        );
+        recordResult(harness, internal, undefined);
+        return;
+      }
+
+      let output: unknown;
+      let stepError: string | undefined;
+      let status: "success" | "failed" = "success";
+
+      try {
+        if (step.type === "code") {
+          output = await (step as WorkflowCodeStepInput).run(context);
+        } else if (step.type === "agent") {
+          if (!(step.id in stepMocks)) {
+            throw new Error(
+              `Agent step "${step.id}" requires a mock. Add stepMocks["${step.id}"] to HarnessOptions.`,
+            );
+          }
+          output = stepMocks[step.id];
+        } else if (step.type === "tool") {
+          if (step.id in stepMocks) {
+            output = stepMocks[step.id];
+          } else if (this.#options.contextOverrides?.runTool) {
+            const input =
+              typeof step.input === "function"
+                ? await step.input(context)
+                : (step.input ?? {});
+            output = await context.runTool(step.tool, input as Record<string, unknown>);
+          } else {
+            throw new Error(
+              `Tool step "${step.id}" requires either stepMocks["${step.id}"] or contextOverrides.runTool.`,
+            );
+          }
+        } else if (step.type === "emit") {
+          const payload =
+            typeof step.payload === "function"
+              ? await step.payload(context)
+              : (step.payload ?? {});
+          context.emit(step.event, payload as Record<string, unknown>);
+          output = { event: step.event, payload };
+        } else if (step.type === "restart") {
+          const reason =
+            typeof step.reason === "function"
+              ? await step.reason(context)
+              : (step.reason ??
+                `${this.#workflow.name} requested restart`);
+          context.requestRestart(reason as string);
+          output = {
+            event: "runtime.restart_requested",
+            payload: { reason },
+          };
+        } else if (step.type === "trigger") {
+          if (step.id in stepMocks) {
+            output = stepMocks[step.id];
+          } else if (this.#options.contextOverrides?.triggerWorkflow) {
+            const payload =
+              typeof step.payload === "function"
+                ? await step.payload(context)
+                : (step.payload ?? {});
+            output = await context.triggerWorkflow(
+              step.workflow,
+              payload as Record<string, unknown>,
+              step.waitFor ?? "queued",
+            );
+          } else {
+            throw new Error(
+              `Trigger step "${step.id}" requires either stepMocks["${step.id}"] or contextOverrides.triggerWorkflow.`,
+            );
+          }
+        }
+      } catch (err) {
+        stepError = err instanceof Error ? err.message : String(err);
+        status = "failed";
+        if (!step.continueOnFailure) {
+          runFailed = true;
+          runError = stepError;
+        }
+      }
+
+      const { harness, internal } = makeStepResult(
+        step.id,
+        step.type,
+        status,
+        output,
+        stepError,
+        undefined,
+      );
+      recordResult(harness, internal, output);
+    };
+
+    for (const step of this.#workflow.steps) {
+      if (runFailed) break;
+
+      if (step.type === "parallel") {
+        const group = step as WorkflowParallelGroupInput;
+        const context = buildContext();
+        const shouldRun = group.when
+          ? Boolean(await group.when(context))
+          : true;
+
+        if (!shouldRun) {
+          const { harness, internal } = makeStepResult(
+            group.id,
+            "parallel",
+            "skipped",
+            undefined,
+            undefined,
+            "when predicate returned false",
+          );
+          recordResult(harness, internal, undefined);
+          continue;
+        }
+
+        const groupStart = new Date().toISOString();
+        if (runParallel) {
+          await Promise.all(group.steps.map((s) => executeStep(s)));
+        } else {
+          for (const s of group.steps) {
+            if (runFailed && !group.continueOnFailure) break;
+            await executeStep(s);
+          }
+        }
+
+        const innerStatuses = group.steps.map(
+          (s) => allStepResults[s.id]?.status,
+        );
+        const groupFailed = innerStatuses.some((s) => s === "failed");
+        const groupStatus = groupFailed ? "failed" : "success";
+
+        const innerResults = group.steps.map(
+          (s) => allStepResults[s.id],
+        );
+        const groupOutput = { steps: innerResults };
+
+        const groupNow = new Date().toISOString();
+        const harnessGroup: HarnessStepResult = {
+          id: group.id,
+          type: "parallel",
+          status: groupStatus,
+          output: groupOutput,
+        };
+        const internalGroup: WorkflowStepResult = {
+          id: group.id,
+          type: "parallel",
+          status: groupStatus,
+          startedAt: groupStart,
+          completedAt: groupNow,
+          durationMs: 0,
+          output: groupOutput,
+        };
+        allStepResults[group.id] = harnessGroup;
+        stepResultsById[group.id] = internalGroup;
+
+        if (groupFailed && !group.continueOnFailure) {
+          runFailed = true;
+          const firstFailed = group.steps
+            .map((s) => allStepResults[s.id])
+            .find((r) => r?.status === "failed");
+          runError = firstFailed?.error ?? "parallel group failed";
+        }
+      } else {
+        await executeStep(step);
+      }
+    }
+
+    return {
+      status: runFailed ? "failed" : "success",
+      steps: allStepResults,
+      ...(runError !== undefined ? { error: runError } : {}),
+      emitted,
+      ...(restartRequested !== undefined ? { restartRequested } : {}),
+    };
+  }
+}
