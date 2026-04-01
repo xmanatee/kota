@@ -1,12 +1,12 @@
 ---
 id: task-macos-client-run-detail
 title: Add inline run detail view to macOS menu bar client
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The macOS menu bar client shows active run names and elapsed time but no step progress or log output. Clicking a run should show the current step and a recent log tail inline, reducing the need to open the browser dashboard for a quick status check.
 created_at: 2026-04-01T06:25:00Z
-updated_at: 2026-04-01T06:25:00Z
+updated_at: 2026-04-01T07:22:00Z
 ---
 
 ## Problem
