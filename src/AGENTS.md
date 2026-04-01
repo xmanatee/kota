@@ -14,6 +14,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `loop-send.ts` — `runSend`; handles prompt dispatch and the agent turn loop.
 - `guardrails.ts` — policy enforcement: `assess`, `resolvePolicy`, config helpers, and exported types.
 - `guardrails-classify.ts` — risk classification: tool lists, pattern constants, and `classifyRisk`.
+- `guardrails-audit.ts` — persistent audit trail: appends every guardrail assessment to `.kota/audit.jsonl`; provides `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` type; read by `audit-cli.ts`.
 - `file-changes.ts` — `ChangeTracker` class and singleton utilities: records original file content before first modification and supports undo within a session.
 - `file-diff.ts` — `simpleDiff` utility: line-based diff formatter for agent context display.
 - `log-format.ts` — `resolveLogFormatter`: resolves a log line formatter from config or `LOG_FORMAT` env var; supports `"text"` (default) and `"json"` (newline-delimited JSON for aggregators).
