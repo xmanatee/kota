@@ -118,6 +118,14 @@ describe("githubWebhookModule metadata", () => {
     expect(githubWebhookModule.onLoad).toBeUndefined();
     expect(githubWebhookModule.onUnload).toBeUndefined();
   });
+
+  it("sets bypassAuth:true on its route so GitHub deliveries work without KOTA auth", () => {
+    const bus = new EventBus();
+    const ctx = makeStubCtx(bus, { secret: SECRET });
+    const routes = githubWebhookModule.routes!(ctx);
+    expect(routes).toHaveLength(1);
+    expect(routes[0].bypassAuth).toBe(true);
+  });
 });
 
 describe("githubWebhookModule routes registration", () => {

@@ -87,6 +87,13 @@ export type RouteRegistration = {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   path: string;
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+  /**
+   * When true, the server skips the bearer-token auth check for this route.
+   * Use for inbound webhook endpoints that receive external deliveries without
+   * a KOTA auth token (e.g. GitHub webhooks). The extension must perform its
+   * own request authentication (signature validation, etc.).
+   */
+  bypassAuth?: boolean;
 };
 
 /** Context provided to extensions during initialization. */

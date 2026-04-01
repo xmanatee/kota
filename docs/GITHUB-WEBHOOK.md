@@ -43,10 +43,9 @@ kota serve
 POST /api/webhooks/github
 ```
 
-The server must be publicly reachable from GitHub. If you use KOTA's auth token, note that this
-endpoint is matched by the extension route handler which runs **after** the standard auth check
-in `server-routes.ts`. Configure your KOTA server with `noAuth: true` or expose the webhook
-endpoint via a reverse proxy that strips auth for this path.
+The server must be publicly reachable from GitHub. The webhook endpoint bypasses KOTA's
+bearer-token auth check automatically — GitHub does not need a KOTA auth token. The extension
+performs its own authentication via HMAC-SHA256 signature validation.
 
 > **Note**: The endpoint is only registered when the extension is configured with a non-empty
 > secret. If `secret` is missing or the env var is unset, the route is not registered and the

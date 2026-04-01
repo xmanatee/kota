@@ -89,6 +89,7 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
 
   it("handles timeout with graceful SIGINT for Python", async () => {
     session = new REPLSession("python");
+    await session.execute("pass", 10_000); // warm up: ensure process is running before timeout test
     const result = await session.execute("import time; time.sleep(100)", 500);
     const hasInterrupt = result.output.includes("[Interrupted");
     const hasTimeout = result.output.includes("timed out");

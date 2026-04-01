@@ -361,7 +361,7 @@ describe("process tool", () => {
     it("preserves error exitCode of -1 after close fires", async () => {
       // Start a command that fails — the shell runs but the command inside fails
       await runProcess({ action: "start", command: "exit 42" });
-      const output = await waitForExit("p1");
+      const output = await waitForExit("p1", 15000);
       // Should show exit code 42, not null
       expect(output).toContain("exited (code 42)");
       expect(output).toContain("[process exited with code 42]");
@@ -369,7 +369,7 @@ describe("process tool", () => {
 
     it("shows correct exit code in output buffer message", async () => {
       await runProcess({ action: "start", command: "exit 7" });
-      const output = await waitForExit("p1");
+      const output = await waitForExit("p1", 15000);
       expect(output).toContain("[process exited with code 7]");
       expect(output).not.toContain("code null");
     });

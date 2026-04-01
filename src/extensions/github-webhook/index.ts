@@ -203,6 +203,7 @@ const githubWebhookModule: KotaExtension = {
       {
         method: "POST",
         path: "/api/webhooks/github",
+        bypassAuth: true,
         handler: makeWebhookHandler(secret, enabledEvents, ctx),
       },
     ];

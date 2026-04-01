@@ -81,11 +81,16 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (ctx.authToken && path.startsWith("/api/")) {
-      const header = req.headers.authorization;
-      const queryToken = url.searchParams.get("token");
-      if (header !== `Bearer ${ctx.authToken}` && queryToken !== ctx.authToken) {
-        jsonResponse(res, 401, { error: "Unauthorized" });
-        return;
+      const bypassRoute = ctx.extensionRoutes.find(
+        (r) => r.bypassAuth && r.path === path && r.method === req.method,
+      );
+      if (!bypassRoute) {
+        const header = req.headers.authorization;
+        const queryToken = url.searchParams.get("token");
+        if (header !== `Bearer ${ctx.authToken}` && queryToken !== ctx.authToken) {
+          jsonResponse(res, 401, { error: "Unauthorized" });
+          return;
+        }
       }
     }
 
