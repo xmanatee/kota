@@ -1,6 +1,10 @@
+import type { SDKMessage } from "../agent-sdk/types.js";
+import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import { executeCodeStep, shouldRunStep } from "./step-executor.js";
-import type { WorkflowParallelGroup } from "./types.js";
+import type { AgentStepConfig } from "./step-executor-agent.js";
+import { executeAgentStep } from "./step-executor-agent.js";
+import type { WorkflowDefinition, WorkflowParallelGroup, WorkflowRunTrigger } from "./types.js";
 
 export type ParallelGroupResult = {
   groupResult: WorkflowStepResult;
@@ -9,17 +13,107 @@ export type ParallelGroupResult = {
   groupFailed: boolean;
 };
 
+/** Deps required only when the parallel group contains agent steps. */
+export type ParallelAgentDeps = {
+  definition: WorkflowDefinition;
+  run: Pick<ActiveWorkflowRunHandle, "metadata" | "appendAgentMessage" | "writeAgentInputs">;
+  trigger: WorkflowRunTrigger;
+  runAbortController: AbortController;
+  agentConfig: AgentStepConfig;
+};
+
+class Semaphore {
+  private slots: number;
+  private waiters: Array<() => void> = [];
+
+  constructor(limit: number) {
+    this.slots = limit;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.slots > 0) {
+      this.slots--;
+      return;
+    }
+    await new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+
+  release(): void {
+    const next = this.waiters.shift();
+    if (next) {
+      next();
+    } else {
+      this.slots++;
+    }
+  }
+}
+
+const DEFAULT_STEP_TIMEOUT_MS = 30 * 60 * 1000;
+
 export async function executeParallelStepGroup(
   step: WorkflowParallelGroup,
   context: WorkflowStepContext,
   stepStartedAt: number,
+  agentDeps?: ParallelAgentDeps,
 ): Promise<ParallelGroupResult> {
   const childStartedAt = new Date(stepStartedAt).toISOString();
+  const agentStepCount = step.steps.filter((s) => s.type === "agent").length;
+  const semaphore = agentStepCount > 0 && step.maxParallelAgents !== undefined
+    ? new Semaphore(step.maxParallelAgents)
+    : null;
+
   const childResults = await Promise.allSettled(
     step.steps.map(async (childStep) => {
       if (!(await shouldRunStep(childStep, context))) {
         return { childStep, skipped: true, output: null as unknown };
       }
+
+      if (childStep.type === "agent") {
+        if (!agentDeps) {
+          throw new Error(
+            `Parallel group "${step.id}" contains agent step "${childStep.id}" but no agent deps were provided`,
+          );
+        }
+        if (semaphore) await semaphore.acquire();
+        try {
+          const timeoutMs = childStep.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+          const stepAbortController = new AbortController();
+          const forwardAbort = () => stepAbortController.abort(agentDeps.runAbortController.signal.reason);
+          agentDeps.runAbortController.signal.addEventListener("abort", forwardAbort, { once: true });
+
+          let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              const err = new Error(`Step "${childStep.id}" timed out after ${timeoutMs}ms`);
+              stepAbortController.abort(err);
+              reject(err);
+            }, timeoutMs);
+          });
+
+          try {
+            const agentPromise = executeAgentStep(
+              agentDeps.definition,
+              childStep,
+              agentDeps.run.metadata,
+              agentDeps.trigger,
+              stepAbortController,
+              (message: SDKMessage) => agentDeps.run.appendAgentMessage(childStep.id, message),
+              (systemPromptAppend: string | undefined, prompt: string) =>
+                agentDeps.run.writeAgentInputs(childStep.id, systemPromptAppend, prompt),
+              agentDeps.agentConfig,
+              context.stepOutputs,
+            );
+            const output = await Promise.race([agentPromise, timeoutPromise]);
+            return { childStep, skipped: false, output };
+          } finally {
+            clearTimeout(timeoutHandle);
+            agentDeps.runAbortController.signal.removeEventListener("abort", forwardAbort);
+          }
+        } finally {
+          if (semaphore) semaphore.release();
+        }
+      }
+
       const output = await executeCodeStep(childStep, context);
       return { childStep, skipped: false, output };
     }),
@@ -37,7 +131,7 @@ export async function executeParallelStepGroup(
       if (result.value.skipped) {
         innerResults.push({
           id: childStep.id,
-          type: "code",
+          type: childStep.type,
           status: "skipped",
           startedAt: childStartedAt,
           completedAt: childCompletedAt,
@@ -46,7 +140,7 @@ export async function executeParallelStepGroup(
       } else {
         innerResults.push({
           id: childStep.id,
-          type: "code",
+          type: childStep.type,
           status: "success",
           startedAt: childStartedAt,
           completedAt: childCompletedAt,
@@ -58,7 +152,7 @@ export async function executeParallelStepGroup(
       const err = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
       innerResults.push({
         id: childStep.id,
-        type: "code",
+        type: childStep.type,
         status: "failed",
         startedAt: childStartedAt,
         completedAt: childCompletedAt,

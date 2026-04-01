@@ -1,11 +1,18 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowAgentStep, WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+
+vi.mock("../agent-sdk/index.js", async () => {
+  const actual = await vi.importActual("../agent-sdk/index.js");
+  return { ...actual, executeWithAgentSDK: vi.fn() };
+});
+const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -375,4 +382,169 @@ describe("parallel step groups", () => {
     expect((capturedResults["child-fail"] as { status: string }).status).toBe("failed");
     expect((capturedResults["child-fail"] as { continueOnFailure: boolean }).continueOnFailure).toBe(true);
   });
+});
+
+describe("parallel step groups with agent steps", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  const SUCCESS_RESULT = {
+    text: "done",
+    streamedText: "",
+    sessionId: "sess-1",
+    turns: 1,
+    totalCostUsd: 0.01,
+    subtype: "success",
+    isError: false,
+  };
+
+  function makeAgentStep(id: string, overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep {
+    return {
+      id,
+      type: "agent",
+      promptPath: "prompt.md",
+      permissionMode: "bypassPermissions",
+      settingSources: [],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-parallel-agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "# Prompt\nDo stuff.", "utf-8");
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+    mockedExecuteWithAgentSDK.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("runs all agent steps concurrently and records outputs", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue({ ...SUCCESS_RESULT, text: "agent-done" });
+
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "parallel-agents",
+          type: "parallel",
+          steps: [makeAgentStep("agent-a"), makeAgentStep("agent-b")],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+
+    const groupResult = result.metadata.steps[0];
+    expect(groupResult.type).toBe("parallel");
+    expect(groupResult.status).toBe("success");
+    const inner = (groupResult.output as { steps: Array<{ id: string; status: string }> }).steps;
+    expect(inner).toHaveLength(2);
+    expect(inner.find((s) => s.id === "agent-a")?.status).toBe("success");
+    expect(inner.find((s) => s.id === "agent-b")?.status).toBe("success");
+  });
+
+  it("marks group as failed when one agent step fails (without continueOnFailure)", async () => {
+    mockedExecuteWithAgentSDK
+      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "agent-a-done" })
+      .mockRejectedValueOnce(new Error("agent-b exploded"));
+
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "parallel-agents",
+          type: "parallel",
+          steps: [makeAgentStep("agent-a"), makeAgentStep("agent-b")],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    const inner = (
+      result.metadata.steps[0].output as { steps: Array<{ id: string; status: string }> }
+    ).steps;
+    expect(inner.find((s) => s.id === "agent-a")?.status).toBe("success");
+    expect(inner.find((s) => s.id === "agent-b")?.status).toBe("failed");
+  });
+
+  it("applies per-step timeout to agent steps in parallel group", async () => {
+    // Agent step that never resolves — the timeout should kill it.
+    mockedExecuteWithAgentSDK.mockImplementation(
+      () => new Promise<never>(() => { /* hangs forever */ }),
+    );
+
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "parallel-agents",
+          type: "parallel",
+          steps: [
+            makeAgentStep("slow-agent", { timeoutMs: 50 }),
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    const inner = (
+      result.metadata.steps[0].output as { steps: Array<{ id: string; status: string; error?: string }> }
+    ).steps;
+    const slowResult = inner.find((s) => s.id === "slow-agent");
+    expect(slowResult?.status).toBe("failed");
+    expect(slowResult?.error).toMatch(/timed out/i);
+  }, 5000);
+
+  it("respects maxParallelAgents: limits concurrent agent executions", async () => {
+    let concurrent = 0;
+    let maxConcurrent = 0;
+
+    mockedExecuteWithAgentSDK.mockImplementation(async () => {
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+      concurrent--;
+      return { ...SUCCESS_RESULT };
+    });
+
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "parallel-agents",
+          type: "parallel",
+          maxParallelAgents: 2,
+          steps: [
+            makeAgentStep("agent-1"),
+            makeAgentStep("agent-2"),
+            makeAgentStep("agent-3"),
+            makeAgentStep("agent-4"),
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(maxConcurrent).toBeLessThanOrEqual(2);
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(4);
+  }, 10000);
 });

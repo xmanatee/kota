@@ -53,7 +53,7 @@ function validateStep(
   }
   if (step.type === "code") return validateCodeStep(step, definitionPath, index);
   if (step.type === "parallel") {
-    return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index);
+    return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index, projectDir);
   }
   if (step.type === "trigger") {
     return validateTriggerStep(step as WorkflowTriggerStepInput, definitionPath, index);

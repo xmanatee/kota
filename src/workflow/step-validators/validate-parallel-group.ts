@@ -1,6 +1,6 @@
 import type {
+  WorkflowAgentStep,
   WorkflowCodeStep,
-  WorkflowCodeStepInput,
   WorkflowParallelGroup,
   WorkflowParallelGroupInput,
 } from "../types.js";
@@ -8,13 +8,18 @@ import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
+  expectOptionalInteger,
   WorkflowDefinitionError,
 } from "../validation-primitives.js";
+import { validateAgentStep } from "./validate-agent-step.js";
+
+const UNSUPPORTED_PARALLEL_TYPES = new Set(["emit", "restart", "trigger", "parallel"]);
 
 export function validateParallelGroup(
   step: WorkflowParallelGroupInput,
   definitionPath: string,
   index: number,
+  projectDir: string,
 ): WorkflowParallelGroup {
   if (!Array.isArray(step.steps) || step.steps.length === 0) {
     throw new WorkflowDefinitionError(
@@ -28,20 +33,36 @@ export function validateParallelGroup(
     if (!childStep || typeof childStep !== "object") {
       throw new WorkflowDefinitionError(`${label} must be an object`, definitionPath);
     }
-    if ((childStep as { type?: unknown }).type !== "code") {
+    const type = (childStep as { type?: unknown }).type;
+    if (UNSUPPORTED_PARALLEL_TYPES.has(type as string)) {
       throw new WorkflowDefinitionError(
-        `${label}.type must be "code" (only code steps are supported in parallel groups)`,
+        `${label}.type "${String(type)}" is not supported in parallel groups (allowed: "code", "agent")`,
         definitionPath,
       );
     }
-    const codeStep = childStep as WorkflowCodeStepInput;
+    if (type === "agent") {
+      return validateAgentStep(
+        childStep as Parameters<typeof validateAgentStep>[0],
+        definitionPath,
+        index,
+        projectDir,
+        childIndex,
+      ) as WorkflowAgentStep;
+    }
+    if (type !== "code") {
+      throw new WorkflowDefinitionError(
+        `${label}.type must be "code" or "agent"`,
+        definitionPath,
+      );
+    }
+    const codeStep = childStep as { id?: unknown; run?: unknown; when?: unknown; continueOnFailure?: unknown; exposeOutputToAgent?: unknown };
     if (typeof codeStep.run !== "function") {
       throw new WorkflowDefinitionError(`${label}.run must be a function`, definitionPath);
     }
     return {
-      id: expectName(codeStep.id, `${label}.id`, definitionPath),
+      id: expectName(codeStep.id as string, `${label}.id`, definitionPath),
       type: "code" as const,
-      run: codeStep.run,
+      run: codeStep.run as WorkflowCodeStep["run"],
       when: expectOptionalFunction(
         codeStep.when,
         `${label}.when`,
@@ -57,8 +78,15 @@ export function validateParallelGroup(
         `${label}.exposeOutputToAgent`,
         definitionPath,
       ),
-    };
+    } satisfies WorkflowCodeStep;
   });
+
+  const maxParallelAgents = expectOptionalInteger(
+    step.maxParallelAgents,
+    `steps[${index}].maxParallelAgents`,
+    definitionPath,
+    1,
+  );
 
   return {
     id: expectName(step.id, `steps[${index}].id`, definitionPath),
@@ -74,5 +102,6 @@ export function validateParallelGroup(
       `steps[${index}].continueOnFailure`,
       definitionPath,
     ),
+    ...(maxParallelAgents !== undefined ? { maxParallelAgents } : {}),
   };
 }

@@ -124,7 +124,11 @@ export function validateAgentStep(
   definitionPath: string,
   index: number,
   projectDir: string,
+  childIndex?: number,
 ): WorkflowAgentStep {
+  const stepLabel = childIndex !== undefined
+    ? `steps[${index}].steps[${childIndex}]`
+    : `steps[${index}]`;
   // Resolve agent definition when agentName is provided.
   let agentName: string | undefined;
   let agentPromptPath: string | undefined;
@@ -133,11 +137,11 @@ export function validateAgentStep(
   let agentSettingSources: string[] | undefined;
 
   if (step.agentName !== undefined) {
-    agentName = expectNonEmptyString(step.agentName, `steps[${index}].agentName`, definitionPath);
+    agentName = expectNonEmptyString(step.agentName, `${stepLabel}.agentName`, definitionPath);
     const agentDef = getAgent(agentName);
     if (!agentDef) {
       throw new WorkflowDefinitionError(
-        `steps[${index}].agentName: unknown agent "${agentName}"`,
+        `${stepLabel}.agentName: unknown agent "${agentName}"`,
         definitionPath,
       );
     }
@@ -151,20 +155,20 @@ export function validateAgentStep(
   const rawPromptPath = step.promptPath ?? agentPromptPath;
   if (!rawPromptPath) {
     throw new WorkflowDefinitionError(
-      `steps[${index}] must specify agentName or promptPath`,
+      `${stepLabel} must specify agentName or promptPath`,
       definitionPath,
     );
   }
-  const promptPath = expectRelativePath(rawPromptPath, `steps[${index}].promptPath`, definitionPath);
+  const promptPath = expectRelativePath(rawPromptPath, `${stepLabel}.promptPath`, definitionPath);
   if (!promptPath.endsWith(".md")) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].promptPath must point to a markdown file`,
+      `${stepLabel}.promptPath must point to a markdown file`,
       definitionPath,
     );
   }
   if (!existsSync(resolve(projectDir, promptPath))) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].promptPath does not exist: ${promptPath}`,
+      `${stepLabel}.promptPath does not exist: ${promptPath}`,
       definitionPath,
     );
   }
@@ -173,14 +177,14 @@ export function validateAgentStep(
   const permissionMode =
     expectOptionalString(
       step.permissionMode,
-      `steps[${index}].permissionMode`,
+      `${stepLabel}.permissionMode`,
       definitionPath,
     ) ??
     agentPermissionMode ??
     "bypassPermissions";
   if (!VALID_PERMISSION_MODES.has(permissionMode)) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].permissionMode must be one of ${Array.from(VALID_PERMISSION_MODES).join(", ")}`,
+      `${stepLabel}.permissionMode must be one of ${Array.from(VALID_PERMISSION_MODES).join(", ")}`,
       definitionPath,
     );
   }
@@ -189,7 +193,7 @@ export function validateAgentStep(
   const settingSources =
     expectOptionalStringArray(
       step.settingSources,
-      `steps[${index}].settingSources`,
+      `${stepLabel}.settingSources`,
       definitionPath,
     ) ??
     agentSettingSources ??
@@ -197,7 +201,7 @@ export function validateAgentStep(
   for (const source of settingSources) {
     if (!VALID_SETTING_SOURCES.has(source)) {
       throw new WorkflowDefinitionError(
-        `steps[${index}].settingSources entries must be one of ${Array.from(VALID_SETTING_SOURCES).join(", ")}`,
+        `${stepLabel}.settingSources entries must be one of ${Array.from(VALID_SETTING_SOURCES).join(", ")}`,
         definitionPath,
       );
     }
@@ -205,73 +209,73 @@ export function validateAgentStep(
 
   // model: step-level overrides agent def.
   const model =
-    expectOptionalString(step.model, `steps[${index}].model`, definitionPath) ?? agentModel;
+    expectOptionalString(step.model, `${stepLabel}.model`, definitionPath) ?? agentModel;
   if (model !== undefined && !VALID_MODEL_IDS.has(model)) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].model: unknown model "${model}"`,
+      `${stepLabel}.model: unknown model "${model}"`,
       definitionPath,
     );
   }
 
   return {
-    id: expectName(step.id, `steps[${index}].id`, definitionPath),
+    id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
     agentName,
     promptPath,
     model,
     maxTurns: expectOptionalInteger(
       step.maxTurns,
-      `steps[${index}].maxTurns`,
+      `${stepLabel}.maxTurns`,
       definitionPath,
       1,
     ),
     maxBudgetUsd: expectOptionalPositiveNumber(
       step.maxBudgetUsd,
-      `steps[${index}].maxBudgetUsd`,
+      `${stepLabel}.maxBudgetUsd`,
       definitionPath,
     ),
     thinkingEnabled: expectOptionalBoolean(
       step.thinkingEnabled,
-      `steps[${index}].thinkingEnabled`,
+      `${stepLabel}.thinkingEnabled`,
       definitionPath,
     ),
     thinkingBudget: expectOptionalInteger(
       step.thinkingBudget,
-      `steps[${index}].thinkingBudget`,
+      `${stepLabel}.thinkingBudget`,
       definitionPath,
       1024,
     ),
     permissionMode: permissionMode as WorkflowAgentStep["permissionMode"],
     allowedTools: expectOptionalStringArray(
       step.allowedTools,
-      `steps[${index}].allowedTools`,
+      `${stepLabel}.allowedTools`,
       definitionPath,
     ),
     disallowedTools: expectOptionalStringArray(
       step.disallowedTools,
-      `steps[${index}].disallowedTools`,
+      `${stepLabel}.disallowedTools`,
       definitionPath,
     ),
     settingSources: settingSources as WorkflowAgentStep["settingSources"],
     when: expectOptionalFunction(
       step.when,
-      `steps[${index}].when`,
+      `${stepLabel}.when`,
       definitionPath,
     ) as WorkflowAgentStep["when"],
     continueOnFailure: expectOptionalBoolean(
       step.continueOnFailure,
-      `steps[${index}].continueOnFailure`,
+      `${stepLabel}.continueOnFailure`,
       definitionPath,
     ),
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
-      `steps[${index}].exposeOutputToAgent`,
+      `${stepLabel}.exposeOutputToAgent`,
       definitionPath,
     ),
     retry: step.retry,
     repairLoop:
       step.repairLoop !== undefined
-        ? validateRepairLoop(step.repairLoop, `steps[${index}].repairLoop`, definitionPath)
+        ? validateRepairLoop(step.repairLoop, `${stepLabel}.repairLoop`, definitionPath)
         : undefined,
   };
 }

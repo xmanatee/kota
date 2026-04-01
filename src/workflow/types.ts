@@ -197,10 +197,16 @@ export type WorkflowTriggerStepInput = WorkflowBaseStep & {
 export type WorkflowParallelGroupInput = {
   id: string;
   type: "parallel";
-  /** Code steps to run concurrently. Agent steps are not supported in parallel groups. */
-  steps: WorkflowCodeStepInput[];
+  /** Code and agent steps to run concurrently. Emit, restart, trigger, and nested parallel steps are not supported. */
+  steps: (WorkflowCodeStepInput | WorkflowAgentStepInput)[];
   when?: WorkflowPredicate;
   continueOnFailure?: boolean;
+  /**
+   * Maximum number of agent steps that may execute simultaneously within this group.
+   * Defaults to the number of agent steps in the group (no cap).
+   * Useful when the group has many agent steps and you want to avoid overwhelming the API.
+   */
+  maxParallelAgents?: number;
 };
 
 export type WorkflowStepInput =
@@ -293,10 +299,12 @@ export type WorkflowTriggerStep = WorkflowBaseStep & {
 export type WorkflowParallelGroup = {
   id: string;
   type: "parallel";
-  /** Code steps to run concurrently. Agent steps are not supported in parallel groups. */
-  steps: WorkflowCodeStep[];
+  /** Code and agent steps to run concurrently. */
+  steps: (WorkflowCodeStep | WorkflowAgentStep)[];
   when?: WorkflowPredicate;
   continueOnFailure?: boolean;
+  /** Maximum number of agent steps allowed to run simultaneously. Defaults to group size. */
+  maxParallelAgents?: number;
 };
 
 export type WorkflowStep =

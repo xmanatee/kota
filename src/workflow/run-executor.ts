@@ -15,7 +15,7 @@ import {
   AgentStepRuntimeError,
   shouldRunStep,
 } from "./step-executor.js";
-import { executeParallelStepGroup } from "./step-executor-parallel.js";
+import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
 import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 
 export type RunExecutorDeps = {
@@ -120,8 +120,15 @@ export function executeWorkflowRun(
         deps.log(`Starting step "${step.id}" (${step.type}) in workflow "${definition.name}"`);
 
         if (step.type === "parallel") {
+          const parallelAgentDeps: ParallelAgentDeps = {
+            definition,
+            run,
+            trigger,
+            runAbortController: abortController,
+            agentConfig,
+          };
           const { groupResult, innerResults, hadNewWarnings, groupFailed } =
-            await executeParallelStepGroup(step, context, stepStartedAt);
+            await executeParallelStepGroup(step, context, stepStartedAt, parallelAgentDeps);
           run.recordStep(groupResult);
           stepOutputsById[step.id] = groupResult.output;
           stepResultsById[step.id] = groupResult;
