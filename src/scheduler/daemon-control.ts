@@ -8,6 +8,7 @@ import { jsonResponse } from "./daemon-control-utils.js";
 import { handleWebhookRequest } from "./daemon-control-webhook.js";
 import {
   handleAbortWorkflow,
+  handleAbortWorkflowRun,
   handleCancelWorkflowRun,
   handleGetWorkflowDefinitions,
   handleGetWorkflowRun,
@@ -62,6 +63,7 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "GET /workflow/runs": "read",
   "GET /workflow/runs/:id": "read",
   "DELETE /workflow/runs/:id": "control",
+  "POST /workflow/runs/:id/abort": "control",
   "GET /tasks": "read",
   "GET /sessions": "read",
   "POST /sessions/register": "control",
@@ -229,6 +231,7 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/workflow/runs") { handleListWorkflowRuns(h, res, url); return; }
     if (method === "GET" && params.id && path.startsWith("/workflow/runs/")) { handleGetWorkflowRun(h, res, params); return; }
     if (method === "DELETE" && params.id && path.startsWith("/workflow/runs/")) { handleCancelWorkflowRun(h, res, params); return; }
+    if (method === "POST" && params.id && path.endsWith("/abort") && path.startsWith("/workflow/runs/")) { handleAbortWorkflowRun(h, res, params); return; }
     if (method === "POST" && path === "/workflow/pause") { handlePauseWorkflow(h, res); return; }
     if (method === "POST" && path === "/workflow/resume") { handleResumeWorkflow(h, res); return; }
     if (method === "POST" && path === "/workflow/abort") { handleAbortWorkflow(h, res); return; }

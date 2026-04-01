@@ -51,6 +51,23 @@ export function handleAbortWorkflow(handle: DaemonControlHandle, res: ServerResp
   jsonResponse(res, 200, { ok: true, aborted });
 }
 
+export function handleAbortWorkflowRun(
+  handle: DaemonControlHandle,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  const result = handle.abortActiveRun(params.id);
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: "Run not found" });
+    return;
+  }
+  if (result.queued) {
+    jsonResponse(res, 409, { error: "Run is queued, not active; use DELETE /workflow/runs/:id to cancel it" });
+    return;
+  }
+  jsonResponse(res, 200, { ok: true });
+}
+
 export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerResponse): void {
   const { count } = handle.reloadWorkflowDefinitions();
   jsonResponse(res, 200, { ok: true, count });

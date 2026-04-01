@@ -149,6 +149,7 @@ export type DaemonControlHandle = {
   pauseWorkflowDispatch(): { already: boolean };
   resumeWorkflowDispatch(): { already: boolean };
   abortActiveRuns(): { aborted: number };
+  abortActiveRun(runId: string): { ok: boolean; notFound?: boolean; queued?: boolean };
   reloadWorkflowDefinitions(): { count: number };
   getWorkflowDefinitions(): WorkflowDefinitionSummary[];
   enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };

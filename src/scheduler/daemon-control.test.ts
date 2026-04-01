@@ -31,6 +31,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),
+    abortActiveRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 3 })),
     getWorkflowDefinitions: vi.fn(() => []),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" })),
@@ -988,6 +989,45 @@ describe("DaemonControlServer", () => {
 
     it("requires auth", async () => {
       const res = await fetchNoToken(port, "/workflow/runs/some-run-id", { method: "DELETE" });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /workflow/runs/:id/abort", () => {
+    it("aborts an active run and returns 200", async () => {
+      handle = makeHandle({ abortActiveRun: vi.fn(() => ({ ok: true })) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs/2026-01-01T00-00-00-000Z-builder-abc123/abort", { method: "POST" });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ ok: true });
+      expect(handle.abortActiveRun).toHaveBeenCalledWith("2026-01-01T00-00-00-000Z-builder-abc123");
+    });
+
+    it("returns 404 for unknown run ID", async () => {
+      const res = await fetchWithToken(port, "/workflow/runs/unknown-run-id/abort", { method: "POST" });
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("returns 409 when run is queued not active", async () => {
+      handle = makeHandle({ abortActiveRun: vi.fn(() => ({ ok: false, queued: true })) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs/queued-run-id/abort", { method: "POST" });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+    });
+
+    it("requires auth", async () => {
+      const res = await fetchNoToken(port, "/workflow/runs/some-run-id/abort", { method: "POST" });
       expect(res.status).toBe(401);
     });
   });

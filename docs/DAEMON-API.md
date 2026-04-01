@@ -39,6 +39,7 @@ Routes are tagged with a capability scope:
   `GET /sessions`, `GET /metrics`
 - **`control`** — mutate workflow dispatch and data:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
+  `POST /workflow/runs/:id/abort`,
   `POST /workflow/reload`, `POST /workflow/trigger`,
   `DELETE /workflow/runs/:id`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
@@ -321,10 +322,33 @@ If already running (not paused):
 { "ok": true, "paused": false, "already": true }
 ```
 
+### POST /workflow/runs/:id/abort
+
+Aborts a single active workflow run by ID, leaving all other active runs
+untouched. Fires the run's per-run `AbortController`; the run terminates on
+its next step boundary with the same clean-abort semantics as the global abort.
+
+**Path parameter:** `:id` — the run ID of the active run to abort.
+
+**Response:**
+
+```json
+{ "ok": true }
+```
+
+**Error responses:**
+
+- `404` — no run with that ID is currently active.
+- `409` — the run exists but is queued, not active; use `DELETE /workflow/runs/:id` to cancel it.
+
+**Scope:** `control`
+
+---
+
 ### DELETE /workflow/runs/:id
 
 Cancels a queued (pending) workflow run before it starts. Has no effect on
-active runs; use `POST /workflow/abort` for those.
+active runs; use `POST /workflow/runs/:id/abort` for those.
 
 **Path parameter:** `:id` — the run ID shown in `GET /workflow/status`
 `pendingRuns[].runId` and in `kota workflow status`.
@@ -338,7 +362,7 @@ active runs; use `POST /workflow/abort` for those.
 **Error responses:**
 
 - `404` — no queued run with that ID exists.
-- `409` — the run is currently active; use `POST /workflow/abort` instead.
+- `409` — the run is currently active; use `POST /workflow/runs/:id/abort` to abort it.
 
 **Scope:** `control`
 
@@ -558,6 +582,7 @@ API when the daemon is running:
 | POST /api/workflow/pause            | POST /workflow/pause          |
 | POST /api/workflow/resume           | POST /workflow/resume         |
 | POST /api/workflow/abort            | POST /workflow/abort          |
+| POST /api/workflow/runs/:id/abort   | POST /workflow/runs/:id/abort |
 | POST /api/workflow/reload           | POST /workflow/reload         |
 | POST /api/workflow/trigger          | POST /workflow/trigger        |
 | GET /api/history                    | GET /history                  |

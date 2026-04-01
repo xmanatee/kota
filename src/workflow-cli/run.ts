@@ -1,11 +1,41 @@
 import type { Command } from "commander";
+import { DaemonControlClient } from "../server/daemon-client.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../workflow/validation.js";
 import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 
 export function registerRunCommand(wfCmd: Command): void {
-  wfCmd
-    .command("run <name>")
+  const runCmd = wfCmd
+    .command("run")
+    .description("Workflow run operations: validate a plan or abort an active run");
+
+  runCmd
+    .command("abort <run-id>")
+    .description("Abort a specific active workflow run by ID")
+    .action(async (runId: string) => {
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("No running daemon found. Cannot abort a run without a daemon.");
+        process.exit(1);
+      }
+      const result = await client.abortRun(runId);
+      if (!result) {
+        console.error("Failed to reach daemon.");
+        process.exit(1);
+      }
+      if (result.notFound) {
+        console.error(`Run "${runId}" not found or not active.`);
+        process.exit(1);
+      }
+      if (result.queued) {
+        console.error(`Run "${runId}" is queued, not active. Use \`kota workflow cancel ${runId}\` to cancel it.`);
+        process.exit(1);
+      }
+      console.log(`Aborted run ${runId}.`);
+    });
+
+  runCmd
+    .command("<name>", { isDefault: true })
     .description("Validate and preview a workflow execution plan")
     .option("--dry-run", "Validate the workflow and print the step execution plan without executing")
     .action(async (name: string, opts: { dryRun?: boolean }) => {

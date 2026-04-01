@@ -141,6 +141,21 @@ export class DaemonControlClient {
     }
   }
 
+  async abortRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; queued?: boolean } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(runId)}/abort`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
+      if (res.status === 404) return { ok: false, notFound: true };
+      if (res.status === 409) return { ok: false, queued: true };
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean };
+    } catch {
+      return null;
+    }
+  }
+
   async cancelRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(runId)}`, {

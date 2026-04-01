@@ -215,6 +215,21 @@ export class WorkflowRuntime {
     return { aborted: count };
   }
 
+  abortActiveRun(runId: string): { ok: boolean; notFound?: boolean; queued?: boolean } {
+    const state = this.store.readState();
+    const activeEntry = (state.activeRuns ?? []).find((r) => r.runId === runId);
+    if (activeEntry) {
+      const inMemory = this.activeRuns.get(activeEntry.workflow);
+      if (inMemory) {
+        inMemory.abortController.abort();
+        return { ok: true };
+      }
+    }
+    const isQueued = this.wfQueue.getRuns().some((r) => r.runId === runId);
+    if (isQueued) return { ok: false, queued: true };
+    return { ok: false, notFound: true };
+  }
+
   reloadWorkflowDefinitions(): { count: number } {
     const defs = this.loadDefinitions();
     this.scheduleTriggers.reconcile(defs);

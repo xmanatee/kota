@@ -142,6 +142,7 @@ export class Daemon {
         return { already };
       },
       abortActiveRuns: () => this.workflows.abortActiveRuns(),
+      abortActiveRun: (runId: string) => this.workflows.abortActiveRun(runId),
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
       getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
         this.workflows.getDefinitions().map((def) => ({

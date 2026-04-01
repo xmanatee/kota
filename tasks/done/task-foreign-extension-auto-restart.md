@@ -1,7 +1,7 @@
 ---
 id: task-foreign-extension-auto-restart
 title: Auto-restart crashed foreign extensions with backoff
-status: ready
+status: done
 priority: p2
 area: reliability
 summary: Foreign stdio extensions that crash cause tool calls to fail permanently until the daemon is restarted. Automatic restart with exponential backoff would recover from transient crashes without operator intervention.

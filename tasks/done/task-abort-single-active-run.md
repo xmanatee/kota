@@ -1,7 +1,7 @@
 ---
 id: task-abort-single-active-run
 title: Add per-run abort to stop a single active workflow run by ID
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The daemon can only abort all active runs at once. Operators have no way to stop a single misbehaving run without killing every other run in progress.

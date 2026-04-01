@@ -35,6 +35,7 @@ import {
 import { handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowAbort,
+  handleWorkflowAbortRun,
   handleWorkflowCancel,
   handleWorkflowDefinitions,
   handleWorkflowPause,
@@ -392,6 +393,14 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "DELETE" && workflowRunMatch) {
       handleWorkflowCancel(res, workflowRunMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    const workflowRunAbortMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/abort$/);
+    if (req.method === "POST" && workflowRunAbortMatch) {
+      handleWorkflowAbortRun(res, workflowRunAbortMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
