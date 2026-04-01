@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-downstream-query
 title: Add downstream causality query to find runs triggered by a given run
-status: backlog
+status: ready
 priority: p3
 area: observability
 summary: The causedBy field tracks which upstream run triggered each run. The reverse direction — "which runs did this run trigger?" — is not queryable. Adding a downstream filter to the run list API and CLI completes the causality chain navigation.
 created_at: 2026-04-01T07:53:00Z
-updated_at: 2026-04-01T07:53:00Z
+updated_at: 2026-04-01T09:21:00Z
 ---
 
 ## Problem
