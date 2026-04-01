@@ -8,7 +8,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 ## Key Modules
 
 - `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, `typedCodeStep` factory, and related config.
-- `run-types.ts` — Runtime execution types: run status, step status, active run, queued run, execution context, predicates, repair config, step/run results.
+- `run-types.ts` — Runtime execution types: run status (`WorkflowRunStatus`, including `completed-with-warnings`), step status, active run, queued run, execution context, predicates, repair config, step/run results, and `WorkflowRunWarning` (structured warning stored in `WorkflowRunMetadata.warnings`).
 - `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. ~236 lines.
 - `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
