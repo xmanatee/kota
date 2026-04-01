@@ -5,6 +5,7 @@ import {
   executeWithAgentSDK,
 } from "./agent-sdk/index.js";
 import { registerApprovalCommands } from "./approval-cli.js";
+import { registerAuditCommands } from "./audit-cli.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -175,6 +176,7 @@ program
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
 registerApprovalCommands(program);
+registerAuditCommands(program);
 registerTaskCommands(program);
 registerMemoryCommands(program);
 registerKnowledgeCommands(program);

@@ -27,6 +27,7 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
 - `tool-adapters.ts` — adapter functions (`fromSimple`, `fromOpenAI`, `fromVercelAI`, `adaptExport`) that convert external tool formats to KOTA's `ToolDef`/`KotaExtension`; re-exports types from `tool-adapter-types.ts`.
 - `init-cli.ts` — `registerInitCommand`, `runInit`: `kota init` command that scaffolds a new KOTA project with config, task directories, docs, and `.kota/` runtime dir.
 - `approval-cli.ts` — `registerApprovalCommands`: CLI subcommands for the approval queue (`kota approval`).
+- `audit-cli.ts` — `registerAuditCommands`: CLI subcommands for the guardrail audit trail (`kota audit list`, with `--risk`, `--policy`, `-n` filters).
 - `task-cli.ts` — `registerTaskCommands`: CLI subcommands for the task store (`kota task`).
 - `memory-cli.ts` — `registerMemoryCommands` and `registerKnowledgeCommands`: CLI subcommands for the memory and knowledge stores (`kota memory`, `kota knowledge`).
 - `extension-cli.ts` — `registerExtensionCommands`: CLI subcommands for inspecting loaded extensions (`kota extension list`, `kota extension inspect <name>`, `kota extension new <name>`).
