@@ -124,6 +124,7 @@ ${CLIENT_KEYBOARD_JS}
   refreshHistory();
   refreshWorkflows();
   refreshTasks();
+  initNewTaskForm();
   refreshCost();
   refreshApprovals();
   refreshActiveSessions();

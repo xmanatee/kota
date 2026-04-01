@@ -36,6 +36,15 @@ ${WEB_UI_CSS}
     <div class="sidebar-section">
       <h3>Tasks</h3>
       <div id="task-queue-list"></div>
+      <form id="new-task-form" class="new-task-form">
+        <div class="new-task-row">
+          <input id="new-task-title" class="new-task-input" type="text" placeholder="New task title…" autocomplete="off" />
+          <button type="submit" class="new-task-submit">+ Add</button>
+        </div>
+        <div class="new-task-row">
+          <input id="new-task-summary" class="new-task-input" type="text" placeholder="Summary (optional)" autocomplete="off" />
+        </div>
+      </form>
     </div>
     <div class="sidebar-section">
       <h3>Workflows</h3>

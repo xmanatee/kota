@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import type { ServerResponse } from "node:http";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { DaemonControlClient } from "./daemon-client.js";
-import { jsonResponse } from "./session-pool.js";
+import { jsonResponse, readBody } from "./session-pool.js";
 
 type TaskDetail = {
   id: string;
@@ -31,6 +32,9 @@ type TasksResponse = {
 
 const COUNTED_STATES = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
 const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
+const OPEN_STATES = ["inbox", "backlog", "ready", "blocked"] as const;
+const ALLOWED_TARGET_STATES = ["inbox", "backlog", "ready", "blocked", "dropped"] as const;
+type AllowedTargetState = (typeof ALLOWED_TARGET_STATES)[number];
 
 function listTaskFiles(tasksDir: string, state: string): string[] {
   const dir = join(tasksDir, state);
@@ -82,6 +86,153 @@ function readStateTasks(tasksDir: string, state: string): TaskDetail[] {
     }
   }
   return result;
+}
+
+function findTaskInOpenStates(
+  tasksDir: string,
+  id: string,
+): { state: string; filename: string; content: string } | null {
+  for (const state of OPEN_STATES) {
+    for (const file of listTaskFiles(tasksDir, state)) {
+      try {
+        const content = readFileSync(join(tasksDir, state, file), "utf-8");
+        const fm = parseFrontmatter(content);
+        if (fm.id === id) return { state, filename: file, content };
+      } catch {
+        // skip
+      }
+    }
+  }
+  return null;
+}
+
+function updateStatusFrontmatter(content: string, newStatus: string): string {
+  return content.replace(/^(status:\s*)\S+/m, `$1${newStatus}`);
+}
+
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+export async function handleTaskStateChange(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+
+  const newState = typeof body.state === "string" ? body.state : null;
+  if (!newState || !(ALLOWED_TARGET_STATES as readonly string[]).includes(newState)) {
+    jsonResponse(res, 400, { error: `state must be one of: ${ALLOWED_TARGET_STATES.join(", ")}` });
+    return;
+  }
+
+  const tasksDir = join(projectDir, "tasks");
+  const found = findTaskInOpenStates(tasksDir, id);
+  if (!found) {
+    jsonResponse(res, 404, { error: "Task not found" });
+    return;
+  }
+
+  if (found.state === newState) {
+    jsonResponse(res, 200, { id, state: newState });
+    return;
+  }
+
+  const srcPath = join(tasksDir, found.state, found.filename);
+  const destDir = join(tasksDir, newState);
+  const destPath = join(destDir, found.filename);
+  const updated = updateStatusFrontmatter(found.content, newState as AllowedTargetState);
+
+  try {
+    mkdirSync(destDir, { recursive: true });
+    try {
+      execFileSync("git", ["mv", srcPath, destPath], { cwd: projectDir });
+    } catch {
+      renameSync(srcPath, destPath);
+      try {
+        execFileSync("git", ["add", srcPath, destPath], { cwd: projectDir });
+      } catch {
+        // git staging failure is non-fatal
+      }
+    }
+    writeFileSync(destPath, updated, "utf-8");
+    try {
+      execFileSync("git", ["add", destPath], { cwd: projectDir });
+    } catch {
+      // git staging failure is non-fatal
+    }
+    jsonResponse(res, 200, { id, state: newState });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export async function handleTaskCreate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) {
+    jsonResponse(res, 400, { error: "title is required" });
+    return;
+  }
+  const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+
+  const slug = slugify(title);
+  const suffix = Math.random().toString(36).slice(2, 7);
+  const id = `task-${slug}-${suffix}`;
+  const filename = `${id}.md`;
+  const now = new Date().toISOString();
+
+  const fm = [
+    "---",
+    `id: ${id}`,
+    `title: ${title}`,
+    "status: inbox",
+    "priority: p3",
+    "area: ",
+    `summary: ${summary}`,
+    `created_at: ${now}`,
+    `updated_at: ${now}`,
+    "---",
+    "",
+  ].join("\n");
+
+  const inboxDir = join(projectDir, "tasks", "inbox");
+  const filePath = join(inboxDir, filename);
+  try {
+    mkdirSync(inboxDir, { recursive: true });
+    writeFileSync(filePath, fm, "utf-8");
+    try {
+      execFileSync("git", ["add", filePath], { cwd: projectDir });
+    } catch {
+      // git staging failure is non-fatal
+    }
+    jsonResponse(res, 201, { id, state: "inbox" });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
 }
 
 export async function handleTaskStatus(

@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-task-write-operations
 title: Add task queue write operations to the web UI
-status: ready
+status: done
 priority: p2
 area: operator-ux
 summary: The web UI task panel is read-only. Operators who want to promote a backlog task to ready, drop a stale task, or capture a new inbox item must use the CLI. Adding write operations to the web UI closes this gap.

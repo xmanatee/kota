@@ -32,7 +32,7 @@ import {
   handleDeleteSession,
   handleListSessions,
 } from "./session-routes.js";
-import { handleTaskStatus } from "./task-routes.js";
+import { handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowAbort,
   handleWorkflowCancel,
@@ -215,6 +215,21 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/tasks") {
       handleTaskStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/tasks") {
+      handleTaskCreate(req, res).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    const taskStateMatch = path.match(/^\/api\/tasks\/([^/]+)\/state$/);
+    if (req.method === "PATCH" && taskStateMatch) {
+      handleTaskStateChange(req, res, taskStateMatch[1]).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
