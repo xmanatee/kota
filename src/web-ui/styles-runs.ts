@@ -439,4 +439,33 @@ mark.log-match {
 .run-diff-table tr.diff-improved td { background: rgba(76, 175, 80, 0.07); }
 .diff-worse { color: #f44336; }
 .diff-better { color: #4caf50; }
+
+/* Thinking block disclosure */
+.step-thinking {
+  margin: 4px 0;
+}
+.step-thinking-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: inherit;
+}
+.step-thinking-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.step-thinking-body {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
 `;

@@ -4,6 +4,7 @@ import { extname, join } from "node:path";
 import { readOptionalJsonFile } from "../json-file.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../workflow/run-types.js";
+import { readStepEvents } from "../workflow-logs.js";
 import type { BuilderRunSummary } from "../workflows/builder/run-summary.js";
 import { jsonResponse, SseTransport, setCors } from "./session-pool.js";
 
@@ -167,12 +168,14 @@ export function handleWorkflowRunStream(
       try {
         const event = JSON.parse(line) as Record<string, unknown>;
         if (event.type === "assistant") {
-          const msg = event.message as { content?: Array<{ type: string; text?: string; name?: string }> } | undefined;
+          const msg = event.message as { content?: Array<{ type: string; text?: string; name?: string; thinking?: string }> } | undefined;
           for (const block of msg?.content ?? []) {
             if (block.type === "text" && block.text) {
               sse.send("step_output", { stepId, text: block.text });
             } else if (block.type === "tool_use" && block.name) {
               sse.send("step_tool", { stepId, tool: block.name });
+            } else if (block.type === "thinking" && block.thinking) {
+              sse.send("step_thinking", { stepId, thinking: block.thinking });
             }
           }
         }
@@ -289,4 +292,45 @@ export function handleWorkflowRunArtifacts(
 
   const artifacts: RunArtifacts = { runSummary, commitMessage, textFiles };
   jsonResponse(res, 200, artifacts);
+}
+
+export function handleWorkflowRunThinking(
+  res: ServerResponse,
+  runId: string,
+  store = new WorkflowRunStore(),
+): void {
+  if (!runId || runId.includes("/") || runId.includes("..")) {
+    jsonResponse(res, 400, { error: "Invalid run ID" });
+    return;
+  }
+  const runDir = join(store.runsDir, runId);
+  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(join(runDir, "metadata.json"));
+  if (!metadata) {
+    jsonResponse(res, 404, { error: "Run not found" });
+    return;
+  }
+
+  const thinking: Record<string, string[]> = {};
+  for (const step of metadata.steps) {
+    if (step.type !== "agent") continue;
+    const eventsPath = join(runDir, "steps", `${step.id}.events.jsonl`);
+    const events = readStepEvents(eventsPath);
+    const blocks: string[] = [];
+    for (const event of events) {
+      if (event.type !== "assistant") continue;
+      const content = (event as { message?: { content?: Array<{ type: string; thinking?: string }> }; content?: Array<{ type: string; thinking?: string }> }).message?.content
+        ?? (event as { content?: Array<{ type: string; thinking?: string }> }).content
+        ?? [];
+      for (const block of content) {
+        if (block.type === "thinking" && block.thinking) {
+          blocks.push(block.thinking);
+        }
+      }
+    }
+    if (blocks.length > 0) {
+      thinking[step.id] = blocks;
+    }
+  }
+
+  jsonResponse(res, 200, { thinking });
 }

@@ -49,6 +49,7 @@ import {
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
+  handleWorkflowRunThinking,
 } from "./workflow-run-routes.js";
 
 export type ServerContext = {
@@ -335,6 +336,12 @@ export function buildRequestHandler(ctx: ServerContext) {
     const workflowRunArtifactsMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/artifacts$/);
     if (req.method === "GET" && workflowRunArtifactsMatch) {
       handleWorkflowRunArtifacts(res, workflowRunArtifactsMatch[1]);
+      return;
+    }
+
+    const workflowRunThinkingMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/thinking$/);
+    if (req.method === "GET" && workflowRunThinkingMatch) {
+      handleWorkflowRunThinking(res, workflowRunThinkingMatch[1]);
       return;
     }
 

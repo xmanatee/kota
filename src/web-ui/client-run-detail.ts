@@ -38,7 +38,12 @@ export const CLIENT_RUN_DETAIL_JS = `
         var aRes = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/artifacts");
         if (aRes.ok) artifacts = await aRes.json();
       } catch {}
-      renderRunDetail(run, artifacts);
+      var thinkingData = null;
+      try {
+        var tRes = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/thinking");
+        if (tRes.ok) { var td = await tRes.json(); thinkingData = td.thinking || null; }
+      } catch {}
+      renderRunDetail(run, artifacts, thinkingData);
       renderCompareSection(run);
       if (run.status === "running") {
         startRunStream(runId);
@@ -48,7 +53,7 @@ export const CLIENT_RUN_DETAIL_JS = `
     }
   }
 
-  function renderRunDetail(run, artifacts) {
+  function renderRunDetail(run, artifacts, thinkingData) {
     var badgeClass = run.status === "success" ? "success" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "interrupted";
     var icon = run.status === "success" ? "\\u2713" : run.status === "failed" ? "\\u2717" : run.status === "running" ? "\\u25b6" : "\\u26a1";
     var duration = run.durationMs ? fmtDuration(run.durationMs) : (run.status === "running" ? fmtDuration(Date.now() - new Date(run.startedAt).getTime()) : "\\u2014");
@@ -131,6 +136,16 @@ export const CLIENT_RUN_DETAIL_JS = `
         html += '<span class="step-row-name">' + escapeHtml(step.id) + '</span>';
         html += '<span class="step-row-meta" id="step-meta-' + escapeHtml(step.id) + '">' + escapeHtml(sm) + '</span>';
         html += '</div>';
+        var stepThinking = thinkingData && thinkingData[step.id] ? thinkingData[step.id] : null;
+        if (stepThinking && stepThinking.length > 0) {
+          var thinkingId = "step-thinking-" + escapeHtml(step.id);
+          var thinkingBodyId = "step-thinking-body-" + escapeHtml(step.id);
+          var thinkingText = stepThinking.join("\\n\\n---\\n\\n");
+          html += '<div class="step-thinking" id="' + thinkingId + '">';
+          html += '<button class="step-thinking-toggle" onclick="toggleThinking(' + JSON.stringify(escapeHtml(step.id)) + ')">\\u25b6 Thinking (' + stepThinking.length + ')</button>';
+          html += '<pre class="step-thinking-body" id="' + thinkingBodyId + '" style="display:none">' + escapeHtml(thinkingText) + '</pre>';
+          html += '</div>';
+        }
         if (rawOutput) {
           html += '<div class="step-row-output" id="step-output-' + escapeHtml(step.id) + '" data-full="' + escapeHtml(rawOutput) + '" data-truncated="' + (truncated ? '1' : '0') + '">' + escapeHtml(outputText) + (truncated ? '\\u2026' : '') + '</div>';
           if (truncated) {
@@ -203,6 +218,15 @@ export const CLIENT_RUN_DETAIL_JS = `
         }
       });
     });
+  }
+
+  function toggleThinking(stepId) {
+    var body = document.getElementById("step-thinking-body-" + stepId);
+    var btn = body && body.previousElementSibling;
+    if (!body) return;
+    var open = body.style.display !== "none";
+    body.style.display = open ? "none" : "block";
+    if (btn) btn.textContent = (open ? "\\u25b6" : "\\u25bc") + btn.textContent.slice(1);
   }
 
   function startRunStream(runId) {
@@ -289,6 +313,36 @@ export const CLIENT_RUN_DETAIL_JS = `
       var toolEl = document.getElementById("step-output-" + payload.stepId);
       if (toolEl && payload.tool) {
         toolEl.textContent = (toolEl.textContent || "") + (toolEl.textContent ? "\\n" : "") + "[" + payload.tool + "]";
+      }
+    } else if (eventName === "step_thinking") {
+      if (!payload.thinking) { /* nothing to render */ }
+      else {
+        var thinkingBodyEl = document.getElementById("step-thinking-body-" + payload.stepId);
+        if (!thinkingBodyEl) {
+          var stepRow = document.getElementById("step-row-" + payload.stepId);
+          if (stepRow) {
+            var thinkingDiv = document.createElement("div");
+            thinkingDiv.className = "step-thinking";
+            thinkingDiv.id = "step-thinking-" + payload.stepId;
+            thinkingDiv.innerHTML =
+              '<button class="step-thinking-toggle" onclick="toggleThinking(' + JSON.stringify(payload.stepId) + ')">' +
+              '\\u25b6 Thinking (1)</button>' +
+              '<pre class="step-thinking-body" id="step-thinking-body-' + escapeHtml(payload.stepId) + '" style="display:none">' +
+              escapeHtml(payload.thinking) + '</pre>';
+            var outputEl2 = document.getElementById("step-output-" + payload.stepId);
+            stepRow.insertBefore(thinkingDiv, outputEl2 || null);
+          }
+        } else {
+          var prev = thinkingBodyEl.textContent || "";
+          thinkingBodyEl.textContent = prev + "\\n\\n---\\n\\n" + payload.thinking;
+          var toggleBtn = document.querySelector("#step-thinking-" + payload.stepId + " .step-thinking-toggle");
+          if (toggleBtn) {
+            var countMatch = toggleBtn.textContent.match(/\\((\\d+)\\)/);
+            if (countMatch) {
+              toggleBtn.textContent = toggleBtn.textContent.replace(/\\(\\d+\\)/, "(" + (parseInt(countMatch[1], 10) + 1) + ")");
+            }
+          }
+        }
       }
     } else if (eventName === "step_completed") {
       var spBadge2 = document.getElementById("sp-badge-" + payload.stepId);
