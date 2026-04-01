@@ -239,12 +239,13 @@ export class DaemonControlClient {
     }
   }
 
-  async listWorkflowRuns(workflow?: string, limit?: number, tag?: string): Promise<{ runs: WorkflowRunSummary[] } | null> {
+  async listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): Promise<{ runs: WorkflowRunSummary[] } | null> {
     try {
       const params = new URLSearchParams();
       if (workflow) params.set("workflow", workflow);
       if (limit !== undefined) params.set("limit", String(limit));
       if (tag) params.set("tag", tag);
+      if (causedByRunId) params.set("causedByRunId", causedByRunId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs${query}`, { headers: this.authHeaders() });
       if (!res.ok) return null;

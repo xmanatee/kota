@@ -165,7 +165,7 @@ export type DaemonControlHandle = {
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;
   // Workflow runs
-  listWorkflowRuns(workflow?: string, limit?: number, tag?: string): WorkflowRunSummary[];
+  listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[];
   getWorkflowRun(id: string): WorkflowRunDetail | null;
   // Metrics
   getWorkflowMetricCounts(): WorkflowMetricCounts;

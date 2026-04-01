@@ -754,6 +754,55 @@ describe("workflow-routes", () => {
     });
   });
 
+  describe("handleWorkflowRuns causedByRunId filter", () => {
+    it("returns only runs caused by the specified run ID", () => {
+      const upstreamId = "2025-01-01T00-00-00-000Z-explorer-abc";
+      const downstreamId1 = "2025-01-02T00-00-00-000Z-builder-def";
+      const downstreamId2 = "2025-01-03T00-00-00-000Z-improver-ghi";
+      const unrelatedId = "2025-01-04T00-00-00-000Z-builder-jkl";
+
+      writeRunMetadata(runsDir, upstreamId, "explorer", "success");
+      writeRunMetadata(runsDir, downstreamId1, "builder", "success", {
+        causedBy: { runId: upstreamId, workflow: "explorer" },
+      });
+      writeRunMetadata(runsDir, downstreamId2, "improver", "success", {
+        causedBy: { runId: upstreamId, workflow: "explorer" },
+      });
+      writeRunMetadata(runsDir, unrelatedId, "builder", "success", {
+        causedBy: { runId: "some-other-run-id", workflow: "explorer" },
+      });
+
+      const { res, result } = mockResponse();
+      handleWorkflowRuns(
+        res,
+        new URL(`http://localhost/api/workflow/runs?causedByRunId=${upstreamId}`),
+        store,
+      );
+      expect(result.status).toBe(200);
+      const body = result.body as { runs: { id: string }[] };
+      expect(body.runs).toHaveLength(2);
+      const ids = body.runs.map((r) => r.id);
+      expect(ids).toContain(downstreamId1);
+      expect(ids).toContain(downstreamId2);
+      expect(ids).not.toContain(upstreamId);
+      expect(ids).not.toContain(unrelatedId);
+    });
+
+    it("returns empty list when no runs match causedByRunId", () => {
+      writeRunMetadata(runsDir, "2025-05-01T00-00-00-000Z-builder-xyz", "builder", "success");
+
+      const { res, result } = mockResponse();
+      handleWorkflowRuns(
+        res,
+        new URL("http://localhost/api/workflow/runs?causedByRunId=nonexistent-run"),
+        store,
+      );
+      expect(result.status).toBe(200);
+      const body = result.body as { runs: unknown[] };
+      expect(body.runs).toHaveLength(0);
+    });
+  });
+
   describe("handleWorkflowRunDetail", () => {
     it("returns 404 for unknown run ID", () => {
       const { res, result } = mockResponse();

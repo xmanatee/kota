@@ -249,7 +249,7 @@ export class WorkflowRunStore {
     return toDelete;
   }
 
-  listRuns(opts?: { workflow?: string; tag?: string; limit?: number }): WorkflowRunMetadata[] {
+  listRuns(opts?: { workflow?: string; tag?: string; limit?: number; causedByRunId?: string }): WorkflowRunMetadata[] {
     const limit = opts?.limit ?? 20;
     let dirs: string[];
     try {
@@ -259,14 +259,16 @@ export class WorkflowRunStore {
     }
     const runs: WorkflowRunMetadata[] = [];
     for (const dir of dirs) {
-      if (runs.length >= limit) break;
+      // When filtering by causedByRunId, scan all dirs to avoid missing matches
+      if (!opts?.causedByRunId && runs.length >= limit) break;
       const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
       if (!meta) continue;
       if (opts?.workflow && meta.workflow !== opts.workflow) continue;
       if (opts?.tag && !(meta.tags ?? []).includes(opts.tag)) continue;
+      if (opts?.causedByRunId && meta.causedBy?.runId !== opts.causedByRunId) continue;
       runs.push(meta);
     }
-    return runs;
+    return opts?.causedByRunId ? runs.slice(0, limit) : runs;
   }
 
   getRun(id: string): WorkflowRunMetadata | null {

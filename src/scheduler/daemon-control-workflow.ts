@@ -17,9 +17,10 @@ export function handleListWorkflowRuns(
 ): void {
   const workflow = url.searchParams.get("workflow") ?? undefined;
   const tag = url.searchParams.get("tag") ?? undefined;
+  const causedByRunId = url.searchParams.get("causedByRunId") ?? undefined;
   const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
   const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 200);
-  jsonResponse(res, 200, { runs: handle.listWorkflowRuns(workflow, limit, tag) });
+  jsonResponse(res, 200, { runs: handle.listWorkflowRuns(workflow, limit, tag, causedByRunId) });
 }
 
 export function handleGetWorkflowRun(

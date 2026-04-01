@@ -128,6 +128,27 @@ export function registerRunShowCommand(wfCmd: Command): void {
         console.log(`\nError:\n${errorText}`);
       }
 
+      // Show downstream runs triggered by this run
+      let triggeredRuns: { id: string; workflow: string; status: string }[] = [];
+      if (daemonRun) {
+        const downstreamResult = daemonClient ? await daemonClient.listWorkflowRuns(undefined, 50, undefined, resolvedId) : null;
+        if (downstreamResult) {
+          triggeredRuns = downstreamResult.runs.map((r) => ({ id: r.id, workflow: r.workflow, status: r.status }));
+        }
+      } else {
+        triggeredRuns = store.listRuns({ causedByRunId: resolvedId, limit: 50 }).map((r) => ({
+          id: r.id,
+          workflow: r.workflow,
+          status: r.status,
+        }));
+      }
+      if (triggeredRuns.length > 0) {
+        console.log(`\nTriggered runs (${triggeredRuns.length}):`);
+        for (const r of triggeredRuns) {
+          console.log(`  ${statusIcon(r.status)} ${r.id} [${r.workflow}]`);
+        }
+      }
+
       if (metadata.steps.length > 0) {
         console.log(`\nSteps (${metadata.steps.length}):`);
         for (const step of metadata.steps) {

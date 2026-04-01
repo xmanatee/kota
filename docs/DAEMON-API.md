@@ -196,6 +196,7 @@ Returns recent workflow run summaries.
 - `workflow` (optional string) — filter by workflow name
 - `tag` (optional string) — filter to runs that include this tag
 - `limit` (optional integer, default 20, max 200)
+- `causedByRunId` (optional string) — return only runs whose `causedBy.runId` matches this value (direct downstream children of the given run)
 
 **Response:**
 

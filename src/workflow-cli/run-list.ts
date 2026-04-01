@@ -14,6 +14,7 @@ export function registerRunListCommands(wfCmd: Command): void {
     .option("-w, --workflow <name>", "Filter by workflow name")
     .option("-s, --status <status>", "Filter by run status (success, failed, interrupted, completed-with-warnings, running)")
     .option("-t, --tag <tag>", "Filter by tag")
+    .option("--caused-by <run-id>", "Filter by upstream run ID (show runs triggered by this run)")
     .action(async (opts) => {
       const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
       if (opts.status && !validStatuses.includes(opts.status)) {
@@ -21,13 +22,14 @@ export function registerRunListCommands(wfCmd: Command): void {
         process.exit(1);
       }
       const limit = Number.parseInt(opts.limit, 10) || 20;
+      const causedByRunId = opts.causedBy as string | undefined;
 
       type RunRow = { id: string; workflow: string; status: string; durationMs?: number; totalCostUsd?: number; startedAt: string; trigger: { event: string }; retryOf?: string; triggeredByRunId?: string; tags?: string[] };
       let page: RunRow[];
       const store = new WorkflowRunStore();
 
       const daemonClient = DaemonControlClient.fromStateDir();
-      const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, limit * 3) : null;
+      const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, causedByRunId ? undefined : limit * 3, undefined, causedByRunId) : null;
 
       if (daemonRuns) {
         const filtered = daemonRuns.runs
@@ -46,7 +48,9 @@ export function registerRunListCommands(wfCmd: Command): void {
           tags: r.tags,
         }));
       } else {
-        const runs = listRuns(store, limit * 3); // over-fetch to allow filtering
+        const runs = causedByRunId
+          ? store.listRuns({ causedByRunId, limit: limit * 3 })
+          : listRuns(store, limit * 3); // over-fetch to allow filtering
         const filtered = runs
           .filter((r) => !opts.workflow || r.workflow === opts.workflow)
           .filter((r) => !opts.status || r.status === opts.status)
