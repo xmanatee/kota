@@ -1,12 +1,12 @@
 ---
 id: task-foreign-extension-health-ui
 title: Expose foreign extension restart counts and health state in the web UI Extensions panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: Foreign (KEMP) extensions auto-restart on crash with exponential backoff, but restart history and current health state are not surfaced anywhere. The web UI Extensions panel shows only name and description, leaving operators blind to subprocess failures.
 created_at: 2026-04-01T00:32:00Z
-updated_at: 2026-04-01T00:32:00Z
+updated_at: 2026-04-01T05:41:53Z
 ---
 
 ## Problem
