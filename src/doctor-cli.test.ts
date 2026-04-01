@@ -1,8 +1,8 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runDoctorChecks } from "./doctor-cli.js";
+import { runDoctorChecks, runDoctorFixes } from "./doctor-cli.js";
 
 vi.mock("./workflow/registry.js", () => ({
   getBuiltinWorkflowDefinitions: vi.fn(() => []),
@@ -113,5 +113,69 @@ describe("kota doctor — offline path", () => {
     expect(labels.some((l) => l.startsWith("Providers"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Workflows"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Disk:"))).toBe(true);
+  });
+});
+
+describe("kota doctor --fix", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeTmpDir();
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("skips lock file when no daemon-control.json exists", () => {
+    const repairs = runDoctorFixes(projectDir);
+    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
+    expect(lock?.action).toBe("skipped");
+  });
+
+  it("removes stale lock file when PID is not alive", () => {
+    // Use a PID that is guaranteed to not exist: 99999999
+    const lockFile = join(projectDir, ".kota", "daemon-control.json");
+    writeFileSync(lockFile, JSON.stringify({ pid: 99999999, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
+    const repairs = runDoctorFixes(projectDir);
+    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
+    expect(lock?.action).toBe("repaired");
+    expect(existsSync(lockFile)).toBe(false);
+  });
+
+  it("skips lock file removal when PID is alive (own process)", () => {
+    const lockFile = join(projectDir, ".kota", "daemon-control.json");
+    writeFileSync(lockFile, JSON.stringify({ pid: process.pid, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
+    const repairs = runDoctorFixes(projectDir);
+    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
+    expect(lock?.action).toBe("skipped");
+    expect(existsSync(lockFile)).toBe(true);
+  });
+
+  it("reports manual action for unparseable lock file", () => {
+    const lockFile = join(projectDir, ".kota", "daemon-control.json");
+    writeFileSync(lockFile, "{ not valid json");
+    const repairs = runDoctorFixes(projectDir);
+    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
+    expect(lock?.action).toBe("manual");
+  });
+
+  it("creates missing .kota/ and .kota/runs/ directories", () => {
+    rmSync(join(projectDir, ".kota"), { recursive: true });
+    const repairs = runDoctorFixes(projectDir);
+    const kotaRepair = repairs.find((r) => r.item.includes("Directory:") && !r.item.includes("runs"));
+    const runsRepair = repairs.find((r) => r.item.includes("runs"));
+    expect(kotaRepair?.action).toBe("repaired");
+    expect(runsRepair?.action).toBe("repaired");
+    expect(existsSync(join(projectDir, ".kota"))).toBe(true);
+    expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(true);
+  });
+
+  it("skips directory creation when directories already exist", () => {
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    const repairs = runDoctorFixes(projectDir);
+    const dirRepairs = repairs.filter((r) => r.item.startsWith("Directory:"));
+    expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
   });
 });

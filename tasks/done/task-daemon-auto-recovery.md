@@ -1,7 +1,7 @@
 ---
 id: task-daemon-auto-recovery
 title: Add auto-recovery mode to kota doctor for fixable issues
-status: ready
+status: done
 priority: p3
 area: cli
 summary: kota doctor diagnoses daemon and config issues but outputs only text. Adding a --fix flag that repairs known fixable issues (missing dirs, stale lock files, orphaned run dirs) would reduce operator friction after a crash or dirty shutdown.

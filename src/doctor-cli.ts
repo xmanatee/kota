@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Command } from "commander";
@@ -17,6 +17,80 @@ export type CheckResult = {
   status: CheckStatus;
   detail?: string;
 };
+
+type RepairAction = "repaired" | "skipped" | "manual";
+
+export type RepairResult = {
+  item: string;
+  action: RepairAction;
+  detail?: string;
+};
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+export function runDoctorFixes(projectDir: string): RepairResult[] {
+  const results: RepairResult[] = [];
+  const kotaDir = join(projectDir, ".kota");
+  const lockFile = join(kotaDir, "daemon-control.json");
+
+  if (existsSync(lockFile)) {
+    try {
+      const addr = JSON.parse(readFileSync(lockFile, "utf-8")) as { pid?: number };
+      if (typeof addr.pid === "number" && !isProcessAlive(addr.pid)) {
+        unlinkSync(lockFile);
+        results.push({
+          item: "Daemon lock file (.kota/daemon-control.json)",
+          action: "repaired",
+          detail: `Removed stale lock file (pid ${addr.pid} not alive)`,
+        });
+      } else {
+        results.push({
+          item: "Daemon lock file (.kota/daemon-control.json)",
+          action: "skipped",
+          detail: "Daemon process is alive",
+        });
+      }
+    } catch {
+      results.push({
+        item: "Daemon lock file (.kota/daemon-control.json)",
+        action: "manual",
+        detail: "Could not parse lock file — inspect and remove manually if stale",
+      });
+    }
+  } else {
+    results.push({
+      item: "Daemon lock file (.kota/daemon-control.json)",
+      action: "skipped",
+      detail: "No lock file present",
+    });
+  }
+
+  for (const dir of [kotaDir, join(kotaDir, "runs")]) {
+    if (!existsSync(dir)) {
+      try {
+        mkdirSync(dir, { recursive: true });
+        results.push({ item: `Directory: ${dir}`, action: "repaired", detail: "Created" });
+      } catch (err) {
+        results.push({
+          item: `Directory: ${dir}`,
+          action: "manual",
+          detail: `Could not create: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    } else {
+      results.push({ item: `Directory: ${dir}`, action: "skipped", detail: "Already present" });
+    }
+  }
+
+  return results;
+}
 
 function pass(label: string, detail?: string): CheckResult {
   return { label, status: "pass", detail };
@@ -174,17 +248,35 @@ function printResults(results: CheckResult[]): void {
   }
 }
 
+function repairIcon(action: RepairAction): string {
+  if (action === "repaired") return "+";
+  if (action === "skipped") return "·";
+  return "!";
+}
+
+function printRepairs(repairs: RepairResult[]): void {
+  const labelWidth = Math.max(...repairs.map((r) => r.item.length), 10);
+  for (const r of repairs) {
+    const icon = repairIcon(r.action);
+    const label = r.item.padEnd(labelWidth);
+    const detail = r.detail ? `  ${r.detail}` : "";
+    console.log(`  [${icon}] ${label}${detail}`);
+  }
+}
+
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
     .description("Run runtime health checks and print a pass/warn/fail summary")
     .option("--json", "Output results as JSON")
-    .action(async (opts: { json?: boolean }) => {
+    .option("--fix", "Apply safe automatic repairs for fixable issues")
+    .action(async (opts: { json?: boolean; fix?: boolean }) => {
       const projectDir = process.cwd();
       const results = await runDoctorChecks(projectDir);
+      const repairs = opts.fix ? runDoctorFixes(projectDir) : [];
 
       if (opts.json) {
-        console.log(JSON.stringify(results, null, 2));
+        console.log(JSON.stringify(opts.fix ? { checks: results, repairs } : results, null, 2));
       } else {
         console.log("\nKOTA Health Check\n");
         printResults(results);
@@ -193,6 +285,16 @@ export function registerDoctorCommand(program: Command): void {
         console.log(
           `\n${results.length} check(s): ${results.length - failCount - warnCount} passed, ${warnCount} warned, ${failCount} failed`,
         );
+
+        if (opts.fix) {
+          const repairedCount = repairs.filter((r) => r.action === "repaired").length;
+          const manualCount = repairs.filter((r) => r.action === "manual").length;
+          console.log("\nAuto-Repair\n");
+          printRepairs(repairs);
+          console.log(
+            `\n${repairs.length} repair(s): ${repairedCount} repaired, ${repairs.length - repairedCount - manualCount} skipped, ${manualCount} require manual action`,
+          );
+        }
       }
 
       const anyFail = results.some((r) => r.status === "fail");
