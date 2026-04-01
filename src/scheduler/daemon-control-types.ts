@@ -90,9 +90,6 @@ export type WorkflowRunStepSummary = {
 };
 
 export type WorkflowRunDetail = WorkflowRunSummary & {
-  triggeredByRunId?: string;
-  causedBy?: { runId: string; workflow: string };
-  retryOf?: string;
   completedAt?: string;
   steps: WorkflowRunStepSummary[];
 };

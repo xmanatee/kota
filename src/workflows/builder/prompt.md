@@ -45,7 +45,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   a `docs/` file documents a protocol, API, or behavior that you changed,
   update it in the same run — for example, when you add a new trigger type,
   update `docs/WORKFLOWS.md` trigger table and add a usage example; when you
-  add a daemon API endpoint, update `docs/DAEMON-API.md`.
+  add a daemon API endpoint or add/remove a field from an existing API response,
+  update `docs/DAEMON-API.md` (including the JSON response examples).
 - If implementation uncovers a genuinely useful follow-up, capture it lightly in `tasks/inbox/` or enrich the current task instead of creating duplicate work. Use ISO 8601 datetime for `created_at` and `updated_at` in any task files you create (e.g. `2026-03-27T11:40:00Z`).
 - Keep files readable and reasonably scoped, but do not treat line counts as a goal. Do not create automatic split follow-ups just because a touched file is large; only capture structural follow-up work when it clearly unlocks a larger change or resolves real concept confusion.
 - Do not turn one structural task into a chain of adjacent split, rename, or dedup tasks just because they are easy and local. Prefer one cohesive, higher-leverage improvement per run.

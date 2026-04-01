@@ -211,6 +211,7 @@ Returns recent workflow run summaries.
       "durationMs": 304802,
       "totalCostUsd": 0.47,
       "triggeredByRunId": "2026-03-30T18-07-52-809Z-explorer-45lcon",
+      "causedBy": { "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "workflow": "explorer" },
       "tags": ["ci", "pr-42"]
     }
   ]
@@ -218,6 +219,7 @@ Returns recent workflow run summaries.
 ```
 
 `tags` is optional; omitted when no tags were attached at trigger time.
+`causedBy` is present only when the run was triggered by `workflow.completed`; it records the upstream run (`runId`, `workflow`) that emitted the event, enabling operators to trace autonomous trigger chains.
 
 ### GET /workflow/runs/:id
 
@@ -236,6 +238,7 @@ duration, error, and cost. Does not return full agent log output.
   "completedAt": "2026-03-30T18:18:00.000Z",
   "durationMs": 304802,
   "totalCostUsd": 0.47,
+  "causedBy": { "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "workflow": "explorer" },
   "tags": ["ci", "pr-42"],
   "steps": [
     {
