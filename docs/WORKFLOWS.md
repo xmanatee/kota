@@ -281,6 +281,48 @@ Individual agent steps inside a parallel group accept `timeoutMs` (defaults to 3
 
 A child step failure causes the group to fail unless the child sets `continueOnFailure: true`. The group result output contains the inner step results as `{ steps: [...] }`.
 
+### Branch Steps
+
+A `type: "branch"` step evaluates a condition and runs either `ifTrue` or `ifFalse` steps in order. Only one arm runs per evaluation.
+
+```typescript
+steps: [
+  {
+    id: "check-day",
+    type: "branch",
+    condition: () => new Date().getDay() >= 1 && new Date().getDay() <= 5,
+    ifTrue: [
+      {
+        id: "weekday-step",
+        type: "agent",
+        promptPath: "src/workflows/my-workflow/weekday-prompt.md",
+      },
+    ],
+    ifFalse: [
+      {
+        id: "weekend-step",
+        type: "emit",
+        event: "workflow.skipped",
+        payload: { reason: "weekend" },
+      },
+    ],
+  },
+]
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `condition` | predicate | — | Required. Evaluated before choosing an arm. When true, `ifTrue` runs; otherwise `ifFalse`. |
+| `ifTrue` | `WorkflowStep[]` | — | Required. Steps to execute when condition is true. |
+| `ifFalse` | `WorkflowStep[]` | `[]` | Optional. Steps when condition is false. Omit for a no-op false branch. |
+| `when` | predicate | — | Outer skip guard. If false, the entire branch step (and both arms) is skipped. |
+| `continueOnFailure` | `boolean` | `false` | If true, the parent workflow continues even if the chosen arm fails. |
+| `timeoutMs` | `number` | 30 min | Maximum time for the entire branch arm to complete. |
+
+Steps inside `ifTrue`/`ifFalse` support all existing step types (agent, code, emit, trigger, parallel) and their `when` predicates. Nested `branch` steps are allowed up to depth 5. `restart` steps are not allowed inside branch arms.
+
+After a branch step completes, downstream steps can access arm step outputs via `context.stepOutputs[armStepId]`. Steps in the non-taken arm are recorded as skipped.
+
 ## Testing Workflow Definitions
 
 The `kota/testing` sub-path exports a `WorkflowTestHarness` that runs a workflow
@@ -315,6 +357,7 @@ test("skips deploy step when no changes", async () => {
 | `restart` | Records `restartRequested` in the result; does not halt execution. |
 | `trigger` | Returns `stepMocks[stepId]` if provided; otherwise calls `contextOverrides.triggerWorkflow`. |
 | `parallel` | Runs child steps serially by default. Pass `parallel: true` for real concurrency. |
+| `branch` | Evaluates the `condition` predicate, runs the chosen arm's steps, records the other arm as skipped. Mock the condition via a code step or `stepMocks`. |
 
 `when` predicates are evaluated with real predicate logic using the accumulated
 step outputs from prior steps — the same way the production executor evaluates them.

@@ -15,8 +15,9 @@ import {
   AgentStepRuntimeError,
   shouldRunStep,
 } from "./step-executor.js";
+import { executeBranchStepGroup } from "./step-executor-branch.js";
 import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
-import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowBranchStep, WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 
 export type RunExecutorDeps = {
   projectDir: string;
@@ -152,6 +153,38 @@ export function executeWorkflowRun(
             throw new Error(
               `Parallel group "${step.id}" failed: ${failedChildren.map((r) => `${r.id}: ${r.error ?? "unknown"}`).join("; ")}`,
             );
+          }
+          if (hadNewWarnings) hadWarnings = true;
+          continue;
+        }
+
+        if (step.type === "branch") {
+          const branchDeps = {
+            definition,
+            run,
+            trigger,
+            runAbortController: abortController,
+            agentConfig,
+            acc,
+            bus: deps.bus,
+            log: deps.log,
+          };
+          const getContext = () => createStepContext(
+            run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
+          );
+          const { branchResult, hadNewWarnings, branchFailed, thrownError } =
+            await executeBranchStepGroup(step as WorkflowBranchStep, context, stepStartedAt, branchDeps, getContext);
+          run.recordStep(branchResult);
+          stepOutputsById[step.id] = branchResult.output;
+          stepResultsById[step.id] = branchResult;
+          stepOutputs.push(branchResult.output);
+          previousOutput = branchResult.output;
+          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, branchResult));
+          deps.log(`Completed step "${step.id}" (branch) in workflow "${definition.name}" [${branchResult.durationMs}ms]`);
+          if (branchFailed) {
+            if (step.continueOnFailure) { hadWarnings = true; continue; }
+            if (thrownError) throw thrownError;
+            throw new Error(`Branch step "${step.id}" failed`);
           }
           if (hadNewWarnings) hadWarnings = true;
           continue;

@@ -9,6 +9,9 @@ export type DryRunStepPlan = {
   config: string;
   whenResult: DryRunWhenResult;
   whenError?: string;
+  /** Branch steps only: result of evaluating the condition predicate. */
+  conditionResult?: DryRunWhenResult;
+  conditionError?: string;
   children?: DryRunStepPlan[];
 };
 
@@ -82,6 +85,8 @@ function stepConfig(step: WorkflowStep): string {
       return `parallel (${step.steps.length} steps)`;
     case "trigger":
       return `trigger: ${step.workflow} (waitFor: ${step.waitFor})`;
+    case "branch":
+      return `branch (ifTrue: ${step.ifTrue.length} step(s), ifFalse: ${step.ifFalse.length} step(s))`;
   }
 }
 
@@ -112,6 +117,35 @@ export async function buildDryRunPlan(definition: WorkflowDefinition): Promise<D
           };
         }),
       );
+    } else if (step.type === "branch") {
+      let conditionResult: DryRunWhenResult = "no-condition";
+      let conditionError: string | undefined;
+      try {
+        const val = await step.condition(context);
+        conditionResult = val ? "runs" : "skipped";
+      } catch (err) {
+        conditionResult = "error";
+        conditionError = err instanceof Error ? err.message : String(err);
+      }
+      const buildArmPlans = async (armSteps: typeof step.ifTrue, label: string): Promise<DryRunStepPlan[]> =>
+        Promise.all(
+          armSteps.map(async (armStep) => {
+            const { result: wr, error: we } = await evalWhen(armStep.when, context);
+            return {
+              id: armStep.id,
+              type: armStep.type,
+              config: `${label}: ${stepConfig(armStep)}`,
+              whenResult: wr,
+              whenError: we,
+            } satisfies DryRunStepPlan;
+          }),
+        );
+      plan.conditionResult = conditionResult;
+      plan.conditionError = conditionError;
+      plan.children = [
+        ...(await buildArmPlans(step.ifTrue, "ifTrue")),
+        ...(await buildArmPlans(step.ifFalse, "ifFalse")),
+      ];
     }
 
     steps.push(plan);
@@ -158,7 +192,7 @@ export function formatDryRunPlan(plan: DryRunPlan): string {
       for (const child of step.children) {
         const childWhenNote = formatWhenNote(child);
         lines.push(
-          `      ${String(idx).padStart(2)}. ${child.id.padEnd(24)} [code]${childWhenNote}`,
+          `      ${String(idx).padStart(2)}. ${child.id.padEnd(24)} [${child.config}]${childWhenNote}`,
         );
         idx++;
       }

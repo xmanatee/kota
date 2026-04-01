@@ -1,5 +1,6 @@
 import type {
   RegisteredWorkflowDefinitionInput,
+  WorkflowBranchStepInput,
   WorkflowDefinition,
   WorkflowParallelGroupInput,
   WorkflowRestartStep,
@@ -19,6 +20,7 @@ import {
 } from "./validation-primitives.js";
 import {
   validateAgentStep,
+  validateBranchStep,
   validateCodeStep,
   validateEmitStep,
   validateParallelGroup,
@@ -58,9 +60,18 @@ function validateStep(
   if (step.type === "trigger") {
     return validateTriggerStep(step as WorkflowTriggerStepInput, definitionPath, index);
   }
+  if (step.type === "branch") {
+    return validateBranchStep(
+      step as WorkflowBranchStepInput,
+      definitionPath,
+      index,
+      projectDir,
+      (armStep, dp, armIndex, pd) => validateStep(armStep, dp, armIndex, pd),
+    );
+  }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", or "trigger"`,
+    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", or "branch"`,
     definitionPath,
   );
 }
@@ -113,26 +124,32 @@ export function validateWorkflowDefinitions(
       validateStep(step, definitionPath, stepIndex, projectDir),
     );
     const seenStepIds = new Set<string>();
-    for (const step of steps) {
-      if (seenStepIds.has(step.id)) {
-        throw new WorkflowDefinitionError(
-          `duplicate step id "${step.id}"`,
-          definitionPath,
-        );
-      }
-      seenStepIds.add(step.id);
-      if (step.type === "parallel") {
-        for (const childStep of step.steps) {
-          if (seenStepIds.has(childStep.id)) {
-            throw new WorkflowDefinitionError(
-              `duplicate step id "${childStep.id}"`,
-              definitionPath,
-            );
+    const collectStepIds = (flatSteps: WorkflowStep[]) => {
+      for (const step of flatSteps) {
+        if (seenStepIds.has(step.id)) {
+          throw new WorkflowDefinitionError(
+            `duplicate step id "${step.id}"`,
+            definitionPath,
+          );
+        }
+        seenStepIds.add(step.id);
+        if (step.type === "parallel") {
+          for (const childStep of step.steps) {
+            if (seenStepIds.has(childStep.id)) {
+              throw new WorkflowDefinitionError(
+                `duplicate step id "${childStep.id}"`,
+                definitionPath,
+              );
+            }
+            seenStepIds.add(childStep.id);
           }
-          seenStepIds.add(childStep.id);
+        } else if (step.type === "branch") {
+          collectStepIds(step.ifTrue);
+          collectStepIds(step.ifFalse);
         }
       }
-    }
+    };
+    collectStepIds(steps);
 
     const restartSteps = steps.filter(
       (step): step is WorkflowRestartStep => step.type === "restart",

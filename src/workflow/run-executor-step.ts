@@ -62,6 +62,27 @@ export function buildSkippedResult(
       acc.stepOutputsById[childStep.id] = { skipped: true };
       acc.stepResultsById[childStep.id] = childSkipped;
     }
+  } else if (step.type === "branch") {
+    const skippedAt = new Date(stepStartedAt).toISOString();
+    const skipArmSteps = (armSteps: typeof step.ifTrue) => {
+      for (const armStep of armSteps) {
+        acc.stepOutputsById[armStep.id] = { skipped: true };
+        acc.stepResultsById[armStep.id] = {
+          id: armStep.id,
+          type: armStep.type,
+          status: "skipped",
+          startedAt: skippedAt,
+          completedAt: skippedAt,
+          durationMs: 0,
+        };
+        if (armStep.type === "branch") {
+          skipArmSteps(armStep.ifTrue);
+          skipArmSteps(armStep.ifFalse);
+        }
+      }
+    };
+    skipArmSteps(step.ifTrue);
+    skipArmSteps(step.ifFalse);
   }
   bus.emit("workflow.step.completed", buildStepCompletedPayload(runMetadata, skipped));
   return skipped;

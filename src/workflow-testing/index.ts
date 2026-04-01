@@ -5,6 +5,7 @@ import type {
   WorkflowStepResult,
 } from "../workflow/run-types.js";
 import type {
+  WorkflowBranchStepInput,
   WorkflowCodeStepInput,
   WorkflowDefinitionInput,
   WorkflowParallelGroupInput,
@@ -204,25 +205,112 @@ export class WorkflowTestHarness {
       }
     };
 
+    const recordSkippedArm = (steps: WorkflowStepInput[]) => {
+      for (const s of steps) {
+        const { harness, internal } = makeStepResult(s.id, s.type, "skipped", undefined, undefined, "branch not taken");
+        allStepResults[s.id] = harness;
+        stepResultsById[s.id] = internal;
+        if (s.type === "branch") {
+          recordSkippedArm(s.ifTrue);
+          if (s.ifFalse) recordSkippedArm(s.ifFalse);
+        }
+      }
+    };
+
     const executeStep = async (
       step: WorkflowCodeStepInput | WorkflowStepInput,
     ): Promise<void> => {
+      // Branch step — evaluate outer when, then condition, then run chosen arm
+      if (step.type === "branch") {
+        const branch = step as WorkflowBranchStepInput;
+        const context = buildContext();
+        const shouldRun = branch.when ? Boolean(await branch.when(context)) : true;
+        if (!shouldRun) {
+          const { harness, internal } = makeStepResult(branch.id, "branch", "skipped", undefined, undefined, "when predicate returned false");
+          recordResult(harness, internal, undefined);
+          return;
+        }
+
+        let conditionResult: boolean;
+        try {
+          conditionResult = Boolean(await branch.condition(context));
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const { harness, internal } = makeStepResult(branch.id, "branch", "failed", undefined, `Branch condition error: ${errMsg}`, undefined);
+          recordResult(harness, internal, undefined);
+          if (!branch.continueOnFailure) { runFailed = true; runError = errMsg; }
+          return;
+        }
+
+        const takenArm = conditionResult ? branch.ifTrue : (branch.ifFalse ?? []);
+        const skippedArm = conditionResult ? (branch.ifFalse ?? []) : branch.ifTrue;
+        const armLabel: "ifTrue" | "ifFalse" = conditionResult ? "ifTrue" : "ifFalse";
+
+        recordSkippedArm(skippedArm);
+        for (const armStep of takenArm) {
+          if (runFailed && !branch.continueOnFailure) break;
+          await executeStep(armStep);
+        }
+
+        const armStatuses = takenArm.map((s) => allStepResults[s.id]?.status);
+        const branchFailed = armStatuses.some((s) => s === "failed");
+        const branchStatus = branchFailed ? "failed" : "success";
+        const branchOutput = { arm: armLabel, steps: takenArm.length };
+        const now = new Date().toISOString();
+        allStepResults[branch.id] = { id: branch.id, type: "branch", status: branchStatus, output: branchOutput };
+        stepResultsById[branch.id] = { id: branch.id, type: "branch", status: branchStatus, startedAt: now, completedAt: now, durationMs: 0, output: branchOutput };
+        stepOutputsById[branch.id] = branchOutput;
+        stepOutputList.push(branchOutput);
+
+        if (branchFailed && !branch.continueOnFailure) {
+          runFailed = true;
+          runError = takenArm.map((s) => allStepResults[s.id]).find((r) => r?.status === "failed")?.error ?? "branch arm failed";
+        }
+        return;
+      }
+
+      // Parallel group — run child steps concurrently or serially
+      if (step.type === "parallel") {
+        const group = step as WorkflowParallelGroupInput;
+        const context = buildContext();
+        const shouldRun = group.when ? Boolean(await group.when(context)) : true;
+        if (!shouldRun) {
+          const { harness, internal } = makeStepResult(group.id, "parallel", "skipped", undefined, undefined, "when predicate returned false");
+          recordResult(harness, internal, undefined);
+          return;
+        }
+
+        const groupStart = new Date().toISOString();
+        if (runParallel) {
+          await Promise.all(group.steps.map((s) => executeStep(s)));
+        } else {
+          for (const s of group.steps) {
+            if (runFailed && !group.continueOnFailure) break;
+            await executeStep(s);
+          }
+        }
+
+        const innerStatuses = group.steps.map((s) => allStepResults[s.id]?.status);
+        const groupFailed = innerStatuses.some((s) => s === "failed");
+        const groupStatus = groupFailed ? "failed" : "success";
+        const innerResults = group.steps.map((s) => allStepResults[s.id]);
+        const groupOutput = { steps: innerResults };
+        const groupNow = new Date().toISOString();
+        allStepResults[group.id] = { id: group.id, type: "parallel", status: groupStatus, output: groupOutput };
+        stepResultsById[group.id] = { id: group.id, type: "parallel", status: groupStatus, startedAt: groupStart, completedAt: groupNow, durationMs: 0, output: groupOutput };
+
+        if (groupFailed && !group.continueOnFailure) {
+          runFailed = true;
+          runError = group.steps.map((s) => allStepResults[s.id]).find((r) => r?.status === "failed")?.error ?? "parallel group failed";
+        }
+        return;
+      }
+
+      // Leaf steps: code, agent, emit, restart, trigger, tool
       const context = buildContext();
-
-      // Evaluate when predicate
-      const shouldRun = step.when
-        ? Boolean(await step.when(context))
-        : true;
-
+      const shouldRun = step.when ? Boolean(await step.when(context)) : true;
       if (!shouldRun) {
-        const { harness, internal } = makeStepResult(
-          step.id,
-          step.type,
-          "skipped",
-          undefined,
-          undefined,
-          "when predicate returned false",
-        );
+        const { harness, internal } = makeStepResult(step.id, step.type, "skipped", undefined, undefined, "when predicate returned false");
         recordResult(harness, internal, undefined);
         return;
       }
@@ -314,77 +402,7 @@ export class WorkflowTestHarness {
 
     for (const step of this.#workflow.steps) {
       if (runFailed) break;
-
-      if (step.type === "parallel") {
-        const group = step as WorkflowParallelGroupInput;
-        const context = buildContext();
-        const shouldRun = group.when
-          ? Boolean(await group.when(context))
-          : true;
-
-        if (!shouldRun) {
-          const { harness, internal } = makeStepResult(
-            group.id,
-            "parallel",
-            "skipped",
-            undefined,
-            undefined,
-            "when predicate returned false",
-          );
-          recordResult(harness, internal, undefined);
-          continue;
-        }
-
-        const groupStart = new Date().toISOString();
-        if (runParallel) {
-          await Promise.all(group.steps.map((s) => executeStep(s)));
-        } else {
-          for (const s of group.steps) {
-            if (runFailed && !group.continueOnFailure) break;
-            await executeStep(s);
-          }
-        }
-
-        const innerStatuses = group.steps.map(
-          (s) => allStepResults[s.id]?.status,
-        );
-        const groupFailed = innerStatuses.some((s) => s === "failed");
-        const groupStatus = groupFailed ? "failed" : "success";
-
-        const innerResults = group.steps.map(
-          (s) => allStepResults[s.id],
-        );
-        const groupOutput = { steps: innerResults };
-
-        const groupNow = new Date().toISOString();
-        const harnessGroup: HarnessStepResult = {
-          id: group.id,
-          type: "parallel",
-          status: groupStatus,
-          output: groupOutput,
-        };
-        const internalGroup: WorkflowStepResult = {
-          id: group.id,
-          type: "parallel",
-          status: groupStatus,
-          startedAt: groupStart,
-          completedAt: groupNow,
-          durationMs: 0,
-          output: groupOutput,
-        };
-        allStepResults[group.id] = harnessGroup;
-        stepResultsById[group.id] = internalGroup;
-
-        if (groupFailed && !group.continueOnFailure) {
-          runFailed = true;
-          const firstFailed = group.steps
-            .map((s) => allStepResults[s.id])
-            .find((r) => r?.status === "failed");
-          runError = firstFailed?.error ?? "parallel group failed";
-        }
-      } else {
-        await executeStep(step);
-      }
+      await executeStep(step);
     }
 
     return {

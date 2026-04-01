@@ -1,7 +1,7 @@
 ---
 id: task-workflow-branch-step
 title: Add branch step type for conditional workflow routing
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Workflows currently express conditional logic by attaching a `when` predicate to each step independently. There is no if/else construct that selects between two sequences. A branch step would enable cleaner conditional routing without requiring duplicate `when` logic on paired steps.

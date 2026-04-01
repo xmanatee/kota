@@ -224,6 +224,16 @@ export type WorkflowParallelGroupInput = {
   maxParallelAgents?: number;
 };
 
+export type WorkflowBranchStepInput = WorkflowBaseStep & {
+  type: "branch";
+  /** Evaluated with an empty context at definition load time to determine the branch path. */
+  condition: WorkflowPredicate;
+  /** Steps to execute when condition returns true. */
+  ifTrue: WorkflowStepInput[];
+  /** Steps to execute when condition returns false. Omit for a no-op false branch. */
+  ifFalse?: WorkflowStepInput[];
+};
+
 export type WorkflowStepInput =
   | WorkflowToolStepInput
   | WorkflowAgentStepInput
@@ -231,7 +241,8 @@ export type WorkflowStepInput =
   | WorkflowRestartStepInput
   | WorkflowCodeStepInput
   | WorkflowTriggerStepInput
-  | WorkflowParallelGroupInput;
+  | WorkflowParallelGroupInput
+  | WorkflowBranchStepInput;
 
 export type WorkflowDefinitionInput = {
   name: string;
@@ -329,6 +340,13 @@ export type WorkflowParallelGroup = {
   maxParallelAgents?: number;
 };
 
+export type WorkflowBranchStep = WorkflowBaseStep & {
+  type: "branch";
+  condition: WorkflowPredicate;
+  ifTrue: WorkflowStep[];
+  ifFalse: WorkflowStep[];
+};
+
 export type WorkflowStep =
   | WorkflowToolStep
   | WorkflowAgentStep
@@ -336,7 +354,8 @@ export type WorkflowStep =
   | WorkflowRestartStep
   | WorkflowCodeStep
   | WorkflowTriggerStep
-  | WorkflowParallelGroup;
+  | WorkflowParallelGroup
+  | WorkflowBranchStep;
 
 export type WorkflowDefinition = {
   name: string;

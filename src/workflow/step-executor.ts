@@ -154,5 +154,10 @@ export async function executeStep(
       `Parallel group "${step.id}" must be handled by the run executor, not executeStep`,
     );
   }
+  if (step.type === "branch") {
+    throw new Error(
+      `Branch step "${step.id}" must be handled by the run executor, not executeStep`,
+    );
+  }
   return executeCodeStep(step, context);
 }
