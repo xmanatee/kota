@@ -1,12 +1,12 @@
 ---
 id: task-guardrail-audit-cli
 title: Add kota audit CLI command to query the guardrail audit trail
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: The guardrail audit trail is accessible from the web UI and via GET /api/audit, but has no CLI surface. Operators running without the web server cannot query risk decisions from the shell.
 created_at: 2026-04-01T00:32:00Z
-updated_at: 2026-04-01T00:32:00Z
+updated_at: 2026-04-01T01:23:57Z
 ---
 
 ## Problem
