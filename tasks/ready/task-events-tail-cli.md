@@ -1,7 +1,7 @@
 ---
 id: task-events-tail-cli
 title: Add kota events tail command to stream the daemon event bus
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: No CLI surface exists for the daemon event ring buffer. A kota events tail command would let operators observe the live event bus stream for debugging and observability, similar to how kota workflow run follow surfaces a specific run's output.
