@@ -150,6 +150,7 @@ export class Daemon {
           stepCount: def.steps.length,
           triggers: def.triggers.map((t): WorkflowDefinitionSummary["triggers"][number] => {
             if (t.webhook) return { type: "webhook" };
+            if (t.watch) return { type: "watch", patterns: t.watch, debounceMs: t.debounceMs ?? 500 };
             if (t.schedule) return { type: "cron", schedule: t.schedule };
             if (t.intervalMs != null) return { type: "interval", intervalMs: t.intervalMs };
             return { type: "event", event: t.event };

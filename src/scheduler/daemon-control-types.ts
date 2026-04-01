@@ -8,7 +8,8 @@ export type WorkflowDefinitionTriggerSummary =
   | { type: "event"; event: string }
   | { type: "cron"; schedule: string }
   | { type: "interval"; intervalMs: number }
-  | { type: "webhook" };
+  | { type: "webhook" }
+  | { type: "watch"; patterns: string[]; debounceMs: number };
 
 export type WorkflowDefinitionSummary = {
   name: string;

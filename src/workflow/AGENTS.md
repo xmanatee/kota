@@ -17,6 +17,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue, pick, restore, persist.
 - `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling.
+- `watch-triggers.ts` — `WatchTriggerManager`: file-watch trigger management; subscribes to `file.changed` bus events, matches glob patterns, and fires `files.changed` run triggers after debounce.
 - `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
 - `run-executor-step.ts` — `executeWorkflowStep` (single non-parallel step execution) and `buildSkippedResult` (skipped step handling with child-skipping for parallel steps).
 - `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.

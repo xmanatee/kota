@@ -601,4 +601,86 @@ describe("workflow validation", () => {
       ),
     ).toThrow(/waitFor/);
   });
+
+  it("accepts a watch trigger with a string pattern", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/watcher.ts", {
+          name: "watcher",
+          triggers: [{ watch: "src/**/*.ts", debounceMs: 500 }],
+          steps: [{ id: "run", type: "emit", event: "watcher.done" }],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.triggers[0]).toMatchObject({
+      event: "files.changed",
+      cooldownMs: 0,
+      watch: ["src/**/*.ts"],
+      debounceMs: 500,
+    });
+  });
+
+  it("accepts a watch trigger with an array of patterns", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/watcher.ts", {
+          name: "watcher",
+          triggers: [{ watch: ["src/**/*.ts", "test/**/*.ts"] }],
+          steps: [{ id: "run", type: "emit", event: "watcher.done" }],
+        }),
+      ],
+      projectDir,
+    );
+
+    const trigger = definitions[0]?.triggers[0];
+    expect(trigger?.watch).toEqual(["src/**/*.ts", "test/**/*.ts"]);
+    expect(trigger?.debounceMs).toBe(500); // default
+  });
+
+  it("rejects a watch trigger with debounceMs below minimum", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/watcher.ts", {
+            name: "watcher",
+            triggers: [{ watch: "src/**/*.ts", debounceMs: 100 }],
+            steps: [{ id: "run", type: "emit", event: "watcher.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(WorkflowDefinitionError);
+  });
+
+  it("rejects a watch trigger combined with event", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/watcher.ts", {
+            name: "watcher",
+            triggers: [{ watch: "src/**/*.ts", event: "runtime.idle" } as never],
+            steps: [{ id: "run", type: "emit", event: "watcher.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(WorkflowDefinitionError);
+  });
+
+  it("rejects a watch trigger with an empty pattern array", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/watcher.ts", {
+            name: "watcher",
+            triggers: [{ watch: [] as unknown as string }],
+            steps: [{ id: "run", type: "emit", event: "watcher.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(WorkflowDefinitionError);
+  });
 });

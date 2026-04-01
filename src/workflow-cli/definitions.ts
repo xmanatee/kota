@@ -6,6 +6,10 @@ import { formatDuration } from "./utils.js";
 function describeTrigger(def: RegisteredWorkflowDefinitionInput): string {
   return def.triggers
     .map((t) => {
+      if (t.watch) {
+        const patterns = Array.isArray(t.watch) ? t.watch.join(",") : t.watch;
+        return `watch(${patterns})`;
+      }
       if (t.schedule) return `cron(${t.schedule})`;
       if (t.intervalMs) return `interval(${formatDuration(t.intervalMs)})`;
       const event = t.event ?? "?";
@@ -65,7 +69,11 @@ export function registerDefinitionsCommand(wfCmd: Command): void {
         console.log(`\nTriggers (${def.triggers.length}):`);
         for (const t of def.triggers) {
           const cooldown = t.cooldownMs ? ` cooldown=${formatDuration(t.cooldownMs)}` : "";
-          if (t.schedule) {
+          if (t.watch) {
+            const patterns = Array.isArray(t.watch) ? t.watch.join(", ") : t.watch;
+            const debounce = t.debounceMs ? ` debounce=${formatDuration(t.debounceMs)}` : "";
+            console.log(`  watch: ${patterns}${debounce}`);
+          } else if (t.schedule) {
             console.log(`  cron: ${t.schedule}${cooldown}`);
           } else if (t.intervalMs) {
             console.log(`  interval: ${formatDuration(t.intervalMs)}${cooldown}`);

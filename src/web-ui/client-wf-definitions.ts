@@ -9,6 +9,7 @@ export const CLIENT_WF_DEFINITIONS_JS = `
       if (t.type === "cron") return t.schedule;
       if (t.type === "interval") return fmtIntervalMs(t.intervalMs);
       if (t.type === "webhook") return "webhook";
+      if (t.type === "watch") return "watch(" + t.patterns.join(", ") + ")";
       if (t.type === "event") return t.event;
       return t.type;
     }).join(", ");

@@ -29,6 +29,7 @@ import type {
   WorkflowRunTrigger,
 } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
+import { WatchTriggerManager } from "./watch-triggers.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 export type { WorkflowRuntimeConfig };
@@ -47,6 +48,7 @@ export class WorkflowRuntime {
   private readonly workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   private readonly backoff: AgentBackoffManager;
   private readonly scheduleTriggers: ScheduleTriggerManager;
+  private readonly watchTriggers: WatchTriggerManager;
   private readonly budgetGuard = new BudgetGuard();
 
   private definitions: WorkflowDefinition[] = [];
@@ -101,6 +103,12 @@ export class WorkflowRuntime {
       (def, trigger, run) => this.wfQueue.enqueue(def, trigger, run),
       () => this.maybeStartNext(),
     );
+    this.watchTriggers = new WatchTriggerManager(
+      this.projectDir,
+      () => this.stopping,
+      (def, trigger, run) => this.wfQueue.enqueue(def, trigger, run),
+      () => this.maybeStartNext(),
+    );
   }
 
   start(): void {
@@ -136,6 +144,9 @@ export class WorkflowRuntime {
     });
 
     this.scheduleTriggers.setup(this.definitions);
+    this.watchTriggers.setup(this.definitions, (handler) =>
+      this.runtimeConfig.bus.on("file.changed", handler),
+    );
     this.maybeStartNext();
 
     this.idleTimer = setInterval(() => {
@@ -158,6 +169,7 @@ export class WorkflowRuntime {
       this.stopBus = null;
     }
     this.scheduleTriggers.clearAll();
+    this.watchTriggers.clearAll();
 
     if (this.activeRuns.size === 0) return;
 
@@ -206,6 +218,9 @@ export class WorkflowRuntime {
   reloadWorkflowDefinitions(): { count: number } {
     const defs = this.loadDefinitions();
     this.scheduleTriggers.reconcile(defs);
+    this.watchTriggers.reconcile(defs, (handler) =>
+      this.runtimeConfig.bus.on("file.changed", handler),
+    );
     this.definitions = defs;
     return { count: defs.length };
   }

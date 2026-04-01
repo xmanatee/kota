@@ -50,6 +50,17 @@ export type WorkflowTriggerInput = {
    * under `webhooks.<workflowName>.secret`.
    */
   webhook?: boolean;
+  /**
+   * Glob pattern (or array of patterns) to watch. When matching files change,
+   * the workflow is queued with a `files.changed` event payload listing the
+   * affected paths. Only active when the daemon is running.
+   */
+  watch?: string | string[];
+  /**
+   * Debounce delay in milliseconds for watch triggers. Minimum 200ms. Defaults
+   * to 500ms.
+   */
+  debounceMs?: number;
 };
 
 export type WorkflowTrigger = {
@@ -62,6 +73,10 @@ export type WorkflowTrigger = {
   intervalMs?: number;
   /** When true, this trigger fires via the daemon webhook endpoint. */
   webhook?: boolean;
+  /** Glob patterns for file-watch triggers. */
+  watch?: string[];
+  /** Debounce delay in milliseconds for watch triggers. */
+  debounceMs?: number;
 };
 
 export type WorkflowRunTrigger = {
