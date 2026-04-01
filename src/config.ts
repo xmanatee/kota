@@ -113,6 +113,12 @@ export type KotaConfig = {
      * during shutdown. 0 = drain indefinitely. Default: 60000 (60 s).
      */
     shutdownGracePeriodMs?: number;
+    /**
+     * Number of recent SSE events to retain in the in-memory ring buffer.
+     * Clients can query buffered events via GET /api/events or replay them on
+     * SSE reconnect with GET /events?since=<timestamp>. Default: 500.
+     */
+    eventBufferSize?: number;
   };
 
   /** Notification settings. */
@@ -260,6 +266,9 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     const d: KotaConfig["daemon"] = {};
     if (typeof src.shutdownGracePeriodMs === "number" && src.shutdownGracePeriodMs >= 0) {
       d.shutdownGracePeriodMs = src.shutdownGracePeriodMs;
+    }
+    if (typeof src.eventBufferSize === "number" && src.eventBufferSize > 0) {
+      d.eventBufferSize = src.eventBufferSize;
     }
     if (Object.keys(d).length > 0) out.daemon = d;
   }

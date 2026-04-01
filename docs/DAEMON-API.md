@@ -34,7 +34,7 @@ Routes are tagged with a capability scope:
 
 - **`read`** — observe daemon and workflow state, subscribe to events:
   `GET /status`, `GET /workflow/status`, `GET /workflow/definitions`, `GET /events`,
-  `GET /workflow/runs`, `GET /workflow/runs/:id`,
+  `GET /api/events`, `GET /workflow/runs`, `GET /workflow/runs/:id`,
   `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
   `GET /sessions`, `GET /metrics`
 - **`control`** — mutate workflow dispatch and data:
@@ -398,6 +398,12 @@ triggers are reconciled against the new definitions.
 Opens a Server-Sent Events stream. The daemon pushes typed events as they
 occur. Clients stay connected and receive events in real time without polling.
 
+**Query parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `since`   | Optional ISO 8601 timestamp. Buffered events with `timestamp > since` are replayed immediately before live streaming begins. Enables seamless reconnection without missing events. |
+
 **Response headers:**
 
 ```
@@ -447,6 +453,35 @@ data: {"workflow":"builder","runId":"2026-03-28T...","triggerEvent":"runtime.idl
 `DaemonControlClient.events()` returns an `AsyncGenerator<DaemonSseEvent>` that
 subscribes to this endpoint. Web clients can use the proxied
 `GET /api/daemon/events` route on the HTTP server instead.
+
+### GET /api/events
+
+Returns buffered events from the in-memory ring buffer as JSON. Useful for
+clients that want to catch up on recent events without opening an SSE stream.
+
+**Query parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `since`   | Optional ISO 8601 timestamp. Only events with `timestamp > since` are returned. |
+| `limit`   | Optional integer. Maximum number of events to return (from the newest end). |
+
+**Response:**
+
+```json
+{
+  "events": [
+    {
+      "type": "workflow.completed",
+      "payload": { "workflow": "builder", "runId": "2026-03-28T...", "status": "success" },
+      "timestamp": "2026-03-28T10:05:00.123Z"
+    }
+  ]
+}
+```
+
+Events are ordered oldest-first. The buffer retains the last N events in memory
+(default 500, configurable via `daemon.eventBufferSize` in `kota.config`).
 
 ## History Endpoints
 

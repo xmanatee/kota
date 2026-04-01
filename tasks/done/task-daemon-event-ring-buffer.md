@@ -1,12 +1,12 @@
 ---
 id: task-daemon-event-ring-buffer
 title: Add in-memory event ring buffer to expose recent daemon events via control API
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: The daemon event bus emits events that SSE clients can subscribe to live, but there is no way to retrieve events that fired before a client connected. A ring buffer with a GET endpoint lets clients catch up on recent events without polling.
 created_at: 2026-04-01T05:41:53Z
-updated_at: 2026-04-01T09:44:18Z
+updated_at: 2026-04-01T11:15:00Z
 ---
 
 ## Problem

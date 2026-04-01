@@ -296,7 +296,9 @@ export class Daemon {
         }
         return result;
       },
-    }, this.token);
+    }, this.token, {
+      eventBufferSize: config.config?.daemon?.eventBufferSize,
+    });
   }
 
   async start(): Promise<void> {

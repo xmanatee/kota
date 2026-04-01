@@ -19,6 +19,7 @@ import {
   handleResumeWorkflow,
   handleTriggerWorkflow,
 } from "./daemon-control-workflow.js";
+import { EventRingBuffer } from "./event-ring-buffer.js";
 
 export type {
   CapabilityScope,
@@ -48,6 +49,7 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "GET /status": "read",
   "GET /workflow/status": "read",
   "GET /events": "read",
+  "GET /api/events": "read",
   "POST /workflow/trigger": "control",
   "POST /workflow/pause": "control",
   "POST /workflow/resume": "control",
@@ -102,16 +104,25 @@ function matchRouteKey(
   return null;
 }
 
+export type DaemonControlServerOptions = {
+  /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
+  eventBufferSize?: number;
+};
+
 export class DaemonControlServer {
   private server: Server | null = null;
   private port: number | null = null;
   private sseClients = new Set<ServerResponse>();
   private unsubscribeEvents: (() => void) | null = null;
+  private readonly eventBuffer: EventRingBuffer;
 
   constructor(
     private readonly handle: DaemonControlHandle,
     private readonly token?: string,
-  ) {}
+    options?: DaemonControlServerOptions,
+  ) {
+    this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
+  }
 
   start(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -123,6 +134,7 @@ export class DaemonControlServer {
         this.server = srv;
         this.port = addr.port;
         this.unsubscribeEvents = this.handle.subscribeToEvents((event) => {
+          this.eventBuffer.push(event);
           this.broadcast(event);
         });
         resolve(addr.port);
@@ -212,8 +224,38 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/events") {
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
       res.write(":\n\n");
+
+      const sinceParam = url.searchParams.get("since");
+      if (sinceParam) {
+        const sinceMs = new Date(sinceParam).getTime();
+        if (!Number.isNaN(sinceMs)) {
+          for (const { event } of this.eventBuffer.query(sinceMs)) {
+            res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+          }
+        }
+      }
+
       this.sseClients.add(res);
       req.on("close", () => { this.sseClients.delete(res); });
+      return;
+    }
+
+    if (method === "GET" && path === "/api/events") {
+      const sinceParam = url.searchParams.get("since");
+      const limitParam = url.searchParams.get("limit");
+      const sinceMs = sinceParam ? new Date(sinceParam).getTime() : undefined;
+      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+      const entries = this.eventBuffer.query(
+        sinceMs != null && !Number.isNaN(sinceMs) ? sinceMs : undefined,
+        limit != null && !Number.isNaN(limit) ? limit : undefined,
+      );
+      jsonResponse(res, 200, {
+        events: entries.map(({ event, timestamp }) => ({
+          type: event.type,
+          payload: event.payload,
+          timestamp: new Date(timestamp).toISOString(),
+        })),
+      });
       return;
     }
 
