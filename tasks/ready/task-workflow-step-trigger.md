@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-trigger
 title: Add trigger step type to workflow definitions for workflow composition
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Workflow steps can only run agent prompts or inline code. There is no step type that directly queues another workflow. A trigger step would let workflow authors compose multi-workflow pipelines without writing custom code steps or relying on bus event timing.
 created_at: 2026-03-31T17:30:00Z
-updated_at: 2026-03-31T17:30:00Z
+updated_at: 2026-04-01T01:53:23Z
 ---
 
 ## Problem
