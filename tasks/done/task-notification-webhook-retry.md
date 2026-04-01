@@ -1,12 +1,12 @@
 ---
 id: task-notification-webhook-retry
 title: Add retry with backoff to webhook notification delivery
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: Webhook and Slack notification POSTs are fire-and-forget. A transient network error or downstream service hiccup silently drops the alert. Adding retry with exponential backoff improves delivery reliability without breaking the event subscriber model.
 created_at: 2026-04-01T04:03:40Z
-updated_at: 2026-04-01T07:53:00Z
+updated_at: 2026-04-01T09:05:00Z
 ---
 
 ## Problem

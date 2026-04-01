@@ -187,16 +187,31 @@ describe("slackModule notifications", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("logs a warning when POST returns non-OK status", async () => {
+  it("logs a warning when POST returns non-OK status (no retries)", async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 500 });
     const bus = new EventBus();
     const warnSpy = vi.fn();
-    const ctx = makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK });
+    const ctx = makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, retries: 0 });
     ctx.log.warn = warnSpy;
     slackModule.onLoad!(ctx);
     bus.emit("workflow.failure.alert", { workflow: "builder", text: "alert" });
     await Promise.resolve();
     await new Promise((r) => setTimeout(r, 0));
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("500"));
+  });
+
+  it("retries on non-2xx and eventually succeeds", async () => {
+    vi.useFakeTimers();
+    mockFetch
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValue({ ok: true, status: 200 });
+    const bus = new EventBus();
+    slackModule.onLoad!(
+      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, retries: 3, retryDelayMs: 100 }),
+    );
+    bus.emit("workflow.failure.alert", { workflow: "builder", text: "alert" });
+    await vi.runAllTimersAsync();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });

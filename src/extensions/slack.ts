@@ -6,13 +6,15 @@
  * No OAuth app or bot token required — only a webhook URL.
  *
  * Config (kota.config under the "slack" key):
- *   { webhookUrl: string, events?: string[] }
+ *   { webhookUrl: string, events?: string[], retries?: number, retryDelayMs?: number }
  *
  * If `events` is omitted, all four notification events are active.
  * `approval.requested` is always forwarded when the extension is configured.
+ * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
 import type { KotaExtension } from "../extension-types.js";
+import { postWithRetry } from "./notify-retry.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
@@ -26,6 +28,10 @@ type SlackConfig = {
   webhookUrl: string;
   /** Subset of notification events to forward. Defaults to all four. */
   events?: string[];
+  /** Number of retry attempts after the initial try. Default: 3. */
+  retries?: number;
+  /** Base delay in milliseconds for exponential backoff. Default: 1000. */
+  retryDelayMs?: number;
 };
 
 type Block =
@@ -108,25 +114,6 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
   }
 }
 
-async function postSlack(
-  webhookUrl: string,
-  blocks: Block[],
-  log: { warn: (msg: string) => void },
-): Promise<void> {
-  try {
-    const res = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blocks }),
-    });
-    if (!res.ok) {
-      log.warn(`Slack webhook POST returned ${res.status}`);
-    }
-  } catch (err) {
-    log.warn(`Slack webhook POST failed: ${(err as Error).message}`);
-  }
-}
-
 let unsubs: (() => void)[] = [];
 
 const slackModule: KotaExtension = {
@@ -145,11 +132,12 @@ const slackModule: KotaExtension = {
 
     const { webhookUrl } = config;
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
+    const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
 
     const subscribe = (event: string) => {
       const unsub = ctx.events.subscribe(event, (payload) => {
         const blocks = buildBlocks(event, payload as Record<string, unknown>);
-        void postSlack(webhookUrl, blocks, ctx.log);
+        void postWithRetry(webhookUrl, JSON.stringify({ blocks }), ctx.log, retryOptions);
       });
       unsubs.push(unsub);
     };
