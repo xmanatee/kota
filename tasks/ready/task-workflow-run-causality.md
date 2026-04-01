@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-causality
 title: Track and expose run causality so operators can trace autonomous trigger chains
-status: backlog
+status: ready
 priority: p3
 area: observability
 summary: When the improver runs because the builder just completed, or the explorer is triggered by an idle event after a builder cycle, there is no way to trace the chain. Recording which event and which upstream run caused each run would let operators understand the autonomous loop at a glance.
 created_at: 2026-04-01T07:22:00Z
-updated_at: 2026-04-01T07:22:00Z
+updated_at: 2026-04-01T07:36:00Z
 ---
 
 ## Problem
