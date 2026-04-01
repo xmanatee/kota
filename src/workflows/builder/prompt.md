@@ -38,7 +38,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   Key Modules entry enumerates specific subcommands and update it if so; when
   you add new capabilities to an existing module (new API routes, new UI
   actions, new operations), check whether the existing AGENTS.md entry
-  describes those capabilities and update the description to stay accurate. If
+  describes those capabilities and update the description to stay accurate; if
+  the file you modified has no Key Modules entry at all and it exports public
+  types, classes, or functions used elsewhere, add one — absence of an entry
+  does not mean the module is unimportant. If
   a `docs/` file documents a protocol, API, or behavior that you changed,
   update it in the same run — for example, when you add a new trigger type,
   update `docs/WORKFLOWS.md` trigger table and add a usage example; when you
