@@ -30,6 +30,18 @@ The timeout is enforced by the workflow executor (`run-executor-step.ts`) via a 
 `AbortController` and a `Promise.race` fallback for non-abortable code steps. A step timeout
 causes run status `"failed"`, not `"interrupted"` — so it is distinguishable from an external abort.
 
+## Unit Testing
+
+Each workflow should have a co-located `workflow.test.ts` that uses `WorkflowTestHarness`
+(exported from `kota/testing`) to test `when` predicate and skip/run logic without a running
+daemon. Focus on the decisions the workflow makes — which steps run, which skip, and why —
+not on the agent step content itself (mock those via `stepMocks`).
+
+See `builder/workflow.test.ts` and `explorer/workflow.test.ts` for representative examples.
+
+If a workflow has no `when` predicates or non-trivial skip logic, a unit test adds little value;
+rely on the integration test below instead.
+
 ## Integration Test
 
 `autonomous-loop.integration.test.ts` uses `getBuiltinWorkflowDefinitions()`, so every workflow
