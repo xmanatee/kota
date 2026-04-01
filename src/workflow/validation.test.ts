@@ -179,6 +179,36 @@ describe("workflow validation", () => {
     ).toThrow(WorkflowDefinitionError);
   });
 
+  it("preserves timeoutMs on agent steps", () => {
+    writeFileSync(
+      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/workflows/builder/prompt.md",
+              timeoutMs: 45 * 60 * 1000,
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.steps[0]).toMatchObject({
+      id: "build",
+      timeoutMs: 45 * 60 * 1000,
+    });
+  });
+
   it("rejects missing prompt files", () => {
     expect(() =>
       validateWorkflowDefinitions(

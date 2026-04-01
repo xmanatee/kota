@@ -223,6 +223,12 @@ export function validateAgentStep(
     agentName,
     promptPath,
     model,
+    timeoutMs: expectOptionalInteger(
+      step.timeoutMs,
+      `${stepLabel}.timeoutMs`,
+      definitionPath,
+      1,
+    ),
     maxTurns: expectOptionalInteger(
       step.maxTurns,
       `${stepLabel}.maxTurns`,
