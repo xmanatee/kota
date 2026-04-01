@@ -79,7 +79,21 @@ To forward only a subset of events, add an `events` array:
 The `text` field is ready to display as-is. Each additional field comes from
 the event payload and varies per event type.
 
-POSTs are fire-and-forget — no retry is attempted on failure.
+Failed POSTs are retried up to 3 times with exponential backoff (1 s, 2 s, 4 s).
+A warning is logged after all retries are exhausted. Retry count and base delay
+are configurable:
+
+```json
+{
+  "extensions": {
+    "webhook": {
+      "urls": ["https://hooks.example.com/kota"],
+      "retries": 5,
+      "retryDelayMs": 500
+    }
+  }
+}
+```
 
 ## Slack
 
@@ -118,7 +132,9 @@ To forward only a subset of the four notification events, add an `events` array.
 
 Messages use Block Kit and include at minimum: an event type header, workflow
 name, run ID, and relevant detail (error summary, cost figures, approval
-command). POSTs are fire-and-forget — no retry is attempted on failure.
+command). Failed POSTs are retried with the same exponential-backoff policy as
+the webhook extension (3 retries by default). Configurable via `retries` and
+`retryDelayMs` in the `slack` config block.
 
 ## Alert Cooldown
 
