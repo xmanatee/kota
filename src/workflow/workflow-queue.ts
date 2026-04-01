@@ -1,3 +1,4 @@
+import { validatePayloadSchema } from "./payload-validator.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import { formatRunId } from "./run-store-helpers.js";
@@ -94,6 +95,16 @@ export class WorkflowQueueManager {
         );
       }
       return;
+    }
+
+    if (definition.inputSchema) {
+      const schemaError = validatePayloadSchema(definition.inputSchema, trigger.payload);
+      if (schemaError) {
+        this.config.log(
+          `Rejected trigger for workflow "${definition.name}": payload validation failed — ${schemaError}`,
+        );
+        return;
+      }
     }
 
     const existingIndex = this.queue.findIndex(

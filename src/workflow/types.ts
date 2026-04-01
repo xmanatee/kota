@@ -254,6 +254,13 @@ export type WorkflowDefinitionInput = {
    * workflows use the "code" group (codeConcurrency cap).
    */
   concurrencyGroup?: string;
+  /**
+   * Optional JSON Schema object describing the expected shape of trigger payloads.
+   * When present, the runtime validates each trigger payload against this schema
+   * before queuing the run. Invalid payloads are rejected with a descriptive error.
+   * Workflows without this field accept any payload (existing behavior).
+   */
+  inputSchema?: Record<string, unknown>;
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -348,6 +355,8 @@ export type WorkflowDefinition = {
    * at a time. Omit to use type-based defaults ("agent" or "code").
    */
   concurrencyGroup?: string;
+  /** Optional JSON Schema for validating trigger payloads at enqueue time. */
+  inputSchema?: Record<string, unknown>;
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

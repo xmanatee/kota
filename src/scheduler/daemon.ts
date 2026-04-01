@@ -155,6 +155,7 @@ export class Daemon {
             if (t.intervalMs != null) return { type: "interval", intervalMs: t.intervalMs };
             return { type: "event", event: t.event };
           }),
+          ...(def.inputSchema !== undefined ? { inputSchema: def.inputSchema } : {}),
         })),
       enqueuePendingRun: (name: string, tags?: string[], extraPayload?: Record<string, unknown>) => this.workflows.enqueuePendingRun(name, tags, extraPayload),
       cancelQueuedRun: (runId: string) => this.workflows.cancelQueuedRun(runId),

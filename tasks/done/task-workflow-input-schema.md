@@ -1,7 +1,7 @@
 ---
 id: task-workflow-input-schema
 title: Add typed input schema to workflow definitions for validated trigger payloads
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Workflow triggers that carry payload data (webhooks, event-driven) have no way to declare expected input shape. Agents receive untyped trigger payloads and must defensively parse them. A declarative input schema would enable validation at trigger time and structured injection into agent prompts.

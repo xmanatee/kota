@@ -16,6 +16,7 @@ export type WorkflowDefinitionSummary = {
   enabled: boolean;
   stepCount: number;
   triggers: WorkflowDefinitionTriggerSummary[];
+  inputSchema?: Record<string, unknown>;
 };
 
 export type DaemonControlAddress = {
