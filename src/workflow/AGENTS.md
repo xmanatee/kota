@@ -14,7 +14,8 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
 - `budget-guard.ts` — `BudgetGuard`: daily spend tracking; emits `workflow.budget.exceeded` and `workflow.cost.limit.reached` bus events when thresholds are crossed.
-- `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue, pick, restore, persist.
+- `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue (with inputSchema payload validation), pick, restore, persist.
+- `payload-validator.ts` — `validatePayloadSchema`: minimal JSON Schema validator (type, required, properties, additionalProperties, items) used to validate trigger payloads against a workflow's optional `inputSchema`.
 - `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling.
 - `watch-triggers.ts` — `WatchTriggerManager`: file-watch trigger management; subscribes to `file.changed` bus events, matches glob patterns, and fires `files.changed` run triggers after debounce.
