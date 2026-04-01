@@ -47,7 +47,7 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 
 - Every non-inbox task must have these frontmatter fields: `id`, `title`, `status`, `priority`, `area`, `summary`, `created_at`, `updated_at`.
   - `id` must exactly match the filename without `.md` (e.g. file `task-foo-bar.md` → `id: task-foo-bar`).
-  - `priority` must be one of `p0`, `p1`, `p2`, `p3`.
+  - `priority` must be one of `p0`, `p1`, `p2`, `p3`. Use the definitions in `tasks/AGENTS.md` — p0 is a system-breaking incident, p1 is a critical gap, p2 is a significant improvement, p3 is a normal enhancement.
   - `summary` is a required one-line description of the task.
 - Every non-inbox task body must include all four required sections in order: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
 - `## Done When` must stay consistent with `## Desired Outcome`. Do not promise a broader result than the task actually asks for.
