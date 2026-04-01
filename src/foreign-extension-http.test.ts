@@ -149,7 +149,7 @@ describe("HttpTransport", () => {
   it("bearerToken string: Authorization header is sent on every request", async () => {
     const receivedHeaders: string[] = [];
     const { url, close } = await startKempServer((_msg, req) => {
-      receivedHeaders.push(req.headers["authorization"] ?? "");
+      receivedHeaders.push(req.headers.authorization ?? "");
       return null;
     });
     closeServer = close;
@@ -163,7 +163,7 @@ describe("HttpTransport", () => {
   it("bearerToken env ref: reads value from environment variable", async () => {
     const receivedHeaders: string[] = [];
     const { url, close } = await startKempServer((_msg, req) => {
-      receivedHeaders.push(req.headers["authorization"] ?? "");
+      receivedHeaders.push(req.headers.authorization ?? "");
       return null;
     });
     closeServer = close;
@@ -182,7 +182,7 @@ describe("HttpTransport", () => {
   it("no bearerToken: Authorization header is absent", async () => {
     const receivedHeaders: string[] = [];
     const { url, close } = await startKempServer((_msg, req) => {
-      receivedHeaders.push(req.headers["authorization"] ?? "absent");
+      receivedHeaders.push(req.headers.authorization ?? "absent");
       return null;
     });
     closeServer = close;

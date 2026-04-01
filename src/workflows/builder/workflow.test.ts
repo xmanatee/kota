@@ -97,8 +97,8 @@ describe("builder workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
-    expect(result.steps["build"].status).toBe("skipped");
-    expect(result.steps["commit"].status).toBe("skipped");
+    expect(result.steps.build.status).toBe("skipped");
+    expect(result.steps.commit.status).toBe("skipped");
     expect(result.steps["write-run-summary"].status).toBe("skipped");
     expect(result.steps["request-restart"].status).toBe("skipped");
   });
@@ -124,9 +124,9 @@ describe("builder workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
-    expect(result.steps["build"].status).toBe("success");
-    expect(result.steps["build"].output).toMatchObject({ totalCostUsd: 0.05 });
-    expect(result.steps["commit"].status).toBe("success");
+    expect(result.steps.build.status).toBe("success");
+    expect(result.steps.build.output).toMatchObject({ totalCostUsd: 0.05 });
+    expect(result.steps.commit.status).toBe("success");
   });
 
   it("skips commit and write-run-summary when build fails", async () => {
@@ -144,9 +144,9 @@ describe("builder workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("failed");
-    expect(result.steps["build"].status).toBe("failed");
-    expect(result.steps["build"].error).toMatch(/requires a mock/);
-    expect(result.steps["commit"]).toBeUndefined();
+    expect(result.steps.build.status).toBe("failed");
+    expect(result.steps.build.error).toMatch(/requires a mock/);
+    expect(result.steps.commit).toBeUndefined();
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {

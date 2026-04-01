@@ -32,7 +32,7 @@ export class HttpTransport implements KempTransport {
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const token = resolveToken(this.config.bearerToken);
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
 
     let response: Response;
     try {

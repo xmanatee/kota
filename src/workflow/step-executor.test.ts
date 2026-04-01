@@ -13,6 +13,7 @@ import {
   executeToolStep,
   withRetry,
 } from "./step-executor.js";
+import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
@@ -806,5 +807,37 @@ describe("executeStep repair loop", () => {
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
     expect(codeCheck).toHaveBeenCalledTimes(2);
     expect(result.content).toBe("fixed queue");
+  });
+});
+
+describe("classifyAgentRuntimeFailure", () => {
+  it("classifies rate limit signals as non-retryable rate_limit", () => {
+    expect(classifyAgentRuntimeFailure("you've hit your limit for today")).toEqual({ kind: "rate_limit", retryable: false });
+    expect(classifyAgentRuntimeFailure("rate limit exceeded")).toEqual({ kind: "rate_limit", retryable: false });
+    expect(classifyAgentRuntimeFailure("quota exceeded")).toEqual({ kind: "rate_limit", retryable: false });
+  });
+
+  it("classifies auth signals as non-retryable auth", () => {
+    expect(classifyAgentRuntimeFailure("not logged in")).toEqual({ kind: "auth", retryable: false });
+    expect(classifyAgentRuntimeFailure("please run /login")).toEqual({ kind: "auth", retryable: false });
+    expect(classifyAgentRuntimeFailure("unauthorized")).toEqual({ kind: "auth", retryable: false });
+  });
+
+  it("classifies network errors as retryable provider", () => {
+    expect(classifyAgentRuntimeFailure("network error occurred")).toEqual({ kind: "provider", retryable: true });
+    expect(classifyAgentRuntimeFailure("connection reset by peer")).toEqual({ kind: "provider", retryable: true });
+    expect(classifyAgentRuntimeFailure("timed out after 30s")).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it("classifies HTTP 5xx API errors as retryable provider", () => {
+    expect(classifyAgentRuntimeFailure('Claude Code returned an error result: API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"}}')).toEqual({ kind: "provider", retryable: true });
+    expect(classifyAgentRuntimeFailure("API Error: 529 overloaded")).toEqual({ kind: "provider", retryable: true });
+    expect(classifyAgentRuntimeFailure("API Error: 503 service unavailable")).toEqual({ kind: "provider", retryable: true });
+    expect(classifyAgentRuntimeFailure("internal server error")).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it("returns null for unrecognized errors", () => {
+    expect(classifyAgentRuntimeFailure("something unexpected happened")).toBeNull();
+    expect(classifyAgentRuntimeFailure("")).toBeNull();
   });
 });

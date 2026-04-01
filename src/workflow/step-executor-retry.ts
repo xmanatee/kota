@@ -81,7 +81,11 @@ export function classifyAgentRuntimeFailure(
     normalized.includes("enotfound") ||
     normalized.includes("spawn ") ||
     normalized.includes("broken pipe") ||
-    normalized.includes("connection reset")
+    normalized.includes("connection reset") ||
+    normalized.includes("internal server error") ||
+    normalized.includes("service unavailable") ||
+    normalized.includes("overloaded") ||
+    /api error: 5\d\d/.test(normalized)
   ) {
     return { kind: "provider", retryable: true };
   }

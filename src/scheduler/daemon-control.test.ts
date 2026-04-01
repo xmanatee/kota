@@ -543,7 +543,7 @@ describe("DaemonControlServer", () => {
       handle = makeHandle({
         triggerWebhookRun: vi.fn((_name, _sig, _buf, _payload, webhookTimestamp) => {
           const ts = parseInt(webhookTimestamp ?? "", 10);
-          if (isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
+          if (Number.isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
             return { ok: false, unauthorized: true };
           }
           return { ok: true, runId: "test-run-id" };

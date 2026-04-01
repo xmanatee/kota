@@ -285,7 +285,7 @@ export class Daemon {
         if (!sigMatch) return { ok: false, unauthorized: true };
         if (webhookTimestamp !== undefined) {
           const ts = parseInt(webhookTimestamp, 10);
-          if (isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
+          if (Number.isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
             return { ok: false, unauthorized: true };
           }
         }

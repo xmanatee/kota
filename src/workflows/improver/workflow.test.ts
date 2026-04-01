@@ -24,8 +24,8 @@ describe("improver workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("failed");
-    expect(result.steps["improve"].status).toBe("failed");
-    expect(result.steps["commit"]).toBeUndefined();
+    expect(result.steps.improve.status).toBe("failed");
+    expect(result.steps.commit).toBeUndefined();
     expect(result.steps["request-restart"]).toBeUndefined();
   });
 
@@ -46,8 +46,8 @@ describe("improver workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    expect(result.steps["improve"].status).toBe("success");
-    expect(result.steps["commit"].status).toBe("success");
+    expect(result.steps.improve.status).toBe("success");
+    expect(result.steps.commit.status).toBe("success");
     expect(result.steps["request-restart"].status).toBe("success");
   });
 
@@ -68,8 +68,8 @@ describe("improver workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    expect(result.steps["improve"].status).toBe("success");
-    expect(result.steps["commit"].status).toBe("success");
+    expect(result.steps.improve.status).toBe("success");
+    expect(result.steps.commit.status).toBe("success");
     expect(result.steps["request-restart"].status).toBe("skipped");
   });
 });

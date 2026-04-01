@@ -104,8 +104,8 @@ describe("explorer workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].status).toBe("success");
-    expect(result.steps["explore"].status).toBe("skipped");
-    expect(result.steps["commit"].status).toBe("skipped");
+    expect(result.steps.explore.status).toBe("skipped");
+    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("runs explore when ready task count is below target", async () => {
@@ -130,8 +130,8 @@ describe("explorer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    expect(result.steps["explore"].status).toBe("success");
-    expect(result.steps["commit"].status).toBe("success");
+    expect(result.steps.explore.status).toBe("success");
+    expect(result.steps.commit.status).toBe("success");
   });
 
   it("runs explore when strategic refresh is due (no recent completion)", async () => {
@@ -159,7 +159,7 @@ describe("explorer workflow", () => {
       strategicRefreshDue: true,
       needsAttention: true,
     });
-    expect(result.steps["explore"].status).toBe("success");
+    expect(result.steps.explore.status).toBe("success");
   });
 
   it("runs explore when high-priority tasks are stranded in backlog", async () => {
@@ -191,7 +191,7 @@ describe("explorer workflow", () => {
       hasHighPriorityBacklogTasks: true,
       needsAttention: true,
     });
-    expect(result.steps["explore"].status).toBe("success");
+    expect(result.steps.explore.status).toBe("success");
   });
 
   it("skips commit when explore fails", async () => {
@@ -210,7 +210,7 @@ describe("explorer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("failed");
-    expect(result.steps["explore"].status).toBe("failed");
-    expect(result.steps["commit"]).toBeUndefined();
+    expect(result.steps.explore.status).toBe("failed");
+    expect(result.steps.commit).toBeUndefined();
   });
 });
