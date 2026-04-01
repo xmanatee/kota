@@ -440,6 +440,81 @@ mark.log-match {
 .diff-worse { color: #f44336; }
 .diff-better { color: #4caf50; }
 
+/* Foreach step detail */
+.step-foreach-detail {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.step-foreach-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: inherit;
+}
+.step-foreach-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.step-foreach-body { margin-top: 6px; }
+.foreach-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.foreach-item-label {
+  color: var(--text-muted);
+  font-family: "SF Mono", "Fira Code", monospace;
+  min-width: 40px;
+}
+.foreach-item-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.foreach-substep {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.foreach-substep code {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 10px;
+  background: #0a0a1a;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--text);
+}
+.foreach-substep-dur {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* Branch step detail */
+.step-branch-detail {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.branch-arm-label {
+  background: rgba(108, 99, 255, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+.branch-step-count { color: var(--text-muted); }
+
 /* Thinking block disclosure */
 .step-thinking {
   margin: 4px 0;

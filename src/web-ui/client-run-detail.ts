@@ -135,6 +135,57 @@ export const CLIENT_RUN_DETAIL_JS = `
         }
         var truncated = rawOutput.length > 300;
         var outputText = truncated ? rawOutput.slice(0, 300) : rawOutput;
+
+        // Build compound step detail for foreach / branch types
+        var compoundHtml = "";
+        if (step.type === "foreach" && step.output && Array.isArray(step.output.results)) {
+          var fIters = step.output.results;
+          var fFailed = 0;
+          for (var fi = 0; fi < fIters.length; fi++) { if (fIters[fi].status === "failed") fFailed++; }
+          var fAutoOpen = fFailed > 0;
+          var fBodyId = "foreach-body-" + escapeHtml(step.id);
+          var fToggleId = "foreach-toggle-" + escapeHtml(step.id);
+          var fLabel = fIters.length === 1 ? "1 iteration" : fIters.length + " iterations";
+          if (fFailed > 0) fLabel += " \\u00b7 " + fFailed + " failed";
+          compoundHtml += '<div class="step-foreach-detail">';
+          compoundHtml += '<button class="step-foreach-toggle" id="' + fToggleId + '" onclick="toggleForeachDetail(' + JSON.stringify(escapeHtml(step.id)) + ')">';
+          compoundHtml += (fAutoOpen ? "\\u25bc" : "\\u25b6") + " " + fLabel;
+          compoundHtml += '</button>';
+          compoundHtml += '<div class="step-foreach-body" id="' + fBodyId + '"' + (fAutoOpen ? "" : ' style="display:none"') + '>';
+          for (var fi2 = 0; fi2 < fIters.length; fi2++) {
+            var fIter = fIters[fi2];
+            var fIterBadge = fIter.status === "failed" ? "failed" : "success";
+            var fIterIcon = fIter.status === "failed" ? "\\u2717" : "\\u2713";
+            compoundHtml += '<div class="foreach-item">';
+            compoundHtml += '<span class="run-badge ' + fIterBadge + '">' + fIterIcon + '</span>';
+            compoundHtml += '<span class="foreach-item-label">iter ' + fIter.index + '</span>';
+            var fStepIds = Object.keys(fIter.steps || {});
+            if (fStepIds.length > 0) {
+              compoundHtml += '<span class="foreach-item-steps">';
+              for (var fsi = 0; fsi < fStepIds.length; fsi++) {
+                var fSub = fIter.steps[fStepIds[fsi]];
+                var fSubBadge = fSub.status === "failed" ? "failed" : fSub.status === "skipped" ? "interrupted" : "success";
+                var fSubIcon = fSub.status === "failed" ? "\\u2717" : fSub.status === "skipped" ? "\\u2014" : "\\u2713";
+                compoundHtml += '<span class="foreach-substep">';
+                compoundHtml += '<span class="run-badge ' + fSubBadge + '">' + fSubIcon + '</span>';
+                compoundHtml += '<code>' + escapeHtml(fStepIds[fsi]) + '</code>';
+                if (fSub.durationMs) compoundHtml += '<span class="foreach-substep-dur">' + escapeHtml(fmtDuration(fSub.durationMs)) + '</span>';
+                compoundHtml += '</span>';
+              }
+              compoundHtml += '</span>';
+            }
+            compoundHtml += '</div>';
+          }
+          compoundHtml += '</div></div>';
+        } else if (step.type === "branch" && step.output && step.output.arm) {
+          var bArm = step.output.arm === "ifTrue" ? "ifTrue" : "ifFalse";
+          var bCount = step.output.steps != null ? step.output.steps + " step" + (step.output.steps !== 1 ? "s" : "") : null;
+          compoundHtml += '<div class="step-branch-detail">';
+          compoundHtml += '<span class="branch-arm-label">' + escapeHtml(bArm) + '</span>';
+          if (bCount) compoundHtml += '<span class="branch-step-count">' + escapeHtml(bCount) + '</span>';
+          compoundHtml += '</div>';
+        }
+
         html += '<div class="step-row" id="step-row-' + escapeHtml(step.id) + '">';
         html += '<div class="step-row-header">';
         html += '<span class="run-badge ' + sb + '" id="step-badge-' + escapeHtml(step.id) + '">' + si + '</span>';
@@ -151,7 +202,9 @@ export const CLIENT_RUN_DETAIL_JS = `
           html += '<pre class="step-thinking-body" id="' + thinkingBodyId + '" style="display:none">' + escapeHtml(thinkingText) + '</pre>';
           html += '</div>';
         }
-        if (rawOutput) {
+        if (compoundHtml) {
+          html += compoundHtml;
+        } else if (rawOutput) {
           html += '<div class="step-row-output" id="step-output-' + escapeHtml(step.id) + '" data-full="' + escapeHtml(rawOutput) + '" data-truncated="' + (truncated ? '1' : '0') + '">' + escapeHtml(outputText) + (truncated ? '\\u2026' : '') + '</div>';
           if (truncated) {
             html += '<button class="step-show-more" data-step="' + escapeHtml(step.id) + '">Show more</button>';
@@ -238,6 +291,15 @@ export const CLIENT_RUN_DETAIL_JS = `
     if (!body) return;
     var open = body.style.display !== "none";
     body.style.display = open ? "none" : "block";
+    if (btn) btn.textContent = (open ? "\\u25b6" : "\\u25bc") + btn.textContent.slice(1);
+  }
+
+  function toggleForeachDetail(stepId) {
+    var body = document.getElementById("foreach-body-" + stepId);
+    var btn = document.getElementById("foreach-toggle-" + stepId);
+    if (!body) return;
+    var open = body.style.display !== "none";
+    body.style.display = open ? "none" : "";
     if (btn) btn.textContent = (open ? "\\u25b6" : "\\u25bc") + btn.textContent.slice(1);
   }
 
