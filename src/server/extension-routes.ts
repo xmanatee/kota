@@ -1,5 +1,5 @@
 import type { ServerResponse } from "node:http";
-import type { ExtensionSummary } from "../extension-types.js";
+import type { ExtensionHealth, ExtensionSummary } from "../extension-types.js";
 import { jsonResponse } from "./session-pool.js";
 
 export type ExtensionStatusEntry = {
@@ -12,6 +12,7 @@ export type ExtensionStatusEntry = {
   workflowCount: number;
   skillCount: number;
   channelCount: number;
+  health?: ExtensionHealth;
 };
 
 export type ExtensionsResponse = {
@@ -32,6 +33,7 @@ export function handleListExtensions(
     workflowCount: s.workflowNames.length,
     skillCount: s.skillNames.length,
     channelCount: s.channelNames.length,
+    health: s.health,
   }));
   jsonResponse(res, 200, { extensions } satisfies ExtensionsResponse);
 }

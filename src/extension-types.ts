@@ -17,6 +17,13 @@ import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "./workflow/types.js";
 
+/** Health state for a foreign (KEMP) extension subprocess. */
+export type ExtensionHealth = {
+  status: "ok" | "restarting" | "dead";
+  restartCount: number;
+  lastRestartAt?: string;
+};
+
 /** Summary of a loaded extension's metadata and contributions. */
 export type ExtensionSummary = {
   name: string;
@@ -32,6 +39,7 @@ export type ExtensionSummary = {
   skills: SkillDef[];
   commandNames: string[];
   routeSummaries: string[];
+  health?: ExtensionHealth;
 };
 
 /** Scoped logger available to extensions via ExtensionContext. */
@@ -195,6 +203,9 @@ export type KotaExtension = {
 
   /** Called on shutdown — clean up resources, close connections. */
   onUnload?: () => Promise<void> | void;
+
+  /** Returns current health state. Only set by foreign extensions with subprocess management. */
+  getHealth?: () => ExtensionHealth;
 };
 
 /** Resolve tools from a KotaExtension — handles both static array and factory function forms. */

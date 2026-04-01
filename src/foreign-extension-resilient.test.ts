@@ -162,6 +162,76 @@ describe("KEMP resilient extension — max restarts exhausted", () => {
   }, 10_000);
 });
 
+describe("KEMP resilient extension — health state tracking", () => {
+  it("starts with ok status and zero restarts", async () => {
+    const countFile = tempFile();
+    const config: StdioForeignExtensionConfig = {
+      ...countingModule(countFile, { extName: "health-ext" }),
+      ...fastConfig({ maxRestarts: 2 }),
+    };
+
+    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    expect(ext).toBeDefined();
+    expect(ext.getHealth).toBeDefined();
+
+    const health = ext.getHealth!();
+    expect(health.status).toBe("ok");
+    expect(health.restartCount).toBe(0);
+    expect(health.lastRestartAt).toBeUndefined();
+
+    await ext.onUnload?.();
+  }, 10_000);
+
+  it("increments restartCount and sets lastRestartAt after a crash-restart cycle", async () => {
+    const countFile = tempFile();
+    // spawn 1 crashes after manifest; spawn 2+ works normally
+    const config: StdioForeignExtensionConfig = {
+      ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, extName: "health-restart-ext" }),
+      ...fastConfig({ maxRestarts: 2 }),
+    };
+
+    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    expect(ext).toBeDefined();
+
+    // Trigger the crash via first invoke
+    const tool = (ext.tools as { tool: { name: string }; runner: (i: Record<string, unknown>) => Promise<unknown> }[])
+      .find((t) => t.tool.name === "echo")!;
+    await tool.runner({ v: "trigger" });
+
+    // Wait for restart to complete
+    await new Promise((r) => setTimeout(r, 800));
+
+    const health = ext.getHealth!();
+    expect(health.restartCount).toBeGreaterThan(0);
+    expect(health.lastRestartAt).toBeDefined();
+    expect(typeof health.lastRestartAt).toBe("string");
+    expect(health.status).toBe("ok");
+
+    await ext.onUnload?.();
+  }, 10_000);
+
+  it("sets status to dead when all restarts exhausted", async () => {
+    const countFile = tempFile();
+    // spawn 1 crashes; all restart attempts also fail
+    const config: StdioForeignExtensionConfig = {
+      ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, extName: "health-dead-ext" }),
+      ...fastConfig({ maxRestarts: 2 }),
+    };
+
+    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    expect(ext).toBeDefined();
+
+    // Wait for all restarts to exhaust (backoffs: 50ms + 100ms = 150ms + processing)
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const health = ext.getHealth!();
+    expect(health.status).toBe("dead");
+    expect(health.restartCount).toBeGreaterThan(0);
+
+    await ext.onUnload?.();
+  }, 10_000);
+});
+
 describe("KEMP resilient extension — ping timeout", () => {
   it("hung subprocess detected via ping timeout triggers restart and extension.failed after exhaustion", async () => {
     const countFile = tempFile();

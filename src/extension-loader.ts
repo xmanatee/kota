@@ -327,6 +327,7 @@ export class ExtensionLoader {
         skills: ext.skills ?? [],
         commandNames,
         routeSummaries,
+        health: ext.getHealth?.(),
       };
     });
   }

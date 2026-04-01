@@ -17,6 +17,14 @@ export const CLIENT_EXTENSIONS_JS = `
     }
   }
 
+  function healthBadge(health) {
+    if (!health) return '<span class="run-badge success">\\u2022</span>';
+    var cls = health.status === "ok" ? "success" : health.status === "restarting" ? "interrupted" : "failed";
+    var tip = "Status: " + health.status + " | Restarts: " + health.restartCount;
+    if (health.lastRestartAt) tip += " | Last restart: " + health.lastRestartAt;
+    return '<span class="run-badge ' + cls + '" title="' + escapeHtml(tip) + '">\\u2022</span>';
+  }
+
   function renderExtensions(extensions) {
     $extensionsList.innerHTML = "";
     if (!extensions.length) {
@@ -36,11 +44,17 @@ export const CLIENT_EXTENSIONS_JS = `
       if (ext.channelCount) parts.push(ext.channelCount + " channel" + (ext.channelCount === 1 ? "" : "s"));
       var contrib = parts.length ? parts.join(", ") : "no contributions";
 
+      var healthInfo = "";
+      if (ext.health && ext.health.restartCount > 0) {
+        healthInfo = ' <span class="task-item-area">' + ext.health.restartCount + ' restart' + (ext.health.restartCount === 1 ? "" : "s") + '</span>';
+      }
+
       item.innerHTML =
         '<div class="task-item-header">' +
-        '<span class="run-badge success">\\u2022</span>' +
+        healthBadge(ext.health) +
         '<span class="task-item-title">' + escapeHtml(ext.name) + '</span>' +
         (ext.version ? '<span class="task-item-area">v' + escapeHtml(ext.version) + '</span>' : '') +
+        healthInfo +
         '</div>' +
         '<div class="task-item-summary">' + escapeHtml(contrib) + '</div>';
 

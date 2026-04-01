@@ -11,7 +11,7 @@
 
 import { resolve } from "node:path";
 import { tryEmit } from "./event-bus.js";
-import type { KotaExtension, ToolDef } from "./extension-types.js";
+import type { ExtensionHealth, KotaExtension, ToolDef } from "./extension-types.js";
 import type {
   ForeignExtensionConfig,
   KempInbound,
@@ -216,6 +216,9 @@ async function startResilientStdioExtension(
   let restarting = false;
   let stopped = false;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
+  let healthStatus: ExtensionHealth["status"] = "ok";
+  let totalRestarts = 0;
+  let lastRestartAt: string | undefined;
 
   function clearPingTimer() {
     if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
@@ -224,11 +227,14 @@ async function startResilientStdioExtension(
   async function doRestart(reason: string): Promise<void> {
     if (restarting || stopped) return;
     restarting = true;
+    healthStatus = "restarting";
     clearPingTimer();
     try { await session.close(); } catch {}
 
     while (restarts < maxRestarts) {
       restarts++;
+      totalRestarts++;
+      lastRestartAt = new Date().toISOString();
       const backoffMs = backoffBase * 2 ** (restarts - 1);
       process.stderr.write(`[foreign:${config.command}] Restart ${restarts}/${maxRestarts} in ${backoffMs}ms (${reason}).\n`);
       await new Promise<void>((r) => setTimeout(r, backoffMs));
@@ -243,6 +249,7 @@ async function startResilientStdioExtension(
         );
         session = fresh.session;
         restarts = 0;
+        healthStatus = "ok";
         process.stderr.write(`[foreign:${config.command}] Restarted successfully.\n`);
         watchDeath();
         startPing();
@@ -255,6 +262,7 @@ async function startResilientStdioExtension(
     }
 
     process.stderr.write(`[foreign:${config.command}] All ${maxRestarts} restart(s) exhausted. Extension failed.\n`);
+    healthStatus = "dead";
     tryEmit("extension.failed", { name: raw.name, reason });
     restarting = false;
   }
@@ -292,6 +300,11 @@ async function startResilientStdioExtension(
     version: raw.version,
     description: raw.description,
     tools,
+    getHealth: (): ExtensionHealth => ({
+      status: healthStatus,
+      restartCount: totalRestarts,
+      lastRestartAt,
+    }),
     onUnload: async () => {
       stopped = true;
       clearPingTimer();
