@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-all-workflows-panel
 title: Add all-workflows definitions panel to web UI
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The Schedules panel only shows cron/interval workflows. Event-triggered, idle-triggered, and webhook-triggered workflows are invisible in the web UI. Operators have no browser-based way to see what workflows are registered and what triggers they respond to.

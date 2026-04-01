@@ -1,6 +1,28 @@
 /** Workflow controls, run list, filter, and refresh functions for the KOTA web UI. */
 
 export const CLIENT_WORKFLOWS_JS = `
+  // --- Shared trigger helper ---
+
+  async function triggerWorkflowByName(name, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      var r = await apiFetch(API + "/api/workflow/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name }),
+      });
+      if (!r.ok) {
+        var d = await r.json();
+        if (btn) btn.title = d.error || "Error";
+      } else {
+        if (btn) btn.title = "Queued!";
+      }
+      await refreshWorkflows();
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   // --- Workflow controls ---
 
   function renderWorkflowControls(paused, workflowNames, activeRunCount) {
@@ -46,25 +68,7 @@ export const CLIENT_WORKFLOWS_JS = `
         btn.className = "wf-ctrl-btn trigger";
         btn.textContent = "▶ " + name;
         btn.title = "Trigger " + name;
-        btn.onclick = async function() {
-          btn.disabled = true;
-          try {
-            var r = await apiFetch(API +"/api/workflow/trigger", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: name }),
-            });
-            if (!r.ok) {
-              var d = await r.json();
-              btn.title = d.error || "Error";
-            } else {
-              btn.title = "Queued!";
-            }
-            await refreshWorkflows();
-          } finally {
-            btn.disabled = false;
-          }
-        };
+        btn.onclick = function() { triggerWorkflowByName(name, btn); };
         row.appendChild(btn);
       })(workflowNames[i]);
     }
@@ -362,7 +366,7 @@ export const CLIENT_WORKFLOWS_JS = `
 
   function _startSseFallback() {
     _clearSseFallback();
-    _sseFallbackIntervals.push(setInterval(function() { refreshWorkflows(); refreshSchedules(); refreshCost(); }, 30000));
+    _sseFallbackIntervals.push(setInterval(function() { refreshWorkflows(); refreshWfDefinitions(); refreshSchedules(); refreshCost(); }, 30000));
     _sseFallbackIntervals.push(setInterval(refreshApprovals, 30000));
     _sseFallbackIntervals.push(setInterval(refreshTasks, 30000));
     _sseFallbackIntervals.push(setInterval(refreshActiveSessions, 30000));
@@ -382,7 +386,7 @@ export const CLIENT_WORKFLOWS_JS = `
       }
     };
 
-    function onQueueEvent() { refreshWorkflows(); refreshSchedules(); refreshCost(); }
+    function onQueueEvent() { refreshWorkflows(); refreshWfDefinitions(); refreshSchedules(); refreshCost(); }
     src.addEventListener("workflow.started", onQueueEvent);
     src.addEventListener("workflow.completed", onQueueEvent);
     src.addEventListener("workflow.step.completed", onQueueEvent);

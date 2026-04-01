@@ -48,6 +48,10 @@ ${WEB_UI_CSS}
       <div id="active-sessions-list"></div>
     </div>
     <div class="sidebar-section">
+      <h3>Workflow Definitions</h3>
+      <div id="wf-definitions-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>Schedules</h3>
       <div id="schedules-list"></div>
     </div>

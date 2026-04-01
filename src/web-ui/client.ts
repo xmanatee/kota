@@ -15,6 +15,7 @@ import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
 import { CLIENT_TASKS_JS } from "./client-tasks.js";
 import { CLIENT_THEME_JS } from "./client-theme.js";
 import { CLIENT_UTILS_JS } from "./client-utils.js";
+import { CLIENT_WF_DEFINITIONS_JS } from "./client-wf-definitions.js";
 import { CLIENT_WORKFLOWS_JS } from "./client-workflows.js";
 
 export const WEB_UI_JS = /* js */ `
@@ -57,6 +58,7 @@ export const WEB_UI_JS = /* js */ `
   const $workflowHistoryFilter = document.getElementById("workflow-history-filter");
   const $costList = document.getElementById("cost-summary-list");
   const $schedulesList = document.getElementById("schedules-list");
+  const $wfDefinitionsList = document.getElementById("wf-definitions-list");
   const $extensionsList = document.getElementById("extensions-list");
   const $knowledgeList = document.getElementById("knowledge-list");
   const $knowledgeFilter = document.getElementById("knowledge-filter");
@@ -81,6 +83,7 @@ ${CLIENT_TASKS_JS}
 ${CLIENT_APPROVALS_JS}
 ${CLIENT_COST_JS}
 ${CLIENT_ACTIVE_SESSIONS_JS}
+${CLIENT_WF_DEFINITIONS_JS}
 ${CLIENT_SCHEDULES_JS}
 ${CLIENT_EXTENSIONS_JS}
 ${CLIENT_KNOWLEDGE_JS}
@@ -122,6 +125,7 @@ ${CLIENT_THEME_JS}
   refreshCost();
   refreshApprovals();
   refreshActiveSessions();
+  refreshWfDefinitions();
   refreshSchedules();
   refreshExtensions();
   refreshKnowledge();
@@ -135,6 +139,7 @@ ${CLIENT_THEME_JS}
   setInterval(refreshCost, 5000);
   setInterval(refreshApprovals, 300000);
   setInterval(refreshActiveSessions, 300000);
+  setInterval(refreshWfDefinitions, 300000);
   setInterval(refreshSchedules, 300000);
   $input.focus();
 })();
