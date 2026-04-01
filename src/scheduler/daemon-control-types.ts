@@ -150,7 +150,7 @@ export type DaemonControlHandle = {
   abortActiveRuns(): { aborted: number };
   reloadWorkflowDefinitions(): { count: number };
   getWorkflowDefinitions(): WorkflowDefinitionSummary[];
-  enqueuePendingRun(name: string, tags?: string[]): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
+  enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
   cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   // History

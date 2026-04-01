@@ -95,7 +95,11 @@ export function handleTriggerWorkflow(
         Array.isArray(body.tags) && (body.tags as unknown[]).every((t) => typeof t === "string")
           ? (body.tags as string[])
           : undefined;
-      const result = handle.enqueuePendingRun(name, tags);
+      const extraPayload =
+        body.payload !== undefined && body.payload !== null && typeof body.payload === "object" && !Array.isArray(body.payload)
+          ? (body.payload as Record<string, unknown>)
+          : undefined;
+      const result = handle.enqueuePendingRun(name, tags, extraPayload);
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;

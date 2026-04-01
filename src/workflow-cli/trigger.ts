@@ -15,7 +15,22 @@ export function registerTriggerCommands(wfCmd: Command): void {
     .description("Manually enqueue a workflow run")
     .option("--force", "Ignore cooldown and enqueue immediately")
     .option("--tag <tag>", "Attach a tag to this run (repeatable)", (val, prev: string[]) => [...prev, val], [] as string[])
-    .action(async (name: string, opts: { force?: boolean; tag: string[] }) => {
+    .option("--payload <json>", "Extra JSON fields to merge into the trigger payload")
+    .action(async (name: string, opts: { force?: boolean; tag: string[]; payload?: string }) => {
+      let extraPayload: Record<string, unknown> | undefined;
+      if (opts.payload !== undefined) {
+        try {
+          const parsed: unknown = JSON.parse(opts.payload);
+          if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+            throw new Error("payload must be a JSON object");
+          }
+          extraPayload = parsed as Record<string, unknown>;
+        } catch (err) {
+          console.error(`Invalid --payload JSON: ${(err as Error).message}`);
+          process.exit(1);
+        }
+      }
+
       const store = new WorkflowRunStore();
       const definitions = validateWorkflowDefinitions(
         getBuiltinWorkflowDefinitions(),
@@ -60,7 +75,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
 
       const client = DaemonControlClient.fromStateDir();
       if (client) {
-        const result = await client.trigger(name, tags);
+        const result = await client.trigger(name, tags, extraPayload);
         if (result) {
           if (result.alreadyQueued) {
             console.error(`Workflow "${name}" is already queued.`);
@@ -75,6 +90,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
       const trigger = {
         event: "manual",
         payload: {
+          ...(extraPayload ?? {}),
           triggeredAt: new Date().toISOString(),
           ...(tags !== undefined && { tags }),
         },

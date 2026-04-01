@@ -155,7 +155,7 @@ export class Daemon {
             return { type: "event", event: t.event };
           }),
         })),
-      enqueuePendingRun: (name: string) => this.workflows.enqueuePendingRun(name),
+      enqueuePendingRun: (name: string, tags?: string[], extraPayload?: Record<string, unknown>) => this.workflows.enqueuePendingRun(name, tags, extraPayload),
       cancelQueuedRun: (runId: string) => this.workflows.cancelQueuedRun(runId),
       subscribeToEvents: (handler) => {
         const stops = [

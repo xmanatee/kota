@@ -264,10 +264,10 @@ Enqueues a workflow run manually.
 **Request body:**
 
 ```json
-{ "name": "builder", "tags": ["ci", "pr-42"] }
+{ "name": "builder", "tags": ["ci", "pr-42"], "payload": { "taskId": "task-foo-bar" } }
 ```
 
-`name` (required) — workflow name. `tags` (optional) — array of strings attached to the run for filtering and grouping; available on run summaries returned by `GET /workflow/runs`.
+`name` (required) — workflow name. `tags` (optional) — array of strings attached to the run for filtering and grouping; available on run summaries returned by `GET /workflow/runs`. `payload` (optional) — a JSON object whose fields are merged into the trigger payload. Automatic fields (`triggeredAt`, `_runId`, `tags`) are set after merging and cannot be overridden by `payload`.
 
 **Response (200):**
 

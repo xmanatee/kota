@@ -210,7 +210,7 @@ export class WorkflowRuntime {
     return { count: defs.length };
   }
 
-  enqueuePendingRun(name: string, tags?: string[]): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string } {
+  enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string } {
     const definition = this.definitions.find((d) => d.name === name);
     if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
     if (!definition.enabled) return { ok: false, error: `Workflow "${name}" is disabled` };
@@ -221,6 +221,7 @@ export class WorkflowRuntime {
     const trigger = {
       event: "manual",
       payload: {
+        ...(extraPayload ?? {}),
         triggeredAt: new Date().toISOString(),
         _runId: runId,
         ...(tags && tags.length > 0 && { tags }),

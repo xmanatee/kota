@@ -1,7 +1,7 @@
 ---
 id: task-workflow-trigger-payload-cli
 title: Allow passing custom payload JSON to kota workflow trigger
-status: ready
+status: done
 priority: p3
 area: cli
 summary: kota workflow trigger can attach tags but cannot pass custom payload data. Operators cannot inject contextual inputs (PR URL, issue number, file path) into a manually triggered workflow run from the CLI.

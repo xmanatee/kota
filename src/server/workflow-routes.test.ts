@@ -88,7 +88,7 @@ function mockClient(overrides: Partial<{
   pause: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
   resume: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
   abort: () => Promise<{ ok: boolean; aborted: number } | null>;
-  trigger: (name: string, tags?: string[]) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
+  trigger: (name: string, tags?: string[], payload?: Record<string, unknown>) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
 }>): DaemonControlClient {
   return {
     getWorkflowStatus: vi.fn().mockResolvedValue({
@@ -554,6 +554,51 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(200);
       const queued = store.readState().pendingRuns[0];
       expect((queued.trigger.payload as Record<string, unknown>).tags).toBeUndefined();
+    });
+
+    it("merges extra payload fields into trigger payload for offline path", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { taskId: "task-foo-bar", region: "us-east-1" } }), res, store, null);
+      expect(result.status).toBe(200);
+      const queued = store.readState().pendingRuns[0];
+      const payload = queued.trigger.payload as Record<string, unknown>;
+      expect(payload.taskId).toBe("task-foo-bar");
+      expect(payload.region).toBe("us-east-1");
+      expect(typeof payload.triggeredAt).toBe("string");
+    });
+
+    it("automatic fields override any same-named fields in extra payload", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { triggeredAt: "overridden", taskId: "t1" } }), res, store, null);
+      expect(result.status).toBe(200);
+      const queued = store.readState().pendingRuns[0];
+      const payload = queued.trigger.payload as Record<string, unknown>;
+      expect(payload.triggeredAt).not.toBe("overridden");
+      expect(payload.taskId).toBe("t1");
+    });
+
+    it("passes extra payload to daemon client", async () => {
+      let capturedPayload: Record<string, unknown> | undefined;
+      const client = mockClient({
+        trigger: async (name, _tags, payload) => {
+          capturedPayload = payload;
+          return { ok: true, queued: name };
+        },
+      });
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { taskId: "abc" } }), res, store, client);
+      expect(result.status).toBe(200);
+      expect(capturedPayload).toEqual({ taskId: "abc" });
+    });
+
+    it("ignores invalid payload field (non-object)", async () => {
+      const { res, result } = mockResponse();
+      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: ["not", "an", "object"] }), res, store, null);
+      expect(result.status).toBe(200);
+      const queued = store.readState().pendingRuns[0];
+      const payload = queued.trigger.payload as Record<string, unknown>;
+      expect(payload.taskId).toBeUndefined();
+      expect(typeof payload.triggeredAt).toBe("string");
     });
   });
 
