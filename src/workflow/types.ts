@@ -273,6 +273,13 @@ export type WorkflowDefinitionInput = {
    */
   costLimitUsd?: number;
   /**
+   * Multiplier over the rolling average cost (last 10 successful runs) that
+   * triggers a `workflow.cost.anomaly` alert. Requires at least 3 historical
+   * runs before firing. Omit to disable anomaly detection for this workflow.
+   * Example: 3.0 fires when a run costs more than 3× the historical average.
+   */
+  costAnomalyThreshold?: number;
+  /**
    * Named concurrency group for this workflow. Workflows in the same named group
    * run at most one at a time. Omit to use type-based defaults: agent-step
    * workflows use the built-in "agent" group (agentConcurrency cap), code-only
@@ -391,6 +398,12 @@ export type WorkflowDefinition = {
    * after any step, the run fails with a descriptive error.
    */
   costLimitUsd?: number;
+  /**
+   * Multiplier over the rolling average cost (last 10 successful runs) that
+   * triggers a `workflow.cost.anomaly` alert. Requires at least 3 historical
+   * runs before firing. Omit to disable anomaly detection for this workflow.
+   */
+  costAnomalyThreshold?: number;
   /**
    * Named concurrency group. Workflows in the same named group run at most one
    * at a time. Omit to use type-based defaults ("agent" or "code").

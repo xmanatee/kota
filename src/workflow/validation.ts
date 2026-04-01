@@ -288,6 +288,11 @@ export function validateWorkflowDefinitions(
         "costLimitUsd",
         definitionPath,
       ),
+      costAnomalyThreshold: expectOptionalPositiveNumber(
+        definition.costAnomalyThreshold,
+        "costAnomalyThreshold",
+        definitionPath,
+      ),
       concurrencyGroup: expectOptionalString(
         definition.concurrencyGroup,
         "concurrencyGroup",

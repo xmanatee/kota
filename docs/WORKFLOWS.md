@@ -85,6 +85,25 @@ const myWorkflow: WorkflowDefinitionInput = {
 The global `dailyBudgetUsd` and the per-run `costLimitUsd` are independent. Omit
 `costLimitUsd` to allow unlimited spend per run.
 
+### Cost Anomaly Alerts
+
+`costAnomalyThreshold` enables per-workflow anomaly detection. After each run
+completes, the runtime computes the run's cost against the rolling average of the
+last 10 non-failed runs for that workflow. If the run cost exceeds
+`costAnomalyThreshold × baseline`, a `workflow.cost.anomaly` bus event fires.
+Telegram and webhook extensions forward this alert automatically.
+
+Detection is skipped if fewer than 3 historical runs are available (not enough
+baseline), or if the workflow has no `costAnomalyThreshold` set (opt-in only).
+
+```typescript
+const myWorkflow: WorkflowDefinitionInput = {
+  name: "my-extension/long-job",
+  costAnomalyThreshold: 3.0,  // alert if a run costs > 3× the historical average
+  // ...
+};
+```
+
 ### Agent Step Fields
 
 `type: "agent"` steps accept the following fields beyond the common step fields:

@@ -12,6 +12,7 @@ alerts to external services.
 | `workflow.budget.exceeded` | Daily cost budget is exceeded |
 | `workflow.attention.digest` | The attention digest fires (configurable interval) |
 | `workflow.cost.limit.reached` | The hard cost circuit breaker trips |
+| `workflow.cost.anomaly` | A run's cost significantly exceeds the historical baseline (opt-in via `costAnomalyThreshold`) |
 
 Each event payload includes a human-readable `text` field plus structured fields
 (e.g. `workflow`, `runId`, `status`).
@@ -25,7 +26,7 @@ export TELEGRAM_BOT_TOKEN=<your-bot-token>
 export TELEGRAM_ALERT_CHAT_ID=<your-chat-id>
 ```
 
-When both are set, all four notification events are forwarded to that chat.
+When both are set, all notification events are forwarded to that chat.
 
 ## Webhook
 

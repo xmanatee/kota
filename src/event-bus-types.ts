@@ -130,6 +130,14 @@ export type BusEvents = {
     text: string;
     pauseSignalFile: string;
   };
+  "workflow.cost.anomaly": {
+    workflow: string;
+    runId: string;
+    runCostUsd: number;
+    baselineCostUsd: number;
+    threshold: number;
+    text: string;
+  };
   "approval.expired": {
     id: string;
     tool: string;

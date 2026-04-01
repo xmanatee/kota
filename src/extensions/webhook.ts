@@ -20,6 +20,7 @@ const NOTIFICATION_EVENTS = [
   "workflow.budget.exceeded",
   "workflow.attention.digest",
   "workflow.cost.limit.reached",
+  "workflow.cost.anomaly",
 ] as const;
 
 type WebhookConfig = {

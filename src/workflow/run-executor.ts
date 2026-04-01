@@ -1,5 +1,6 @@
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
+import { detectCostAnomaly } from "./cost-anomaly-detector.js";
 import {
   buildStepCompletedPayload,
   buildStepStartedPayload,
@@ -333,6 +334,7 @@ export function executeWorkflowRun(
         status: finalStatus,
         durationMs: Date.now() - startedAt,
       });
+      emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(
         "workflow.completed",
         buildWorkflowCompletedPayload(completed, finalStatus),
@@ -359,6 +361,7 @@ export function executeWorkflowRun(
         durationMs: Date.now() - startedAt,
         error: err.message,
       });
+      emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(
         "workflow.completed",
         buildWorkflowCompletedPayload(completed, status),
@@ -376,4 +379,30 @@ export function executeWorkflowRun(
   })();
 
   return { promise, abortController };
+}
+
+function emitCostAnomalyIfNeeded(
+  definition: WorkflowDefinition,
+  completed: import("./run-types.js").WorkflowRunMetadata,
+  deps: RunExecutorDeps,
+): void {
+  if (definition.costAnomalyThreshold === undefined) return;
+  const runCostUsd = typeof completed.totalCostUsd === "number" ? completed.totalCostUsd : 0;
+  if (runCostUsd <= 0) return;
+  const anomaly = detectCostAnomaly(
+    deps.store,
+    definition.name,
+    completed.id,
+    runCostUsd,
+    definition.costAnomalyThreshold,
+  );
+  if (!anomaly) return;
+  deps.bus.emit("workflow.cost.anomaly", {
+    workflow: definition.name,
+    runId: completed.id,
+    runCostUsd,
+    baselineCostUsd: anomaly.baselineCostUsd,
+    threshold: definition.costAnomalyThreshold,
+    text: anomaly.text,
+  });
 }

@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cost-anomaly-alerts
 title: Emit alerts when workflow run cost significantly exceeds historical baseline
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: KOTA tracks per-run cost and per-workflow daily budgets, but does not flag individual runs that cost anomalously more than usual. An automatic anomaly alert would help operators catch runaway sessions before they exhaust the daily budget.
 created_at: 2026-03-31T13:03:00Z
-updated_at: 2026-03-31T13:03:00Z
+updated_at: 2026-04-01T13:07:00Z
 ---
 
 ## Problem
