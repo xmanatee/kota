@@ -214,6 +214,48 @@ steps: [
 (a workflow triggering itself is a hard error). Triggering an unregistered
 workflow produces a warning at load time and a runtime error when the step runs.
 
+### Parallel Step Groups
+
+A `type: "parallel"` step runs code and agent steps concurrently within a single workflow run.
+
+```typescript
+steps: [
+  {
+    id: "fan-out",
+    type: "parallel",
+    maxParallelAgents: 2,
+    steps: [
+      {
+        id: "analyze-frontend",
+        type: "agent",
+        promptPath: "src/workflows/my-workflow/prompt-frontend.md",
+      },
+      {
+        id: "analyze-backend",
+        type: "agent",
+        promptPath: "src/workflows/my-workflow/prompt-backend.md",
+      },
+      {
+        id: "check-config",
+        type: "code",
+        run: async (ctx) => ({ valid: true }),
+      },
+    ],
+  },
+]
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `steps` | `array` | — | Code and agent steps to run concurrently. Emit, restart, trigger, and nested parallel steps are not supported. |
+| `when` | predicate | — | Condition evaluated before running the group. |
+| `continueOnFailure` | `boolean` | `false` | If true, the parent workflow continues even if the group fails. |
+| `maxParallelAgents` | `number` | no cap | Limits how many agent steps run simultaneously. Useful when the group has many agent steps and you want to avoid API contention. |
+
+Individual agent steps inside a parallel group accept `timeoutMs` (defaults to 30 minutes per step). The group itself has no group-level timeout — set `timeoutMs` on individual steps to bound their runtime.
+
+A child step failure causes the group to fail unless the child sets `continueOnFailure: true`. The group result output contains the inner step results as `{ steps: [...] }`.
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of
