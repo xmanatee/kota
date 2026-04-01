@@ -68,6 +68,29 @@ struct ApprovalRequest: Codable, Identifiable {
     }
 }
 
+// MARK: - Run detail
+
+struct RunStepSummary: Codable {
+    let id: String
+    let type: String
+    let status: String
+    let durationMs: Double
+    let error: String?
+    let costUsd: Double?
+}
+
+struct RunDetail: Codable {
+    let id: String
+    let workflow: String
+    let status: String
+    let startedAt: String
+    let steps: [RunStepSummary]
+
+    var currentStep: RunStepSummary? {
+        steps.first(where: { $0.status == "running" }) ?? steps.last
+    }
+}
+
 // MARK: - Trigger
 
 struct TriggerRequest: Codable {

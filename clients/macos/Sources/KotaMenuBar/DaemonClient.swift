@@ -48,6 +48,10 @@ final class DaemonClient {
         try await post("/approvals/\(id)/reject", body: nil as Data?)
     }
 
+    func fetchRunDetail(runId: String) async throws -> RunDetail {
+        try await get("/workflow/runs/\(runId)")
+    }
+
     func triggerWorkflow(name: String) async throws -> TriggerResponse {
         let body = try JSONEncoder().encode(TriggerRequest(workflow: name))
         return try await post("/workflow/trigger", body: body)
