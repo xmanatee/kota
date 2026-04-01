@@ -38,7 +38,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Do not create or reprioritize product tasks. Explorer owns `tasks/`.
 - Do not optimize for shaving one or two iterations if that harms work quality, ambition, or strategic range.
 - Do not confuse smaller files, more micro-refactors, or local neatness with higher-leverage progress. Optimize for better future work, not just tidier recent diffs.
-- Use external research when it materially improves process design. Compare against strong agent systems and prefer simpler, more legible mechanisms over bespoke orchestration.
+- Use external research when it materially improves process design. Keep external lookups targeted and brief: 1-2 searches per topic. Complete local analysis (code, runs, prompts, commits) before turning to external sources. A focused run that commits quality updates is better than a broad run that times out. Compare against strong agent systems and prefer simpler, more legible mechanisms over bespoke orchestration.
 - If a run looks problematic, consider whether you caught the system mid-transition before concluding that a rollback is needed. Fix causal flaws, not snapshots.
 - If you change behavior, validate the exact behavior you changed while you work.
 - When you add a new `src/` file that exports public types, classes, or functions used elsewhere, add an entry for it in the relevant AGENTS.md Key Modules list (check both the file's parent directory AGENTS.md and `src/AGENTS.md`). Absence of an entry is not a sign the module is unimportant.
