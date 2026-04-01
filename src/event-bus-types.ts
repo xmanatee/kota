@@ -134,6 +134,11 @@ export type BusEvents = {
     id: string;
     tool: string;
   };
+  "workflow.approval.timeout": {
+    id: string;
+    tool: string;
+    defaultResolution: "deny" | "approve";
+  };
   "approval.changed": {
     id: string;
     pendingCount: number;

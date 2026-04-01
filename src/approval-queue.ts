@@ -28,6 +28,8 @@ export type PendingApproval = {
 	resolvedAt?: string;
 	rejectionReason?: string;
 	timeoutMs?: number;
+	defaultResolution?: "deny" | "approve";
+	resolutionSource?: string;
 };
 
 let _enqueueSeq = 0;
@@ -44,6 +46,7 @@ export class ApprovalQueue {
 		reason: string,
 		source?: string,
 		timeoutMs?: number,
+		defaultResolution?: "deny" | "approve",
 	): PendingApproval {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
@@ -56,6 +59,7 @@ export class ApprovalQueue {
 			createdAt: new Date().toISOString(),
 			status: "pending",
 			...(timeoutMs !== undefined && { timeoutMs }),
+			...(defaultResolution !== undefined && { defaultResolution }),
 		};
 		writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "" });
@@ -108,12 +112,19 @@ export class ApprovalQueue {
 			const ttl = item.timeoutMs ?? defaultTtlMs;
 			if (!ttl) continue;
 			if (now < new Date(item.createdAt).getTime() + ttl) continue;
-			item.status = "expired";
+			const resolution = item.defaultResolution ?? "deny";
 			item.resolvedAt = new Date().toISOString();
-			item.rejectionReason = "expired";
+			item.resolutionSource = "timeout";
+			if (resolution === "approve") {
+				item.status = "approved";
+			} else {
+				item.status = "expired";
+				item.rejectionReason = "expired";
+			}
 			writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
+			tryEmit("workflow.approval.timeout", { id: item.id, tool: item.tool, defaultResolution: resolution });
 			tryEmit("approval.expired", { id: item.id, tool: item.tool });
-			tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: false, reason: "expired" });
+			tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: resolution === "approve", reason: "expired" });
 			tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
 			expired.push(item);
 		}

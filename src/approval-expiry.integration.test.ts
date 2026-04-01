@@ -74,4 +74,45 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(0);
 	});
+
+	it("emits workflow.approval.timeout on the bus for auto-deny", () => {
+		const bus = getEventBus()!;
+		const received: unknown[] = [];
+		bus.on("workflow.approval.timeout", (payload) => received.push(payload));
+
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		backdate(item.id, 2000);
+
+		queue.expireStale(1000);
+
+		expect(received).toHaveLength(1);
+		expect(received[0]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "deny" });
+	});
+
+	it("emits workflow.approval.timeout on the bus for auto-approve", () => {
+		const bus = getEventBus()!;
+		const received: unknown[] = [];
+		bus.on("workflow.approval.timeout", (payload) => received.push(payload));
+
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
+		backdate(item.id, 2000);
+
+		queue.expireStale();
+
+		expect(received).toHaveLength(1);
+		expect(received[0]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "approve" });
+	});
+
+	it("auto-approve path sets status to approved", () => {
+		const bus = getEventBus()!;
+		bus.on("workflow.approval.timeout", () => {});
+
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
+		backdate(item.id, 2000);
+
+		queue.expireStale();
+
+		expect(queue.get(item.id)!.status).toBe("approved");
+		expect(queue.get(item.id)!.resolutionSource).toBe("timeout");
+	});
 });

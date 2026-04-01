@@ -1,7 +1,7 @@
 ---
 id: task-approval-request-expiration
 title: Add configurable expiration and auto-resolution to approval requests
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Approval requests have no timeout; if the operator is absent, the requesting workflow step hangs indefinitely until the daemon is restarted.

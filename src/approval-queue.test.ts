@@ -200,6 +200,35 @@ describe("ApprovalQueue", () => {
 			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
 			expect(item.timeoutMs).toBeUndefined();
 		});
+
+		it("auto-deny (default): expired status and rejectionReason set", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000);
+			backdate(item.id, 2000);
+			const result = queue.expireStale();
+			expect(result[0].status).toBe("expired");
+			expect(result[0].rejectionReason).toBe("expired");
+			expect(result[0].resolutionSource).toBe("timeout");
+		});
+
+		it("auto-approve: approved status when defaultResolution is approve", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000, "approve");
+			backdate(item.id, 2000);
+			const result = queue.expireStale();
+			expect(result[0].status).toBe("approved");
+			expect(result[0].rejectionReason).toBeUndefined();
+			expect(result[0].resolutionSource).toBe("timeout");
+		});
+
+		it("stores defaultResolution on enqueued item", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000, "approve");
+			expect(item.defaultResolution).toBe("approve");
+			expect(queue.get(item.id)!.defaultResolution).toBe("approve");
+		});
+
+		it("does not store defaultResolution when not provided", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			expect(item.defaultResolution).toBeUndefined();
+		});
 	});
 });
 
@@ -282,6 +311,45 @@ describe("approval.changed events", () => {
 		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.expired");
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool });
+	});
+
+	it("emits workflow.approval.timeout on expireStale (auto-deny)", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
+		const stored = queue.get(item.id)!;
+		stored.createdAt = new Date(Date.now() - 2000).toISOString();
+		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		tryEmitMock.mockClear();
+
+		queue.expireStale();
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "workflow.approval.timeout");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "deny" });
+	});
+
+	it("emits workflow.approval.timeout on expireStale (auto-approve)", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
+		const stored = queue.get(item.id)!;
+		stored.createdAt = new Date(Date.now() - 2000).toISOString();
+		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		tryEmitMock.mockClear();
+
+		queue.expireStale();
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "workflow.approval.timeout");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "approve" });
+	});
+
+	it("emits approval.resolved with approved=true for auto-approve timeout", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
+		const stored = queue.get(item.id)!;
+		stored.createdAt = new Date(Date.now() - 2000).toISOString();
+		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		tryEmitMock.mockClear();
+
+		queue.expireStale();
+		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.resolved");
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toMatchObject({ approved: true });
 	});
 });
 
