@@ -87,6 +87,8 @@ function stepConfig(step: WorkflowStep): string {
       return `trigger: ${step.workflow} (waitFor: ${step.waitFor})`;
     case "branch":
       return `branch (ifTrue: ${step.ifTrue.length} step(s), ifFalse: ${step.ifFalse.length} step(s))`;
+    case "foreach":
+      return `foreach (${step.steps.length} inner step(s), as: ${step.as})`;
   }
 }
 

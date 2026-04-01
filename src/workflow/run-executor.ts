@@ -16,8 +16,9 @@ import {
   shouldRunStep,
 } from "./step-executor.js";
 import { executeBranchStepGroup } from "./step-executor-branch.js";
+import { executeForeachStepGroup, type ForeachGroupResult } from "./step-executor-foreach.js";
 import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
-import type { WorkflowBranchStep, WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowBranchStep, WorkflowDefinition, WorkflowForeachStep, WorkflowRunTrigger } from "./types.js";
 
 export type RunExecutorDeps = {
   projectDir: string;
@@ -185,6 +186,39 @@ export function executeWorkflowRun(
             if (step.continueOnFailure) { hadWarnings = true; continue; }
             if (thrownError) throw thrownError;
             throw new Error(`Branch step "${step.id}" failed`);
+          }
+          if (hadNewWarnings) hadWarnings = true;
+          continue;
+        }
+
+        if (step.type === "foreach") {
+          const foreachDeps = {
+            definition,
+            run,
+            trigger,
+            runAbortController: abortController,
+            agentConfig,
+            acc,
+            bus: deps.bus,
+            log: deps.log,
+          };
+          const getContext = () => createStepContext(
+            run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
+          );
+          const foreachContext = getContext();
+          const { groupResult, hadNewWarnings, groupFailed, thrownError }: ForeachGroupResult =
+            await executeForeachStepGroup(step as WorkflowForeachStep, foreachContext, stepStartedAt, foreachDeps);
+          run.recordStep(groupResult);
+          stepOutputsById[step.id] = groupResult.output;
+          stepResultsById[step.id] = groupResult;
+          stepOutputs.push(groupResult.output);
+          previousOutput = groupResult.output;
+          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, groupResult));
+          deps.log(`Completed step "${step.id}" (foreach) in workflow "${definition.name}" [${groupResult.durationMs}ms]`);
+          if (groupFailed) {
+            if (step.continueOnFailure) { hadWarnings = true; continue; }
+            if (thrownError) throw thrownError;
+            throw new Error(`Foreach step "${step.id}" failed`);
           }
           if (hadNewWarnings) hadWarnings = true;
           continue;

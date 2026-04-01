@@ -159,5 +159,10 @@ export async function executeStep(
       `Branch step "${step.id}" must be handled by the run executor, not executeStep`,
     );
   }
+  if (step.type === "foreach") {
+    throw new Error(
+      `Foreach step "${step.id}" must be handled by the run executor, not executeStep`,
+    );
+  }
   return executeCodeStep(step, context);
 }

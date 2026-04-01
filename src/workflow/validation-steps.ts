@@ -4,6 +4,7 @@ export {
   validateBranchStep,
   validateCodeStep,
   validateEmitStep,
+  validateForeachStep,
   validateParallelGroup,
   validateRestartStep,
   validateToolStep,

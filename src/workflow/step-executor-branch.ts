@@ -5,10 +5,12 @@ import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js"
 import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import { shouldRunStep } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
+import { executeForeachStepGroup, type ForeachGroupResult } from "./step-executor-foreach.js";
 import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
 import type {
   WorkflowBranchStep,
   WorkflowDefinition,
+  WorkflowForeachStep,
   WorkflowRunTrigger,
   WorkflowStep,
 } from "./types.js";
@@ -112,6 +114,32 @@ async function executeArmSteps(
       continue;
     }
 
+    if (armStep.type === "foreach") {
+      const foreachDeps = {
+        definition: deps.definition,
+        run: deps.run,
+        trigger: deps.trigger,
+        runAbortController: deps.runAbortController,
+        agentConfig: deps.agentConfig,
+        acc: deps.acc,
+        bus: deps.bus,
+        log: deps.log,
+      };
+      const { groupResult, hadNewWarnings: foreachHadWarnings, groupFailed, thrownError }: ForeachGroupResult =
+        await executeForeachStepGroup(armStep as WorkflowForeachStep, context, stepStartedAt, foreachDeps);
+      deps.run.recordStep(groupResult);
+      deps.acc.stepOutputsById[armStep.id] = groupResult.output;
+      deps.acc.stepResultsById[armStep.id] = groupResult;
+      deps.acc.stepOutputs.push(groupResult.output);
+      deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, groupResult));
+      if (groupFailed) {
+        if (armStep.continueOnFailure) { hadWarnings = true; continue; }
+        return { hadWarnings, failed: true, thrownError };
+      }
+      if (foreachHadWarnings) hadWarnings = true;
+      continue;
+    }
+
     const stepDeps = { bus: deps.bus, log: deps.log };
     const { completed, thrownError } = await executeWorkflowStep(
       deps.definition, armStep, deps.run, deps.trigger, context,
@@ -175,6 +203,18 @@ export async function executeBranchStepGroup(
       if (s.type === "branch") {
         skipArmSteps(s.ifTrue);
         skipArmSteps(s.ifFalse);
+      } else if (s.type === "foreach") {
+        for (const innerStep of s.steps) {
+          deps.acc.stepOutputsById[innerStep.id] = { skipped: true };
+          deps.acc.stepResultsById[innerStep.id] = {
+            id: innerStep.id,
+            type: innerStep.type,
+            status: "skipped",
+            startedAt: skippedAt,
+            completedAt: skippedAt,
+            durationMs: 0,
+          };
+        }
       }
     }
   };

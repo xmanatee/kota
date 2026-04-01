@@ -319,9 +319,47 @@ steps: [
 | `continueOnFailure` | `boolean` | `false` | If true, the parent workflow continues even if the chosen arm fails. |
 | `timeoutMs` | `number` | 30 min | Maximum time for the entire branch arm to complete. |
 
-Steps inside `ifTrue`/`ifFalse` support all existing step types (agent, code, emit, trigger, parallel) and their `when` predicates. Nested `branch` steps are allowed up to depth 5. `restart` steps are not allowed inside branch arms.
+Steps inside `ifTrue`/`ifFalse` support all existing step types (agent, code, emit, trigger, parallel, foreach) and their `when` predicates. Nested `branch` steps are allowed up to depth 5. `restart` steps are not allowed inside branch arms.
 
 After a branch step completes, downstream steps can access arm step outputs via `context.stepOutputs[armStepId]`. Steps in the non-taken arm are recorded as skipped.
+
+### Foreach Steps
+
+A `type: "foreach"` step iterates over a list of items, running a sequence of inner steps for each item in order. Use it when a workflow needs to act on each element of a dynamic list.
+
+```typescript
+steps: [
+  {
+    id: "get-targets",
+    type: "code",
+    run: () => ["service-a", "service-b", "service-c"],
+  },
+  {
+    id: "check-each-target",
+    type: "foreach",
+    items: (ctx) => ctx.stepOutputs["get-targets"] as string[],
+    as: "target",
+    steps: [
+      {
+        id: "verify",
+        type: "code",
+        run: (ctx) => verifyTarget(ctx.foreach?.["target"] as string),
+      },
+    ],
+  },
+]
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `items` | `unknown[] \| (ctx) => unknown[]` | — | Required. The array to iterate over. May be a static array or a function that receives the step context. |
+| `as` | `string` | — | Required. Name to use for the current item inside inner step resolvers, accessible via `ctx.foreach?.["<name>"]`. |
+| `steps` | `(WorkflowCodeStepInput \| WorkflowAgentStepInput)[]` | — | Required. Non-empty array of steps to run for each item. Only `code` and `agent` steps are supported inside a foreach body. |
+| `when` | predicate | — | Outer skip guard. If false, the entire foreach step is skipped. |
+| `continueOnFailure` | `boolean` | `false` | If true, a failing item does not abort the loop — the workflow continues with warnings after all items are processed. |
+| `timeoutMs` | `number` | 30 min | Maximum time for the entire foreach loop to complete. |
+
+Iteration is **sequential** — each item completes before the next begins. Use a `parallel` step for concurrent fan-out. The foreach step result output contains `{ items: N, results: [...] }` with per-item status. Downstream steps can access the last iteration's inner step output via `context.stepOutputs["<innerStepId>"]`.
 
 ## Testing Workflow Definitions
 

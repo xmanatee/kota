@@ -76,6 +76,8 @@ export type WorkflowStepContext = {
   stepOutputs: Record<string, unknown>;
   stepResults: Record<string, WorkflowStepResult>;
   stepOutputList: unknown[];
+  /** Present when this step is executing inside a foreach loop. Maps the foreach `as` name to the current item. */
+  foreach?: Record<string, unknown>;
   runTool: (
     name: string,
     input: Record<string, unknown>,

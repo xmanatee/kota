@@ -1,0 +1,434 @@
+import { mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventBus } from "../event-bus.js";
+import { executeWorkflowRun } from "./run-executor.js";
+import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowDefinition, WorkflowForeachStepInput, WorkflowRunTrigger } from "./types.js";
+import { validateWorkflowDefinitions } from "./validation.js";
+
+function makeDefinition(
+  steps: WorkflowDefinition["steps"],
+  overrides: Partial<WorkflowDefinition> = {},
+): WorkflowDefinition {
+  return {
+    name: "test",
+    enabled: true,
+    definitionPath: "src/workflows/test/workflow.ts",
+    triggers: [],
+    steps,
+    ...overrides,
+  };
+}
+
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+
+describe("foreach step – executor", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-foreach-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("runs inner steps for each item in sequence and records output", async () => {
+    const processed: unknown[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        items: () => ["a", "b", "c"],
+        as: "item",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              processed.push(ctx.foreach?.item);
+              return `processed:${String(ctx.foreach?.item)}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(processed).toEqual(["a", "b", "c"]);
+
+    const groupResult = result.metadata.steps[0];
+    expect(groupResult.id).toBe("iterate");
+    expect(groupResult.type).toBe("foreach");
+    expect(groupResult.status).toBe("success");
+
+    const output = groupResult.output as { items: number; results: Array<{ index: number; status: string }> };
+    expect(output.items).toBe(3);
+    expect(output.results).toHaveLength(3);
+    expect(output.results[0].status).toBe("success");
+    expect(output.results[1].status).toBe("success");
+    expect(output.results[2].status).toBe("success");
+  });
+
+  it("is a no-op for an empty list", async () => {
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        items: () => [],
+        as: "item",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: () => "should not run",
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    const output = result.metadata.steps[0].output as { items: number; results: unknown[] };
+    expect(output.items).toBe(0);
+    expect(output.results).toHaveLength(0);
+  });
+
+  it("fails on first item failure when continueOnFailure is false", async () => {
+    const processed: number[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        items: () => [0, 1, 2],
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              if (idx === 1) throw new Error("item 1 failed");
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+      {
+        id: "after",
+        type: "code",
+        run: () => "after",
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    // Only items 0 and 1 were processed; item 2 was not reached
+    expect(processed).toEqual([0, 1]);
+    // "after" step should not have run
+    const afterStep = result.metadata.steps.find((s) => s.id === "after");
+    expect(afterStep).toBeUndefined();
+  });
+
+  it("continues past item failures when continueOnFailure is true", async () => {
+    const processed: number[] = [];
+    const afterRan: string[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        continueOnFailure: true,
+        items: () => [0, 1, 2],
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              if (idx === 1) throw new Error("item 1 failed");
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+      {
+        id: "after",
+        type: "code",
+        run: () => {
+          afterRan.push("ran");
+          return "done";
+        },
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    // Workflow continues but has warnings
+    expect(result.metadata.status).toBe("completed-with-warnings");
+    // All items processed
+    expect(processed).toEqual([0, 1, 2]);
+    // "after" step ran
+    expect(afterRan).toEqual(["ran"]);
+
+    const groupResult = result.metadata.steps[0];
+    expect(groupResult.status).toBe("failed");
+    expect(groupResult.continueOnFailure).toBe(true);
+    const output = groupResult.output as { items: number; results: Array<{ index: number; status: string }> };
+    expect(output.items).toBe(3);
+    expect(output.results[0].status).toBe("success");
+    expect(output.results[1].status).toBe("failed");
+    expect(output.results[2].status).toBe("success");
+  });
+
+  it("skips the foreach step when outer when predicate returns false", async () => {
+    const processed: unknown[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        when: () => false,
+        items: () => ["a", "b"],
+        as: "item",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              processed.push(ctx.foreach?.item);
+              return "done";
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(processed).toHaveLength(0);
+    expect(result.metadata.steps[0].status).toBe("skipped");
+  });
+
+  it("exposes the current item via ctx.foreach and runs multiple inner steps per item", async () => {
+    const log1: unknown[] = [];
+    const log2: unknown[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        items: () => [10, 20],
+        as: "n",
+        steps: [
+          {
+            id: "step-a",
+            type: "code",
+            run: (ctx) => {
+              log1.push(ctx.foreach?.n);
+              return `a:${String(ctx.foreach?.n)}`;
+            },
+          },
+          {
+            id: "step-b",
+            type: "code",
+            run: (ctx) => {
+              log2.push(ctx.foreach?.n);
+              return `b:${String(ctx.foreach?.n)}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(log1).toEqual([10, 20]);
+    expect(log2).toEqual([10, 20]);
+  });
+
+  it("downstream steps can access the last iteration output via stepOutputs", async () => {
+    let capturedOutput: unknown;
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        items: () => [1, 2, 3],
+        as: "n",
+        steps: [
+          {
+            id: "compute",
+            type: "code",
+            run: (ctx) => ({ value: ctx.foreach?.n }),
+          },
+        ],
+      },
+      {
+        id: "downstream",
+        type: "code",
+        run: (ctx) => {
+          capturedOutput = ctx.stepOutputs.compute;
+          return "done";
+        },
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    // Last iteration output is accessible
+    expect(capturedOutput).toEqual({ value: 3 });
+  });
+});
+
+describe("foreach step – validation", () => {
+  function makeInput(steps: WorkflowForeachStepInput["steps"] = [{ id: "s", type: "code", run: () => 1 }]) {
+    return validateWorkflowDefinitions([
+      {
+        definitionPath: "test.ts",
+        name: "test",
+        triggers: [{ event: "runtime.idle" }],
+        steps: [
+          {
+            id: "loop",
+            type: "foreach",
+            items: () => [],
+            as: "item",
+            steps,
+          } satisfies WorkflowForeachStepInput,
+        ],
+      },
+    ]);
+  }
+
+  it("accepts a valid foreach step", () => {
+    const defs = makeInput();
+    expect(defs[0].steps[0].type).toBe("foreach");
+  });
+
+  it("rejects missing items", () => {
+    expect(() =>
+      validateWorkflowDefinitions([
+        {
+          definitionPath: "test.ts",
+          name: "test",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "loop",
+              type: "foreach",
+              items: undefined as unknown as () => [],
+              as: "item",
+              steps: [{ id: "s", type: "code", run: () => 1 }],
+            } satisfies WorkflowForeachStepInput,
+          ],
+        },
+      ]),
+    ).toThrow("items is required");
+  });
+
+  it("rejects non-function non-array items", () => {
+    expect(() =>
+      validateWorkflowDefinitions([
+        {
+          definitionPath: "test.ts",
+          name: "test",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "loop",
+              type: "foreach",
+              items: "not-valid" as unknown as () => [],
+              as: "item",
+              steps: [{ id: "s", type: "code", run: () => 1 }],
+            } satisfies WorkflowForeachStepInput,
+          ],
+        },
+      ]),
+    ).toThrow("items must be a function or array");
+  });
+
+  it("rejects empty steps array", () => {
+    expect(() => makeInput([])).toThrow("steps must be a non-empty array");
+  });
+
+  it("rejects unsupported inner step types", () => {
+    expect(() =>
+      validateWorkflowDefinitions([
+        {
+          definitionPath: "test.ts",
+          name: "test",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "loop",
+              type: "foreach",
+              items: () => [],
+              as: "item",
+              steps: [
+                {
+                  id: "inner-emit",
+                  type: "emit",
+                  event: "some.event",
+                } as unknown as { id: string; type: "code"; run: () => void },
+              ],
+            } satisfies WorkflowForeachStepInput,
+          ],
+        },
+      ]),
+    ).toThrow(/must be "code" or "agent"/);
+  });
+
+  it("rejects duplicate step IDs between foreach inner steps and outer steps", () => {
+    expect(() =>
+      validateWorkflowDefinitions([
+        {
+          definitionPath: "test.ts",
+          name: "test",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "loop",
+              type: "foreach",
+              items: () => [],
+              as: "item",
+              steps: [{ id: "dup", type: "code", run: () => 1 }],
+            } satisfies WorkflowForeachStepInput,
+            { id: "dup", type: "code", run: () => 2 },
+          ],
+        },
+      ]),
+    ).toThrow('duplicate step id "dup"');
+  });
+});

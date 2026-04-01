@@ -83,6 +83,19 @@ export function buildSkippedResult(
     };
     skipArmSteps(step.ifTrue);
     skipArmSteps(step.ifFalse);
+  } else if (step.type === "foreach") {
+    const skippedAt = new Date(stepStartedAt).toISOString();
+    for (const innerStep of step.steps) {
+      acc.stepOutputsById[innerStep.id] = { skipped: true };
+      acc.stepResultsById[innerStep.id] = {
+        id: innerStep.id,
+        type: innerStep.type,
+        status: "skipped",
+        startedAt: skippedAt,
+        completedAt: skippedAt,
+        durationMs: 0,
+      };
+    }
   }
   bus.emit("workflow.step.completed", buildStepCompletedPayload(runMetadata, skipped));
   return skipped;

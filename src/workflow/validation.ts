@@ -2,6 +2,7 @@ import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowBranchStepInput,
   WorkflowDefinition,
+  WorkflowForeachStepInput,
   WorkflowParallelGroupInput,
   WorkflowRestartStep,
   WorkflowStep,
@@ -23,6 +24,7 @@ import {
   validateBranchStep,
   validateCodeStep,
   validateEmitStep,
+  validateForeachStep,
   validateParallelGroup,
   validateRestartStep,
   validateToolStep,
@@ -69,9 +71,17 @@ function validateStep(
       (armStep, dp, armIndex, pd) => validateStep(armStep, dp, armIndex, pd),
     );
   }
+  if (step.type === "foreach") {
+    return validateForeachStep(
+      step as WorkflowForeachStepInput,
+      definitionPath,
+      index,
+      projectDir,
+    );
+  }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", or "branch"`,
+    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", or "foreach"`,
     definitionPath,
   );
 }
@@ -146,6 +156,16 @@ export function validateWorkflowDefinitions(
         } else if (step.type === "branch") {
           collectStepIds(step.ifTrue);
           collectStepIds(step.ifFalse);
+        } else if (step.type === "foreach") {
+          for (const childStep of step.steps) {
+            if (seenStepIds.has(childStep.id)) {
+              throw new WorkflowDefinitionError(
+                `duplicate step id "${childStep.id}"`,
+                definitionPath,
+              );
+            }
+            seenStepIds.add(childStep.id);
+          }
         }
       }
     };

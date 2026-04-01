@@ -234,6 +234,19 @@ export type WorkflowBranchStepInput = WorkflowBaseStep & {
   ifFalse?: WorkflowStepInput[];
 };
 
+export type WorkflowForeachStepInput = WorkflowBaseStep & {
+  type: "foreach";
+  /**
+   * Resolver that returns the array to iterate over. May be a static array or a function
+   * that receives the step context and returns a (possibly async) array.
+   */
+  items: WorkflowValueResolver<unknown[]>;
+  /** Name to use for the current item inside inner step resolvers, accessible via `ctx.foreach.<name>`. */
+  as: string;
+  /** Code and agent steps to run for each item. foreach, parallel, branch, trigger, emit, and restart are not supported inside a foreach body. */
+  steps: (WorkflowCodeStepInput | WorkflowAgentStepInput)[];
+};
+
 export type WorkflowStepInput =
   | WorkflowToolStepInput
   | WorkflowAgentStepInput
@@ -242,7 +255,8 @@ export type WorkflowStepInput =
   | WorkflowCodeStepInput
   | WorkflowTriggerStepInput
   | WorkflowParallelGroupInput
-  | WorkflowBranchStepInput;
+  | WorkflowBranchStepInput
+  | WorkflowForeachStepInput;
 
 export type WorkflowDefinitionInput = {
   name: string;
@@ -347,6 +361,13 @@ export type WorkflowBranchStep = WorkflowBaseStep & {
   ifFalse: WorkflowStep[];
 };
 
+export type WorkflowForeachStep = WorkflowBaseStep & {
+  type: "foreach";
+  items: WorkflowValueResolver<unknown[]>;
+  as: string;
+  steps: (WorkflowCodeStep | WorkflowAgentStep)[];
+};
+
 export type WorkflowStep =
   | WorkflowToolStep
   | WorkflowAgentStep
@@ -355,7 +376,8 @@ export type WorkflowStep =
   | WorkflowCodeStep
   | WorkflowTriggerStep
   | WorkflowParallelGroup
-  | WorkflowBranchStep;
+  | WorkflowBranchStep
+  | WorkflowForeachStep;
 
 export type WorkflowDefinition = {
   name: string;
