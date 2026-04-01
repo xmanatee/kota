@@ -128,6 +128,8 @@ That means:
 3. ✓ Split CLI into standalone mode and daemon-client mode.
 4. ✓ Make the web/server surface daemon-backed instead of a parallel runtime.
 5. Add thin native/web/mobile clients on top of the same protocol.
+   - ✓ macOS menu bar app (`clients/macos/`) — SwiftUI MenuBarExtra, polls daemon API.
+   - iOS/Android mobile client — pending.
 
 ## External Anchors
 
