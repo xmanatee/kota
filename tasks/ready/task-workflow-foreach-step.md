@@ -1,7 +1,7 @@
 ---
 id: task-workflow-foreach-step
 title: Add foreach step type to the workflow DSL for iterating over lists
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The workflow DSL supports sequential, parallel, and branch steps but has no way to iterate over a list of items. A foreach step would run a sequence of inner steps for each item, enabling patterns like processing multiple targets, batching reports, or looping over task IDs.
