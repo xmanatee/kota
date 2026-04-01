@@ -1,7 +1,7 @@
 ---
 id: task-approval-history-cli
 title: Add approval history CLI command to browse resolved and expired approvals
-status: ready
+status: done
 priority: p3
 area: cli
 summary: The approval CLI only shows pending items; resolved and expired approvals vanish from view with no way to audit what was auto-approved, rejected, or timed out.

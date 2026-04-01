@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { ApprovalStatus } from "./approval-queue.js";
 import { getApprovalQueue } from "./approval-queue.js";
 import { loadConfig } from "./config.js";
 import { executeTool } from "./tools/index.js";
@@ -13,6 +14,15 @@ function formatAge(createdAt: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(ageMs / 86_400_000);
   return `${days}d ago`;
+}
+
+function parseDuration(s: string): number | null {
+  const m = /^(\d+)(h|m|d)$/.exec(s);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (m[2] === "h") return n * 3_600_000;
+  if (m[2] === "m") return n * 60_000;
+  return n * 86_400_000;
 }
 
 export function registerApprovalCommands(program: Command): void {
@@ -84,5 +94,67 @@ export function registerApprovalCommands(program: Command): void {
     .action(() => {
       const queue = getApprovalQueue();
       console.log(String(queue.count("pending")));
+    });
+
+  approvalCmd
+    .command("history")
+    .description("List resolved and expired approvals")
+    .option("--status <status>", "Filter by status: approved, rejected, expired")
+    .option("-n <count>", "Max results to show (default 20)", "20")
+    .option("--since <duration>", "Only show items resolved within this window (e.g. 1h, 24h, 7d)")
+    .action((opts: { status?: string; n: string; since?: string }) => {
+      const queue = getApprovalQueue();
+      const limit = Math.max(1, parseInt(opts.n, 10) || 20);
+
+      const statusFilter = opts.status as ApprovalStatus | undefined;
+      const validStatuses: ApprovalStatus[] = ["approved", "rejected", "expired"];
+      if (statusFilter && !validStatuses.includes(statusFilter)) {
+        console.error(`Error: invalid --status "${statusFilter}". Must be one of: ${validStatuses.join(", ")}`);
+        process.exit(1);
+      }
+
+      let sinceMs: number | null = null;
+      if (opts.since) {
+        sinceMs = parseDuration(opts.since);
+        if (sinceMs === null) {
+          console.error(`Error: invalid --since "${opts.since}". Use format like 1h, 24h, 7d.`);
+          process.exit(1);
+        }
+      }
+
+      const cutoff = sinceMs !== null ? Date.now() - sinceMs : null;
+
+      const items = queue
+        .list()
+        .filter((item) => item.status !== "pending")
+        .filter((item) => !statusFilter || item.status === statusFilter)
+        .filter((item) => {
+          if (cutoff === null) return true;
+          const ts = item.resolvedAt ?? item.createdAt;
+          return new Date(ts).getTime() >= cutoff;
+        })
+        .sort((a, b) => {
+          const ta = a.resolvedAt ?? a.createdAt;
+          const tb = b.resolvedAt ?? b.createdAt;
+          return tb.localeCompare(ta);
+        })
+        .slice(0, limit);
+
+      if (items.length === 0) {
+        console.log("No resolved approvals found.");
+        return;
+      }
+
+      console.log(`${items.length} resolved approval(s):\n`);
+      for (const item of items) {
+        const resolvedAgo = item.resolvedAt ? formatAge(item.resolvedAt) : "—";
+        console.log(`  [${item.id}] ${item.tool}  status=${item.status}  resolved=${resolvedAgo}`);
+        console.log(`    Risk:   ${item.risk}`);
+        if (item.rejectionReason && item.rejectionReason !== "expired") {
+          console.log(`    Reason: ${item.rejectionReason}`);
+        }
+        if (item.source) console.log(`    Source: ${item.source}`);
+        console.log();
+      }
     });
 }
