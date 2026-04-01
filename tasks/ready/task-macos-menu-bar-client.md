@@ -1,12 +1,12 @@
 ---
 id: task-macos-menu-bar-client
 title: Build a native macOS menu bar client backed by the daemon control API
-status: backlog
+status: ready
 priority: p2
 area: extensions
 summary: KOTA's daemon exposes a stable HTTP+JSON control API that covers all live status, workflow control, history, and approvals. A thin Swift/SwiftUI menu bar app using MenuBarExtra would give macOS operators always-available status, approval prompts, and workflow controls without opening a browser.
 created_at: 2026-04-01T03:11:00Z
-updated_at: 2026-04-01T03:11:00Z
+updated_at: 2026-04-01T04:03:40Z
 ---
 
 ## Problem
