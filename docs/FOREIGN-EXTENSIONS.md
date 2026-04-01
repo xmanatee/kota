@@ -218,6 +218,13 @@ When a subprocess exits unexpectedly, KOTA:
 In-flight tool invocations during a restart return an error result immediately
 (they do not hang).
 
+Health state (status: `ok` / `restarting` / `dead`, restart count, and last
+restart timestamp) is tracked per extension and visible in two places:
+
+- **CLI**: `kota extension inspect <name>` prints a Health section when health
+  data is present.
+- **API**: `GET /api/extensions` includes a `health` field on each entry.
+
 ---
 
 ## Configuration
