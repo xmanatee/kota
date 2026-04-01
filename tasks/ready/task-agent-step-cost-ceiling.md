@@ -1,12 +1,12 @@
 ---
 id: task-agent-step-cost-ceiling
 title: Emit bus event and document maxBudgetUsd per-step cost ceiling
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Agent steps already accept maxBudgetUsd to abort when spend exceeds a threshold, but no bus event is emitted when the ceiling fires, and the field is undocumented in WORKFLOWS.md. Adding the event and docs closes the observability gap.
 created_at: 2026-04-01T08:14:00Z
-updated_at: 2026-04-01T11:02:00Z
+updated_at: 2026-04-02T00:00:00Z
 ---
 
 ## Problem
