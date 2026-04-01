@@ -13,7 +13,7 @@ HTTP API server with session management and real-time notifications.
 | `session-routes.ts` | Session CRUD and chat handlers |
 | `history-routes.ts` | History list/get/delete handlers (proxy-capable) |
 | `approval-routes.ts` | Approval list/approve/reject handlers (proxy-capable) |
-| `task-routes.ts` | Task status handlers (proxy-capable) |
+| `task-routes.ts` | Task read (`GET /api/tasks`), state-move (`PATCH /api/tasks/:id/state`), and create (`POST /api/tasks`) handlers (proxy-capable) |
 | `workflow-routes.ts` | Workflow run and status handlers |
 | `workflow-run-routes.ts` | Workflow run detail and log streaming handlers |
 | `daemon-routes.ts` | `queryDaemonStatus` — reads live daemon status via `DaemonControlClient` |
