@@ -3,6 +3,7 @@ import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
   assertNoHighPriorityBacklogStrandedTasks,
   assertTaskQueueRecommendations,
+  hasHighPriorityBacklogTasks,
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
@@ -22,6 +23,7 @@ type ExplorerAssessment = {
   actionableCount: number;
   needsAttention: boolean;
   strategicRefreshDue: boolean;
+  hasHighPriorityBacklogTasks: boolean;
 };
 
 function buildExplorerAssessment(
@@ -32,13 +34,16 @@ function buildExplorerAssessment(
   const strategicRefreshDue =
     !lastCompletedAt ||
     Date.now() - new Date(lastCompletedAt).getTime() >= STRATEGIC_REFRESH_MS;
+  const highPriorityInBacklog = hasHighPriorityBacklogTasks(projectDir);
 
   return {
     ...queue,
+    hasHighPriorityBacklogTasks: highPriorityInBacklog,
     needsAttention:
       queue.counts.inbox > 0 ||
       queue.counts.ready < READY_TASK_TARGET ||
       queue.counts.backlog < BACKLOG_TASK_TARGET ||
+      highPriorityInBacklog ||
       strategicRefreshDue,
     strategicRefreshDue,
   };

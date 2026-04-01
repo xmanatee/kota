@@ -37,6 +37,7 @@ vi.mock("../commit.js", () => ({
 vi.mock("../../task-queue-validation.js", () => ({
   assertTaskQueueRecommendations: vi.fn(),
   assertNoHighPriorityBacklogStrandedTasks: vi.fn(),
+  hasHighPriorityBacklogTasks: vi.fn(() => false),
 }));
 
 function makeHealthySnapshot() {
@@ -156,6 +157,38 @@ describe("explorer workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       strategicRefreshDue: true,
+      needsAttention: true,
+    });
+    expect(result.steps["explore"].status).toBe("success");
+  });
+
+  it("runs explore when high-priority tasks are stranded in backlog", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeHealthySnapshot());
+
+    const { hasHighPriorityBacklogTasks } = await import("../../task-queue-validation.js");
+    vi.mocked(hasHighPriorityBacklogTasks).mockReturnValue(true);
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "runtime.idle", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.01 },
+      },
+      runtimeState: {
+        workflows: {
+          explorer: { lastCompletedAt: recentTimestamp() },
+        },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      hasHighPriorityBacklogTasks: true,
       needsAttention: true,
     });
     expect(result.steps["explore"].status).toBe("success");

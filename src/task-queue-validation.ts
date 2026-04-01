@@ -263,8 +263,23 @@ export function assertTaskQueueRecommendations(
 }
 
 /**
- * Throws if p1/p2 tasks are sitting in backlog while the ready queue is below the recommended
- * minimum. These tasks should be promoted to ready rather than waiting for a follow-up explorer run.
+ * Returns true if any p1/p2 tasks are sitting in backlog, regardless of ready queue size.
+ * Use this to detect priority inversions (high-priority work behind lower-priority work).
+ */
+export function hasHighPriorityBacklogTasks(projectDir: string): boolean {
+  const entries = listTaskEntries(projectDir);
+  return entries
+    .filter((e) => e.state === "backlog")
+    .some((e) => {
+      const { attrs } = parseFlatFrontMatter(e.raw);
+      const priority = String(attrs.priority ?? "");
+      return priority === "p1" || priority === "p2";
+    });
+}
+
+/**
+ * Throws if p1/p2 tasks are sitting in backlog. These tasks should be promoted to ready
+ * rather than waiting for a follow-up explorer run.
  */
 export function assertNoHighPriorityBacklogStrandedTasks(
   projectDir: string,
@@ -272,10 +287,6 @@ export function assertNoHighPriorityBacklogStrandedTasks(
 ): void {
   const entries = listTaskEntries(projectDir);
   const readyCount = entries.filter((e) => e.state === "ready").length;
-
-  if (readyCount >= options.recommendedMinReady) {
-    return;
-  }
 
   const stranded = entries
     .filter((e) => e.state === "backlog")
