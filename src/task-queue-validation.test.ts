@@ -140,6 +140,95 @@ describe("task queue validation", () => {
     expect(result.findings.some((finding) => finding.code === "too-many-doing")).toBe(true);
   });
 
+  it("reports invalid priority values", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "high" });
+    execSync("git add tasks && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "task-invalid-priority")).toBe(true);
+  });
+
+  it("accepts valid priority values p0–p3", () => {
+    writeTask(projectDir, "ready", "task-p0", { priority: "p0" });
+    writeTask(projectDir, "ready", "task-p1", { priority: "p1" });
+    writeTask(projectDir, "backlog", "task-p2", { priority: "p2" });
+    writeTask(projectDir, "backlog", "task-p3", { priority: "p3" });
+    execSync("git add tasks && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.filter((f) => f.code === "task-invalid-priority")).toHaveLength(0);
+  });
+
+  it("reports tasks missing required body sections", () => {
+    const dir = join(projectDir, "tasks", "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-no-sections.md"),
+      `---
+id: task-no-sections
+title: No sections
+status: ready
+priority: p2
+area: test
+summary: Missing sections.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+Just some text with no required sections.
+`,
+    );
+    execSync("git add tasks && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    const sectionErrors = result.findings.filter((f) => f.code === "task-missing-required-section");
+    expect(sectionErrors.length).toBe(4); // Problem, Desired Outcome, Constraints, Done When
+  });
+
+  it("reports tasks missing a subset of required body sections", () => {
+    const dir = join(projectDir, "tasks", "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-partial.md"),
+      `---
+id: task-partial
+title: Partial sections
+status: ready
+priority: p2
+area: test
+summary: Partial sections.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+## Problem
+
+Has a problem.
+
+## Desired Outcome
+
+Has an outcome.
+`,
+    );
+    execSync("git add tasks && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    const sectionErrors = result.findings.filter((f) => f.code === "task-missing-required-section");
+    expect(sectionErrors.length).toBe(2); // Constraints and Done When missing
+  });
+
   it("can enforce a non-empty ready queue", () => {
     writeTask(projectDir, "backlog", "task-beta");
     execSync("git add tasks && git commit -m init", {

@@ -152,6 +152,28 @@ export function validateTaskQueue(
         });
       }
     }
+
+    const priority = String(attrs.priority ?? "");
+    if (priority.length > 0 && !["p0", "p1", "p2", "p3"].includes(priority)) {
+      findings.push({
+        code: "task-invalid-priority",
+        severity: "error",
+        message: `${entry.path} has invalid priority "${priority}"; must be one of p0, p1, p2, p3`,
+        paths: [entry.path],
+      });
+    }
+
+    const REQUIRED_SECTIONS = ["## Problem", "## Desired Outcome", "## Constraints", "## Done When"] as const;
+    for (const section of REQUIRED_SECTIONS) {
+      if (!entry.raw.includes(section)) {
+        findings.push({
+          code: "task-missing-required-section",
+          severity: "error",
+          message: `${entry.path} is missing required section: ${section}`,
+          paths: [entry.path],
+        });
+      }
+    }
   }
 
   for (const [taskId, states] of seenTaskStates) {
