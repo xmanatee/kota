@@ -122,6 +122,8 @@ export const CLIENT_RUN_DETAIL_JS = `
         var sb = step.status === "success" ? "success" : step.status === "failed" ? "failed" : step.status === "running" ? "running" : "interrupted";
         var si = step.status === "success" ? "\\u2713" : step.status === "failed" ? "\\u2717" : step.status === "running" ? "\\u25b6" : "\\u26a1";
         var sm = step.durationMs ? fmtDuration(step.durationMs) : "";
+        var stepCost = (step.output && typeof step.output === "object" && step.output.totalCostUsd != null) ? ("$" + step.output.totalCostUsd.toFixed(3)) : "";
+        if (stepCost) sm += (sm ? " \\u00b7 " : "") + stepCost;
         var rawOutput = "";
         if (step.output != null) {
           rawOutput = typeof step.output === "string" ? step.output : JSON.stringify(step.output, null, 2);
@@ -360,7 +362,12 @@ export const CLIENT_RUN_DETAIL_JS = `
         badge.textContent = payload.status === "success" ? "\\u2713" : "\\u2717";
       }
       var meta = document.getElementById("step-meta-" + payload.stepId);
-      if (meta && payload.durationMs) meta.textContent = fmtDuration(payload.durationMs);
+      if (meta) {
+        var metaText = payload.durationMs ? fmtDuration(payload.durationMs) : "";
+        var streamCost = (payload.output && typeof payload.output === "object" && payload.output.totalCostUsd != null) ? ("$" + payload.output.totalCostUsd.toFixed(3)) : "";
+        if (streamCost) metaText += (metaText ? " \u00b7 " : "") + streamCost;
+        if (metaText) meta.textContent = metaText;
+      }
     } else if (eventName === "run_completed") {
       closeStream();
       showRunDetail(runId);

@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-step-cost-breakdown
 title: Show per-step cost in the web UI run detail step list
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The web UI run detail view shows total run cost in the header but does not show per-step cost. Agent steps already record output.totalCostUsd and the CLI surfaces this; the web UI should match.

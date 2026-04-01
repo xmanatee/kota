@@ -358,6 +358,12 @@ describe("getWebUI", () => {
     expect(html).toContain("isContentEditable");
   });
 
+  it("shows per-step cost when step output contains totalCostUsd", () => {
+    expect(html).toContain("totalCostUsd");
+    expect(html).toContain("toFixed(3)");
+    expect(html).toContain('"$"');
+  });
+
   it("j/k keys navigate run history list", () => {
     expect(html).toContain('e.key === "j"');
     expect(html).toContain('e.key === "k"');
