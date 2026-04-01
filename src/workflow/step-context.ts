@@ -21,6 +21,12 @@ export function createStepContext(
     projectDir: string;
     bus: EventBus;
     store: WorkflowRunStore;
+    triggerWorkflow?: (
+      workflowName: string,
+      payload: Record<string, unknown>,
+      waitFor: "queued" | "completed",
+      signal?: AbortSignal,
+    ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
   },
 ): WorkflowStepContext {
   const runDirPath = resolve(deps.projectDir, metadata.runDir);
@@ -59,5 +65,11 @@ export function createStepContext(
       return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");
     },
     readRuntimeState: () => deps.store.readState(),
+    triggerWorkflow: async (workflowName, payload, waitFor, signal) => {
+      if (!deps.triggerWorkflow) {
+        throw new Error("triggerWorkflow is not supported in this execution context");
+      }
+      return deps.triggerWorkflow(workflowName, payload, waitFor, signal);
+    },
   };
 }

@@ -610,6 +610,7 @@ describe("executeStep repair loop", () => {
         pendingRuns: [],
         workflows: {},
       }),
+      triggerWorkflow: () => Promise.reject(new Error("not implemented")),
     };
   }
 

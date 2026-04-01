@@ -5,6 +5,8 @@ import type {
   WorkflowRestartStep,
   WorkflowStep,
   WorkflowStepInput,
+  WorkflowTriggerStep,
+  WorkflowTriggerStepInput,
 } from "./types.js";
 import {
   expectName,
@@ -22,6 +24,7 @@ import {
   validateParallelGroup,
   validateRestartStep,
   validateToolStep,
+  validateTriggerStep,
 } from "./validation-steps.js";
 import { validateTrigger } from "./validation-trigger.js";
 
@@ -52,9 +55,12 @@ function validateStep(
   if (step.type === "parallel") {
     return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index);
   }
+  if (step.type === "trigger") {
+    return validateTriggerStep(step as WorkflowTriggerStepInput, definitionPath, index);
+  }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", or "parallel"`,
+    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", or "trigger"`,
     definitionPath,
   );
 }
@@ -186,6 +192,32 @@ export function validateWorkflowDefinitions(
           throw new WorkflowDefinitionError(
             `restart step "${restartStep.id}" may only require tool, code, or parallel steps, got "${requiredStep.type}" for "${requiredId}"`,
             definitionPath,
+          );
+        }
+      }
+    }
+
+    // Validate trigger steps: no self-referential triggers.
+    for (const step of steps) {
+      if (step.type === "trigger") {
+        const triggerStep = step as WorkflowTriggerStep;
+        if (triggerStep.workflow === name) {
+          throw new WorkflowDefinitionError(
+            `workflow "${name}" has a trigger step "${step.id}" that references itself — this would create a recursive call`,
+            definitionPath,
+          );
+        }
+      }
+    }
+
+    // Warn about trigger steps that reference unknown workflows (may be loaded later by extensions).
+    const knownWorkflowNames = new Set(definitions.map((d) => d.name));
+    for (const step of steps) {
+      if (step.type === "trigger") {
+        const triggerStep = step as WorkflowTriggerStep;
+        if (!knownWorkflowNames.has(triggerStep.workflow)) {
+          console.warn(
+            `[workflow "${name}"] trigger step "${step.id}" references unknown workflow "${triggerStep.workflow}" — it may be registered by an extension loaded later`,
           );
         }
       }

@@ -25,6 +25,16 @@ export type RunExecutorDeps = {
   model?: string;
   config?: KotaConfig;
   log: (message: string) => void;
+  /**
+   * Optional callback invoked by trigger steps to queue or run another workflow.
+   * When omitted, trigger steps throw at runtime.
+   */
+  triggerWorkflow?: (
+    workflowName: string,
+    payload: Record<string, unknown>,
+    waitFor: "queued" | "completed",
+    signal?: AbortSignal,
+  ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
 };
 
 export function executeWorkflowRun(

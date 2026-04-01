@@ -9,6 +9,7 @@ import {
   executeAgentStep,
   withRetry,
 } from "./step-executor-agent.js";
+import { executeTriggerStep } from "./step-executor-trigger.js";
 import type {
   WorkflowCodeStep,
   WorkflowDefinition,
@@ -17,6 +18,7 @@ import type {
   WorkflowRunTrigger,
   WorkflowStep,
   WorkflowToolStep,
+  WorkflowTriggerStep,
 } from "./types.js";
 
 export type {
@@ -144,6 +146,9 @@ export async function executeStep(
   }
   if (step.type === "emit") return executeEmitStep(step, context);
   if (step.type === "restart") return executeRestartStep(step, context);
+  if (step.type === "trigger") {
+    return executeTriggerStep(step as WorkflowTriggerStep, context, abortController.signal);
+  }
   if (step.type === "parallel") {
     throw new Error(
       `Parallel group "${step.id}" must be handled by the run executor, not executeStep`,

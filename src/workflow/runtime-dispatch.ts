@@ -7,6 +7,7 @@ import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
+import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowRunExecutionResult } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
@@ -166,6 +167,75 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
   }
 }
 
+async function triggerWorkflowFromStep(
+  state: WorkflowRuntimeDispatchState,
+  workflowName: string,
+  payload: Record<string, unknown>,
+  waitFor: "queued" | "completed",
+  signal?: AbortSignal,
+): Promise<{ runId: string; status: "queued" | "completed" | "failed" }> {
+  const definition = state.definitions.find((d) => d.name === workflowName);
+  if (!definition) {
+    throw new Error(`Trigger step references unknown workflow "${workflowName}"`);
+  }
+  if (!definition.enabled) {
+    throw new Error(`Trigger step references disabled workflow "${workflowName}"`);
+  }
+
+  const runId = formatRunId(workflowName);
+  const now = Date.now();
+  const runTrigger: WorkflowRunTrigger = {
+    event: "workflow.triggered",
+    payload: { ...payload, _runId: runId, triggeredAt: new Date().toISOString() },
+  };
+
+  if (waitFor === "queued") {
+    const runtimeState = state.store.readState();
+    state.store.setPendingRuns([
+      ...runtimeState.pendingRuns,
+      { runId, workflowName, trigger: runTrigger, enqueuedAtMs: now, notBeforeMs: now },
+    ]);
+    maybeStartNext(state);
+    return { runId, status: "queued" };
+  }
+
+  // waitFor === "completed": subscribe to bus before enqueuing to avoid missing the event.
+  return new Promise((resolve, reject) => {
+    const stopListening = state.runtimeConfig.bus.on(
+      "workflow.completed",
+      (completedPayload) => {
+        if (completedPayload.runId !== runId) return;
+        stopListening();
+        const status =
+          completedPayload.status === "success" ||
+          completedPayload.status === "completed-with-warnings"
+            ? "completed"
+            : "failed";
+        resolve({ runId, status });
+      },
+    );
+
+    if (signal) {
+      signal.addEventListener(
+        "abort",
+        () => {
+          stopListening();
+          const reason = signal.reason instanceof Error ? signal.reason : new Error("Trigger step aborted");
+          reject(reason);
+        },
+        { once: true },
+      );
+    }
+
+    const runtimeState = state.store.readState();
+    state.store.setPendingRuns([
+      ...runtimeState.pendingRuns,
+      { runId, workflowName, trigger: runTrigger, enqueuedAtMs: now, notBeforeMs: now },
+    ]);
+    maybeStartNext(state);
+  });
+}
+
 export async function runWorkflow(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
@@ -178,6 +248,8 @@ export async function runWorkflow(
     model: state.model,
     config: state.config,
     log: (message) => state.log(message),
+    triggerWorkflow: (workflowName, payload, waitFor, signal) =>
+      triggerWorkflowFromStep(state, workflowName, payload, waitFor, signal),
   });
   state.activeRuns.set(definition.name, { promise, abortController });
 

@@ -522,4 +522,83 @@ describe("workflow validation", () => {
       ),
     ).not.toThrow();
   });
+
+  it("accepts a valid trigger step", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/parent.ts", {
+          name: "parent",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "notify",
+              type: "trigger",
+              workflow: "child",
+              waitFor: "queued",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0].steps[0]).toMatchObject({
+      id: "notify",
+      type: "trigger",
+      workflow: "child",
+      waitFor: "queued",
+    });
+  });
+
+  it("defaults waitFor to queued when omitted", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/parent.ts", {
+          name: "parent",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "notify", type: "trigger", workflow: "child" }],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect((definitions[0].steps[0] as { waitFor: string }).waitFor).toBe("queued");
+  });
+
+  it("rejects a trigger step that references the workflow's own name", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/recursive.ts", {
+            name: "recursive",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "self-trigger", type: "trigger", workflow: "recursive" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/recursive call/);
+  });
+
+  it("rejects a trigger step with an invalid waitFor value", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/parent.ts", {
+            name: "parent",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "notify",
+                type: "trigger",
+                workflow: "child",
+                waitFor: "never" as "queued",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/waitFor/);
+  });
 });

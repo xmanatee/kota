@@ -40,6 +40,7 @@ function makeDryRunContext(definition: WorkflowDefinition): WorkflowStepContext 
     readRuntimeState: (): never => {
       throw new Error("dry-run: runtime state unavailable");
     },
+    triggerWorkflow: () => Promise.reject(new Error("dry-run: triggerWorkflow cannot be executed")),
   };
 }
 
@@ -79,6 +80,8 @@ function stepConfig(step: WorkflowStep): string {
       return "code";
     case "parallel":
       return `parallel (${step.steps.length} steps)`;
+    case "trigger":
+      return `trigger: ${step.workflow} (waitFor: ${step.waitFor})`;
   }
 }
 

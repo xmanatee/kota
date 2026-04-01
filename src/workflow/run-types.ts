@@ -84,6 +84,17 @@ export type WorkflowStepContext = {
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
   readRuntimeState: () => WorkflowRuntimeState;
+  /**
+   * Queue or run another workflow from within this step.
+   * Returns the runId and whether it was queued or completed.
+   * Throws if the referenced workflow does not exist.
+   */
+  triggerWorkflow: (
+    workflowName: string,
+    payload: Record<string, unknown>,
+    waitFor: "queued" | "completed",
+    signal?: AbortSignal,
+  ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
 };
 
 export type WorkflowValueResolver<T> =

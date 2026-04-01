@@ -6,4 +6,5 @@ export {
   validateParallelGroup,
   validateRestartStep,
   validateToolStep,
+  validateTriggerStep,
 } from "./step-validators/index.js";

@@ -179,6 +179,21 @@ export function typedCodeStep<T>(
   };
 }
 
+export type WorkflowTriggerStepInput = WorkflowBaseStep & {
+  type: "trigger";
+  /** Name of the workflow to queue. */
+  workflow: string;
+  /** Optional payload passed to the triggered run. Supports `{{trigger.payload.field}}` interpolation. */
+  payload?: WorkflowValueResolver<Record<string, unknown>>;
+  /**
+   * When to consider the step complete.
+   * - "queued" (default): step completes as soon as the run is accepted into the queue.
+   * - "completed": step blocks until the triggered run finishes (success or failure).
+   *   Respects step-level timeoutMs; defaults to DEFAULT_STEP_TIMEOUT_MS.
+   */
+  waitFor?: "queued" | "completed";
+};
+
 export type WorkflowParallelGroupInput = {
   id: string;
   type: "parallel";
@@ -194,6 +209,7 @@ export type WorkflowStepInput =
   | WorkflowEmitStepInput
   | WorkflowRestartStepInput
   | WorkflowCodeStepInput
+  | WorkflowTriggerStepInput
   | WorkflowParallelGroupInput;
 
 export type WorkflowDefinitionInput = {
@@ -267,6 +283,13 @@ export type WorkflowCodeStep = WorkflowBaseStep & {
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
 };
 
+export type WorkflowTriggerStep = WorkflowBaseStep & {
+  type: "trigger";
+  workflow: string;
+  payload?: WorkflowValueResolver<Record<string, unknown>>;
+  waitFor: "queued" | "completed";
+};
+
 export type WorkflowParallelGroup = {
   id: string;
   type: "parallel";
@@ -282,6 +305,7 @@ export type WorkflowStep =
   | WorkflowEmitStep
   | WorkflowRestartStep
   | WorkflowCodeStep
+  | WorkflowTriggerStep
   | WorkflowParallelGroup;
 
 export type WorkflowDefinition = {
