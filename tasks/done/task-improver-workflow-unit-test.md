@@ -1,7 +1,7 @@
 ---
 id: task-improver-workflow-unit-test
 title: Add WorkflowTestHarness unit test for the improver workflow
-status: ready
+status: done
 priority: p3
 area: testing
 summary: The improver workflow has non-trivial when predicates (commit runs when improve succeeds, request-restart runs when commit commits) but has no workflow.test.ts. The workflows/AGENTS.md guidance requires each workflow with predicate logic to have a harness-based unit test.
