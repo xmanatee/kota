@@ -1,12 +1,12 @@
 ---
 id: task-run-show-trigger-payload
 title: Surface trigger payload in kota workflow run show
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: kota workflow run show displays the trigger event name but not its payload. For webhook and github-event triggered runs the payload carries critical context (repo, branch, PR number) that operators need to debug why a run fired.
 created_at: 2026-04-01T11:42:09Z
-updated_at: 2026-04-01T11:42:09Z
+updated_at: 2026-04-01T18:44:59Z
 ---
 
 ## Problem

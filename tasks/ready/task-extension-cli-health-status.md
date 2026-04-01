@@ -1,12 +1,12 @@
 ---
 id: task-extension-cli-health-status
 title: Show foreign extension health status in kota extension inspect
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: The web UI already shows foreign extension health (restartCount, lastRestartAt, status) but kota extension inspect does not. Operators using KEMP extensions have no CLI visibility into whether a subprocess has been crashing and restarting.
 created_at: 2026-04-01T11:42:09Z
-updated_at: 2026-04-01T11:42:09Z
+updated_at: 2026-04-01T18:44:59Z
 ---
 
 ## Problem
