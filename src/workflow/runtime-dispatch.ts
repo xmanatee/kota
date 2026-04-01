@@ -173,7 +173,7 @@ async function triggerWorkflowFromStep(
   payload: Record<string, unknown>,
   waitFor: "queued" | "completed",
   signal?: AbortSignal,
-): Promise<{ runId: string; status: "queued" | "completed" | "failed" }> {
+): Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }> {
   const definition = state.definitions.find((d) => d.name === workflowName);
   if (!definition) {
     throw new Error(`Trigger step references unknown workflow "${workflowName}"`);
@@ -211,7 +211,13 @@ async function triggerWorkflowFromStep(
           completedPayload.status === "completed-with-warnings"
             ? "completed"
             : "failed";
-        resolve({ runId, status });
+        const childMeta = state.store.getRun(runId);
+        const lastSuccessfulStep = childMeta?.steps
+          .slice()
+          .reverse()
+          .find((s) => s.status === "success");
+        const childOutput = lastSuccessfulStep?.output;
+        resolve({ runId, status, ...(childOutput !== undefined && { childOutput }) });
       },
     );
 

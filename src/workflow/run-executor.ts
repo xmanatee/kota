@@ -37,7 +37,7 @@ export type RunExecutorDeps = {
     payload: Record<string, unknown>,
     waitFor: "queued" | "completed",
     signal?: AbortSignal,
-  ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
+  ) => Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }>;
 };
 
 export function executeWorkflowRun(

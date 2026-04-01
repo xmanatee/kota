@@ -1,7 +1,7 @@
 ---
 id: task-trigger-step-child-output
 title: Surface child workflow output in parent trigger step result
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: When a trigger step runs with waitFor completed, the parent run receives only runId and status. The child workflow's final step outputs are not propagated, so parent steps cannot branch or act on the child's result.

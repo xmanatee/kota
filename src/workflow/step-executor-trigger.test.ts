@@ -78,6 +78,30 @@ describe("executeTriggerStep", () => {
     expect(result).toEqual({ runId: "child-run-2", status: "completed" });
   });
 
+  it("returns childOutput when waitFor: completed and child produced output", async () => {
+    const mockTrigger = vi.fn().mockResolvedValue({
+      runId: "child-run-3",
+      status: "completed",
+      childOutput: { summary: "done" },
+    });
+    const context = makeContext({ triggerWorkflow: mockTrigger });
+    const step = makeTriggerStep({ waitFor: "completed" });
+
+    const result = await executeTriggerStep(step, context);
+
+    expect(result).toEqual({ runId: "child-run-3", status: "completed", childOutput: { summary: "done" } });
+  });
+
+  it("does not include childOutput when waitFor: queued", async () => {
+    const context = makeContext();
+    const step = makeTriggerStep({ waitFor: "queued" });
+
+    const result = await executeTriggerStep(step, context);
+
+    expect(result).toEqual({ runId: "child-run-1", status: "queued" });
+    expect(result).not.toHaveProperty("childOutput");
+  });
+
   it("passes static payload to triggerWorkflow", async () => {
     const context = makeContext();
     const step = makeTriggerStep({ payload: { source: "parent", count: 3 } });

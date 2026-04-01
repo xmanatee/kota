@@ -5,6 +5,7 @@ import type { WorkflowTriggerStep } from "./types.js";
 export type TriggerStepOutput = {
   runId: string;
   status: "queued" | "completed" | "failed";
+  childOutput?: unknown;
 };
 
 export async function executeTriggerStep(
