@@ -16,19 +16,25 @@ function initGitRepo(dir: string): void {
   execSync('git commit -m "init"', { cwd: dir });
 }
 
-function makeStepResult(status: WorkflowStepResult["status"]): WorkflowStepResult {
-  return { id: "", type: "code", status, startedAt: "", completedAt: "", durationMs: 0 };
+function makeStepResult(
+  status: WorkflowStepResult["status"],
+  durationMs = 0,
+): WorkflowStepResult {
+  return { id: "", type: "code", status, startedAt: "", completedAt: "", durationMs };
 }
 
 function makeContext(
   projectDir: string,
   runDirPath: string,
-  stepResults: Record<string, WorkflowStepResult["status"]> = {},
+  stepResults: Record<string, WorkflowStepResult["status"] | WorkflowStepResult> = {},
   stepOutputs: Record<string, unknown> = {},
 ): WorkflowStepContext {
   const results: Record<string, WorkflowStepResult> = {};
-  for (const [id, status] of Object.entries(stepResults)) {
-    results[id] = makeStepResult(status);
+  for (const [id, statusOrResult] of Object.entries(stepResults)) {
+    results[id] =
+      typeof statusOrResult === "string"
+        ? makeStepResult(statusOrResult)
+        : statusOrResult;
   }
   return {
     stepResults: results,
@@ -87,8 +93,9 @@ describe("writeBuilderRunSummary", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
     execSync("git add -A && git commit -m 'test change'", { cwd: projectDir, shell: "/bin/sh" });
 
-    const ctx = makeContext(projectDir, runDirPath, {}, {
-      build: { totalCostUsd: 0.42, durationMs: 120000 },
+    const buildResult = makeStepResult("success", 120000);
+    const ctx = makeContext(projectDir, runDirPath, { build: buildResult }, {
+      build: { totalCostUsd: 0.42 },
     });
     const summary = writeBuilderRunSummary(ctx);
 

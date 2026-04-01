@@ -43,7 +43,7 @@ function findTaskInChangedFiles(
 }
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {
-  const { projectDir, workflow, stepOutputs } = ctx;
+  const { projectDir, workflow, stepOutputs, stepResults } = ctx;
 
   const commitSha = execSync("git rev-parse HEAD", {
     cwd: projectDir,
@@ -69,7 +69,7 @@ export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSumm
   const costUsd =
     typeof buildOutput?.totalCostUsd === "number" ? buildOutput.totalCostUsd : null;
   const durationMs =
-    typeof buildOutput?.durationMs === "number" ? buildOutput.durationMs : null;
+    typeof stepResults.build?.durationMs === "number" ? stepResults.build.durationMs : null;
 
   const summary: BuilderRunSummary = {
     runId: workflow.runId,
