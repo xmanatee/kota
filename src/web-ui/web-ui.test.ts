@@ -384,4 +384,31 @@ describe("getWebUI", () => {
     expect(html).toContain("run-item-selected");
     expect(html).toContain("rgba(108, 99, 255");
   });
+
+  it("includes initBrowserNotifications function that requests permission", () => {
+    expect(html).toContain("initBrowserNotifications");
+    expect(html).toContain("Notification.requestPermission");
+  });
+
+  it("fires browser notification for workflow.failure.alert SSE event", () => {
+    expect(html).toContain("workflow.failure.alert");
+    expect(html).toContain("Workflow failed");
+  });
+
+  it("fires browser notification for approval.changed SSE event when pendingCount > 0", () => {
+    expect(html).toContain("Approval required");
+    expect(html).toContain("pendingCount");
+  });
+
+  it("gates notifications on document.visibilityState", () => {
+    expect(html).toContain("document.visibilityState");
+  });
+
+  it("clicking notification focuses the tab", () => {
+    expect(html).toContain("window.focus");
+  });
+
+  it("calls initBrowserNotifications on init", () => {
+    expect(html).toContain("initBrowserNotifications()");
+  });
 });

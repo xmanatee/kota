@@ -135,6 +135,7 @@ ${CLIENT_KEYBOARD_JS}
   refreshAudit();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
+  initBrowserNotifications();
   startWorkflowUpdates();
   setInterval(refreshWorkflows, 300000);
   setInterval(refreshTasks, 300000);

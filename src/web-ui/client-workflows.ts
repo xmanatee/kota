@@ -374,6 +374,19 @@ export const CLIENT_WORKFLOWS_JS = `
     _sseFallbackIntervals.push(setInterval(refreshActiveSessions, 30000));
   }
 
+  function initBrowserNotifications() {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "default") Notification.requestPermission();
+  }
+
+  function _notify(title, body) {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    if (document.visibilityState === "visible") return;
+    var n = new Notification(title, { body: body });
+    n.onclick = function() { window.focus(); n.close(); };
+  }
+
   function connectDaemonEvents() {
     if (_daemonEventsSource) return;
     var eventsUrl = API + "/api/daemon/events" + (authToken ? "?token=" + encodeURIComponent(authToken) : "");
@@ -393,7 +406,19 @@ export const CLIENT_WORKFLOWS_JS = `
     src.addEventListener("workflow.completed", onQueueEvent);
     src.addEventListener("workflow.step.completed", onQueueEvent);
     src.addEventListener("queue.changed", onQueueEvent);
-    src.addEventListener("approval.changed", function() { refreshApprovals(); });
+    src.addEventListener("approval.changed", function(e) {
+      refreshApprovals();
+      try {
+        var d = JSON.parse(e.data);
+        if (d.pendingCount > 0) _notify("Approval required", "A workflow step is waiting for approval.");
+      } catch {}
+    });
+    src.addEventListener("workflow.failure.alert", function(e) {
+      try {
+        var d = JSON.parse(e.data);
+        _notify("Workflow failed", d.workflow + " — " + d.runId);
+      } catch {}
+    });
     src.addEventListener("task.changed", function() { refreshTasks(); });
     src.addEventListener("session.registered", function() { refreshActiveSessions(); });
     src.addEventListener("session.unregistered", function() { refreshActiveSessions(); });
