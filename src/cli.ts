@@ -17,6 +17,7 @@ import { expandAlias, loadConfig } from "./config.js";
 import { registerConfigCommands } from "./config-cli.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { registerDoctorCommand } from "./doctor-cli.js";
+import { registerEventsCommands } from "./events-cli.js";
 import { registerExtensionCommands } from "./extension-cli.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
@@ -189,6 +190,7 @@ registerDoctorCommand(program);
 registerStatusCommand(program);
 registerConfigCommands(program);
 registerInitCommand(program);
+registerEventsCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {
