@@ -49,6 +49,10 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `foreign-extension-loader.ts` — `loadForeignExtensions`: wraps out-of-process KEMP modules as `KotaExtension`; handles init/manifest handshake, proxies tool invocations, manages automatic subprocess restart with exponential backoff and optional ping health checks, and tracks per-extension health state (restartCount, lastRestartAt, status: ok/restarting/dead) exposed via `GET /api/extensions`.
 - `foreign-extension-http.ts` — `HttpTransport`: HTTP transport for KEMP; POSTs outbound messages and receives inbound responses; supports optional `Authorization: Bearer` auth.
 - `foreign-extension-stdio.ts` — `StdioTransport`: stdio transport for KEMP; spawns a subprocess and exchanges NDJSON over stdin/stdout.
+- `repo-tasks.ts` — `getRepoTaskQueueSnapshot`, `REPO_TASK_STATES`, `RepoTaskState`, and `RepoTaskQueueSnapshot`; scans `tasks/` directories and returns counts by state; used by workflow `inspect-queue` and `inspect-ready-queue` steps.
+- `repo-worktree.ts` — `assertRepoWorktreeClean`, `getRepoWorktreeStatus`; validates that the git working tree is clean before a workflow agent step runs; used by builder and explorer workflows.
+- `task-queue-validation.ts` — `validateTaskQueue`, `assertTaskQueueValid`, `assertTaskQueueRecommendations`, `assertNoHighPriorityBacklogStrandedTasks`, `hasHighPriorityBacklogTasks`; structural and policy checks on the `tasks/` directory; used by builder, explorer, and improver repair-loop gates.
+- `workflow-history.ts` — `loadRunsInWindow`, `computeHistoryStats`; reads workflow run metadata from `.kota/runs/` filtered by time window; used by `shared.ts` and dashboard history routes.
 
 ## AgentLoopState Cast Pattern
 
