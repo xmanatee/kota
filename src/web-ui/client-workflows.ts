@@ -227,6 +227,7 @@ export const CLIENT_WORKFLOWS_JS = `
       var item = document.createElement("div");
       item.className = "run-item";
       item.style.cursor = "pointer";
+      item.setAttribute("data-run-id", run.runId);
       item.innerHTML = '<span class="run-badge running">▶</span>' +
         '<span class="run-name">' + escapeHtml(run.workflow) + '</span>' +
         '<span class="run-meta">' + fmtDuration(elapsed) + '</span>';
@@ -251,6 +252,7 @@ export const CLIENT_WORKFLOWS_JS = `
       var ri = document.createElement("div");
       ri.className = "run-item";
       ri.style.cursor = "pointer";
+      ri.setAttribute("data-run-id", r.id);
       ri.innerHTML = '<span class="run-badge ' + badgeClass + '">' + icon + '</span>' +
         '<span class="run-name">' + escapeHtml(r.workflow) + tagBadges + '</span>' +
         '<span class="run-meta">' + meta.trim() + '</span>';

@@ -7,6 +7,7 @@ import { CLIENT_AUDIT_JS } from "./client-audit.js";
 import { CLIENT_CHAT_JS } from "./client-chat.js";
 import { CLIENT_COST_JS } from "./client-cost.js";
 import { CLIENT_EXTENSIONS_JS } from "./client-extensions.js";
+import { CLIENT_KEYBOARD_JS } from "./client-keyboard.js";
 import { CLIENT_KNOWLEDGE_JS } from "./client-knowledge.js";
 import { CLIENT_MEMORY_JS } from "./client-memory.js";
 import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
@@ -90,6 +91,7 @@ ${CLIENT_KNOWLEDGE_JS}
 ${CLIENT_MEMORY_JS}
 ${CLIENT_AUDIT_JS}
 ${CLIENT_THEME_JS}
+${CLIENT_KEYBOARD_JS}
 
   // --- Event listeners ---
 

@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-keyboard-shortcuts
 title: Add keyboard navigation shortcuts to web UI run history and detail panels
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The web UI has no keyboard shortcuts for navigating run history. Operators reviewing multiple runs must reach for the mouse to open each one; adding j/k navigation and Esc to close the detail panel would speed up routine workflow review.

@@ -343,4 +343,45 @@ describe("getWebUI", () => {
     expect(html).toContain("historyTags");
     expect(html).toContain("seenTag");
   });
+
+  it("includes keyboard navigation handler", () => {
+    expect(html).toContain("_isInputFocused");
+    expect(html).toContain("_getSelectableRunItems");
+    expect(html).toContain("_getCurrentSelectedIndex");
+    expect(html).toContain("_setSelectedRunIndex");
+  });
+
+  it("keyboard shortcuts suppressed when input is focused", () => {
+    expect(html).toContain("_isInputFocused");
+    expect(html).toContain('tag === "INPUT"');
+    expect(html).toContain('tag === "TEXTAREA"');
+    expect(html).toContain("isContentEditable");
+  });
+
+  it("j/k keys navigate run history list", () => {
+    expect(html).toContain('e.key === "j"');
+    expect(html).toContain('e.key === "k"');
+    expect(html).toContain("run-item-selected");
+  });
+
+  it("Escape key closes run detail panel", () => {
+    expect(html).toContain('e.key === "Escape"');
+    expect(html).toContain("showChat");
+  });
+
+  it("/ key focuses log search input when detail panel is open", () => {
+    expect(html).toContain('e.key === "/"');
+    expect(html).toContain("log-search-input");
+    expect(html).toContain("logSearch.focus");
+  });
+
+  it("run items in workflow list have data-run-id attribute set", () => {
+    expect(html).toContain('data-run-id');
+    expect(html).toContain('setAttribute("data-run-id"');
+  });
+
+  it("run-item-selected CSS class is defined for keyboard highlight", () => {
+    expect(html).toContain("run-item-selected");
+    expect(html).toContain("rgba(108, 99, 255");
+  });
 });

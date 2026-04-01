@@ -41,6 +41,10 @@ export const STYLES_RUNS_CSS = `
   white-space: nowrap;
   flex-shrink: 0;
 }
+.run-item-selected {
+  background: rgba(108, 99, 255, 0.18);
+  outline: 1px solid var(--accent);
+}
 .run-empty {
   padding: 4px 12px;
   color: var(--text-muted);
