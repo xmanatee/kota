@@ -184,6 +184,36 @@ const myExtension: KotaExtension = {
 };
 ```
 
+### Workflow Composition (trigger step)
+
+A `type: "trigger"` step queues or synchronously awaits another workflow,
+letting you compose multi-workflow pipelines without raw code steps or event
+timing gymnastics.
+
+```typescript
+steps: [
+  {
+    id: "run-cleanup",
+    type: "trigger",
+    workflow: "my-extension/nightly-cleanup",
+    waitFor: "completed",   // block until the triggered run finishes
+    payload: {
+      source: "{{trigger.payload.runId}}",   // interpolation supported
+    },
+  },
+]
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `workflow` | `string` | — | Name of the workflow to queue. Must be registered and enabled. |
+| `waitFor` | `"queued" \| "completed"` | `"queued"` | `"queued"` returns as soon as the run is accepted. `"completed"` blocks until the triggered run finishes (success or failure), respecting step-level `timeoutMs`. |
+| `payload` | `object` | `{}` | Optional payload passed to the triggered run. Supports `{{trigger.payload.field}}` and `{{stepOutputs.stepId.field}}` interpolation. |
+
+**Guards:** The validator rejects self-referential trigger steps at load time
+(a workflow triggering itself is a hard error). Triggering an unregistered
+workflow produces a warning at load time and a runtime error when the step runs.
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of
