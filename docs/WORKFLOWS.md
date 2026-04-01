@@ -12,9 +12,12 @@ should be expressed as a workflow, not as a parallel engine.
 | Cron schedule | `schedule: "0 9 * * 1-5"` | On a 5-field cron expression |
 | Interval | `intervalMs: 300_000` | Every N milliseconds |
 | Idle | `event: "runtime.idle"` | When no workflow has run recently |
+| File watch | `watch: "src/**/*.ts"` | When matching files change (daemon only) |
 
 Add `filter` to narrow event triggers. Add `cooldownMs` to prevent back-to-back
-runs on noisy events.
+runs on noisy events. Add `debounceMs` to batch rapid file changes (default 500ms,
+minimum 200ms). Watch triggers are only active when the daemon is running; they are
+silently skipped in standalone `kota serve` mode.
 
 ## Concurrency Model
 
@@ -119,7 +122,7 @@ cost and latency proportionally to the token budget.
 
 ### Hook-like reaction
 
-React to a file change or a workflow completion:
+React to a workflow completion:
 
 ```typescript
 triggers: [
@@ -130,6 +133,28 @@ triggers: [
 Any event on the internal bus can be a trigger. The bus emits `workflow.started`,
 `workflow.completed`, `workflow.step.completed`, `file.changed`, and more.
 See `src/event-bus.ts` for the full list.
+
+### File-watch trigger
+
+React when matching files change on disk (daemon only):
+
+```typescript
+triggers: [
+  { watch: "src/**/*.ts", debounceMs: 1000 },
+]
+```
+
+`watch` accepts a glob string or an array of glob strings. When one or more files
+match and settle after the debounce window, the workflow is queued with a
+`files.changed` event payload:
+
+```json
+{ "files": ["src/foo.ts", "src/bar.ts"], "triggeredAt": "2026-04-01T12:00:00.000Z" }
+```
+
+Access the list of changed files in a code step via `ctx.trigger.payload.files`.
+Watch triggers are mutually exclusive with event, schedule, interval, and webhook
+fields on the same trigger object.
 
 ### Heartbeat / standing order
 
