@@ -228,6 +228,9 @@ Returns recent workflow run summaries.
 Returns full run detail for a specific run: metadata plus per-step status,
 duration, error, and cost. Does not return full agent log output.
 
+`triggerPayload` is included when the trigger payload is non-empty (webhook, github-event,
+and manual trigger runs). Absent for event-only triggers with no payload fields.
+
 **Response:**
 
 ```json
@@ -240,6 +243,7 @@ duration, error, and cost. Does not return full agent log output.
   "completedAt": "2026-03-30T18:18:00.000Z",
   "durationMs": 304802,
   "totalCostUsd": 0.47,
+  "triggerPayload": { "workflow": "explorer", "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "status": "success" },
   "causedBy": { "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "workflow": "explorer" },
   "tags": ["ci", "pr-42"],
   "steps": [

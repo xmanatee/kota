@@ -455,6 +455,22 @@ type HarnessStepResult = {
 
 ## Operator Commands
 
+### Inspect a run
+
+```
+kota workflow run show <run-id> [--payload] [--step <step-id>]
+```
+
+Prints step-level detail for a run: status, duration, cost, and per-step output summaries.
+
+- `--payload` — also prints the trigger payload as formatted JSON below the Trigger line.
+  Useful for webhook and github-event triggered runs where the payload (repo, branch, PR
+  number) explains why the run fired.
+- `--step <step-id>` — prints the full JSON output (or error) for a single step. Skips
+  the daemon API path and reads from disk.
+
+Supports prefix matching: `kota workflow run show 2026-03-30T18` resolves to the matching run.
+
 ### Trigger a run manually
 
 ```

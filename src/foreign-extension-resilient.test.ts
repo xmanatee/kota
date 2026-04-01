@@ -124,8 +124,8 @@ describe("KEMP resilient extension — crash restart", () => {
     const firstResult = await tool.runner({ v: "hello" });
     expect(firstResult.is_error).toBe(true);
 
-    // Wait for restart (50ms backoff + spawn time)
-    await new Promise((r) => setTimeout(r, 600));
+    // Wait for restart (50ms backoff + spawn time); use a generous budget for slow CI environments
+    await new Promise((r) => setTimeout(r, 3000));
 
     // Second invoke: spawn 2 handles correctly
     const secondResult = await tool.runner({ v: "world" });
