@@ -14,11 +14,12 @@ export function handleWebhookRequest(
   }
   readBody(req)
     .then((buf) => {
-      const secret = req.headers["x-kota-webhook-secret"];
-      if (!secret || typeof secret !== "string") {
-        jsonResponse(res, 401, { error: "Missing X-Kota-Webhook-Secret header" });
+      const signature = req.headers["x-kota-webhook-signature"];
+      if (!signature || typeof signature !== "string") {
+        jsonResponse(res, 401, { error: "Missing X-Kota-Webhook-Signature header" });
         return;
       }
+      const webhookTimestamp = req.headers["x-kota-webhook-timestamp"];
       let body: unknown = null;
       if (buf.length > 0) {
         try {
@@ -29,14 +30,24 @@ export function handleWebhookRequest(
       }
       const headers: Record<string, string> = {};
       for (const [key, val] of Object.entries(req.headers)) {
-        if (key !== "x-kota-webhook-secret" && typeof val === "string") {
+        if (
+          key !== "x-kota-webhook-signature" &&
+          key !== "x-kota-webhook-timestamp" &&
+          typeof val === "string"
+        ) {
           headers[key] = val;
         }
       }
       const payload = { body, headers, timestamp: new Date().toISOString() };
-      const result = handle.triggerWebhookRun(workflowName, secret, payload);
+      const result = handle.triggerWebhookRun(
+        workflowName,
+        signature,
+        buf,
+        payload,
+        typeof webhookTimestamp === "string" ? webhookTimestamp : undefined,
+      );
       if (result.unauthorized) {
-        jsonResponse(res, 401, { error: "Invalid webhook secret" });
+        jsonResponse(res, 401, { error: "Invalid webhook signature" });
         return;
       }
       if (result.notFound) {

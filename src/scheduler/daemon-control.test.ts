@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type DaemonControlHandle,
@@ -400,33 +401,40 @@ describe("DaemonControlServer", () => {
   describe("POST /webhooks/:name", () => {
     const WEBHOOK_SECRET = "test-webhook-secret";
 
+    function sign(secret: string, body: string | Buffer): string {
+      return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+    }
+
     function makeWebhookHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControlHandle {
       return makeHandle({
-        triggerWebhookRun: vi.fn((_name: string, secret: string, _payload: unknown) => {
-          if (secret !== WEBHOOK_SECRET) return { ok: false, unauthorized: true };
+        triggerWebhookRun: vi.fn((_name: string, _sig: string, _rawBody: Buffer, _payload: unknown) => {
           return { ok: true, runId: "2026-01-01T00-00-00-000Z-deploy-abc123" };
         }),
         ...overrides,
       });
     }
 
-    it("returns 200 with runId when secret is correct", async () => {
+    it("returns 200 with runId when signature is correct", async () => {
       handle = makeWebhookHandle();
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
       port = await server.start();
 
+      const bodyStr = JSON.stringify({ ref: "refs/heads/main" });
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET, "Content-Type": "application/json" },
-        body: JSON.stringify({ ref: "refs/heads/main" }),
+        headers: {
+          "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, bodyStr),
+          "Content-Type": "application/json",
+        },
+        body: bodyStr,
       });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ runId: "2026-01-01T00-00-00-000Z-deploy-abc123" });
     });
 
-    it("returns 401 when secret is missing", async () => {
+    it("returns 401 when signature header is missing", async () => {
       handle = makeWebhookHandle();
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
@@ -440,15 +448,17 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(401);
     });
 
-    it("returns 401 when secret is wrong", async () => {
-      handle = makeWebhookHandle();
+    it("returns 401 when signature is wrong", async () => {
+      handle = makeHandle({
+        triggerWebhookRun: vi.fn(() => ({ ok: false, unauthorized: true })),
+      });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
       port = await server.start();
 
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Secret": "wrong-secret" },
+        headers: { "X-Kota-Webhook-Signature": "sha256=badhex" },
       });
       expect(res.status).toBe(401);
     });
@@ -463,7 +473,7 @@ describe("DaemonControlServer", () => {
 
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/unknown`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET },
+        headers: { "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, "") },
       });
       expect(res.status).toBe(404);
     });
@@ -478,7 +488,7 @@ describe("DaemonControlServer", () => {
 
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET },
+        headers: { "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, "") },
       });
       expect(res.status).toBe(409);
     });
@@ -489,36 +499,70 @@ describe("DaemonControlServer", () => {
       server = new DaemonControlServer(handle, TEST_TOKEN);
       port = await server.start();
 
-      // No Authorization header, only webhook secret
+      // No Authorization header, only webhook signature
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET },
+        headers: { "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, "") },
       });
       expect(res.status).toBe(200);
     });
 
-    it("passes request body and headers to handle", async () => {
+    it("passes signature, rawBody, payload, and optional timestamp to handle", async () => {
       const triggerFn = vi.fn(() => ({ ok: true, runId: "test-run-id" }));
       handle = makeHandle({ triggerWebhookRun: triggerFn });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
       port = await server.start();
 
+      const bodyStr = JSON.stringify({ event: "push" });
+      const ts = String(Date.now());
       await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Secret": WEBHOOK_SECRET, "Content-Type": "application/json" },
-        body: JSON.stringify({ event: "push" }),
+        headers: {
+          "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, bodyStr),
+          "X-Kota-Webhook-Timestamp": ts,
+          "Content-Type": "application/json",
+        },
+        body: bodyStr,
       });
 
       expect(triggerFn).toHaveBeenCalledWith(
         "deploy",
-        WEBHOOK_SECRET,
+        expect.stringMatching(/^sha256=[0-9a-f]{64}$/),
+        expect.any(Buffer),
         expect.objectContaining({
           body: { event: "push" },
           headers: expect.objectContaining({ "content-type": "application/json" }),
           timestamp: expect.any(String),
         }),
+        ts,
       );
+    });
+
+    it("enforces timestamp replay window when X-Kota-Webhook-Timestamp is present", async () => {
+      handle = makeHandle({
+        triggerWebhookRun: vi.fn((_name, _sig, _buf, _payload, webhookTimestamp) => {
+          const ts = parseInt(webhookTimestamp ?? "", 10);
+          if (isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
+            return { ok: false, unauthorized: true };
+          }
+          return { ok: true, runId: "test-run-id" };
+        }),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      // Stale timestamp (10 minutes ago)
+      const staleTs = String(Date.now() - 10 * 60 * 1000);
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: {
+          "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, ""),
+          "X-Kota-Webhook-Timestamp": staleTs,
+        },
+      });
+      expect(res.status).toBe(401);
     });
   });
 

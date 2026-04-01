@@ -1,7 +1,7 @@
 ---
 id: task-webhook-hmac-signature
 title: Replace webhook bearer-token auth with HMAC-SHA256 signature verification
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Inbound webhooks are currently authenticated by comparing a shared secret sent in a request header. Switching to HMAC-SHA256 body signature verification removes the secret from headers, prevents replay attacks with a timestamp check, and aligns with the pattern used by GitHub, Stripe, Slack, and other common webhook senders.

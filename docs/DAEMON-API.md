@@ -585,9 +585,29 @@ the server for run listing and streaming.
 Triggers a workflow run from an external system. This endpoint uses a separate
 per-workflow secret and does **not** require the daemon Bearer token.
 
-**Auth:** Include the configured secret in the `X-Kota-Webhook-Secret` header.
-The secret is configured in `.kota/config.json` under `webhooks.<workflowName>.secret`.
-The workflow definition must include `trigger: { webhook: true }`.
+**Auth:** Requests must be signed with HMAC-SHA256 using the workflow's configured
+secret. Send the signature in the `X-Kota-Webhook-Signature` header with the format
+`sha256=<hex>`. The secret is configured in `.kota/config.json` under
+`webhooks.<workflowName>.secret`. The workflow definition must include
+`trigger: { webhook: true }`.
+
+**Signing (Node.js example):**
+
+```js
+const crypto = require("crypto");
+const secret = "your-secret-here";
+const rawBody = JSON.stringify({ ref: "refs/heads/main" });
+const sig = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+// Set header: X-Kota-Webhook-Signature: <sig>
+```
+
+**Replay protection (optional):** Send the current Unix timestamp in milliseconds
+as `X-Kota-Webhook-Timestamp`. When present, requests older than 5 minutes are
+rejected with 401.
+
+```
+X-Kota-Webhook-Timestamp: 1743362400000
+```
 
 **Request body:** Optional JSON body. Sent as `body` in `stepOutputs.trigger`.
 
@@ -601,7 +621,7 @@ The workflow definition must include `trigger: { webhook: true }`.
 
 | Status | Condition |
 |--------|-----------|
-| 401 | Missing or invalid `X-Kota-Webhook-Secret` |
+| 401 | Missing or invalid `X-Kota-Webhook-Signature`, or stale `X-Kota-Webhook-Timestamp` |
 | 404 | Workflow not found or has no `webhook: true` trigger |
 | 409 | Workflow is already running |
 

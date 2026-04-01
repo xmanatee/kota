@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { getApprovalQueue } from "../approval-queue.js";
@@ -271,9 +271,24 @@ export class Daemon {
         this.bus.emit("session.unregistered", { id });
       },
       listSessions: () => [...this.sessions.values()],
-      triggerWebhookRun: (name: string, secret: string, payload: { body: unknown; headers: Record<string, string>; timestamp: string }) => {
+      triggerWebhookRun: (name: string, signature: string, rawBody: Buffer, payload: { body: unknown; headers: Record<string, string>; timestamp: string }, webhookTimestamp?: string) => {
         const expectedSecret = this.config.config?.webhooks?.[name]?.secret;
-        if (!expectedSecret || secret !== expectedSecret) return { ok: false, unauthorized: true };
+        if (!expectedSecret) return { ok: false, unauthorized: true };
+        const hexSig = signature.startsWith("sha256=") ? signature.slice(7) : signature;
+        const expected = createHmac("sha256", expectedSecret).update(rawBody).digest("hex");
+        let sigMatch = false;
+        try {
+          sigMatch = timingSafeEqual(Buffer.from(hexSig, "hex"), Buffer.from(expected, "hex"));
+        } catch {
+          sigMatch = false;
+        }
+        if (!sigMatch) return { ok: false, unauthorized: true };
+        if (webhookTimestamp !== undefined) {
+          const ts = parseInt(webhookTimestamp, 10);
+          if (isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
+            return { ok: false, unauthorized: true };
+          }
+        }
         const result = this.workflows.enqueueWebhookRun(name, payload);
         if (result.error?.startsWith("Unknown workflow") || result.error?.includes("no webhook trigger")) {
           return { ok: false, notFound: true };

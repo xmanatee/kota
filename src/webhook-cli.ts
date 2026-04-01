@@ -64,6 +64,15 @@ export function registerWebhookCommands(program: Command): void {
 
       console.log(`Secret for "${workflow}" (save this — it will not be shown again):`);
       console.log(secret);
+      console.log();
+      console.log("Sign each request with HMAC-SHA256 and send the signature in X-Kota-Webhook-Signature:");
+      console.log();
+      console.log("  // Node.js");
+      console.log(`  const sig = "sha256=" + require("crypto").createHmac("sha256", secret).update(rawBody).digest("hex");`);
+      console.log(`  // Set header: X-Kota-Webhook-Signature: <sig>`);
+      console.log();
+      console.log("  // Optional replay protection: set X-Kota-Webhook-Timestamp to the current Unix ms timestamp");
+      console.log(`  //   X-Kota-Webhook-Timestamp: ${Date.now()} (requests older than 5 minutes are rejected)`);
     });
 
   secretCmd

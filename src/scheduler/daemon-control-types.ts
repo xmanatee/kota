@@ -176,7 +176,9 @@ export type DaemonControlHandle = {
   // Webhook triggers
   triggerWebhookRun(
     name: string,
-    secret: string,
+    signature: string,
+    rawBody: Buffer,
     payload: { body: unknown; headers: Record<string, string>; timestamp: string },
+    webhookTimestamp?: string,
   ): { ok: boolean; runId?: string; unauthorized?: boolean; notFound?: boolean; alreadyRunning?: boolean; error?: string };
 };
