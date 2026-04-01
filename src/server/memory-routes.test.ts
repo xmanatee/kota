@@ -1,8 +1,8 @@
-import type { ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { Memory } from "../memory/store.js";
 import type { MemoryProvider } from "../provider-types.js";
-import { handleGetMemory, handleListMemory } from "./memory-routes.js";
+import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory } from "./memory-routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -115,6 +115,76 @@ describe("memory-routes", () => {
       });
       const { res, result } = mockResponse();
       handleGetMemory(res, "any-id");
+      expect(result.status).toBe(500);
+    });
+  });
+
+  describe("handleAddMemory", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const data = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: Buffer | string) => void) => {
+          if (event === "data") cb(Buffer.from(data));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("returns 201 with generated id on success", async () => {
+      const provider = makeProvider([]);
+      vi.mocked(getMemoryProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+      await handleAddMemory(makeRequest({ content: "hello world", tags: ["a"] }), res);
+      expect(result.status).toBe(201);
+      expect((result.body as { id: string }).id).toBe("new-id");
+      expect(provider.save).toHaveBeenCalledWith("hello world", ["a"]);
+    });
+
+    it("returns 400 when content is missing", async () => {
+      vi.mocked(getMemoryProvider).mockReturnValue(makeProvider([]));
+      const { res, result } = mockResponse();
+      await handleAddMemory(makeRequest({}), res);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 500 when provider throws", async () => {
+      vi.mocked(getMemoryProvider).mockReturnValue({
+        ...makeProvider([]),
+        save: vi.fn(() => { throw new Error("save error"); }),
+      });
+      const { res, result } = mockResponse();
+      await handleAddMemory(makeRequest({ content: "x" }), res);
+      expect(result.status).toBe(500);
+    });
+  });
+
+  describe("handleDeleteMemory", () => {
+    it("returns 200 when entry deleted", () => {
+      vi.mocked(getMemoryProvider).mockReturnValue(makeProvider([]));
+      const { res, result } = mockResponse();
+      handleDeleteMemory(res, "mem-abc");
+      expect(result.status).toBe(200);
+      expect((result.body as { deleted: string }).deleted).toBe("mem-abc");
+    });
+
+    it("returns 404 when entry not found", () => {
+      vi.mocked(getMemoryProvider).mockReturnValue({
+        ...makeProvider([]),
+        delete: vi.fn(() => false),
+      });
+      const { res, result } = mockResponse();
+      handleDeleteMemory(res, "missing");
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 500 when provider throws", () => {
+      vi.mocked(getMemoryProvider).mockReturnValue({
+        ...makeProvider([]),
+        delete: vi.fn(() => { throw new Error("del error"); }),
+      });
+      const { res, result } = mockResponse();
+      handleDeleteMemory(res, "any-id");
       expect(result.status).toBe(500);
     });
   });

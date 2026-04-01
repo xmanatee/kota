@@ -1,7 +1,7 @@
-import type { ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Memory } from "../memory/store.js";
 import { getMemoryProvider } from "../providers.js";
-import { jsonResponse } from "./session-pool.js";
+import { jsonResponse, readBody } from "./session-pool.js";
 
 type MemoryListItem = {
   id: string;
@@ -42,6 +42,43 @@ export function handleGetMemory(res: ServerResponse, id: string): void {
       return;
     }
     jsonResponse(res, 200, entry);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export async function handleAddMemory(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  const content = typeof body.content === "string" ? body.content.trim() : "";
+  if (!content) {
+    jsonResponse(res, 400, { error: "content is required" });
+    return;
+  }
+  const tags = Array.isArray(body.tags) ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string") : [];
+  try {
+    const provider = getMemoryProvider();
+    const id = provider.save(content, tags);
+    jsonResponse(res, 201, { id });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export function handleDeleteMemory(res: ServerResponse, id: string): void {
+  try {
+    const provider = getMemoryProvider();
+    const ok = provider.delete(id);
+    if (!ok) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+    jsonResponse(res, 200, { deleted: id });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

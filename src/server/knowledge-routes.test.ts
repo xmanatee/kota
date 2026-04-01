@@ -1,8 +1,8 @@
-import type { ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { KnowledgeEntry } from "../memory/knowledge-store-helpers.js";
 import type { KnowledgeProvider } from "../provider-types.js";
-import { handleGetKnowledge, handleListKnowledge } from "./knowledge-routes.js";
+import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge } from "./knowledge-routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -124,6 +124,76 @@ describe("knowledge-routes", () => {
       });
       const { res, result } = mockResponse();
       handleGetKnowledge(res, "any-id");
+      expect(result.status).toBe(500);
+    });
+  });
+
+  describe("handleAddKnowledge", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const data = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: Buffer | string) => void) => {
+          if (event === "data") cb(Buffer.from(data));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("returns 201 with generated id on success", async () => {
+      const provider = makeProvider([]);
+      vi.mocked(getKnowledgeProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+      await handleAddKnowledge(makeRequest({ title: "My Entry", content: "body text", type: "note", tags: ["foo"] }), res);
+      expect(result.status).toBe(201);
+      expect((result.body as { id: string }).id).toBe("new-id");
+      expect(provider.create).toHaveBeenCalledWith(expect.objectContaining({ title: "My Entry", content: "body text", type: "note", tags: ["foo"] }));
+    });
+
+    it("returns 400 when title is missing", async () => {
+      vi.mocked(getKnowledgeProvider).mockReturnValue(makeProvider([]));
+      const { res, result } = mockResponse();
+      await handleAddKnowledge(makeRequest({ content: "no title" }), res);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 500 when provider throws", async () => {
+      vi.mocked(getKnowledgeProvider).mockReturnValue({
+        ...makeProvider([]),
+        create: vi.fn(() => { throw new Error("create error"); }),
+      });
+      const { res, result } = mockResponse();
+      await handleAddKnowledge(makeRequest({ title: "T" }), res);
+      expect(result.status).toBe(500);
+    });
+  });
+
+  describe("handleDeleteKnowledge", () => {
+    it("returns 200 when entry deleted", () => {
+      vi.mocked(getKnowledgeProvider).mockReturnValue(makeProvider([]));
+      const { res, result } = mockResponse();
+      handleDeleteKnowledge(res, "entry-abc");
+      expect(result.status).toBe(200);
+      expect((result.body as { deleted: string }).deleted).toBe("entry-abc");
+    });
+
+    it("returns 404 when entry not found", () => {
+      vi.mocked(getKnowledgeProvider).mockReturnValue({
+        ...makeProvider([]),
+        delete: vi.fn(() => false),
+      });
+      const { res, result } = mockResponse();
+      handleDeleteKnowledge(res, "missing");
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 500 when provider throws", () => {
+      vi.mocked(getKnowledgeProvider).mockReturnValue({
+        ...makeProvider([]),
+        delete: vi.fn(() => { throw new Error("del error"); }),
+      });
+      const { res, result } = mockResponse();
+      handleDeleteKnowledge(res, "any-id");
       expect(result.status).toBe(500);
     });
   });
