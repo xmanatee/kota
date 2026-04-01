@@ -1,12 +1,12 @@
 ---
 id: task-memory-add-cli
 title: Add kota memory add subcommand for manual memory entry creation
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The memory CLI has list/search/delete but no add subcommand. Operators cannot create memory entries from the shell — only agents can write to the memory store.
 created_at: 2026-04-01T06:00:00Z
-updated_at: 2026-04-01T06:00:00Z
+updated_at: 2026-04-01T01:55:00Z
 ---
 
 ## Problem

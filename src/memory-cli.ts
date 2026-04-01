@@ -54,6 +54,32 @@ export function registerMemoryCommands(program: Command): void {
 		});
 
 	memCmd
+		.command("add")
+		.description("Create a new memory entry")
+		.option("--content <text>", "Entry content (reads from stdin if omitted)")
+		.option(
+			"--tag <tag>",
+			"Tag (repeatable)",
+			(val: string, acc: string[]) => [...acc, val],
+			[] as string[],
+		)
+		.action(async (opts: { content?: string; tag: string[] }) => {
+			let content = opts.content;
+			if (content === undefined) {
+				const chunks: Buffer[] = [];
+				for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+				content = Buffer.concat(chunks).toString("utf-8").trimEnd();
+			}
+			if (!content) {
+				console.error("Content is required (use --content or pipe via stdin).");
+				process.exit(1);
+			}
+			const store = getMemoryStore();
+			const id = store.save(content, opts.tag);
+			console.log(id);
+		});
+
+	memCmd
 		.command("delete <id>")
 		.description("Delete a memory entry by ID")
 		.action((id: string) => {

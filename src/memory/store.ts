@@ -130,7 +130,11 @@ export class MemoryStore {
 // Singleton for the tool to use
 let store: MemoryStore | undefined;
 
-export function getMemoryStore(): MemoryStore {
-  if (!store) store = new MemoryStore();
+export function getMemoryStore(dir?: string): MemoryStore {
+  if (!store) store = new MemoryStore(dir);
   return store;
+}
+
+export function resetMemoryStore(): void {
+  store = undefined;
 }
