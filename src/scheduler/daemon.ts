@@ -203,6 +203,7 @@ export class Daemon {
           ...(m.durationMs != null && { durationMs: m.durationMs }),
           ...(m.totalCostUsd != null && { totalCostUsd: m.totalCostUsd }),
           ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
+          ...(m.causedBy != null && { causedBy: m.causedBy }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
           ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
         })),
@@ -219,6 +220,7 @@ export class Daemon {
           ...(m.durationMs != null && { durationMs: m.durationMs }),
           ...(m.totalCostUsd != null && { totalCostUsd: m.totalCostUsd }),
           ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
+          ...(m.causedBy != null && { causedBy: m.causedBy }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
           ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
           steps: m.steps.map((s) => {

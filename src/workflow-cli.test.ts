@@ -164,6 +164,32 @@ describe("WorkflowRunStore causal chain", () => {
     });
     expect(run.metadata.triggeredByRunId).toBeUndefined();
   });
+
+  it("sets causedBy when trigger is workflow.completed with runId and workflow", () => {
+    const parentRunId = "2026-01-01T00-00-00-000Z-explorer-abc123";
+    const run = store.createRun(workflow, {
+      event: "workflow.completed",
+      payload: { runId: parentRunId, workflow: "explorer", status: "success" },
+    });
+    expect(run.metadata.causedBy).toEqual({ runId: parentRunId, workflow: "explorer" });
+  });
+
+  it("omits causedBy when trigger is not workflow.completed", () => {
+    const run = store.createRun(workflow, {
+      event: "runtime.idle",
+      payload: {},
+    });
+    expect(run.metadata.causedBy).toBeUndefined();
+  });
+
+  it("omits causedBy when workflow.completed payload lacks workflow name", () => {
+    const parentRunId = "2026-01-01T00-00-00-000Z-explorer-abc123";
+    const run = store.createRun(workflow, {
+      event: "workflow.completed",
+      payload: { runId: parentRunId },
+    });
+    expect(run.metadata.causedBy).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

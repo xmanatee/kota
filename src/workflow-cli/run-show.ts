@@ -74,6 +74,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
           ...(daemonRun.durationMs != null && { durationMs: daemonRun.durationMs }),
           ...(daemonRun.totalCostUsd != null && { totalCostUsd: daemonRun.totalCostUsd }),
           ...(daemonRun.triggeredByRunId != null && { triggeredByRunId: daemonRun.triggeredByRunId }),
+          ...(daemonRun.causedBy != null && { causedBy: daemonRun.causedBy }),
           ...(daemonRun.retryOf != null && { retryOf: daemonRun.retryOf }),
         };
       } else {

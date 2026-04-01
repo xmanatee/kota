@@ -73,6 +73,9 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '<span>Cost: ' + cost + '</span>';
     html += '<span>Started: ' + escapeHtml(started) + '</span>';
     html += '<span>Completed: ' + escapeHtml(completed) + '</span>';
+    if (run.causedBy) {
+      html += '<span>Triggered by: <a href="#" class="run-causedby-link" data-runid="' + escapeHtml(run.causedBy.runId) + '">' + escapeHtml(run.causedBy.workflow) + ' / ' + escapeHtml(run.causedBy.runId) + '</a></span>';
+    }
     html += '</div></div>';
 
     if (artifacts && artifacts.runSummary) {
@@ -160,6 +163,13 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '</div>';
     $runDetail.innerHTML = html;
     document.getElementById("run-detail-back").onclick = showChat;
+    var $causedByLink = $runDetail.querySelector(".run-causedby-link");
+    if ($causedByLink) {
+      $causedByLink.onclick = function(e) {
+        e.preventDefault();
+        showRunDetail($causedByLink.getAttribute("data-runid"));
+      };
+    }
     var $replayBtn = document.getElementById("run-detail-replay");
     if ($replayBtn) {
       $replayBtn.onclick = async function() {

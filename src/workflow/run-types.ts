@@ -139,6 +139,7 @@ export type WorkflowRunMetadata = {
   definitionPath: string;
   trigger: WorkflowRunTrigger;
   triggeredByRunId?: string;
+  causedBy?: { runId: string; workflow: string };
   retryOf?: string;
   tags?: string[];
   startedAt: string;

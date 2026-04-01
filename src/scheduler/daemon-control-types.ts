@@ -75,6 +75,7 @@ export type WorkflowRunSummary = {
   durationMs?: number;
   totalCostUsd?: number;
   triggeredByRunId?: string;
+  causedBy?: { runId: string; workflow: string };
   retryOf?: string;
   tags?: string[];
 };
@@ -90,6 +91,7 @@ export type WorkflowRunStepSummary = {
 
 export type WorkflowRunDetail = WorkflowRunSummary & {
   triggeredByRunId?: string;
+  causedBy?: { runId: string; workflow: string };
   retryOf?: string;
   completedAt?: string;
   steps: WorkflowRunStepSummary[];

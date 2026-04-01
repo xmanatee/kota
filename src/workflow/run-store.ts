@@ -309,6 +309,12 @@ export class WorkflowRunStore {
 
     const triggeredByRunId =
       typeof trigger.payload.runId === "string" ? trigger.payload.runId : undefined;
+    const causedBy =
+      trigger.event === "workflow.completed" &&
+      typeof trigger.payload.runId === "string" &&
+      typeof trigger.payload.workflow === "string"
+        ? { runId: trigger.payload.runId, workflow: trigger.payload.workflow }
+        : undefined;
     const retryOf =
       typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
     const tags =
@@ -323,6 +329,7 @@ export class WorkflowRunStore {
       definitionPath: workflow.definitionPath,
       trigger,
       ...(triggeredByRunId !== undefined && { triggeredByRunId }),
+      ...(causedBy !== undefined && { causedBy }),
       ...(retryOf !== undefined && { retryOf }),
       ...(tags !== undefined && tags.length > 0 && { tags }),
       startedAt: new Date().toISOString(),
