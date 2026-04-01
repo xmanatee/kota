@@ -174,11 +174,12 @@ export async function resolveDeletes(
 	rootPath: string,
 	changes: FileChange[],
 ): Promise<FileChange[]> {
-	return Promise.all(
+	const results = await Promise.all(
 		changes.map(async (c) => {
 			if (c.type === "create") {
 				try {
-					await stat(join(rootPath, c.path));
+					const s = await stat(join(rootPath, c.path));
+					if (s.isDirectory()) return null;
 					return c;
 				} catch (error) {
 					if (!isIgnorableFsRace(error)) throw error;
@@ -188,6 +189,7 @@ export async function resolveDeletes(
 			return c;
 		}),
 	);
+	return results.filter((c): c is FileChange => c !== null);
 }
 
 export function scheduleFlush(
@@ -207,6 +209,7 @@ export function flushPending(active: ActiveWatcher): void {
 	active.changeCount += changes.length;
 
 	void resolveDeletes(active.rootPath, changes).then((resolved) => {
+		if (resolved.length === 0) return;
 		const bus = getEventBus();
 		if (bus) {
 			bus.emit("file.changed", {

@@ -254,6 +254,8 @@ steps: [
 | `waitFor` | `"queued" \| "completed"` | `"queued"` | `"queued"` returns as soon as the run is accepted. `"completed"` blocks until the triggered run finishes (success or failure), respecting step-level `timeoutMs`. |
 | `payload` | `object` | `{}` | Optional payload passed to the triggered run. Supports `{{trigger.payload.field}}` and `{{stepOutputs.stepId.field}}` interpolation. |
 
+**Step output (when `waitFor: "completed"`):** The step result includes `{ runId, status, childOutput? }`. `childOutput` is the output of the last successful step of the child run, letting the parent branch on or pass through the child's result via `{{stepOutputs.stepId.childOutput.field}}` interpolation.
+
 **Guards:** The validator rejects self-referential trigger steps at load time
 (a workflow triggering itself is a hard error). Triggering an unregistered
 workflow produces a warning at load time and a runtime error when the step runs.
