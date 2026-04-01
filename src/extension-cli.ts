@@ -77,6 +77,11 @@ export function registerExtensionCommands(program: Command): void {
       if (ext.dependencies.length > 0) {
         console.log(`Depends on: ${ext.dependencies.join(", ")}`);
       }
+      if (ext.health) {
+        const h = ext.health;
+        const restartPart = h.restartCount === 0 ? `(${h.restartCount} restarts)` : `(${h.restartCount} restarts, last: ${h.lastRestartAt ?? "unknown"})`;
+        console.log(`Health:    ${h.status}  ${restartPart}`);
+      }
       printSection("Tools", ext.toolNames);
       printSection("Workflows", ext.workflowNames);
       printSection("Commands", ext.commandNames);
