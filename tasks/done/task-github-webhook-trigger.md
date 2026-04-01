@@ -1,7 +1,7 @@
 ---
 id: task-github-webhook-trigger
 title: Add GitHub webhook trigger extension for push and PR events
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: KOTA can receive generic webhooks and trigger workflows, but has no GitHub-aware extension that parses push, pull_request, and check_run events from GitHub Webhooks. An extension that handles GitHub webhook delivery signatures and emits typed bus events would let operators trigger KOTA workflows on PR opens, pushes, and CI completions.

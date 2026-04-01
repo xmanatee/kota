@@ -98,3 +98,28 @@ operator approval in autonomous mode.
 | `requireApproval` | No | Tool names requiring explicit approval. Default: `["github_merge_pr"]`. |
 
 If `token` is missing or the env var is unset, the extension loads but contributes no tools (warning logged).
+
+### GitHub Webhook
+
+Receives GitHub webhook deliveries and emits `github.push`, `github.pull_request`, and
+`github.check_run` bus events. Workflows use these as `event:` triggers.
+
+See `docs/GITHUB-WEBHOOK.md` for setup instructions and the full event payload reference.
+
+```json
+{
+  "extensions": {
+    "github-webhook": {
+      "secret": "$GITHUB_WEBHOOK_SECRET",
+      "events": ["push", "pull_request", "check_run"]
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `secret` | Yes | Webhook secret or `$ENV_VAR` reference. Never logged. |
+| `events` | No | Event types to forward. Default: `["push", "pull_request", "check_run"]`. |
+
+If `secret` is missing or the env var is unset, the route is not registered (warning logged).

@@ -12,3 +12,4 @@ This directory contains built-in extensions and extension-level wiring.
 ## Built-in Extensions
 
 - `github/index.ts` — GitHub REST API tools: `github_create_pr`, `github_get_pr`, `github_list_issues`, `github_comment`, `github_merge_pr`. Requires `extensions.github.token`. Mutating tools are classified as dangerous in guardrails. Supports `$ENV_VAR` token references and falls back to `git remote` for repo resolution.
+- `github-webhook/index.ts` — GitHub webhook receiver. Registers `POST /api/webhooks/github`, validates `X-Hub-Signature-256` HMAC using `node:crypto`, and emits `github.push`, `github.pull_request`, or `github.check_run` bus events. Requires `extensions.github-webhook.secret`. Route is not registered when secret is missing.
