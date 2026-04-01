@@ -224,6 +224,7 @@ export class Daemon {
           ...(m.causedBy != null && { causedBy: m.causedBy }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
           ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
+          ...(m.trigger.payload && Object.keys(m.trigger.payload).length > 0 && { triggerPayload: m.trigger.payload }),
           steps: m.steps.map((s) => {
             const agentCost = s.type === "agent" && typeof (s.output as { totalCostUsd?: unknown } | null | undefined)?.totalCostUsd === "number"
               ? (s.output as { totalCostUsd: number }).totalCostUsd

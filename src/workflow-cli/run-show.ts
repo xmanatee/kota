@@ -23,8 +23,10 @@ export function registerRunShowCommand(wfCmd: Command): void {
     .command("show <run-id>")
     .description("Show step-level details for a specific run")
     .option("--step <step-id>", "Print the full output of a specific step as JSON")
+    .option("--payload", "Print the trigger payload as formatted JSON")
     .action(async (runId, options) => {
       const stepId = options.step as string | undefined;
+      const showPayload = options.payload as boolean | undefined;
       const store = new WorkflowRunStore();
 
       // Support prefix matching via disk
@@ -56,7 +58,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
           id: daemonRun.id,
           workflow: daemonRun.workflow,
           definitionPath: "",
-          trigger: { event: daemonRun.triggerEvent, payload: {} },
+          trigger: { event: daemonRun.triggerEvent, payload: daemonRun.triggerPayload ?? {} },
           startedAt: daemonRun.startedAt,
           status: daemonRun.status as WorkflowRunMetadata["status"],
           runDir: "",
@@ -111,6 +113,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
         console.log(`Retry of: ${metadata.retryOf}`);
       }
       console.log(`Trigger:  ${metadata.trigger.event}`);
+      if (showPayload && metadata.trigger.payload && Object.keys(metadata.trigger.payload).length > 0) {
+        console.log(`Payload:\n${JSON.stringify(metadata.trigger.payload, null, 2).split("\n").map((l) => `  ${l}`).join("\n")}`);
+      }
       if (metadata.tags && metadata.tags.length > 0) {
         console.log(`Tags:     ${metadata.tags.join(", ")}`);
       }

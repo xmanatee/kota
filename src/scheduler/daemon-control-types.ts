@@ -91,6 +91,7 @@ export type WorkflowRunStepSummary = {
 
 export type WorkflowRunDetail = WorkflowRunSummary & {
   completedAt?: string;
+  triggerPayload?: Record<string, unknown>;
   steps: WorkflowRunStepSummary[];
 };
 
