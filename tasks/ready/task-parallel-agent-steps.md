@@ -1,7 +1,7 @@
 ---
 id: task-parallel-agent-steps
 title: Allow agent steps inside parallel workflow step groups
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: Parallel step groups currently only accept code steps. Allowing agent steps in parallel groups would let workflows run multiple autonomous agents concurrently — for example, running separate research and implementation agents side by side.
