@@ -157,6 +157,7 @@ export class Daemon {
             return { type: "event", event: t.event };
           }),
           ...(def.inputSchema !== undefined ? { inputSchema: def.inputSchema } : {}),
+          ...(def.outputSchema !== undefined ? { outputSchema: def.outputSchema } : {}),
         })),
       enqueuePendingRun: (name: string, tags?: string[], extraPayload?: Record<string, unknown>) => this.workflows.enqueuePendingRun(name, tags, extraPayload),
       cancelQueuedRun: (runId: string) => this.workflows.cancelQueuedRun(runId),

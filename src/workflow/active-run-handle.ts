@@ -6,6 +6,7 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
   WorkflowRuntimeState,
+  WorkflowRunWarning,
   WorkflowStepResult,
 } from "./run-types.js";
 
@@ -13,6 +14,7 @@ export type FinishUpdate = {
   status: WorkflowRunStatus;
   durationMs: number;
   error?: string;
+  warnings?: WorkflowRunWarning[];
 };
 
 export type ActiveWorkflowRunHandle = {
@@ -91,6 +93,7 @@ export function createActiveRunHandle(opts: {
         completedAt: new Date().toISOString(),
         durationMs: update.durationMs,
         totalCostUsd,
+        ...(update.warnings && update.warnings.length > 0 ? { warnings: update.warnings } : {}),
       };
       if (update.error) {
         writeFileSync(join(runDirPath, "error.txt"), update.error, "utf-8");

@@ -135,6 +135,11 @@ export type WorkflowRunExecutionResult = {
   agentBackoff?: WorkflowAgentBackoffSignal;
 };
 
+export type WorkflowRunWarning = {
+  type: string;
+  message: string;
+};
+
 export type WorkflowRunMetadata = {
   id: string;
   workflow: string;
@@ -151,4 +156,5 @@ export type WorkflowRunMetadata = {
   totalCostUsd?: number;
   runDir: string;
   steps: WorkflowStepResult[];
+  warnings?: WorkflowRunWarning[];
 };

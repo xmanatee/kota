@@ -6,10 +6,11 @@ import {
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
 } from "./event-payloads.js";
+import { validatePayloadSchema } from "./payload-validator.js";
 import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from "./run-executor-step.js";
 import { buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
 import { createStepContext } from "./step-context.js";
 import {
   type AgentStepConfig,
@@ -329,10 +330,23 @@ export function executeWorkflowRun(
         }
       }
 
+      const outputWarnings: WorkflowRunWarning[] = [];
+      if (definition.outputSchema !== undefined) {
+        const outputError = validatePayloadSchema(
+          definition.outputSchema,
+          previousOutput as Record<string, unknown>,
+        );
+        if (outputError !== null) {
+          hadWarnings = true;
+          outputWarnings.push({ type: "output-schema-mismatch", message: outputError });
+          deps.log(`Output schema mismatch in workflow "${definition.name}": ${outputError}`);
+        }
+      }
       const finalStatus = hadWarnings ? "completed-with-warnings" : "success";
       const completed = run.finish({
         status: finalStatus,
         durationMs: Date.now() - startedAt,
+        ...(outputWarnings.length > 0 ? { warnings: outputWarnings } : {}),
       });
       emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(

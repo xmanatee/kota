@@ -293,6 +293,14 @@ export type WorkflowDefinitionInput = {
    * Workflows without this field accept any payload (existing behavior).
    */
   inputSchema?: Record<string, unknown>;
+  /**
+   * Optional JSON Schema object describing the expected shape of the workflow's
+   * last step output. When present and the run completes successfully, the runtime
+   * validates the last step output against this schema. A mismatch marks the run
+   * `completed-with-warnings` and appends a structured warning — the output is
+   * still recorded. Workflows without this field behave exactly as before.
+   */
+  outputSchema?: Record<string, unknown>;
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -411,6 +419,8 @@ export type WorkflowDefinition = {
   concurrencyGroup?: string;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */
   inputSchema?: Record<string, unknown>;
+  /** Optional JSON Schema for validating the last step output on successful completion. */
+  outputSchema?: Record<string, unknown>;
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

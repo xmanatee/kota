@@ -302,6 +302,10 @@ export function validateWorkflowDefinitions(
         definition.inputSchema != null
           ? (definition.inputSchema as Record<string, unknown>)
           : undefined,
+      outputSchema:
+        definition.outputSchema != null
+          ? (definition.outputSchema as Record<string, unknown>)
+          : undefined,
       definitionPath,
       triggers: (() => {
         const triggers = definition.triggers.map((trigger, triggerIndex) =>

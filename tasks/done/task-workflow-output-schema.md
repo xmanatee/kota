@@ -1,7 +1,7 @@
 ---
 id: task-workflow-output-schema
 title: Add optional outputSchema to workflow definitions for validated outputs
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Workflows accept an inputSchema to validate trigger payloads, but have no outputSchema to declare and validate what they produce. An outputSchema would let orchestrating workflows and operators know what a sub-workflow is guaranteed to return.

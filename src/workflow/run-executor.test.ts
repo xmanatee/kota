@@ -535,3 +535,127 @@ describe("per-run cost cap", () => {
     expect((alerts[0] as { status: string }).status).toBe("failed");
   });
 });
+
+describe("outputSchema validation", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-output-schema-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("run succeeds when last step output matches outputSchema", async () => {
+    const definition = makeDefinition({
+      outputSchema: { type: "object", properties: { value: { type: "number" } }, required: ["value"] },
+      steps: [
+        {
+          id: "step",
+          type: "code",
+          run: () => ({ value: 42 }),
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.warnings).toBeUndefined();
+  });
+
+  it("run is completed-with-warnings when last step output mismatches outputSchema", async () => {
+    const definition = makeDefinition({
+      outputSchema: { type: "object", properties: { value: { type: "number" } }, required: ["value"] },
+      steps: [
+        {
+          id: "step",
+          type: "code",
+          run: () => ({ value: "not-a-number" }),
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("completed-with-warnings");
+    expect(result.metadata.warnings).toHaveLength(1);
+    expect(result.metadata.warnings![0].type).toBe("output-schema-mismatch");
+    expect(result.metadata.warnings![0].message).toContain("value");
+  });
+
+  it("run succeeds with no warnings when outputSchema is absent", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "step",
+          type: "code",
+          run: () => ({ whatever: true }),
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.warnings).toBeUndefined();
+  });
+
+  it("output schema mismatch warning is persisted in metadata.json", async () => {
+    const definition = makeDefinition({
+      outputSchema: { type: "object", required: ["name"] },
+      steps: [
+        {
+          id: "step",
+          type: "code",
+          run: () => ({ notName: "oops" }),
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    await promise;
+
+    const runDirs = readdirSync(join(projectDir, ".kota", "runs"));
+    const metadata = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
+    ) as { status: string; warnings?: Array<{ type: string; message: string }> };
+
+    expect(metadata.status).toBe("completed-with-warnings");
+    expect(metadata.warnings).toHaveLength(1);
+    expect(metadata.warnings![0].type).toBe("output-schema-mismatch");
+  });
+
+  it("output schema is not validated when run fails", async () => {
+    const definition = makeDefinition({
+      outputSchema: { type: "object", required: ["value"] },
+      steps: [
+        {
+          id: "step",
+          type: "code",
+          run: () => { throw new Error("step failed"); },
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.warnings).toBeUndefined();
+  });
+});
