@@ -5,17 +5,17 @@ import {
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
 } from "./event-payloads.js";
-import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
+import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from "./run-executor-step.js";
 import { buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus } from "./run-types.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
 import { createStepContext } from "./step-context.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
   shouldRunStep,
 } from "./step-executor.js";
-import { executeBranchStepGroup } from "./step-executor-branch.js";
+import { type BranchGroupResult, executeBranchStepGroup } from "./step-executor-branch.js";
 import { executeForeachStepGroup, type ForeachGroupResult } from "./step-executor-foreach.js";
 import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
 import type { WorkflowBranchStep, WorkflowDefinition, WorkflowForeachStep, WorkflowRunTrigger } from "./types.js";
@@ -160,21 +160,61 @@ export function executeWorkflowRun(
         }
 
         if (step.type === "branch") {
-          const branchDeps = {
-            definition,
-            run,
-            trigger,
-            runAbortController: abortController,
-            agentConfig,
-            acc,
-            bus: deps.bus,
-            log: deps.log,
-          };
-          const getContext = () => createStepContext(
-            run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
-          );
-          const { branchResult, hadNewWarnings, branchFailed, thrownError } =
-            await executeBranchStepGroup(step as WorkflowBranchStep, context, stepStartedAt, branchDeps, getContext);
+          const stepAbortController = new AbortController();
+          const forwardBranchAbort = () => stepAbortController.abort(abortController.signal.reason);
+          abortController.signal.addEventListener("abort", forwardBranchAbort, { once: true });
+          const branchTimeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+          let branchTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+          const branchTimeoutPromise = new Promise<never>((_, reject) => {
+            branchTimeoutHandle = setTimeout(() => {
+              const err = new Error(`Step "${step.id}" timed out after ${branchTimeoutMs}ms`);
+              stepAbortController.abort(err);
+              reject(err);
+            }, branchTimeoutMs);
+          });
+          let branchGroupResult: BranchGroupResult | undefined;
+          try {
+            const branchDeps = {
+              definition,
+              run,
+              trigger,
+              runAbortController: stepAbortController,
+              agentConfig,
+              acc,
+              bus: deps.bus,
+              log: deps.log,
+            };
+            const getContext = () => createStepContext(
+              run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
+            );
+            branchGroupResult = await Promise.race([
+              executeBranchStepGroup(step as WorkflowBranchStep, context, stepStartedAt, branchDeps, getContext),
+              branchTimeoutPromise,
+            ]);
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            const failed: WorkflowStepResult = {
+              id: step.id,
+              type: step.type,
+              status: "failed",
+              startedAt: new Date(stepStartedAt).toISOString(),
+              completedAt: new Date().toISOString(),
+              durationMs: Date.now() - stepStartedAt,
+              error: error.message,
+              ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+            };
+            run.recordStep(failed);
+            stepOutputsById[step.id] = undefined;
+            stepResultsById[step.id] = failed;
+            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed));
+            deps.log(`Failed step "${step.id}" (branch) in workflow "${definition.name}": ${error.message}`);
+            if (step.continueOnFailure) { hadWarnings = true; continue; }
+            throw error;
+          } finally {
+            clearTimeout(branchTimeoutHandle);
+            abortController.signal.removeEventListener("abort", forwardBranchAbort);
+          }
+          const { branchResult, hadNewWarnings, branchFailed, thrownError } = branchGroupResult!;
           run.recordStep(branchResult);
           stepOutputsById[step.id] = branchResult.output;
           stepResultsById[step.id] = branchResult;
@@ -192,22 +232,62 @@ export function executeWorkflowRun(
         }
 
         if (step.type === "foreach") {
-          const foreachDeps = {
-            definition,
-            run,
-            trigger,
-            runAbortController: abortController,
-            agentConfig,
-            acc,
-            bus: deps.bus,
-            log: deps.log,
-          };
-          const getContext = () => createStepContext(
-            run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
-          );
-          const foreachContext = getContext();
-          const { groupResult, hadNewWarnings, groupFailed, thrownError }: ForeachGroupResult =
-            await executeForeachStepGroup(step as WorkflowForeachStep, foreachContext, stepStartedAt, foreachDeps);
+          const stepAbortController = new AbortController();
+          const forwardForeachAbort = () => stepAbortController.abort(abortController.signal.reason);
+          abortController.signal.addEventListener("abort", forwardForeachAbort, { once: true });
+          const foreachTimeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+          let foreachTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+          const foreachTimeoutPromise = new Promise<never>((_, reject) => {
+            foreachTimeoutHandle = setTimeout(() => {
+              const err = new Error(`Step "${step.id}" timed out after ${foreachTimeoutMs}ms`);
+              stepAbortController.abort(err);
+              reject(err);
+            }, foreachTimeoutMs);
+          });
+          let foreachGroupResult: ForeachGroupResult | undefined;
+          try {
+            const foreachDeps = {
+              definition,
+              run,
+              trigger,
+              runAbortController: stepAbortController,
+              agentConfig,
+              acc,
+              bus: deps.bus,
+              log: deps.log,
+            };
+            const getContext = () => createStepContext(
+              run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
+            );
+            const foreachContext = getContext();
+            foreachGroupResult = await Promise.race([
+              executeForeachStepGroup(step as WorkflowForeachStep, foreachContext, stepStartedAt, foreachDeps),
+              foreachTimeoutPromise,
+            ]);
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            const failed: WorkflowStepResult = {
+              id: step.id,
+              type: step.type,
+              status: "failed",
+              startedAt: new Date(stepStartedAt).toISOString(),
+              completedAt: new Date().toISOString(),
+              durationMs: Date.now() - stepStartedAt,
+              error: error.message,
+              ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+            };
+            run.recordStep(failed);
+            stepOutputsById[step.id] = undefined;
+            stepResultsById[step.id] = failed;
+            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed));
+            deps.log(`Failed step "${step.id}" (foreach) in workflow "${definition.name}": ${error.message}`);
+            if (step.continueOnFailure) { hadWarnings = true; continue; }
+            throw error;
+          } finally {
+            clearTimeout(foreachTimeoutHandle);
+            abortController.signal.removeEventListener("abort", forwardForeachAbort);
+          }
+          const { groupResult, hadNewWarnings, groupFailed, thrownError } = foreachGroupResult!;
           run.recordStep(groupResult);
           stepOutputsById[step.id] = groupResult.output;
           stepResultsById[step.id] = groupResult;

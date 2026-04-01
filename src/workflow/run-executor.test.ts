@@ -352,6 +352,83 @@ describe("step timeout", () => {
   }, 10_000);
 });
 
+describe("foreach step timeout", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-foreach-timeout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("fails the run when a foreach step exceeds its timeoutMs", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "hanging-foreach",
+          type: "foreach",
+          timeoutMs: 50,
+          items: [1, 2, 3],
+          as: "item",
+          steps: [
+            {
+              id: "inner",
+              type: "code",
+              run: () => new Promise(() => {}), // never resolves
+            },
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    const errorLog = (log.mock.calls as string[][]).flat().find((msg) => msg.includes("Failed"));
+    expect(errorLog).toContain("hanging-foreach");
+    expect(errorLog).toContain("timed out");
+  }, 10_000);
+
+  it("run status is 'failed' (not 'interrupted') on foreach step timeout", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "slow-foreach",
+          type: "foreach",
+          timeoutMs: 50,
+          items: [1],
+          as: "item",
+          steps: [
+            {
+              id: "inner",
+              type: "code",
+              run: () => new Promise(() => {}),
+            },
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+  }, 10_000);
+});
+
 describe("per-run cost cap", () => {
   let projectDir: string;
   let store: WorkflowRunStore;

@@ -26,9 +26,12 @@ When `timeoutMs` is not specified, `DEFAULT_STEP_TIMEOUT_MS` (30 minutes) applie
 Set a larger value on known long-running agent steps; the builder's `build` step uses 60 minutes
 as a reference example.
 
-The timeout is enforced by the workflow executor (`run-executor-step.ts`) via a per-step
-`AbortController` and a `Promise.race` fallback for non-abortable code steps. A step timeout
-causes run status `"failed"`, not `"interrupted"` — so it is distinguishable from an external abort.
+The timeout is enforced in two places:
+- **agent, code, tool, emit, restart, trigger steps**: enforced by `executeWorkflowStep` in `run-executor-step.ts` via a per-step `AbortController` and a `Promise.race` fallback.
+- **branch and foreach group steps**: enforced directly in `run-executor.ts` with the same `AbortController` + `Promise.race` pattern; the step-level abort is forwarded to all inner steps.
+- **parallel groups**: `WorkflowParallelGroup` does not extend `WorkflowBaseStep` and has no `timeoutMs`; parallel groups are not subject to the per-step timeout.
+
+A step timeout causes run status `"failed"`, not `"interrupted"` — distinguishable from an external abort.
 
 ## Unit Testing
 
