@@ -1,12 +1,12 @@
 ---
 id: task-github-extension
 title: Add GitHub extension with typed tools for PR and issue operations
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: Builder and other agents currently shell out to the `gh` CLI for GitHub operations. A typed GitHub extension with structured tools (create PR, comment on issue, get CI status) would make GitHub interactions first-class and composable with other tools.
 created_at: 2026-03-31T14:51:00Z
-updated_at: 2026-04-01T10:40:00Z
+updated_at: 2026-04-01T11:56:00Z
 ---
 
 ## Problem

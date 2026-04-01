@@ -8,6 +8,7 @@
 
 import type { KotaExtension } from "../extension-types.js";
 import daemonModule from "./daemon.js";
+import githubModule from "./github/index.js";
 import historyModule from "./history.js";
 import knowledgeModule from "./knowledge.js";
 import mcpServerModule from "./mcp-server.js";
@@ -40,6 +41,7 @@ export const builtinExtensions: KotaExtension[] = [
   webhookModule,
   slackModule,
   daemonModule,
+  githubModule,
   vercelAdapterModule,
   webModule,
   registryModule,

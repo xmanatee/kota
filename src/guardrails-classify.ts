@@ -27,6 +27,9 @@ export function safeTools(): Set<string> {
       "memory",
       "conversation_recall",
       "get_secret",
+      // GitHub read-only tools
+      "github_get_pr",
+      "github_list_issues",
     ]);
   }
   return _safeTools;
@@ -156,6 +159,11 @@ export function classifyRisk(
   // Known moderate tools
   if (moderateTools().has(name)) {
     return { risk: "moderate", reason: `${name} modifies state` };
+  }
+
+  // GitHub mutating tools — always dangerous (require approval in autonomous mode)
+  if (name === "github_create_pr" || name === "github_comment" || name === "github_merge_pr") {
+    return { risk: "dangerous", reason: "GitHub mutation tool" };
   }
 
   // Unknown tools (MCP, extension-registered) default to moderate.
