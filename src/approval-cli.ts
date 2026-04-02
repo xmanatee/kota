@@ -1,3 +1,4 @@
+import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import type { ApprovalStatus } from "./approval-queue.js";
 import { getApprovalQueue } from "./approval-queue.js";
@@ -14,6 +15,16 @@ function formatAge(createdAt: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(ageMs / 86_400_000);
   return `${days}d ago`;
+}
+
+async function promptConfirm(message: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(message, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase().startsWith("y"));
+    });
+  });
 }
 
 function parseDuration(s: string): number | null {
@@ -73,6 +84,71 @@ export function registerApprovalCommands(program: Command): void {
       }
       const noteSuffix = item.approvalNote ? ` — note: ${item.approvalNote}` : "";
       console.log(`Approved and executed ${item.tool}:\n${result.content}${noteSuffix}`);
+    });
+
+  approvalCmd
+    .command("approve-all")
+    .description("Approve and execute all pending tool calls")
+    .option("-y, --yes", "Skip confirmation prompt")
+    .option("-n, --note <text>", "Note to attach to every approved item")
+    .option("--risk <level>", "Only approve items of this risk level")
+    .action(async (opts: { yes?: boolean; note?: string; risk?: string }) => {
+      const config = loadConfig();
+      const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
+      const queue = getApprovalQueue();
+      queue.expireStale(ttlMs);
+      let items = queue.list("pending");
+      if (opts.risk) {
+        items = items.filter((item) => item.risk === opts.risk);
+      }
+
+      if (items.length === 0) {
+        const qualifier = opts.risk ? ` with risk level "${opts.risk}"` : "";
+        console.log(`No pending approvals${qualifier}.`);
+        return;
+      }
+
+      console.log(`${items.length} pending approval(s) to be approved:\n`);
+      for (const item of items) {
+        const inputSummary = JSON.stringify(item.input).slice(0, 80);
+        console.log(`  [${item.id}] ${item.tool}  (${formatAge(item.createdAt)})`);
+        console.log(`    Input:  ${inputSummary}`);
+        console.log(`    Risk:   ${item.risk}`);
+        console.log(`    Reason: ${item.reason}`);
+        if (item.source) console.log(`    Source: ${item.source}`);
+        console.log();
+      }
+
+      if (!opts.yes) {
+        const confirmed = await promptConfirm(`Approve all ${items.length} item(s)? [y/N] `);
+        if (!confirmed) {
+          console.log("Aborted.");
+          return;
+        }
+      }
+
+      let succeeded = 0;
+      let failed = 0;
+
+      for (const item of items) {
+        const approved = queue.approve(item.id, opts.note);
+        if (!approved) {
+          console.log(`  Skipped [${item.id}] ${item.tool} — no longer pending.`);
+          continue;
+        }
+        const result = await executeTool(item.tool, item.input);
+        if (result.is_error) {
+          console.error(`  Failed [${item.id}] ${item.tool}: ${result.content}`);
+          failed++;
+        } else {
+          const noteSuffix = approved.approvalNote ? ` — note: ${approved.approvalNote}` : "";
+          console.log(`  Approved and executed ${item.tool} [${item.id}]${noteSuffix}`);
+          succeeded++;
+        }
+      }
+
+      console.log(`\nDone: ${succeeded} approved, ${failed} failed.`);
+      if (failed > 0) process.exit(1);
     });
 
   approvalCmd

@@ -223,6 +223,85 @@ describe("approval CLI commands", () => {
 		});
 	});
 
+	describe("approval approve-all", () => {
+		it("prints empty message when no pending items", async () => {
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "approve-all", "--yes");
+			expect(logSpy.mock.calls.flat().join(" ")).toContain("No pending approvals");
+			logSpy.mockRestore();
+		});
+
+		it("approves all pending items with --yes", async () => {
+			const a = testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason a");
+			const b = testQueue.enqueue("shell", { command: "ls" }, "moderate", "reason b");
+			vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "approve-all", "--yes");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("2 pending approval(s)");
+			expect(output).toContain(`Approved and executed glob [${a.id}]`);
+			expect(output).toContain(`Approved and executed shell [${b.id}]`);
+			expect(output).toContain("Done: 2 approved, 0 failed");
+			expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
+			logSpy.mockRestore();
+		});
+
+		it("attaches --note to every approved item", async () => {
+			const item = testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason");
+			vi.mocked(executeTool).mockResolvedValue({ content: "result" });
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "approve-all", "--yes", "--note", "batch run");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("note: batch run");
+			expect(testQueue.get(item.id)?.approvalNote).toBe("batch run");
+			logSpy.mockRestore();
+		});
+
+		it("filters by --risk level", async () => {
+			testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason a");
+			const b = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason b");
+			vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "approve-all", "--yes", "--risk", "dangerous");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("1 pending approval(s)");
+			expect(output).toContain(`Approved and executed shell [${b.id}]`);
+			expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(1);
+			// low-risk item still pending
+			expect(testQueue.list("pending").length).toBe(1);
+			logSpy.mockRestore();
+		});
+
+		it("prints empty message for --risk with no matching items", async () => {
+			testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason");
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "approve-all", "--yes", "--risk", "dangerous");
+			const output = logSpy.mock.calls.flat().join(" ");
+			expect(output).toContain('risk level "dangerous"');
+			logSpy.mockRestore();
+		});
+
+		it("skips items that are no longer pending between list and loop", async () => {
+			testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason");
+			// Simulate item becoming resolved between list() and approve() calls
+			vi.spyOn(testQueue, "approve").mockReturnValueOnce(null);
+			vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "approve-all", "--yes");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("Skipped");
+			expect(output).toContain("no longer pending");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+			logSpy.mockRestore();
+		});
+	});
+
 	describe("approval approve", () => {
 		it("approves and executes a pending item", async () => {
 			const item = testQueue.enqueue("glob", { pattern: "*.ts" }, "dangerous", "test reason");
