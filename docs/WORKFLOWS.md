@@ -461,7 +461,7 @@ type HarnessStepResult = {
 kota workflow run show <run-id> [--payload] [--step <step-id>]
 ```
 
-Prints step-level detail for a run: status, duration, cost, and per-step output summaries.
+Prints step-level detail for a run: status, duration, cost, and per-step output summaries. For `completed-with-warnings` runs, also prints a `Warnings:` section listing each warning message.
 
 - `--payload` — also prints the trigger payload as formatted JSON below the Trigger line.
   Useful for webhook and github-event triggered runs where the payload (repo, branch, PR
