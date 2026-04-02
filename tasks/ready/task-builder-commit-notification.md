@@ -1,7 +1,7 @@
 ---
 id: task-builder-commit-notification
 title: Emit a bus event when builder successfully commits so channel extensions can notify the operator
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: When the builder commits changes it emits no notification event. Operators who want to track what was just built must poll the web UI or wait for the attention digest (which fires every 10 runs and only when problems exist). A lightweight commit event would let Telegram/Slack subscribers receive an immediate summary.

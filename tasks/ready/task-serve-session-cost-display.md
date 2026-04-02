@@ -1,7 +1,7 @@
 ---
 id: task-serve-session-cost-display
 title: Improve per-turn cost display in kota serve and add opt-out flag
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: kota serve already prints a cumulative cost line after each turn via transport.ts, but it only shows the running total — not the per-turn increment. Adding a per-turn vs cumulative breakdown and a --no-cost opt-out flag would complete the cost visibility story.
