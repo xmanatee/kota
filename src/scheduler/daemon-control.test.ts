@@ -858,9 +858,12 @@ describe("DaemonControlServer", () => {
       expect(text).toContain("# TYPE kota_active_sessions_total gauge");
       expect(text).toContain("# TYPE kota_pending_approvals_total gauge");
       expect(text).toContain("# TYPE kota_dispatch_paused gauge");
+      expect(text).toContain("# TYPE kota_workflow_active_runs gauge");
+      expect(text).toContain("# TYPE kota_workflow_queued_runs gauge");
       expect(text).toContain("kota_active_sessions_total 0");
       expect(text).toContain("kota_pending_approvals_total 0");
       expect(text).toContain("kota_dispatch_paused 0");
+      expect(text).toContain("kota_workflow_queued_runs 0");
     });
 
     it("includes per-workflow run counts and costs", async () => {
@@ -896,6 +899,35 @@ describe("DaemonControlServer", () => {
       expect(text).toContain("kota_active_sessions_total 1");
       expect(text).toContain("kota_pending_approvals_total 1");
       expect(text).toContain("kota_dispatch_paused 1");
+    });
+
+    it("includes active-run and queue-depth gauges with non-zero values", async () => {
+      handle = makeHandle({
+        getWorkflowLiveStatus: vi.fn(() => ({
+          activeRuns: [
+            { runId: "run-1", workflow: "builder", startedAt: "2026-01-01T00:00:00Z" },
+            { runId: "run-2", workflow: "builder", startedAt: "2026-01-01T00:01:00Z" },
+            { runId: "run-3", workflow: "explorer", startedAt: "2026-01-01T00:02:00Z" },
+          ],
+          pendingRuns: [],
+          queueLength: 3,
+          completedRuns: 0,
+          workflows: {},
+          paused: false,
+        })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/metrics");
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toContain("# TYPE kota_workflow_active_runs gauge");
+      expect(text).toContain('kota_workflow_active_runs{workflow="builder"} 2');
+      expect(text).toContain('kota_workflow_active_runs{workflow="explorer"} 1');
+      expect(text).toContain("# TYPE kota_workflow_queued_runs gauge");
+      expect(text).toContain("kota_workflow_queued_runs 3");
     });
 
     it("returns 401 without token", async () => {

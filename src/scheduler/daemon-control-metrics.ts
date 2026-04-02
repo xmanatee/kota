@@ -1,4 +1,5 @@
 import type { ServerResponse } from "node:http";
+import type { WorkflowActiveRun } from "../workflow/run-types.js";
 import type { DaemonControlHandle, WorkflowMetricCounts } from "./daemon-control-types.js";
 
 function sanitizeLabelValue(value: string): string {
@@ -10,6 +11,8 @@ function buildPrometheusMetrics(
   activeSessions: number,
   pendingApprovals: number,
   dispatchPaused: boolean,
+  activeRuns: WorkflowActiveRun[],
+  queueLength: number,
 ): string {
   const lines: string[] = [];
 
@@ -40,6 +43,20 @@ function buildPrometheusMetrics(
   lines.push("# TYPE kota_dispatch_paused gauge");
   lines.push(`kota_dispatch_paused ${dispatchPaused ? 1 : 0}`);
 
+  const runsByWorkflow = new Map<string, number>();
+  for (const run of activeRuns) {
+    runsByWorkflow.set(run.workflow, (runsByWorkflow.get(run.workflow) ?? 0) + 1);
+  }
+  lines.push("# HELP kota_workflow_active_runs Current number of actively executing runs per workflow");
+  lines.push("# TYPE kota_workflow_active_runs gauge");
+  for (const [wf, count] of runsByWorkflow) {
+    lines.push(`kota_workflow_active_runs{workflow="${sanitizeLabelValue(wf)}"} ${count}`);
+  }
+
+  lines.push("# HELP kota_workflow_queued_runs Total number of runs currently waiting in the dispatch queue");
+  lines.push("# TYPE kota_workflow_queued_runs gauge");
+  lines.push(`kota_workflow_queued_runs ${queueLength}`);
+
   lines.push("");
   return lines.join("\n");
 }
@@ -48,8 +65,8 @@ export function handleMetrics(handle: DaemonControlHandle, res: ServerResponse):
   const metricCounts = handle.getWorkflowMetricCounts();
   const activeSessions = handle.listSessions().length;
   const pendingApprovals = handle.listApprovals().length;
-  const { paused } = handle.getWorkflowLiveStatus();
-  const body = buildPrometheusMetrics(metricCounts, activeSessions, pendingApprovals, paused);
+  const { paused, activeRuns, queueLength } = handle.getWorkflowLiveStatus();
+  const body = buildPrometheusMetrics(metricCounts, activeSessions, pendingApprovals, paused, activeRuns, queueLength);
   res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
   res.end(body);
 }

@@ -779,6 +779,12 @@ kota_pending_approvals_total 0
 # HELP kota_dispatch_paused 1 if workflow dispatch is paused, 0 otherwise
 # TYPE kota_dispatch_paused gauge
 kota_dispatch_paused 0
+# HELP kota_workflow_active_runs Current number of actively executing runs per workflow
+# TYPE kota_workflow_active_runs gauge
+kota_workflow_active_runs{workflow="builder"} 1
+# HELP kota_workflow_queued_runs Total number of runs currently waiting in the dispatch queue
+# TYPE kota_workflow_queued_runs gauge
+kota_workflow_queued_runs 2
 ```
 
 Metric families:
@@ -790,6 +796,8 @@ Metric families:
 | `kota_active_sessions_total` | gauge | — | Current number of active interactive sessions |
 | `kota_pending_approvals_total` | gauge | — | Current number of pending approval requests |
 | `kota_dispatch_paused` | gauge | — | `1` if workflow dispatch is paused, `0` otherwise |
+| `kota_workflow_active_runs` | gauge | `workflow` | Current number of actively executing runs per workflow name |
+| `kota_workflow_queued_runs` | gauge | — | Total count of runs currently waiting in the dispatch queue |
 
 ### Idle TTL and Sweep
 
