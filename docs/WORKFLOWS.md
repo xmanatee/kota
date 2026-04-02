@@ -645,6 +645,21 @@ commit hash, date, and message. `--diff` adds the file diff for each commit.
 Fails gracefully if the repository is not a git repo or if the definition file
 is not tracked by git.
 
+### Validate definitions (CI / pre-commit)
+
+```
+kota workflow validate [--workflow <name>] [--json]
+```
+
+Loads all workflow definitions and runs structural validation without triggering
+or running anything. Prints per-definition `PASS` / `FAIL` results and exits
+non-zero if any fail. Use in CI pipelines or git pre-commit hooks to catch
+definition errors before they reach the daemon.
+
+- `--workflow <name>` — validate a single definition by name.
+- `--json` — emit a structured JSON array of `{ name, valid, error? }` objects.
+- Does not require a running daemon.
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of
