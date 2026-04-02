@@ -1,12 +1,12 @@
 ---
 id: task-github-extension-list-prs
 title: Add github_list_prs and github_close_pr tools to the GitHub extension
-status: backlog
+status: ready
 priority: p3
 area: extensions
 summary: The GitHub extension can create, inspect, comment on, and merge PRs, but cannot list open PRs or close a PR without merging. These gaps mean the builder cannot check for an existing PR before creating a duplicate, and cannot clean up a stale branch PR.
 created_at: 2026-04-02T01:06:00Z
-updated_at: 2026-04-02T01:06:00Z
+updated_at: 2026-04-02T01:36:00Z
 ---
 
 ## Problem
