@@ -1,12 +1,12 @@
 ---
 id: task-attention-digest-warnings-check
 title: Include completed-with-warnings runs in attention digest monitoring
-status: backlog
+status: ready
 priority: p3
 area: reliability
 summary: The attention digest checks for builder failure streaks and cost pressure but ignores completed-with-warnings runs. A builder run that repeatedly hits the step output size cap, schema mismatch, or other warning conditions should surface in the digest so operators are aware of a recurring issue.
 created_at: 2026-04-02T08:20:00Z
-updated_at: 2026-04-02T08:20:00Z
+updated_at: 2026-04-02T08:57:28Z
 ---
 
 ## Problem

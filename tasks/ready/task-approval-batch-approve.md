@@ -1,12 +1,12 @@
 ---
 id: task-approval-batch-approve
 title: Add kota approval approve-all command for batch approving pending tool calls
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: The approval CLI only supports approving one pending tool call at a time by ID. When a workflow accumulates multiple pending approvals (e.g. during a long agent run), operators must approve each one individually. A batch-approve command would reduce friction during high-throughput builder sessions.
 created_at: 2026-04-02T08:20:00Z
-updated_at: 2026-04-02T08:20:00Z
+updated_at: 2026-04-02T08:57:28Z
 ---
 
 ## Problem
