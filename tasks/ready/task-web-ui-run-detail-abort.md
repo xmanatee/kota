@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-run-detail-abort
 title: Add per-run abort button to the web UI run detail panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The API endpoint POST /workflow/runs/:id/abort exists (added in task-abort-single-active-run) and the CLI has kota workflow run abort, but the web UI run detail panel has no abort button for active runs. Operators viewing a specific run must switch to the terminal to abort it.
 created_at: 2026-04-02T00:22:00Z
-updated_at: 2026-04-02T00:22:00Z
+updated_at: 2026-04-02T00:34:41Z
 ---
 
 ## Problem
