@@ -174,7 +174,8 @@ reading config files directly.
         { "type": "event", "event": "workflow.completed" },
         { "type": "cron", "schedule": "0 * * * *" },
         { "type": "interval", "intervalMs": 3600000 },
-        { "type": "webhook" }
+        { "type": "webhook" },
+        { "type": "watch", "patterns": ["src/**/*.ts"], "debounceMs": 500 }
       ]
     }
   ]
@@ -186,6 +187,7 @@ Each trigger entry has a `type` discriminant:
 - `"cron"` — cron schedule; `schedule` is a standard 5-field cron expression
 - `"interval"` — interval trigger; `intervalMs` is the repeat interval in milliseconds
 - `"webhook"` — fires via `POST /webhooks/:name`
+- `"watch"` — file-watch trigger; `patterns` is an array of glob patterns; `debounceMs` is the debounce window in milliseconds
 
 **Client method:** `DaemonControlClient.getWorkflowDefinitions()`
 

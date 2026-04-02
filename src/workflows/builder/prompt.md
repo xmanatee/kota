@@ -49,6 +49,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   update `docs/WORKFLOWS.md` step output section for that step type; when you
   add a daemon API endpoint or add/remove a field from an existing API response,
   update `docs/DAEMON-API.md` (including the JSON response examples); when you
+  write a test that exercises specific fields in a daemon API response, verify
+  those fields appear in the matching `docs/DAEMON-API.md` section — if they
+  are missing, add them; when you
   add a new built-in extension or change observable behavior of an existing one
   (new config keys, changed defaults, changed failure handling), grep `docs/`
   for the extension name and update any stale descriptions — if no docs cover
