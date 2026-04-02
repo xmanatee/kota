@@ -100,12 +100,17 @@ via `daemon.port` in `kota.config`.
 ### Option B: SSH tunnel from a cloud runner
 
 On the machine running the daemon, set up an SSH server. In the Actions job, open a
-reverse tunnel before calling the webhook:
+local SSH tunnel so the runner can reach the daemon's loopback port:
 
 ```sh
-ssh -fNT -R 19000:127.0.0.1:$DAEMON_PORT user@your-host
+# DAEMON_PORT: store as a GitHub Actions secret or variable (use a static port
+# via daemon.port in kota.config so you know it in advance).
+ssh -fNT -L 19000:127.0.0.1:$DAEMON_PORT user@your-host
 KOTA_DAEMON_URL="http://127.0.0.1:19000"
 ```
+
+`-L` forwards a local port on the runner to a port on the remote machine.
+`-R` (reverse tunnel) would do the opposite and is not what you want here.
 
 This is more complex; Option A is simpler for teams that own their infrastructure.
 
