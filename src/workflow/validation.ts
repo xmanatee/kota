@@ -306,6 +306,29 @@ export function validateWorkflowDefinitions(
         definition.outputSchema != null
           ? (definition.outputSchema as Record<string, unknown>)
           : undefined,
+      webhookRateLimit: (() => {
+        if (definition.webhookRateLimit == null) return undefined;
+        const rl = definition.webhookRateLimit;
+        if (typeof rl !== "object" || rl === null) {
+          throw new WorkflowDefinitionError(
+            "webhookRateLimit must be an object",
+            definitionPath,
+          );
+        }
+        const maxPerMinute = expectOptionalInteger(
+          (rl as { maxPerMinute?: unknown }).maxPerMinute,
+          "webhookRateLimit.maxPerMinute",
+          definitionPath,
+          1,
+        );
+        if (!maxPerMinute || maxPerMinute < 1) {
+          throw new WorkflowDefinitionError(
+            "webhookRateLimit.maxPerMinute must be an integer >= 1",
+            definitionPath,
+          );
+        }
+        return { maxPerMinute };
+      })(),
       definitionPath,
       triggers: (() => {
         const triggers = definition.triggers.map((trigger, triggerIndex) =>

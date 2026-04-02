@@ -689,6 +689,7 @@ X-Kota-Webhook-Timestamp: 1743362400000
 | 401 | Missing or invalid `X-Kota-Webhook-Signature`, or stale `X-Kota-Webhook-Timestamp` |
 | 404 | Workflow not found or has no `webhook: true` trigger |
 | 409 | Workflow is already running |
+| 429 | Rate limit exceeded (see `webhookRateLimit` below); response includes `Retry-After` header (seconds) |
 
 **Trigger payload** available to steps as `stepOutputs.trigger`:
 
@@ -709,6 +710,17 @@ X-Kota-Webhook-Timestamp: 1743362400000
   }
 }
 ```
+
+**Rate limiting** (`webhookRateLimit`): add an optional `webhookRateLimit` block to the
+workflow definition to cap inbound throughput. State is in-process and resets on daemon restart.
+
+```ts
+triggers: [{ webhook: true }],
+webhookRateLimit: { maxPerMinute: 10 },
+```
+
+When the cap is exceeded the daemon returns `429 Too Many Requests` with a `Retry-After`
+header indicating how many seconds until the next slot is available.
 
 **Workflow definition example:**
 

@@ -540,6 +540,24 @@ describe("DaemonControlServer", () => {
       );
     });
 
+    it("returns 429 with Retry-After header when rate limit is exceeded", async () => {
+      handle = makeHandle({
+        triggerWebhookRun: vi.fn(() => ({ ok: false, rateLimited: true, retryAfterMs: 30_000 })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: { "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, "") },
+      });
+      expect(res.status).toBe(429);
+      expect(res.headers.get("retry-after")).toBe("30");
+      const body = await res.json();
+      expect(body).toMatchObject({ error: expect.stringContaining("rate limit"), retryAfterSec: 30 });
+    });
+
     it("enforces timestamp replay window when X-Kota-Webhook-Timestamp is present", async () => {
       handle = makeHandle({
         triggerWebhookRun: vi.fn((_name, _sig, _buf, _payload, webhookTimestamp) => {

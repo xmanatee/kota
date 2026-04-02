@@ -301,6 +301,13 @@ export type WorkflowDefinitionInput = {
    * still recorded. Workflows without this field behave exactly as before.
    */
   outputSchema?: Record<string, unknown>;
+  /**
+   * Rate limit configuration for inbound webhook triggers. When set, the daemon
+   * rejects requests that exceed the cap with 429 Too Many Requests. The counter
+   * uses a sliding 60-second window and resets in daemon memory (lost on restart).
+   * Default: no cap applied.
+   */
+  webhookRateLimit?: { maxPerMinute: number };
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -421,6 +428,12 @@ export type WorkflowDefinition = {
   inputSchema?: Record<string, unknown>;
   /** Optional JSON Schema for validating the last step output on successful completion. */
   outputSchema?: Record<string, unknown>;
+  /**
+   * Rate limit configuration for inbound webhook triggers. When set, the daemon
+   * enforces a sliding 60-second window cap and returns 429 when exceeded.
+   * Default: no cap applied.
+   */
+  webhookRateLimit?: { maxPerMinute: number };
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

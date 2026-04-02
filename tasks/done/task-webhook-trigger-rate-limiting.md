@@ -1,7 +1,7 @@
 ---
 id: task-webhook-trigger-rate-limiting
 title: Add per-workflow rate limiting for inbound webhook triggers
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: Webhook triggers have no built-in rate limit. A misconfigured upstream or a replay attack can flood the queue with hundreds of runs per minute. A configurable per-workflow rate limit would cap inbound webhook throughput without requiring an external proxy.

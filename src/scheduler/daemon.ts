@@ -78,6 +78,8 @@ export class Daemon {
   private running = false;
   private stopping = false;
   private shutdownHandler: (() => void) | null = null;
+  /** Sliding-window timestamps (ms) for webhook rate limiting, keyed by workflow name. */
+  private webhookTimestamps = new Map<string, number[]>();
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -292,6 +294,22 @@ export class Daemon {
           if (Number.isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
             return { ok: false, unauthorized: true };
           }
+        }
+        // Check rate limit before enqueuing.
+        const definition = this.workflows.getDefinitions().find((d) => d.name === name);
+        const rateLimit = definition?.webhookRateLimit;
+        if (rateLimit) {
+          const now = Date.now();
+          const windowMs = 60_000;
+          const windowStart = now - windowMs;
+          const timestamps = (this.webhookTimestamps.get(name) ?? []).filter((t) => t > windowStart);
+          if (timestamps.length >= rateLimit.maxPerMinute) {
+            const oldest = timestamps[0];
+            const retryAfterMs = oldest + windowMs - now;
+            return { ok: false, rateLimited: true, retryAfterMs };
+          }
+          timestamps.push(now);
+          this.webhookTimestamps.set(name, timestamps);
         }
         const result = this.workflows.enqueueWebhookRun(name, payload);
         if (result.error?.startsWith("Unknown workflow") || result.error?.includes("no webhook trigger")) {

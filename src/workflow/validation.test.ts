@@ -713,4 +713,49 @@ describe("workflow validation", () => {
       ),
     ).toThrow(WorkflowDefinitionError);
   });
+
+  it("accepts webhookRateLimit with valid maxPerMinute", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/deploy.ts", {
+          name: "deploy",
+          triggers: [{ webhook: true }],
+          steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+          webhookRateLimit: { maxPerMinute: 10 },
+        }),
+      ],
+      projectDir,
+    );
+    expect(definitions[0]?.webhookRateLimit).toEqual({ maxPerMinute: 10 });
+  });
+
+  it("rejects webhookRateLimit with maxPerMinute < 1", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/deploy.ts", {
+            name: "deploy",
+            triggers: [{ webhook: true }],
+            steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+            webhookRateLimit: { maxPerMinute: 0 },
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(WorkflowDefinitionError);
+  });
+
+  it("omits webhookRateLimit when not specified", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/deploy.ts", {
+          name: "deploy",
+          triggers: [{ webhook: true }],
+          steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+        }),
+      ],
+      projectDir,
+    );
+    expect(definitions[0]?.webhookRateLimit).toBeUndefined();
+  });
 });

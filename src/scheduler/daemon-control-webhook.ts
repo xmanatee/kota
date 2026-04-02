@@ -58,6 +58,12 @@ export function handleWebhookRequest(
         jsonResponse(res, 409, { error: `Workflow "${workflowName}" is already running` });
         return;
       }
+      if (result.rateLimited) {
+        const retryAfterSec = Math.ceil((result.retryAfterMs ?? 60_000) / 1000);
+        res.setHeader("Retry-After", String(retryAfterSec));
+        jsonResponse(res, 429, { error: `Webhook rate limit exceeded for "${workflowName}"`, retryAfterSec });
+        return;
+      }
       if (!result.ok) {
         jsonResponse(res, 400, { error: result.error ?? "Failed to start workflow" });
         return;

@@ -184,5 +184,5 @@ export type DaemonControlHandle = {
     rawBody: Buffer,
     payload: { body: unknown; headers: Record<string, string>; timestamp: string },
     webhookTimestamp?: string,
-  ): { ok: boolean; runId?: string; unauthorized?: boolean; notFound?: boolean; alreadyRunning?: boolean; error?: string };
+  ): { ok: boolean; runId?: string; unauthorized?: boolean; notFound?: boolean; alreadyRunning?: boolean; rateLimited?: boolean; retryAfterMs?: number; error?: string };
 };
