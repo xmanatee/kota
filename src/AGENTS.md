@@ -14,6 +14,8 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `loop-constructor.ts` — `initAgentSession` function; contains the full constructor body extracted from `AgentSession`.
 - `loop-init.ts` — `AgentLoopState` interface, `runInitExtensions`, `saveToHistoryImpl`, `runClose`.
 - `loop-send.ts` — `runSend`; handles prompt dispatch and the agent turn loop.
+- `transport.ts` — `AgentEvent` union type, `Transport` interface, `CliTransport` (renders events to stdout/stderr; accepts `verbose` and `showCost` flags), `NullTransport`, `ProxyTransport`, `BufferTransport`; decouples agent I/O from any specific frontend.
+- `cost.ts` — `CostTracker` class; accumulates token usage per-model, computes dollar cost, and returns formatted summaries; used by the loop core to track per-turn and session-total cost.
 - `guardrails.ts` — policy enforcement: `assess`, `resolvePolicy`, config helpers, and exported types.
 - `guardrails-classify.ts` — risk classification: tool lists, pattern constants, and `classifyRisk`.
 - `guardrails-audit.ts` — persistent audit trail: appends every guardrail assessment to `.kota/audit.jsonl`; provides `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` type; read by `audit-cli.ts`.
