@@ -1,51 +1,44 @@
 ---
 id: task-serve-session-cost-display
-title: Show running token cost in kota serve interactive session
+title: Improve per-turn cost display in kota serve and add opt-out flag
 status: backlog
 priority: p3
 area: operator-ux
-summary: kota serve prints agent output but gives no visibility into token usage or cost during a session. Showing a running cost total after each response lets operators track spend without switching to the web UI.
+summary: kota serve already prints a cumulative cost line after each turn via transport.ts, but it only shows the running total — not the per-turn increment. Adding a per-turn vs cumulative breakdown and a --no-cost opt-out flag would complete the cost visibility story.
 created_at: 2026-04-02T07:14:02Z
-updated_at: 2026-04-02T07:14:02Z
+updated_at: 2026-04-02T07:51:00Z
 ---
 
 ## Problem
 
-Interactive `kota serve` sessions can accumulate significant token spend, especially
-in long conversations or when agents use many tool calls. The operator has no inline
-cost signal — they must open the web UI cost panel or query the history to find out
-how much a session has spent. This creates friction and can lead to surprise costs.
+`loop-send.ts` emits a `cost` transport event after each agent turn, and
+`transport.ts` renders it as `[kota] Turn N — $X.XXXX (Xk input, Xk output) — context: Y%`
+to stderr. This is useful but shows only the session running total — the per-turn
+increment is not visible. Over a long session, it becomes hard to see which turns were
+expensive. Additionally, there is no opt-out for operators who want clean stderr output.
 
 ## Desired Outcome
 
-After each assistant response in `kota serve`, a compact cost line is appended to
-the output:
+The per-turn cost line gains a clearer breakdown:
 
 ```
-[session] $0.024 this turn · $0.087 session total
+[kota] Turn 3 — $0.024 this turn · $0.087 total — context: 8%
 ```
 
-The line is printed to stderr (or a distinct prefix) so piped or scripted consumers
-can ignore it. It uses the same cost-per-token figures that the rest of KOTA uses for
-reporting.
-
-An opt-out flag (`--no-cost` or a config field `serve.showCost: false`) suppresses
-the line for operators who prefer clean output.
+And an opt-out mechanism suppresses the line entirely for operators who prefer
+minimal output.
 
 ## Constraints
 
-- Read cost data from the usage fields already returned by the model response; do not
-  add a separate API call or new cost-tracking surface.
-- The display must not interfere with piped output — use stderr or a clearly prefixed
-  line.
-- No changes to the daemon API or web UI cost panel; this is a CLI display change only.
-- If cost data is unavailable for a response (model does not return usage), omit the
-  cost line silently for that turn.
+- The change is in `transport.ts` (display) and `loop-send.ts` or `cost.ts` (tracking
+  the per-turn delta); do not add a new cost-tracking surface.
+- Opt-out via `--no-cost` CLI flag or `serve.showCost: false` config field.
+- No changes to the daemon API or web UI cost panel.
+- The existing `cost` transport event shape should remain backward-compatible if other
+  consumers (e.g. `vercel-ai-stream.ts`) rely on it; extend, do not replace.
 
 ## Done When
 
-- Each `kota serve` response is followed by a cost line showing per-turn and
-  session-total cost.
-- The cost line is written to stderr.
-- `--no-cost` flag (or `serve.showCost: false` config) suppresses the line.
-- Behavior is tested: a unit test verifies cost accumulation across turns.
+- Per-turn cost line shows incremental cost for that turn and the session running total.
+- `--no-cost` flag (or `serve.showCost: false` config) suppresses the cost line.
+- Unit test verifies the per-turn vs session-total split across multiple turns.
