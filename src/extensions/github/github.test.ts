@@ -74,7 +74,7 @@ describe("github extension", () => {
   });
 
   describe("tool registration", () => {
-    it("registers all seven tools when token is configured", () => {
+    it("registers all eleven tools when token is configured", () => {
       const ctx = makeCtx();
       const tools = getTools(ctx);
       const names = tools.map((t) => t.tool.name);
@@ -85,7 +85,11 @@ describe("github extension", () => {
       expect(names).toContain("github_comment");
       expect(names).toContain("github_merge_pr");
       expect(names).toContain("github_close_pr");
-      expect(names).toHaveLength(7);
+      expect(names).toContain("github_create_issue");
+      expect(names).toContain("github_update_issue");
+      expect(names).toContain("github_add_label");
+      expect(names).toContain("github_remove_label");
+      expect(names).toHaveLength(11);
     });
 
     it("returns no tools when token is missing", () => {
@@ -367,6 +371,147 @@ describe("github extension", () => {
       expect(result.is_error).toBe(true);
       expect(result.content).toContain("404");
       expect(result.content).toContain("Not Found");
+    });
+  });
+
+  describe("github_create_issue", () => {
+    it("creates an issue and returns number and URL", async () => {
+      mockFetch.mockResolvedValueOnce(
+        makeResponse({
+          number: 42,
+          title: "Bug: something broken",
+          html_url: "https://github.com/owner/testrepo/issues/42",
+        }),
+      );
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_create_issue");
+      const result = await tool.runner({
+        title: "Bug: something broken",
+        body: "Steps to reproduce...",
+        labels: ["bug"],
+      });
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("#42");
+      expect(result.content).toContain("Bug: something broken");
+      expect(result.content).toContain("https://github.com/owner/testrepo/issues/42");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/testrepo/issues",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    it("returns error on API failure", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse({ message: "Unprocessable Entity" }, 422));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_create_issue");
+      const result = await tool.runner({ title: "Bad issue" });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("422");
+    });
+  });
+
+  describe("github_update_issue", () => {
+    it("updates an issue and returns updated state", async () => {
+      mockFetch.mockResolvedValueOnce(
+        makeResponse({
+          number: 7,
+          state: "closed",
+          title: "Fixed bug",
+          html_url: "https://github.com/owner/testrepo/issues/7",
+        }),
+      );
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_update_issue");
+      const result = await tool.runner({ number: 7, state: "closed" });
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("#7");
+      expect(result.content).toContain("closed");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/testrepo/issues/7",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
+
+    it("returns error on API failure", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse({ message: "Not Found" }, 404));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_update_issue");
+      const result = await tool.runner({ number: 999, state: "closed" });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("404");
+    });
+  });
+
+  describe("github_add_label", () => {
+    it("adds a label and returns current labels", async () => {
+      mockFetch.mockResolvedValueOnce(
+        makeResponse([{ name: "bug" }, { name: "p1" }]),
+      );
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_add_label");
+      const result = await tool.runner({ number: 5, label: "p1" });
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("#5");
+      expect(result.content).toContain("bug");
+      expect(result.content).toContain("p1");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/testrepo/issues/5/labels",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    it("returns error on API failure", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse({ message: "Label not found" }, 404));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_add_label");
+      const result = await tool.runner({ number: 5, label: "nonexistent" });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("404");
+    });
+  });
+
+  describe("github_remove_label", () => {
+    it("removes a label and returns success message", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse([], 200));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_remove_label");
+      const result = await tool.runner({ number: 5, label: "bug" });
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("bug");
+      expect(result.content).toContain("#5");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/testrepo/issues/5/labels/bug",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("returns error on API failure", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse({ message: "Label not found" }, 404));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_remove_label");
+      const result = await tool.runner({ number: 5, label: "missing" });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("404");
     });
   });
 });

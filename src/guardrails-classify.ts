@@ -163,7 +163,16 @@ export function classifyRisk(
   }
 
   // GitHub mutating tools — always dangerous (require approval in autonomous mode)
-  if (name === "github_create_pr" || name === "github_comment" || name === "github_merge_pr" || name === "github_close_pr") {
+  if (
+    name === "github_create_pr" ||
+    name === "github_comment" ||
+    name === "github_merge_pr" ||
+    name === "github_close_pr" ||
+    name === "github_create_issue" ||
+    name === "github_update_issue" ||
+    name === "github_add_label" ||
+    name === "github_remove_label"
+  ) {
     return { risk: "dangerous", reason: "GitHub mutation tool" };
   }
 

@@ -1,7 +1,7 @@
 ---
 id: task-github-extension-issue-ops
 title: Add issue write operations to GitHub extension (create, update, label)
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: The GitHub extension can list and comment on issues but cannot create issues, update their state, or manage labels. These operations are needed by the builder for task tracking and are a prerequisite for the GitHub Issues task provider.
