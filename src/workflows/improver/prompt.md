@@ -18,6 +18,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 
 ## Guidance
 
+- A no-op run is correct and acceptable. When nothing genuinely needs improving, make no changes and stop. Do not invent low-value work to avoid a no-op.
+- Do not repeatedly fill documentation gaps the builder missed. Filling a missing AGENTS.md entry or cross-reference once is fine; doing it run after run is symptom treatment, not process improvement. If the builder consistently misses a type of documentation, fix the builder's prompt or validation to prevent the miss — do not keep cleaning up after it.
 - Start from evidence. Use recent runs and current code, not guesswork.
 - Prefer repeated patterns over one-off anomalies unless the failure is immediately decisive.
 - Before restoring a removed mechanism or reverting a simplification, verify that it was actually accidental. Check the current code, nearby docs, recent commits, and recent runs together so you do not misread an intentional change from a partial snapshot.
