@@ -104,6 +104,38 @@ const myWorkflow: WorkflowDefinitionInput = {
 };
 ```
 
+### Input and Output Schemas
+
+`inputSchema` validates incoming trigger payloads before queuing. Invalid payloads are rejected with a descriptive error and the run is not queued. Workflows without `inputSchema` accept any payload (existing behavior).
+
+`outputSchema` validates the last successful step's output when the run completes. A mismatch does not fail the run — it marks the run `completed-with-warnings` and records a structured warning alongside the output.
+
+Both fields accept a JSON Schema object. The supported subset is: `type`, `properties`, `required`, `additionalProperties`, and `items` (for arrays).
+
+```typescript
+const myWorkflow: WorkflowDefinitionInput = {
+  name: "my-extension/deploy",
+  inputSchema: {
+    type: "object",
+    required: ["env"],
+    properties: {
+      env: { type: "string", description: "Target environment (staging or prod)" },
+      dryRun: { type: "boolean" },
+    },
+  },
+  outputSchema: {
+    type: "object",
+    properties: {
+      deployed: { type: "boolean" },
+      version: { type: "string" },
+    },
+  },
+  // ...
+};
+```
+
+The CLI (`kota workflow definitions`) shows a compact `Inputs: field*: type, ...` summary line for workflows with `inputSchema`. The web UI shows an inline input form before triggering, collecting required and optional fields with client-side validation.
+
 ### Agent Step Fields
 
 `type: "agent"` steps accept the following fields beyond the common step fields:
