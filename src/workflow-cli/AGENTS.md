@@ -18,6 +18,7 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `run.ts` — `kota workflow run --dry-run` command registration.
 - `dry-run.ts` — `buildDryRunPlan` and `formatDryRunPlan`; evaluates `when` predicates against empty context and prints the step execution plan.
 - `control.ts` — `kota workflow abort`, `pause`, `resume`, `reload`, `status`, `disable <name>`, and `enable <name>`.
+- `validate.ts` — `kota workflow validate [--workflow <name>] [--json]`; loads all workflow definitions, runs `validateWorkflowDefinitions` on each, prints per-definition PASS/FAIL results, and exits non-zero if any fail. Exports `validateDefinitions` for testing.
 - `gc.ts` — `kota workflow gc`; prunes old run artifact directories under `.kota/runs/` using the retention policy from config (`runsGc`) or CLI flags.
 - `utils.ts` — shared formatting helpers (dates, durations, status icons).
 

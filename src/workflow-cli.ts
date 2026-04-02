@@ -15,6 +15,7 @@ import { registerStatsCommand } from "./workflow-cli/run-stats.js";
 import { registerStepInspectCommand } from "./workflow-cli/step-inspect.js";
 import { registerTriggerCommands } from "./workflow-cli/trigger.js";
 import { registerTriggersCommand } from "./workflow-cli/triggers.js";
+import { registerValidateCommand } from "./workflow-cli/validate.js";
 
 export function registerWorkflowCommands(program: Command): void {
   const wfCmd = program
@@ -42,6 +43,7 @@ export function registerWorkflowCommands(program: Command): void {
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd);
   registerTriggersCommand(wfCmd);
+  registerValidateCommand(wfCmd);
   registerControlCommands(wfCmd);
   registerRunCommand(wfCmd);
   registerGcCommand(wfCmd);
