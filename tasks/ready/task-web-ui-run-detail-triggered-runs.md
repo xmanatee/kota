@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-run-detail-triggered-runs
 title: Show downstream triggered runs in web UI run detail panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The run detail panel shows the parent run ("Triggered by") but not the child runs that this run triggered. The CLI already surfaces downstream runs; the web UI and daemon API support the same filter but the detail panel doesn't use it.
 created_at: 2026-04-02T01:51:00Z
-updated_at: 2026-04-02T01:51:00Z
+updated_at: 2026-04-02T02:37:15Z
 ---
 
 ## Problem
