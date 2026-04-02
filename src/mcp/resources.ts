@@ -1,14 +1,17 @@
 /**
  * MCP resource definitions and readers for KOTA state.
  *
- * Exposes three read-only resources over the MCP protocol:
+ * Exposes five read-only resources over the MCP protocol:
  *   kota://tasks/ready          – task queue snapshot
  *   kota://workflow/status      – runtime state summary
  *   kota://workflow/runs/recent – 10 most recent run summaries
+ *   kota://memory               – all memory entries
+ *   kota://knowledge            – all knowledge entries
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getKnowledgeProvider, getMemoryProvider } from "../providers.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 
 export type McpResource = {
@@ -36,6 +39,18 @@ export const KOTA_RESOURCES: McpResource[] = [
 		uri: "kota://workflow/runs/recent",
 		name: "Recent Workflow Runs",
 		description: "The 10 most recent workflow run summaries.",
+		mimeType: "application/json",
+	},
+	{
+		uri: "kota://memory",
+		name: "Memory",
+		description: "All memory entries as a JSON array.",
+		mimeType: "application/json",
+	},
+	{
+		uri: "kota://knowledge",
+		name: "Knowledge",
+		description: "All knowledge entries as a JSON array.",
 		mimeType: "application/json",
 	},
 ];
@@ -107,6 +122,30 @@ function readRecentRuns(projectDir: string): unknown {
 	}));
 }
 
+function readMemory(): unknown {
+	const provider = getMemoryProvider();
+	const entries = provider.list();
+	return entries.map((e) => ({
+		id: e.id,
+		content: e.content,
+		tags: e.tags,
+		createdAt: e.created,
+	}));
+}
+
+function readKnowledge(projectDir: string): unknown {
+	const provider = getKnowledgeProvider(projectDir);
+	const entries = provider.list();
+	return entries.map((e) => ({
+		id: e.id,
+		title: e.title,
+		content: e.content,
+		tags: e.tags,
+		source: e.meta?.source ?? null,
+		createdAt: e.created,
+	}));
+}
+
 /**
  * Read the content for a known resource URI.
  * Returns null if the URI is not recognized.
@@ -122,6 +161,10 @@ export function readKotaResource(
 			return JSON.stringify(readWorkflowStatus(projectDir), null, 2);
 		case "kota://workflow/runs/recent":
 			return JSON.stringify(readRecentRuns(projectDir), null, 2);
+		case "kota://memory":
+			return JSON.stringify(readMemory(), null, 2);
+		case "kota://knowledge":
+			return JSON.stringify(readKnowledge(projectDir), null, 2);
 		default:
 			return null;
 	}

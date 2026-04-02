@@ -2,9 +2,16 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
+
+vi.mock("../providers.js", () => ({
+	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
+	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
+}));
+
+import { getKnowledgeProvider, getMemoryProvider } from "../providers.js";
 
 // --- Helper: send a JSON-RPC request and read the response ---
 
@@ -1622,5 +1629,149 @@ describe("completion/complete", () => {
 
 			server.stop();
 		});
+	});
+});
+
+describe("memory and knowledge resources", () => {
+	it("resources/list includes kota://memory and kota://knowledge", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/list");
+		const resp = await readResponse(output);
+
+		const result = resp.result as { resources: Array<{ uri: string }> };
+		const uris = result.resources.map((r) => r.uri);
+		expect(uris).toContain("kota://memory");
+		expect(uris).toContain("kota://knowledge");
+
+		server.stop();
+	});
+
+	it("resources/read kota://memory returns JSON array of memory entries", async () => {
+		vi.mocked(getMemoryProvider).mockReturnValue({
+			list: () => [{ id: "m1", content: "Remember this", tags: ["important"], created: "2026-01-01T00:00:00Z" }],
+			save: vi.fn(),
+			search: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+		});
+
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "kota://memory" });
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(2);
+		const result = resp.result as { contents: Array<{ uri: string; mimeType: string; text: string }> };
+		expect(result.contents).toHaveLength(1);
+		expect(result.contents[0].uri).toBe("kota://memory");
+		expect(result.contents[0].mimeType).toBe("application/json");
+		const entries = JSON.parse(result.contents[0].text) as Array<Record<string, unknown>>;
+		expect(entries).toHaveLength(1);
+		expect(entries[0].id).toBe("m1");
+		expect(entries[0].content).toBe("Remember this");
+		expect(entries[0].tags).toEqual(["important"]);
+		expect(entries[0].createdAt).toBe("2026-01-01T00:00:00Z");
+
+		server.stop();
+	});
+
+	it("resources/read kota://memory returns empty array when no entries", async () => {
+		vi.mocked(getMemoryProvider).mockReturnValue({
+			list: () => [],
+			save: vi.fn(),
+			search: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+		});
+
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "kota://memory" });
+		const resp = await readResponse(output);
+
+		const result = resp.result as { contents: Array<{ text: string }> };
+		const entries = JSON.parse(result.contents[0].text);
+		expect(entries).toEqual([]);
+
+		server.stop();
+	});
+
+	it("resources/read kota://knowledge returns JSON array of knowledge entries", async () => {
+		vi.mocked(getKnowledgeProvider).mockReturnValue({
+			list: () => [
+				{
+					id: "k1",
+					title: "API Docs",
+					content: "The API does X.",
+					tags: ["api"],
+					type: "note",
+					status: "active",
+					created: "2026-02-01T00:00:00Z",
+					updated: "2026-02-01T00:00:00Z",
+					meta: { source: "https://example.com" },
+				},
+			],
+			read: vi.fn(),
+			create: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+			search: vi.fn(),
+			count: vi.fn(),
+		});
+
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "kota://knowledge" });
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(2);
+		const result = resp.result as { contents: Array<{ uri: string; mimeType: string; text: string }> };
+		expect(result.contents).toHaveLength(1);
+		expect(result.contents[0].uri).toBe("kota://knowledge");
+		expect(result.contents[0].mimeType).toBe("application/json");
+		const entries = JSON.parse(result.contents[0].text) as Array<Record<string, unknown>>;
+		expect(entries).toHaveLength(1);
+		expect(entries[0].id).toBe("k1");
+		expect(entries[0].title).toBe("API Docs");
+		expect(entries[0].content).toBe("The API does X.");
+		expect(entries[0].tags).toEqual(["api"]);
+		expect(entries[0].source).toBe("https://example.com");
+		expect(entries[0].createdAt).toBe("2026-02-01T00:00:00Z");
+
+		server.stop();
+	});
+
+	it("resources/read kota://knowledge returns empty array when no entries", async () => {
+		vi.mocked(getKnowledgeProvider).mockReturnValue({
+			list: () => [],
+			read: vi.fn(),
+			create: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+			search: vi.fn(),
+			count: vi.fn(),
+		});
+
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "kota://knowledge" });
+		const resp = await readResponse(output);
+
+		const result = resp.result as { contents: Array<{ text: string }> };
+		const entries = JSON.parse(result.contents[0].text);
+		expect(entries).toEqual([]);
+
+		server.stop();
 	});
 });

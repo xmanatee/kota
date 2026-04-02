@@ -28,7 +28,7 @@ Extension tools passed via `extensionTools` go through the same `toolFilter` as 
 
 ## Resources
 
-The server implements `resources/list` and `resources/read`. Three read-only resources are available:
+The server implements `resources/list` and `resources/read`. Five read-only resources are available:
 
 ### `kota://tasks/ready`
 
@@ -73,6 +73,32 @@ A JSON array of the 10 most recent workflow run summaries:
 | `durationMs`   | number \| null  | Duration in milliseconds             |
 | `startedAt`    | string          | ISO start timestamp                  |
 | `completedAt`  | string \| null  | ISO completion timestamp             |
+
+### `kota://memory`
+
+A JSON array of all memory entries:
+
+| Field       | Type     | Description                          |
+|-------------|----------|--------------------------------------|
+| `id`        | string   | Entry identifier                     |
+| `content`   | string   | Memory note text                     |
+| `tags`      | string[] | Tags associated with the entry       |
+| `createdAt` | string   | ISO timestamp of creation            |
+
+### `kota://knowledge`
+
+A JSON array of all knowledge entries:
+
+| Field       | Type            | Description                          |
+|-------------|-----------------|--------------------------------------|
+| `id`        | string          | Entry identifier                     |
+| `title`     | string          | Short entry title                    |
+| `content`   | string          | Entry body text                      |
+| `tags`      | string[]        | Tags associated with the entry       |
+| `source`    | string \| null  | Source URL or reference, if set      |
+| `createdAt` | string          | ISO timestamp of creation            |
+
+Both resources return an empty array when the corresponding provider has no entries.
 
 ## Prompts
 
