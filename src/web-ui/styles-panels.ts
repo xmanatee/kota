@@ -1,6 +1,35 @@
 /** Approval, task queue, workflow controls, and mobile styles for the KOTA web UI. */
 
 export const STYLES_PANELS_CSS = `
+/* Status overview panel */
+#overview-list {
+  padding: 2px 0 4px;
+}
+.overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 12px;
+  font-size: 12px;
+  border-radius: var(--radius);
+  gap: 6px;
+}
+.overview-row:hover { background: var(--border); }
+.overview-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 70px;
+}
+.overview-value {
+  color: var(--text);
+  text-align: right;
+  flex: 1;
+}
+.overview-ok { color: #34d399; }
+.overview-warn { color: #f59e0b; }
+.overview-err { color: #f87171; }
+.overview-running { color: var(--accent); }
+
 /* Approval panel */
 #approval-list {
   max-height: 200px;

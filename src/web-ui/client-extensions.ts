@@ -11,7 +11,9 @@ export const CLIENT_EXTENSIONS_JS = `
         return;
       }
       var data = await res.json();
-      renderExtensions(data.extensions || []);
+      _cachedExtensions = data.extensions || [];
+      renderExtensions(_cachedExtensions);
+      refreshOverview();
     } catch {
       $extensionsList.innerHTML = '<div class="run-empty">Failed to load extensions</div>';
     }

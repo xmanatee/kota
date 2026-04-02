@@ -28,6 +28,10 @@ ${WEB_UI_CSS}
     </div>
     <div id="session-list"></div>
     <div class="sidebar-section">
+      <h3>Overview</h3>
+      <div id="overview-list"></div>
+    </div>
+    <div class="sidebar-section">
       <h3>History</h3>
       <div id="history-list"></div>
     </div>

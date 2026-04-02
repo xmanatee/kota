@@ -470,7 +470,7 @@ export const CLIENT_WORKFLOWS_JS = `
       }
     };
 
-    function onQueueEvent() { refreshWorkflows(); refreshWfDefinitions(); refreshSchedules(); refreshCost(); }
+    function onQueueEvent() { refreshWorkflows().then(refreshOverview); refreshWfDefinitions(); refreshSchedules(); refreshCost(); }
     src.addEventListener("workflow.started", _trackEvent(onQueueEvent));
     src.addEventListener("workflow.completed", _trackEvent(onQueueEvent));
     src.addEventListener("workflow.step.completed", _trackEvent(onQueueEvent));

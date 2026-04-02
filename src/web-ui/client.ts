@@ -13,6 +13,7 @@ import { CLIENT_MEMORY_JS } from "./client-memory.js";
 import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
 import { CLIENT_SCHEDULES_JS } from "./client-schedules.js";
 import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
+import { CLIENT_STATUS_OVERVIEW_JS } from "./client-status-overview.js";
 import { CLIENT_TASKS_JS } from "./client-tasks.js";
 import { CLIENT_THEME_JS } from "./client-theme.js";
 import { CLIENT_UTILS_JS } from "./client-utils.js";
@@ -29,6 +30,7 @@ export const WEB_UI_JS = /* js */ `
   var expandedTasks = {};
   var collapsedGroups = {};
   var cachedTasks = {};
+  var _cachedExtensions = [];
 
   // Auth token — read from URL param on first load, persist in localStorage
   var _urlToken = new URLSearchParams(window.location.search).get("token");
@@ -68,6 +70,7 @@ export const WEB_UI_JS = /* js */ `
   const $auditList = document.getElementById("audit-list");
   const $auditRiskFilter = document.getElementById("audit-risk-filter");
   const $auditPolicyFilter = document.getElementById("audit-policy-filter");
+  const $overviewList = document.getElementById("overview-list");
   const $runDetail = document.getElementById("run-detail");
   const $inputArea = document.getElementById("input-area");
   const $historyViewBar = document.getElementById("history-view-bar");
@@ -81,6 +84,7 @@ ${CLIENT_UTILS_JS}
 ${CLIENT_SESSIONS_JS}
 ${CLIENT_CHAT_JS}
 ${CLIENT_RUN_DETAIL_JS}
+${CLIENT_STATUS_OVERVIEW_JS}
 ${CLIENT_WORKFLOWS_JS}
 ${CLIENT_TASKS_JS}
 ${CLIENT_APPROVALS_JS}
@@ -145,7 +149,7 @@ ${CLIENT_KEYBOARD_JS}
   checkHealth();
   refreshSessions();
   refreshHistory();
-  refreshWorkflows().then(function() { _openRunFromHash(); });
+  refreshWorkflows().then(function() { _openRunFromHash(); refreshOverview(); });
   refreshTasks();
   initNewTaskForm();
   refreshCost();
@@ -159,6 +163,7 @@ ${CLIENT_KEYBOARD_JS}
   refreshAudit();
   setInterval(checkHealth, 30000);
   setInterval(refreshSessions, 15000);
+  setInterval(refreshOverview, 60000);
   initBrowserNotifications();
   startWorkflowUpdates();
   setInterval(refreshWorkflows, 300000);

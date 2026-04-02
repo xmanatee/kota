@@ -444,7 +444,7 @@ describe("getWebUI", () => {
   });
 
   it("calls _openRunFromHash after initial refreshWorkflows", () => {
-    expect(html).toContain('refreshWorkflows().then(function() { _openRunFromHash(); })');
+    expect(html).toContain('refreshWorkflows().then(function() { _openRunFromHash(); refreshOverview(); })');
   });
 
   it("triggerWorkflowByName accepts optional payload argument", () => {

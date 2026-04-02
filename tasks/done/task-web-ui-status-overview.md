@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-status-overview
 title: Add system status overview panel to web UI
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The web UI has individual panels for workflows, approvals, cost, extensions, and tasks, but no single place that shows overall system health at a glance. An overview panel aggregating daemon uptime, budget remaining, dispatch window status, and recent failure rate would give operators a fast orientation on open.
