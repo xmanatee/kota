@@ -347,5 +347,44 @@ export const STYLES_PANELS_CSS = `
 .wf-load-more-btn:hover { border-color: var(--accent); color: var(--text); }
 .wf-load-more-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* Workflow input form (inline before triggering workflows with inputSchema) */
+.wf-input-form {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-alt, var(--bg));
+}
+.wf-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.wf-input-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+.wf-input-field {
+  flex: 1;
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  min-width: 0;
+}
+.wf-input-field:focus { outline: none; border-color: var(--accent); }
+.wf-input-field.wf-input-error { border-color: #f87171; }
+.wf-input-checkbox { cursor: pointer; }
+.wf-input-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
 /* Responsive overrides handled in styles-layout.ts */
 `;

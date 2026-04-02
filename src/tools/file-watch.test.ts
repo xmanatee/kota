@@ -24,6 +24,28 @@ function waitForEvent(
 	});
 }
 
+// Helper: wait for the first event matching a predicate
+function waitForEventMatching(
+	bus: EventBus,
+	event: string,
+	predicate: (payload: Record<string, unknown>) => boolean,
+	timeoutMs = 3000,
+): Promise<Record<string, unknown>> {
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(
+			() => reject(new Error(`Timeout waiting for ${event} matching predicate`)),
+			timeoutMs,
+		);
+		const unsub = bus.on(event, (payload: Record<string, unknown>) => {
+			if (predicate(payload)) {
+				clearTimeout(timer);
+				unsub();
+				resolve(payload);
+			}
+		});
+	});
+}
+
 describe("WatcherManager", () => {
 	let tmpDir: string;
 	let mgr: WatcherManager;
@@ -132,7 +154,14 @@ describe("WatcherManager event emission", () => {
 
 	it("emits file.changed event on file creation", async () => {
 		await mgr.start(tmpDir);
-		const eventPromise = waitForEvent(bus, "file.changed");
+		const eventPromise = waitForEventMatching(
+			bus,
+			"file.changed",
+			(payload) => {
+				const changes = payload.changes as { path: string; type: string }[];
+				return Array.isArray(changes) && changes.some((c) => c.path.includes("test.txt"));
+			},
+		);
 
 		await writeFile(join(tmpDir, "test.txt"), "hello");
 

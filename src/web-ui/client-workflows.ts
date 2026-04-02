@@ -3,13 +3,15 @@
 export const CLIENT_WORKFLOWS_JS = `
   // --- Shared trigger helper ---
 
-  async function triggerWorkflowByName(name, btn) {
+  async function triggerWorkflowByName(name, btn, payload) {
     if (btn) btn.disabled = true;
     try {
+      var body = { name: name };
+      if (payload) body.payload = payload;
       var r = await apiFetch(API + "/api/workflow/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         var d = await r.json();

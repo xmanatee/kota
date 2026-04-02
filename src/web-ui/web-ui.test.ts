@@ -435,4 +435,41 @@ describe("getWebUI", () => {
   it("calls _openRunFromHash after initial refreshWorkflows", () => {
     expect(html).toContain('refreshWorkflows().then(function() { _openRunFromHash(); })');
   });
+
+  it("triggerWorkflowByName accepts optional payload argument", () => {
+    expect(html).toContain("async function triggerWorkflowByName(name, btn, payload)");
+    expect(html).toContain("if (payload) body.payload = payload");
+  });
+
+  it("trigger button shows inline form for workflows with inputSchema", () => {
+    expect(html).toContain("wf-input-form");
+    expect(html).toContain("wf-input-row");
+    expect(html).toContain("wf-input-field");
+    expect(html).toContain("wf-input-label");
+  });
+
+  it("inline form collects required and optional fields", () => {
+    expect(html).toContain('data-required');
+    expect(html).toContain("data-type");
+    expect(html).toContain("wf-input-error");
+  });
+
+  it("inline form submit validates required fields before triggering", () => {
+    expect(html).toContain("if (!valid) return");
+  });
+
+  it("inline form cancel restores the trigger button", () => {
+    expect(html).toContain('btnRef.style.display = ""');
+  });
+
+  it("workflows without inputSchema trigger immediately without showing form", () => {
+    expect(html).toContain("var hasInputs = props && Object.keys(props).length > 0");
+    expect(html).toContain("if (!hasInputs)");
+  });
+
+  it("inline form CSS styles are present", () => {
+    expect(html).toContain("wf-input-form");
+    expect(html).toContain("wf-input-actions");
+    expect(html).toContain("wf-input-checkbox");
+  });
 });

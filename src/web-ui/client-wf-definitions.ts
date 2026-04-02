@@ -95,7 +95,97 @@ export const CLIENT_WF_DEFINITIONS_JS = `
           btn.className = "wf-ctrl-btn trigger";
           btn.textContent = "\\u25b6 Run";
           btn.title = "Trigger " + def.name;
-          btn.onclick = function() { triggerWorkflowByName(def.name, btn); };
+          btn.onclick = (function(defRef, btnRef, itemRef) {
+            return function() {
+              var props = defRef.inputSchema && defRef.inputSchema.properties;
+              var hasInputs = props && Object.keys(props).length > 0;
+              if (!hasInputs) {
+                triggerWorkflowByName(defRef.name, btnRef);
+                return;
+              }
+              var required = defRef.inputSchema.required || [];
+              var form = document.createElement("div");
+              form.className = "wf-input-form";
+              var fields = {};
+              Object.keys(props).forEach(function(key) {
+                var propSchema = props[key];
+                var isReq = required.indexOf(key) !== -1;
+                var type = propSchema.type || "string";
+                var row = document.createElement("div");
+                row.className = "wf-input-row";
+                var label = document.createElement("label");
+                label.className = "wf-input-label";
+                label.textContent = key + (isReq ? " *" : "");
+                var input;
+                if (type === "boolean") {
+                  input = document.createElement("input");
+                  input.type = "checkbox";
+                  input.className = "wf-input-checkbox";
+                } else {
+                  input = document.createElement("input");
+                  input.type = type === "number" ? "number" : "text";
+                  input.className = "wf-input-field";
+                  if (propSchema.description) input.placeholder = propSchema.description;
+                }
+                input.setAttribute("data-key", key);
+                input.setAttribute("data-required", isReq ? "1" : "0");
+                input.setAttribute("data-type", type);
+                fields[key] = input;
+                row.appendChild(label);
+                row.appendChild(input);
+                form.appendChild(row);
+              });
+              var actions = document.createElement("div");
+              actions.className = "wf-input-actions";
+              var submitBtn = document.createElement("button");
+              submitBtn.className = "wf-ctrl-btn trigger";
+              submitBtn.textContent = "Submit";
+              var cancelBtn = document.createElement("button");
+              cancelBtn.className = "wf-ctrl-btn";
+              cancelBtn.textContent = "Cancel";
+              cancelBtn.onclick = function() {
+                form.remove();
+                btnRef.style.display = "";
+              };
+              submitBtn.onclick = function() {
+                var payload = {};
+                var valid = true;
+                Object.keys(fields).forEach(function(key) {
+                  var input = fields[key];
+                  var type = input.getAttribute("data-type");
+                  var isReq = input.getAttribute("data-required") === "1";
+                  if (type === "boolean") {
+                    payload[key] = input.checked;
+                  } else if (type === "number") {
+                    if (isReq && input.value === "") {
+                      valid = false;
+                      input.classList.add("wf-input-error");
+                    } else {
+                      input.classList.remove("wf-input-error");
+                      if (input.value !== "") payload[key] = Number(input.value);
+                    }
+                  } else {
+                    if (isReq && !input.value) {
+                      valid = false;
+                      input.classList.add("wf-input-error");
+                    } else {
+                      input.classList.remove("wf-input-error");
+                      if (input.value) payload[key] = input.value;
+                    }
+                  }
+                });
+                if (!valid) return;
+                form.remove();
+                btnRef.style.display = "";
+                triggerWorkflowByName(defRef.name, btnRef, payload);
+              };
+              actions.appendChild(submitBtn);
+              actions.appendChild(cancelBtn);
+              form.appendChild(actions);
+              btnRef.style.display = "none";
+              itemRef.appendChild(form);
+            };
+          })(def, btn, item);
           item.appendChild(btn);
         }
 
