@@ -216,4 +216,43 @@ describe("webhookModule notifications", () => {
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledTimes(4);
   });
+
+  it("forwards approval.requested regardless of events filter", async () => {
+    const bus = new EventBus();
+    webhookModule.onLoad!(
+      makeStubCtx(bus, { urls: [FAKE_URL], events: ["workflow.failure.alert"] }),
+    );
+    bus.emit("approval.requested", {
+      id: "approval-1",
+      tool: "bash",
+      risk: "high",
+      reason: "destructive command",
+      source: "builder",
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(FAKE_URL);
+    const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+    expect(body.event).toBe("approval.requested");
+    expect(body.id).toBe("approval-1");
+    expect(body.tool).toBe("bash");
+    expect(typeof body.timestamp).toBe("string");
+  });
+
+  it("forwards approval.requested even when urls are configured without events", async () => {
+    const bus = new EventBus();
+    webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
+    bus.emit("approval.requested", {
+      id: "approval-2",
+      tool: "write",
+      risk: "medium",
+      reason: "file write",
+      source: "builder",
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string) as Record<string, unknown>;
+    expect(body.event).toBe("approval.requested");
+  });
 });

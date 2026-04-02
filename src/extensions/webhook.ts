@@ -49,16 +49,25 @@ const webhookModule: KotaExtension = {
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
     const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
 
+    const forward = (event: string, payload: Record<string, unknown>) => {
+      const body = JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload });
+      for (const url of urls) {
+        void postWithRetry(url, body, ctx.log, retryOptions);
+      }
+    };
+
     for (const event of NOTIFICATION_EVENTS) {
       if (!enabledEvents.has(event)) continue;
-      const unsub = ctx.events.subscribe(event, (payload) => {
-        const body = JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload });
-        for (const url of urls) {
-          void postWithRetry(url, body, ctx.log, retryOptions);
-        }
-      });
-      unsubs.push(unsub);
+      unsubs.push(ctx.events.subscribe(event, (payload) => forward(event, payload as Record<string, unknown>)));
     }
+
+    // approval.requested is always forwarded when the extension is configured,
+    // independent of the events filter (mirrors Slack and Telegram behavior).
+    unsubs.push(
+      ctx.events.subscribe("approval.requested", (payload) =>
+        forward("approval.requested", payload as Record<string, unknown>),
+      ),
+    );
   },
 
   onUnload: () => {

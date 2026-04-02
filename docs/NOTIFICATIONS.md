@@ -31,7 +31,9 @@ When both are set, all notification events are forwarded to that chat.
 ## Webhook
 
 The built-in `webhook` extension POSTs a JSON payload to one or more HTTP
-endpoints on each notification event. It is useful for Slack incoming webhooks,
+endpoints on each notification event. It also forwards `approval.requested` so
+operators routing KOTA alerts to PagerDuty, OpsGenie, or a custom receiver
+receive approval notifications. It is useful for Slack incoming webhooks,
 Discord webhooks, PagerDuty, or any custom HTTP receiver.
 
 Configure it in your KOTA config under the `webhook` key:
@@ -49,7 +51,8 @@ Configure it in your KOTA config under the `webhook` key:
 }
 ```
 
-To forward only a subset of events, add an `events` array:
+To forward only a subset of the notification events, add an `events` array.
+`approval.requested` is always forwarded regardless of the filter:
 
 ```json
 {

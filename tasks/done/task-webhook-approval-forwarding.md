@@ -1,7 +1,7 @@
 ---
 id: task-webhook-approval-forwarding
 title: Forward approval.requested events through the webhook extension
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: The webhook extension forwards workflow notification events but not approval.requested, unlike Slack and Telegram. Operators routing KOTA alerts to PagerDuty or custom receivers won't receive approval notifications and may miss required reviews.
