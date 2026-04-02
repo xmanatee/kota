@@ -1,6 +1,29 @@
+import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { getKnowledgeStore } from "./memory/knowledge-store.js";
 import { getMemoryStore } from "./memory/store.js";
+
+type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
+
+export type ImportResult = {
+	imported: number;
+	skipped: number;
+};
+
+/** Parse a JSON or JSONL file into raw entry objects. */
+export function parseImportEntries(content: string): RawImportEntry[] {
+	const trimmed = content.trim();
+	if (trimmed.startsWith("[")) {
+		const parsed = JSON.parse(trimmed) as unknown;
+		if (!Array.isArray(parsed)) throw new Error("JSON file must be an array");
+		return parsed as RawImportEntry[];
+	}
+	return trimmed
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0)
+		.map((line) => JSON.parse(line) as RawImportEntry);
+}
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");
@@ -224,5 +247,57 @@ export function registerKnowledgeCommands(program: Command): void {
 				process.exit(1);
 			}
 			console.log(`Deleted knowledge entry ${id}.`);
+		});
+
+	kCmd
+		.command("import <file>")
+		.description("Bulk import knowledge entries from a JSON or JSONL file")
+		.option("--type <type>", "Entry type for all imported entries", "note")
+		.option("--status <status>", "Entry status for all imported entries", "active")
+		.option("--scope <scope>", "Storage scope: project or global", "project")
+		.action((file: string, opts: { type: string; status: string; scope: string }) => {
+			if (opts.scope !== "project" && opts.scope !== "global") {
+				console.error(`Invalid scope "${opts.scope}". Use "project" or "global".`);
+				process.exit(1);
+			}
+			let raw: string;
+			try {
+				raw = readFileSync(file, "utf-8");
+			} catch {
+				console.error(`Cannot read file: ${file}`);
+				process.exit(1);
+			}
+			let entries: RawImportEntry[];
+			try {
+				entries = parseImportEntries(raw);
+			} catch (err) {
+				console.error(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`);
+				process.exit(1);
+			}
+			const store = getKnowledgeStore(process.cwd());
+			let imported = 0;
+			let skipped = 0;
+			for (let i = 0; i < entries.length; i++) {
+				const entry = entries[i];
+				if (typeof entry.title !== "string" || !entry.title || typeof entry.body !== "string") {
+					console.warn(`Row ${i + 1}: skipped (missing title or body)`);
+					skipped++;
+					continue;
+				}
+				const tags =
+					Array.isArray(entry.tags) && entry.tags.every((t) => typeof t === "string")
+						? (entry.tags as string[])
+						: [];
+				store.create({
+					title: entry.title,
+					content: entry.body,
+					type: opts.type,
+					tags,
+					status: opts.status,
+					scope: opts.scope as "project" | "global",
+				});
+				imported++;
+			}
+			console.log(`Imported ${imported} entries, skipped ${skipped} (missing title/body).`);
 		});
 }

@@ -34,7 +34,7 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `approval-cli.ts` — `registerApprovalCommands`: CLI subcommands for the approval queue (`kota approval list`, `kota approval approve`, `kota approval reject`, `kota approval count`, `kota approval history`).
 - `audit-cli.ts` — `registerAuditCommands`: CLI subcommands for the guardrail audit trail (`kota audit list`, with `--risk`, `--policy`, `-n` filters).
 - `task-cli.ts` — `registerTaskCommands`: CLI subcommands for the task store (`kota task`).
-- `memory-cli.ts` — `registerMemoryCommands` and `registerKnowledgeCommands`: CLI subcommands for the memory and knowledge stores (`kota memory`, `kota knowledge`).
+- `memory-cli.ts` — `registerMemoryCommands` and `registerKnowledgeCommands`: CLI subcommands for the memory and knowledge stores (`kota memory`, `kota knowledge`); exports `parseImportEntries` used by `kota knowledge import`.
 - `extension-cli.ts` — `registerExtensionCommands`: CLI subcommands for inspecting loaded extensions (`kota extension list`, `kota extension inspect <name>`, `kota extension new <name>`). `inspect` prints a Health section (status, restart count, last restart) for foreign extensions that have health data.
 - `extension-api.ts` — public re-export surface for extension authors; consumed via `kota/extension` sub-path import; built to `dist/extension-api.js` + `dist/extension-api.d.ts`.
 - `workflow-testing/index.ts` — `WorkflowTestHarness` class; lightweight in-process harness for unit-testing workflow definitions without a daemon or real agent; exported via `kota/testing` sub-path import through `workflow-testing/testing-api.ts`.

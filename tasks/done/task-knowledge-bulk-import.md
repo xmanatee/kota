@@ -1,7 +1,7 @@
 ---
 id: task-knowledge-bulk-import
 title: Add bulk knowledge import command to load entries from a JSON/JSONL file
-status: ready
+status: done
 priority: p3
 area: cli
 summary: The kota knowledge CLI only supports adding entries one at a time. A bulk import command would let operators onboard documentation, runbooks, or reference material in a single operation.
