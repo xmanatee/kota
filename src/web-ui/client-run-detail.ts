@@ -3,6 +3,11 @@
 export const CLIENT_RUN_DETAIL_JS = `
   // --- Run detail panel ---
 
+  function scrollToApprovals() {
+    var el = document.getElementById('approval-list');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }
+
   function closeStream() {
     if (activeStream) {
       activeStream.cancel();
@@ -131,6 +136,12 @@ export const CLIENT_RUN_DETAIL_JS = `
     for (var ci = 0; ci < allSteps.length; ci++) {
       completedMap[allSteps[ci].id] = allSteps[ci].status;
     }
+    var approvalReasonMap = {};
+    var allWorkflowSteps = run.workflowSteps || [];
+    for (var ari = 0; ari < allWorkflowSteps.length; ari++) {
+      var aws = allWorkflowSteps[ari];
+      if (aws.type === "approval" && aws.reason) approvalReasonMap[aws.id] = aws.reason;
+    }
     if (run.workflowSteps && run.workflowSteps.length > 0) {
       html += '<div class="step-progress" id="step-progress">';
       for (var wi = 0; wi < run.workflowSteps.length; wi++) {
@@ -153,8 +164,9 @@ export const CLIENT_RUN_DETAIL_JS = `
     } else {
       for (var i = 0; i < steps.length; i++) {
         var step = steps[i];
+        var isApprovalWaiting = step.type === "approval" && step.status === "running";
         var sb = step.status === "success" ? "success" : step.status === "failed" ? "failed" : step.status === "running" ? "running" : "interrupted";
-        var si = step.status === "success" ? "\\u2713" : step.status === "failed" ? "\\u2717" : step.status === "running" ? "\\u25b6" : "\\u26a1";
+        var si = step.status === "success" ? "\\u2713" : step.status === "failed" ? "\\u2717" : step.status === "running" ? (isApprovalWaiting ? "\\u23f3" : "\\u25b6") : "\\u26a1";
         var sm = step.durationMs ? fmtDuration(step.durationMs) : "";
         var stepCost = (step.output && typeof step.output === "object" && step.output.totalCostUsd != null) ? ("$" + step.output.totalCostUsd.toFixed(3)) : "";
         if (stepCost) sm += (sm ? " \\u00b7 " : "") + stepCost;
@@ -214,6 +226,13 @@ export const CLIENT_RUN_DETAIL_JS = `
           compoundHtml += '<div class="step-branch-detail">';
           compoundHtml += '<span class="branch-arm-label">' + escapeHtml(bArm) + '</span>';
           if (bCount) compoundHtml += '<span class="branch-step-count">' + escapeHtml(bCount) + '</span>';
+          compoundHtml += '</div>';
+        } else if (isApprovalWaiting) {
+          var approvalReason = approvalReasonMap[step.id] || "";
+          compoundHtml += '<div class="step-approval-waiting">';
+          compoundHtml += '\\u23f3 Waiting for approval';
+          if (approvalReason) compoundHtml += '<span class="step-approval-reason">' + escapeHtml(approvalReason) + '</span>';
+          compoundHtml += '<a href="#" class="step-approval-link" onclick="scrollToApprovals();return false;">\\u2192 Approvals</a>';
           compoundHtml += '</div>';
         }
 
@@ -407,20 +426,24 @@ export const CLIENT_RUN_DETAIL_JS = `
     if (eventName === "step_started") {
       var spBadge = document.getElementById("sp-badge-" + payload.stepId);
       var spItem = document.getElementById("sp-" + payload.stepId);
-      if (spBadge) { spBadge.className = "run-badge running"; spBadge.textContent = "\u25b6"; }
+      var streamIsApproval = payload.type === "approval";
+      if (spBadge) { spBadge.className = "run-badge running"; spBadge.textContent = streamIsApproval ? "\u23f3" : "\u25b6"; }
       if (spItem) spItem.classList.add("active");
       var existingRow = document.getElementById("step-row-" + payload.stepId);
       if (!existingRow) {
         var row = document.createElement("div");
         row.className = "step-row";
         row.id = "step-row-" + payload.stepId;
+        var approvalWaitingHtml = streamIsApproval
+          ? '<div class="step-approval-waiting">\u23f3 Waiting for approval<a href="#" class="step-approval-link" onclick="scrollToApprovals();return false;">\u2192 Approvals</a></div>'
+          : '<div class="step-row-output" id="step-output-' + escapeHtml(payload.stepId) + '"></div>';
         row.innerHTML =
           '<div class="step-row-header">' +
-          '<span class="run-badge running" id="step-badge-' + escapeHtml(payload.stepId) + '">\u25b6</span>' +
+          '<span class="run-badge running" id="step-badge-' + escapeHtml(payload.stepId) + '">' + (streamIsApproval ? "\u23f3" : "\u25b6") + '</span>' +
           '<span class="step-row-name">' + escapeHtml(payload.stepId) + '</span>' +
           '<span class="step-row-meta" id="step-meta-' + escapeHtml(payload.stepId) + '"></span>' +
           '</div>' +
-          '<div class="step-row-output" id="step-output-' + escapeHtml(payload.stepId) + '"></div>';
+          approvalWaitingHtml;
         stepsContainer.appendChild(row);
       }
     } else if (eventName === "step_output") {

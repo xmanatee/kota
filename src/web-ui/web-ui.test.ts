@@ -507,4 +507,38 @@ describe("getWebUI", () => {
   it("run-causedby-link handler uses querySelectorAll to wire all links", () => {
     expect(html).toContain('querySelectorAll(".run-causedby-link")');
   });
+
+  it("approval step in running state renders waiting indicator instead of play icon", () => {
+    expect(html).toContain("isApprovalWaiting");
+    expect(html).toContain("step-approval-waiting");
+  });
+
+  it("approval waiting indicator uses hourglass icon for badge", () => {
+    // \u23f3 is the hourglass emoji used for approval waiting state
+    expect(html).toContain("\\u23f3");
+  });
+
+  it("approval waiting indicator includes link to scroll to approvals panel", () => {
+    expect(html).toContain("step-approval-link");
+    expect(html).toContain("scrollToApprovals");
+    expect(html).toContain("approval-list");
+    expect(html).toContain("scrollIntoView");
+  });
+
+  it("stream step_started for approval type uses hourglass badge and waiting markup", () => {
+    expect(html).toContain('payload.type === "approval"');
+    expect(html).toContain("streamIsApproval");
+    expect(html).toContain("approvalWaitingHtml");
+  });
+
+  it("approval step reason from workflowSteps shown when available", () => {
+    expect(html).toContain("approvalReasonMap");
+    expect(html).toContain("step-approval-reason");
+  });
+
+  it("approval waiting CSS styles are present", () => {
+    expect(html).toContain("step-approval-waiting");
+    expect(html).toContain("step-approval-link");
+    expect(html).toContain("step-approval-reason");
+  });
 });

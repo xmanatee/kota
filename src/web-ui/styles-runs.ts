@@ -290,6 +290,26 @@ export const STYLES_RUNS_CSS = `
   margin-top: 2px;
 }
 .step-show-more:hover { text-decoration: underline; }
+.step-approval-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.step-approval-reason {
+  flex: 1;
+  font-style: italic;
+}
+.step-approval-link {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.step-approval-link:hover { text-decoration: underline; }
 .log-search-bar {
   max-width: 800px;
   width: 100%;

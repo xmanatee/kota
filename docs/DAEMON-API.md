@@ -246,6 +246,11 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
   "triggerPayload": { "workflow": "explorer", "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "status": "success" },
   "causedBy": { "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "workflow": "explorer" },
   "tags": ["ci", "pr-42"],
+  "workflowSteps": [
+    { "id": "inspect-ready-queue", "type": "code" },
+    { "id": "build", "type": "agent" },
+    { "id": "confirm", "type": "approval", "reason": "Deploy to production?" }
+  ],
   "steps": [
     {
       "id": "inspect-ready-queue",
@@ -263,6 +268,8 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
   ]
 }
 ```
+
+`workflowSteps` is present when the workflow definition is available. Each entry has `id`, `type`, and for `type: "approval"` steps, an optional `reason` string from the step definition.
 
 Returns `404` if the run is not found.
 

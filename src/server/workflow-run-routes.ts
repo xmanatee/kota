@@ -102,10 +102,14 @@ export function handleWorkflowRunDetail(
     jsonResponse(res, 404, { error: "Run not found" });
     return;
   }
-  const workflowDef = readOptionalJsonFile<{ steps?: Array<{ id: string; type: string }> }>(
-    join(runDir, "workflow.json"),
-  );
-  const workflowSteps = workflowDef?.steps?.map((s) => ({ id: s.id, type: s.type }));
+  const workflowDef = readOptionalJsonFile<{
+    steps?: Array<{ id: string; type: string; reason?: string }>;
+  }>(join(runDir, "workflow.json"));
+  const workflowSteps = workflowDef?.steps?.map((s) => ({
+    id: s.id,
+    type: s.type,
+    ...(s.type === "approval" && s.reason != null ? { reason: s.reason } : {}),
+  }));
   jsonResponse(res, 200, { ...metadata, ...(workflowSteps && { workflowSteps }) });
 }
 
