@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { RepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
@@ -8,6 +10,8 @@ import { stepCommitted, stepSucceeded } from "../shared.js";
 import { autoResetDirtyWorktree } from "./dirty-state-recovery.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
+import type { ScopeGuardResult } from "./scope-guard.js";
+import { runScopeGuard } from "./scope-guard.js";
 
 const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
   id: "inspect-ready-queue",
@@ -17,6 +21,13 @@ const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
     assertRepoWorktreeClean(projectDir);
     return getRepoTaskQueueSnapshot(projectDir);
   },
+});
+
+const scopeGuard = typedCodeStep<ScopeGuardResult>({
+  id: "scope-guard",
+  type: "code",
+  when: (ctx) => inspectReadyQueue.output(ctx).actionableCount > 0,
+  run: (ctx) => runScopeGuard(ctx),
 });
 
 const builderWorkflow: WorkflowDefinitionInput = {
@@ -33,13 +44,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
   ],
   steps: [
     inspectReadyQueue,
+    scopeGuard,
     {
       id: "build",
       type: "agent",
       agentName: "builder",
       timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) => inspectReadyQueue.output(ctx).actionableCount > 0,
+      when: (ctx) =>
+        inspectReadyQueue.output(ctx).actionableCount > 0 &&
+        !scopeGuard.output(ctx)?.blocked,
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [
@@ -97,6 +111,22 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepSucceeded("build"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+    },
+    {
+      id: "commit-scope-block",
+      type: "code",
+      when: (ctx) => scopeGuard.output(ctx)?.blocked === true,
+      run: (ctx) => {
+        const guard = scopeGuard.output(ctx);
+        if (guard.blocked) {
+          mkdirSync(ctx.workflow.runDirPath, { recursive: true });
+          writeFileSync(
+            join(ctx.workflow.runDirPath, "commit-message.txt"),
+            `Builder: block oversized task ${guard.taskId} for scope\n\nScope guard detected task exceeds execution budget. Moved to blocked/.`,
+          );
+        }
+        return commitWorkflowChanges(ctx.projectDir, ctx.workflow.runDirPath);
+      },
     },
     typedCodeStep<BuilderRunSummary>({
       id: "write-run-summary",

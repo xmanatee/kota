@@ -1,12 +1,12 @@
 ---
 id: task-builder-task-scope-guard
 title: Add scope guard step to builder to detect oversized tasks before full execution
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The builder and improver workflows regularly time out (3600s) on tasks that were too broad. A pre-execution scope check that estimates complexity and halts early on clearly oversized tasks would prevent wasted 1-hour agent runs and surface the need to split tasks.
 created_at: 2026-04-02T16:33:05Z
-updated_at: 2026-04-02T16:33:05Z
+updated_at: 2026-04-02T17:55:00Z
 ---
 
 ## Problem
