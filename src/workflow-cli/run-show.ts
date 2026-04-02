@@ -22,15 +22,88 @@ export function formatRepairLine(summary: RepairSummary): string {
   return `Repairs: ${summary.attempts} ${noun}${costPart} — ${parts.join(" / ")}`;
 }
 
+export type ChainNode = {
+  id: string;
+  workflow: string;
+  status: string;
+  durationMs?: number;
+  children: ChainNode[];
+};
+
+async function fetchRunSummary(
+  id: string,
+  daemonClient: DaemonControlClient | null,
+  store: WorkflowRunStore,
+): Promise<{ id: string; workflow: string; status: string; durationMs?: number; causedBy?: { runId: string; workflow: string } } | null> {
+  if (daemonClient) {
+    const run = await daemonClient.getWorkflowRun(id);
+    if (run) return { id: run.id, workflow: run.workflow, status: run.status, durationMs: run.durationMs, causedBy: run.causedBy };
+  }
+  const meta = store.getRun(id);
+  if (!meta) return null;
+  return { id: meta.id, workflow: meta.workflow, status: meta.status, durationMs: meta.durationMs, causedBy: meta.causedBy };
+}
+
+async function fetchChildren(
+  parentId: string,
+  daemonClient: DaemonControlClient | null,
+  store: WorkflowRunStore,
+): Promise<Array<{ id: string; workflow: string; status: string; durationMs?: number }>> {
+  if (daemonClient) {
+    const result = await daemonClient.listWorkflowRuns(undefined, 50, undefined, parentId);
+    if (result) return result.runs;
+  }
+  return store.listRuns({ causedByRunId: parentId, limit: 50 }).map((r) => ({
+    id: r.id,
+    workflow: r.workflow,
+    status: r.status,
+    durationMs: r.durationMs,
+  }));
+}
+
+async function buildChainTree(
+  rootId: string,
+  daemonClient: DaemonControlClient | null,
+  store: WorkflowRunStore,
+  depth: number,
+  maxDepth: number,
+): Promise<ChainNode | null> {
+  const run = await fetchRunSummary(rootId, daemonClient, store);
+  if (!run) return null;
+  const node: ChainNode = { id: run.id, workflow: run.workflow, status: run.status, durationMs: run.durationMs, children: [] };
+  if (depth < maxDepth) {
+    const children = await fetchChildren(rootId, daemonClient, store);
+    for (const child of children) {
+      const childNode = await buildChainTree(child.id, daemonClient, store, depth + 1, maxDepth);
+      if (childNode) node.children.push(childNode);
+    }
+  }
+  return node;
+}
+
+export function printChainTree(node: ChainNode, currentId: string, prefix: string, isLast: boolean, isRoot: boolean): void {
+  const connector = isRoot ? "" : isLast ? "└─ " : "├─ ";
+  const dur = node.durationMs != null ? ` (${formatDuration(node.durationMs)})` : "";
+  const marker = node.id === currentId ? " ← current" : "";
+  const icon = statusIcon(node.status);
+  console.log(`${prefix}${connector}${icon} ${node.workflow}/${node.id}${dur}${marker}`);
+  const childPrefix = isRoot ? prefix : prefix + (isLast ? "   " : "│  ");
+  for (let i = 0; i < node.children.length; i++) {
+    printChainTree(node.children[i]!, currentId, childPrefix, i === node.children.length - 1, false);
+  }
+}
+
 export function registerRunShowCommand(wfCmd: Command): void {
   wfCmd
     .command("show <run-id>")
     .description("Show step-level details for a specific run")
     .option("--step <step-id>", "Print the full output of a specific step as JSON")
     .option("--payload", "Print the trigger payload as formatted JSON")
+    .option("--chain", "Print the full causal chain tree (max 5 levels deep)")
     .action(async (runId, options) => {
       const stepId = options.step as string | undefined;
       const showPayload = options.payload as boolean | undefined;
+      const showChain = options.chain as boolean | undefined;
       const store = new WorkflowRunStore();
 
       // Support prefix matching via disk
@@ -105,6 +178,28 @@ export function registerRunShowCommand(wfCmd: Command): void {
         } else {
           console.log(JSON.stringify(step.output, null, 2));
         }
+        return;
+      }
+
+      if (showChain) {
+        // Walk up causedBy chain to find the highest reachable ancestor
+        const MAX_DEPTH = 5;
+        let rootId = resolvedId;
+        let current: { causedBy?: { runId: string; workflow: string } } | null = metadata;
+        let depth = 0;
+        while (current?.causedBy && depth < MAX_DEPTH) {
+          const parent = await fetchRunSummary(current.causedBy.runId, daemonClient, store);
+          if (!parent) break;
+          rootId = parent.id;
+          current = parent;
+          depth++;
+        }
+        const tree = await buildChainTree(rootId, daemonClient, store, 0, MAX_DEPTH);
+        if (!tree) {
+          console.error(`Could not load chain for run "${resolvedId}".`);
+          process.exit(1);
+        }
+        printChainTree(tree, resolvedId, "", true, true);
         return;
       }
 

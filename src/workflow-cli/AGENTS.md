@@ -8,7 +8,7 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `run-cost.ts` — `kota workflow cost`; daily cost breakdown by workflow with `--days`, `--workflow`, `--runs`, and `--json` options.
 - `run-stats.ts` — `kota workflow stats`; aggregate health table (runs, success/failure counts, avg duration, total cost) with `--days`, `--workflow`, and `--json` options.
 - `run-export.ts` — `kota workflow export`; exports run summaries as JSON array (default) or CSV with `--workflow`, `--status`, `--since`, `--last`, `--format`, and `--output` options.
-- `run-show.ts` — `kota workflow show <runId>` step-level display; exports `formatWarningsSection` helper that formats run warnings for display (used by both daemon and disk paths).
+- `run-show.ts` — `kota workflow show <runId>` step-level display; supports `--step`, `--payload`, and `--chain` (causal chain tree traversal up to 5 levels); exports `formatWarningsSection`, `formatRepairLine`, `printChainTree`, and `ChainNode` type.
 - `step-inspect.ts` — `kota workflow step-inspect <run-id> <step-id>` prints full step output as JSON (default) or `--format summary`.
 - `run-diff.ts` — `kota workflow diff <run-id-a> <run-id-b>` step-level comparison table; exports `buildRunDiff` and `formatRunDiff` for testing.
 - `logs.ts` — `kota workflow logs` log streaming.
