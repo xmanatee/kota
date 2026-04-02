@@ -204,6 +204,14 @@ After an agent step completes, `WorkflowStepResult.costUsd` is populated with th
 
 Non-agent steps (code, tool, emit, branch, foreach, approval) do not set `costUsd`.
 
+#### Agent step tool-use summary
+
+After an agent step completes, `WorkflowStepResult.toolCalls` is populated with a sorted list of `{ tool, count, totalMs }` entries — one per distinct tool invoked during the step. The daemon API run detail (`GET /api/workflow/runs/:id`) includes `toolCalls` per step in the `steps` array. The web UI run detail shows a compact annotation (e.g., `Tools: Bash×14, Read×6, Edit×3`) under each completed agent step row.
+
+Data is read from the `.tool-telemetry.json` artifact written by the agent executor. The field is absent for steps that recorded no tool calls.
+
+Non-agent steps do not set `toolCalls`.
+
 ### Hook-like reaction
 
 React to a workflow completion:

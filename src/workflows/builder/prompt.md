@@ -48,7 +48,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   add a new step type or add/remove/change a field on an existing step (whether
   a configuration input field or a result output field),
   update `docs/WORKFLOWS.md` — the Agent Step Fields table, the step output section,
-  or whichever section covers that step type; when you
+  or whichever section covers that step type; when you add a new field to
+  `WorkflowStepResult` (the runtime per-step result type surfaced by the daemon API,
+  web UI, and workflow events), document it in `docs/WORKFLOWS.md` alongside the
+  agent step documentation that already covers `costUsd` and `toolCalls`; when you
   add new options (flags) to an existing CLI command that appears in the Operator Commands
   section of `docs/WORKFLOWS.md`, add the new option to that command's option list in the
   same run; when you
