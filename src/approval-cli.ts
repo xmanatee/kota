@@ -167,6 +167,63 @@ export function registerApprovalCommands(program: Command): void {
     });
 
   approvalCmd
+    .command("reject-all")
+    .description("Reject all pending tool calls")
+    .option("-y, --yes", "Skip confirmation prompt")
+    .option("-r, --reason <text>", "Reason to attach to every rejected item")
+    .option("--risk <level>", "Only reject items of this risk level")
+    .action(async (opts: { yes?: boolean; reason?: string; risk?: string }) => {
+      const config = loadConfig();
+      const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
+      const queue = getApprovalQueue();
+      queue.expireStale(ttlMs);
+      let items = queue.list("pending");
+      if (opts.risk) {
+        items = items.filter((item) => item.risk === opts.risk);
+      }
+
+      if (items.length === 0) {
+        const qualifier = opts.risk ? ` with risk level "${opts.risk}"` : "";
+        console.log(`No pending approvals${qualifier}.`);
+        return;
+      }
+
+      console.log(`${items.length} pending approval(s) to be rejected:\n`);
+      for (const item of items) {
+        const inputSummary = JSON.stringify(item.input).slice(0, 80);
+        console.log(`  [${item.id}] ${item.tool}  (${formatAge(item.createdAt)})`);
+        console.log(`    Input:  ${inputSummary}`);
+        console.log(`    Risk:   ${item.risk}`);
+        console.log(`    Reason: ${item.reason}`);
+        if (item.source) console.log(`    Source: ${item.source}`);
+        console.log();
+      }
+
+      if (!opts.yes) {
+        const confirmed = await promptConfirm(`Reject all ${items.length} item(s)? [y/N] `);
+        if (!confirmed) {
+          console.log("Aborted.");
+          return;
+        }
+      }
+
+      let rejected = 0;
+
+      for (const item of items) {
+        const result = queue.reject(item.id, opts.reason);
+        if (!result) {
+          console.log(`  Skipped [${item.id}] ${item.tool} — no longer pending.`);
+          continue;
+        }
+        const reasonSuffix = opts.reason ? ` — ${opts.reason}` : "";
+        console.log(`  Rejected ${item.tool} [${item.id}]${reasonSuffix}`);
+        rejected++;
+      }
+
+      console.log(`\nDone: ${rejected} rejected.`);
+    });
+
+  approvalCmd
     .command("count")
     .description("Print the number of pending approval items")
     .action(() => {

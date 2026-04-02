@@ -1,7 +1,7 @@
 ---
 id: task-approval-reject-all
 title: Add kota approval reject-all command for batch rejecting pending tool calls
-status: ready
+status: done
 priority: p3
 area: cli
 summary: The approval queue has approve-all for bulk approval but no symmetric reject-all. Operators who want to clear a backlog of unwanted pending tool calls must reject them one at a time.

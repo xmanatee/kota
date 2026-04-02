@@ -302,6 +302,79 @@ describe("approval CLI commands", () => {
 		});
 	});
 
+	describe("approval reject-all", () => {
+		it("prints empty message when no pending items", async () => {
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "reject-all", "--yes");
+			expect(logSpy.mock.calls.flat().join(" ")).toContain("No pending approvals");
+			logSpy.mockRestore();
+		});
+
+		it("rejects all pending items with --yes", async () => {
+			const a = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason a");
+			const b = testQueue.enqueue("git", { command: "push" }, "moderate", "reason b");
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "reject-all", "--yes");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("2 pending approval(s)");
+			expect(output).toContain(`Rejected shell [${a.id}]`);
+			expect(output).toContain(`Rejected git [${b.id}]`);
+			expect(output).toContain("Done: 2 rejected");
+			expect(testQueue.list("pending").length).toBe(0);
+			logSpy.mockRestore();
+		});
+
+		it("attaches --reason to every rejected item", async () => {
+			const item = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "reject-all", "--yes", "--reason", "bad batch");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("bad batch");
+			expect(testQueue.get(item.id)?.rejectionReason).toBe("bad batch");
+			logSpy.mockRestore();
+		});
+
+		it("filters by --risk level", async () => {
+			const a = testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason a");
+			const b = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason b");
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "reject-all", "--yes", "--risk", "dangerous");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("1 pending approval(s)");
+			expect(output).toContain(`Rejected shell [${b.id}]`);
+			// safe item still pending
+			expect(testQueue.list("pending").length).toBe(1);
+			expect(testQueue.get(a.id)?.status).toBe("pending");
+			logSpy.mockRestore();
+		});
+
+		it("prints empty message for --risk with no matching items", async () => {
+			testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason");
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "reject-all", "--yes", "--risk", "dangerous");
+			const output = logSpy.mock.calls.flat().join(" ");
+			expect(output).toContain('risk level "dangerous"');
+			logSpy.mockRestore();
+		});
+
+		it("skips items that are no longer pending between list and loop", async () => {
+			testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			vi.spyOn(testQueue, "reject").mockReturnValueOnce(null);
+			const program = makeProgram();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await run(program, "approval", "reject-all", "--yes");
+			const output = logSpy.mock.calls.flat().join("\n");
+			expect(output).toContain("Skipped");
+			expect(output).toContain("no longer pending");
+			logSpy.mockRestore();
+		});
+	});
+
 	describe("approval approve", () => {
 		it("approves and executes a pending item", async () => {
 			const item = testQueue.enqueue("glob", { pattern: "*.ts" }, "dangerous", "test reason");
