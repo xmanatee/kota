@@ -75,10 +75,13 @@ Notification extensions (Telegram, Slack, webhook) are documented in `docs/NOTIF
 ### GitHub
 
 Provides GitHub REST API tools for use in agent sessions:
-`github_create_pr`, `github_get_pr`, `github_list_issues`, `github_comment`, `github_merge_pr`.
+`github_create_pr`, `github_get_pr`, `github_list_issues`, `github_list_prs`, `github_comment`,
+`github_merge_pr`, `github_close_pr`, `github_create_issue`, `github_update_issue`,
+`github_add_label`, `github_remove_label`.
 
-Mutating tools (`create_pr`, `comment`, `merge_pr`) are classified as dangerous and require
-operator approval in autonomous mode.
+Write tools (`github_create_pr`, `github_comment`, `github_merge_pr`, `github_close_pr`,
+`github_create_issue`, `github_update_issue`, `github_add_label`, `github_remove_label`) are
+classified as dangerous and require operator approval in autonomous mode.
 
 ```json
 {
@@ -95,7 +98,7 @@ operator approval in autonomous mode.
 |-------|----------|-------------|
 | `token` | Yes | GitHub PAT or `$ENV_VAR` reference. Never logged. |
 | `repo` | No | Default `owner/repo`. Falls back to `git remote get-url origin`. |
-| `requireApproval` | No | Tool names requiring explicit approval. Default: `["github_merge_pr"]`. |
+| `requireApproval` | No | Tool names requiring explicit approval. Default: all write tools (`github_merge_pr`, `github_close_pr`, `github_create_issue`, `github_update_issue`, `github_add_label`, `github_remove_label`). |
 
 If `token` is missing or the env var is unset, the extension loads but contributes no tools (warning logged).
 
