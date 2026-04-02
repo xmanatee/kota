@@ -1,12 +1,12 @@
 ---
 id: task-workflow-validate-cli
 title: Add kota workflow validate command for CI and pre-commit checks
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: There is no standalone command to validate workflow definitions without triggering or running them. A `kota workflow validate` command that loads definitions, runs validation, and exits non-zero on errors would enable CI and pre-commit hooks to catch workflow definition mistakes early.
 created_at: 2026-04-02T05:47:58Z
-updated_at: 2026-04-02T05:47:58Z
+updated_at: 2026-04-02T06:47:00Z
 ---
 
 ## Problem
