@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-config-panel
 title: Add config viewer panel to web UI
-status: backlog
+status: ready
 priority: p3
 area: operator-experience
 summary: Operators have no way to view or understand the active resolved config from the web UI. A read-only config panel showing the current merged config (global + project) would help operators diagnose setup issues without switching to the CLI.
 created_at: 2026-04-02T10:41:13Z
-updated_at: 2026-04-02T10:41:13Z
+updated_at: 2026-04-02T11:49:09Z
 ---
 
 ## Problem

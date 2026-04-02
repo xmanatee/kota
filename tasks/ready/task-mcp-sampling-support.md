@@ -1,12 +1,12 @@
 ---
 id: task-mcp-sampling-support
 title: Add MCP sampling capability so clients can delegate LLM calls to KOTA
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: KOTA's MCP server does not yet implement the sampling capability, which would allow external MCP clients to request LLM completions through KOTA's configured model provider. Adding sampling turns KOTA into a shared AI backend for tool-calling MCP clients.
 created_at: 2026-03-31T14:10:00Z
-updated_at: 2026-03-31T14:10:00Z
+updated_at: 2026-04-02T11:49:09Z
 ---
 
 ## Problem
