@@ -74,16 +74,18 @@ describe("github extension", () => {
   });
 
   describe("tool registration", () => {
-    it("registers all five tools when token is configured", () => {
+    it("registers all seven tools when token is configured", () => {
       const ctx = makeCtx();
       const tools = getTools(ctx);
       const names = tools.map((t) => t.tool.name);
       expect(names).toContain("github_create_pr");
       expect(names).toContain("github_get_pr");
       expect(names).toContain("github_list_issues");
+      expect(names).toContain("github_list_prs");
       expect(names).toContain("github_comment");
       expect(names).toContain("github_merge_pr");
-      expect(names).toHaveLength(5);
+      expect(names).toContain("github_close_pr");
+      expect(names).toHaveLength(7);
     });
 
     it("returns no tools when token is missing", () => {
@@ -262,6 +264,109 @@ describe("github extension", () => {
         "https://api.github.com/repos/owner/testrepo/pulls/42/merge",
         expect.objectContaining({ method: "PUT" }),
       );
+    });
+  });
+
+  describe("github_list_prs", () => {
+    it("lists open PRs with expected fields", async () => {
+      mockFetch.mockResolvedValueOnce(
+        makeResponse([
+          {
+            number: 7,
+            title: "Add feature X",
+            html_url: "https://github.com/owner/testrepo/pull/7",
+            draft: false,
+            created_at: "2026-03-01T10:00:00Z",
+            head: { ref: "feature/x" },
+            user: { login: "alice" },
+          },
+          {
+            number: 8,
+            title: "WIP: refactor",
+            html_url: "https://github.com/owner/testrepo/pull/8",
+            draft: true,
+            created_at: "2026-03-02T12:00:00Z",
+            head: { ref: "refactor/y" },
+            user: { login: "bob" },
+          },
+        ]),
+      );
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_list_prs");
+      const result = await tool.runner({});
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("#7");
+      expect(result.content).toContain("Add feature X");
+      expect(result.content).toContain("alice");
+      expect(result.content).toContain("feature/x");
+      expect(result.content).toContain("#8");
+      expect(result.content).toContain("[draft]");
+      expect(result.content).toContain("2 PR(s)");
+    });
+
+    it("passes head branch filter to the API", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse([]));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_list_prs");
+      await tool.runner({ head: "feature/my-branch" });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("head=feature%2Fmy-branch");
+    });
+
+    it("returns message when no PRs found", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse([]));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_list_prs");
+      const result = await tool.runner({ state: "closed" });
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("No pull requests found");
+    });
+  });
+
+  describe("github_close_pr", () => {
+    it("closes a PR and returns the PR number and URL", async () => {
+      mockFetch.mockResolvedValueOnce(
+        makeResponse({
+          number: 15,
+          state: "closed",
+          html_url: "https://github.com/owner/testrepo/pull/15",
+        }),
+      );
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_close_pr");
+      const result = await tool.runner({ number: 15 });
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("#15");
+      expect(result.content).toContain("closed");
+      expect(result.content).toContain("https://github.com/owner/testrepo/pull/15");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/testrepo/pulls/15",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ state: "closed" }),
+        }),
+      );
+    });
+
+    it("returns error on not-found PR", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse({ message: "Not Found" }, 404));
+
+      const ctx = makeCtx();
+      const tool = getTool(ctx, "github_close_pr");
+      const result = await tool.runner({ number: 999 });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("404");
+      expect(result.content).toContain("Not Found");
     });
   });
 });

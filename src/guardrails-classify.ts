@@ -30,6 +30,7 @@ export function safeTools(): Set<string> {
       // GitHub read-only tools
       "github_get_pr",
       "github_list_issues",
+      "github_list_prs",
     ]);
   }
   return _safeTools;
@@ -162,7 +163,7 @@ export function classifyRisk(
   }
 
   // GitHub mutating tools — always dangerous (require approval in autonomous mode)
-  if (name === "github_create_pr" || name === "github_comment" || name === "github_merge_pr") {
+  if (name === "github_create_pr" || name === "github_comment" || name === "github_merge_pr" || name === "github_close_pr") {
     return { risk: "dangerous", reason: "GitHub mutation tool" };
   }
 

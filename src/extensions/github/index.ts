@@ -5,15 +5,18 @@
  *   github_create_pr   — create a pull request
  *   github_get_pr      — get PR details and CI check statuses
  *   github_list_issues — list open issues with optional label filter
+ *   github_list_prs    — list pull requests with optional state/branch filter
  *   github_comment     — add a comment to a PR or issue
  *   github_merge_pr    — merge a PR (squash/merge/rebase)
+ *   github_close_pr    — close a PR without merging
  *
  * Config (under extensions.github):
  *   token:           GitHub PAT or $ENV_VAR reference. Required.
  *   repo:            default owner/repo (e.g. "owner/repo"). Falls back to git remote.
  *   requireApproval: tool names requiring approval before execution.
- *                    Default: ["github_merge_pr"]. These tools are also classified
- *                    as dangerous by guardrails so they are queued in autonomous mode.
+ *                    Default: ["github_merge_pr", "github_close_pr"]. These tools are
+ *                    also classified as dangerous by guardrails so they are queued in
+ *                    autonomous mode.
  *
  * Uses GitHub REST API v2022-11-28 via fetch; no npm dependencies.
  * Token is never logged or included in error messages.
@@ -357,6 +360,103 @@ function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
+function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
+  return {
+    tool: {
+      name: "github_list_prs",
+      description:
+        "List GitHub pull requests with optional state and branch filters. " +
+        "Returns number, title, branch, author, created_at, url, and draft status.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          state: {
+            type: "string",
+            enum: ["open", "closed", "all"],
+            description: "PR state filter (default: open)",
+          },
+          head: {
+            type: "string",
+            description: "Filter by head branch name (e.g. feature/my-branch)",
+          },
+          repo: {
+            type: "string",
+            description: "Repository as owner/repo. Defaults to configured or git remote.",
+          },
+        },
+        required: [],
+      },
+    },
+    async runner(input): Promise<ToolResult> {
+      const repo = (input.repo as string | undefined) ?? defaultRepo;
+      if (!repo) return { content: "No repository configured.", is_error: true };
+
+      const params = new URLSearchParams();
+      params.set("state", (input.state as string | undefined) ?? "open");
+      params.set("per_page", "30");
+      if (input.head) params.set("head", input.head as string);
+
+      const res = await githubFetch(token, "GET", `/repos/${repo}/pulls?${params}`);
+      if (!res.ok) return apiError("list PRs", res.status, res.data);
+
+      const prs = res.data as Array<{
+        number: number;
+        title: string;
+        html_url: string;
+        draft: boolean;
+        created_at: string;
+        head: { ref: string };
+        user: { login: string };
+      }>;
+
+      if (prs.length === 0) return { content: "No pull requests found." };
+
+      const lines = prs.map(
+        (pr) =>
+          `#${pr.number}: ${pr.title}${pr.draft ? " [draft]" : ""}\n` +
+          `  branch: ${pr.head.ref} | author: ${pr.user.login} | created: ${pr.created_at}\n` +
+          `  ${pr.html_url}`,
+      );
+      return { content: `${prs.length} PR(s):\n${lines.join("\n")}` };
+    },
+  };
+}
+
+function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
+  return {
+    tool: {
+      name: "github_close_pr",
+      description:
+        "Close a GitHub pull request without merging. " +
+        "Requires operator approval in autonomous mode (classified as dangerous).",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          number: { type: "number", description: "PR number to close" },
+          repo: {
+            type: "string",
+            description: "Repository as owner/repo. Defaults to configured or git remote.",
+          },
+        },
+        required: ["number"],
+      },
+    },
+    async runner(input): Promise<ToolResult> {
+      const repo = (input.repo as string | undefined) ?? defaultRepo;
+      if (!repo) return { content: "No repository configured.", is_error: true };
+
+      const prNum = input.number as number;
+      const res = await githubFetch(token, "PATCH", `/repos/${repo}/pulls/${prNum}`, {
+        state: "closed",
+      });
+      if (!res.ok) return apiError("close PR", res.status, res.data);
+
+      const pr = res.data as { number: number; state: string; html_url: string };
+      return { content: `PR #${pr.number} closed.\n${pr.html_url}` };
+    },
+  };
+}
+
 // ─── Extension ───────────────────────────────────────────────────────────────
 
 const githubModule: KotaExtension = {
@@ -387,8 +487,10 @@ const githubModule: KotaExtension = {
       makeCreatePr(token, defaultRepo),
       makeGetPr(token, defaultRepo),
       makeListIssues(token, defaultRepo),
+      makeListPrs(token, defaultRepo),
       makeComment(token, defaultRepo),
       makeMergePr(token, defaultRepo),
+      makeClosePr(token, defaultRepo),
     ];
   },
 };
