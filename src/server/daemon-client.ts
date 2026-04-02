@@ -126,6 +126,34 @@ export class DaemonControlClient {
     }
   }
 
+  async enableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/workflow/definitions/${encodeURIComponent(name)}/enable`,
+        { method: "POST", headers: this.authHeaders() },
+      );
+      if (res.status === 404) return { ok: false, notFound: true };
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean };
+    } catch {
+      return null;
+    }
+  }
+
+  async disableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/workflow/definitions/${encodeURIComponent(name)}/disable`,
+        { method: "POST", headers: this.authHeaders() },
+      );
+      if (res.status === 404) return { ok: false, notFound: true };
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean };
+    } catch {
+      return null;
+    }
+  }
+
   async trigger(name: string, tags?: string[], payload?: Record<string, unknown>): Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/trigger`, {

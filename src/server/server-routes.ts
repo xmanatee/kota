@@ -38,6 +38,8 @@ import {
   handleWorkflowAbortRun,
   handleWorkflowCancel,
   handleWorkflowDefinitions,
+  handleWorkflowDisable,
+  handleWorkflowEnable,
   handleWorkflowPause,
   handleWorkflowReplay,
   handleWorkflowResume,
@@ -306,6 +308,22 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/workflow/definitions") {
       handleWorkflowDefinitions(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    const definitionEnableMatch = path.match(/^\/api\/workflow\/definitions\/([^/]+)\/enable$/);
+    if (req.method === "POST" && definitionEnableMatch) {
+      handleWorkflowEnable(res, decodeURIComponent(definitionEnableMatch[1]), DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    const definitionDisableMatch = path.match(/^\/api\/workflow\/definitions\/([^/]+)\/disable$/);
+    if (req.method === "POST" && definitionDisableMatch) {
+      handleWorkflowDisable(res, decodeURIComponent(definitionDisableMatch[1]), DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

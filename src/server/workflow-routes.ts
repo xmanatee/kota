@@ -262,6 +262,48 @@ export async function handleWorkflowReplay(
   jsonResponse(res, 200, { ok: true, queued: original.workflow, runId: newRunId });
 }
 
+export async function handleWorkflowEnable(
+  res: ServerResponse,
+  name: string,
+  client: DaemonControlClient | null = null,
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
+  const result = await client.enableWorkflow(name);
+  if (!result) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: `Workflow "${name}" not found` });
+    return;
+  }
+  jsonResponse(res, 200, result);
+}
+
+export async function handleWorkflowDisable(
+  res: ServerResponse,
+  name: string,
+  client: DaemonControlClient | null = null,
+): Promise<void> {
+  if (!client) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
+  const result = await client.disableWorkflow(name);
+  if (!result) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: `Workflow "${name}" not found` });
+    return;
+  }
+  jsonResponse(res, 200, result);
+}
+
 export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,

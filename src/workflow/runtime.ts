@@ -66,6 +66,8 @@ export class WorkflowRuntime {
   > = new Map();
   private dispatchPaused = false;
   private stopping = false;
+  /** Maps workflow name → its source `enabled` value before a runtime override was applied. */
+  private readonly definitionSourceEnabled: Map<string, boolean> = new Map();
 
   constructor(private readonly runtimeConfig: WorkflowRuntimeConfig) {
     this.projectDir = runtimeConfig.projectDir ?? process.cwd();
@@ -236,6 +238,7 @@ export class WorkflowRuntime {
     this.watchTriggers.reconcile(defs, (handler) =>
       this.runtimeConfig.bus.on("file.changed", handler),
     );
+    this.definitionSourceEnabled.clear();
     this.definitions = defs;
     return { count: defs.length };
   }
@@ -300,6 +303,33 @@ export class WorkflowRuntime {
 
   getDefinitions(): WorkflowDefinition[] {
     return this.definitions;
+  }
+
+  /** Returns the source `enabled` value for a definition that has been runtime-overridden, or undefined if no override is active. */
+  getDefinitionSourceEnabled(name: string): boolean | undefined {
+    return this.definitionSourceEnabled.get(name);
+  }
+
+  disableWorkflow(name: string): { ok: boolean; notFound?: boolean } {
+    const def = this.definitions.find((d) => d.name === name);
+    if (!def) return { ok: false, notFound: true };
+    if (!this.definitionSourceEnabled.has(name)) {
+      this.definitionSourceEnabled.set(name, def.enabled);
+    }
+    def.enabled = false;
+    this.wfQueue.cancelByWorkflow(name);
+    return { ok: true };
+  }
+
+  enableWorkflow(name: string): { ok: boolean; notFound?: boolean } {
+    const def = this.definitions.find((d) => d.name === name);
+    if (!def) return { ok: false, notFound: true };
+    if (!this.definitionSourceEnabled.has(name)) {
+      this.definitionSourceEnabled.set(name, def.enabled);
+    }
+    def.enabled = true;
+    this.maybeStartNext();
+    return { ok: true };
   }
 
   getState(): WorkflowRuntimeState & { queueLength: number } {

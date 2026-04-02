@@ -154,6 +154,14 @@ export class WorkflowQueueManager {
     return { cancelled: true };
   }
 
+  cancelByWorkflow(workflowName: string): number {
+    const before = this.queue.length;
+    this.queue = this.queue.filter((item) => item.workflowName !== workflowName);
+    const removed = before - this.queue.length;
+    if (removed > 0) this.persist();
+    return removed;
+  }
+
   pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {
     const now = Date.now();
     const activeAgentBackoff = this.config.getActiveBackoff();

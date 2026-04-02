@@ -1,7 +1,7 @@
 ---
 id: task-workflow-enable-disable-api
 title: Add CLI and daemon API to enable or disable individual workflows at runtime
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: Workflows can be disabled via the `enabled: false` field in their definition, but there is no way to toggle this at runtime without editing the source file. A CLI command and daemon endpoint to enable or disable a workflow by name would let operators pause individual workflows during incidents or testing without a file edit.

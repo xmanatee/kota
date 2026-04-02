@@ -149,20 +149,27 @@ export class Daemon {
       abortActiveRun: (runId: string) => this.workflows.abortActiveRun(runId),
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
       getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
-        this.workflows.getDefinitions().map((def) => ({
-          name: def.name,
-          enabled: def.enabled,
-          stepCount: def.steps.length,
-          triggers: def.triggers.map((t): WorkflowDefinitionSummary["triggers"][number] => {
-            if (t.webhook) return { type: "webhook" };
-            if (t.watch) return { type: "watch", patterns: t.watch, debounceMs: t.debounceMs ?? 500 };
-            if (t.schedule) return { type: "cron", schedule: t.schedule };
-            if (t.intervalMs != null) return { type: "interval", intervalMs: t.intervalMs };
-            return { type: "event", event: t.event };
-          }),
-          ...(def.inputSchema !== undefined ? { inputSchema: def.inputSchema } : {}),
-          ...(def.outputSchema !== undefined ? { outputSchema: def.outputSchema } : {}),
-        })),
+        this.workflows.getDefinitions().map((def) => {
+          const sourceEnabled = this.workflows.getDefinitionSourceEnabled(def.name);
+          const hasOverride = sourceEnabled !== undefined && sourceEnabled !== def.enabled;
+          return {
+            name: def.name,
+            enabled: sourceEnabled !== undefined ? sourceEnabled : def.enabled,
+            ...(hasOverride ? { runtimeEnabled: def.enabled } : {}),
+            stepCount: def.steps.length,
+            triggers: def.triggers.map((t): WorkflowDefinitionSummary["triggers"][number] => {
+              if (t.webhook) return { type: "webhook" };
+              if (t.watch) return { type: "watch", patterns: t.watch, debounceMs: t.debounceMs ?? 500 };
+              if (t.schedule) return { type: "cron", schedule: t.schedule };
+              if (t.intervalMs != null) return { type: "interval", intervalMs: t.intervalMs };
+              return { type: "event", event: t.event };
+            }),
+            ...(def.inputSchema !== undefined ? { inputSchema: def.inputSchema } : {}),
+            ...(def.outputSchema !== undefined ? { outputSchema: def.outputSchema } : {}),
+          };
+        }),
+      enableWorkflow: (name: string) => this.workflows.enableWorkflow(name),
+      disableWorkflow: (name: string) => this.workflows.disableWorkflow(name),
       enqueuePendingRun: (name: string, tags?: string[], extraPayload?: Record<string, unknown>) => this.workflows.enqueuePendingRun(name, tags, extraPayload),
       cancelQueuedRun: (runId: string) => this.workflows.cancelQueuedRun(runId),
       subscribeToEvents: (handler) => {

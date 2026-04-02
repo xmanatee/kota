@@ -14,6 +14,8 @@ export type WorkflowDefinitionTriggerSummary =
 export type WorkflowDefinitionSummary = {
   name: string;
   enabled: boolean;
+  /** Present only when a runtime override differs from the static source `enabled` value. */
+  runtimeEnabled?: boolean;
   stepCount: number;
   triggers: WorkflowDefinitionTriggerSummary[];
   inputSchema?: Record<string, unknown>;
@@ -165,6 +167,8 @@ export type DaemonControlHandle = {
   abortActiveRun(runId: string): { ok: boolean; notFound?: boolean; queued?: boolean };
   reloadWorkflowDefinitions(): { count: number };
   getWorkflowDefinitions(): WorkflowDefinitionSummary[];
+  enableWorkflow(name: string): { ok: boolean; notFound?: boolean };
+  disableWorkflow(name: string): { ok: boolean; notFound?: boolean };
   enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
   cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;

@@ -41,6 +41,7 @@ Routes are tagged with a capability scope:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
   `POST /workflow/runs/:id/abort`,
   `POST /workflow/reload`, `POST /workflow/trigger`,
+  `POST /workflow/definitions/:name/disable`, `POST /workflow/definitions/:name/enable`,
   `DELETE /workflow/runs/:id`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
   `POST /approvals/:id/reject`,
@@ -189,7 +190,37 @@ Each trigger entry has a `type` discriminant:
 - `"webhook"` — fires via `POST /webhooks/:name`
 - `"watch"` — file-watch trigger; `patterns` is an array of glob patterns; `debounceMs` is the debounce window in milliseconds
 
+`enabled` reflects the static value from the workflow definition source. `runtimeEnabled` is present only when a runtime override differs from the static value (see `POST /workflow/definitions/:name/enable` and `disable` below).
+
 **Client method:** `DaemonControlClient.getWorkflowDefinitions()`
+
+### POST /workflow/definitions/:name/disable
+
+Disables the named workflow at runtime. The override is in-memory only and does not write to the definition source. It is cleared when `POST /workflow/reload` is called. Any queued (pending) runs for the workflow are cancelled.
+
+**Response:**
+
+```json
+{ "ok": true, "name": "builder", "runtimeEnabled": false }
+```
+
+Returns `404` if the workflow name is not known.
+
+**Client method:** `DaemonControlClient.disableWorkflow(name)`
+
+### POST /workflow/definitions/:name/enable
+
+Re-enables a workflow that was disabled via `POST /workflow/definitions/:name/disable` (or a workflow whose source definition has `enabled: false`). The override is in-memory only.
+
+**Response:**
+
+```json
+{ "ok": true, "name": "builder", "runtimeEnabled": true }
+```
+
+Returns `404` if the workflow name is not known.
+
+**Client method:** `DaemonControlClient.enableWorkflow(name)`
 
 ### GET /workflow/runs
 
@@ -639,6 +670,8 @@ API when the daemon is running:
 | POST /api/workflow/runs/:id/abort   | POST /workflow/runs/:id/abort |
 | POST /api/workflow/reload           | POST /workflow/reload         |
 | POST /api/workflow/trigger          | POST /workflow/trigger        |
+| POST /api/workflow/definitions/:name/disable | POST /workflow/definitions/:name/disable |
+| POST /api/workflow/definitions/:name/enable  | POST /workflow/definitions/:name/enable  |
 | GET /api/history                    | GET /history                  |
 | GET /api/history/:id                | GET /history/:id              |
 | DELETE /api/history/:id             | DELETE /history/:id           |

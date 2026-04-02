@@ -142,6 +142,48 @@ export function registerControlCommands(wfCmd: Command): void {
     });
 
   wfCmd
+    .command("disable <name>")
+    .description("Disable a workflow at runtime (in-memory only; reset by reload)")
+    .action(async (name: string) => {
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("No running daemon found. Cannot disable a workflow without a daemon.");
+        process.exit(1);
+      }
+      const result = await client.disableWorkflow(name);
+      if (!result) {
+        console.error("Failed to reach daemon.");
+        process.exit(1);
+      }
+      if (result.notFound) {
+        console.error(`Workflow "${name}" not found.`);
+        process.exit(1);
+      }
+      console.log(`Workflow "${name}" disabled. Run \`kota workflow enable ${name}\` or \`kota workflow reload\` to re-enable.`);
+    });
+
+  wfCmd
+    .command("enable <name>")
+    .description("Enable a workflow at runtime (in-memory only; reset by reload)")
+    .action(async (name: string) => {
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("No running daemon found. Cannot enable a workflow without a daemon.");
+        process.exit(1);
+      }
+      const result = await client.enableWorkflow(name);
+      if (!result) {
+        console.error("Failed to reach daemon.");
+        process.exit(1);
+      }
+      if (result.notFound) {
+        console.error(`Workflow "${name}" not found.`);
+        process.exit(1);
+      }
+      console.log(`Workflow "${name}" enabled.`);
+    });
+
+  wfCmd
     .command("status")
     .description("Show active run, queue, and per-workflow last-run info")
     .action(async () => {

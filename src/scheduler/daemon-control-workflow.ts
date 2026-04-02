@@ -90,6 +90,32 @@ export function handleCancelWorkflowRun(
   jsonResponse(res, 200, { ok: true });
 }
 
+export function handleDisableWorkflow(
+  handle: DaemonControlHandle,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  const result = handle.disableWorkflow(params.name);
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: `Workflow "${params.name}" not found` });
+    return;
+  }
+  jsonResponse(res, 200, { ok: true, name: params.name, runtimeEnabled: false });
+}
+
+export function handleEnableWorkflow(
+  handle: DaemonControlHandle,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  const result = handle.enableWorkflow(params.name);
+  if (result.notFound) {
+    jsonResponse(res, 404, { error: `Workflow "${params.name}" not found` });
+    return;
+  }
+  jsonResponse(res, 200, { ok: true, name: params.name, runtimeEnabled: true });
+}
+
 export function handleTriggerWorkflow(
   handle: DaemonControlHandle,
   req: IncomingMessage,

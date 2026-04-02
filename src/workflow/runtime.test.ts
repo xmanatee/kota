@@ -1867,4 +1867,116 @@ describe("WorkflowRuntime", () => {
       expect(metadata.status).toBe("interrupted");
     });
   });
+
+  describe("enable/disable workflow", () => {
+    it("disableWorkflow sets enabled false, records source value, and cancels queued runs", async () => {
+      const bus = new EventBus();
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 50_000,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "build", type: "code", run: () => ({}) }],
+          }),
+        ],
+      });
+
+      runtime.start();
+      try {
+        const defsBefore = runtime.getDefinitions();
+        expect(defsBefore[0].enabled).toBe(true);
+        expect(runtime.getDefinitionSourceEnabled("builder")).toBeUndefined();
+
+        const result = runtime.disableWorkflow("builder");
+        expect(result.ok).toBe(true);
+
+        const defsAfter = runtime.getDefinitions();
+        expect(defsAfter[0].enabled).toBe(false);
+        expect(runtime.getDefinitionSourceEnabled("builder")).toBe(true);
+
+        // enqueuePendingRun should be rejected for disabled workflow
+        const enqueueResult = runtime.enqueuePendingRun("builder");
+        expect(enqueueResult.ok).toBe(false);
+        expect(enqueueResult.error).toMatch(/disabled/i);
+      } finally {
+        await runtime.stop();
+      }
+    });
+
+    it("enableWorkflow re-enables a disabled workflow and triggers dispatch", async () => {
+      const bus = new EventBus();
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 50_000,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            enabled: false,
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "build", type: "code", run: () => ({}) }],
+          }),
+        ],
+      });
+
+      runtime.start();
+      try {
+        const defsBefore = runtime.getDefinitions();
+        expect(defsBefore[0].enabled).toBe(false);
+
+        const result = runtime.enableWorkflow("builder");
+        expect(result.ok).toBe(true);
+        expect(runtime.getDefinitions()[0].enabled).toBe(true);
+        expect(runtime.getDefinitionSourceEnabled("builder")).toBe(false);
+      } finally {
+        await runtime.stop();
+      }
+    });
+
+    it("reloadWorkflowDefinitions clears runtime overrides", async () => {
+      const bus = new EventBus();
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 50_000,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "build", type: "code", run: () => ({}) }],
+          }),
+        ],
+      });
+
+      runtime.start();
+      try {
+        runtime.disableWorkflow("builder");
+        expect(runtime.getDefinitions()[0].enabled).toBe(false);
+        expect(runtime.getDefinitionSourceEnabled("builder")).toBe(true);
+
+        runtime.reloadWorkflowDefinitions();
+        // After reload, source definition is re-read (enabled: true from the input)
+        expect(runtime.getDefinitions()[0].enabled).toBe(true);
+        expect(runtime.getDefinitionSourceEnabled("builder")).toBeUndefined();
+      } finally {
+        await runtime.stop();
+      }
+    });
+
+    it("disableWorkflow returns notFound for unknown workflow name", () => {
+      const bus = new EventBus();
+      const runtime = new WorkflowRuntime({
+        bus,
+        projectDir,
+        idleIntervalMs: 50_000,
+        workflows: [],
+      });
+      const result = runtime.disableWorkflow("nonexistent");
+      expect(result.ok).toBe(false);
+      expect(result.notFound).toBe(true);
+    });
+  });
 });

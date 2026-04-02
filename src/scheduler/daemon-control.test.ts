@@ -34,6 +34,8 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     abortActiveRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 3 })),
     getWorkflowDefinitions: vi.fn(() => []),
+    enableWorkflow: vi.fn(() => ({ ok: true })),
+    disableWorkflow: vi.fn(() => ({ ok: true })),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
@@ -374,6 +376,76 @@ describe("DaemonControlServer", () => {
 
     it("requires auth", async () => {
       const res = await fetchNoToken(port, "/workflow/definitions");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /workflow/definitions/:name/disable", () => {
+    it("calls handle.disableWorkflow and returns ok", async () => {
+      handle = makeHandle({
+        disableWorkflow: vi.fn(() => ({ ok: true })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/definitions/builder/disable", { method: "POST" });
+      expect(res.status).toBe(200);
+      const body = await res.json() as Record<string, unknown>;
+      expect(body.ok).toBe(true);
+      expect(body.runtimeEnabled).toBe(false);
+      expect(handle.disableWorkflow).toHaveBeenCalledWith("builder");
+    });
+
+    it("returns 404 when workflow not found", async () => {
+      handle = makeHandle({
+        disableWorkflow: vi.fn(() => ({ ok: false, notFound: true })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/definitions/unknown/disable", { method: "POST" });
+      expect(res.status).toBe(404);
+    });
+
+    it("requires auth", async () => {
+      const res = await fetchNoToken(port, "/workflow/definitions/builder/disable", { method: "POST" });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /workflow/definitions/:name/enable", () => {
+    it("calls handle.enableWorkflow and returns ok", async () => {
+      handle = makeHandle({
+        enableWorkflow: vi.fn(() => ({ ok: true })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/definitions/builder/enable", { method: "POST" });
+      expect(res.status).toBe(200);
+      const body = await res.json() as Record<string, unknown>;
+      expect(body.ok).toBe(true);
+      expect(body.runtimeEnabled).toBe(true);
+      expect(handle.enableWorkflow).toHaveBeenCalledWith("builder");
+    });
+
+    it("returns 404 when workflow not found", async () => {
+      handle = makeHandle({
+        enableWorkflow: vi.fn(() => ({ ok: false, notFound: true })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/definitions/unknown/enable", { method: "POST" });
+      expect(res.status).toBe(404);
+    });
+
+    it("requires auth", async () => {
+      const res = await fetchNoToken(port, "/workflow/definitions/builder/enable", { method: "POST" });
       expect(res.status).toBe(401);
     });
   });
