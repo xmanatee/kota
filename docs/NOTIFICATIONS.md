@@ -6,13 +6,16 @@ alerts to external services.
 
 ## Notification Events
 
-| Event | When it fires |
-|---|---|
-| `workflow.failure.alert` | A workflow run ends with status `failed` or `interrupted` |
-| `workflow.budget.exceeded` | Daily cost budget is exceeded |
-| `workflow.attention.digest` | The attention digest fires (configurable interval) |
-| `workflow.cost.limit.reached` | The hard cost circuit breaker trips |
-| `workflow.cost.anomaly` | A run's cost significantly exceeds the historical baseline (opt-in via `costAnomalyThreshold`) |
+| Event | When it fires | Opt-in? |
+|---|---|---|
+| `workflow.failure.alert` | A workflow run ends with status `failed` or `interrupted` | No |
+| `workflow.budget.exceeded` | Daily cost budget is exceeded | No |
+| `workflow.attention.digest` | The attention digest fires (configurable interval) | No |
+| `workflow.cost.limit.reached` | The hard cost circuit breaker trips | No |
+| `workflow.cost.anomaly` | A run's cost significantly exceeds the historical baseline (requires `costAnomalyThreshold`) | Yes |
+| `workflow.build.committed` | Builder workflow successfully commits a task change | Yes |
+
+Opt-in events are not forwarded by default. Add them to the extension's `events` config array to enable them (see per-extension sections below).
 
 Each event payload includes a human-readable `text` field plus structured fields
 (e.g. `workflow`, `runId`, `status`).

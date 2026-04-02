@@ -60,7 +60,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   for the extension name and update any stale descriptions — if no docs cover
   the extension yet, add a brief section to `docs/CONFIG.md` under the
   Extensions heading; `docs/NOTIFICATIONS.md` documents webhook and Slack
-  behavior; `docs/FOREIGN-EXTENSIONS.md` documents KEMP.
+  behavior; `docs/FOREIGN-EXTENSIONS.md` documents KEMP; when you add a new
+  notification event type (a new key in `BusEvents` that notification extensions
+  subscribe to), add it to the events table in `docs/NOTIFICATIONS.md` and note
+  whether it is opt-in or always-on.
 - If implementation uncovers a genuinely useful follow-up, capture it lightly in `tasks/inbox/` or enrich the current task instead of creating duplicate work. Use ISO 8601 datetime for `created_at` and `updated_at` in any task files you create (e.g. `2026-03-27T11:40:00Z`).
 - Keep files readable and reasonably scoped, but do not treat line counts as a goal. Do not create automatic split follow-ups just because a touched file is large; only capture structural follow-up work when it clearly unlocks a larger change or resolves real concept confusion.
 - Do not turn one structural task into a chain of adjacent split, rename, or dedup tasks just because they are easy and local. Prefer one cohesive, higher-leverage improvement per run.
