@@ -1,12 +1,12 @@
 ---
 id: task-workflow-definition-changelog
 title: Surface workflow definition change history in CLI and web UI
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: When the builder modifies a workflow definition, operators have no easy way to see what changed and when. Surfacing git history for workflow definition files would let operators audit autonomous changes to their automation layer without manually running git log.
 created_at: 2026-04-01T11:02:00Z
-updated_at: 2026-04-01T11:02:00Z
+updated_at: 2026-04-02T00:00:00Z
 ---
 
 ## Problem

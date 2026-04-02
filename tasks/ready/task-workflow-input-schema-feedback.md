@@ -1,12 +1,12 @@
 ---
 id: task-workflow-input-schema-feedback
 title: Surface workflow input schema validation errors as actionable CLI and web UI messages
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: When a workflow trigger payload fails inputSchema validation the error is a raw JSON Schema violation string. Operators see no guidance on what the schema expects, making misconfigured webhook and CLI triggers hard to debug.
 created_at: 2026-04-01T09:44:18Z
-updated_at: 2026-04-01T09:44:18Z
+updated_at: 2026-04-02T00:00:00Z
 ---
 
 ## Problem
