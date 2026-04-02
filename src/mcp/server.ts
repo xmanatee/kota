@@ -32,7 +32,29 @@ type JsonRpcNotification = {
 	params?: Record<string, unknown>;
 };
 
+type JsonRpcResponse = {
+	jsonrpc: "2.0";
+	id: number | string;
+	result?: unknown;
+	error?: { code: number; message: string };
+};
+
 type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification;
+
+/** Simplified JSON Schema subset supported by MCP elicitation. */
+export type ElicitationSchema = {
+	type: "object";
+	properties: Record<
+		string,
+		{ type: "string" | "number" | "boolean"; title?: string; description?: string; enum?: string[] }
+	>;
+	required?: string[];
+};
+
+export type ElicitationResponse =
+	| { action: "accept"; content: Record<string, unknown> }
+	| { action: "reject" }
+	| { action: "cancel" };
 
 type McpContentBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
@@ -77,6 +99,12 @@ export class McpServer {
 	private busUnsubs: (() => void)[] = [];
 	private extensionRunners = new Map<string, (input: Record<string, unknown>) => Promise<ToolResult>>();
 	private extensionToolList: Anthropic.Tool[] = [];
+	private clientSupportsElicitation = false;
+	private pendingElicitations = new Map<
+		number | string,
+		{ resolve: (r: ElicitationResponse) => void; reject: (e: Error) => void }
+	>();
+	private elicitationIdCounter = 0;
 
 	constructor(options: McpServerOptions = {}) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -136,25 +164,53 @@ export class McpServer {
 		const trimmed = line.trim();
 		if (!trimmed) return;
 
-		let msg: JsonRpcMessage;
+		let parsed: unknown;
 		try {
-			msg = JSON.parse(trimmed) as JsonRpcMessage;
+			parsed = JSON.parse(trimmed);
 		} catch {
 			return; // Ignore non-JSON lines
 		}
 
-		if (!msg.jsonrpc || msg.jsonrpc !== "2.0") return;
+		const msg = parsed as Record<string, unknown>;
+		if (msg.jsonrpc !== "2.0") return;
 
-		// Notification (no id) — fire and forget
-		if (!("id" in msg) || msg.id === undefined) {
-			this.handleNotification(msg as JsonRpcNotification);
+		// Response (has id, no method) — resolve pending elicitation
+		if ("id" in msg && msg.id !== undefined && !("method" in msg)) {
+			this.handleResponse(msg as unknown as JsonRpcResponse);
 			return;
 		}
 
-		// Request (has id) — must respond
-		this.handleRequest(msg as JsonRpcRequest).catch((err) => {
-			this.sendError(msg as JsonRpcRequest, -32603, `Internal error: ${err instanceof Error ? err.message : String(err)}`);
+		const rpcMsg = parsed as JsonRpcMessage;
+
+		// Notification (no id) — fire and forget
+		if (!("id" in rpcMsg) || rpcMsg.id === undefined) {
+			this.handleNotification(rpcMsg as JsonRpcNotification);
+			return;
+		}
+
+		// Request (has id and method) — must respond
+		this.handleRequest(rpcMsg as JsonRpcRequest).catch((err) => {
+			this.sendError(rpcMsg as JsonRpcRequest, -32603, `Internal error: ${err instanceof Error ? err.message : String(err)}`);
 		});
+	}
+
+	private handleResponse(msg: JsonRpcResponse): void {
+		const pending = this.pendingElicitations.get(msg.id);
+		if (!pending) return;
+		this.pendingElicitations.delete(msg.id);
+		if (msg.error) {
+			pending.reject(new Error(msg.error.message));
+			return;
+		}
+		const result = msg.result as { action?: string; content?: Record<string, unknown> } | undefined;
+		const action = result?.action;
+		if (action === "accept") {
+			pending.resolve({ action: "accept", content: result?.content ?? {} });
+		} else if (action === "reject") {
+			pending.resolve({ action: "reject" });
+		} else {
+			pending.resolve({ action: "cancel" });
+		}
 	}
 
 	private handleNotification(msg: JsonRpcNotification): void {
@@ -196,19 +252,25 @@ export class McpServer {
 
 	private handleInitialize(msg: JsonRpcRequest): void {
 		this.initialized = true;
+		const clientCaps = (msg.params?.capabilities ?? {}) as Record<string, unknown>;
+		this.clientSupportsElicitation = typeof clientCaps.elicitation === "object" && clientCaps.elicitation !== null;
+		const capabilities: Record<string, unknown> = {
+			tools: {},
+			resources: { subscribe: true },
+			prompts: {},
+		};
+		if (this.clientSupportsElicitation) {
+			capabilities.elicitation = {};
+		}
 		this.sendResult(msg, {
 			protocolVersion: "2024-11-05",
-			capabilities: {
-				tools: {},
-				resources: { subscribe: true },
-				prompts: {},
-			},
+			capabilities,
 			serverInfo: {
 				name: this.serverName,
 				version: this.serverVersion,
 			},
 		});
-		this.log("Initialized successfully");
+		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation})`);
 	}
 
 	private handleResourcesSubscribe(msg: JsonRpcRequest): void {
@@ -360,14 +422,51 @@ export class McpServer {
 		}
 
 		this.log(`Calling tool: ${name}`);
+
+		// When the confirm tool is called over MCP and the client supports elicitation,
+		// use the standard elicitation protocol instead of falling back to /dev/tty.
+		if (name === "confirm" && this.clientSupportsElicitation) {
+			const action = args.action as string;
+			const details = args.details as string | undefined;
+			const risk = (args.risk as string) ?? "medium";
+			const timeoutSec = typeof args.timeout === "number" ? args.timeout : { low: 60, medium: 300, high: 600 }[risk] ?? 300;
+			const elicitMessage = `Approve this action? [${risk.toUpperCase()} risk]\n${action}${details ? `\n\nDetails: ${details}` : ""}`;
+			let elicitResult: ElicitationResponse | null;
+			try {
+				elicitResult = await this.requestElicitation(
+					elicitMessage,
+					{
+						type: "object",
+						properties: {
+							confirmed: { type: "boolean", title: "Approve?" },
+						},
+					},
+					timeoutSec * 1000,
+				);
+			} catch {
+				elicitResult = null;
+			}
+			let text: string;
+			if (!elicitResult || elicitResult.action === "cancel") {
+				text = `REJECTED: ${action}\nReason: Timed out or cancelled`;
+			} else if (elicitResult.action === "reject") {
+				text = `REJECTED: ${action}`;
+			} else {
+				const approved = elicitResult.content.confirmed === true;
+				text = approved ? `APPROVED: ${action}` : `REJECTED: ${action}`;
+			}
+			this.sendResult(msg, { content: [{ type: "text", text }] });
+			return;
+		}
+
 		let result: ToolResult;
 		const extRunner = this.extensionRunners.get(name);
 		if (extRunner) {
 			try {
 				result = await extRunner(args);
 			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				result = { content: `Tool error: ${msg}`, is_error: true };
+				const errMsg = err instanceof Error ? err.message : String(err);
+				result = { content: `Tool error: ${errMsg}`, is_error: true };
 			}
 		} else {
 			result = await executeTool(name, args);
@@ -377,6 +476,37 @@ export class McpServer {
 		this.sendResult(msg, {
 			content,
 			...(result.is_error && { isError: true }),
+		});
+	}
+
+	/**
+	 * Send a `sampling/elicit` request to the client and await the user's response.
+	 * Returns null if the client does not support elicitation.
+	 * Rejects with an error if the timeout expires before the client responds.
+	 */
+	async requestElicitation(
+		message: string,
+		requestedSchema: ElicitationSchema,
+		timeoutMs = 300_000,
+	): Promise<ElicitationResponse | null> {
+		if (!this.clientSupportsElicitation) return null;
+		const id = `elicit-${++this.elicitationIdCounter}`;
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				this.pendingElicitations.delete(id);
+				reject(new Error("Elicitation timed out"));
+			}, timeoutMs);
+			this.pendingElicitations.set(id, {
+				resolve: (r) => {
+					clearTimeout(timer);
+					resolve(r);
+				},
+				reject: (e) => {
+					clearTimeout(timer);
+					reject(e);
+				},
+			});
+			this.send({ jsonrpc: "2.0", id, method: "sampling/elicit", params: { message, requestedSchema } });
 		});
 	}
 

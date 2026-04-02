@@ -1012,3 +1012,171 @@ describe("resource subscriptions", () => {
 		expect(bus.listenerCount("workflow.completed")).toBe(0);
 	});
 });
+
+// --- Helper: initialize with elicitation capability ---
+
+async function initServerWithElicitation(
+	server: McpServer,
+	input: PassThrough,
+	output: PassThrough,
+): Promise<Record<string, unknown>> {
+	await server.start();
+	sendRequest(input, 1, "initialize", {
+		protocolVersion: "2024-11-05",
+		capabilities: { elicitation: {} },
+		clientInfo: { name: "test", version: "1.0.0" },
+	});
+	const resp = await readResponse(output);
+	sendNotification(input, "notifications/initialized");
+	return resp;
+}
+
+describe("McpServer elicitation", () => {
+	describe("capability negotiation", () => {
+		it("does not advertise elicitation when client omits it", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			const resp = await initServer(server, input, output);
+			const caps = (resp.result as Record<string, unknown>).capabilities as Record<string, unknown>;
+			expect(caps.elicitation).toBeUndefined();
+			server.stop();
+		});
+
+		it("advertises elicitation when client supports it", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			const resp = await initServerWithElicitation(server, input, output);
+			const caps = (resp.result as Record<string, unknown>).capabilities as Record<string, unknown>;
+			expect(caps.elicitation).toEqual({});
+			server.stop();
+		});
+	});
+
+	describe("requestElicitation", () => {
+		it("returns null when client does not support elicitation", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+			const result = await server.requestElicitation("Test?", { type: "object", properties: { ok: { type: "boolean" } } });
+			expect(result).toBeNull();
+			server.stop();
+		});
+
+		it("sends sampling/elicit to client and resolves on accept", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServerWithElicitation(server, input, output);
+
+			const elicitPromise = server.requestElicitation("Approve?", {
+				type: "object",
+				properties: { confirmed: { type: "boolean", title: "Confirmed" } },
+			});
+
+			// Server should have sent a sampling/elicit request
+			const sentMsg = await readResponse(output);
+			expect(sentMsg.method).toBe("sampling/elicit");
+			const sentParams = sentMsg.params as Record<string, unknown>;
+			expect(sentParams.message).toBe("Approve?");
+			expect((sentParams.requestedSchema as Record<string, unknown>).type).toBe("object");
+
+			// Simulate client accepting
+			const elicitId = sentMsg.id;
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: elicitId, result: { action: "accept", content: { confirmed: true } } })}\n`);
+
+			const result = await elicitPromise;
+			expect(result?.action).toBe("accept");
+			expect((result as { action: "accept"; content: Record<string, unknown> }).content.confirmed).toBe(true);
+			server.stop();
+		});
+
+		it("resolves with reject when client rejects", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServerWithElicitation(server, input, output);
+
+			const elicitPromise = server.requestElicitation("Approve?", { type: "object", properties: { confirmed: { type: "boolean" } } });
+			const sentMsg = await readResponse(output);
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: sentMsg.id, result: { action: "reject" } })}\n`);
+
+			const result = await elicitPromise;
+			expect(result?.action).toBe("reject");
+			server.stop();
+		});
+
+		it("resolves with cancel for unknown action", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServerWithElicitation(server, input, output);
+
+			const elicitPromise = server.requestElicitation("Approve?", { type: "object", properties: { confirmed: { type: "boolean" } } });
+			const sentMsg = await readResponse(output);
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: sentMsg.id, result: { action: "cancel" } })}\n`);
+
+			const result = await elicitPromise;
+			expect(result?.action).toBe("cancel");
+			server.stop();
+		});
+	});
+
+	describe("confirm tool via elicitation", () => {
+		it("routes confirm tool through elicitation when client supports it", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
+			await initServerWithElicitation(server, input, output);
+
+			sendRequest(input, 10, "tools/call", { name: "confirm", arguments: { action: "Delete all logs" } });
+
+			// Server sends elicitation request before responding to tools/call
+			const elicitMsg = await readResponse(output);
+			expect(elicitMsg.method).toBe("sampling/elicit");
+			const params = elicitMsg.params as Record<string, unknown>;
+			expect(params.message as string).toContain("Delete all logs");
+
+			// Simulate client approving
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: elicitMsg.id, result: { action: "accept", content: { confirmed: true } } })}\n`);
+
+			const toolResp = await readResponse(output);
+			expect(toolResp.id).toBe(10);
+			const toolResult = toolResp.result as { content: Array<{ type: string; text: string }> };
+			expect(toolResult.content[0].text).toContain("APPROVED");
+			server.stop();
+		});
+
+		it("returns REJECTED when elicitation client rejects confirm", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
+			await initServerWithElicitation(server, input, output);
+
+			sendRequest(input, 11, "tools/call", { name: "confirm", arguments: { action: "Send email to all users" } });
+			const elicitMsg = await readResponse(output);
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: elicitMsg.id, result: { action: "reject" } })}\n`);
+
+			const toolResp = await readResponse(output);
+			expect(toolResp.id).toBe(11);
+			const toolResult = toolResp.result as { content: Array<{ type: string; text: string }> };
+			expect(toolResult.content[0].text).toContain("REJECTED");
+			server.stop();
+		});
+
+		it("falls back to normal confirm tool when client does not support elicitation", async () => {
+			// Without elicitation capability, confirm uses the normal path.
+			// setConfirmOverride to avoid TTY dependency in test.
+			const { setConfirmOverride } = await import("../tools/confirm.js");
+			setConfirmOverride(async () => ({ approved: false, reason: "test-fallback" }));
+
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
+			await initServer(server, input, output); // no elicitation capability
+
+			sendRequest(input, 12, "tools/call", { name: "confirm", arguments: { action: "Some action" } });
+			const toolResp = await readResponse(output);
+			expect(toolResp.id).toBe(12);
+			const toolResult = toolResp.result as { content: Array<{ type: string; text: string }> };
+			expect(toolResult.content[0].text).toContain("REJECTED");
+			expect(toolResult.content[0].text).toContain("test-fallback");
+
+			setConfirmOverride(null);
+			server.stop();
+		});
+	});
+});

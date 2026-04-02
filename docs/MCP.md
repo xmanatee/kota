@@ -88,3 +88,33 @@ The server implements `prompts/list` and `prompts/get`. Three static prompt temp
 
 The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {} }` in its `initialize` response.
 It supports `resources/subscribe` and `resources/unsubscribe`; subscribed clients receive `notifications/resources/updated` when `kota://workflow/status` or `kota://tasks/ready` changes.
+
+## Elicitation
+
+KOTA supports the MCP elicitation capability (introduced in the 2025-03-26 protocol revision). Elicitation lets the server request structured input from the connected client mid-tool-call.
+
+**Capability negotiation**: Elicitation is opt-in. The server only advertises `elicitation: {}` in its `initialize` response when the client first declares `elicitation: {}` in its own capabilities. Clients that do not advertise elicitation are unaffected.
+
+**`confirm` tool**: When a client supports elicitation, the `confirm` tool uses `sampling/elicit` instead of falling back to `/dev/tty`. The client receives a structured boolean confirmation prompt and the tool result reflects the user's choice (`APPROVED` / `REJECTED`). Without elicitation, `confirm` continues to use the TTY fallback.
+
+**`requestElicitation` API**: Programmatic users of `McpServer` can call `server.requestElicitation(message, schema, timeoutMs?)` directly:
+
+```ts
+const result = await server.requestElicitation(
+  "Delete all workflow run artifacts?",
+  {
+    type: "object",
+    properties: {
+      confirmed: { type: "boolean", title: "Confirm deletion" },
+    },
+  },
+);
+
+if (!result || result.action !== "accept") {
+  // cancelled or rejected — abort
+} else {
+  const approved = result.content.confirmed === true;
+}
+```
+
+The method returns `null` if the client does not support elicitation, and rejects with an error if the timeout expires before the client responds (default: 300 s).
