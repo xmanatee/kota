@@ -74,7 +74,17 @@ A JSON array of the 10 most recent workflow run summaries:
 | `startedAt`    | string          | ISO start timestamp                  |
 | `completedAt`  | string \| null  | ISO completion timestamp             |
 
+## Prompts
+
+The server implements `prompts/list` and `prompts/get`. Three static prompt templates are available:
+
+| Name | Description | Arguments |
+|------|-------------|-----------|
+| `kota-create-task` | Draft a new task file in the correct frontmatter format | `title` (required), `area`, `priority` |
+| `kota-trigger-workflow` | Trigger a workflow by name with an optional JSON payload | `workflow` (required), `payload` |
+| `kota-summarize-run` | Summarize a workflow run in plain language | `run_id` (required) |
+
 ## Capabilities
 
-The server advertises `{ tools: {}, resources: {} }` in its `initialize` response.
-Resources are static — no subscriptions (`resources/subscribe`) in this implementation.
+The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {} }` in its `initialize` response.
+It supports `resources/subscribe` and `resources/unsubscribe`; subscribed clients receive `notifications/resources/updated` when `kota://workflow/status` or `kota://tasks/ready` changes.
