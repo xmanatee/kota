@@ -84,9 +84,20 @@ The server implements `prompts/list` and `prompts/get`. Three static prompt temp
 | `kota-trigger-workflow` | Trigger a workflow by name with an optional JSON payload | `workflow` (required), `payload` |
 | `kota-summarize-run` | Summarize a workflow run in plain language | `run_id` (required) |
 
+## Completions
+
+The server implements `completion/complete` for argument autocomplete in supported hosts (Claude Code, Cursor):
+
+| Prompt | Argument | Completion source |
+|--------|----------|-------------------|
+| `kota-trigger-workflow` | `workflow` | All registered workflow names, filtered by prefix |
+| `kota-summarize-run` | `run_id` | 20 most recent run IDs from the run store, filtered by prefix |
+
+When a user types a partial value in a compatible host, the host sends a `completion/complete` request and the server returns matching values as `{ completion: { values: string[], hasMore: boolean } }`. Free-text arguments (e.g., `payload`, `title`) return an empty list.
+
 ## Capabilities
 
-The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {} }` in its `initialize` response. When `mcp.sampling.enabled` is true, `sampling: {}` is also included.
+The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {}, completions: {} }` in its `initialize` response. When `mcp.sampling.enabled` is true, `sampling: {}` is also included.
 It supports `resources/subscribe` and `resources/unsubscribe`; subscribed clients receive `notifications/resources/updated` when `kota://workflow/status` or `kota://tasks/ready` changes.
 
 ## Elicitation

@@ -16,6 +16,8 @@ import { getEventBus } from "../event-bus.js";
 import type { ToolDef } from "../extension-types.js";
 import type { MessageCreateParams, ModelClient } from "../model/model-client.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
+import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
+import { WorkflowRunStore } from "../workflow/run-store.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
 	KNOWN_RESOURCE_URIS,
@@ -261,6 +263,8 @@ export class McpServer {
 				return this.handlePromptsGet(msg);
 			case "sampling/createMessage":
 				return this.handleSamplingCreateMessage(msg);
+			case "completion/complete":
+				return this.handleCompletionComplete(msg);
 			case "ping":
 				return this.sendResult(msg, {});
 			case "shutdown":
@@ -279,6 +283,7 @@ export class McpServer {
 			tools: {},
 			resources: { subscribe: true },
 			prompts: {},
+			completions: {},
 		};
 		if (this.clientSupportsElicitation) {
 			capabilities.elicitation = {};
@@ -294,7 +299,7 @@ export class McpServer {
 				version: this.serverVersion,
 			},
 		});
-		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation}, sampling: ${this.samplingEnabled && !!this.modelClient})`);
+		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation}, sampling: ${this.samplingEnabled && !!this.modelClient}, completions: true)`);
 	}
 
 	private handleResourcesSubscribe(msg: JsonRpcRequest): void {
@@ -501,6 +506,43 @@ export class McpServer {
 			content,
 			...(result.is_error && { isError: true }),
 		});
+	}
+
+	private handleCompletionComplete(msg: JsonRpcRequest): void {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		const params = (msg.params ?? {}) as Record<string, unknown>;
+		const ref = params.ref as { type?: string; name?: string } | undefined;
+		const argument = params.argument as { name?: string; value?: string } | undefined;
+
+		if (!ref || !argument) {
+			this.sendResult(msg, { completion: { values: [], hasMore: false } });
+			return;
+		}
+
+		const argName = argument.name ?? "";
+		const partial = (argument.value ?? "").toLowerCase();
+		let values: string[] = [];
+
+		if (ref.type === "ref/prompt") {
+			const promptName = ref.name ?? "";
+			if (promptName === "kota-trigger-workflow" && argName === "workflow") {
+				const defs = getBuiltinWorkflowDefinitions();
+				values = defs.map((d) => d.name).filter((n) => n.toLowerCase().startsWith(partial));
+			} else if (promptName === "kota-summarize-run" && argName === "run_id") {
+				try {
+					const store = new WorkflowRunStore(this.projectDir);
+					const runs = store.listRuns({ limit: 20 });
+					values = runs.map((r) => r.id).filter((id) => id.toLowerCase().startsWith(partial));
+				} catch {
+					values = [];
+				}
+			}
+		}
+
+		this.sendResult(msg, { completion: { values, hasMore: false } });
 	}
 
 	private async handleSamplingCreateMessage(msg: JsonRpcRequest): Promise<void> {

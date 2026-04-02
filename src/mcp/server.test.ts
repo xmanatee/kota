@@ -82,7 +82,7 @@ describe("McpServer", () => {
 			expect(resp.id).toBe(1);
 			const result = resp.result as Record<string, unknown>;
 			expect(result.protocolVersion).toBe("2024-11-05");
-			expect(result.capabilities).toEqual({ tools: {}, resources: { subscribe: true }, prompts: {} });
+			expect(result.capabilities).toEqual({ tools: {}, resources: { subscribe: true }, prompts: {}, completions: {} });
 			expect(result.serverInfo).toEqual({ name: "kota", version: "0.1.0" });
 
 			server.stop();
@@ -1334,6 +1334,102 @@ describe("sampling", () => {
 		expect(resp.error).toBeDefined();
 		const err = resp.error as { code: number; message: string };
 		expect(err.code).toBe(-32602);
+
+		server.stop();
+	});
+});
+
+describe("completion/complete", () => {
+	it("returns workflow names for kota-trigger-workflow workflow argument", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 20, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-trigger-workflow" },
+			argument: { name: "workflow", value: "" },
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { completion: { values: string[]; hasMore: boolean } };
+		expect(Array.isArray(result.completion.values)).toBe(true);
+		expect(result.completion.values.length).toBeGreaterThan(0);
+		expect(result.completion.hasMore).toBe(false);
+		expect(result.completion.values).toContain("builder");
+		expect(result.completion.values).toContain("explorer");
+
+		server.stop();
+	});
+
+	it("filters workflow names by partial value", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 21, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-trigger-workflow" },
+			argument: { name: "workflow", value: "bui" },
+		});
+		const resp = await readResponse(output);
+
+		const result = resp.result as { completion: { values: string[] } };
+		expect(result.completion.values).toContain("builder");
+		expect(result.completion.values.every((v) => v.startsWith("bui"))).toBe(true);
+
+		server.stop();
+	});
+
+	it("returns recent run IDs for kota-summarize-run run_id argument", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-compl-runs-"));
+		mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		await initServer(server, input, output);
+
+		sendRequest(input, 22, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-summarize-run" },
+			argument: { name: "run_id", value: "" },
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { completion: { values: string[]; hasMore: boolean } };
+		expect(Array.isArray(result.completion.values)).toBe(true);
+		expect(result.completion.hasMore).toBe(false);
+
+		server.stop();
+	});
+
+	it("returns empty list for non-completable prompt arguments", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 23, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-create-task" },
+			argument: { name: "title", value: "fix" },
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { completion: { values: string[] } };
+		expect(result.completion.values).toEqual([]);
+
+		server.stop();
+	});
+
+	it("returns empty list when ref or argument is missing", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 24, "completion/complete", {});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { completion: { values: string[] } };
+		expect(result.completion.values).toEqual([]);
 
 		server.stop();
 	});
