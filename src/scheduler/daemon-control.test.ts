@@ -765,7 +765,23 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.approval.id).toBe("appr-1");
-      expect(handle.approveApproval).toHaveBeenCalledWith("appr-1");
+      expect(handle.approveApproval).toHaveBeenCalledWith("appr-1", undefined);
+    });
+
+    it("passes note from request body to handle", async () => {
+      const approval = { id: "appr-1", tool: "Bash", input: {}, risk: "safe" as const, reason: "test", createdAt: "2026-01-01T00:00:00.000Z", status: "approved" as const, approvalNote: "please add a test" };
+      handle = makeHandle({ approveApproval: vi.fn(() => approval) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/approvals/appr-1/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: "please add a test" }),
+      });
+      expect(res.status).toBe(200);
+      expect(handle.approveApproval).toHaveBeenCalledWith("appr-1", "please add a test");
     });
 
     it("returns 404 when approval not found", async () => {

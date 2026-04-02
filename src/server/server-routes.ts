@@ -208,7 +208,7 @@ export function buildRequestHandler(ctx: ServerContext) {
       const approvalId = approvalActionMatch[1];
       const action = approvalActionMatch[2];
       if (action === "approve") {
-        handleApproveApproval(res, approvalId, DaemonControlClient.fromStateDir()).catch((err) => {
+        handleApproveApproval(req, res, approvalId, DaemonControlClient.fromStateDir()).catch((err) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
         });
       } else {

@@ -559,6 +559,12 @@ Lists all pending approval requests.
 
 Approves a pending approval request.
 
+**Request body (optional):** `{ "note": "optional operator note" }`
+
+When provided, `note` is stored on the approval record as `approvalNote` and included in the
+approval step's output object, making it available to subsequent agent steps via the normal
+`shareOutput` mechanism.
+
 **Response:** `{ "approval": <PendingApproval> }` with status `approved`.
 
 Returns `404` if not found or not pending.

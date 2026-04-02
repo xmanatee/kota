@@ -58,9 +58,10 @@ export function registerApprovalCommands(program: Command): void {
   approvalCmd
     .command("approve <id>")
     .description("Approve and execute a queued tool call")
-    .action(async (id: string) => {
+    .option("-n, --note <text>", "Note to attach with the approval")
+    .action(async (id: string, opts: { note?: string }) => {
       const queue = getApprovalQueue();
-      const item = queue.approve(id);
+      const item = queue.approve(id, opts.note);
       if (!item) {
         console.error(`Error: approval "${id}" not found or already resolved.`);
         process.exit(1);
@@ -70,7 +71,8 @@ export function registerApprovalCommands(program: Command): void {
         console.error(`Tool execution failed:\n${result.content}`);
         process.exit(1);
       }
-      console.log(`Approved and executed ${item.tool}:\n${result.content}`);
+      const noteSuffix = item.approvalNote ? ` — note: ${item.approvalNote}` : "";
+      console.log(`Approved and executed ${item.tool}:\n${result.content}${noteSuffix}`);
     });
 
   approvalCmd
@@ -153,6 +155,7 @@ export function registerApprovalCommands(program: Command): void {
         if (item.rejectionReason && item.rejectionReason !== "expired") {
           console.log(`    Reason: ${item.rejectionReason}`);
         }
+        if (item.approvalNote) console.log(`    Note:   ${item.approvalNote}`);
         if (item.source) console.log(`    Source: ${item.source}`);
         console.log();
       }

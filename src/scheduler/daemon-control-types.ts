@@ -174,7 +174,7 @@ export type DaemonControlHandle = {
   deleteHistory(id: string): boolean;
   // Approvals
   listApprovals(): PendingApproval[];
-  approveApproval(id: string): PendingApproval | null;
+  approveApproval(id: string, note?: string): PendingApproval | null;
   rejectApproval(id: string, reason?: string): PendingApproval | null;
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;

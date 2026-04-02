@@ -217,11 +217,12 @@ export class DaemonControlClient {
     }
   }
 
-  async approveApproval(id: string): Promise<{ approval: PendingApproval } | null> {
+  async approveApproval(id: string, note?: string): Promise<{ approval: PendingApproval } | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/approvals/${encodeURIComponent(id)}/approve`, {
         method: "POST",
-        headers: this.authHeaders(),
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ note }),
       });
       if (!res.ok) return null;
       return (await res.json()) as { approval: PendingApproval };

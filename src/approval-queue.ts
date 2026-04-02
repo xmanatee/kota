@@ -27,6 +27,7 @@ export type PendingApproval = {
 	status: ApprovalStatus;
 	resolvedAt?: string;
 	rejectionReason?: string;
+	approvalNote?: string;
 	timeoutMs?: number;
 	defaultResolution?: "deny" | "approve";
 	resolutionSource?: string;
@@ -82,11 +83,12 @@ export class ApprovalQueue {
 			.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0));
 	}
 
-	approve(id: string): PendingApproval | null {
+	approve(id: string, note?: string): PendingApproval | null {
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return null;
 		item.status = "approved";
 		item.resolvedAt = new Date().toISOString();
+		if (note) item.approvalNote = note;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.resolved", { id, tool: item.tool, approved: true, reason: "" });
 		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });

@@ -286,7 +286,7 @@ export class DaemonControlServer {
     if (method === "DELETE" && params.id && path.startsWith("/history/")) { handleDeleteHistory(h, req, res, params); return; }
 
     if (method === "GET" && path === "/approvals") { handleListApprovals(h, res); return; }
-    if (method === "POST" && params.id && path.endsWith("/approve")) { handleApproveApproval(h, res, params); return; }
+    if (method === "POST" && params.id && path.endsWith("/approve")) { handleApproveApproval(h, req, res, params); return; }
     if (method === "POST" && params.id && path.endsWith("/reject")) { handleRejectApproval(h, req, res, params); return; }
 
     if (method === "GET" && path === "/tasks") { jsonResponse(res, 200, h.getTaskStatus()); return; }

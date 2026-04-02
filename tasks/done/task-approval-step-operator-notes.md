@@ -1,7 +1,7 @@
 ---
 id: task-approval-step-operator-notes
 title: Let operators attach notes when approving workflow steps
-status: ready
+status: done
 priority: p2
 area: operator-ux
 summary: Approval step resolutions are binary (approve/reject) with no way to pass guidance. Operators who want to approve with caveats must wait for the next human-in-the-loop touchpoint. Adding an optional notes field to approval responses would surface operator intent to the next agent step.

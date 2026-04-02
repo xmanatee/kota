@@ -8,15 +8,27 @@ export function handleListApprovals(handle: DaemonControlHandle, res: ServerResp
 
 export function handleApproveApproval(
   handle: DaemonControlHandle,
+  req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
 ): void {
-  const item = handle.approveApproval(params.id);
-  if (!item) {
-    jsonResponse(res, 404, { error: "Approval not found or not pending" });
-    return;
-  }
-  jsonResponse(res, 200, { approval: item });
+  readBody(req)
+    .then((buf) => {
+      let note: string | undefined;
+      try {
+        const body = JSON.parse(buf.toString()) as Record<string, unknown>;
+        note = typeof body.note === "string" ? body.note : undefined;
+      } catch {
+        // note is optional
+      }
+      const item = handle.approveApproval(params.id, note);
+      if (!item) {
+        jsonResponse(res, 404, { error: "Approval not found or not pending" });
+        return;
+      }
+      jsonResponse(res, 200, { approval: item });
+    })
+    .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
 }
 
 export function handleRejectApproval(

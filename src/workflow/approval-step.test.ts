@@ -49,6 +49,37 @@ function makeApprovalStep(overrides: Partial<WorkflowApprovalStepInput> = {}): W
   return { id: "gate", type: "approval", ...overrides };
 }
 
+describe("executeApprovalStep – note propagation", () => {
+  it("includes approvalNote in output when approved with a note", async () => {
+    const ac = new AbortController();
+    const step = makeApprovalStep();
+    const stepPromise = executeApprovalStep(step as never, makeContext() as never, ac.signal);
+
+    // Let the executor enqueue and enter the poll loop, then approve with a note
+    await new Promise((r) => setTimeout(r, 10));
+    const pending = testQueue.list("pending");
+    expect(pending).toHaveLength(1);
+    testQueue.approve(pending[0].id, "please add a unit test");
+
+    const output = await stepPromise;
+    expect(output).toMatchObject({ approved: true, approvalNote: "please add a unit test" });
+  });
+
+  it("omits approvalNote in output when approved without a note", async () => {
+    const ac = new AbortController();
+    const step = makeApprovalStep();
+    const stepPromise = executeApprovalStep(step as never, makeContext() as never, ac.signal);
+
+    await new Promise((r) => setTimeout(r, 10));
+    const pending = testQueue.list("pending");
+    testQueue.approve(pending[0].id);
+
+    const output = await stepPromise;
+    expect(output).toMatchObject({ approved: true });
+    expect((output as { approvalNote?: unknown }).approvalNote).toBeUndefined();
+  });
+});
+
 describe("executeApprovalStep – abort cleanup", () => {
   it("rejects the queue entry when the AbortSignal fires before approval", async () => {
     const ac = new AbortController();
@@ -87,6 +118,18 @@ describe("approval step – WorkflowTestHarness", () => {
     expect(result.status).toBe("success");
     expect(result.steps.confirm.status).toBe("success");
     expect(result.steps.confirm.output).toMatchObject({ approved: true, resolutionSource: "harness" });
+  });
+
+  it("includes approvalNote in output when mock provides one", async () => {
+    const harness = new WorkflowTestHarness(
+      makeWorkflow([
+        { id: "confirm", type: "approval" } satisfies WorkflowApprovalStepInput,
+      ]),
+      { stepMocks: { confirm: { approved: true, approvalNote: "add a test" } } },
+    );
+    const result = await harness.run();
+    expect(result.status).toBe("success");
+    expect(result.steps.confirm.output).toMatchObject({ approved: true, approvalNote: "add a test" });
   });
 
   it("approves when mock is truthy (not a rejection object)", async () => {

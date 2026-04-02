@@ -502,7 +502,13 @@ export class WorkflowTestHarness {
             );
           }
           // Default: approve
-          output = { approvalId: "harness-approval", approved: true, resolutionSource: "harness" };
+          const approvalNote = mock !== undefined && mock !== null ? (mock as { approvalNote?: string }).approvalNote : undefined;
+          output = {
+            approvalId: "harness-approval",
+            approved: true,
+            resolutionSource: "harness",
+            ...(approvalNote && { approvalNote }),
+          };
         }
       } catch (err) {
         stepError = err instanceof Error ? err.message : String(err);

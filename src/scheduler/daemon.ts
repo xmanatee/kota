@@ -197,7 +197,7 @@ export class Daemon {
       getHistory: (id: string) => getHistory().load(id) ?? null,
       deleteHistory: (id: string) => getHistory().remove(id),
       listApprovals: () => getApprovalQueue().list("pending"),
-      approveApproval: (id: string) => getApprovalQueue().approve(id),
+      approveApproval: (id: string, note?: string) => getApprovalQueue().approve(id, note),
       rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
       listWorkflowRuns: (workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[] =>
         this.runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((m) => ({

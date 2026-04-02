@@ -62,6 +62,7 @@ export async function executeApprovalStep(
           approved: true,
           resolvedAt: current.resolvedAt,
           resolutionSource: current.resolutionSource ?? "human",
+          ...(current.approvalNote && { approvalNote: current.approvalNote }),
         };
       }
 

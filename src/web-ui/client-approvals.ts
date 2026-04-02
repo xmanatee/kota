@@ -43,9 +43,14 @@ export const CLIENT_APPROVALS_JS = `
     for (var j = 0; j < approveBtns.length; j++) {
       (function(btn) {
         btn.onclick = async function() {
+          var note = window.prompt("Optional note for this approval (leave blank to skip):") || undefined;
           btn.disabled = true;
           try {
-            await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", { method: "POST" });
+            await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ note: note }),
+            });
             refreshApprovals();
           } catch { btn.disabled = false; }
         };

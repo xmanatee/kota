@@ -97,7 +97,7 @@ describe("approval-routes", () => {
 			const approval = { id: "a1", tool: "shell", status: "approved" };
 			const client = mockClient({ approveApproval: vi.fn(async () => ({ approval })) });
 			const { res, result } = mockResponse();
-			await handleApproveApproval(res, "a1", client, makeQueue());
+			await handleApproveApproval(mockRequest(), res, "a1", client, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
 		});
@@ -152,16 +152,37 @@ describe("approval-routes", () => {
 			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
 
 			const { res, result } = mockResponse();
-			await handleApproveApproval(res, item.id, null, queue);
+			await handleApproveApproval(mockRequest(), res, item.id, null, queue);
 			expect(result.status).toBe(200);
 			const body = result.body as { approval: { id: string; status: string } };
 			expect(body.approval.id).toBe(item.id);
 			expect(body.approval.status).toBe("approved");
 		});
 
+		it("stores note from request body when provided", async () => {
+			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
+
+			const { res, result } = mockResponse();
+			await handleApproveApproval(mockRequest({ note: "please add a unit test" }), res, item.id, null, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approval: { approvalNote: string } };
+			expect(body.approval.approvalNote).toBe("please add a unit test");
+		});
+
+		it("approves without note when body omits it", async () => {
+			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
+
+			const { res, result } = mockResponse();
+			await handleApproveApproval(mockRequest({}), res, item.id, null, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approval: { status: string; approvalNote?: string } };
+			expect(body.approval.status).toBe("approved");
+			expect(body.approval.approvalNote).toBeUndefined();
+		});
+
 		it("returns 404 for unknown id", async () => {
 			const { res, result } = mockResponse();
-			await handleApproveApproval(res, "nonexistent", null, queue);
+			await handleApproveApproval(mockRequest(), res, "nonexistent", null, queue);
 			expect(result.status).toBe(404);
 		});
 
@@ -170,7 +191,7 @@ describe("approval-routes", () => {
 			queue.approve(item.id);
 
 			const { res, result } = mockResponse();
-			await handleApproveApproval(res, item.id, null, queue);
+			await handleApproveApproval(mockRequest(), res, item.id, null, queue);
 			expect(result.status).toBe(404);
 		});
 	});

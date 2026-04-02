@@ -19,19 +19,28 @@ export async function handleListApprovals(
 }
 
 export async function handleApproveApproval(
+  req: IncomingMessage,
   res: ServerResponse,
   id: string,
   client: DaemonControlClient | null = null,
   queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
+  let note: string | undefined;
+  try {
+    const body = await readBody(req);
+    note = typeof body.note === "string" ? body.note : undefined;
+  } catch {
+    // note is optional
+  }
+
   if (client) {
-    const result = await client.approveApproval(id);
+    const result = await client.approveApproval(id, note);
     if (result) {
       jsonResponse(res, 200, result);
       return;
     }
   }
-  const item = queue.approve(id);
+  const item = queue.approve(id, note);
   if (!item) {
     jsonResponse(res, 404, { error: "Approval not found or not pending" });
     return;

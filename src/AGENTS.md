@@ -30,7 +30,7 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `tool-adapter-types.ts` — `SimpleTool`, `OpenAIFunctionTool`, and `VercelAITool` external format types; lightweight import path for consumers that only need types.
 - `tool-adapters.ts` — adapter functions (`fromSimple`, `fromOpenAI`, `fromVercelAI`, `adaptExport`) that convert external tool formats to KOTA's `ToolDef`/`KotaExtension`; re-exports types from `tool-adapter-types.ts`.
 - `init-cli.ts` — `registerInitCommand`, `runInit`: `kota init` command that scaffolds a new KOTA project with config, task directories, docs, and `.kota/` runtime dir.
-- `approval-queue.ts` — `ApprovalQueue` class and singleton `getApprovalQueue`/`resetApprovalQueue`; file-based store for tool calls awaiting human approval; exports `PendingApproval` type (with `timeoutMs`, `defaultResolution`, `resolutionSource` for expiry) and `ApprovalStatus` enum.
+- `approval-queue.ts` — `ApprovalQueue` class and singleton `getApprovalQueue`/`resetApprovalQueue`; file-based store for tool calls awaiting human approval; exports `PendingApproval` type (with `timeoutMs`, `defaultResolution`, `resolutionSource` for expiry, `approvalNote` for optional operator notes on approved items) and `ApprovalStatus` enum.
 - `approval-cli.ts` — `registerApprovalCommands`: CLI subcommands for the approval queue (`kota approval list`, `kota approval approve`, `kota approval reject`, `kota approval count`, `kota approval history`).
 - `audit-cli.ts` — `registerAuditCommands`: CLI subcommands for the guardrail audit trail (`kota audit list`, with `--risk`, `--policy`, `-n` filters).
 - `task-cli.ts` — `registerTaskCommands`: CLI subcommands for the task store (`kota task`).
