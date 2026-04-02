@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-trigger-input-form
 title: Collect required inputs before triggering workflows with inputSchema from the web UI
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The web UI definitions panel shows that a workflow has required inputs but the Trigger button fires without collecting them, silently sending an empty payload. Workflows with required inputSchema fields fail on the server side with no visible error in the UI.

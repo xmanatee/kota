@@ -1,7 +1,7 @@
 ---
 id: task-prometheus-active-run-gauges
 title: Add active-run and queue-depth gauges to the Prometheus metrics endpoint
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The GET /metrics endpoint exposes cumulative counters but no real-time gauges for how many workflow runs are currently active or queued. Without these, operators cannot alert on stuck workflows or queue buildup using standard Prometheus rules.
