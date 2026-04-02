@@ -19,6 +19,24 @@ KOTA loads config from two JSON files merged in order (project overrides global)
 
 CLI flags take highest precedence over both files.
 
+## IDE validation and autocompletion
+
+A JSON Schema for `.kota/config.json` is published at `schema/kota-config.schema.json` in the package root. Wire it to your editor for inline validation and documentation-on-hover:
+
+```json
+// .vscode/settings.json
+{
+  "json.schemas": [
+    {
+      "fileMatch": [".kota/config.json"],
+      "url": "${workspaceFolder}/schema/kota-config.schema.json"
+    }
+  ]
+}
+```
+
+Run `kota config schema` to print the absolute path to the schema file. Pass `--print` to output the schema content directly.
+
 ## Log settings
 
 ```json

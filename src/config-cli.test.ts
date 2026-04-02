@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerConfigCommands } from "./config-cli.js";
@@ -271,5 +271,55 @@ describe("kota config set", () => {
       makeProgram().parse(["node", "kota", "config", "set", "unknownKey", "value"]);
     });
     expect(err).toContain("not a recognised config key");
+  });
+});
+
+describe("kota config schema", () => {
+  it("prints the path to the schema file", () => {
+    const { out } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "schema"]);
+    });
+    const schemaPath = out.trim();
+    expect(schemaPath).toMatch(/kota-config\.schema\.json$/);
+    expect(existsSync(schemaPath)).toBe(true);
+  });
+
+  it("schema file exists and is valid JSON Schema", () => {
+    const { out } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "schema"]);
+    });
+    const schemaPath = resolve(out.trim());
+    const content = JSON.parse(readFileSync(schemaPath, "utf-8"));
+    expect(content.$schema).toMatch(/json-schema/);
+    expect(content.type).toBe("object");
+    expect(content.properties).toBeDefined();
+  });
+
+  it("--print outputs schema content", () => {
+    const { out } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "schema", "--print"]);
+    });
+    const content = JSON.parse(out.trim());
+    expect(content.$schema).toBeDefined();
+    expect(content.properties).toBeDefined();
+  });
+
+  it("schema covers all known config keys", () => {
+    const { out } = captureOutput(() => {
+      makeProgram().parse(["node", "kota", "config", "schema"]);
+    });
+    const schemaPath = resolve(out.trim());
+    const schema = JSON.parse(readFileSync(schemaPath, "utf-8"));
+    const schemaKeys = new Set(Object.keys(schema.properties));
+    const knownKeys = [
+      "model", "editorModel", "maxTokens", "architect", "thinking", "thinkingBudget",
+      "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
+      "guardrails", "extensions", "foreignExtensions", "providers", "modelProvider",
+      "modelTiers", "agentModels", "webhooks", "approvalTtlMs", "dailyBudgetUsd",
+      "runsGc", "serve", "log", "daemon", "notifications",
+    ];
+    for (const key of knownKeys) {
+      expect(schemaKeys.has(key), `schema missing key: ${key}`).toBe(true);
+    }
   });
 });

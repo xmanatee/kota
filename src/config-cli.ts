@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import type { KotaConfig } from "./config.js";
 import { loadConfig, updateProjectConfig } from "./config.js";
@@ -30,7 +31,9 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>([
   "dailyBudgetUsd",
   "runsGc",
   "serve",
+  "log",
   "daemon",
+  "notifications",
 ]);
 
 function readRawKeys(path: string): string[] | null {
@@ -149,5 +152,18 @@ export function registerConfigCommands(program: Command): void {
         nested[parts[1]] = parsed;
         return { ...raw, [parts[0]]: nested };
       });
+    });
+
+  config
+    .command("schema")
+    .description("Print the path to the kota-config JSON Schema file")
+    .option("--print", "Print the schema content instead of the path")
+    .action((opts: { print?: boolean }) => {
+      const schemaPath = fileURLToPath(new URL("../schema/kota-config.schema.json", import.meta.url));
+      if (opts.print) {
+        process.stdout.write(`${readFileSync(schemaPath, "utf-8")}\n`);
+      } else {
+        process.stdout.write(`${schemaPath}\n`);
+      }
     });
 }

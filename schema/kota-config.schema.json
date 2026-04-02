@@ -1,0 +1,301 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kota.dev/schema/kota-config.schema.json",
+  "title": "KotaConfig",
+  "description": "KOTA configuration file (.kota/config.json). Project-level config overrides global (~/.kota/config.json); CLI flags override both.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "Default model ID to use for agent sessions (e.g. \"claude-sonnet-4-6\")."
+    },
+    "editorModel": {
+      "type": "string",
+      "description": "Model ID to use for editor-style operations (diff application, etc.)."
+    },
+    "maxTokens": {
+      "type": "number",
+      "minimum": 1,
+      "description": "Maximum output tokens per API call."
+    },
+    "architect": {
+      "type": "boolean",
+      "description": "Enable architect mode (two-pass plan-then-implement). Default: false."
+    },
+    "thinking": {
+      "type": "boolean",
+      "description": "Enable extended thinking for supported models. Default: false."
+    },
+    "thinkingBudget": {
+      "type": "number",
+      "minimum": 1024,
+      "description": "Token budget for extended thinking when `thinking` is enabled. Minimum: 1024."
+    },
+    "verbose": {
+      "type": "boolean",
+      "description": "Enable verbose log output. Default: false."
+    },
+    "skipConfirmations": {
+      "type": "boolean",
+      "description": "Skip all interactive confirmation prompts (non-interactive mode). Default: false."
+    },
+    "autoEnable": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tool groups to auto-enable at session start (e.g. [\"web\", \"code\"])."
+    },
+    "user": {
+      "type": "object",
+      "description": "User profile — injected into system prompt for personalization.",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Your name, used in the system prompt."
+        },
+        "context": {
+          "type": "string",
+          "description": "Free-form context about you and your work injected into the system prompt."
+        }
+      }
+    },
+    "aliases": {
+      "type": "object",
+      "description": "Prompt aliases — keys that expand into prefix text when starting a message.",
+      "additionalProperties": { "type": "string" }
+    },
+    "reflection": {
+      "type": "boolean",
+      "description": "Evaluate response quality before delivering (self-reflection step). Default: true."
+    },
+    "guardrails": {
+      "type": "object",
+      "description": "Risk classification and policy enforcement for tool calls.",
+      "additionalProperties": false,
+      "properties": {
+        "policies": {
+          "type": "object",
+          "description": "Policy per risk level. Keys: safe, moderate, dangerous.",
+          "additionalProperties": false,
+          "properties": {
+            "safe": { "$ref": "#/definitions/policy" },
+            "moderate": { "$ref": "#/definitions/policy" },
+            "dangerous": { "$ref": "#/definitions/policy" }
+          }
+        },
+        "toolOverrides": {
+          "type": "object",
+          "description": "Per-tool policy overrides. Keys are tool names; values are policies.",
+          "additionalProperties": { "$ref": "#/definitions/policy" }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Per-extension configuration. Keys are extension names; values are extension-specific settings.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "foreignExtensions": {
+      "type": "array",
+      "description": "Foreign-language (out-of-process) extensions. See docs/FOREIGN-EXTENSIONS.md.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Subprocess extension communicating via stdio (KEMP protocol).",
+            "required": ["transport", "command"],
+            "additionalProperties": false,
+            "properties": {
+              "transport": { "type": "string", "enum": ["stdio"] },
+              "command": {
+                "type": "string",
+                "description": "Command to execute (e.g. \"node\", \"python3\")."
+              },
+              "args": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Arguments passed to the command."
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": { "type": "string" },
+                "description": "Environment variables to set for the subprocess."
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory for the subprocess."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "HTTP extension communicating via HTTP (KEMP protocol).",
+            "required": ["transport", "url"],
+            "additionalProperties": false,
+            "properties": {
+              "transport": { "type": "string", "enum": ["http"] },
+              "url": {
+                "type": "string",
+                "description": "Base URL for the HTTP extension endpoint."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "Provider overrides. Keys are service types (e.g. \"memory\", \"knowledge\"); values are provider names.",
+      "additionalProperties": { "type": "string" }
+    },
+    "modelProvider": {
+      "type": "object",
+      "description": "Model provider configuration for non-Anthropic backends (OpenAI-compat, Ollama, etc.).",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Provider type (e.g. \"openai\", \"ollama\")."
+        },
+        "baseUrl": {
+          "type": "string",
+          "description": "Base URL for the provider API."
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "API key for the provider."
+        }
+      }
+    },
+    "modelTiers": {
+      "type": "object",
+      "description": "Model tier mapping for adaptive routing.",
+      "additionalProperties": false,
+      "properties": {
+        "fast": {
+          "type": "string",
+          "description": "Model ID for the fast tier (low-latency, high-throughput tasks)."
+        },
+        "balanced": {
+          "type": "string",
+          "description": "Model ID for the balanced tier (default for most tasks)."
+        },
+        "capable": {
+          "type": "string",
+          "description": "Model ID for the capable tier (complex reasoning tasks)."
+        }
+      }
+    },
+    "agentModels": {
+      "type": "object",
+      "description": "Per-agent model overrides. Keys are agent names (built-in or extension-contributed); values are model IDs.",
+      "additionalProperties": { "type": "string" }
+    },
+    "webhooks": {
+      "type": "object",
+      "description": "Per-workflow webhook secrets for POST /webhooks/:workflowName. Keep in .kota/config.json (gitignored).",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["secret"],
+        "additionalProperties": false,
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "HMAC secret for the webhook."
+          }
+        }
+      }
+    },
+    "approvalTtlMs": {
+      "type": "number",
+      "minimum": 1,
+      "description": "TTL for pending approval items in milliseconds. Default: 86400000 (24 hours)."
+    },
+    "dailyBudgetUsd": {
+      "type": "number",
+      "minimum": 0,
+      "exclusiveMinimum": true,
+      "description": "Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded."
+    },
+    "runsGc": {
+      "type": "object",
+      "description": "Run artifact retention policy for .kota/runs/. Applied when `kota workflow gc` is run.",
+      "additionalProperties": false,
+      "properties": {
+        "retentionDays": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Delete runs older than this many days. Default: 7."
+        },
+        "minKeepPerWorkflow": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Always keep at least this many recent runs per workflow. Default: 10."
+        }
+      }
+    },
+    "serve": {
+      "type": "object",
+      "description": "HTTP server settings for `kota serve`.",
+      "additionalProperties": false,
+      "properties": {
+        "noAuth": {
+          "type": "boolean",
+          "description": "Disable bearer-token auth. For localhost-only dev use. Default: false (auth enabled)."
+        }
+      }
+    },
+    "log": {
+      "type": "object",
+      "description": "Log output settings.",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["text", "json"],
+          "description": "Output format. \"text\" is human-readable (default); \"json\" emits newline-delimited JSON for log aggregators. Overridden by LOG_FORMAT env var."
+        }
+      }
+    },
+    "daemon": {
+      "type": "object",
+      "description": "Daemon lifecycle settings.",
+      "additionalProperties": false,
+      "properties": {
+        "shutdownGracePeriodMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long (ms) to wait for active workflow runs to complete before aborting them during shutdown. 0 = drain indefinitely. Default: 60000 (60s)."
+        },
+        "eventBufferSize": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Number of recent SSE events to retain in the in-memory ring buffer for GET /api/events and SSE reconnect replay. Default: 500."
+        }
+      }
+    },
+    "notifications": {
+      "type": "object",
+      "description": "Notification settings.",
+      "additionalProperties": false,
+      "properties": {
+        "alertCooldownMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Minimum milliseconds between failure alerts for the same workflow. Default: 0 (no cooldown — every failure fires an alert). Example: 300000 suppresses repeated alerts within 5 minutes."
+        }
+      }
+    }
+  },
+  "definitions": {
+    "policy": {
+      "type": "string",
+      "enum": ["allow", "confirm", "deny", "queue"],
+      "description": "Guardrail policy: allow (proceed silently), confirm (ask user), deny (block), queue (add to approval queue)."
+    }
+  }
+}

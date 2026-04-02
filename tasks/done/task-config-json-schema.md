@@ -1,7 +1,7 @@
 ---
 id: task-config-json-schema
 title: Publish JSON Schema for kota.config to enable IDE validation and autocompletion
-status: ready
+status: done
 priority: p3
 area: cli
 summary: kota.config.json has no published JSON Schema, so operators get no IDE autocompletion or validation feedback when editing the config file. A schema would catch typos and surface available options without reading docs.
