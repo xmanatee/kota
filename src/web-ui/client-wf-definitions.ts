@@ -51,6 +51,8 @@ export const CLIENT_WF_DEFINITIONS_JS = `
         var item = document.createElement("div");
         item.className = "schedule-item";
 
+        var effectiveEnabled = def.runtimeEnabled !== undefined ? def.runtimeEnabled : (def.enabled !== false);
+
         var nameDiv = document.createElement("div");
         nameDiv.className = "schedule-name";
         nameDiv.innerHTML =
@@ -58,7 +60,7 @@ export const CLIENT_WF_DEFINITIONS_JS = `
             ? '<span class="run-badge ' + statusClass + '">' + statusIcon + '</span>'
             : '<span class="run-badge pending">\\u00b7</span>') +
           escapeHtml(def.name) +
-          (!def.enabled ? ' <span class="run-meta">(disabled)</span>' : "");
+          (!effectiveEnabled ? ' <span class="run-meta">(disabled)</span>' : "");
         item.appendChild(nameDiv);
 
         var triggerDiv = document.createElement("div");
@@ -203,6 +205,32 @@ export const CLIENT_WF_DEFINITIONS_JS = `
           })(def, btn, item);
           item.appendChild(btn);
         }
+
+        var toggleBtn = document.createElement("button");
+        toggleBtn.className = "wf-ctrl-btn";
+        toggleBtn.textContent = effectiveEnabled ? "Disable" : "Enable";
+        toggleBtn.title = (effectiveEnabled ? "Disable " : "Enable ") + def.name;
+        toggleBtn.onclick = (function(defRef, btnRef) {
+          return async function() {
+            btnRef.disabled = true;
+            try {
+              var action = effectiveEnabled ? "disable" : "enable";
+              var r = await apiFetch(API + "/api/workflow/definitions/" + encodeURIComponent(defRef.name) + "/" + action, {
+                method: "POST",
+              });
+              if (!r.ok) {
+                var d = await r.json();
+                btnRef.title = d.error || "Error";
+                btnRef.disabled = false;
+              } else {
+                await refreshWfDefinitions();
+              }
+            } catch {
+              btnRef.disabled = false;
+            }
+          };
+        })(def, toggleBtn);
+        item.appendChild(toggleBtn);
 
         $wfDefinitionsList.appendChild(item);
       })(sorted[i]);

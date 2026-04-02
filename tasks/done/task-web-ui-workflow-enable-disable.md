@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-workflow-enable-disable
 title: Add enable/disable toggle to workflow definitions panel in web UI
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The workflow definitions panel shows (disabled) for disabled workflows but has no toggle button. The daemon API already exposes POST /workflow/definitions/:name/enable and /disable — exposing them in the UI would let operators control individual workflows from the browser without CLI access.
