@@ -78,7 +78,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   same run — the relevant section (Tools, Resources, Prompts, or Capabilities); when you
   add a new flag to `kota doctor` (`src/doctor-cli.ts`), add it to the flags table in the
   `## Health checks (kota doctor)` section of `docs/CONFIG.md`; when you add a new check
-  category to `runDoctorChecks`, add a row to the checks table in the same section.
+  category to `runDoctorChecks`, add a row to the checks table in the same section; when you
+  add a new top-level section to `KotaConfig` in `src/config.ts` (a new key like `mcp`,
+  `scheduler`, `serve`, or similar), add a bullet for its primary user-visible setting to the
+  `## Other notable settings` list in `docs/CONFIG.md` with a pointer to any deeper docs.
 - If implementation uncovers a genuinely useful follow-up, capture it lightly in `tasks/inbox/` or enrich the current task instead of creating duplicate work. Use ISO 8601 datetime for `created_at` and `updated_at` in any task files you create (e.g. `2026-03-27T11:40:00Z`).
 - Keep files readable and reasonably scoped, but do not treat line counts as a goal. Do not create automatic split follow-ups just because a touched file is large; only capture structural follow-up work when it clearly unlocks a larger change or resolves real concept confusion.
 - Do not turn one structural task into a chain of adjacent split, rename, or dedup tasks just because they are easy and local. Prefer one cohesive, higher-leverage improvement per run.

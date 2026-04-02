@@ -112,6 +112,7 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `webhooks` — per-workflow webhook secrets
 - `scheduler.dispatchWindow` — restrict idle and interval triggers to specific hours/days (see below)
 - `workflow.maxStepOutputBytes` — cap step output size to prevent large outputs flooding disk and agent context (see below)
+- `mcp.sampling.enabled` — allow MCP clients to delegate LLM completions to KOTA (default: `false`; see `docs/MCP.md`)
 
 ## Workflow
 
