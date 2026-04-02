@@ -120,7 +120,7 @@ Configure it in your KOTA config under the `slack` key:
 }
 ```
 
-To forward only a subset of the four notification events, add an `events` array.
+To forward only a subset of the notification events, add an `events` array.
 `approval.requested` is always forwarded regardless of the filter.
 
 ```json

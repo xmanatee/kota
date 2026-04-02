@@ -7,7 +7,7 @@
  * Config (kota.config under the "webhook" key):
  *   { urls: string[], events?: string[], retries?: number, retryDelayMs?: number }
  *
- * If `events` is omitted, all four notification events are active.
+ * If `events` is omitted, all notification events are active.
  * If `urls` is empty or the extension is not configured, the module is a no-op.
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
@@ -26,7 +26,7 @@ const NOTIFICATION_EVENTS = [
 type WebhookConfig = {
   /** One or more POST endpoints to notify. */
   urls: string[];
-  /** Subset of notification events to forward. Defaults to all four. */
+  /** Subset of notification events to forward. Defaults to all. */
   events?: string[];
   /** Number of retry attempts after the initial try. Default: 3. */
   retries?: number;

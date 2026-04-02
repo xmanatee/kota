@@ -147,7 +147,7 @@ describe("slackModule notifications", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
-  it("fires all five default notification events", async () => {
+  it("fires all default notification events", async () => {
     const bus = new EventBus();
     slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
     bus.emit("workflow.failure.alert", { text: "failure" });

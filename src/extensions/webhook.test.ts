@@ -204,7 +204,7 @@ describe("webhookModule notifications", () => {
     vi.useRealTimers();
   });
 
-  it("POSTs on all four default notification events", async () => {
+  it("POSTs on all default notification events", async () => {
     const bus = new EventBus();
     webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
 
@@ -212,9 +212,10 @@ describe("webhookModule notifications", () => {
     bus.emit("workflow.budget.exceeded", { text: "budget" });
     bus.emit("workflow.attention.digest", { text: "digest" });
     bus.emit("workflow.cost.limit.reached", { text: "cost" });
+    bus.emit("workflow.cost.anomaly", { text: "anomaly", workflow: "builder", runCostUsd: 2.0, baselineCostUsd: 0.5, thresholdMultiplier: 3 });
 
     await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(mockFetch).toHaveBeenCalledTimes(5);
   });
 
   it("forwards approval.requested regardless of events filter", async () => {
