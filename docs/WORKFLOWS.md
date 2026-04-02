@@ -645,6 +645,20 @@ commit hash, date, and message. `--diff` adds the file diff for each commit.
 Fails gracefully if the repository is not a git repo or if the definition file
 is not tracked by git.
 
+### Enable or disable a workflow
+
+```
+kota workflow enable <name>
+kota workflow disable <name>
+```
+
+Enables or disables a workflow at runtime without editing its definition file.
+The override is in-memory only — it is cleared when the daemon restarts. To
+make the change permanent, set `enabled: false` in the workflow definition.
+
+- Requires a running daemon.
+- `kota workflow status` shows the effective enabled state.
+
 ### Validate definitions (CI / pre-commit)
 
 ```
