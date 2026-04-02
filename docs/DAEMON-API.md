@@ -682,7 +682,7 @@ API when the daemon is running:
 
 When the daemon is not running:
 - `/api/daemon/status` returns `{ daemon: null }`.
-- Workflow status routes return empty state. Pause and resume return 503.
+- Workflow status routes return empty state. Pause, resume, and retry return 503.
 - History, approvals, and task routes fall back to reading from the local
   process state (in-process stores and `tasks/` files directly).
 
@@ -690,6 +690,68 @@ Queuing a workflow (`POST /api/workflow/trigger`) proxies to the daemon when
 available, or writes directly to `.kota/workflow-state.json` as a fallback.
 Run artifacts in `.kota/runs/` are durable evidence and are read directly by
 the server for run listing and streaming.
+
+## Server-Handled Workflow Action Endpoints
+
+These endpoints are handled directly by the HTTP server and do not proxy to the
+daemon control API.
+
+### POST /api/workflow/retry
+
+Re-fires a failed or interrupted run. Requires the daemon to be running (returns
+503 otherwise). Unlike replay, restricted to `failed` or `interrupted` runs.
+
+**Request body:**
+
+```json
+{ "runId": "2026-03-31T04-10-07-423Z-my-workflow-abc123" }
+```
+
+**Response (200):**
+
+```json
+{ "ok": true, "queued": "my-workflow" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Missing or invalid `runId` |
+| 404 | Run not found |
+| 409 | Run status is not `failed` or `interrupted`, or workflow is already queued |
+| 503 | Daemon not running |
+
+The trigger event is `retry`; the trigger payload includes `retryOf: <runId>`.
+
+### POST /api/workflow/replay
+
+Re-fires any completed run using the original trigger payload. Works without
+a running daemon (writes directly to the workflow state file). Unlike retry,
+accepts any terminal status (`success`, `failed`, `interrupted`).
+
+**Request body:**
+
+```json
+{ "runId": "2026-03-31T04-10-07-423Z-my-workflow-abc123" }
+```
+
+**Response (200):**
+
+```json
+{ "ok": true, "queued": "my-workflow", "runId": "2026-03-31T05-00-00-000Z-my-workflow-xyz789" }
+```
+
+The response `runId` is the new run's ID. The trigger event is `workflow.replay`;
+the payload includes `replayOf: <original-runId>`.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Missing or invalid `runId` |
+| 404 | Run not found |
+| 409 | Run is still active (`status: running`), or workflow is already queued |
 
 ## Webhook Trigger Endpoint
 

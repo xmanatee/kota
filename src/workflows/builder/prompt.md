@@ -47,8 +47,11 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   update `docs/WORKFLOWS.md` trigger table and add a usage example; when you
   add a new step type or add/remove a field from an existing step's output,
   update `docs/WORKFLOWS.md` step output section for that step type; when you
-  add a daemon API endpoint or add/remove a field from an existing API response,
-  update `docs/DAEMON-API.md` (including the JSON response examples); when you
+  add a daemon control API endpoint or a server-handled HTTP endpoint (routes in
+  `src/server/server-routes.ts` or `workflow-routes.ts`) or add/remove a field
+  from an existing API response, update `docs/DAEMON-API.md` (including the JSON
+  response examples) — `docs/DAEMON-API.md` covers both the daemon control API
+  and server-handled `/api/…` routes; when you
   write a test that exercises specific fields in a daemon API response, verify
   those fields appear in the matching `docs/DAEMON-API.md` section — if they
   are missing, add them; when you
