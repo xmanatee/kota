@@ -1,7 +1,7 @@
 ---
 id: task-doctor-api-connectivity-check
 title: Add provider API connectivity validation to kota doctor
-status: ready
+status: done
 priority: p2
 area: cli
 summary: kota doctor checks config and extensions but never validates that configured AI provider API keys are valid or that the model endpoint is reachable, leaving operators with silent misconfiguration until a workflow run fails.

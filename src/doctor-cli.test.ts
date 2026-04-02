@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runDoctorChecks, runDoctorFixes } from "./doctor-cli.js";
+import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./doctor-cli.js";
 
 vi.mock("./workflow/registry.js", () => ({
   getBuiltinWorkflowDefinitions: vi.fn(() => []),
@@ -37,6 +37,19 @@ vi.mock("./server/daemon-client.js", () => ({
   DaemonControlClient: {
     fromStateDir: vi.fn(() => null),
   },
+}));
+
+vi.mock("./model/provider-factory.js", () => ({
+  resolveApiKey: vi.fn(() => "sk-ant-test-key"),
+  createModelClient: vi.fn(() => ({
+    client: {
+      messages: {
+        create: vi.fn(async () => ({ id: "msg_test", content: [], role: "assistant" })),
+      },
+    },
+    model: "claude-haiku-4-5-20251001",
+    providerName: "anthropic",
+  })),
 }));
 
 function makeTmpDir(): string {
@@ -177,5 +190,92 @@ describe("kota doctor --fix", () => {
     const repairs = runDoctorFixes(projectDir);
     const dirRepairs = repairs.filter((r) => r.item.startsWith("Directory:"));
     expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
+  });
+});
+
+describe("kota doctor — provider connectivity check", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeTmpDir();
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("passes when the model client responds successfully", async () => {
+    const { createModelClient } = await import("./model/provider-factory.js");
+    vi.mocked(createModelClient).mockReturnValueOnce({
+      client: {
+        messages: {
+          stream: vi.fn(),
+          create: vi.fn(async () => ({ id: "msg_ok" }) as never),
+        },
+      },
+      model: "claude-haiku-4-5-20251001",
+      providerName: "anthropic",
+    });
+
+    const results = await checkProviderConnectivity(projectDir);
+    expect(results[0]?.status).toBe("pass");
+    expect(results[0]?.detail).toContain("Reachable");
+  });
+
+  it("fails with authentication error on 401/403 response", async () => {
+    const { createModelClient } = await import("./model/provider-factory.js");
+    const authErr = Object.assign(new Error("Authentication failed"), { status: 401 });
+    // Mimic Anthropic SDK AuthenticationError check via message pattern
+    vi.mocked(createModelClient).mockReturnValueOnce({
+      client: {
+        messages: {
+          stream: vi.fn(),
+          create: vi.fn(async () => { throw new Error("OpenAI API error 401: Unauthorized"); }),
+        },
+      },
+      model: "claude-haiku-4-5-20251001",
+      providerName: "anthropic",
+    });
+    void authErr;
+
+    const results = await checkProviderConnectivity(projectDir);
+    expect(results[0]?.status).toBe("fail");
+    expect(results[0]?.detail).toContain("Authentication failed");
+  });
+
+  it("fails with unreachable message on network error", async () => {
+    const { createModelClient } = await import("./model/provider-factory.js");
+    vi.mocked(createModelClient).mockReturnValueOnce({
+      client: {
+        messages: {
+          stream: vi.fn(),
+          create: vi.fn(async () => { throw new Error("ECONNREFUSED connect ECONNREFUSED 127.0.0.1:11434"); }),
+        },
+      },
+      model: "llama3",
+      providerName: "ollama",
+    });
+
+    const results = await checkProviderConnectivity(projectDir);
+    expect(results[0]?.status).toBe("fail");
+    expect(results[0]?.detail).toContain("Unreachable");
+  });
+
+  it("warns when API key is not set", async () => {
+    const { resolveApiKey } = await import("./model/provider-factory.js");
+    vi.mocked(resolveApiKey).mockReturnValueOnce("");
+
+    const results = await checkProviderConnectivity(projectDir);
+    expect(results[0]?.status).toBe("warn");
+    expect(results[0]?.detail).toContain("not set");
+  });
+
+  it("skips probe and warns when --skip-connectivity is passed", async () => {
+    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const conn = results.find((r) => r.label === "Provider connectivity");
+    expect(conn?.status).toBe("warn");
+    expect(conn?.detail).toContain("Skipped");
   });
 });

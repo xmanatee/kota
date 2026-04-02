@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
 import { loadConfig } from "./config.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import { builtinExtensions } from "./extensions/index.js";
+import { createModelClient, resolveApiKey } from "./model/provider-factory.js";
 import { DaemonControlClient } from "./server/daemon-client.js";
 import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "./workflow/validation.js";
@@ -181,7 +183,58 @@ function checkProvidersConfig(projectDir: string): CheckResult[] {
   return [pass("Providers: configuration", names.map(([t, n]) => `${t}=${n}`).join(", "))];
 }
 
-export async function runDoctorChecks(projectDir: string): Promise<CheckResult[]> {
+function isAuthError(err: unknown): boolean {
+  if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
+    return true;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  return /API error (401|403)/i.test(msg);
+}
+
+/** Default cheap probe model per provider type. */
+const PROBE_MODEL: Record<string, string> = {
+  anthropic: "claude-haiku-4-5-20251001",
+  openai: "gpt-4o-mini",
+};
+
+export async function checkProviderConnectivity(projectDir: string): Promise<CheckResult[]> {
+  const config = loadConfig(projectDir);
+  const mpConfig = config.modelProvider;
+  const providerType = mpConfig?.type ?? "anthropic";
+  const explicitKey = mpConfig?.apiKey;
+  const baseUrl = mpConfig?.baseUrl;
+  const apiKey = resolveApiKey(providerType, explicitKey);
+  const model = PROBE_MODEL[providerType] ?? config.model ?? "gpt-4o-mini";
+
+  const label = `Provider connectivity: ${providerType}`;
+  const keyDisplay = apiKey ? `${apiKey.slice(0, 8)}...` : "(not set)";
+
+  if (!apiKey) {
+    const envHint = providerType === "anthropic" ? "ANTHROPIC_API_KEY" : `${providerType.toUpperCase()}_API_KEY`;
+    return [warn(label, `API key not set — export ${envHint} or add apiKey to config.modelProvider`)];
+  }
+
+  try {
+    const { client } = createModelClient({ model, provider: providerType, baseUrl, apiKey });
+    await client.messages.create({
+      model,
+      max_tokens: 1,
+      messages: [{ role: "user", content: "hi" }],
+    });
+    return [pass(label, `Reachable (model: ${model}, key: ${keyDisplay})`)];
+  } catch (err) {
+    if (isAuthError(err)) {
+      return [fail(label, `Authentication failed (key: ${keyDisplay})`)];
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return [fail(label, `Unreachable — ${msg.slice(0, 120)}`)];
+  }
+}
+
+export async function runDoctorChecks(
+  projectDir: string,
+  opts?: { skipConnectivity?: boolean },
+): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   // Daemon check
@@ -212,6 +265,13 @@ export async function runDoctorChecks(projectDir: string): Promise<CheckResult[]
 
   // Provider checks
   results.push(...checkProvidersConfig(projectDir));
+
+  // Provider connectivity probe
+  if (opts?.skipConnectivity) {
+    results.push(warn("Provider connectivity", "Skipped (--skip-connectivity)"));
+  } else {
+    results.push(...(await checkProviderConnectivity(projectDir)));
+  }
 
   // Workflow checks (offline or online)
   if (status) {
@@ -270,9 +330,10 @@ export function registerDoctorCommand(program: Command): void {
     .description("Run runtime health checks and print a pass/warn/fail summary")
     .option("--json", "Output results as JSON")
     .option("--fix", "Apply safe automatic repairs for fixable issues")
-    .action(async (opts: { json?: boolean; fix?: boolean }) => {
+    .option("--skip-connectivity", "Skip provider API connectivity probes (for offline environments)")
+    .action(async (opts: { json?: boolean; fix?: boolean; skipConnectivity?: boolean }) => {
       const projectDir = process.cwd();
-      const results = await runDoctorChecks(projectDir);
+      const results = await runDoctorChecks(projectDir, { skipConnectivity: opts.skipConnectivity });
       const repairs = opts.fix ? runDoctorFixes(projectDir) : [];
 
       if (opts.json) {
