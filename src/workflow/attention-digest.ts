@@ -12,6 +12,10 @@ import { PAUSE_SIGNAL_FILE } from "./runtime.js";
 const DIGEST_EVERY_N_RUNS = 10;
 const DEFAULT_COST_WARN_THRESHOLD_USD = 25;
 const DEFAULT_COST_HARD_LIMIT_USD = 50;
+// KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)
+// KOTA_DIGEST_WARNINGS_WINDOW: how many recent builder runs to inspect (default 10)
+const DEFAULT_WARNINGS_COUNT = 3;
+const DEFAULT_WARNINGS_WINDOW = 10;
 
 type AttentionItem = { label: string; detail: string };
 
@@ -29,6 +33,36 @@ function builderFailureStreak(recentRuns: RunSummary[]): number {
   return streak;
 }
 
+function builderWarningsCheck(recentRuns: RunSummary[]): AttentionItem | null {
+  const countN =
+    Number(process.env.KOTA_DIGEST_WARNINGS_COUNT) || DEFAULT_WARNINGS_COUNT;
+  const windowM =
+    Number(process.env.KOTA_DIGEST_WARNINGS_WINDOW) || DEFAULT_WARNINGS_WINDOW;
+
+  const builderRuns = recentRuns
+    .filter((r) => r.workflow === "builder")
+    .slice(0, windowM);
+
+  const warningRuns = builderRuns.filter(
+    (r) => r.status === "completed-with-warnings",
+  );
+
+  if (warningRuns.length < countN) return null;
+
+  // Collect all warning types across the warning runs
+  const allTypes = warningRuns.flatMap((r) =>
+    (r.warnings ?? []).map((w) => w.type),
+  );
+  const allSameType =
+    allTypes.length > 0 && allTypes.every((t) => t === allTypes[0]);
+
+  const detail = allSameType
+    ? `${warningRuns.length} of the last ${builderRuns.length} builder runs completed with warnings (${allTypes[0]})`
+    : `${warningRuns.length} of the last ${builderRuns.length} builder runs completed with warnings`;
+
+  return { label: "Repeated warnings", detail };
+}
+
 function detectAttentionItems(
   projectDir: string,
   recentRuns: RunSummary[],
@@ -42,6 +76,9 @@ function detectAttentionItems(
       detail: `${streak} consecutive failures`,
     });
   }
+
+  const warningsItem = builderWarningsCheck(recentRuns);
+  if (warningsItem) items.push(warningsItem);
 
   const totalCost = Object.values(computeCostByWorkflow(recentRuns)).reduce(
     (a, b) => a + b,

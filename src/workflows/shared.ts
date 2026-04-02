@@ -1,6 +1,7 @@
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
+  WorkflowRunWarning,
 } from "../workflow/run-types.js";
 import { loadRunsInWindow } from "../workflow-history.js";
 
@@ -13,6 +14,7 @@ export type RunSummary = {
   status: string;
   durationMs?: number;
   totalCostUsd?: number;
+  warnings?: WorkflowRunWarning[];
 };
 
 export function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
@@ -22,6 +24,7 @@ export function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
     status: metadata.status,
     ...(metadata.durationMs != null ? { durationMs: metadata.durationMs } : {}),
     ...(metadata.totalCostUsd != null ? { totalCostUsd: metadata.totalCostUsd } : {}),
+    ...(metadata.warnings != null ? { warnings: metadata.warnings } : {}),
   };
 }
 

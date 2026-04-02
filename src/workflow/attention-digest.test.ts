@@ -24,6 +24,7 @@ function writeRunMetadata(
   workflow: string,
   status: string,
   totalCostUsd = 0,
+  warnings?: Array<{ type: string; message: string }>,
 ): void {
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
@@ -42,6 +43,7 @@ function writeRunMetadata(
       runDir: `.kota/runs/${id}`,
       steps: [],
       totalCostUsd,
+      ...(warnings ? { warnings } : {}),
     }),
     "utf-8",
   );
@@ -211,6 +213,92 @@ describe("runAttentionDigestStep", () => {
   it("lists all run dirs to verify test isolation", () => {
     const entries = readdirSync(runsDir);
     expect(entries).toHaveLength(0);
+  });
+
+  describe("warnings frequency check", () => {
+    beforeEach(() => {
+      delete process.env.KOTA_DIGEST_WARNINGS_COUNT;
+      delete process.env.KOTA_DIGEST_WARNINGS_WINDOW;
+    });
+
+    afterEach(() => {
+      delete process.env.KOTA_DIGEST_WARNINGS_COUNT;
+      delete process.env.KOTA_DIGEST_WARNINGS_WINDOW;
+    });
+
+    it("emits digest when N builder runs have completed-with-warnings (default N=3, M=10)", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      for (let i = 0; i < 3; i++) {
+        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
+      }
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(1);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Repeated warnings");
+      expect(text).toContain("3 of the last 3 builder runs completed with warnings");
+    });
+
+    it("does not emit when fewer than N builder runs have warnings", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      for (let i = 0; i < 2; i++) {
+        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
+      }
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(0);
+    });
+
+    it("respects custom N and M env vars", () => {
+      process.env.KOTA_DIGEST_WARNINGS_COUNT = "2";
+      process.env.KOTA_DIGEST_WARNINGS_WINDOW = "5";
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      for (let i = 0; i < 2; i++) {
+        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
+      }
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(1);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Repeated warnings");
+    });
+
+    it("includes warning type in detail when all warnings share the same type", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      const warnings = [{ type: "maxStepOutputBytes", message: "output truncated" }];
+      for (let i = 0; i < 3; i++) {
+        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings", 0, warnings);
+      }
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(1);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("maxStepOutputBytes");
+    });
+
+    it("does not include type in detail when warnings have mixed types", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeRunMetadata(runsDir, "2026-04-01-warn-0", "builder", "completed-with-warnings", 0, [{ type: "typeA", message: "a" }]);
+      writeRunMetadata(runsDir, "2026-04-01-warn-1", "builder", "completed-with-warnings", 0, [{ type: "typeB", message: "b" }]);
+      writeRunMetadata(runsDir, "2026-04-01-warn-2", "builder", "completed-with-warnings", 0, [{ type: "typeA", message: "a2" }]);
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(1);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Repeated warnings");
+      expect(text).not.toContain("typeA");
+      expect(text).not.toContain("typeB");
+    });
+
+    it("does not count non-builder warning runs", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      for (let i = 0; i < 5; i++) {
+        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "explorer", "completed-with-warnings");
+      }
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(0);
+    });
   });
 
   describe("cost circuit breaker", () => {
