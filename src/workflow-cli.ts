@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { registerControlCommands } from "./workflow-cli/control.js";
+import { registerDefinitionLogCommand } from "./workflow-cli/definition-log.js";
 import { registerDefinitionsCommand } from "./workflow-cli/definitions.js";
 import { registerFollowCommand } from "./workflow-cli/follow.js";
 import { registerGcCommand } from "./workflow-cli/gc.js";
@@ -34,6 +35,7 @@ export function registerWorkflowCommands(program: Command): void {
   registerStepInspectCommand(wfCmd);
   registerRunDiffCommand(wfCmd);
   registerDefinitionsCommand(wfCmd);
+  registerDefinitionLogCommand(wfCmd);
   registerCostCommand(wfCmd);
   registerLogsCommand(wfCmd);
   registerFollowCommand(wfCmd);
