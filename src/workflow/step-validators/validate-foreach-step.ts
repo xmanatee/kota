@@ -45,6 +45,25 @@ export function validateForeachStep(
     );
   }
 
+  const maxConcurrency = expectOptionalInteger(
+    step.maxConcurrency,
+    `steps[${index}].maxConcurrency`,
+    definitionPath,
+    1,
+  );
+
+  if (maxConcurrency !== undefined && maxConcurrency > 1) {
+    const hasAgentStep = step.steps.some(
+      (s) => s && typeof s === "object" && s.type === "agent",
+    );
+    if (hasAgentStep) {
+      throw new WorkflowDefinitionError(
+        `steps[${index}].maxConcurrency > 1 is not allowed when inner steps include agent steps — concurrent agent steps contend for the agentConcurrency slot`,
+        definitionPath,
+      );
+    }
+  }
+
   const innerSteps = step.steps.map((innerStep, innerIndex) => {
     if (!innerStep || typeof innerStep !== "object") {
       throw new WorkflowDefinitionError(
@@ -70,6 +89,7 @@ export function validateForeachStep(
     items: step.items,
     as,
     steps: innerSteps,
+    maxConcurrency,
     when: expectOptionalFunction(
       step.when,
       `steps[${index}].when`,

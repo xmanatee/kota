@@ -203,9 +203,7 @@ export async function executeForeachStepGroup(
   let groupFailed = false;
   let thrownError: Error | undefined;
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    // Build a context with the current item injected as foreach context
+  async function executeOneItem(item: unknown, i: number): Promise<ForeachItemResult> {
     const itemContext: WorkflowStepContext = {
       ...context,
       foreach: { [step.as]: item },
@@ -224,25 +222,54 @@ export async function executeForeachStepGroup(
 
       if (result.status === "failed") {
         if (result.continueOnFailure) {
+          // inner step allows continuation; item succeeds but accumulates a warning
           hadNewWarnings = true;
         } else {
           iterationFailed = true;
-          thrownError = new Error(result.error ?? `Inner step "${innerStep.id}" failed`);
           break;
         }
       }
     }
 
-    const iterStatus = iterationFailed ? "failed" : "success";
-    itemResults.push({ index: i, status: iterStatus, steps: iterationStepResults });
+    return { index: i, status: iterationFailed ? "failed" : "success", steps: iterationStepResults };
+  }
 
-    if (iterationFailed) {
+  function handleItemResult(itemResult: ForeachItemResult, index: number): void {
+    itemResults.push(itemResult);
+    if (itemResult.status === "failed") {
+      const failedStep = Object.values(itemResult.steps).find((s) => s.status === "failed" && !s.continueOnFailure);
       groupFailed = true;
+      thrownError = thrownError ?? new Error(failedStep?.error ?? `Item ${index} failed`);
       if (step.continueOnFailure) {
         hadNewWarnings = true;
-      } else {
-        break;
       }
+    }
+  }
+
+  const maxConcurrency = step.maxConcurrency ?? 1;
+
+  if (maxConcurrency <= 1) {
+    for (let i = 0; i < items.length; i++) {
+      handleItemResult(await executeOneItem(items[i], i), i);
+      if (groupFailed && !step.continueOnFailure) break;
+    }
+  } else {
+    for (let batchStart = 0; batchStart < items.length; batchStart += maxConcurrency) {
+      const batchEnd = Math.min(batchStart + maxConcurrency, items.length);
+      const batchSettled = await Promise.allSettled(
+        items.slice(batchStart, batchEnd).map((item, j) => executeOneItem(item, batchStart + j)),
+      );
+
+      for (let j = 0; j < batchSettled.length; j++) {
+        const settled = batchSettled[j];
+        // executeOneItem never throws; fulfilled is always expected
+        const itemResult = settled.status === "fulfilled"
+          ? settled.value
+          : { index: batchStart + j, status: "failed" as const, steps: {} };
+        handleItemResult(itemResult, batchStart + j);
+      }
+
+      if (groupFailed && !step.continueOnFailure) break;
     }
   }
 

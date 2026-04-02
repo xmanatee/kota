@@ -312,6 +312,140 @@ describe("foreach step – executor", () => {
   });
 });
 
+describe("foreach step – maxConcurrency", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-foreach-conc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("runs items concurrently up to maxConcurrency and preserves result order", async () => {
+    const order: number[] = [];
+    // Stagger completions: item 0 resolves later than item 1 via async yielding
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 3,
+        items: () => [0, 1, 2],
+        as: "n",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: async (ctx) => {
+              const n = ctx.foreach?.n as number;
+              // yield to event loop so items interleave
+              await new Promise((r) => setTimeout(r, n === 0 ? 10 : 0));
+              order.push(n);
+              return `result:${n}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    // All items processed
+    expect(order.sort()).toEqual([0, 1, 2]);
+
+    const groupResult = result.metadata.steps[0];
+    expect(groupResult.status).toBe("success");
+    const output = groupResult.output as { items: number; results: Array<{ index: number; status: string }> };
+    expect(output.items).toBe(3);
+    // Results are in item-index order regardless of completion order
+    expect(output.results[0].index).toBe(0);
+    expect(output.results[1].index).toBe(1);
+    expect(output.results[2].index).toBe(2);
+    expect(output.results.every((r) => r.status === "success")).toBe(true);
+  });
+
+  it("stops after the failing batch when continueOnFailure is false", async () => {
+    const processed: number[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 2,
+        items: () => [0, 1, 2, 3],
+        as: "n",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const n = ctx.foreach?.n as number;
+              processed.push(n);
+              if (n === 1) throw new Error("item 1 failed");
+              return `ok:${n}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    // First batch [0, 1] completes; second batch [2, 3] is skipped
+    expect(processed).toEqual(expect.arrayContaining([0, 1]));
+    expect(processed).not.toContain(2);
+    expect(processed).not.toContain(3);
+  });
+
+  it("processes all items when continueOnFailure is true", async () => {
+    const processed: number[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 2,
+        continueOnFailure: true,
+        items: () => [0, 1, 2, 3],
+        as: "n",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const n = ctx.foreach?.n as number;
+              processed.push(n);
+              if (n === 1) throw new Error("item 1 failed");
+              return `ok:${n}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("completed-with-warnings");
+    expect(processed.sort()).toEqual([0, 1, 2, 3]);
+  });
+});
+
 describe("foreach step – validation", () => {
   function makeInput(steps: WorkflowForeachStepInput["steps"] = [{ id: "s", type: "code", run: () => 1 }]) {
     return validateWorkflowDefinitions([
@@ -408,6 +542,77 @@ describe("foreach step – validation", () => {
         },
       ]),
     ).toThrow(/must be "code" or "agent"/);
+  });
+
+  it("accepts maxConcurrency: 1 with agent steps", () => {
+    const defs = validateWorkflowDefinitions([
+      {
+        definitionPath: "test.ts",
+        name: "test",
+        triggers: [{ event: "runtime.idle" }],
+        steps: [
+          {
+            id: "loop",
+            type: "foreach",
+            maxConcurrency: 1,
+            items: () => [],
+            as: "item",
+            steps: [{ id: "s", type: "code", run: () => 1 }],
+          } satisfies WorkflowForeachStepInput,
+        ],
+      },
+    ]);
+    expect((defs[0].steps[0] as { maxConcurrency?: number }).maxConcurrency).toBe(1);
+  });
+
+  it("rejects maxConcurrency > 1 with agent inner steps", () => {
+    expect(() =>
+      validateWorkflowDefinitions([
+        {
+          definitionPath: "test.ts",
+          name: "test",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "loop",
+              type: "foreach",
+              maxConcurrency: 2,
+              items: () => [],
+              as: "item",
+              steps: [
+                {
+                  id: "agent-step",
+                  type: "agent",
+                  promptPath: "some/prompt.md",
+                },
+              ],
+            } satisfies WorkflowForeachStepInput,
+          ],
+        },
+      ]),
+    ).toThrow(/maxConcurrency > 1 is not allowed when inner steps include agent steps/);
+  });
+
+  it("rejects non-integer maxConcurrency", () => {
+    expect(() =>
+      validateWorkflowDefinitions([
+        {
+          definitionPath: "test.ts",
+          name: "test",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "loop",
+              type: "foreach",
+              maxConcurrency: 1.5 as unknown as number,
+              items: () => [],
+              as: "item",
+              steps: [{ id: "s", type: "code", run: () => 1 }],
+            } satisfies WorkflowForeachStepInput,
+          ],
+        },
+      ]),
+    ).toThrow(/maxConcurrency must be an integer/);
   });
 
   it("rejects duplicate step IDs between foreach inner steps and outer steps", () => {

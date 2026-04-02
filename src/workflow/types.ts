@@ -245,6 +245,11 @@ export type WorkflowForeachStepInput = WorkflowBaseStep & {
   as: string;
   /** Code and agent steps to run for each item. foreach, parallel, branch, trigger, emit, and restart are not supported inside a foreach body. */
   steps: (WorkflowCodeStepInput | WorkflowAgentStepInput)[];
+  /**
+   * Maximum number of items to execute concurrently. Defaults to 1 (serial).
+   * Must be a positive integer. Values > 1 are rejected if any inner step is an agent step.
+   */
+  maxConcurrency?: number;
 };
 
 export type WorkflowApprovalStepInput = WorkflowBaseStep & {
@@ -404,6 +409,8 @@ export type WorkflowForeachStep = WorkflowBaseStep & {
   items: WorkflowValueResolver<unknown[]>;
   as: string;
   steps: (WorkflowCodeStep | WorkflowAgentStep)[];
+  /** Maximum number of items to execute concurrently. Defaults to 1 (serial). */
+  maxConcurrency?: number;
 };
 
 export type WorkflowApprovalStep = WorkflowBaseStep & {

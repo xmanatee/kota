@@ -432,9 +432,10 @@ steps: [
 | `steps` | `(WorkflowCodeStepInput \| WorkflowAgentStepInput)[]` | — | Required. Non-empty array of steps to run for each item. Only `code` and `agent` steps are supported inside a foreach body. |
 | `when` | predicate | — | Outer skip guard. If false, the entire foreach step is skipped. |
 | `continueOnFailure` | `boolean` | `false` | If true, a failing item does not abort the loop — the workflow continues with warnings after all items are processed. |
+| `maxConcurrency` | `number` | `1` | Maximum number of items to execute concurrently. Defaults to 1 (serial). Must be a positive integer. Values > 1 are rejected at definition load time if any inner step is an `agent` step. |
 | `timeoutMs` | `number` | 30 min | Maximum time for the entire foreach loop to complete. |
 
-Iteration is **sequential** — each item completes before the next begins. Use a `parallel` step for concurrent fan-out. The foreach step result output contains `{ items: N, results: [...] }` with per-item status. Downstream steps can access the last iteration's inner step output via `context.stepOutputs["<innerStepId>"]`.
+By default iteration is **sequential** — each item completes before the next begins. Set `maxConcurrency` to a value greater than 1 to run up to that many items simultaneously (code steps only). Results in the step output are always ordered by item index, not completion order. A failed batch stops further batches from starting unless `continueOnFailure` is set. The foreach step result output contains `{ items: N, results: [...] }` with per-item status. Downstream steps can access the last iteration's inner step output via `context.stepOutputs["<innerStepId>"]`.
 
 ### Approval Steps
 
