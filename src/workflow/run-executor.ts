@@ -81,7 +81,7 @@ export function executeWorkflowRun(
     const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
     let previousOutput = retryState.previousOutput;
     let hadWarnings = retryState.hadWarnings;
-    const acc = { stepOutputsById, stepResultsById, stepOutputs };
+    const acc = { stepOutputsById, stepResultsById, stepOutputs, warnings: [] as WorkflowRunWarning[] };
 
     // Inject webhook trigger payload so steps can access it via stepOutputs.trigger
     if (trigger.event === "webhook") {
@@ -330,18 +330,18 @@ export function executeWorkflowRun(
         }
       }
 
-      const outputWarnings: WorkflowRunWarning[] = [];
+      const outputWarnings: WorkflowRunWarning[] = [...acc.warnings];
       if (definition.outputSchema !== undefined) {
         const outputError = validatePayloadSchema(
           definition.outputSchema,
           previousOutput as Record<string, unknown>,
         );
         if (outputError !== null) {
-          hadWarnings = true;
           outputWarnings.push({ type: "output-schema-mismatch", message: outputError });
           deps.log(`Output schema mismatch in workflow "${definition.name}": ${outputError}`);
         }
       }
+      if (outputWarnings.length > 0) hadWarnings = true;
       const finalStatus = hadWarnings ? "completed-with-warnings" : "success";
       const completed = run.finish({
         status: finalStatus,

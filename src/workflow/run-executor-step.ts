@@ -1,7 +1,7 @@
 import type { EventBus } from "../event-bus.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload } from "./event-payloads.js";
-import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
@@ -17,10 +17,45 @@ import type {
 /** Default step timeout when no timeoutMs is specified on the step definition. */
 export const DEFAULT_STEP_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
-type StepAccumulators = {
+export const DEFAULT_MAX_STEP_OUTPUT_BYTES = 256 * 1024; // 256 KB
+export const HARD_MAX_STEP_OUTPUT_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export type TruncationNotice = {
+  truncated: true;
+  originalBytes: number;
+  message: string;
+};
+
+export function applyOutputSizeLimit(
+  output: unknown,
+  maxBytes: number | undefined,
+): { output: unknown; warning?: WorkflowRunWarning } {
+  if (output === undefined || output === null) return { output };
+  const limit = Math.min(maxBytes ?? DEFAULT_MAX_STEP_OUTPUT_BYTES, HARD_MAX_STEP_OUTPUT_BYTES);
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(output);
+  } catch {
+    return { output };
+  }
+  const byteLength = Buffer.byteLength(serialized, "utf-8");
+  if (byteLength <= limit) return { output };
+  const notice: TruncationNotice = {
+    truncated: true,
+    originalBytes: byteLength,
+    message: `Step output truncated: ${byteLength} bytes exceeds ${limit}-byte limit`,
+  };
+  return {
+    output: notice,
+    warning: { type: "step-output-truncated", message: notice.message },
+  };
+}
+
+export type StepAccumulators = {
   stepOutputsById: Record<string, unknown>;
   stepResultsById: Record<string, WorkflowStepResult>;
   stepOutputs: unknown[];
+  warnings: WorkflowRunWarning[];
 };
 
 type StepDeps = {
@@ -105,6 +140,7 @@ export type SingleStepResult = {
   completed: WorkflowStepResult;
   agentBackoff?: WorkflowAgentBackoffSignal;
   thrownError?: Error;
+  truncationWarning?: WorkflowRunWarning;
 };
 
 export async function executeWorkflowStep(
@@ -147,7 +183,15 @@ export async function executeWorkflowStep(
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       agentConfig,
     );
-    const output = await Promise.race([stepPromise, timeoutPromise]);
+    const rawOutput = await Promise.race([stepPromise, timeoutPromise]);
+    const { output, warning: truncationWarning } = applyOutputSizeLimit(
+      rawOutput,
+      agentConfig.config?.workflow?.maxStepOutputBytes,
+    );
+    if (truncationWarning) {
+      acc.warnings.push(truncationWarning);
+      deps.log(`Step "${step.id}" output truncated in workflow "${definition.name}": ${truncationWarning.message}`);
+    }
 
     const completed: WorkflowStepResult = {
       id: step.id,
@@ -174,7 +218,7 @@ export async function executeWorkflowStep(
     deps.log(
       `Completed step "${completed.id}" (${completed.type}) in workflow "${definition.name}" [${logDetails.join(", ")}]`,
     );
-    return { completed };
+    return { completed, ...(truncationWarning ? { truncationWarning } : {}) };
   } catch (error) {
     // If the step-level controller was aborted by the deadline (not the run-level abort),
     // surface a plain Error so the run gets status "failed" rather than "interrupted".

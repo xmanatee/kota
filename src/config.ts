@@ -144,6 +144,16 @@ export type KotaConfig = {
      */
     dispatchWindow?: DispatchWindow;
   };
+
+  /** Workflow runtime settings. */
+  workflow?: {
+    /**
+     * Maximum step output size in bytes before truncation.
+     * Default: 262144 (256 KB). Hard cap: 10485760 (10 MB).
+     * Outputs exceeding this limit are replaced with a structured truncation notice.
+     */
+    maxStepOutputBytes?: number;
+  };
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -316,6 +326,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(s).length > 0) out.scheduler = s;
   }
 
+  if (typeof raw.workflow === "object" && raw.workflow !== null && !Array.isArray(raw.workflow)) {
+    const src = raw.workflow as Record<string, unknown>;
+    const w: KotaConfig["workflow"] = {};
+    if (typeof src.maxStepOutputBytes === "number" && src.maxStepOutputBytes > 0) {
+      w.maxStepOutputBytes = src.maxStepOutputBytes;
+    }
+    if (Object.keys(w).length > 0) out.workflow = w;
+  }
+
   if (Array.isArray(raw.foreignExtensions)) {
     const fexts: ForeignExtensionConfig[] = [];
     for (const entry of raw.foreignExtensions) {
@@ -392,6 +411,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.notifications = { ...a.notifications, ...(val as KotaConfig["notifications"]) };
     } else if (key === "scheduler" && typeof val === "object") {
       merged.scheduler = { ...a.scheduler, ...(val as KotaConfig["scheduler"]) };
+    } else if (key === "workflow" && typeof val === "object") {
+      merged.workflow = { ...a.workflow, ...(val as KotaConfig["workflow"]) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

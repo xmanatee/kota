@@ -2,8 +2,8 @@ import type { SDKMessage } from "../agent-sdk/types.js";
 import type { EventBus } from "../event-bus.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload } from "./event-payloads.js";
-import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
-import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
+import { applyOutputSizeLimit, DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
+import type { WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import { executeCodeStep, resolveValue, shouldRunStep } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 import { executeAgentStep } from "./step-executor-agent.js";
@@ -33,6 +33,7 @@ type ForeachStepAccumulators = {
   stepOutputsById: Record<string, unknown>;
   stepResultsById: Record<string, WorkflowStepResult>;
   stepOutputs: unknown[];
+  warnings: WorkflowRunWarning[];
 };
 
 type ForeachAgentDeps = {
@@ -121,6 +122,14 @@ async function executeInnerStep(
       output = await executeCodeStep(innerStep, context);
     }
 
+    const { output: limitedOutput, warning: truncationWarning } = applyOutputSizeLimit(
+      output,
+      deps.agentConfig.config?.workflow?.maxStepOutputBytes,
+    );
+    if (truncationWarning) {
+      deps.acc.warnings.push(truncationWarning);
+      deps.log(`foreach step "${innerStep.id}" output truncated in workflow "${deps.definition.name}": ${truncationWarning.message}`);
+    }
     const completed: WorkflowStepResult = {
       id: innerStep.id,
       type: innerStep.type,
@@ -128,11 +137,11 @@ async function executeInnerStep(
       startedAt: new Date(stepStartedAt).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
-      output,
+      output: limitedOutput,
     };
-    deps.acc.stepOutputsById[innerStep.id] = output;
+    deps.acc.stepOutputsById[innerStep.id] = limitedOutput;
     deps.acc.stepResultsById[innerStep.id] = completed;
-    deps.acc.stepOutputs.push(output);
+    deps.acc.stepOutputs.push(limitedOutput);
     deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, completed));
     deps.log(
       `Completed foreach item[${itemIndex}] step "${innerStep.id}" in workflow "${deps.definition.name}" [${completed.durationMs}ms]`,

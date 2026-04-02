@@ -22,7 +22,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling; interval triggers respect `scheduler.dispatchWindow` from config.
 - `watch-triggers.ts` — `WatchTriggerManager`: file-watch trigger management; subscribes to `file.changed` bus events, matches glob patterns, and fires `files.changed` run triggers after debounce.
 - `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
-- `run-executor-step.ts` — `executeWorkflowStep` (single non-parallel step execution) and `buildSkippedResult` (skipped step handling with recursive child-skipping for parallel, branch, and foreach steps).
+- `run-executor-step.ts` — `executeWorkflowStep` (single non-parallel step execution), `buildSkippedResult` (skipped step handling with recursive child-skipping for parallel, branch, and foreach steps), and `applyOutputSizeLimit` (truncates oversized step outputs to a configurable byte cap with a structured notice and `WorkflowRunWarning`).
 - `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.
 - `step-context.ts` — `createStepContext` and step context helpers.
 - `step-executor.ts` / `step-executor-agent.ts` / `step-executor-parallel.ts` / `step-executor-branch.ts` / `step-executor-foreach.ts` — Step dispatch by type.

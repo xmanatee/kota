@@ -85,6 +85,29 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `runsGc` — run artifact retention policy
 - `webhooks` — per-workflow webhook secrets
 - `scheduler.dispatchWindow` — restrict idle and interval triggers to specific hours/days (see below)
+- `workflow.maxStepOutputBytes` — cap step output size to prevent large outputs flooding disk and agent context (see below)
+
+## Workflow
+
+### maxStepOutputBytes
+
+Caps the size of step outputs written to the run artifact store and injected into agent context. When a step output exceeds the limit, it is replaced with a structured truncation notice and a warning is added to the run (surfacing `completed-with-warnings` status).
+
+```json
+{
+  "workflow": {
+    "maxStepOutputBytes": 131072
+  }
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `maxStepOutputBytes` | `262144` (256 KB) | Maximum output size in bytes. Hard cap of `10485760` (10 MB) applies regardless of this value. |
+
+The truncation notice has the shape: `{ "truncated": true, "originalBytes": N, "message": "..." }`. Agent steps that receive a truncated prior-step output see this notice rather than raw bytes, giving the LLM explicit context that output was cut.
+
+Applies to agent, code, trigger, and tool steps. Approval step outputs are exempt.
 
 ## Scheduler
 

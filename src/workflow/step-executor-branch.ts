@@ -1,7 +1,7 @@
 import type { EventBus } from "../event-bus.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload } from "./event-payloads.js";
-import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
+import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "./run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import { shouldRunStep } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
@@ -14,12 +14,6 @@ import type {
   WorkflowRunTrigger,
   WorkflowStep,
 } from "./types.js";
-
-type StepAccumulators = {
-  stepOutputsById: Record<string, unknown>;
-  stepResultsById: Record<string, WorkflowStepResult>;
-  stepOutputs: unknown[];
-};
 
 type BranchRunDeps = {
   definition: WorkflowDefinition;

@@ -1,7 +1,7 @@
 ---
 id: task-step-output-size-limit
 title: Cap step output size to prevent large outputs from flooding disk and agent context
-status: ready
+status: done
 priority: p3
 area: reliability
 summary: Code steps and trigger steps can return arbitrarily large outputs. There is no cap on what gets written to the run store or injected into subsequent agent step context. A size limit with truncation and a warning would protect against runaway outputs filling disk or ballooning token spend.
