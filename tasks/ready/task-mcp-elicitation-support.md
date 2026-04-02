@@ -1,12 +1,12 @@
 ---
 id: task-mcp-elicitation-support
 title: Add MCP elicitation support so KOTA tools can request structured user input
-status: backlog
+status: ready
 priority: p3
 area: mcp
 summary: The MCP spec (2025-03-26) added an elicitation capability that lets servers request structured input from the connected client (user). KOTA's MCP server does not implement this, so tools that need a follow-up question or confirmation from the operator cannot leverage the standard protocol path.
 created_at: 2026-04-02T03:58:38Z
-updated_at: 2026-04-02T03:58:38Z
+updated_at: 2026-04-02T10:41:13Z
 ---
 
 ## Problem
