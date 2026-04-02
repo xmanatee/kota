@@ -8,7 +8,7 @@
  * Config (kota.config under the "slack" key):
  *   { webhookUrl: string, events?: string[], retries?: number, retryDelayMs?: number }
  *
- * If `events` is omitted, all four notification events are active.
+ * If `events` is omitted, all five notification events are active.
  * `approval.requested` is always forwarded when the extension is configured.
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
@@ -21,12 +21,13 @@ const NOTIFICATION_EVENTS = [
   "workflow.budget.exceeded",
   "workflow.attention.digest",
   "workflow.cost.limit.reached",
+  "workflow.cost.anomaly",
 ] as const;
 
 type SlackConfig = {
   /** Slack Incoming Webhook URL. Required. */
   webhookUrl: string;
-  /** Subset of notification events to forward. Defaults to all four. */
+  /** Subset of notification events to forward. Defaults to all five. */
   events?: string[];
   /** Number of retry attempts after the initial try. Default: 3. */
   retries?: number;
@@ -84,6 +85,25 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
     case "workflow.cost.limit.reached": {
       const text = payload.text as string | undefined;
       return [header("Cost Limit Reached"), divider, section(text ?? "Hard cost limit tripped.")];
+    }
+    case "workflow.cost.anomaly": {
+      const workflow = payload.workflow as string | undefined;
+      const runCostUsd = payload.runCostUsd as number | undefined;
+      const baselineCostUsd = payload.baselineCostUsd as number | undefined;
+      const threshold = payload.threshold as number | undefined;
+      return [
+        header(`Cost Anomaly: ${workflow ?? "unknown"}`),
+        divider,
+        section(
+          [
+            runCostUsd !== undefined ? `*Run cost:* $${runCostUsd.toFixed(4)}` : null,
+            baselineCostUsd !== undefined ? `*Baseline:* $${baselineCostUsd.toFixed(4)}` : null,
+            threshold !== undefined ? `*Threshold:* ${threshold}×` : null,
+          ]
+            .filter(Boolean)
+            .join("  ·  ") || (payload.text as string) || "",
+        ),
+      ];
     }
     case "approval.requested": {
       const tool = payload.tool as string | undefined;

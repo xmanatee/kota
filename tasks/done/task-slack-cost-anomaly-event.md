@@ -1,7 +1,7 @@
 ---
 id: task-slack-cost-anomaly-event
 title: Add workflow.cost.anomaly subscription to Slack extension
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: The Slack extension does not forward workflow.cost.anomaly events, while the Telegram and webhook extensions do. This inconsistency means operators using only Slack miss cost spike alerts that other channel users receive.
