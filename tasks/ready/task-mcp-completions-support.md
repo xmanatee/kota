@@ -1,12 +1,12 @@
 ---
 id: task-mcp-completions-support
 title: Implement MCP completion/complete for argument autocomplete
-status: backlog
+status: ready
 priority: p3
 area: mcp
 summary: The MCP protocol supports a completion/complete request that lets hosts autocomplete argument values in tool and prompt calls; implementing it in KOTA's MCP server enables workflow names, task IDs, and agent names to autocomplete in Claude Code and Cursor.
 created_at: 2026-04-02T11:35:00Z
-updated_at: 2026-04-02T11:35:00Z
+updated_at: 2026-04-02T12:44:00Z
 ---
 
 ## Problem
