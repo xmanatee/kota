@@ -45,6 +45,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   a `docs/` file documents a protocol, API, or behavior that you changed,
   update it in the same run — for example, when you add a new trigger type,
   update `docs/WORKFLOWS.md` trigger table and add a usage example; when you
+  add a new step type or add/remove a field from an existing step's output,
+  update `docs/WORKFLOWS.md` step output section for that step type; when you
   add a daemon API endpoint or add/remove a field from an existing API response,
   update `docs/DAEMON-API.md` (including the JSON response examples); when you
   add a new built-in extension or change observable behavior of an existing one
