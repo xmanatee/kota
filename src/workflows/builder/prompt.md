@@ -45,8 +45,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   a `docs/` file documents a protocol, API, or behavior that you changed,
   update it in the same run — for example, when you add a new trigger type,
   update `docs/WORKFLOWS.md` trigger table and add a usage example; when you
-  add a new step type or add/remove a field from an existing step's output,
-  update `docs/WORKFLOWS.md` step output section for that step type; when you
+  add a new step type or add/remove/change a field on an existing step (whether
+  a configuration input field or a result output field),
+  update `docs/WORKFLOWS.md` — the Agent Step Fields table, the step output section,
+  or whichever section covers that step type; when you
   add a daemon control API endpoint or a server-handled HTTP endpoint (routes in
   `src/server/server-routes.ts` or `workflow-routes.ts`) or add/remove a field
   from an existing API response, update `docs/DAEMON-API.md` (including the JSON

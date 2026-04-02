@@ -166,6 +166,8 @@ See [`workflow.maxStepOutputBytes` in CONFIG.md](CONFIG.md#maxstepoutputbytes) f
 | `permissionMode` | `SDKPermissionMode` | `"bypassPermissions"` | Tool permission mode. |
 | `allowedTools` | `string[]` | — | Restrict available tools to this list. |
 | `disallowedTools` | `string[]` | — | Exclude these tools. |
+| `outputFormat` | `"json"` | — | When set to `"json"`, appends an instruction to the agent prompt asking it to end its response with a fenced JSON block. After the step completes, the last fenced JSON block is extracted and becomes the step output (parsed). The step fails if no valid JSON block is found. |
+| `outputSchema` | `object` | — | JSON Schema object (same subset as definition-level `inputSchema`/`outputSchema`) to validate the extracted JSON against. Requires `outputFormat: "json"`. A mismatch fails the step with a descriptive error. |
 
 ```typescript
 steps: [
@@ -177,6 +179,17 @@ steps: [
     thinkingEnabled: true,
     thinkingBudget: 15000,
     maxTurns: 30,
+  },
+  {
+    id: "decide",
+    type: "agent",
+    promptPath: "src/workflows/my-workflow/decide.md",
+    outputFormat: "json",
+    outputSchema: {
+      type: "object",
+      required: ["action"],
+      properties: { action: { type: "string" } },
+    },
   },
 ]
 ```
