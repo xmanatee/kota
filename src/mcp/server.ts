@@ -10,6 +10,7 @@ import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { EventBus } from "../event-bus.js";
 import { getEventBus } from "../event-bus.js";
+import type { ToolDef } from "../extension-types.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
@@ -52,6 +53,12 @@ export type McpServerOptions = {
 	projectDir?: string;
 	/** Event bus to drive resource subscription notifications (default: global singleton). */
 	eventBus?: EventBus | null;
+	/**
+	 * Extension-contributed tools to expose alongside built-in tools. These are
+	 * routed through their own runners, not the global tool registry. Useful for
+	 * the daemon-embedded MCP server and for tests.
+	 */
+	extensionTools?: ToolDef[];
 };
 
 export class McpServer {
@@ -68,6 +75,8 @@ export class McpServer {
 	private eventBusOverride: EventBus | null | undefined;
 	private subscriptions = new Set<string>();
 	private busUnsubs: (() => void)[] = [];
+	private extensionRunners = new Map<string, (input: Record<string, unknown>) => Promise<ToolResult>>();
+	private extensionToolList: Anthropic.Tool[] = [];
 
 	constructor(options: McpServerOptions = {}) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -78,6 +87,10 @@ export class McpServer {
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
 		this.projectDir = options.projectDir ?? process.cwd();
 		this.eventBusOverride = options.eventBus;
+		for (const def of options.extensionTools ?? []) {
+			this.extensionRunners.set(def.tool.name, def.runner);
+			this.extensionToolList.push(def.tool);
+		}
 	}
 
 	/** Start listening for JSON-RPC messages on stdio. */
@@ -108,10 +121,14 @@ export class McpServer {
 		return this.running;
 	}
 
-	/** Get the tools this server exposes (respecting filter). */
+	/** Get the tools this server exposes (respecting filter). Merges built-in and extension tools. */
 	getExposedTools(): Anthropic.Tool[] {
-		const all = getAllTools();
-		if (!this.toolFilter) return [...all];
+		const builtinNames = new Set(getAllTools().map((t) => t.name));
+		const all = [
+			...getAllTools(),
+			...this.extensionToolList.filter((t) => !builtinNames.has(t.name)),
+		];
+		if (!this.toolFilter) return all;
 		return all.filter((t) => this.toolFilter!.has(t.name));
 	}
 
@@ -343,7 +360,18 @@ export class McpServer {
 		}
 
 		this.log(`Calling tool: ${name}`);
-		const result = await executeTool(name, args);
+		let result: ToolResult;
+		const extRunner = this.extensionRunners.get(name);
+		if (extRunner) {
+			try {
+				result = await extRunner(args);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				result = { content: `Tool error: ${msg}`, is_error: true };
+			}
+		} else {
+			result = await executeTool(name, args);
+		}
 		const content = toolResultToMcp(result);
 
 		this.sendResult(msg, {

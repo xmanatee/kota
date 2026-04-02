@@ -1,12 +1,12 @@
 ---
 id: task-mcp-extension-tools
 title: Expose extension-contributed tools through the KOTA MCP server
-status: ready
+status: done
 priority: p3
 area: mcp
 summary: The MCP server currently exposes only built-in KOTA tools via getAllTools(). Extensions that contribute custom tools (e.g., the GitHub extension's PR and issue tools) are invisible to MCP clients. Extension tools should be registered dynamically so any MCP host can invoke them.
 created_at: 2026-04-02T09:32:00Z
-updated_at: 2026-04-02T11:03:04Z
+updated_at: 2026-04-02T12:15:00Z
 ---
 
 ## Problem

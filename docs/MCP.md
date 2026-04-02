@@ -14,7 +14,17 @@ Any MCP-compatible host (Claude Code, Cursor, VS Code) can connect and use KOTA'
 
 ## Tools
 
-All KOTA tools registered via extensions are available. Use `--tools <name,...>` to restrict exposure.
+All KOTA built-in tools are available. Extension-contributed tools are included when extensions are loaded before the server starts (the default when using `kota mcp-server`, which calls `loader.loadAll()` automatically). Use `--tools <name,...>` to restrict exposure.
+
+When constructing `McpServer` programmatically (e.g., in the daemon), pass `extensionTools` in `McpServerOptions` to inject extension-contributed tools explicitly without relying on the global tool registry:
+
+```ts
+const server = new McpServer({
+  extensionTools: myExtension.tools(ctx),
+});
+```
+
+Extension tools passed via `extensionTools` go through the same `toolFilter` as built-in tools and are routed through their own runners, not the global registry.
 
 ## Resources
 

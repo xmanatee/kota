@@ -170,6 +170,75 @@ describe("McpServer", () => {
 
 			server.stop();
 		});
+
+		it("includes extension tools passed via extensionTools option", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				extensionTools: [
+					{
+						tool: {
+							name: "ext_hello",
+							description: "Extension hello tool",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "hello from extension" }),
+					},
+				],
+			});
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as { tools: Array<{ name: string }> };
+			const names = result.tools.map((t) => t.name);
+			expect(names).toContain("ext_hello");
+
+			server.stop();
+		});
+
+		it("applies toolFilter to extension tools", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				toolFilter: ["ext_hello"],
+				extensionTools: [
+					{
+						tool: {
+							name: "ext_hello",
+							description: "Allowed extension tool",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "hi" }),
+					},
+					{
+						tool: {
+							name: "ext_secret",
+							description: "Filtered extension tool",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "secret" }),
+					},
+				],
+			});
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as { tools: Array<{ name: string }> };
+			const names = result.tools.map((t) => t.name);
+			expect(names).toContain("ext_hello");
+			expect(names).not.toContain("ext_secret");
+			expect(names).not.toContain("file_read"); // built-in filtered out too
+
+			server.stop();
+		});
 	});
 
 	describe("tools/call", () => {
@@ -247,6 +316,75 @@ describe("McpServer", () => {
 			expect(resp.error).toBeDefined();
 			const err = resp.error as { message: string };
 			expect(err.message).toContain("Unknown tool");
+
+			server.stop();
+		});
+
+		it("invokes extension tool runner and returns result", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				extensionTools: [
+					{
+						tool: {
+							name: "ext_greet",
+							description: "Extension greeting tool",
+							input_schema: {
+								type: "object" as const,
+								properties: { name: { type: "string" } },
+								required: ["name"],
+							},
+						},
+						runner: async (args) => ({ content: `Hello, ${args.name}!` }),
+					},
+				],
+			});
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/call", {
+				name: "ext_greet",
+				arguments: { name: "World" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.id).toBe(2);
+			const result = resp.result as { content: Array<{ type: string; text: string }> };
+			expect(result.content[0].text).toBe("Hello, World!");
+
+			server.stop();
+		});
+
+		it("returns error result when extension tool runner throws", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				extensionTools: [
+					{
+						tool: {
+							name: "ext_boom",
+							description: "Always throws",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => { throw new Error("boom"); },
+					},
+				],
+			});
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/call", {
+				name: "ext_boom",
+				arguments: {},
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.id).toBe(2);
+			const result = resp.result as { content: Array<{ text: string }>; isError: boolean };
+			expect(result.isError).toBe(true);
+			expect(result.content[0].text).toContain("boom");
 
 			server.stop();
 		});
