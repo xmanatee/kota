@@ -137,3 +137,175 @@ describe("executeAgentStep — cost ceiling", () => {
     expect(tryEmitMock).not.toHaveBeenCalledWith("workflow.cost.ceiling.exceeded", expect.anything());
   });
 });
+
+describe("executeAgentStep — outputFormat: json", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-json-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("extracts parsed JSON from the last fenced block when outputFormat is json", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "Some text\n\n```json\n{\"status\":\"ok\",\"count\":3}\n```",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+
+    const definition = makeDefinition("test-workflow");
+    const step = makeAgentStep({ id: "analyze", outputFormat: "json" });
+    const metadata = makeMetadata("run-json-ok");
+
+    const output = await executeAgentStep(
+      definition,
+      step,
+      metadata,
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(output).toEqual({ status: "ok", count: 3 });
+  });
+
+  it("fails the step when outputFormat is json but no fenced block is present", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "I did the analysis and found nothing special.",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+
+    const definition = makeDefinition("test-workflow");
+    const step = makeAgentStep({ id: "analyze", outputFormat: "json" });
+    const metadata = makeMetadata("run-json-missing");
+
+    await expect(
+      executeAgentStep(
+        definition,
+        step,
+        metadata,
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/no fenced JSON block was found/);
+  });
+
+  it("fails the step when the fenced block content is not valid JSON", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "Result:\n\n```json\nnot valid json {\n```",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+
+    const definition = makeDefinition("test-workflow");
+    const step = makeAgentStep({ id: "analyze", outputFormat: "json" });
+    const metadata = makeMetadata("run-json-bad");
+
+    await expect(
+      executeAgentStep(
+        definition,
+        step,
+        metadata,
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/invalid JSON/);
+  });
+
+  it("fails the step when outputSchema validation fails", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "Result:\n\n```json\n{\"status\":\"ok\"}\n```",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+
+    const definition = makeDefinition("test-workflow");
+    const step = makeAgentStep({
+      id: "analyze",
+      outputFormat: "json",
+      outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
+    });
+    const metadata = makeMetadata("run-json-schema-fail");
+
+    await expect(
+      executeAgentStep(
+        definition,
+        step,
+        metadata,
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/schema validation/);
+  });
+
+  it("succeeds when outputSchema validation passes", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "Result:\n\n```json\n{\"status\":\"done\",\"count\":5}\n```",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+
+    const definition = makeDefinition("test-workflow");
+    const step = makeAgentStep({
+      id: "analyze",
+      outputFormat: "json",
+      outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
+    });
+    const metadata = makeMetadata("run-json-schema-ok");
+
+    const output = await executeAgentStep(
+      definition,
+      step,
+      metadata,
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(output).toEqual({ status: "done", count: 5 });
+  });
+});

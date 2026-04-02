@@ -283,5 +283,44 @@ export function validateAgentStep(
       step.repairLoop !== undefined
         ? validateRepairLoop(step.repairLoop, `${stepLabel}.repairLoop`, definitionPath)
         : undefined,
+    outputFormat: validateOutputFormat(step.outputFormat, stepLabel, definitionPath),
+    outputSchema: validateOutputSchema(step.outputSchema, step.outputFormat, stepLabel, definitionPath),
   };
+}
+
+function validateOutputFormat(
+  value: unknown,
+  stepLabel: string,
+  definitionPath: string,
+): "json" | undefined {
+  if (value === undefined) return undefined;
+  if (value !== "json") {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.outputFormat must be "json"`,
+      definitionPath,
+    );
+  }
+  return "json";
+}
+
+function validateOutputSchema(
+  value: unknown,
+  outputFormat: unknown,
+  stepLabel: string,
+  definitionPath: string,
+): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined;
+  if (outputFormat !== "json") {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.outputSchema requires outputFormat: "json"`,
+      definitionPath,
+    );
+  }
+  if (!isPlainObject(value)) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.outputSchema must be an object`,
+      definitionPath,
+    );
+  }
+  return value as Record<string, unknown>;
 }

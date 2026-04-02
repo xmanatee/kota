@@ -135,6 +135,19 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   settingSources?: SDKSettingSource[];
   retry?: WorkflowRetryConfig;
   repairLoop?: WorkflowRepairLoopConfig;
+  /**
+   * When set to "json", a short instruction is appended to the agent prompt asking
+   * it to end its response with a fenced JSON block. After the step completes, the
+   * last fenced JSON block is extracted from the agent's final message and becomes
+   * the step output (parsed). The step fails if no valid JSON block is found.
+   */
+  outputFormat?: "json";
+  /**
+   * Optional JSON Schema object (same subset as inputSchema/outputSchema at the
+   * definition level) to validate the extracted JSON against. Requires
+   * outputFormat: "json". A schema mismatch fails the step with a descriptive error.
+   */
+  outputSchema?: Record<string, unknown>;
 };
 
 export type WorkflowEmitStepInput = WorkflowBaseStep & {
@@ -360,6 +373,8 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   settingSources: SDKSettingSource[];
   retry?: WorkflowRetryConfig;
   repairLoop?: WorkflowRepairLoopConfig;
+  outputFormat?: "json";
+  outputSchema?: Record<string, unknown>;
 };
 
 export type WorkflowEmitStep = WorkflowBaseStep & {

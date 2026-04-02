@@ -1,7 +1,7 @@
 ---
 id: task-agent-step-json-output
 title: Add structured JSON output extraction from agent step responses
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Agent steps return raw text, but downstream code steps and predicates that need structured data must parse it manually. A convention for agents to emit a fenced JSON block that gets extracted into typed step output would reduce boilerplate and catch format errors early.

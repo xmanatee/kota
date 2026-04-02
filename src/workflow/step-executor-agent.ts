@@ -9,6 +9,7 @@ import type { KotaConfig } from "../config.js";
 import { tryEmit } from "../event-bus.js";
 import { ToolTelemetry } from "../tool-telemetry.js";
 import type { ToolResult } from "../tools/index.js";
+import { validatePayloadSchema } from "./payload-validator.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import {
   AgentStepRuntimeError,
@@ -121,6 +122,9 @@ export function buildAgentPrompt(
     "Write any run-specific artifacts under the run directory when useful.",
     "Finish this step fully, then stop.",
   );
+  if (step.outputFormat === "json") {
+    lines.push("", "End your final response with a fenced JSON block containing your structured output.");
+  }
   return {
     systemPromptAppend: promptBody,
     prompt: lines.join("\n"),
@@ -294,6 +298,10 @@ export async function executeAgentStep(
 
   writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
 
+  if (step.outputFormat === "json") {
+    return extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
+  }
+
   return {
     content: result.text,
     streamedText: result.streamedText,
@@ -302,4 +310,34 @@ export async function executeAgentStep(
     totalCostUsd: result.totalCostUsd,
     subtype: result.subtype,
   };
+}
+
+function extractJsonOutput(
+  stepId: string,
+  text: string,
+  outputSchema: Record<string, unknown> | undefined,
+): unknown {
+  const match = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```\s*$/);
+  if (!match) {
+    throw new Error(
+      `Agent step "${stepId}" outputFormat is "json" but no fenced JSON block was found in the response`,
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[1]);
+  } catch {
+    throw new Error(
+      `Agent step "${stepId}" outputFormat is "json" but the fenced block contains invalid JSON`,
+    );
+  }
+  if (outputSchema !== undefined) {
+    const error = validatePayloadSchema(outputSchema, parsed as Record<string, unknown>);
+    if (error) {
+      throw new Error(
+        `Agent step "${stepId}" output failed schema validation: ${error}`,
+      );
+    }
+  }
+  return parsed;
 }
