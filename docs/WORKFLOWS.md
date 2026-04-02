@@ -596,7 +596,7 @@ type HarnessStepResult = {
 ### Inspect a run
 
 ```
-kota workflow run show <run-id> [--payload] [--step <step-id>]
+kota workflow run show <run-id> [--payload] [--step <step-id>] [--chain]
 ```
 
 Prints step-level detail for a run: status, duration, cost, and per-step output summaries. For `completed-with-warnings` runs, also prints a `Warnings:` section listing each warning message.
@@ -606,6 +606,9 @@ Prints step-level detail for a run: status, duration, cost, and per-step output 
   number) explains why the run fired.
 - `--step <step-id>` — prints the full JSON output (or error) for a single step. Skips
   the daemon API path and reads from disk.
+- `--chain` — prints the full causal chain tree rooted at the highest reachable ancestor
+  (up to 5 levels), marking the current run with `← current`. Useful for tracing which
+  explorer or builder run produced a given downstream notification or restart.
 
 Supports prefix matching: `kota workflow run show 2026-03-30T18` resolves to the matching run.
 

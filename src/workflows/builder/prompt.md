@@ -49,6 +49,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   a configuration input field or a result output field),
   update `docs/WORKFLOWS.md` — the Agent Step Fields table, the step output section,
   or whichever section covers that step type; when you
+  add new options (flags) to an existing CLI command that appears in the Operator Commands
+  section of `docs/WORKFLOWS.md`, add the new option to that command's option list in the
+  same run; when you
   add a daemon control API endpoint or a server-handled HTTP endpoint (routes in
   `src/server/server-routes.ts` or `workflow-routes.ts`) or add/remove a field
   from an existing API response, update `docs/DAEMON-API.md` (including the JSON
