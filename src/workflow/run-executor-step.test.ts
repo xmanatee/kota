@@ -1,9 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   applyOutputSizeLimit,
   DEFAULT_MAX_STEP_OUTPUT_BYTES,
+  executeWorkflowStep,
   HARD_MAX_STEP_OUTPUT_BYTES,
+  type StepAccumulators,
 } from "./run-executor-step.js";
+
+const executeStepMock = vi.hoisted(() => vi.fn());
+vi.mock("./step-executor.js", () => ({
+  executeStep: executeStepMock,
+  AgentStepRuntimeError: class AgentStepRuntimeError extends Error {
+    kind: string;
+    retryable: boolean;
+    constructor(msg: string, kind: string, retryable: boolean) {
+      super(msg);
+      this.kind = kind;
+      this.retryable = retryable;
+    }
+  },
+}));
 
 describe("applyOutputSizeLimit", () => {
   it("returns output unchanged when below the default limit", () => {
@@ -65,5 +81,94 @@ describe("applyOutputSizeLimit", () => {
     const result = applyOutputSizeLimit(largeOutput, undefined);
     const notice = result.output as { truncated: boolean; originalBytes: number; message: string };
     expect(notice.originalBytes).toBe(Buffer.byteLength(JSON.stringify(largeOutput), "utf-8"));
+  });
+});
+
+describe("executeWorkflowStep — costUsd capture", () => {
+  function makeAcc(): StepAccumulators {
+    return { stepOutputsById: {}, stepResultsById: {}, stepOutputs: [], warnings: [] };
+  }
+
+  const definition = {
+    name: "test-wf",
+    enabled: true,
+    definitionPath: "src/workflows/test/workflow.ts",
+    triggers: [],
+    steps: [],
+  };
+
+  const metadata = {
+    id: "run-cost-01",
+    workflow: "test-wf",
+    runDir: ".kota/runs/run-cost-01",
+    definitionPath: "src/workflows/test/workflow.ts",
+    trigger: { event: "runtime.idle" as const, payload: {} },
+    startedAt: new Date().toISOString(),
+    status: "running" as const,
+    steps: [],
+  };
+
+  const trigger = { event: "runtime.idle" as const, payload: {} };
+
+  const context = {
+    projectDir: "/tmp",
+    workflow: { name: "test-wf", runId: "run-cost-01", runDir: ".kota/runs/run-cost-01", definitionPath: "src/workflows/test/workflow.ts" },
+    trigger,
+    previousOutput: undefined,
+    stepOutputs: {},
+    stepOutputList: [],
+  };
+
+  const run = {
+    metadata,
+    recordStep: vi.fn(),
+    appendAgentMessage: vi.fn(),
+    writeAgentInputs: vi.fn(),
+  };
+
+  const bus = { emit: vi.fn() } as any;
+  const log = vi.fn();
+  const agentConfig = { config: {}, log, projectDir: "/tmp" } as any;
+
+  it("captures costUsd from agent step output onto WorkflowStepResult", async () => {
+    const agentOutput = { content: "done", totalCostUsd: 0.42, turns: 3 };
+    executeStepMock.mockResolvedValueOnce(agentOutput);
+
+    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md", permissionMode: "bypassPermissions" as const, settingSources: [] };
+    const acc = makeAcc();
+    const result = await executeWorkflowStep(
+      definition as any, step as any, run, trigger, context as any,
+      new AbortController(), agentConfig, acc, { bus, log }, Date.now(),
+    );
+
+    expect(result.completed.costUsd).toBe(0.42);
+    expect(bus.emit).toHaveBeenCalledWith(
+      "workflow.step.completed",
+      expect.objectContaining({ costUsd: 0.42 }),
+    );
+  });
+
+  it("does not set costUsd on non-agent steps", async () => {
+    executeStepMock.mockResolvedValueOnce("ok");
+    const step = { id: "emit-step", type: "emit" as const, event: "test.event", payload: {} };
+    const acc = makeAcc();
+    const result = await executeWorkflowStep(
+      definition as any, step as any, run, trigger, context as any,
+      new AbortController(), agentConfig, acc, { bus, log }, Date.now(),
+    );
+
+    expect(result.completed.costUsd).toBeUndefined();
+  });
+
+  it("does not set costUsd when agent output lacks totalCostUsd", async () => {
+    executeStepMock.mockResolvedValueOnce({ content: "done" });
+    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md", permissionMode: "bypassPermissions" as const, settingSources: [] };
+    const acc = makeAcc();
+    const result = await executeWorkflowStep(
+      definition as any, step as any, run, trigger, context as any,
+      new AbortController(), agentConfig, acc, { bus, log }, Date.now(),
+    );
+
+    expect(result.completed.costUsd).toBeUndefined();
   });
 });

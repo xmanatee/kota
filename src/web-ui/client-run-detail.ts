@@ -171,7 +171,8 @@ export const CLIENT_RUN_DETAIL_JS = `
         var sb = step.status === "success" ? "success" : step.status === "failed" ? "failed" : step.status === "running" ? "running" : "interrupted";
         var si = step.status === "success" ? "\\u2713" : step.status === "failed" ? "\\u2717" : step.status === "running" ? (isApprovalWaiting ? "\\u23f3" : "\\u25b6") : "\\u26a1";
         var sm = step.durationMs ? fmtDuration(step.durationMs) : "";
-        var stepCost = (step.output && typeof step.output === "object" && step.output.totalCostUsd != null) ? ("$" + step.output.totalCostUsd.toFixed(3)) : "";
+        var stepCostVal = step.costUsd != null ? step.costUsd : (step.output && typeof step.output === "object" && step.output.totalCostUsd != null ? step.output.totalCostUsd : null);
+        var stepCost = (stepCostVal != null && stepCostVal > 0) ? ("$" + stepCostVal.toFixed(2)) : "";
         if (stepCost) sm += (sm ? " \\u00b7 " : "") + stepCost;
         var rawOutput = "";
         if (step.output != null) {

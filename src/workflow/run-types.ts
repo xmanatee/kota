@@ -63,6 +63,7 @@ export type WorkflowStepResult = {
   startedAt: string;
   completedAt: string;
   durationMs: number;
+  costUsd?: number;
   output?: unknown;
   error?: string;
   continueOnFailure?: boolean;

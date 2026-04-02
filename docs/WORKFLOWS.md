@@ -185,6 +185,12 @@ Extended thinking is off by default. Enable it on steps where deeper reasoning
 improves output quality (e.g., complex planning or architecture steps). It increases
 cost and latency proportionally to the token budget.
 
+#### Agent step cost
+
+After an agent step completes, `WorkflowStepResult.costUsd` is populated with the USD cost of that step. The `workflow.step.completed` bus event includes this as an optional `costUsd` field. The daemon API run detail (`GET /api/workflow/runs/:id`) includes `costUsd` per step in the `steps` array. The web UI run detail shows a compact cost annotation (e.g., `$0.04`) next to agent step rows where cost is greater than zero.
+
+Non-agent steps (code, tool, emit, branch, foreach, approval) do not set `costUsd`.
+
 ### Hook-like reaction
 
 React to a workflow completion:

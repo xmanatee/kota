@@ -184,6 +184,14 @@ export async function executeWorkflowStep(
       agentConfig,
     );
     const rawOutput = await Promise.race([stepPromise, timeoutPromise]);
+    const stepCostUsd =
+      step.type === "agent" &&
+      rawOutput != null &&
+      typeof rawOutput === "object" &&
+      !Array.isArray(rawOutput)
+        ? ((rawOutput as Record<string, unknown>).totalCostUsd as number | undefined)
+        : undefined;
+
     const { output, warning: truncationWarning } = applyOutputSizeLimit(
       rawOutput,
       agentConfig.config?.workflow?.maxStepOutputBytes,
@@ -200,6 +208,7 @@ export async function executeWorkflowStep(
       startedAt: new Date(stepStartedAt).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
+      ...(stepCostUsd != null ? { costUsd: stepCostUsd } : {}),
       output,
     };
     run.recordStep(completed);

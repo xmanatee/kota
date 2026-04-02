@@ -28,6 +28,7 @@ export function buildStepCompletedPayload(
     stepType: result.type,
     status: result.status,
     durationMs: result.durationMs,
+    ...(result.costUsd != null ? { costUsd: result.costUsd } : {}),
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,
   };

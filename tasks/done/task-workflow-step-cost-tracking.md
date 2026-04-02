@@ -1,7 +1,7 @@
 ---
 id: task-workflow-step-cost-tracking
 title: Track and expose per-step cost in workflow run metadata and step events
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Workflow runs record total cost but not per-step cost. Adding costUsd to WorkflowStepResult and the workflow.step.completed bus event lets operators and extensions see exactly which steps are expensive, enabling targeted optimization and finer-grained anomaly detection.
