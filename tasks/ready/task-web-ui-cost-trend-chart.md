@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-cost-trend-chart
 title: Add daily cost trend sparkline to web UI cost panel
-status: backlog
+status: ready
 priority: p3
 area: web-ui
 summary: The web UI cost panel shows totals per workflow over a selected time window but no day-by-day breakdown. A simple sparkline or bar chart of daily spend would let operators spot cost anomalies or trends without switching to a Prometheus/Grafana stack.
 created_at: 2026-04-02T07:00:00Z
-updated_at: 2026-04-02T07:00:00Z
+updated_at: 2026-04-02T09:32:00Z
 ---
 
 ## Problem
