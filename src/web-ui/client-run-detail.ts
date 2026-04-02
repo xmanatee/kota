@@ -62,7 +62,10 @@ export const CLIENT_RUN_DETAIL_JS = `
     var completed = run.completedAt ? new Date(run.completedAt).toLocaleString() : "\\u2014";
     var html = '<div class="run-detail-header">';
     html += '<button class="run-detail-back" id="run-detail-back">\\u2190 Back</button>';
-    if (run.status !== "running") {
+    if (run.status === "running" || run.status === "repairing") {
+      html += '<button class="run-detail-abort" id="run-detail-abort">\\u23f9 Abort</button>';
+    }
+    if (run.status !== "running" && run.status !== "repairing") {
       html += '<button class="run-detail-replay" id="run-detail-replay">\\u21ba Replay</button>';
     }
     html += '<div class="run-detail-title"><span class="run-badge ' + badgeClass + '">' + icon + '</span>' + escapeHtml(run.workflow) + '</div>';
@@ -226,6 +229,22 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '</div>';
     $runDetail.innerHTML = html;
     document.getElementById("run-detail-back").onclick = showChat;
+    var $abortBtn = document.getElementById("run-detail-abort");
+    if ($abortBtn) {
+      $abortBtn.onclick = async function() {
+        if (!confirm("Abort this run?")) return;
+        $abortBtn.disabled = true;
+        $abortBtn.textContent = "Aborting\\u2026";
+        try {
+          await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(run.id) + "/abort", { method: "POST" });
+          showRunDetail(run.id);
+        } catch (err) {
+          $abortBtn.textContent = "\\u23f9 Abort";
+          $abortBtn.disabled = false;
+          alert("Abort failed: " + err.message);
+        }
+      };
+    }
     var $causedByLink = $runDetail.querySelector(".run-causedby-link");
     if ($causedByLink) {
       $causedByLink.onclick = function(e) {
