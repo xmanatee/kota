@@ -472,4 +472,24 @@ describe("getWebUI", () => {
     expect(html).toContain("wf-input-actions");
     expect(html).toContain("wf-input-checkbox");
   });
+
+  it("tracks last event timestamp for SSE reconnect catchup", () => {
+    expect(html).toContain("_lastEventTimestamp");
+    expect(html).toContain("_trackEvent");
+    expect(html).toContain('new Date().toISOString()');
+  });
+
+  it("includes since parameter in SSE URL when lastEventTimestamp is set", () => {
+    expect(html).toContain('"since=" + encodeURIComponent(_lastEventTimestamp)');
+    expect(html).toContain("if (_lastEventTimestamp)");
+  });
+
+  it("wraps all SSE event listeners with _trackEvent to update timestamp", () => {
+    expect(html).toContain('_trackEvent(onQueueEvent)');
+    expect(html).toContain('_trackEvent(function');
+  });
+
+  it("initial SSE connect without since when no prior timestamp", () => {
+    expect(html).toContain("_lastEventTimestamp = null");
+  });
 });

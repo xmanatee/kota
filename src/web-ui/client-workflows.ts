@@ -362,6 +362,7 @@ export const CLIENT_WORKFLOWS_JS = `
   var _daemonEventsSource = null;
   var _daemonEventsRetryTimer = null;
   var _sseFallbackIntervals = [];
+  var _lastEventTimestamp = null;
 
   function _clearSseFallback() {
     for (var i = 0; i < _sseFallbackIntervals.length; i++) clearInterval(_sseFallbackIntervals[i]);
@@ -389,9 +390,19 @@ export const CLIENT_WORKFLOWS_JS = `
     n.onclick = function() { window.focus(); n.close(); };
   }
 
+  function _trackEvent(handler) {
+    return function(e) {
+      _lastEventTimestamp = new Date().toISOString();
+      handler(e);
+    };
+  }
+
   function connectDaemonEvents() {
     if (_daemonEventsSource) return;
-    var eventsUrl = API + "/api/daemon/events" + (authToken ? "?token=" + encodeURIComponent(authToken) : "");
+    var params = [];
+    if (authToken) params.push("token=" + encodeURIComponent(authToken));
+    if (_lastEventTimestamp) params.push("since=" + encodeURIComponent(_lastEventTimestamp));
+    var eventsUrl = API + "/api/daemon/events" + (params.length ? "?" + params.join("&") : "");
     var src = new EventSource(eventsUrl);
     _daemonEventsSource = src;
 
@@ -404,26 +415,26 @@ export const CLIENT_WORKFLOWS_JS = `
     };
 
     function onQueueEvent() { refreshWorkflows(); refreshWfDefinitions(); refreshSchedules(); refreshCost(); }
-    src.addEventListener("workflow.started", onQueueEvent);
-    src.addEventListener("workflow.completed", onQueueEvent);
-    src.addEventListener("workflow.step.completed", onQueueEvent);
-    src.addEventListener("queue.changed", onQueueEvent);
-    src.addEventListener("approval.changed", function(e) {
+    src.addEventListener("workflow.started", _trackEvent(onQueueEvent));
+    src.addEventListener("workflow.completed", _trackEvent(onQueueEvent));
+    src.addEventListener("workflow.step.completed", _trackEvent(onQueueEvent));
+    src.addEventListener("queue.changed", _trackEvent(onQueueEvent));
+    src.addEventListener("approval.changed", _trackEvent(function(e) {
       refreshApprovals();
       try {
         var d = JSON.parse(e.data);
         if (d.pendingCount > 0) _notify("Approval required", "A workflow step is waiting for approval.");
       } catch {}
-    });
-    src.addEventListener("workflow.failure.alert", function(e) {
+    }));
+    src.addEventListener("workflow.failure.alert", _trackEvent(function(e) {
       try {
         var d = JSON.parse(e.data);
         _notify("Workflow failed", d.workflow + " — " + d.runId);
       } catch {}
-    });
-    src.addEventListener("task.changed", function() { refreshTasks(); });
-    src.addEventListener("session.registered", function() { refreshActiveSessions(); });
-    src.addEventListener("session.unregistered", function() { refreshActiveSessions(); });
+    }));
+    src.addEventListener("task.changed", _trackEvent(function() { refreshTasks(); }));
+    src.addEventListener("session.registered", _trackEvent(function() { refreshActiveSessions(); }));
+    src.addEventListener("session.unregistered", _trackEvent(function() { refreshActiveSessions(); }));
 
     src.onerror = function() {
       src.close();

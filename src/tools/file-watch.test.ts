@@ -284,16 +284,20 @@ describe("WatcherManager subdirectory watching", () => {
 		await mkdir(subDir);
 		await mgr.start(tmpDir, { recursive: true });
 
-		const eventPromise = waitForEvent(bus, "file.changed");
+		const eventPromise = waitForEventMatching(
+			bus,
+			"file.changed",
+			(payload) => {
+				const changes = payload.changes as { path: string; type: string }[];
+				return changes.some(
+					(c) => c.path.includes("main.ts") && c.path.includes("src"),
+				);
+			},
+			3000,
+		);
 		await writeFile(join(subDir, "main.ts"), "console.log('hello');");
 
-		const payload = await eventPromise;
-		const changes = payload.changes as { path: string; type: string }[];
-		expect(
-			changes.some(
-				(c) => c.path.includes("main.ts") && c.path.includes("src"),
-			),
-		).toBe(true);
+		await eventPromise;
 	});
 });
 

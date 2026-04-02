@@ -1,7 +1,7 @@
 ---
 id: task-sse-reconnect-catchup
 title: Resume SSE event stream with ring-buffer catchup after reconnect
-status: ready
+status: done
 priority: p2
 area: reliability
 summary: The web UI reconnects the daemon SSE stream after an error but does not replay events missed during the gap. The daemon already has a ring buffer and a `since` query parameter for catchup, but the client ignores it, causing stale state until the next polling fallback fires.
