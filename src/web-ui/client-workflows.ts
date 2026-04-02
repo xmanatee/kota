@@ -102,7 +102,8 @@ export const CLIENT_WORKFLOWS_JS = `
   var _runsOffset = 0;
   var _runsLoading = false;
   var _canLoadMore = false;
-  var wfFilter = { workflow: "", status: "", dateRange: "all", tag: "" };
+  var wfFilter = { workflow: "", status: "", dateRange: "all", tag: "", searchText: "" };
+  var _searchDebounceTimer = null;
 
   function renderHistoryFilter(workflowNames, tagNames) {
     $workflowHistoryFilter.innerHTML = "";
@@ -159,6 +160,38 @@ export const CLIENT_WORKFLOWS_JS = `
 
     $workflowHistoryFilter.appendChild(row1);
 
+    var searchRow = document.createElement("div");
+    searchRow.className = "wf-filter-search-row";
+    var searchInput = document.createElement("input");
+    searchInput.type = "text";
+    searchInput.className = "wf-filter-search";
+    searchInput.placeholder = "Search run ID, workflow, trigger…";
+    searchInput.value = wfFilter.searchText;
+    searchInput.oninput = function() {
+      clearTimeout(_searchDebounceTimer);
+      var val = searchInput.value;
+      _searchDebounceTimer = setTimeout(function() {
+        wfFilter.searchText = val;
+        var clearBtn = searchRow.querySelector(".wf-filter-search-clear");
+        if (clearBtn) clearBtn.style.display = val ? "flex" : "none";
+        applyHistoryFilter();
+      }, 200);
+    };
+    searchRow.appendChild(searchInput);
+    var clearBtn = document.createElement("button");
+    clearBtn.className = "wf-filter-search-clear";
+    clearBtn.textContent = "×";
+    clearBtn.title = "Clear search";
+    clearBtn.style.display = wfFilter.searchText ? "flex" : "none";
+    clearBtn.onclick = function() {
+      searchInput.value = "";
+      wfFilter.searchText = "";
+      clearBtn.style.display = "none";
+      applyHistoryFilter();
+    };
+    searchRow.appendChild(clearBtn);
+    $workflowHistoryFilter.appendChild(searchRow);
+
     var row2 = document.createElement("div");
     row2.className = "wf-filter-dates";
     [["all", "All time"], ["today", "Today"], ["7d", "7 days"]].forEach(function(pair) {
@@ -186,11 +219,18 @@ export const CLIENT_WORKFLOWS_JS = `
     } else if (wfFilter.dateRange === "7d") {
       cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     }
+    var searchLower = wfFilter.searchText.toLowerCase();
     var filtered = _allRecentRuns.filter(function(r) {
       if (wfFilter.workflow && r.workflow !== wfFilter.workflow) return false;
       if (wfFilter.status && r.status !== wfFilter.status) return false;
       if (cutoff && new Date(r.startedAt).getTime() < cutoff) return false;
       if (wfFilter.tag && !(r.tags && r.tags.indexOf(wfFilter.tag) !== -1)) return false;
+      if (searchLower) {
+        var idMatch = r.id && r.id.toLowerCase().indexOf(searchLower) !== -1;
+        var wfMatch = r.workflow && r.workflow.toLowerCase().indexOf(searchLower) !== -1;
+        var trigMatch = r.triggerEvent && r.triggerEvent.toLowerCase().indexOf(searchLower) !== -1;
+        if (!idMatch && !wfMatch && !trigMatch) return false;
+      }
       return true;
     });
     renderWorkflows(_allActiveRuns, filtered, _allPendingRuns);

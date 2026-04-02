@@ -315,6 +315,41 @@ export const STYLES_PANELS_CSS = `
   cursor: pointer;
 }
 .wf-filter-select:focus { outline: none; border-color: var(--accent); color: var(--text); }
+.wf-filter-search-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.wf-filter-search {
+  flex: 1;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  min-width: 0;
+}
+.wf-filter-search::placeholder { color: var(--text-muted); opacity: 0.6; }
+.wf-filter-search:focus { outline: none; border-color: var(--accent); color: var(--text); }
+.wf-filter-search-clear {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.wf-filter-search-clear:hover { border-color: var(--accent); color: var(--text); }
 .wf-filter-dates {
   display: flex;
   gap: 3px;

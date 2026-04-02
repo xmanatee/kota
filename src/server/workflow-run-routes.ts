@@ -16,6 +16,8 @@ type RunSummary = {
   completedAt?: string;
   durationMs?: number;
   totalCostUsd?: number;
+  triggerEvent?: string;
+  tags?: string[];
 };
 
 function toSummary(meta: WorkflowRunMetadata): RunSummary {
@@ -27,6 +29,8 @@ function toSummary(meta: WorkflowRunMetadata): RunSummary {
     ...(meta.completedAt !== undefined && { completedAt: meta.completedAt }),
     ...(meta.durationMs !== undefined && { durationMs: meta.durationMs }),
     ...(meta.totalCostUsd !== undefined && { totalCostUsd: meta.totalCostUsd }),
+    ...(meta.trigger?.event !== undefined && { triggerEvent: meta.trigger.event }),
+    ...(meta.tags !== undefined && { tags: meta.tags }),
   };
 }
 

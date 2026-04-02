@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-run-text-search
 title: Add free-text search to the web UI run history filter
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The web UI run history already supports workflow, status, tag, and date filters, but operators cannot search by run ID substring or error text. A text box filter would let operators quickly locate a specific run without knowing its exact metadata.
