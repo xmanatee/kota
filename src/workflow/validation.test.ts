@@ -759,6 +759,40 @@ describe("workflow validation", () => {
     expect(definitions[0]?.webhookRateLimit).toBeUndefined();
   });
 
+  it("warns when a trigger step fires a child workflow with an outputSchema but waitFor omitted (default: queued)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/parent.ts", {
+            name: "parent",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "launch", type: "trigger", workflow: "child" }],
+          }),
+          registerWorkflowDefinition("test/child.ts", {
+            name: "child",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "run", type: "emit", event: "child.done" }],
+            outputSchema: {
+              type: "object",
+              properties: { result: { type: "string" } },
+              required: ["result"],
+            },
+          }),
+        ],
+        projectDir,
+      );
+
+      const relevantWarning = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string" && call[0].includes("outputSchema") && call[0].includes("launch"),
+      );
+      expect(relevantWarning).toBeDefined();
+      expect(relevantWarning![0]).toMatch(/waitFor.*"completed"/);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it("warns when a trigger step fires a child workflow with an outputSchema but waitFor: queued", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
