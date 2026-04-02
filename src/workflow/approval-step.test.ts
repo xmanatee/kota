@@ -85,8 +85,8 @@ describe("approval step – WorkflowTestHarness", () => {
     );
     const result = await harness.run();
     expect(result.status).toBe("success");
-    expect(result.steps["confirm"].status).toBe("success");
-    expect(result.steps["confirm"].output).toMatchObject({ approved: true, resolutionSource: "harness" });
+    expect(result.steps.confirm.status).toBe("success");
+    expect(result.steps.confirm.output).toMatchObject({ approved: true, resolutionSource: "harness" });
   });
 
   it("approves when mock is truthy (not a rejection object)", async () => {
@@ -98,7 +98,7 @@ describe("approval step – WorkflowTestHarness", () => {
     );
     const result = await harness.run();
     expect(result.status).toBe("success");
-    expect(result.steps["confirm"].status).toBe("success");
+    expect(result.steps.confirm.status).toBe("success");
   });
 
   it("rejects when mock has approved: false", async () => {
@@ -110,9 +110,9 @@ describe("approval step – WorkflowTestHarness", () => {
     );
     const result = await harness.run();
     expect(result.status).toBe("failed");
-    expect(result.steps["confirm"].status).toBe("failed");
-    expect(result.steps["confirm"].error).toContain("rejected");
-    expect(result.steps["confirm"].error).toContain("Too risky");
+    expect(result.steps.confirm.status).toBe("failed");
+    expect(result.steps.confirm.error).toContain("rejected");
+    expect(result.steps.confirm.error).toContain("Too risky");
   });
 
   it("continues after rejection when continueOnFailure is true", async () => {
@@ -129,8 +129,8 @@ describe("approval step – WorkflowTestHarness", () => {
     );
     const result = await harness.run();
     expect(result.status).toBe("success");
-    expect(result.steps["confirm"].status).toBe("failed");
-    expect(result.steps["next"].status).toBe("success");
+    expect(result.steps.confirm.status).toBe("failed");
+    expect(result.steps.next.status).toBe("success");
   });
 
   it("skips the approval step when when-predicate is false", async () => {
@@ -145,6 +145,6 @@ describe("approval step – WorkflowTestHarness", () => {
     );
     const result = await harness.run();
     expect(result.status).toBe("success");
-    expect(result.steps["confirm"].status).toBe("skipped");
+    expect(result.steps.confirm.status).toBe("skipped");
   });
 });

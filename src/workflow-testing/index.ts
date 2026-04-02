@@ -4,10 +4,12 @@ import type {
   WorkflowStepContext,
   WorkflowStepResult,
 } from "../workflow/run-types.js";
+import { resolveValue } from "../workflow/step-executor.js";
 import type {
   WorkflowBranchStepInput,
   WorkflowCodeStepInput,
   WorkflowDefinitionInput,
+  WorkflowForeachStepInput,
   WorkflowParallelGroupInput,
   WorkflowStepInput,
 } from "../workflow/types.js";
@@ -265,6 +267,118 @@ export class WorkflowTestHarness {
         if (branchFailed && !branch.continueOnFailure) {
           runFailed = true;
           runError = takenArm.map((s) => allStepResults[s.id]).find((r) => r?.status === "failed")?.error ?? "branch arm failed";
+        }
+        return;
+      }
+
+      // Foreach step — iterate over items, binding each to context.foreach
+      if (step.type === "foreach") {
+        const foreach = step as WorkflowForeachStepInput;
+        const context = buildContext();
+        const shouldRun = foreach.when ? Boolean(await foreach.when(context)) : true;
+        if (!shouldRun) {
+          const { harness, internal } = makeStepResult(foreach.id, "foreach", "skipped", undefined, undefined, "when predicate returned false");
+          recordResult(harness, internal, undefined);
+          return;
+        }
+
+        let items: unknown[];
+        try {
+          const resolved = await resolveValue(foreach.items, context);
+          if (!Array.isArray(resolved)) {
+            throw new Error(`foreach step "${foreach.id}" items resolver returned a non-array value`);
+          }
+          items = resolved;
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const { harness, internal } = makeStepResult(foreach.id, "foreach", "failed", undefined, errMsg, undefined);
+          recordResult(harness, internal, undefined);
+          if (!foreach.continueOnFailure) { runFailed = true; runError = errMsg; }
+          return;
+        }
+
+        const itemResults: Array<{ index: number; status: "success" | "failed"; steps: Record<string, HarnessStepResult> }> = [];
+        let foreachFailed = false;
+
+        const runIteration = async (index: number, item: unknown): Promise<void> => {
+          const iterStepOutputsById: Record<string, unknown> = {};
+          const iterHarnessResults: Record<string, HarnessStepResult> = {};
+          let iterFailed = false;
+
+          for (const innerStep of foreach.steps) {
+            const iterContext: WorkflowStepContext = {
+              ...buildContext(),
+              foreach: { [foreach.as]: item },
+              stepOutputs: { ...stepOutputsById, ...iterStepOutputsById },
+              stepResults: { ...stepResultsById },
+              stepOutputList: [...stepOutputList],
+            };
+
+            const innerShouldRun = innerStep.when ? Boolean(await innerStep.when(iterContext)) : true;
+            if (!innerShouldRun) {
+              const { harness: h } = makeStepResult(innerStep.id, innerStep.type, "skipped", undefined, undefined, "when predicate returned false");
+              iterHarnessResults[innerStep.id] = h;
+              continue;
+            }
+
+            let innerOutput: unknown;
+            let innerError: string | undefined;
+            let innerStatus: "success" | "failed" = "success";
+
+            try {
+              if (innerStep.type === "agent") {
+                if (!(innerStep.id in stepMocks)) {
+                  throw new Error(`Agent step "${innerStep.id}" requires a mock. Add stepMocks["${innerStep.id}"] to HarnessOptions.`);
+                }
+                innerOutput = stepMocks[innerStep.id];
+              } else {
+                innerOutput = await (innerStep as WorkflowCodeStepInput).run(iterContext);
+              }
+            } catch (err) {
+              innerError = err instanceof Error ? err.message : String(err);
+              innerStatus = "failed";
+            }
+
+            const { harness: h } = makeStepResult(innerStep.id, innerStep.type, innerStatus, innerOutput, innerError, undefined);
+            iterHarnessResults[innerStep.id] = h;
+            if (innerOutput !== undefined) iterStepOutputsById[innerStep.id] = innerOutput;
+
+            if (innerStatus === "failed" && !innerStep.continueOnFailure) {
+              iterFailed = true;
+              break;
+            }
+          }
+
+          const iterStatus = iterFailed ? "failed" : "success";
+          itemResults.push({ index, status: iterStatus, steps: iterHarnessResults });
+
+          if (iterFailed) {
+            foreachFailed = true;
+          }
+        };
+
+        if (runParallel) {
+          await Promise.all(items.map((item, i) => runIteration(i, item)));
+        } else {
+          for (let i = 0; i < items.length; i++) {
+            await runIteration(i, items[i]);
+            if (foreachFailed && !foreach.continueOnFailure) break;
+          }
+        }
+
+        const foreachStatus = foreachFailed ? "failed" : "success";
+        const foreachOutput = { items: items.length, results: itemResults };
+        const now = new Date().toISOString();
+        allStepResults[foreach.id] = { id: foreach.id, type: "foreach", status: foreachStatus, output: foreachOutput };
+        stepResultsById[foreach.id] = { id: foreach.id, type: "foreach", status: foreachStatus, startedAt: now, completedAt: now, durationMs: 0, output: foreachOutput };
+        stepOutputsById[foreach.id] = foreachOutput;
+        stepOutputList.push(foreachOutput);
+
+        if (foreachFailed && !foreach.continueOnFailure) {
+          runFailed = true;
+          const failedItem = itemResults.find((r) => r.status === "failed");
+          const failedStep = failedItem ? Object.values(failedItem.steps).find((s) => s.status === "failed") : undefined;
+          runError = failedStep?.error ?? "foreach step failed";
         }
         return;
       }
