@@ -21,6 +21,7 @@ minimum 200ms). Watch triggers are only active when the daemon is running; they 
 silently skipped in standalone `kota serve` mode. Webhook triggers require a
 per-workflow HMAC secret in `.kota/config.json`; see [DAEMON-API.md](./DAEMON-API.md#webhook-trigger-endpoint)
 for signing details, configuration, and the optional `webhookRateLimit` field.
+Interval and idle triggers respect `scheduler.dispatchWindow` in config — see [CONFIG.md](./CONFIG.md#dispatchwindow).
 
 ## Concurrency Model
 

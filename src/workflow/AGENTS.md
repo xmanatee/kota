@@ -10,7 +10,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, `typedCodeStep` factory, and related config.
 - `run-types.ts` — Runtime execution types: run status (`WorkflowRunStatus`, including `completed-with-warnings`), step status, active run, queued run, execution context, predicates, repair config, step/run results, and `WorkflowRunWarning` (structured warning stored in `WorkflowRunMetadata.warnings`).
 - `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. Includes `enableWorkflow`/`disableWorkflow` for runtime-only per-workflow enable/disable overrides.
-- `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface.
+- `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface. Idle triggers respect `scheduler.dispatchWindow` from config.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
 - `budget-guard.ts` — `BudgetGuard`: daily spend tracking; emits `workflow.budget.exceeded` and `workflow.cost.limit.reached` bus events when thresholds are crossed.
