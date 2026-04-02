@@ -1,12 +1,12 @@
 ---
 id: task-github-actions-integration
 title: GitHub Actions integration pattern for KOTA webhook triggers
-status: backlog
+status: ready
 priority: p3
 area: integrations
 summary: Document and provide a reusable example for triggering KOTA workflows from GitHub Actions using the signed webhook trigger, enabling teams to kick off builder or custom workflows on push, PR, or release events.
 created_at: 2026-04-02T11:35:00Z
-updated_at: 2026-04-02T11:35:00Z
+updated_at: 2026-04-02T13:41:47Z
 ---
 
 ## Problem
