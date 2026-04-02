@@ -1,12 +1,12 @@
 ---
 id: task-harness-foreach-support
 title: Add foreach step support to WorkflowTestHarness
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: WorkflowTestHarness handles code, agent, emit, restart, trigger, tool, parallel, and branch steps but silently falls through foreach steps. Workflows that use foreach cannot be unit-tested with the harness, leaving a gap in the testing surface for a first-class step type.
 created_at: 2026-04-02T03:00:00Z
-updated_at: 2026-04-02T03:00:00Z
+updated_at: 2026-04-02T03:58:38Z
 ---
 
 ## Problem

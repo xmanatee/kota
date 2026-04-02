@@ -1,12 +1,12 @@
 ---
 id: task-prometheus-run-duration-histogram
 title: Add workflow run duration histogram to Prometheus metrics endpoint
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The Prometheus metrics endpoint tracks run counts and cost per workflow but not duration. Adding a histogram of run durations per workflow would let operators set latency-based SLOs and alert on slow builder or explorer runs.
 created_at: 2026-04-02T03:29:03Z
-updated_at: 2026-04-02T03:29:03Z
+updated_at: 2026-04-02T03:58:38Z
 ---
 
 ## Problem
