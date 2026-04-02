@@ -1,12 +1,12 @@
 ---
 id: task-watch-trigger-status-cli
 title: Show active file-watch triggers in kota workflow status output
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: Workflows with file-watch triggers register glob patterns at daemon start, but there is no CLI or web UI surface to confirm which globs are actively watched and which workflows they will fire.
 created_at: 2026-04-02T00:00:00Z
-updated_at: 2026-04-02T00:00:00Z
+updated_at: 2026-04-02T01:06:00Z
 ---
 
 ## Problem
