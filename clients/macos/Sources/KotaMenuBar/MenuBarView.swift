@@ -24,6 +24,9 @@ struct MenuBarView: View {
                 }
             }
 
+            // Task queue
+            TaskQueueView()
+
             // Pending approvals
             ApprovalsView()
 
@@ -279,6 +282,88 @@ struct RunDetailContent: View {
             Image(systemName: "circle")
                 .imageScale(.small)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct TaskQueueView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var isExpanded = false
+
+    private var doingTask: TaskDetail? { appState.taskQueue?.tasks.doing.first }
+    private var hasDoingTask: Bool { doingTask != nil }
+
+    var body: some View {
+        let queue = appState.taskQueue
+        guard queue != nil || hasDoingTask else { return AnyView(EmptyView()) }
+        return AnyView(taskQueueContent(queue: queue))
+    }
+
+    @ViewBuilder
+    private func taskQueueContent(queue: TaskQueueResponse?) -> some View {
+        Divider()
+        Button(action: { isExpanded.toggle() }) {
+            HStack {
+                Image(systemName: "checklist")
+                    .imageScale(.small)
+                    .foregroundStyle(hasDoingTask ? .orange : .secondary)
+                Text("Task Queue")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let task = doingTask {
+                    Text(task.priority)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.secondary.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                }
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .imageScale(.small)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onAppear { isExpanded = hasDoingTask }
+        .onChange(of: hasDoingTask) { newValue in
+            if newValue { isExpanded = true }
+        }
+
+        if isExpanded {
+            if let task = doingTask {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.2.circlepath")
+                        .imageScale(.small)
+                        .foregroundStyle(.orange)
+                    Text(task.title)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+            } else {
+                Text("idle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 3)
+            }
+
+            if let q = queue {
+                let ready = q.counts.ready
+                let backlog = q.counts.backlog
+                Text("\(ready) ready · \(backlog) backlog")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+            }
         }
     }
 }

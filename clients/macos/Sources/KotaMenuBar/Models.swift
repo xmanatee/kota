@@ -101,6 +101,34 @@ struct TriggerResponse: Codable {
     let runId: String?
 }
 
+// MARK: - Task queue
+
+struct TaskQueueResponse: Codable {
+    let counts: TaskQueueCounts
+    let tasks: TaskQueueTasks
+}
+
+struct TaskQueueCounts: Codable {
+    let inbox: Int
+    let ready: Int
+    let backlog: Int
+    let doing: Int
+    let blocked: Int
+}
+
+struct TaskQueueTasks: Codable {
+    let doing: [TaskDetail]
+    let ready: [TaskDetail]
+}
+
+struct TaskDetail: Codable, Identifiable {
+    let id: String
+    let title: String
+    let priority: String
+    let area: String
+    let summary: String
+}
+
 // MARK: - Daemon connectivity state
 
 enum DaemonHealth {

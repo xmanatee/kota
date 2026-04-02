@@ -48,6 +48,10 @@ final class DaemonClient {
         try await post("/approvals/\(id)/reject", body: nil as Data?)
     }
 
+    func fetchTasks() async throws -> TaskQueueResponse {
+        try await get("/tasks")
+    }
+
     func fetchRunDetail(runId: String) async throws -> RunDetail {
         try await get("/workflow/runs/\(runId)")
     }

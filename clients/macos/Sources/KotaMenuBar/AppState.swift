@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     @Published var health: DaemonHealth = .unknown
     @Published var activeRuns: [ActiveRun] = []
     @Published var pendingApprovals: [ApprovalRequest] = []
+    @Published var taskQueue: TaskQueueResponse?
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -52,6 +53,7 @@ final class AppState: ObservableObject {
             health = .offline
             activeRuns = []
             pendingApprovals = []
+            taskQueue = nil
             return
         }
 
@@ -63,8 +65,12 @@ final class AppState: ObservableObject {
             do { return .success(try await client.fetchApprovals()) }
             catch { return .failure(error) }
         }()
+        async let tasksResult: Result<TaskQueueResponse, Error> = {
+            do { return .success(try await client.fetchTasks()) }
+            catch { return .failure(error) }
+        }()
 
-        let (sr, ar) = await (statusResult, approvalsResult)
+        let (sr, ar, tr) = await (statusResult, approvalsResult, tasksResult)
 
         switch sr {
         case .success(let status):
@@ -81,6 +87,13 @@ final class AppState: ObservableObject {
             pendingApprovals = resp.approvals.filter { $0.status == "pending" }
         case .failure:
             pendingApprovals = []
+        }
+
+        switch tr {
+        case .success(let resp):
+            taskQueue = resp
+        case .failure:
+            taskQueue = nil
         }
     }
 
