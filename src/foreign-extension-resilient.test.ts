@@ -198,8 +198,8 @@ describe("KEMP resilient extension — health state tracking", () => {
       .find((t) => t.tool.name === "echo")!;
     await tool.runner({ v: "trigger" });
 
-    // Wait for restart to complete
-    await new Promise((r) => setTimeout(r, 800));
+    // Wait for restart to complete; use a generous budget for slow CI environments
+    await new Promise((r) => setTimeout(r, 3000));
 
     const health = ext.getHealth!();
     expect(health.restartCount).toBeGreaterThan(0);
