@@ -29,9 +29,62 @@ export const CLIENT_COST_JS = `
     return container;
   }
 
-  function renderCost(totals, topRuns) {
+  function renderCostChart(runs, windowMs) {
+    var now = Date.now();
+    var count, msPerBucket, labelFn;
+    if (windowMs <= 24 * 60 * 60 * 1000) {
+      count = 24;
+      msPerBucket = 60 * 60 * 1000;
+      labelFn = function(i) {
+        var d = new Date(now - (count - 1 - i) * msPerBucket);
+        return d.getHours() + ":00";
+      };
+    } else {
+      count = windowMs === 7 * 24 * 60 * 60 * 1000 ? 7 : 30;
+      msPerBucket = 24 * 60 * 60 * 1000;
+      labelFn = function(i) {
+        var d = new Date(now - (count - 1 - i) * msPerBucket);
+        return (d.getMonth() + 1) + "/" + d.getDate();
+      };
+    }
+    var buckets = [];
+    for (var b = 0; b < count; b++) buckets.push(0);
+    for (var i = 0; i < runs.length; i++) {
+      var r = runs[i];
+      if (!r.totalCostUsd || !r.startedAt) continue;
+      var idx = count - 1 - Math.floor((now - new Date(r.startedAt).getTime()) / msPerBucket);
+      if (idx >= 0 && idx < count) buckets[idx] += r.totalCostUsd;
+    }
+    var max = 0;
+    for (var k = 0; k < buckets.length; k++) if (buckets[k] > max) max = buckets[k];
+    if (max === 0) return null;
+
+    var svgH = 50;
+    var gap = 1;
+    var barW = Math.max(2, Math.floor((280 - gap * (count - 1)) / count));
+    var svgW = count * barW + gap * (count - 1);
+    var rects = "";
+    for (var j = 0; j < count; j++) {
+      var bh = Math.round((buckets[j] / max) * svgH);
+      var bx = j * (barW + gap);
+      var by = svgH - Math.max(bh, buckets[j] > 0 ? 1 : 0);
+      var fill = buckets[j] > 0 ? "#6c63ffaa" : "#ffffff11";
+      var lbl = labelFn(j) + ": $" + buckets[j].toFixed(4);
+      rects += "<rect x=\\"" + bx + "\\" y=\\"" + by + "\\" width=\\"" + barW + "\\" height=\\"" + Math.max(bh, buckets[j] > 0 ? 1 : 0) + "\\" fill=\\"" + fill + "\\"><title>" + lbl + "</title></rect>";
+    }
+    var svg = "<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 " + svgW + " " + svgH + "\\" preserveAspectRatio=\\"none\\" style=\\"width:100%;height:50px;display:block;\\">" + rects + "</svg>";
+    var wrap = document.createElement("div");
+    wrap.className = "cost-chart";
+    wrap.innerHTML = svg;
+    return wrap;
+  }
+
+  function renderCost(totals, topRuns, runs) {
     $costList.innerHTML = "";
     $costList.appendChild(renderCostWindowButtons());
+
+    var chart = renderCostChart(runs || [], costWindowMs);
+    if (chart) $costList.appendChild(chart);
 
     var workflows = Object.keys(totals).sort();
     if (workflows.length === 0) {
@@ -94,7 +147,7 @@ export const CLIENT_COST_JS = `
         .slice()
         .sort(function(a, b) { return b.totalCostUsd - a.totalCostUsd; })
         .slice(0, 5);
-      renderCost(totals, topRuns);
+      renderCost(totals, topRuns, costedRuns);
     } catch {}
   }
 `;

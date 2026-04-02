@@ -134,6 +134,12 @@ export const STYLES_RUNS_CSS = `
   border-radius: var(--radius);
 }
 .cost-top-run:hover { background: var(--border); }
+.cost-chart {
+  padding: 4px 12px 6px;
+  overflow: hidden;
+}
+.cost-chart svg rect { cursor: default; }
+.cost-chart svg rect:hover { fill: #6c63ffee; }
 
 /* Step progress panel */
 .step-progress {
