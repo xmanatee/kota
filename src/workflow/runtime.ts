@@ -104,6 +104,7 @@ export class WorkflowRuntime {
       () => this.stopping,
       (def, trigger, run) => this.wfQueue.enqueue(def, trigger, run),
       () => this.maybeStartNext(),
+      () => this.config?.scheduler?.dispatchWindow,
     );
     this.watchTriggers = new WatchTriggerManager(
       this.projectDir,

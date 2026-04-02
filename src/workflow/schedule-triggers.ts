@@ -1,4 +1,5 @@
 import { getNextCronTime } from "./cron.js";
+import { type DispatchWindow, isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type {
   WorkflowDefinition,
@@ -21,6 +22,7 @@ export class ScheduleTriggerManager {
       runTrigger: WorkflowRunTrigger,
     ) => void,
     private readonly maybeStartNext: () => void,
+    private readonly getDispatchWindow: () => DispatchWindow | undefined = () => undefined,
   ) {}
 
   clearAll(): void {
@@ -70,6 +72,17 @@ export class ScheduleTriggerManager {
     const timer = setTimeout(() => {
       if (this.isStopping()) return;
       const now = Date.now();
+
+      // Interval triggers (not cron) respect the dispatch window.
+      if (trigger.intervalMs != null) {
+        const dispatchWindow = this.getDispatchWindow();
+        if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) {
+          const waitMs = msUntilDispatchWindowOpens(dispatchWindow);
+          this.scheduleNextFire(key, definition, trigger, now + waitMs);
+          return;
+        }
+      }
+
       this.enqueueRun(definition, trigger, {
         event: "schedule",
         payload: { scheduledAt: new Date(now).toISOString() },

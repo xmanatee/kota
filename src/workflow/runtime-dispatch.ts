@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { BudgetGuard } from "./budget-guard.js";
+import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
@@ -120,6 +121,8 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
   );
   maybeStartNext(state);
   if (state.stopping || state.activeRuns.size > 0 || state.wfQueue.length > 0) return;
+  const dispatchWindow = state.config?.scheduler?.dispatchWindow;
+  if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
   state.runtimeConfig.bus.emit("runtime.idle", {
     timestamp: new Date().toISOString(),
     idleIntervalMs: state.idleIntervalMs,

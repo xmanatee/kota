@@ -289,6 +289,40 @@
           "description": "Minimum milliseconds between failure alerts for the same workflow. Default: 0 (no cooldown — every failure fires an alert). Example: 300000 suppresses repeated alerts within 5 minutes."
         }
       }
+    },
+    "scheduler": {
+      "type": "object",
+      "description": "Scheduler settings for autonomous workflow dispatch.",
+      "additionalProperties": false,
+      "properties": {
+        "dispatchWindow": {
+          "type": "object",
+          "description": "Restrict autonomous dispatch to a time-of-day window. Affects runtime.idle and intervalMs triggers only. Cron, event, file-watch, and manual triggers are not affected.",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}$",
+              "description": "Window open time in local time, HH:MM (24-hour). Example: \"09:00\"."
+            },
+            "end": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}$",
+              "description": "Window close time in local time, HH:MM (24-hour, exclusive). Must be later than start. Example: \"18:00\"."
+            },
+            "days": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+              },
+              "minItems": 1,
+              "description": "Days the window applies. Default: all days. Example: [\"mon\",\"tue\",\"wed\",\"thu\",\"fri\"]."
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {

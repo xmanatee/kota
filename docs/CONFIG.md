@@ -84,6 +84,37 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `dailyBudgetUsd` — cap autonomous spend per UTC calendar day
 - `runsGc` — run artifact retention policy
 - `webhooks` — per-workflow webhook secrets
+- `scheduler.dispatchWindow` — restrict idle and interval triggers to specific hours/days (see below)
+
+## Scheduler
+
+### dispatchWindow
+
+Restricts `runtime.idle` (idle triggers) and `intervalMs` (interval triggers) to a time-of-day window. Cron, event, file-watch, and manual triggers are not affected.
+
+```json
+{
+  "scheduler": {
+    "dispatchWindow": {
+      "start": "09:00",
+      "end": "18:00",
+      "days": ["mon", "tue", "wed", "thu", "fri"]
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `start` | Yes | Window open time in local time, `"HH:MM"` (24-hour). |
+| `end` | Yes | Window close time in local time, `"HH:MM"` (24-hour, exclusive). Must be later than `start`. |
+| `days` | No | Days the window applies. Array of `"mon"`, `"tue"`, `"wed"`, `"thu"`, `"fri"`, `"sat"`, `"sun"`. Default: all days. |
+
+When the window is not set, all triggers dispatch as usual (current behavior is unchanged).
+
+When a trigger fires outside the window, it is deferred: idle events are silently skipped until the next poll cycle that falls inside the window; interval triggers reschedule themselves to fire at the next window opening. Already-running workflow steps are never interrupted.
+
+Times use the daemon's local timezone. IANA timezone configuration is not supported in this field.
 
 ## Extensions
 

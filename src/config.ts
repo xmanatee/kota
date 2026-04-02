@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ForeignExtensionConfig } from "./foreign-extension.js";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
 import type { ModelTiers } from "./model/model-router.js";
+import { type DispatchWindow, validateDispatchWindow } from "./workflow/dispatch-window.js";
 
 /**
  * KOTA configuration schema.
@@ -129,6 +130,19 @@ export type KotaConfig = {
      * Example: 300000 suppresses repeated alerts within 5 minutes.
      */
     alertCooldownMs?: number;
+  };
+
+  /** Scheduler settings for autonomous workflow dispatch. */
+  scheduler?: {
+    /**
+     * Restrict autonomous dispatch to a time-of-day window.
+     * Affects `runtime.idle` (idle trigger) and `intervalMs` (interval trigger) only.
+     * Cron, event, file-watch, and manual triggers are not affected.
+     *
+     * @example
+     * { "start": "09:00", "end": "18:00", "days": ["mon","tue","wed","thu","fri"] }
+     */
+    dispatchWindow?: DispatchWindow;
   };
 };
 
@@ -282,6 +296,26 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(n).length > 0) out.notifications = n;
   }
 
+  if (typeof raw.scheduler === "object" && raw.scheduler !== null && !Array.isArray(raw.scheduler)) {
+    const src = raw.scheduler as Record<string, unknown>;
+    const s: KotaConfig["scheduler"] = {};
+    if (src.dispatchWindow !== undefined) {
+      const err = validateDispatchWindow(src.dispatchWindow);
+      if (!err) {
+        const dw = src.dispatchWindow as Record<string, unknown>;
+        const window: DispatchWindow = {
+          start: dw.start as string,
+          end: dw.end as string,
+        };
+        if (Array.isArray(dw.days)) {
+          window.days = dw.days as DispatchWindow["days"];
+        }
+        s.dispatchWindow = window;
+      }
+    }
+    if (Object.keys(s).length > 0) out.scheduler = s;
+  }
+
   if (Array.isArray(raw.foreignExtensions)) {
     const fexts: ForeignExtensionConfig[] = [];
     for (const entry of raw.foreignExtensions) {
@@ -356,6 +390,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.foreignExtensions = [...(a.foreignExtensions ?? []), ...(val as ForeignExtensionConfig[])];
     } else if (key === "notifications" && typeof val === "object") {
       merged.notifications = { ...a.notifications, ...(val as KotaConfig["notifications"]) };
+    } else if (key === "scheduler" && typeof val === "object") {
+      merged.scheduler = { ...a.scheduler, ...(val as KotaConfig["scheduler"]) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;
