@@ -5,11 +5,6 @@ import { getMemoryStore } from "./memory/store.js";
 
 type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
 
-export type ImportResult = {
-	imported: number;
-	skipped: number;
-};
-
 /** Parse a JSON or JSONL file into raw entry objects. */
 export function parseImportEntries(content: string): RawImportEntry[] {
 	const trimmed = content.trim();
