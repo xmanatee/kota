@@ -73,6 +73,23 @@ export const CLIENT_WF_DEFINITIONS_JS = `
           item.appendChild(lastRunDiv);
         }
 
+        if (def.inputSchema && def.inputSchema.properties) {
+          var props = def.inputSchema.properties;
+          var required = def.inputSchema.required || [];
+          var fieldDescs = Object.keys(props).map(function(key) {
+            var propSchema = props[key];
+            var type = propSchema.type || "any";
+            var req = required.indexOf(key) !== -1 ? "*" : "?";
+            return key + req + ": " + type;
+          });
+          if (fieldDescs.length) {
+            var inputsDiv = document.createElement("div");
+            inputsDiv.className = "schedule-next run-meta";
+            inputsDiv.textContent = "Inputs: " + fieldDescs.join(", ");
+            item.appendChild(inputsDiv);
+          }
+        }
+
         if (isTriggerable(def.triggers)) {
           var btn = document.createElement("button");
           btn.className = "wf-ctrl-btn trigger";

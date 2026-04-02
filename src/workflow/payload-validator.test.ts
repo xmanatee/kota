@@ -97,4 +97,41 @@ describe("validatePayloadSchema", () => {
     const result = validatePayloadSchema(schema, [] as unknown as Record<string, unknown>);
     expect(result).toMatch(/expected string \| number/);
   });
+
+  it("includes property description in type mismatch error", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        count: { type: "number", description: "The number of items to process" },
+      },
+    };
+    const result = validatePayloadSchema(schema, { count: "not-a-number" });
+    expect(result).toMatch(/payload\.count/);
+    expect(result).toMatch(/The number of items to process/);
+    expect(result).toMatch(/expected number, got string/);
+  });
+
+  it("includes property description in missing required field error", () => {
+    const schema = {
+      type: "object",
+      required: ["repoUrl"],
+      properties: {
+        repoUrl: { type: "string", description: "GitHub repository URL" },
+      },
+    };
+    const result = validatePayloadSchema(schema, {});
+    expect(result).toMatch(/missing required field "repoUrl"/);
+    expect(result).toMatch(/GitHub repository URL/);
+  });
+
+  it("does not alter error message when property has no description", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        count: { type: "number" },
+      },
+    };
+    const result = validatePayloadSchema(schema, { count: "bad" });
+    expect(result).toBe("payload.count: expected number, got string");
+  });
 });

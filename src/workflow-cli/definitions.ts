@@ -3,6 +3,19 @@ import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "../workflow/types.js";
 import { formatDuration } from "./utils.js";
 
+function describeInputSchema(schema: Record<string, unknown>): string | null {
+  const props = schema.properties as Record<string, Record<string, unknown>> | undefined;
+  if (!props || Object.keys(props).length === 0) return null;
+  const required = new Set((schema.required as string[] | undefined) ?? []);
+  return Object.entries(props)
+    .map(([key, propSchema]) => {
+      const type = typeof propSchema.type === "string" ? propSchema.type : "any";
+      const req = required.has(key) ? "*" : "?";
+      return `${key}${req}: ${type}`;
+    })
+    .join(", ");
+}
+
 function describeTrigger(def: RegisteredWorkflowDefinitionInput): string {
   return def.triggers
     .map((t) => {
@@ -65,6 +78,22 @@ export function registerDefinitionsCommand(wfCmd: Command): void {
         if (def.dailyBudgetUsd != null) console.log(`Daily budget: $${def.dailyBudgetUsd}`);
         if (def.costLimitUsd != null) console.log(`Cost cap:     $${def.costLimitUsd}/run`);
         if (def.runTimeoutMs != null) console.log(`Run timeout:  ${formatDuration(def.runTimeoutMs)}`);
+        if (def.inputSchema) {
+          const fields = describeInputSchema(def.inputSchema);
+          console.log(`\nInputs:`);
+          if (fields) {
+            const props = (def.inputSchema.properties as Record<string, Record<string, unknown>>) ?? {};
+            const required = new Set(((def.inputSchema.required as string[] | undefined) ?? []));
+            for (const [key, propSchema] of Object.entries(props)) {
+              const type = typeof propSchema.type === "string" ? propSchema.type : "any";
+              const req = required.has(key) ? " (required)" : " (optional)";
+              const desc = typeof propSchema.description === "string" ? ` — ${propSchema.description}` : "";
+              console.log(`  ${key}: ${type}${req}${desc}`);
+            }
+          } else {
+            console.log(`  (no properties defined)`);
+          }
+        }
         if (def.concurrencyGroup) console.log(`Concurrency: ${def.concurrencyGroup}`);
         console.log(`\nTriggers (${def.triggers.length}):`);
         for (const t of def.triggers) {
@@ -123,6 +152,15 @@ export function registerDefinitionsCommand(wfCmd: Command): void {
             if (def.costLimitUsd != null) parts.push(`cap=$${def.costLimitUsd}/run`);
             if (def.runTimeoutMs != null) parts.push(`timeout=${formatDuration(def.runTimeoutMs)}`);
             console.log(`  ${def.name}: ${parts.join(", ")}`);
+          }
+        }
+      }
+      if (definitions.some((d) => d.inputSchema != null)) {
+        console.log("\nInputs:");
+        for (const def of definitions) {
+          if (def.inputSchema != null) {
+            const fields = describeInputSchema(def.inputSchema);
+            console.log(`  ${def.name}: ${fields ?? "(no properties defined)"}`);
           }
         }
       }

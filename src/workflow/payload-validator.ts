@@ -15,13 +15,19 @@ function typeOf(value: unknown): string {
   return typeof value;
 }
 
+function formatPathWithDescription(path: string, schema: JsonSchema): string {
+  const desc = typeof schema.description === "string" ? ` — ${schema.description}` : "";
+  return `${path}${desc}`;
+}
+
 function validateValue(schema: JsonSchema, value: unknown, path: string): string | null {
   if (schema.type !== undefined) {
     const expected = schema.type as string | string[];
     const actual = typeOf(value);
     const types = Array.isArray(expected) ? expected : [expected];
     if (!types.includes(actual)) {
-      return `${path}: expected ${types.join(" | ")}, got ${actual}`;
+      const label = formatPathWithDescription(path, schema);
+      return `${label}: expected ${types.join(" | ")}, got ${actual}`;
     }
   }
 
@@ -29,9 +35,12 @@ function validateValue(schema: JsonSchema, value: unknown, path: string): string
     const obj = value as Record<string, unknown>;
 
     if (Array.isArray(schema.required)) {
+      const props = schema.properties as Record<string, JsonSchema> | undefined;
       for (const key of schema.required as string[]) {
         if (!(key in obj)) {
-          return `${path}: missing required field "${key}"`;
+          const propSchema = props?.[key];
+          const desc = propSchema && typeof propSchema.description === "string" ? ` — ${propSchema.description}` : "";
+          return `${path}: missing required field "${key}"${desc}`;
         }
       }
     }
