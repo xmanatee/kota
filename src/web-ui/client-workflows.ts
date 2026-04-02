@@ -130,7 +130,7 @@ export const CLIENT_WORKFLOWS_JS = `
     var stSel = document.createElement("select");
     stSel.className = "wf-filter-select";
     stSel.title = "Filter by status";
-    [["", "Any status"], ["failed", "Failed"], ["success", "Completed"], ["interrupted", "Interrupted"]].forEach(function(pair) {
+    [["", "Any status"], ["failed", "Failed"], ["success", "Completed"], ["interrupted", "Interrupted"], ["completed-with-warnings", "Warnings"]].forEach(function(pair) {
       var opt = document.createElement("option");
       opt.value = pair[0];
       opt.textContent = pair[1];
@@ -260,8 +260,8 @@ export const CLIENT_WORKFLOWS_JS = `
     for (var k = 0; k < recentRuns.length; k++) {
       var r = recentRuns[k];
       if (r.status === "running" || activeIds[r.id]) continue;
-      var badgeClass = r.status === "success" ? "success" : r.status === "failed" ? "failed" : "interrupted";
-      var icon = r.status === "success" ? "✓" : r.status === "failed" ? "✗" : "⚡";
+      var badgeClass = r.status === "success" ? "success" : r.status === "failed" ? "failed" : r.status === "completed-with-warnings" ? "warnings" : "interrupted";
+      var icon = r.status === "success" ? "✓" : r.status === "failed" ? "✗" : r.status === "completed-with-warnings" ? "⚠" : "⚡";
       var meta = (r.durationMs ? fmtDuration(r.durationMs) : "") + (r.totalCostUsd != null ? " $" + r.totalCostUsd.toFixed(3) : "");
       var tagBadges = "";
       if (r.tags && r.tags.length > 0) {

@@ -26,6 +26,7 @@ export const STYLES_RUNS_CSS = `
 .run-badge.success { color: #4caf50; }
 .run-badge.failed { color: #f44336; }
 .run-badge.interrupted { color: #ff9800; }
+.run-badge.warnings { color: #ffc107; }
 .run-badge.running { color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .run-name {

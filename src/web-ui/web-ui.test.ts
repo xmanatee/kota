@@ -391,6 +391,17 @@ describe("getWebUI", () => {
     expect(html).toContain("rgba(108, 99, 255");
   });
 
+  it("completed-with-warnings runs use warnings badge class with amber color", () => {
+    expect(html).toContain('completed-with-warnings');
+    expect(html).toContain('run-badge.warnings');
+    expect(html).toContain('#ffc107');
+  });
+
+  it("status filter includes Warnings option for completed-with-warnings runs", () => {
+    expect(html).toContain('"completed-with-warnings"');
+    expect(html).toContain('"Warnings"');
+  });
+
   it("includes initBrowserNotifications function that requests permission", () => {
     expect(html).toContain("initBrowserNotifications");
     expect(html).toContain("Notification.requestPermission");

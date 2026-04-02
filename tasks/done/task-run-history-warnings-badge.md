@@ -1,7 +1,7 @@
 ---
 id: task-run-history-warnings-badge
 title: Show distinct badge and filter option for completed-with-warnings runs in web UI history
-status: ready
+status: done
 priority: p2
 area: operator-ux
 summary: Runs that complete with warnings are shown with the orange interrupted badge in the web UI run history list, indistinguishable from truly interrupted runs. A dedicated warning badge and status filter option would help operators spot and triage runs that completed but produced oversized outputs or schema mismatches.
