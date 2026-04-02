@@ -81,6 +81,7 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `foreignExtensions` — out-of-process KEMP extensions (see `docs/FOREIGN-EXTENSIONS.md`)
 - `daemon.shutdownGracePeriodMs` — graceful shutdown window
 - `serve.noAuth` — disable bearer-token auth for `kota serve` (dev only)
+- `serve.showCost` — show per-turn cost line in terminal output (default: `true`; set to `false` to suppress, or pass `--no-cost` CLI flag)
 - `dailyBudgetUsd` — cap autonomous spend per UTC calendar day
 - `runsGc` — run artifact retention policy
 - `webhooks` — per-workflow webhook secrets

@@ -92,11 +92,27 @@ describe("CliTransport", () => {
     write.mockRestore();
   });
 
-  it("formats cost events", () => {
+  it("formats cost events with per-turn and total when provided", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const t = new CliTransport();
+    t.emit({ type: "cost", summary: "Turn 3 — $0.087 (50.0K in, 5.0K out)", budgetPercent: 42, turn: 3, turnCostUsd: 0.024, totalCostUsd: 0.087 });
+    expect(error).toHaveBeenCalledWith("[kota] Turn 3 — $0.0240 this turn · $0.0870 total — context: 42%");
+    error.mockRestore();
+  });
+
+  it("formats cost events with legacy summary fallback", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const t = new CliTransport();
     t.emit({ type: "cost", summary: "$0.05", budgetPercent: 42 });
     expect(error).toHaveBeenCalledWith("[kota] $0.05 — context: 42%");
+    error.mockRestore();
+  });
+
+  it("suppresses cost events when showCost is false", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const t = new CliTransport(false, false);
+    t.emit({ type: "cost", summary: "$0.05", budgetPercent: 42, turn: 1, turnCostUsd: 0.05, totalCostUsd: 0.05 });
+    expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });
 });

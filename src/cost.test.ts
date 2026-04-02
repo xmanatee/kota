@@ -145,6 +145,28 @@ describe("CostTracker", () => {
     expect(tracker.getTotalCost()).toBeCloseTo(0.15);
   });
 
+  it("getTotalCost allows computing per-turn delta across multiple turns", () => {
+    const tracker = new CostTracker();
+
+    const prev1 = tracker.getTotalCost();
+    tracker.addUsage("claude-sonnet-4-6", { input_tokens: 1_000_000, output_tokens: 0 });
+    const turn1Cost = tracker.getTotalCost() - prev1;
+    const total1 = tracker.getTotalCost();
+    // Turn 1: 1M input at $3/M = $3
+    expect(turn1Cost).toBeCloseTo(3.0);
+    expect(total1).toBeCloseTo(3.0);
+
+    const prev2 = tracker.getTotalCost();
+    tracker.addUsage("claude-sonnet-4-6", { input_tokens: 0, output_tokens: 1_000_000 });
+    const turn2Cost = tracker.getTotalCost() - prev2;
+    const total2 = tracker.getTotalCost();
+    // Turn 2: 1M output at $15/M = $15
+    expect(turn2Cost).toBeCloseTo(15.0);
+    expect(total2).toBeCloseTo(18.0);
+    // Per-turn costs sum to total
+    expect(turn1Cost + turn2Cost).toBeCloseTo(total2);
+  });
+
   it("addRawCost accumulates with token-based cost", () => {
     const tracker = new CostTracker();
     tracker.addUsage("claude-sonnet-4-6", {

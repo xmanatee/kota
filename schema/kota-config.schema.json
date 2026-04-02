@@ -246,6 +246,10 @@
         "noAuth": {
           "type": "boolean",
           "description": "Disable bearer-token auth. For localhost-only dev use. Default: false (auth enabled)."
+        },
+        "showCost": {
+          "type": "boolean",
+          "description": "Show per-turn cost line in terminal output. Default: true. Set to false to suppress."
         }
       }
     },

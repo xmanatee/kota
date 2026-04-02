@@ -37,6 +37,8 @@ export type LoopOptions = {
   reflectionEnabled?: boolean;
   /** Inject a model client (for testing with mock clients or alternative providers). */
   client?: ModelClient;
+  /** Show per-turn cost line in terminal output (default: true). */
+  showCost?: boolean;
 };
 
 /**

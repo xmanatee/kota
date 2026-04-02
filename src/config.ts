@@ -99,6 +99,8 @@ export type KotaConfig = {
   serve?: {
     /** Disable bearer-token auth (default: auth enabled). For localhost-only dev use. */
     noAuth?: boolean;
+    /** Show per-turn cost line in terminal output (default: true). Set to false to suppress. */
+    showCost?: boolean;
   };
 
   /** Log output settings. */

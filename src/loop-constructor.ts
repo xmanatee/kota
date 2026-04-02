@@ -40,7 +40,8 @@ export function initAgentSession(
   state.verbose = options.verbose || false;
   state.architectMode = options.architectMode || false;
   state.sessionPath = options.sessionPath;
-  state.transport = options.transport || new CliTransport(state.verbose);
+  const showCost = options.showCost ?? options.config?.serve?.showCost ?? true;
+  state.transport = options.transport || new CliTransport(state.verbose, showCost);
   const isNonInteractive = options.historySource === "action";
   state.guardrailsConfig = options.config?.guardrails
     ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());

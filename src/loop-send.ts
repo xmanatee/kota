@@ -124,12 +124,18 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
 
     state.context.setInputTokens(response.usage.input_tokens);
+    const prevTotal = state.costTracker.getTotalCost();
     state.costTracker.addUsage(state.model, response.usage);
+    const totalCostUsd = state.costTracker.getTotalCost();
+    const turnCostUsd = totalCostUsd - prevTotal;
     const budgetPct = Math.round(state.context.getBudgetPercent() * 100);
     state.transport.emit({
       type: "cost",
       summary: `Turn ${i + 1} — ${state.costTracker.getSummary()}`,
       budgetPercent: budgetPct,
+      turn: i + 1,
+      turnCostUsd,
+      totalCostUsd,
     });
 
     if (state.verbose) {

@@ -80,6 +80,7 @@ program
   .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
   .option("--no-history", "Disable automatic conversation history")
   .option("--no-reflect", "Disable self-reflection before delivering responses")
+  .option("--no-cost", "Suppress per-turn cost display")
   .action(async (promptWords: string[], opts) => {
     const parsedMaxTokens = opts.maxTokens ? parseIntOption(opts.maxTokens, "max-tokens") : undefined;
     const parsedThinkBudget = opts.thinkBudget ? parseIntOption(opts.thinkBudget, "think-budget") : undefined;
@@ -162,6 +163,7 @@ program
       noHistory: opts.history === false,
       reflectionEnabled: opts.reflect !== false,
       client: resolved.client,
+      showCost: opts.cost !== false && (config.serve?.showCost ?? true),
     };
 
     let prompt = promptWords.join(" ");

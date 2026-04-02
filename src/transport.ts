@@ -13,7 +13,7 @@ export type AgentEvent =
   | { type: "thinking_start" }
   | { type: "progress"; content: string; source?: string }
   | { type: "status"; message: string }
-  | { type: "cost"; summary: string; budgetPercent: number }
+  | { type: "cost"; summary: string; budgetPercent: number; turn?: number; turnCostUsd?: number; totalCostUsd?: number }
   | { type: "error"; message: string }
   | { type: "notification"; id: number; description: string; scheduledFor: string }
   | { type: "guardrail"; tool: string; risk: string; policy: string; reason: string }
@@ -30,7 +30,13 @@ export interface Transport {
  * Reproduces the original terminal behavior exactly.
  */
 export class CliTransport implements Transport {
-  constructor(private verbose = false) {}
+  private verbose: boolean;
+  private showCost: boolean;
+
+  constructor(verbose = false, showCost = true) {
+    this.verbose = verbose;
+    this.showCost = showCost;
+  }
 
   emit(event: AgentEvent): void {
     switch (event.type) {
@@ -54,7 +60,13 @@ export class CliTransport implements Transport {
         console.error(event.message);
         break;
       case "cost": {
-        const msg = `[kota] ${event.summary} — context: ${event.budgetPercent}%`;
+        if (!this.showCost) break;
+        let msg: string;
+        if (event.turn !== undefined && event.turnCostUsd !== undefined && event.totalCostUsd !== undefined) {
+          msg = `[kota] Turn ${event.turn} — $${event.turnCostUsd.toFixed(4)} this turn · $${event.totalCostUsd.toFixed(4)} total — context: ${event.budgetPercent}%`;
+        } else {
+          msg = `[kota] ${event.summary} — context: ${event.budgetPercent}%`;
+        }
         console.error(msg);
         break;
       }
