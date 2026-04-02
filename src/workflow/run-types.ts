@@ -56,6 +56,12 @@ export type WorkflowContextInfo = {
   runDirPath: string;
 };
 
+export type ToolCallSummaryEntry = {
+  tool: string;
+  count: number;
+  totalMs: number;
+};
+
 export type WorkflowStepResult = {
   id: string;
   type: WorkflowStep["type"];
@@ -67,6 +73,7 @@ export type WorkflowStepResult = {
   output?: unknown;
   error?: string;
   continueOnFailure?: boolean;
+  toolCalls?: ToolCallSummaryEntry[];
 };
 
 export type WorkflowStepContext = {

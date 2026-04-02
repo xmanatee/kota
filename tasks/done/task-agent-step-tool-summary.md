@@ -1,7 +1,7 @@
 ---
 id: task-agent-step-tool-summary
 title: Include tool-use summary in agent step output metadata
-status: ready
+status: done
 priority: p3
 area: observability
 summary: After an agent step completes, there is no compact record of which tools it called or how many times. Adding a tool-use summary to step metadata lets operators and the web UI show what an agent step actually did without reading the full session transcript.

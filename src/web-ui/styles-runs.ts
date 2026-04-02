@@ -290,6 +290,12 @@ export const STYLES_RUNS_CSS = `
   font-size: 11px;
   white-space: nowrap;
 }
+.step-tool-calls {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 4px;
+  padding-left: 24px;
+}
 .step-row-output {
   color: var(--text-muted);
   font-size: 11px;

@@ -97,6 +97,14 @@ export class ToolTelemetry {
     return lines.join("\n");
   }
 
+  /** Compact tool-call summary array, sorted by call count descending. Undefined if no calls recorded. */
+  toToolCallSummary(): Array<{ tool: string; count: number; totalMs: number }> | undefined {
+    if (this.stats.size === 0) return undefined;
+    return [...this.stats.entries()]
+      .sort((a, b) => b[1].calls - a[1].calls)
+      .map(([tool, s]) => ({ tool, count: s.calls, totalMs: s.totalMs }));
+  }
+
   reset(): void {
     this.stats.clear();
   }

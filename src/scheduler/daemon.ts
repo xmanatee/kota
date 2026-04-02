@@ -254,6 +254,7 @@ export class Daemon {
               durationMs: s.durationMs,
               ...(s.error != null && { error: s.error }),
               ...(agentCost != null && { costUsd: agentCost }),
+              ...(s.toolCalls != null && { toolCalls: s.toolCalls }),
             };
           }),
         };

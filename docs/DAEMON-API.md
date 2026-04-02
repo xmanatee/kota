@@ -267,7 +267,7 @@ See `GET /workflow/runs/:id` for the full list of possible `status` values inclu
 ### GET /workflow/runs/:id
 
 Returns full run detail for a specific run: metadata plus per-step status,
-duration, error, and cost. Does not return full agent log output.
+duration, error, cost, and tool-use summary. Does not return full agent log output.
 
 `triggerPayload` is included when the trigger payload is non-empty (webhook, github-event,
 and manual trigger runs). Absent for event-only triggers with no payload fields.
@@ -304,7 +304,12 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
       "type": "agent",
       "status": "success",
       "durationMs": 300000,
-      "costUsd": 0.47
+      "costUsd": 0.47,
+      "toolCalls": [
+        { "tool": "Bash", "count": 14, "totalMs": 42000 },
+        { "tool": "Read", "count": 6, "totalMs": 800 },
+        { "tool": "Edit", "count": 3, "totalMs": 450 }
+      ]
     }
   ]
 }

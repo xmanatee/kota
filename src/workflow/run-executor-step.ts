@@ -1,7 +1,9 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { EventBus } from "../event-bus.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload } from "./event-payloads.js";
-import type { WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
+import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
@@ -136,6 +138,29 @@ export function buildSkippedResult(
   return skipped;
 }
 
+type TelemetryArtifact = {
+  tools: Record<string, { calls: number; totalMs: number }>;
+};
+
+function readToolCallSummary(
+  stepId: string,
+  runDir: string,
+  projectDir: string,
+): ToolCallSummaryEntry[] | undefined {
+  const path = join(resolve(projectDir, runDir), "steps", `${stepId}.tool-telemetry.json`);
+  if (!existsSync(path)) return undefined;
+  try {
+    const artifact = JSON.parse(readFileSync(path, "utf-8")) as TelemetryArtifact;
+    const entries = Object.entries(artifact.tools ?? {});
+    if (entries.length === 0) return undefined;
+    return entries
+      .sort((a, b) => b[1].calls - a[1].calls)
+      .map(([tool, s]) => ({ tool, count: s.calls, totalMs: s.totalMs }));
+  } catch {
+    return undefined;
+  }
+}
+
 export type SingleStepResult = {
   completed: WorkflowStepResult;
   agentBackoff?: WorkflowAgentBackoffSignal;
@@ -201,6 +226,9 @@ export async function executeWorkflowStep(
       deps.log(`Step "${step.id}" output truncated in workflow "${definition.name}": ${truncationWarning.message}`);
     }
 
+    const toolCalls = step.type === "agent"
+      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.projectDir)
+      : undefined;
     const completed: WorkflowStepResult = {
       id: step.id,
       type: step.type,
@@ -210,6 +238,7 @@ export async function executeWorkflowStep(
       durationMs: Date.now() - stepStartedAt,
       ...(stepCostUsd != null ? { costUsd: stepCostUsd } : {}),
       output,
+      ...(toolCalls != null ? { toolCalls } : {}),
     };
     run.recordStep(completed);
     acc.stepOutputsById[step.id] = output;

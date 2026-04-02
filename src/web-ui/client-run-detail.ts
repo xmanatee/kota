@@ -240,12 +240,19 @@ export const CLIENT_RUN_DETAIL_JS = `
           compoundHtml += '</div>';
         }
 
+        var toolCallsLabel = "";
+        if (step.toolCalls && step.toolCalls.length > 0) {
+          toolCallsLabel = step.toolCalls.map(function(tc) { return escapeHtml(tc.tool) + "\\u00d7" + tc.count; }).join(", ");
+        }
         html += '<div class="step-row" id="step-row-' + escapeHtml(step.id) + '">';
         html += '<div class="step-row-header">';
         html += '<span class="run-badge ' + sb + '" id="step-badge-' + escapeHtml(step.id) + '">' + si + '</span>';
         html += '<span class="step-row-name">' + escapeHtml(step.id) + '</span>';
         html += '<span class="step-row-meta" id="step-meta-' + escapeHtml(step.id) + '">' + escapeHtml(sm) + '</span>';
         html += '</div>';
+        if (toolCallsLabel) {
+          html += '<div class="step-tool-calls">Tools: ' + toolCallsLabel + '</div>';
+        }
         var stepThinking = thinkingData && thinkingData[step.id] ? thinkingData[step.id] : null;
         if (stepThinking && stepThinking.length > 0) {
           var thinkingId = "step-thinking-" + escapeHtml(step.id);

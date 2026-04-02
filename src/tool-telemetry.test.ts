@@ -223,6 +223,50 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
   });
 });
 
+describe("toToolCallSummary", () => {
+  it("returns undefined when no calls recorded", () => {
+    const t = new ToolTelemetry();
+    expect(t.toToolCallSummary()).toBeUndefined();
+  });
+
+  it("returns sorted entries with count and totalMs", () => {
+    const t = new ToolTelemetry();
+    t.record("Read", 100, true);
+    t.record("Read", 200, true);
+    t.record("Bash", 500, true);
+    t.record("Bash", 300, false);
+    t.record("Bash", 200, true);
+    t.record("Edit", 150, true);
+    const summary = t.toToolCallSummary();
+    expect(summary).toBeDefined();
+    expect(summary![0]).toEqual({ tool: "Bash", count: 3, totalMs: 1000 });
+    expect(summary![1]).toEqual({ tool: "Read", count: 2, totalMs: 300 });
+    expect(summary![2]).toEqual({ tool: "Edit", count: 1, totalMs: 150 });
+  });
+
+  it("builds summary correctly from mock session transcript tracking", () => {
+    const t = new ToolTelemetry();
+    // Simulate what makeToolTelemetryTracker does: record calls from assistant + user turn messages
+    t.record("Bash", 42000, true);
+    t.record("Read", 800, true);
+    t.record("Read", 300, true);
+    t.record("Edit", 1200, true);
+    t.record("Bash", 5000, false, "timeout");
+
+    const summary = t.toToolCallSummary()!;
+    expect(summary).toHaveLength(3);
+    // Bash called twice
+    const bash = summary.find((s) => s.tool === "Bash");
+    expect(bash).toEqual({ tool: "Bash", count: 2, totalMs: 47000 });
+    // Read called twice
+    const read = summary.find((s) => s.tool === "Read");
+    expect(read).toEqual({ tool: "Read", count: 2, totalMs: 1100 });
+    // Edit called once
+    const edit = summary.find((s) => s.tool === "Edit");
+    expect(edit).toEqual({ tool: "Edit", count: 1, totalMs: 1200 });
+  });
+});
+
 describe("Singleton management", () => {
   afterEach(() => {
     resetToolTelemetry();
