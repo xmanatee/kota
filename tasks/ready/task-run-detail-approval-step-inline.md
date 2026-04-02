@@ -1,12 +1,12 @@
 ---
 id: task-run-detail-approval-step-inline
 title: Show approval step waiting state in web UI run detail panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: When a workflow run is blocked at an approval step, the run detail panel shows the step as generically "running" with no indication that human action is needed. Adding a "waiting for approval" indicator with a link to the approvals panel would let operators act without navigating away.
 created_at: 2026-04-02T04:47:39Z
-updated_at: 2026-04-02T04:47:39Z
+updated_at: 2026-04-02T05:05:00Z
 ---
 
 ## Problem

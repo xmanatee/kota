@@ -1,12 +1,12 @@
 ---
 id: task-scheduler-dispatch-window
 title: Add configurable dispatch window to restrict autonomous scheduler hours
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The autonomous scheduler dispatches idle and interval triggers around the clock. Operators cannot restrict dispatch to business hours without pausing the entire scheduler manually. A configurable dispatch window would let teams limit when autonomous workflows run without continuous operator intervention.
 created_at: 2026-04-01T07:22:00Z
-updated_at: 2026-04-01T07:22:00Z
+updated_at: 2026-04-02T05:05:00Z
 ---
 
 ## Problem
