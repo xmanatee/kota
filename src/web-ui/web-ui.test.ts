@@ -492,4 +492,19 @@ describe("getWebUI", () => {
   it("initial SSE connect without since when no prior timestamp", () => {
     expect(html).toContain("_lastEventTimestamp = null");
   });
+
+  it("showRunDetail fetches causedByRunId child runs", () => {
+    expect(html).toContain("causedByRunId=");
+    expect(html).toContain("triggeredRuns");
+  });
+
+  it("renderRunDetail renders Triggered runs section with clickable links", () => {
+    expect(html).toContain("Triggered runs:");
+    expect(html).toContain("triggeredRuns.length > 0");
+    expect(html).toContain("run-causedby-link");
+  });
+
+  it("run-causedby-link handler uses querySelectorAll to wire all links", () => {
+    expect(html).toContain('querySelectorAll(".run-causedby-link")');
+  });
 });

@@ -45,7 +45,12 @@ export const CLIENT_RUN_DETAIL_JS = `
         var tRes = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/thinking");
         if (tRes.ok) { var td = await tRes.json(); thinkingData = td.thinking || null; }
       } catch {}
-      renderRunDetail(run, artifacts, thinkingData);
+      var triggeredRuns = null;
+      try {
+        var trRes = await apiFetch(API + "/api/workflow/runs?causedByRunId=" + encodeURIComponent(runId));
+        if (trRes.ok) { var trData = await trRes.json(); triggeredRuns = trData.runs || null; }
+      } catch {}
+      renderRunDetail(run, artifacts, thinkingData, triggeredRuns);
       renderCompareSection(run);
       if (run.status === "running") {
         startRunStream(runId);
@@ -55,7 +60,7 @@ export const CLIENT_RUN_DETAIL_JS = `
     }
   }
 
-  function renderRunDetail(run, artifacts, thinkingData) {
+  function renderRunDetail(run, artifacts, thinkingData, triggeredRuns) {
     var badgeClass = run.status === "success" ? "success" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "interrupted";
     var icon = run.status === "success" ? "\\u2713" : run.status === "failed" ? "\\u2717" : run.status === "running" ? "\\u25b6" : "\\u26a1";
     var duration = run.durationMs ? fmtDuration(run.durationMs) : (run.status === "running" ? fmtDuration(Date.now() - new Date(run.startedAt).getTime()) : "\\u2014");
@@ -80,6 +85,17 @@ export const CLIENT_RUN_DETAIL_JS = `
     html += '<span>Completed: ' + escapeHtml(completed) + '</span>';
     if (run.causedBy) {
       html += '<span>Triggered by: <a href="#" class="run-causedby-link" data-runid="' + escapeHtml(run.causedBy.runId) + '">' + escapeHtml(run.causedBy.workflow) + ' / ' + escapeHtml(run.causedBy.runId) + '</a></span>';
+    }
+    if (triggeredRuns && triggeredRuns.length > 0) {
+      html += '<span>Triggered runs: ';
+      for (var tri = 0; tri < triggeredRuns.length; tri++) {
+        var tr = triggeredRuns[tri];
+        var trIcon = tr.status === "success" ? "\\u2713" : tr.status === "failed" ? "\\u2717" : tr.status === "running" ? "\\u25b6" : "\\u26a1";
+        var trBadge = tr.status === "success" ? "success" : tr.status === "failed" ? "failed" : tr.status === "running" ? "running" : "interrupted";
+        if (tri > 0) html += " ";
+        html += '<a href="#" class="run-causedby-link" data-runid="' + escapeHtml(tr.id) + '"><span class="run-badge ' + trBadge + '">' + trIcon + '</span> ' + escapeHtml(tr.workflow) + ' / ' + escapeHtml(tr.id) + '</a>';
+      }
+      html += '</span>';
     }
     html += '</div></div>';
 
@@ -247,13 +263,12 @@ export const CLIENT_RUN_DETAIL_JS = `
         }
       };
     }
-    var $causedByLink = $runDetail.querySelector(".run-causedby-link");
-    if ($causedByLink) {
-      $causedByLink.onclick = function(e) {
+    $runDetail.querySelectorAll(".run-causedby-link").forEach(function($link) {
+      $link.onclick = function(e) {
         e.preventDefault();
-        showRunDetail($causedByLink.getAttribute("data-runid"));
+        showRunDetail($link.getAttribute("data-runid"));
       };
-    }
+    });
     var $replayBtn = document.getElementById("run-detail-replay");
     if ($replayBtn) {
       $replayBtn.onclick = async function() {
