@@ -97,8 +97,30 @@ When a user types a partial value in a compatible host, the host sends a `comple
 
 ## Capabilities
 
-The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {}, completions: {} }` in its `initialize` response. When `mcp.sampling.enabled` is true, `sampling: {}` is also included.
+The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {}, completions: {}, roots: {} }` in its `initialize` response. When `mcp.sampling.enabled` is true, `sampling: {}` is also included.
 It supports `resources/subscribe` and `resources/unsubscribe`; subscribed clients receive `notifications/resources/updated` when `kota://workflow/status` or `kota://tasks/ready` changes.
+
+## Roots
+
+KOTA supports the MCP roots capability, allowing connected clients (MCP hosts) to declare which workspace directories are active. This lets the server scope file-system operations to the operator's project workspace.
+
+**Capability negotiation**: When the client declares `roots: {}` in its `initialize` capabilities, KOTA sends a `roots/list` request back to the client immediately after initialization to retrieve the current workspace roots.
+
+**Root updates**: When the client sends `notifications/roots/list_changed`, KOTA sends a fresh `roots/list` request to update its stored roots list.
+
+**Effective project directory**: When roots are provided, the first root's `file://` URI is used as the project directory for resource reads (`kota://tasks/ready`, `kota://workflow/status`, etc.), overriding the configured `projectDir`. This ensures resources reflect the client's active workspace rather than the daemon's working directory.
+
+**Accessing roots programmatically**: `McpServer` exposes two public methods:
+
+```ts
+// Returns the current list of client-provided roots
+server.getClientRoots(); // Array<{ uri: string; name?: string }>
+
+// Returns the first root's file path if available, otherwise the configured projectDir
+server.getEffectiveProjectDir(); // string
+```
+
+Roots are per-connection and not shared across server instances.
 
 ## Elicitation
 

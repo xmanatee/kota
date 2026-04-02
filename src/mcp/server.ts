@@ -123,6 +123,14 @@ export class McpServer {
 	private samplingEnabled: boolean;
 	private modelClient: ModelClient | null;
 	private samplingModel: string;
+	private clientSupportsRoots = false;
+	private clientRoots: Array<{ uri: string; name?: string }> = [];
+	private pendingRootsRequest: {
+		id: number | string;
+		resolve: (roots: Array<{ uri: string; name?: string }>) => void;
+		reject: (e: Error) => void;
+	} | null = null;
+	private rootsRequestIdCounter = 0;
 
 	constructor(options: McpServerOptions = {}) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -216,6 +224,17 @@ export class McpServer {
 	}
 
 	private handleResponse(msg: JsonRpcResponse): void {
+		if (this.pendingRootsRequest && msg.id === this.pendingRootsRequest.id) {
+			const pending = this.pendingRootsRequest;
+			this.pendingRootsRequest = null;
+			if (msg.error) {
+				pending.reject(new Error(msg.error.message));
+				return;
+			}
+			const roots = ((msg.result as Record<string, unknown>)?.roots ?? []) as Array<{ uri: string; name?: string }>;
+			pending.resolve(roots);
+			return;
+		}
 		const pending = this.pendingElicitations.get(msg.id);
 		if (!pending) return;
 		this.pendingElicitations.delete(msg.id);
@@ -237,6 +256,12 @@ export class McpServer {
 	private handleNotification(msg: JsonRpcNotification): void {
 		if (msg.method === "notifications/initialized") {
 			this.log("Client confirmed initialization");
+		} else if (msg.method === "notifications/roots/list_changed" && this.clientSupportsRoots) {
+			setImmediate(() => {
+				this.fetchClientRoots().catch((err) => {
+					this.log(`Failed to refresh client roots: ${err instanceof Error ? err.message : String(err)}`);
+				});
+			});
 		}
 		// Silently ignore unknown notifications per spec
 	}
@@ -279,11 +304,13 @@ export class McpServer {
 		this.initialized = true;
 		const clientCaps = (msg.params?.capabilities ?? {}) as Record<string, unknown>;
 		this.clientSupportsElicitation = typeof clientCaps.elicitation === "object" && clientCaps.elicitation !== null;
+		this.clientSupportsRoots = typeof clientCaps.roots === "object" && clientCaps.roots !== null;
 		const capabilities: Record<string, unknown> = {
 			tools: {},
 			resources: { subscribe: true },
 			prompts: {},
 			completions: {},
+			roots: {},
 		};
 		if (this.clientSupportsElicitation) {
 			capabilities.elicitation = {};
@@ -299,7 +326,62 @@ export class McpServer {
 				version: this.serverVersion,
 			},
 		});
-		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation}, sampling: ${this.samplingEnabled && !!this.modelClient}, completions: true)`);
+		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation}, sampling: ${this.samplingEnabled && !!this.modelClient}, completions: true, roots: ${this.clientSupportsRoots})`);
+		if (this.clientSupportsRoots) {
+			// Defer so the initialize response is fully consumed by the client before
+			// we send the roots/list request — avoids dropped writes on synchronous streams.
+			setImmediate(() => {
+				this.fetchClientRoots().catch((err) => {
+					this.log(`Failed to fetch client roots: ${err instanceof Error ? err.message : String(err)}`);
+				});
+			});
+		}
+	}
+
+	private async fetchClientRoots(): Promise<void> {
+		const id = `roots-${++this.rootsRequestIdCounter}`;
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				this.pendingRootsRequest = null;
+				reject(new Error("roots/list request timed out"));
+			}, 10_000);
+			this.pendingRootsRequest = {
+				id,
+				resolve: (roots) => {
+					clearTimeout(timer);
+					this.clientRoots = roots;
+					resolve();
+				},
+				reject: (e) => {
+					clearTimeout(timer);
+					reject(e);
+				},
+			};
+			this.send({ jsonrpc: "2.0", id, method: "roots/list", params: {} });
+		});
+	}
+
+	/** Returns the client-provided workspace roots, or an empty array if none. */
+	getClientRoots(): Array<{ uri: string; name?: string }> {
+		return [...this.clientRoots];
+	}
+
+	/**
+	 * Returns the effective project directory: the first client root's file path
+	 * when roots are provided, otherwise the configured projectDir.
+	 */
+	getEffectiveProjectDir(): string {
+		if (this.clientRoots.length > 0) {
+			const firstUri = this.clientRoots[0].uri;
+			if (firstUri.startsWith("file://")) {
+				try {
+					return new URL(firstUri).pathname;
+				} catch {
+					// Fall through to default
+				}
+			}
+		}
+		return this.projectDir;
 	}
 
 	private handleResourcesSubscribe(msg: JsonRpcRequest): void {
@@ -386,7 +468,7 @@ export class McpServer {
 			this.sendError(msg, -32002, `Unknown resource: ${uri}`);
 			return;
 		}
-		const text = readKotaResource(uri, this.projectDir);
+		const text = readKotaResource(uri, this.getEffectiveProjectDir());
 		this.sendResult(msg, {
 			contents: [{ uri, mimeType: "application/json", text }],
 		});

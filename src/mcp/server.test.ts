@@ -48,6 +48,45 @@ async function readResponse(output: PassThrough): Promise<Record<string, unknown
 	});
 }
 
+/**
+ * Creates a queued reader for a stream that captures all output into a buffer.
+ * Unlike readResponse(), this never misses writes that occur while no listener
+ * is attached (which happens after readResponse() removes its listener but the
+ * stream stays in flowing mode).
+ */
+function createQueuedReader(stream: PassThrough): { read: () => Promise<Record<string, unknown>> } {
+	const buffer: string[] = [];
+	const waiters: Array<{ resolve: (v: Record<string, unknown>) => void; timer: ReturnType<typeof setTimeout> }> = [];
+
+	stream.on("data", (chunk: Buffer) => {
+		for (const part of chunk.toString().split("\n")) {
+			const line = part.trim();
+			if (!line) continue;
+			if (waiters.length > 0) {
+				const { resolve, timer } = waiters.shift()!;
+				clearTimeout(timer);
+				resolve(JSON.parse(line));
+			} else {
+				buffer.push(line);
+			}
+		}
+	});
+
+	return {
+		read(): Promise<Record<string, unknown>> {
+			if (buffer.length > 0) return Promise.resolve(JSON.parse(buffer.shift()!));
+			return new Promise((resolve, reject) => {
+				const timer = setTimeout(() => {
+					const idx = waiters.findIndex((w) => w.resolve === resolve);
+					if (idx >= 0) waiters.splice(idx, 1);
+					reject(new Error("Timeout reading response"));
+				}, 2000);
+				waiters.push({ resolve, timer });
+			});
+		},
+	};
+}
+
 async function initServer(
 	server: McpServer,
 	input: PassThrough,
@@ -82,7 +121,7 @@ describe("McpServer", () => {
 			expect(resp.id).toBe(1);
 			const result = resp.result as Record<string, unknown>;
 			expect(result.protocolVersion).toBe("2024-11-05");
-			expect(result.capabilities).toEqual({ tools: {}, resources: { subscribe: true }, prompts: {}, completions: {} });
+			expect(result.capabilities).toEqual({ tools: {}, resources: { subscribe: true }, prompts: {}, completions: {}, roots: {} });
 			expect(result.serverInfo).toEqual({ name: "kota", version: "0.1.0" });
 
 			server.stop();
@@ -1432,5 +1471,156 @@ describe("completion/complete", () => {
 		expect(result.completion.values).toEqual([]);
 
 		server.stop();
+	});
+
+	describe("roots", () => {
+		async function initServerWithRoots(
+			server: McpServer,
+			input: PassThrough,
+			output: PassThrough,
+		): Promise<{ initResp: Record<string, unknown>; queue: ReturnType<typeof createQueuedReader> }> {
+			// Set up the queued reader BEFORE starting the server so no writes are missed.
+			const queue = createQueuedReader(output);
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: "2024-11-05",
+				capabilities: { roots: {} },
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			const initResp = await queue.read();
+			sendNotification(input, "notifications/initialized");
+			// Server defers fetchClientRoots via setImmediate — wait for it before returning.
+			await new Promise((r) => setImmediate(r));
+			return { initResp, queue };
+		}
+
+		it("advertises roots capability in initialize response", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			const resp = await initServer(server, input, output);
+			const result = resp.result as Record<string, unknown>;
+			const caps = result.capabilities as Record<string, unknown>;
+			expect(caps.roots).toEqual({});
+
+			server.stop();
+		});
+
+		it("requests roots/list from client when client declares roots capability", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			const { queue } = await initServerWithRoots(server, input, output);
+
+			// Server should have sent a roots/list request after initialization
+			const rootsReq = await queue.read();
+			expect(rootsReq.method).toBe("roots/list");
+			expect(rootsReq.id).toBeDefined();
+
+			server.stop();
+		});
+
+		it("stores roots returned by client and exposes via getClientRoots()", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			const { queue } = await initServerWithRoots(server, input, output);
+
+			// Read the roots/list request the server sent
+			const rootsReq = await queue.read();
+			expect(rootsReq.method).toBe("roots/list");
+
+			// Respond with roots
+			const roots = [
+				{ uri: "file:///workspace/project-a", name: "Project A" },
+				{ uri: "file:///workspace/project-b" },
+			];
+			input.write(
+				`${JSON.stringify({ jsonrpc: "2.0", id: rootsReq.id, result: { roots } })}\n`,
+			);
+
+			// Small wait for async processing
+			await new Promise((r) => setTimeout(r, 50));
+
+			const stored = server.getClientRoots();
+			expect(stored).toHaveLength(2);
+			expect(stored[0].uri).toBe("file:///workspace/project-a");
+			expect(stored[0].name).toBe("Project A");
+			expect(stored[1].uri).toBe("file:///workspace/project-b");
+
+			server.stop();
+		});
+
+		it("returns empty roots when client does not declare roots capability", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			await initServer(server, input, output);
+
+			expect(server.getClientRoots()).toEqual([]);
+
+			server.stop();
+		});
+
+		it("updates roots when notifications/roots/list_changed is received", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			const { queue } = await initServerWithRoots(server, input, output);
+
+			// Handle initial roots/list request
+			const firstReq = await queue.read();
+			input.write(
+				`${JSON.stringify({ jsonrpc: "2.0", id: firstReq.id, result: { roots: [{ uri: "file:///workspace/old" }] } })}\n`,
+			);
+			await new Promise((r) => setTimeout(r, 50));
+			expect(server.getClientRoots()[0].uri).toBe("file:///workspace/old");
+
+			// Client notifies roots changed — server defers the re-fetch via setImmediate.
+			sendNotification(input, "notifications/roots/list_changed");
+			await new Promise((r) => setImmediate(r));
+
+			// Server sends another roots/list request (captured by the queue)
+			const secondReq = await queue.read();
+			expect(secondReq.method).toBe("roots/list");
+
+			// Respond with updated roots
+			input.write(
+				`${JSON.stringify({ jsonrpc: "2.0", id: secondReq.id, result: { roots: [{ uri: "file:///workspace/new" }] } })}\n`,
+			);
+			await new Promise((r) => setTimeout(r, 50));
+
+			expect(server.getClientRoots()[0].uri).toBe("file:///workspace/new");
+
+			server.stop();
+		});
+
+		it("getEffectiveProjectDir returns first root path when roots are set", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir: "/default/dir" });
+
+			const { queue } = await initServerWithRoots(server, input, output);
+
+			const rootsReq = await queue.read();
+			input.write(
+				`${JSON.stringify({ jsonrpc: "2.0", id: rootsReq.id, result: { roots: [{ uri: "file:///workspace/project" }] } })}\n`,
+			);
+			await new Promise((r) => setTimeout(r, 50));
+
+			expect(server.getEffectiveProjectDir()).toBe("/workspace/project");
+
+			server.stop();
+		});
+
+		it("getEffectiveProjectDir falls back to configured projectDir when no roots", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir: "/default/dir" });
+
+			await initServer(server, input, output);
+
+			expect(server.getEffectiveProjectDir()).toBe("/default/dir");
+
+			server.stop();
+		});
 	});
 });
