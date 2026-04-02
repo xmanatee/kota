@@ -266,13 +266,15 @@ describe("autonomous workflow loop integration", () => {
     "writes explorer run artifacts and skips agent step when queue needs no attention",
     { timeout: 10_000 },
     async () => {
-      // Explorer agent step must not be called (needsAttention = false)
+      // Explorer agent step must not be called (needsAttention = false).
+      // Use only the explorer workflow to prevent builder from triggering on
+      // explorer.success (builder has a 5s retry delay that would exceed this test's timeout).
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
         bus,
         projectDir,
         idleIntervalMs: 10,
-        workflows: getBuiltinWorkflowDefinitions(),
+        workflows: getBuiltinWorkflowDefinitions().filter((w) => w.name === "explorer"),
       });
 
       runtime.start();
