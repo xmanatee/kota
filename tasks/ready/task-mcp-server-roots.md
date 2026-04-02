@@ -1,12 +1,12 @@
 ---
 id: task-mcp-server-roots
 title: Add MCP roots capability to the KOTA MCP server
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The KOTA MCP server does not declare a roots capability. MCP hosts that pass workspace roots (file paths, project scope) via the roots protocol cannot inform the KOTA server about the operator's active workspace, limiting context awareness.
 created_at: 2026-03-31T08:31:48Z
-updated_at: 2026-03-31T08:31:48Z
+updated_at: 2026-04-02T13:01:30Z
 ---
 
 ## Problem
