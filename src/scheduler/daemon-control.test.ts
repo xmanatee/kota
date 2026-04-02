@@ -46,7 +46,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
-    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [] })),
+    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [] })),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
@@ -894,6 +894,7 @@ describe("DaemonControlServer", () => {
         costTotals: [
           { workflow: "builder", costUsd: 1.5 },
         ],
+        durationHistogram: [],
       };
       handle = makeHandle({
         getWorkflowMetricCounts: vi.fn(() => metricCounts),
@@ -946,6 +947,43 @@ describe("DaemonControlServer", () => {
       expect(text).toContain('kota_workflow_active_runs{workflow="explorer"} 1');
       expect(text).toContain("# TYPE kota_workflow_queued_runs gauge");
       expect(text).toContain("kota_workflow_queued_runs 3");
+    });
+
+    it("includes duration histogram buckets when durationHistogram is non-empty", async () => {
+      const metricCounts: WorkflowMetricCounts = {
+        runCounts: [],
+        costTotals: [],
+        durationHistogram: [
+          {
+            workflow: "builder",
+            status: "success",
+            buckets: [
+              { le: 30, count: 0 },
+              { le: 120, count: 2 },
+              { le: 300, count: 5 },
+              { le: 900, count: 10 },
+              { le: 1800, count: 12 },
+              { le: 3600, count: 14 },
+              { le: "+Inf", count: 14 },
+            ],
+            sum: 9480,
+            count: 14,
+          },
+        ],
+      };
+      handle = makeHandle({ getWorkflowMetricCounts: vi.fn(() => metricCounts) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/metrics");
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toContain("# TYPE kota_workflow_run_duration_seconds histogram");
+      expect(text).toContain('kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="1800"} 12');
+      expect(text).toContain('kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="+Inf"} 14');
+      expect(text).toContain('kota_workflow_run_duration_seconds_sum{workflow="builder",status="success"} 9480');
+      expect(text).toContain('kota_workflow_run_duration_seconds_count{workflow="builder",status="success"} 14');
     });
 
     it("returns 401 without token", async () => {

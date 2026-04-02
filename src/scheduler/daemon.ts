@@ -12,7 +12,7 @@ import { getHistory } from "../memory/history.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
-import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowCostEntry, type WorkflowDefinitionSummary, type WorkflowMetricCounts, type WorkflowRunCountEntry, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
+import { DaemonControlServer, type DaemonTaskStatusResponse, type InteractiveSession, type WorkflowCostEntry, type WorkflowDefinitionSummary, type WorkflowDurationHistogramEntry, type WorkflowMetricCounts, type WorkflowRunCountEntry, type WorkflowRunDetail, type WorkflowRunSummary } from "./daemon-control.js";
 import { DaemonLogger } from "./daemon-logger.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
@@ -80,6 +80,8 @@ export class Daemon {
   private shutdownHandler: (() => void) | null = null;
   /** Sliding-window timestamps (ms) for webhook rate limiting, keyed by workflow name. */
   private webhookTimestamps = new Map<string, number[]>();
+  private metricCountsCache: WorkflowMetricCounts | null = null;
+  private metricCountsCacheAt = 0;
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -246,15 +248,39 @@ export class Daemon {
       },
       getTaskStatus: () => this.readTaskStatus(),
       getWorkflowMetricCounts: (): WorkflowMetricCounts => {
+        const now = Date.now();
+        if (this.metricCountsCache && now - this.metricCountsCacheAt < 30_000) {
+          return this.metricCountsCache;
+        }
+        const DURATION_BUCKETS_S = [30, 120, 300, 900, 1800, 3600] as const;
         const runs = this.runStore.listRuns({ limit: 100_000 });
         const countMap = new Map<string, number>();
         const costMap = new Map<string, number>();
+        // key: "workflow\x00status" -> { buckets: Map<number|"+Inf", count>, sum, count }
+        const durationMap = new Map<string, { buckets: Map<number | "+Inf", number>; sum: number; count: number }>();
         for (const run of runs) {
           if (!run.workflow || !run.status || run.status === "running") continue;
           const countKey = `${run.workflow}\x00${run.status}`;
           countMap.set(countKey, (countMap.get(countKey) ?? 0) + 1);
           if (typeof run.totalCostUsd === "number") {
             costMap.set(run.workflow, (costMap.get(run.workflow) ?? 0) + run.totalCostUsd);
+          }
+          if (typeof run.durationMs === "number") {
+            const durationS = run.durationMs / 1000;
+            let entry = durationMap.get(countKey);
+            if (!entry) {
+              const buckets = new Map<number | "+Inf", number>();
+              for (const b of DURATION_BUCKETS_S) buckets.set(b, 0);
+              buckets.set("+Inf", 0);
+              entry = { buckets, sum: 0, count: 0 };
+              durationMap.set(countKey, entry);
+            }
+            for (const b of DURATION_BUCKETS_S) {
+              if (durationS <= b) entry.buckets.set(b, (entry.buckets.get(b) ?? 0) + 1);
+            }
+            entry.buckets.set("+Inf", (entry.buckets.get("+Inf") ?? 0) + 1);
+            entry.sum += durationS;
+            entry.count += 1;
           }
         }
         const runCounts: WorkflowRunCountEntry[] = [];
@@ -266,7 +292,21 @@ export class Daemon {
         for (const [workflow, costUsd] of costMap) {
           costTotals.push({ workflow, costUsd });
         }
-        return { runCounts, costTotals };
+        const durationHistogram: WorkflowDurationHistogramEntry[] = [];
+        for (const [key, entry] of durationMap) {
+          const sep = key.indexOf("\x00");
+          durationHistogram.push({
+            workflow: key.slice(0, sep),
+            status: key.slice(sep + 1),
+            buckets: [...entry.buckets.entries()].map(([le, count]) => ({ le, count })),
+            sum: entry.sum,
+            count: entry.count,
+          });
+        }
+        const result: WorkflowMetricCounts = { runCounts, costTotals, durationHistogram };
+        this.metricCountsCache = result;
+        this.metricCountsCacheAt = now;
+        return result;
       },
       registerSession: (id: string, createdAt: string) => {
         this.sessions.set(id, { id, createdAt, lastActive: Date.now() });

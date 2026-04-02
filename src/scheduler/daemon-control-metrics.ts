@@ -1,9 +1,26 @@
 import type { ServerResponse } from "node:http";
 import type { WorkflowActiveRun } from "../workflow/run-types.js";
-import type { DaemonControlHandle, WorkflowMetricCounts } from "./daemon-control-types.js";
+import type { DaemonControlHandle, WorkflowDurationHistogramEntry, WorkflowMetricCounts } from "./daemon-control-types.js";
 
 function sanitizeLabelValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+function buildDurationHistogram(entries: WorkflowDurationHistogramEntry[]): string[] {
+  if (entries.length === 0) return [];
+  const lines: string[] = [];
+  lines.push("# HELP kota_workflow_run_duration_seconds Duration of completed workflow runs in seconds");
+  lines.push("# TYPE kota_workflow_run_duration_seconds histogram");
+  for (const entry of entries) {
+    const wf = sanitizeLabelValue(entry.workflow);
+    const st = sanitizeLabelValue(entry.status);
+    for (const { le, count } of entry.buckets) {
+      lines.push(`kota_workflow_run_duration_seconds_bucket{workflow="${wf}",status="${st}",le="${le}"} ${count}`);
+    }
+    lines.push(`kota_workflow_run_duration_seconds_sum{workflow="${wf}",status="${st}"} ${entry.sum}`);
+    lines.push(`kota_workflow_run_duration_seconds_count{workflow="${wf}",status="${st}"} ${entry.count}`);
+  }
+  return lines;
 }
 
 function buildPrometheusMetrics(
@@ -56,6 +73,10 @@ function buildPrometheusMetrics(
   lines.push("# HELP kota_workflow_queued_runs Total number of runs currently waiting in the dispatch queue");
   lines.push("# TYPE kota_workflow_queued_runs gauge");
   lines.push(`kota_workflow_queued_runs ${queueLength}`);
+
+  for (const line of buildDurationHistogram(metricCounts.durationHistogram)) {
+    lines.push(line);
+  }
 
   lines.push("");
   return lines.join("\n");

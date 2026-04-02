@@ -36,6 +36,7 @@ export type {
   WorkflowCostEntry,
   WorkflowDefinitionSummary,
   WorkflowDefinitionTriggerSummary,
+  WorkflowDurationHistogramEntry,
   WorkflowLiveStatus,
   WorkflowMetricCounts,
   WorkflowRunCountEntry,

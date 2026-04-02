@@ -797,6 +797,17 @@ kota_workflow_active_runs{workflow="builder"} 1
 # HELP kota_workflow_queued_runs Total number of runs currently waiting in the dispatch queue
 # TYPE kota_workflow_queued_runs gauge
 kota_workflow_queued_runs 2
+# HELP kota_workflow_run_duration_seconds Duration of completed workflow runs in seconds
+# TYPE kota_workflow_run_duration_seconds histogram
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="30"} 0
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="120"} 2
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="300"} 5
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="900"} 10
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="1800"} 12
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="3600"} 14
+kota_workflow_run_duration_seconds_bucket{workflow="builder",status="success",le="+Inf"} 14
+kota_workflow_run_duration_seconds_sum{workflow="builder",status="success"} 9480
+kota_workflow_run_duration_seconds_count{workflow="builder",status="success"} 14
 ```
 
 Metric families:
@@ -810,6 +821,7 @@ Metric families:
 | `kota_dispatch_paused` | gauge | — | `1` if workflow dispatch is paused, `0` otherwise |
 | `kota_workflow_active_runs` | gauge | `workflow` | Current number of actively executing runs per workflow name |
 | `kota_workflow_queued_runs` | gauge | — | Total count of runs currently waiting in the dispatch queue |
+| `kota_workflow_run_duration_seconds` | histogram | `workflow`, `status` | Duration of completed workflow runs in seconds. Buckets: 30s, 2m, 5m, 15m, 30m, 60m, +Inf. Computed from the run store with a 30s cache TTL. |
 
 ### Idle TTL and Sweep
 

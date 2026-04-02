@@ -133,9 +133,19 @@ export type WorkflowCostEntry = {
   costUsd: number;
 };
 
+export type WorkflowDurationHistogramEntry = {
+  workflow: string;
+  status: string;
+  /** Bucket counts indexed by upper bound in seconds; "+Inf" always present */
+  buckets: Array<{ le: number | "+Inf"; count: number }>;
+  sum: number;
+  count: number;
+};
+
 export type WorkflowMetricCounts = {
   runCounts: WorkflowRunCountEntry[];
   costTotals: WorkflowCostEntry[];
+  durationHistogram: WorkflowDurationHistogramEntry[];
 };
 
 export type ComponentStatus = "ok" | "error";
