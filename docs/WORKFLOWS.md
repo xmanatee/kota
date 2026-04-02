@@ -475,6 +475,22 @@ Approval steps are **not allowed** inside `parallel`, `branch`, or `foreach` bod
 
 Approval requests created by workflow steps have `source: "workflow-step"` in the approval record, distinguishing them from guardrail-generated requests (`source: "guardrail"`). Use `kota approval list` to see pending requests; both sources appear in the same list.
 
+#### Approval step output
+
+When the step succeeds (operator approved), the step output is:
+
+```json
+{
+  "approvalId": "<id>",
+  "approved": true,
+  "resolvedAt": "<ISO timestamp>",
+  "resolutionSource": "human",
+  "approvalNote": "<operator note>"
+}
+```
+
+`approvalNote` is only present when the operator supplied a note via `kota approval approve <id> --note "..."` or the web UI. Downstream agent steps can read it via `{{stepOutputs.<stepId>.approvalNote}}`.
+
 ## Testing Workflow Definitions
 
 The `kota/testing` sub-path exports a `WorkflowTestHarness` that runs a workflow

@@ -25,7 +25,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.
 - `step-context.ts` — `createStepContext` and step context helpers.
 - `step-executor.ts` / `step-executor-agent.ts` / `step-executor-parallel.ts` / `step-executor-branch.ts` / `step-executor-foreach.ts` — Step dispatch by type.
-- `step-executor-approval.ts` — `executeApprovalStep`: enqueues a `source: "workflow-step"` entry in the approval queue and polls until the operator approves, rejects, or the step times out; rejects the queue entry on abort or error so no stale pending entries remain.
+- `step-executor-approval.ts` — `executeApprovalStep`: enqueues a `source: "workflow-step"` entry in the approval queue and polls until the operator approves, rejects, or the step times out; rejects the queue entry on abort or error so no stale pending entries remain. On approval the step output includes `{ approvalId, approved, resolvedAt, resolutionSource, approvalNote? }` — `approvalNote` is present when the operator supplied a note and is available to downstream steps via `stepOutputs`.
 - `step-executor-trigger.ts` — `executeTriggerStep`: enqueues or awaits another workflow; `{{...}}` payload interpolation. `TriggerStepOutput` includes `childOutput?: unknown` when `waitFor: "completed"` — the last successful step's output from the child run.
 - `step-executor-retry.ts` — Retry/backoff primitives: `AgentStepRuntimeError`, `DEFAULT_MODEL`, `withRetry`, `classifyAgentRuntimeFailure`.
 - `validation.ts` / `validation-primitives.ts` — Workflow definition validation orchestration and shared primitives.
