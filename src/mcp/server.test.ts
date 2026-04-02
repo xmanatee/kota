@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { EventBus } from "../event-bus.js";
-import { anthropicToMcp, McpServer, toolResultToMcp } from "./server.js";
+import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 // --- Helper: send a JSON-RPC request and read the response ---
 
@@ -1178,5 +1178,163 @@ describe("McpServer elicitation", () => {
 			setConfirmOverride(null);
 			server.stop();
 		});
+	});
+});
+
+describe("sampling", () => {
+	type MockCall = { model: string; messages: unknown[]; system?: unknown };
+
+	function makeMockModelClient(responseText: string, model = "claude-haiku-4-5-20251001") {
+		const calls: MockCall[] = [];
+		const client: McpServerOptions["modelClient"] = {
+			messages: {
+				stream: () => { throw new Error("stream not used by sampling"); },
+				create: async (params) => {
+					calls.push({ model: params.model, messages: params.messages, system: params.system });
+					return {
+						id: "msg_test_1",
+						type: "message",
+						role: "assistant",
+						model,
+						content: [{ type: "text", text: responseText, citations: null }],
+						stop_reason: "end_turn",
+						stop_sequence: null,
+						usage: { input_tokens: 50, output_tokens: 20, cache_creation_input_tokens: null, cache_read_input_tokens: null },
+	} as never;
+				},
+			},
+		};
+		return { client, calls };
+	}
+
+	it("advertises sampling capability when enabled", async () => {
+		const { input, output } = createTestStreams();
+		const { client } = makeMockModelClient("hello");
+		const server = new McpServer({ input, output, log: () => {}, samplingEnabled: true, modelClient: client });
+
+		const resp = await initServer(server, input, output);
+		const result = resp.result as Record<string, unknown>;
+		const caps = result.capabilities as Record<string, unknown>;
+		expect(caps.sampling).toBeDefined();
+
+		server.stop();
+	});
+
+	it("does not advertise sampling capability when disabled", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+
+		const resp = await initServer(server, input, output);
+		const result = resp.result as Record<string, unknown>;
+		const caps = result.capabilities as Record<string, unknown>;
+		expect(caps.sampling).toBeUndefined();
+
+		server.stop();
+	});
+
+	it("sampling/createMessage returns completion from model client", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-test-"));
+		const { client, calls } = makeMockModelClient("World!");
+		const { input, output } = createTestStreams();
+		const server = new McpServer({
+			input,
+			output,
+			log: () => {},
+			samplingEnabled: true,
+			samplingModel: "claude-haiku-4-5-20251001",
+			projectDir,
+			modelClient: client,
+		});
+		await initServer(server, input, output);
+
+		sendRequest(input, 10, "sampling/createMessage", {
+			messages: [{ role: "user", content: { type: "text", text: "Hello" } }],
+			maxTokens: 256,
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.id).toBe(10);
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { role: string; content: { type: string; text: string }; model: string; stopReason: string };
+		expect(result.role).toBe("assistant");
+		expect(result.content.type).toBe("text");
+		expect(result.content.text).toBe("World!");
+		expect(result.model).toBe("claude-haiku-4-5-20251001");
+		expect(result.stopReason).toBe("endTurn");
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0].model).toBe("claude-haiku-4-5-20251001");
+
+		server.stop();
+	});
+
+	it("sampling/createMessage passes systemPrompt to model", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-sys-"));
+		const { client, calls } = makeMockModelClient("I am helpful.");
+		const { input, output } = createTestStreams();
+		const server = new McpServer({
+			input,
+			output,
+			log: () => {},
+			samplingEnabled: true,
+			samplingModel: "claude-haiku-4-5-20251001",
+			projectDir,
+			modelClient: client,
+		});
+		await initServer(server, input, output);
+
+		sendRequest(input, 11, "sampling/createMessage", {
+			messages: [{ role: "user", content: { type: "text", text: "Who are you?" } }],
+			systemPrompt: "You are a helpful assistant.",
+			maxTokens: 128,
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		expect(calls[0].system).toBe("You are a helpful assistant.");
+
+		server.stop();
+	});
+
+	it("sampling/createMessage returns error when sampling not enabled", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 12, "sampling/createMessage", {
+			messages: [{ role: "user", content: { type: "text", text: "Hi" } }],
+			maxTokens: 64,
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeDefined();
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32601);
+
+		server.stop();
+	});
+
+	it("sampling/createMessage returns error for empty messages", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-empty-"));
+		const { client } = makeMockModelClient("ok");
+		const { input, output } = createTestStreams();
+		const server = new McpServer({
+			input,
+			output,
+			log: () => {},
+			samplingEnabled: true,
+			projectDir,
+			modelClient: client,
+		});
+		await initServer(server, input, output);
+
+		sendRequest(input, 13, "sampling/createMessage", { messages: [], maxTokens: 64 });
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeDefined();
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32602);
+
+		server.stop();
 	});
 });

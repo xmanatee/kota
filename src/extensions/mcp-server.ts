@@ -44,9 +44,19 @@ const mcpServerModule: KotaExtension = {
 					? (opts.tools as string).split(",").map((s: string) => s.trim())
 					: undefined;
 
+				const samplingEnabled = config.mcp?.sampling?.enabled === true;
+				let modelClient;
+				if (samplingEnabled) {
+					const { AnthropicModelClient } = await import("../model/model-client.js");
+					modelClient = new AnthropicModelClient();
+				}
+
 				const server = new McpServer({
 					toolFilter,
 					name: opts.name,
+					samplingEnabled,
+					modelClient,
+					samplingModel: config.model,
 				});
 
 				// Graceful shutdown

@@ -156,6 +156,18 @@ export type KotaConfig = {
      */
     maxStepOutputBytes?: number;
   };
+
+  /** MCP server settings. */
+  mcp?: {
+    /**
+     * Sampling settings — allow MCP clients to delegate LLM completions to KOTA.
+     * Default: disabled.
+     */
+    sampling?: {
+      /** Enable the sampling/createMessage handler. Default: false. */
+      enabled?: boolean;
+    };
+  };
 };
 
 const CONFIG_FILENAME = "config.json";
@@ -335,6 +347,18 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
       w.maxStepOutputBytes = src.maxStepOutputBytes;
     }
     if (Object.keys(w).length > 0) out.workflow = w;
+  }
+
+  if (typeof raw.mcp === "object" && raw.mcp !== null && !Array.isArray(raw.mcp)) {
+    const src = raw.mcp as Record<string, unknown>;
+    const m: KotaConfig["mcp"] = {};
+    if (typeof src.sampling === "object" && src.sampling !== null && !Array.isArray(src.sampling)) {
+      const samp = src.sampling as Record<string, unknown>;
+      const s: NonNullable<KotaConfig["mcp"]>["sampling"] = {};
+      if (typeof samp.enabled === "boolean") s.enabled = samp.enabled;
+      if (Object.keys(s).length > 0) m.sampling = s;
+    }
+    if (Object.keys(m).length > 0) out.mcp = m;
   }
 
   if (Array.isArray(raw.foreignExtensions)) {

@@ -306,6 +306,24 @@
         }
       }
     },
+    "mcp": {
+      "type": "object",
+      "description": "MCP server settings.",
+      "additionalProperties": false,
+      "properties": {
+        "sampling": {
+          "type": "object",
+          "description": "Sampling settings — allow MCP clients to delegate LLM completions to KOTA.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the sampling/createMessage handler. Default: false."
+            }
+          }
+        }
+      }
+    },
     "scheduler": {
       "type": "object",
       "description": "Scheduler settings for autonomous workflow dispatch.",

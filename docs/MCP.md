@@ -86,7 +86,7 @@ The server implements `prompts/list` and `prompts/get`. Three static prompt temp
 
 ## Capabilities
 
-The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {} }` in its `initialize` response.
+The server advertises `{ tools: {}, resources: { subscribe: true }, prompts: {} }` in its `initialize` response. When `mcp.sampling.enabled` is true, `sampling: {}` is also included.
 It supports `resources/subscribe` and `resources/unsubscribe`; subscribed clients receive `notifications/resources/updated` when `kota://workflow/status` or `kota://tasks/ready` changes.
 
 ## Elicitation
@@ -118,3 +118,40 @@ if (!result || result.action !== "accept") {
 ```
 
 The method returns `null` if the client does not support elicitation, and rejects with an error if the timeout expires before the client responds (default: 300 s).
+
+## Sampling
+
+KOTA supports the MCP sampling capability, allowing connected clients to request LLM completions through KOTA's configured model provider.
+
+**Config flag**: Sampling is opt-in and disabled by default. Enable it in `.kota/config.json`:
+
+```json
+{
+  "mcp": {
+    "sampling": {
+      "enabled": true
+    }
+  }
+}
+```
+
+**Capability negotiation**: When `mcp.sampling.enabled` is true, the server advertises `sampling: {}` in its `initialize` response. Clients can then send `sampling/createMessage` requests.
+
+**`sampling/createMessage`**: The server routes the request through the configured model provider (the same `ModelClient` used by agent steps). The caller supplies messages, an optional system prompt, and a `maxTokens` budget; the server returns the completion.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `messages` | array | MCP `SamplingMessage` array (`role` + `content`) |
+| `systemPrompt` | string (optional) | System prompt prepended to the conversation |
+| `maxTokens` | number | Maximum tokens for the completion (default: 1024) |
+
+Response fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `role` | `"assistant"` | Always `"assistant"` |
+| `content` | `{ type: "text"; text: string }` | The model's text response |
+| `model` | string | Model that produced the response |
+| `stopReason` | `"endTurn"` \| `"maxTokens"` \| string | Why generation stopped |
+
+**Cost tracking**: Each sampling call writes a synthetic run artifact to `.kota/runs/` under the workflow name `mcp-sampling`. These entries appear in `kota workflow cost` output so sampling spend is visible alongside workflow costs.

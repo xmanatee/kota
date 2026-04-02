@@ -6,11 +6,15 @@
  * connect and use KOTA's tools without a custom integration.
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
+import { CostTracker } from "../cost.js";
 import type { EventBus } from "../event-bus.js";
 import { getEventBus } from "../event-bus.js";
 import type { ToolDef } from "../extension-types.js";
+import type { MessageCreateParams, ModelClient } from "../model/model-client.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
@@ -81,6 +85,15 @@ export type McpServerOptions = {
 	 * the daemon-embedded MCP server and for tests.
 	 */
 	extensionTools?: ToolDef[];
+	/**
+	 * Model client to use for sampling/createMessage requests.
+	 * Required when samplingEnabled is true.
+	 */
+	modelClient?: ModelClient;
+	/** Default model name to use for sampling requests. */
+	samplingModel?: string;
+	/** Advertise and handle sampling capability (default: false). */
+	samplingEnabled?: boolean;
 };
 
 export class McpServer {
@@ -105,6 +118,9 @@ export class McpServer {
 		{ resolve: (r: ElicitationResponse) => void; reject: (e: Error) => void }
 	>();
 	private elicitationIdCounter = 0;
+	private samplingEnabled: boolean;
+	private modelClient: ModelClient | null;
+	private samplingModel: string;
 
 	constructor(options: McpServerOptions = {}) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -115,6 +131,9 @@ export class McpServer {
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
 		this.projectDir = options.projectDir ?? process.cwd();
 		this.eventBusOverride = options.eventBus;
+		this.samplingEnabled = options.samplingEnabled ?? false;
+		this.modelClient = options.modelClient ?? null;
+		this.samplingModel = options.samplingModel ?? "claude-sonnet-4-6";
 		for (const def of options.extensionTools ?? []) {
 			this.extensionRunners.set(def.tool.name, def.runner);
 			this.extensionToolList.push(def.tool);
@@ -240,6 +259,8 @@ export class McpServer {
 				return this.handlePromptsList(msg);
 			case "prompts/get":
 				return this.handlePromptsGet(msg);
+			case "sampling/createMessage":
+				return this.handleSamplingCreateMessage(msg);
 			case "ping":
 				return this.sendResult(msg, {});
 			case "shutdown":
@@ -262,6 +283,9 @@ export class McpServer {
 		if (this.clientSupportsElicitation) {
 			capabilities.elicitation = {};
 		}
+		if (this.samplingEnabled && this.modelClient) {
+			capabilities.sampling = {};
+		}
 		this.sendResult(msg, {
 			protocolVersion: "2024-11-05",
 			capabilities,
@@ -270,7 +294,7 @@ export class McpServer {
 				version: this.serverVersion,
 			},
 		});
-		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation})`);
+		this.log(`Initialized successfully (elicitation: ${this.clientSupportsElicitation}, sampling: ${this.samplingEnabled && !!this.modelClient})`);
 	}
 
 	private handleResourcesSubscribe(msg: JsonRpcRequest): void {
@@ -477,6 +501,105 @@ export class McpServer {
 			content,
 			...(result.is_error && { isError: true }),
 		});
+	}
+
+	private async handleSamplingCreateMessage(msg: JsonRpcRequest): Promise<void> {
+		if (!this.initialized) {
+			this.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		if (!this.samplingEnabled || !this.modelClient) {
+			this.sendError(msg, -32601, "Sampling capability not enabled");
+			return;
+		}
+
+		const params = (msg.params ?? {}) as Record<string, unknown>;
+		const rawMessages = params.messages as Array<{ role: string; content: { type: string; text?: string; data?: string; mimeType?: string } }> | undefined;
+		if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
+			this.sendError(msg, -32602, "Missing required parameter: messages");
+			return;
+		}
+
+		const maxTokens = typeof params.maxTokens === "number" && params.maxTokens > 0 ? params.maxTokens : 1024;
+		const systemPrompt = typeof params.systemPrompt === "string" ? params.systemPrompt : undefined;
+
+		// Convert MCP message format to Anthropic format
+		const messages: Anthropic.MessageParam[] = rawMessages.map((m) => {
+			const role = m.role === "assistant" ? "assistant" : "user";
+			const content: string =
+				m.content.type === "text" && m.content.text != null
+					? m.content.text
+					: "";
+			return { role, content };
+		});
+
+		const callParams: MessageCreateParams = {
+			model: this.samplingModel,
+			max_tokens: maxTokens,
+			messages,
+			...(systemPrompt && { system: systemPrompt }),
+		};
+
+		let response: Anthropic.Message;
+		try {
+			response = await this.modelClient.messages.create(callParams);
+		} catch (err) {
+			const errMsg = err instanceof Error ? err.message : String(err);
+			this.sendError(msg, -32603, `Model call failed: ${errMsg}`);
+			return;
+		}
+
+		// Track cost by writing a synthetic run artifact
+		this.writeSamplingRunArtifact(response.usage, response.model);
+
+		// Extract text from response
+		const textBlock = response.content.find((b) => b.type === "text");
+		const text = textBlock && "text" in textBlock ? textBlock.text : "";
+
+		const stopReason = response.stop_reason === "end_turn" ? "endTurn"
+			: response.stop_reason === "max_tokens" ? "maxTokens"
+			: (response.stop_reason ?? "endTurn");
+
+		this.sendResult(msg, {
+			role: "assistant",
+			content: { type: "text", text },
+			model: response.model,
+			stopReason,
+		});
+	}
+
+	private writeSamplingRunArtifact(usage: { input_tokens: number; output_tokens: number }, model: string): void {
+		try {
+			const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+			const suffix = Math.random().toString(36).slice(2, 8);
+			const runId = `${stamp}-mcp-sampling-${suffix}`;
+			const runDir = join(this.projectDir, ".kota", "runs", runId);
+
+			const tracker = new CostTracker();
+			tracker.addUsage(model, { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens });
+			const costUsd = tracker.getTotalCost();
+
+			const now = new Date().toISOString();
+			const metadata = {
+				id: runId,
+				workflow: "mcp-sampling",
+				definitionPath: "",
+				trigger: { event: "mcp.sampling", payload: {} },
+				startedAt: now,
+				completedAt: now,
+				durationMs: 0,
+				status: "success",
+				runDir,
+				steps: [],
+				totalCostUsd: costUsd,
+			};
+
+			mkdirSync(runDir, { recursive: true });
+			writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
+		} catch {
+			// Non-fatal: cost tracking failure should not break the sampling response
+			this.log("Warning: failed to write sampling run artifact");
+		}
 	}
 
 	/**
