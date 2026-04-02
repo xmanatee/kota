@@ -13,6 +13,7 @@ import {
   resolveConversationId,
   runPipeLoop,
 } from "./cli-history.js";
+import { registerCompletionCommands } from "./completion-cli.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { registerConfigCommands } from "./config-cli.js";
 import { setSkipConfirmations } from "./confirm.js";
@@ -193,6 +194,7 @@ registerStatusCommand(program);
 registerConfigCommands(program);
 registerInitCommand(program);
 registerEventsCommands(program);
+registerCompletionCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

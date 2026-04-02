@@ -1,7 +1,7 @@
 ---
 id: task-cli-shell-completion
 title: Add shell completion for kota CLI commands
-status: ready
+status: done
 priority: p3
 area: cli
 summary: The kota CLI has grown to cover workflows, tasks, approvals, and more. Adding zsh/bash completion would speed up daily operator use — completing subcommands, workflow names, run IDs, and flag names without memorizing them.
