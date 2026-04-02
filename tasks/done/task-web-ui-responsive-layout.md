@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-responsive-layout
 title: Make the web UI dashboard responsive for small screens and mobile
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The web UI uses a fixed three-column layout with no media queries. On a tablet or mobile device the panels overflow and overlap, making the dashboard unusable for quick status checks away from a desktop.
 created_at: 2026-03-31T16:34:49Z
-updated_at: 2026-04-01T06:25:00Z
+updated_at: 2026-04-02T01:05:00Z
 ---
 
 ## Problem

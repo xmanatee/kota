@@ -74,6 +74,8 @@ export const WEB_UI_JS = /* js */ `
   const $health = document.getElementById("health-status");
   const $sidebar = document.getElementById("sidebar");
   const $toggleSidebar = document.getElementById("toggle-sidebar");
+  const $mobileMenuBtn = document.getElementById("mobile-menu-btn");
+  const $sidebarOverlay = document.getElementById("sidebar-overlay");
 
 ${CLIENT_UTILS_JS}
 ${CLIENT_SESSIONS_JS}
@@ -113,11 +115,32 @@ ${CLIENT_KEYBOARD_JS}
     refreshSessions();
   };
 
+  function _updateSidebarOverlay() {
+    if (!$sidebarOverlay) return;
+    $sidebarOverlay.style.display = $sidebar.classList.contains("collapsed") ? "none" : "block";
+  }
+
   $toggleSidebar.onclick = () => {
     $sidebar.classList.toggle("collapsed");
+    _updateSidebarOverlay();
   };
 
+  if ($mobileMenuBtn) {
+    $mobileMenuBtn.onclick = () => {
+      $sidebar.classList.toggle("collapsed");
+      _updateSidebarOverlay();
+    };
+  }
+
+  if ($sidebarOverlay) {
+    $sidebarOverlay.onclick = () => {
+      $sidebar.classList.add("collapsed");
+      _updateSidebarOverlay();
+    };
+  }
+
   // --- Init ---
+  if (window.innerWidth <= 768) $sidebar.classList.add("collapsed");
   showWelcome();
   checkHealth();
   refreshSessions();

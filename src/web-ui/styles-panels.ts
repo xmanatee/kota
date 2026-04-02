@@ -347,10 +347,5 @@ export const STYLES_PANELS_CSS = `
 .wf-load-more-btn:hover { border-color: var(--accent); color: var(--text); }
 .wf-load-more-btn:disabled { opacity: 0.5; cursor: default; }
 
-/* Mobile */
-@media (max-width: 768px) {
-  #sidebar { position: fixed; z-index: 10; height: 100%; }
-  #sidebar.collapsed { width: 0; }
-  .toggle-visible { display: block !important; }
-}
+/* Responsive overrides handled in styles-layout.ts */
 `;

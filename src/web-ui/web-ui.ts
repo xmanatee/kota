@@ -19,6 +19,8 @@ ${WEB_UI_CSS}
 </head>
 <body>
 <div id="app">
+  <button id="mobile-menu-btn" aria-label="Open menu">☰</button>
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
   <aside id="sidebar">
     <div class="sidebar-header">
       <h1>KOTA</h1>
