@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-causedby-chain
 title: Add causal chain traversal to workflow run history CLI
-status: backlog
+status: ready
 priority: p3
 area: cli
 summary: The web UI can show triggered child runs and parent run links for a given run, but the CLI has no equivalent. kota workflow history and kota workflow show have no way to display or follow the causedBy/triggeredRuns chain, making it hard to trace a multi-workflow pipeline from the terminal.
 created_at: 2026-04-02T08:57:28Z
-updated_at: 2026-04-02T08:57:28Z
+updated_at: 2026-04-02T10:06:24Z
 ---
 
 ## Problem
