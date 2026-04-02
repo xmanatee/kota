@@ -1,7 +1,7 @@
 ---
 id: task-run-detail-retry-button
 title: Add retry button to the run detail panel in the web UI
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: The run detail panel has no retry button. When viewing a failed run via a direct link or hash navigation, operators must navigate back to the workflow history list to retry. Adding a retry button to the detail panel closes this gap.

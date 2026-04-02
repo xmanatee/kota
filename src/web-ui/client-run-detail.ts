@@ -80,6 +80,9 @@ export const CLIENT_RUN_DETAIL_JS = `
     if (run.status !== "running" && run.status !== "repairing") {
       html += '<button class="run-detail-replay" id="run-detail-replay">\\u21ba Replay</button>';
     }
+    if (run.status === "failed" || run.status === "interrupted") {
+      html += '<button class="run-detail-retry" id="run-detail-retry">\\u21ba Retry</button>';
+    }
     html += '<div class="run-detail-title"><span class="run-badge ' + badgeClass + '">' + icon + '</span>' + escapeHtml(run.workflow) + '</div>';
     html += '<div class="run-detail-meta">';
     html += '<span>ID: <code>' + escapeHtml(run.id) + '</code></span>';
@@ -317,6 +320,29 @@ export const CLIENT_RUN_DETAIL_JS = `
           $replayBtn.textContent = "\\u21ba Replay";
           $replayBtn.disabled = false;
           alert("Replay failed: " + err.message);
+        }
+      };
+    }
+
+    var $retryBtn = document.getElementById("run-detail-retry");
+    if ($retryBtn) {
+      $retryBtn.onclick = async function() {
+        $retryBtn.disabled = true;
+        try {
+          var retryRes = await apiFetch(API + "/api/workflow/retry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ runId: run.id }),
+          });
+          if (!retryRes.ok) {
+            var retryErr = await retryRes.json();
+            $retryBtn.title = retryErr.error || "Error";
+          } else {
+            $retryBtn.textContent = "Queued!";
+          }
+          await refreshWorkflows();
+        } finally {
+          $retryBtn.disabled = false;
         }
       };
     }

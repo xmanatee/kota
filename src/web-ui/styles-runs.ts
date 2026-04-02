@@ -201,6 +201,20 @@ export const STYLES_RUNS_CSS = `
 }
 .run-detail-replay:hover:not(:disabled) { background: var(--border); }
 .run-detail-replay:disabled { opacity: 0.6; cursor: default; }
+.run-detail-retry {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+  align-self: flex-start;
+  margin-bottom: 8px;
+  margin-left: 8px;
+}
+.run-detail-retry:hover:not(:disabled) { background: var(--border); }
+.run-detail-retry:disabled { opacity: 0.6; cursor: default; }
 .run-detail-abort {
   background: none;
   border: 1px solid #f44336;
