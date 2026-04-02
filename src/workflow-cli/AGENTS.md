@@ -14,6 +14,7 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `logs.ts` — `kota workflow logs` log streaming.
 - `follow.ts` — `kota workflow follow [run-id]` live run output streaming with SSE and file-poll fallback.
 - `trigger.ts` — `kota workflow trigger` and manual-trigger commands.
+- `triggers.ts` — `kota workflow triggers`; lists all file-watch triggers (workflow name, enabled, glob patterns, debounce). Queries the daemon when running via `/workflow/definitions`; falls back to static definitions offline. Supports `--json`.
 - `run.ts` — `kota workflow run --dry-run` command registration.
 - `dry-run.ts` — `buildDryRunPlan` and `formatDryRunPlan`; evaluates `when` predicates against empty context and prints the step execution plan.
 - `control.ts` — `kota workflow abort`, `pause`, `resume`, `reload`, and `status`.

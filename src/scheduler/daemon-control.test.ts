@@ -348,6 +348,30 @@ describe("DaemonControlServer", () => {
       });
     });
 
+    it("includes watch trigger metadata in definitions", async () => {
+      handle = makeHandle({
+        getWorkflowDefinitions: vi.fn(() => [
+          {
+            name: "file-watcher",
+            enabled: true,
+            stepCount: 1,
+            triggers: [{ type: "watch" as const, patterns: ["src/**/*.ts", "tests/**/*.ts"], debounceMs: 300 }],
+          },
+        ]),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/definitions");
+      expect(res.status).toBe(200);
+      const body = await res.json() as { definitions: unknown[] };
+      expect(body.definitions[0]).toMatchObject({
+        name: "file-watcher",
+        triggers: [{ type: "watch", patterns: ["src/**/*.ts", "tests/**/*.ts"], debounceMs: 300 }],
+      });
+    });
+
     it("requires auth", async () => {
       const res = await fetchNoToken(port, "/workflow/definitions");
       expect(res.status).toBe(401);
