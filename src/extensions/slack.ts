@@ -24,6 +24,9 @@ const NOTIFICATION_EVENTS = [
   "workflow.cost.anomaly",
 ] as const;
 
+/** Events that are off by default; subscribed only when explicitly listed in config `events`. */
+const OPT_IN_EVENTS = ["workflow.build.committed"] as const;
+
 type SlackConfig = {
   /** Slack Incoming Webhook URL. Required. */
   webhookUrl: string;
@@ -105,6 +108,24 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
         ),
       ];
     }
+    case "workflow.build.committed": {
+      const commitMessage = payload.commitMessage as string | undefined;
+      const taskId = payload.taskId as string | null | undefined;
+      const costUsd = payload.costUsd as number | undefined | null;
+      const durationMs = payload.durationMs as number | undefined | null;
+      const meta = [
+        taskId ? `*Task:* ${taskId}` : null,
+        costUsd != null ? `*Cost:* $${costUsd.toFixed(2)}` : null,
+        durationMs != null ? `*Duration:* ${Math.round(durationMs / 60000)}m` : null,
+      ]
+        .filter(Boolean)
+        .join("  ·  ");
+      return [
+        header(`Builder committed: ${commitMessage ?? "—"}`),
+        divider,
+        ...(meta ? [section(meta)] : []),
+      ];
+    }
     case "approval.requested": {
       const tool = payload.tool as string | undefined;
       const risk = payload.risk as string | undefined;
@@ -169,6 +190,11 @@ const slackModule: KotaExtension = {
     // approval.requested is always subscribed when the extension is configured,
     // independent of the events filter (same as Telegram).
     subscribe("approval.requested");
+
+    // opt-in events — only subscribed when explicitly listed in config.events
+    for (const event of OPT_IN_EVENTS) {
+      if (enabledEvents.has(event)) subscribe(event);
+    }
   },
 
   onUnload: () => {

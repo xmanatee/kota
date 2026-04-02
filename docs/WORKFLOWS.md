@@ -689,6 +689,55 @@ definition errors before they reach the daemon.
 - `--json` — emit a structured JSON array of `{ name, valid, error? }` objects.
 - Does not require a running daemon.
 
+## Operator Notifications
+
+The following bus events are emitted during workflow execution and can be forwarded
+to operators via the Telegram and Slack extensions.
+
+### Builder commit notification (`workflow.build.committed`)
+
+After the builder workflow successfully commits a task change, it emits:
+
+```json
+{
+  "runId": "2026-04-02T09-45-18-046Z-builder-ic7a2r",
+  "taskId": "task-foo-bar",
+  "commitMessage": "Add foo bar support",
+  "costUsd": 0.42,
+  "durationMs": 480000
+}
+```
+
+This event is **opt-in** per extension (off by default) to avoid noise when builder runs
+frequently. To enable it, add `workflow.build.committed` to the `events` list in the
+extension config:
+
+```json
+// kota.config — under the "slack" key
+{
+  "slack": {
+    "webhookUrl": "https://hooks.slack.com/services/...",
+    "events": ["workflow.build.committed", "workflow.failure.alert"]
+  }
+}
+```
+
+For Telegram, add the same `events` list under the `"telegram"` key:
+
+```json
+{
+  "telegram": {
+    "events": ["workflow.build.committed"]
+  }
+}
+```
+
+The emitted message reads:
+```
+✅ Builder committed: Add foo bar support
+Task: task-foo-bar · $0.42 · 8m
+```
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of

@@ -147,6 +147,44 @@ describe("slackModule notifications", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
+  it("POSTs Block Kit on workflow.build.committed when explicitly opted in", async () => {
+    const bus = new EventBus();
+    slackModule.onLoad!(
+      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.build.committed"] }),
+    );
+    bus.emit("workflow.build.committed", {
+      runId: "run-abc",
+      taskId: "task-foo-bar",
+      commitMessage: "Add foo bar support",
+      costUsd: 0.42,
+      durationMs: 480000,
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as { blocks: unknown[] };
+    const text = JSON.stringify(body.blocks);
+    expect(text).toContain("Builder committed");
+    expect(text).toContain("Add foo bar support");
+    expect(text).toContain("task-foo-bar");
+    expect(text).toContain("0.42");
+  });
+
+  it("does not fire workflow.build.committed by default (opt-in)", async () => {
+    const bus = new EventBus();
+    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    bus.emit("workflow.build.committed", {
+      runId: "run-abc",
+      taskId: "task-foo",
+      commitMessage: "Some commit",
+      costUsd: 0.1,
+      durationMs: 60000,
+    });
+    await Promise.resolve();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("fires all default notification events", async () => {
     const bus = new EventBus();
     slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));

@@ -210,6 +210,40 @@ describe("telegramModule notifications via onLoad", () => {
     expect(body.text).toContain("kota approval reject abc123");
   });
 
+  it("sends Telegram commit message when workflow.build.committed fires and event is opt-in enabled", async () => {
+    const bus = new EventBus();
+    const ctx = makeStubCtx(bus);
+    ctx.getExtensionConfig = () => ({ events: ["workflow.build.committed"] } as never);
+    telegramModule.onLoad!(ctx);
+    bus.emit("workflow.build.committed", {
+      runId: "run-abc",
+      taskId: "task-foo-bar",
+      commitMessage: "Add foo bar support",
+      costUsd: 0.42,
+      durationMs: 480000,
+    });
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    expect(body.text).toContain("Add foo bar support");
+    expect(body.text).toContain("task-foo-bar");
+    expect(body.text).toContain("0.42");
+  });
+
+  it("does not send workflow.build.committed when not in opt-in events", async () => {
+    const bus = new EventBus();
+    telegramModule.onLoad!(makeStubCtx(bus));
+    bus.emit("workflow.build.committed", {
+      runId: "run-abc",
+      taskId: "task-foo-bar",
+      commitMessage: "Add foo bar support",
+      costUsd: 0.42,
+      durationMs: 480000,
+    });
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+  });
+
   it("does not send Telegram message when credentials are missing", async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     const bus = new EventBus();

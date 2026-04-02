@@ -35,6 +35,11 @@ async function sendTelegramMessage(
   });
 }
 
+type TelegramConfig = {
+  /** Subset of opt-in notification events to forward. Default: none. */
+  events?: string[];
+};
+
 function getCredentials(): { token: string; chatId: string } | null {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
@@ -72,6 +77,9 @@ const telegramModule: KotaExtension = {
   channels: [telegramStatusChannel],
 
   onLoad: (ctx) => {
+    const telegramConfig = ctx.getExtensionConfig<TelegramConfig>();
+    const optInEvents = new Set(telegramConfig?.events ?? []);
+
     notificationUnsubs = [
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
         const creds = getCredentials();
@@ -116,6 +124,26 @@ const telegramModule: KotaExtension = {
         ].join("\n");
         void sendTelegramMessage(creds.token, creds.chatId, text, ctx.log);
       }),
+      ...(optInEvents.has("workflow.build.committed")
+        ? [
+            ctx.events.subscribe("workflow.build.committed", (payload) => {
+              const creds = getCredentials();
+              if (!creds) return;
+              const commitMessage = payload.commitMessage as string;
+              const taskId = payload.taskId as string | null;
+              const costUsd = payload.costUsd as number | null;
+              const durationMs = payload.durationMs as number | null;
+              const costPart = costUsd != null ? `$${costUsd.toFixed(2)}` : null;
+              const durationPart =
+                durationMs != null ? `${Math.round(durationMs / 60000)}m` : null;
+              const meta = [taskId, costPart, durationPart].filter(Boolean).join(" · ");
+              const text = [`✅ Builder committed: ${commitMessage}`, meta ? `Task: ${meta}` : null]
+                .filter(Boolean)
+                .join("\n");
+              void sendTelegramMessage(creds.token, creds.chatId, text, ctx.log);
+            }),
+          ]
+        : []),
     ];
   },
 

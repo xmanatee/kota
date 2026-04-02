@@ -105,6 +105,22 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
     {
+      id: "emit-build-committed",
+      type: "emit",
+      when: stepSucceeded("write-run-summary"),
+      event: "workflow.build.committed",
+      payload: (ctx) => {
+        const summary = ctx.stepOutputs["write-run-summary"] as BuilderRunSummary | undefined;
+        return {
+          runId: ctx.workflow.runId,
+          taskId: summary?.taskId ?? null,
+          commitMessage: summary?.commitMessage ?? "",
+          costUsd: summary?.costUsd ?? null,
+          durationMs: summary?.durationMs ?? null,
+        };
+      },
+    },
+    {
       id: "request-restart",
       type: "restart",
       when: stepCommitted("commit"),

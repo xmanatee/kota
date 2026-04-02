@@ -146,6 +146,13 @@ export type BusEvents = {
     budgetUsd: number;
     actualCostUsd?: number;
   };
+  "workflow.build.committed": {
+    runId: string;
+    taskId: string | null;
+    commitMessage: string;
+    costUsd: number | null;
+    durationMs: number | null;
+  };
   "approval.expired": {
     id: string;
     tool: string;

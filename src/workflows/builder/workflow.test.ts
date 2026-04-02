@@ -100,6 +100,7 @@ describe("builder workflow", () => {
     expect(result.steps.build.status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
     expect(result.steps["write-run-summary"].status).toBe("skipped");
+    expect(result.steps["emit-build-committed"].status).toBe("skipped");
     expect(result.steps["request-restart"].status).toBe("skipped");
   });
 
@@ -147,6 +148,51 @@ describe("builder workflow", () => {
     expect(result.steps.build.status).toBe("failed");
     expect(result.steps.build.error).toMatch(/requires a mock/);
     expect(result.steps.commit).toBeUndefined();
+  });
+
+  it("emits workflow.build.committed after a successful commit with run-summary payload", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { writeBuilderRunSummary } = await import("./run-summary.js");
+    vi.mocked(writeBuilderRunSummary).mockReturnValue({
+      runId: "run-abc",
+      workflow: "builder",
+      taskId: "task-foo-bar",
+      taskTitle: "Add foo bar support",
+      outcome: "success",
+      commitSha: "abc123",
+      commitMessage: "Add foo bar support",
+      filesChanged: ["src/foo.ts"],
+      costUsd: 0.42,
+      durationMs: 480000,
+      completedAt: "2026-04-02T10:00:00Z",
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: {
+        event: "workflow.completed",
+        payload: { workflow: "explorer", status: "success" },
+      },
+      stepMocks: {
+        build: { turns: [], totalCostUsd: 0.42 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["emit-build-committed"].status).toBe("success");
+    const committed = result.emitted.find((e) => e.event === "workflow.build.committed");
+    expect(committed).toBeDefined();
+    expect(committed?.payload).toMatchObject({
+      taskId: "task-foo-bar",
+      commitMessage: "Add foo bar support",
+      costUsd: 0.42,
+      durationMs: 480000,
+    });
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {
