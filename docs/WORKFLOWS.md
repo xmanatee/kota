@@ -137,7 +137,9 @@ const myWorkflow: WorkflowDefinitionInput = {
 };
 ```
 
-The CLI (`kota workflow definitions`) shows a compact `Inputs: field*: type, ...` summary line for workflows with `inputSchema`. The web UI shows an inline input form before triggering, collecting required and optional fields with client-side validation.
+The CLI (`kota workflow definitions`) shows a compact `Inputs: field*: type, ...` summary line for workflows with `inputSchema`. The web UI shows an inline input form before triggering, collecting required and optional fields with client-side validation. The web UI definitions panel also shows an `Outputs: field: type, ...` summary line for workflows that declare `outputSchema`.
+
+When a trigger step fires a child workflow with `waitFor: "queued"` (the default), the child's output is never returned to the parent. If the child workflow declares an `outputSchema`, workflow validation emits a warning recommending `waitFor: "completed"` to access the child's output.
 
 ### Agent Step Fields
 

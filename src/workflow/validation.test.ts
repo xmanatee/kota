@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
 import { VALID_MODEL_IDS } from "./validation-steps.js";
@@ -757,5 +757,71 @@ describe("workflow validation", () => {
       projectDir,
     );
     expect(definitions[0]?.webhookRateLimit).toBeUndefined();
+  });
+
+  it("warns when a trigger step fires a child workflow with an outputSchema but waitFor: queued", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/parent.ts", {
+            name: "parent",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "launch", type: "trigger", workflow: "child", waitFor: "queued" }],
+          }),
+          registerWorkflowDefinition("test/child.ts", {
+            name: "child",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "run", type: "emit", event: "child.done" }],
+            outputSchema: {
+              type: "object",
+              properties: { result: { type: "string" } },
+              required: ["result"],
+            },
+          }),
+        ],
+        projectDir,
+      );
+
+      const relevantWarning = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string" && call[0].includes("outputSchema") && call[0].includes("launch"),
+      );
+      expect(relevantWarning).toBeDefined();
+      expect(relevantWarning![0]).toMatch(/waitFor.*"completed"/);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not warn when a trigger step fires a child workflow with an outputSchema and waitFor: completed", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/parent.ts", {
+            name: "parent",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "launch", type: "trigger", workflow: "child", waitFor: "completed" }],
+          }),
+          registerWorkflowDefinition("test/child.ts", {
+            name: "child",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "run", type: "emit", event: "child.done" }],
+            outputSchema: {
+              type: "object",
+              properties: { result: { type: "string" } },
+            },
+          }),
+        ],
+        projectDir,
+      );
+
+      const outputSchemaWarning = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string" && call[0].includes("outputSchema"),
+      );
+      expect(outputSchemaWarning).toBeUndefined();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

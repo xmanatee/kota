@@ -248,7 +248,9 @@ export function validateWorkflowDefinitions(
     }
 
     // Warn about trigger steps that reference unknown workflows (may be loaded later by extensions).
+    // Also warn when a trigger step fires a child with an outputSchema but won't wait for the output.
     const knownWorkflowNames = new Set(definitions.map((d) => d.name));
+    const definitionsByName = new Map(definitions.map((d) => [d.name, d]));
     for (const step of steps) {
       if (step.type === "trigger") {
         const triggerStep = step as WorkflowTriggerStep;
@@ -256,6 +258,13 @@ export function validateWorkflowDefinitions(
           console.warn(
             `[workflow "${name}"] trigger step "${step.id}" references unknown workflow "${triggerStep.workflow}" — it may be registered by an extension loaded later`,
           );
+        } else if (triggerStep.waitFor === "queued") {
+          const childDef = definitionsByName.get(triggerStep.workflow);
+          if (childDef?.outputSchema != null) {
+            console.warn(
+              `[workflow "${name}"] trigger step "${step.id}" fires "${triggerStep.workflow}" with waitFor: "queued" but "${triggerStep.workflow}" declares an outputSchema — use waitFor: "completed" to access the child workflow's output`,
+            );
+          }
         }
       }
     }

@@ -90,6 +90,21 @@ export const CLIENT_WF_DEFINITIONS_JS = `
           }
         }
 
+        if (def.outputSchema && def.outputSchema.properties) {
+          var outProps = def.outputSchema.properties;
+          var outFieldDescs = Object.keys(outProps).map(function(key) {
+            var propSchema = outProps[key];
+            var type = propSchema.type || "any";
+            return key + ": " + type;
+          });
+          if (outFieldDescs.length) {
+            var outputsDiv = document.createElement("div");
+            outputsDiv.className = "schedule-next run-meta";
+            outputsDiv.textContent = "Outputs: " + outFieldDescs.join(", ");
+            item.appendChild(outputsDiv);
+          }
+        }
+
         if (isTriggerable(def.triggers)) {
           var btn = document.createElement("button");
           btn.className = "wf-ctrl-btn trigger";
