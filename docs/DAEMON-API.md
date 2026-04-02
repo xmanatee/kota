@@ -262,6 +262,7 @@ Returns recent workflow run summaries.
 
 `tags` is optional; omitted when no tags were attached at trigger time.
 `causedBy` is present only when the run was triggered by `workflow.completed`; it records the upstream run (`runId`, `workflow`) that emitted the event, enabling operators to trace autonomous trigger chains.
+See `GET /workflow/runs/:id` for the full list of possible `status` values including `completed-with-warnings`.
 
 ### GET /workflow/runs/:id
 
@@ -310,6 +311,16 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
 ```
 
 `workflowSteps` is present when the workflow definition is available. Each entry has `id`, `type`, and for `type: "approval"` steps, an optional `reason` string from the step definition.
+
+Run `status` is one of: `"success"`, `"failed"`, `"interrupted"`, `"completed-with-warnings"`. `completed-with-warnings` means the run finished all steps but one or more steps produced a warning (for example, a step output was truncated by the `workflow.maxStepOutputBytes` cap, or an `outputSchema` validation mismatch occurred). When `status` is `completed-with-warnings`, a `warnings` array is present:
+
+```json
+{
+  "warnings": [
+    { "type": "step-output-truncated", "message": "Step 'build' output truncated: 45231 bytes exceeded cap of 32768" }
+  ]
+}
+```
 
 Returns `404` if the run is not found.
 
