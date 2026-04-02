@@ -43,30 +43,39 @@ export async function executeApprovalStep(
     step.defaultResolution,
   );
 
-  while (true) {
-    if (signal.aborted) {
-      throw new Error(`${label} was aborted`);
-    }
+  let resolved = false;
+  try {
+    while (true) {
+      if (signal.aborted) {
+        throw new Error(`${label} was aborted`);
+      }
 
-    const current = queue.get(approval.id);
-    if (!current) {
-      throw new Error(`${label}: approval record ${approval.id} disappeared from queue`);
-    }
+      const current = queue.get(approval.id);
+      if (!current) {
+        throw new Error(`${label}: approval record ${approval.id} disappeared from queue`);
+      }
 
-    if (current.status === "approved") {
-      return {
-        approvalId: current.id,
-        approved: true,
-        resolvedAt: current.resolvedAt,
-        resolutionSource: current.resolutionSource ?? "human",
-      };
-    }
+      if (current.status === "approved") {
+        resolved = true;
+        return {
+          approvalId: current.id,
+          approved: true,
+          resolvedAt: current.resolvedAt,
+          resolutionSource: current.resolutionSource ?? "human",
+        };
+      }
 
-    if (current.status === "rejected" || current.status === "expired") {
-      const detail = current.rejectionReason ? `: ${current.rejectionReason}` : "";
-      throw new Error(`${label} was ${current.status}${detail}`);
-    }
+      if (current.status === "rejected" || current.status === "expired") {
+        resolved = true;
+        const detail = current.rejectionReason ? `: ${current.rejectionReason}` : "";
+        throw new Error(`${label} was ${current.status}${detail}`);
+      }
 
-    await sleep(POLL_INTERVAL_MS, signal);
+      await sleep(POLL_INTERVAL_MS, signal);
+    }
+  } finally {
+    if (!resolved) {
+      queue.reject(approval.id, "run aborted");
+    }
   }
 }
