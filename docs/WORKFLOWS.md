@@ -13,11 +13,14 @@ should be expressed as a workflow, not as a parallel engine.
 | Interval | `intervalMs: 300_000` | Every N milliseconds |
 | Idle | `event: "runtime.idle"` | When no workflow has run recently |
 | File watch | `watch: "src/**/*.ts"` | When matching files change (daemon only) |
+| Webhook | `webhook: true` | When a signed POST arrives at `/webhooks/:workflowName` |
 
 Add `filter` to narrow event triggers. Add `cooldownMs` to prevent back-to-back
 runs on noisy events. Add `debounceMs` to batch rapid file changes (default 500ms,
 minimum 200ms). Watch triggers are only active when the daemon is running; they are
-silently skipped in standalone `kota serve` mode.
+silently skipped in standalone `kota serve` mode. Webhook triggers require a
+per-workflow HMAC secret in `.kota/config.json`; see [DAEMON-API.md](./DAEMON-API.md#webhook-trigger-endpoint)
+for signing details, configuration, and the optional `webhookRateLimit` field.
 
 ## Concurrency Model
 
@@ -206,6 +209,23 @@ match and settle after the debounce window, the workflow is queued with a
 Access the list of changed files in a code step via `ctx.trigger.payload.files`.
 Watch triggers are mutually exclusive with event, schedule, interval, and webhook
 fields on the same trigger object.
+
+### Inbound webhook
+
+Fire when an external system POSTs a signed request (CI, GitHub, external tooling):
+
+```typescript
+triggers: [{ webhook: true }],
+webhookRateLimit: { maxPerMinute: 30 },  // optional
+```
+
+The workflow name becomes the URL slug: `POST /webhooks/my-workflow`.
+Requests must include an HMAC-SHA256 signature header (`X-Kota-Webhook-Signature`).
+The secret lives in `.kota/config.json` under `webhooks.<name>.secret` (keep gitignored).
+The optional `webhookRateLimit.maxPerMinute` caps throughput per workflow; the daemon
+returns 429 with a `Retry-After` header when exceeded. See
+[DAEMON-API.md](./DAEMON-API.md#webhook-trigger-endpoint) for signing details and
+configuration.
 
 ### Heartbeat / standing order
 
