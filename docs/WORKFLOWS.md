@@ -142,6 +142,14 @@ The CLI (`kota workflow definitions`) shows a compact `Inputs: field*: type, ...
 
 When a trigger step fires a child workflow with `waitFor: "queued"` (the default), the child's output is never returned to the parent. If the child workflow declares an `outputSchema`, workflow validation emits a warning recommending `waitFor: "completed"` to access the child's output.
 
+### Step Output Size Cap
+
+By default, step outputs up to 256 KB are stored verbatim. If a step produces unusually large output (for example, an agent step that echoes a large file), the raw bytes can flood disk and the agent context window on subsequent steps.
+
+Set `workflow.maxStepOutputBytes` in your config to cap the per-step output size. When a step output exceeds the cap, it is replaced with a structured truncation notice `{ "truncated": true, "originalBytes": N, "message": "..." }` and the run is marked `completed-with-warnings`. Applies to agent, code, trigger, and tool steps. Approval step outputs are exempt.
+
+See [`workflow.maxStepOutputBytes` in CONFIG.md](CONFIG.md#maxstepoutputbytes) for defaults and the hard ceiling.
+
 ### Agent Step Fields
 
 `type: "agent"` steps accept the following fields beyond the common step fields:
