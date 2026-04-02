@@ -508,6 +508,21 @@ kota workflow retry <run-id>
 Re-fires a failed or interrupted run. Unlike replay, retry is restricted to
 non-successful runs and uses `event: "retry"` in the trigger payload.
 
+### Abort an active run
+
+```
+kota workflow run abort <run-id>
+```
+
+Signals a specific active run to stop at its next step boundary, using the same
+clean-abort semantics as the global `kota workflow abort`.
+
+- Fails if no daemon is running.
+- Fails if the run is not found or not active (use `kota workflow cancel` for queued runs).
+
+The run detail view in the web UI also shows an **Abort** button in the header for
+active runs (status `running` or `repairing`) that performs the same action.
+
 ### Inspect definition history
 
 ```
