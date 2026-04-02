@@ -508,6 +508,18 @@ kota workflow retry <run-id>
 Re-fires a failed or interrupted run. Unlike replay, retry is restricted to
 non-successful runs and uses `event: "retry"` in the trigger payload.
 
+### Inspect definition history
+
+```
+kota workflow definition-log <workflow-name> [--diff]
+```
+
+Shows the git commit history for a workflow's definition file. Each line shows
+commit hash, date, and message. `--diff` adds the file diff for each commit.
+
+Fails gracefully if the repository is not a git repo or if the definition file
+is not tracked by git.
+
 ## What Not to Do
 
 - Do not add a second scheduling or hook engine. All automation, regardless of
