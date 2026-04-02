@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-run-detail-permalink
 title: Add URL deep linking for web UI run detail panel
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: Opening a run detail in the web UI does not update the browser URL, making it impossible to bookmark or share a link to a specific run. A URL hash approach would let operators link directly to a run from Slack, email, or docs.
 created_at: 2026-04-02T01:06:00Z
-updated_at: 2026-04-02T01:06:00Z
+updated_at: 2026-04-02T01:18:54Z
 ---
 
 ## Problem
