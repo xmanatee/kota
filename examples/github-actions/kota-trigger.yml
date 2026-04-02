@@ -1,0 +1,63 @@
+# Example: Trigger a KOTA workflow on push to main.
+#
+# Prerequisites:
+#   - A self-hosted runner on the same machine as the KOTA daemon, OR
+#     an SSH tunnel that exposes the daemon's control API to the runner.
+#   - Repository secret KOTA_WEBHOOK_SECRET set to the value printed by:
+#       kota webhook secret generate <workflow-name>
+#   - Repository variable KOTA_DAEMON_URL set to the daemon's control API URL,
+#     e.g. http://127.0.0.1:PORT (read PORT from .kota/daemon-control.json).
+#
+# See docs/GITHUB-ACTIONS.md for full setup instructions.
+
+name: Trigger KOTA on push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-kota:
+    name: Trigger KOTA workflow
+    runs-on: self-hosted  # Must be able to reach the KOTA daemon
+
+    steps:
+      - name: Send signed webhook to KOTA
+        env:
+          KOTA_WEBHOOK_SECRET: ${{ secrets.KOTA_WEBHOOK_SECRET }}
+          KOTA_DAEMON_URL: ${{ vars.KOTA_DAEMON_URL }}
+          WORKFLOW_NAME: on-push  # Must match the `name` field in your WorkflowDef
+        run: |
+          PAYLOAD=$(jq -cn \
+            --arg ref "${{ github.ref }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg actor "${{ github.actor }}" \
+            '{ref: $ref, repo: $repo, sha: $sha, actor: $actor}')
+
+          TIMESTAMP=$(date +%s%3N)
+
+          SIG=$(printf '%s' "$PAYLOAD" \
+            | openssl dgst -sha256 -hmac "$KOTA_WEBHOOK_SECRET" \
+            | awk '{print "sha256="$2}')
+
+          RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
+            "${KOTA_DAEMON_URL}/webhooks/${WORKFLOW_NAME}" \
+            -H "Content-Type: application/json" \
+            -H "X-Kota-Webhook-Signature: ${SIG}" \
+            -H "X-Kota-Webhook-Timestamp: ${TIMESTAMP}" \
+            -d "$PAYLOAD")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Error: daemon returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          RUN_ID=$(echo "$BODY" | jq -r .runId)
+          echo "KOTA run started: $RUN_ID"
