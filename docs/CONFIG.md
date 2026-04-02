@@ -10,6 +10,31 @@ Run `kota init` in a new directory to scaffold the required project structure:
 
 `kota init` is idempotent: running it again skips existing files. Pass `--force` to overwrite `kota.config.ts` only. After scaffolding, run `kota doctor` to verify the setup.
 
+## Health checks (kota doctor)
+
+`kota doctor` runs a suite of checks and prints a pass/warn/fail summary:
+
+| Check | What it verifies |
+|-------|-----------------|
+| Daemon | Daemon process is running and API is reachable |
+| Config: global | `~/.kota/config.json` is valid JSON |
+| Config: project | `.kota/config.json` is valid JSON |
+| Extensions | All configured extensions load without error |
+| Providers | Provider configuration is present |
+| Provider connectivity | A live 1-token completion reaches the configured model provider |
+| Workflows | Built-in workflow definitions are valid |
+| Disk | `.kota/` directory exists and is writable |
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--fix` | Apply safe automatic repairs: remove stale daemon lock file, create missing `.kota/` directories |
+| `--json` | Output results as JSON (check array; with `--fix`, `{ checks, repairs }` object) |
+| `--skip-connectivity` | Skip the live provider API probe — use in offline environments or CI |
+
+Exit code is 1 if any check fails.
+
 ## Config files
 
 KOTA loads config from two JSON files merged in order (project overrides global):
