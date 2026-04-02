@@ -417,4 +417,22 @@ describe("getWebUI", () => {
   it("calls initBrowserNotifications on init", () => {
     expect(html).toContain("initBrowserNotifications()");
   });
+
+  it("showRunDetail sets location hash to run=<runId>", () => {
+    expect(html).toContain('history.replaceState(null, "", "#run=" + encodeURIComponent(runId))');
+  });
+
+  it("showChat clears location hash via history.replaceState", () => {
+    expect(html).toContain('history.replaceState(null, "", window.location.pathname)');
+  });
+
+  it("includes _openRunFromHash function for auto-open on load", () => {
+    expect(html).toContain("_openRunFromHash");
+    expect(html).toContain('#run=');
+    expect(html).toContain("decodeURIComponent(hash.slice(5))");
+  });
+
+  it("calls _openRunFromHash after initial refreshWorkflows", () => {
+    expect(html).toContain('refreshWorkflows().then(function() { _openRunFromHash(); })');
+  });
 });

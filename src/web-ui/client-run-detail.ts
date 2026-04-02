@@ -17,11 +17,13 @@ export const CLIENT_RUN_DETAIL_JS = `
     $inputArea.style.display = "";
     $historyViewBar.style.display = "none";
     historyViewId = null;
+    history.replaceState(null, "", window.location.pathname);
     refreshHistory();
   }
 
   async function showRunDetail(runId) {
     closeStream();
+    history.replaceState(null, "", "#run=" + encodeURIComponent(runId));
     $messages.style.display = "none";
     $inputArea.style.display = "none";
     $runDetail.innerHTML = '<div style="color:var(--text-muted);padding:24px">Loading\u2026</div>';
@@ -693,5 +695,14 @@ export const CLIENT_RUN_DETAIL_JS = `
       }
       outputEl.innerHTML = parts.join("");
     });
+  }
+
+  function _openRunFromHash() {
+    var hash = window.location.hash;
+    if (!hash.startsWith("#run=")) return;
+    var runId = decodeURIComponent(hash.slice(5));
+    if (!runId) return;
+    var found = (_allRecentRuns || []).some(function(r) { return r.id === runId; });
+    if (found) showRunDetail(runId);
   }
 `;

@@ -145,7 +145,7 @@ ${CLIENT_KEYBOARD_JS}
   checkHealth();
   refreshSessions();
   refreshHistory();
-  refreshWorkflows();
+  refreshWorkflows().then(function() { _openRunFromHash(); });
   refreshTasks();
   initNewTaskForm();
   refreshCost();
