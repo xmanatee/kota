@@ -78,6 +78,16 @@ export const CLIENT_RUN_DETAIL_JS = `
     }
     html += '</div></div>';
 
+    if (run.warnings && run.warnings.length > 0) {
+      html += '<div class="run-warnings">';
+      html += '<div class="run-warnings-title">\\u26a0 Warnings</div>';
+      for (var wi2 = 0; wi2 < run.warnings.length; wi2++) {
+        var w = run.warnings[wi2];
+        html += '<div class="run-warning-row"><code>' + escapeHtml(w.type) + '</code> ' + escapeHtml(w.message) + '</div>';
+      }
+      html += '</div>';
+    }
+
     if (artifacts && artifacts.runSummary) {
       var s = artifacts.runSummary;
       html += '<div class="run-artifacts">';

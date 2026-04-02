@@ -1,12 +1,12 @@
 ---
 id: task-run-warnings-display
 title: Surface run warnings in kota workflow run show and web UI run detail
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: When a run completes with status completed-with-warnings, the structured warnings (e.g. outputSchema mismatch) are stored in the run artifact but never shown in the CLI or web UI, leaving operators without actionable detail.
 created_at: 2026-04-02T00:00:00Z
-updated_at: 2026-04-02T00:22:00Z
+updated_at: 2026-04-02T01:30:00Z
 ---
 
 ## Problem

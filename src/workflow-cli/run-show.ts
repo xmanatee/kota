@@ -9,6 +9,10 @@ import { extractRepairSummary } from "../workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "../workflow/run-types.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
+export function formatWarningsSection(warnings: Array<{ type: string; message: string }>): string[] {
+  return warnings.map((w) => `  [${w.type}] ${w.message}`);
+}
+
 export function formatRepairLine(summary: RepairSummary): string {
   const noun = summary.attempts === 1 ? "repair" : "repairs";
   const costPart = summary.totalCostUsd > 0 ? ` ($${summary.totalCostUsd.toFixed(3)})` : "";
@@ -78,6 +82,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
           ...(daemonRun.triggeredByRunId != null && { triggeredByRunId: daemonRun.triggeredByRunId }),
           ...(daemonRun.causedBy != null && { causedBy: daemonRun.causedBy }),
           ...(daemonRun.retryOf != null && { retryOf: daemonRun.retryOf }),
+          ...(daemonRun.warnings && daemonRun.warnings.length > 0 && { warnings: daemonRun.warnings }),
         };
       } else {
         const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
@@ -131,6 +136,12 @@ export function registerRunShowCommand(wfCmd: Command): void {
       }
       if (errorText !== null) {
         console.log(`\nError:\n${errorText}`);
+      }
+      if (metadata.warnings && metadata.warnings.length > 0) {
+        console.log(`\nWarnings:`);
+        for (const line of formatWarningsSection(metadata.warnings)) {
+          console.log(line);
+        }
       }
 
       // Show downstream runs triggered by this run

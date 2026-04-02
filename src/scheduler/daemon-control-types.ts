@@ -94,6 +94,7 @@ export type WorkflowRunDetail = WorkflowRunSummary & {
   completedAt?: string;
   triggerPayload?: Record<string, unknown>;
   steps: WorkflowRunStepSummary[];
+  warnings?: Array<{ type: string; message: string }>;
 };
 
 export type DaemonTaskDetail = {

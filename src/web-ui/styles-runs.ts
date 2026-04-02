@@ -351,6 +351,37 @@ mark.log-match {
   border-radius: 3px;
 }
 
+/* Run warnings */
+.run-warnings {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  border-left: 3px solid #f59e0b;
+}
+.run-warnings-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f59e0b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.run-warning-row {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.run-warning-row code {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  background: #0a0a1a;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 6px;
+}
+
 /* Run diff / compare */
 .run-compare-section {
   max-width: 800px;

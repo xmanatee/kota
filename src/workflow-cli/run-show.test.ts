@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { extractRepairSummary } from "../workflow/run-store-helpers.js";
-import { formatRepairLine } from "./run-show.js";
+import { formatRepairLine, formatWarningsSection } from "./run-show.js";
+
+// ---------------------------------------------------------------------------
+// formatWarningsSection
+// ---------------------------------------------------------------------------
+
+describe("formatWarningsSection", () => {
+  it("formats a single warning", () => {
+    const lines = formatWarningsSection([{ type: "output-schema-mismatch", message: "Expected string, got number at $.count" }]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toBe("  [output-schema-mismatch] Expected string, got number at $.count");
+  });
+
+  it("formats multiple warnings", () => {
+    const lines = formatWarningsSection([
+      { type: "output-schema-mismatch", message: "first warning" },
+      { type: "other-warning", message: "second warning" },
+    ]);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("[output-schema-mismatch]");
+    expect(lines[1]).toContain("[other-warning]");
+  });
+
+  it("returns empty array for no warnings", () => {
+    expect(formatWarningsSection([])).toEqual([]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // extractRepairSummary
