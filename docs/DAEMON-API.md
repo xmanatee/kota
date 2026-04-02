@@ -714,6 +714,42 @@ available, or writes directly to `.kota/workflow-state.json` as a fallback.
 Run artifacts in `.kota/runs/` are durable evidence and are read directly by
 the server for run listing and streaming.
 
+## Server-Handled Utility Endpoints
+
+These endpoints are handled directly by the HTTP server and do not proxy to the
+daemon control API.
+
+### GET /api/config
+
+Returns the resolved merged config (global `~/.kota/config.json` + project
+`.kota/config.json`). Sensitive fields whose key matches `token`, `secret`,
+`password`, or `api_key` are masked to `"***"` before transmission.
+
+**Response (200):**
+
+```json
+{
+  "config": {
+    "model": "claude-opus-4-6",
+    "maxTokens": 8192,
+    "extensions": {
+      "telegram": {
+        "token": "***"
+      }
+    }
+  }
+}
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 503 | Config not available (server started without config) |
+
+The web UI Config panel fetches this endpoint on load and displays each
+top-level key as a key/value row.
+
 ## Server-Handled Workflow Action Endpoints
 
 These endpoints are handled directly by the HTTP server and do not proxy to the

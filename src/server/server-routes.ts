@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
 import type { ExtensionSummary, RouteRegistration } from "../extension-types.js";
 import type { AgentSession } from "../loop.js";
@@ -12,6 +13,7 @@ import {
   handleRejectApproval,
 } from "./approval-routes.js";
 import { handleListAudit } from "./audit-routes.js";
+import { handleGetConfig } from "./config-routes.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
@@ -68,6 +70,8 @@ export type ServerContext = {
   getExtensionSummaries?: () => ExtensionSummary[];
   /** Bearer token required on all /api/* requests. Undefined means no auth. */
   authToken?: string;
+  /** Resolved merged config — exposed via GET /api/config with secrets masked. */
+  config?: KotaConfig;
 };
 
 export function buildRequestHandler(ctx: ServerContext) {
@@ -245,6 +249,15 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/extensions") {
       handleListExtensions(res, ctx.getExtensionSummaries ? ctx.getExtensionSummaries() : []);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/config") {
+      if (ctx.config) {
+        handleGetConfig(res, ctx.config);
+      } else {
+        jsonResponse(res, 503, { error: "Config not available" });
+      }
       return;
     }
 

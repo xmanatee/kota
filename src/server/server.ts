@@ -97,6 +97,7 @@ export function startServer(options: ServerOptions = {}): Server {
     daemonClient,
     getExtensionSummaries: options.getExtensionSummaries,
     authToken,
+    config,
   });
 
   const server = createServer(handleRequest);

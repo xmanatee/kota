@@ -107,6 +107,10 @@ ${WEB_UI_CSS}
       <h3>Extensions</h3>
       <div id="extensions-list"></div>
     </div>
+    <div class="sidebar-section">
+      <h3>Config</h3>
+      <div id="config-list"></div>
+    </div>
     <div class="sidebar-footer">
       <span id="health-status">●</span>
       <button id="theme-toggle" class="icon-btn" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">☾</button>

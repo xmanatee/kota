@@ -20,6 +20,7 @@ HTTP API server with session management and real-time notifications.
 | `daemon-client.ts` | `DaemonControlClient` — queries the running daemon's loopback HTTP control API |
 | `event-routes.ts` | `handleEventTrigger` — emits a named event onto the bus |
 | `extension-routes.ts` | `handleListExtensions` — returns loaded extension metadata for `GET /api/extensions` |
+| `config-routes.ts` | `handleGetConfig`, `maskConfig` — returns resolved config with sensitive fields masked for `GET /api/config` |
 
 ## Proxy Pattern
 
