@@ -1,12 +1,12 @@
 ---
 id: task-mcp-resources-knowledge-memory
 title: Expose knowledge and memory stores as MCP resources
-status: backlog
+status: ready
 priority: p3
 area: extensions
 summary: The MCP server already exposes task queue, workflow status, and recent runs as resources. Exposing knowledge entries and memory notes as MCP resources lets Claude Desktop and other MCP clients read KOTA's stores without bespoke tool calls.
 created_at: 2026-04-02T13:41:47Z
-updated_at: 2026-04-02T13:41:47Z
+updated_at: 2026-04-02T13:57:40Z
 ---
 
 ## Problem
