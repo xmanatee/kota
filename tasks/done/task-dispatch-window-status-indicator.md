@@ -1,12 +1,12 @@
 ---
 id: task-dispatch-window-status-indicator
 title: Show dispatch window blocked state in kota workflow status and web UI
-status: ready
+status: done
 priority: p3
 area: operator-ux
 summary: When scheduler.dispatchWindow is configured and the current time is outside the allowed window, neither kota workflow status nor the web UI indicates that dispatch is blocked. Operators who set business-hours dispatch and wonder why no runs start at night have no feedback.
 created_at: 2026-04-02T07:30:00Z
-updated_at: 2026-04-02T07:30:00Z
+updated_at: 2026-04-02T08:41:00Z
 ---
 
 ## Problem

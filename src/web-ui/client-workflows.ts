@@ -27,7 +27,7 @@ export const CLIENT_WORKFLOWS_JS = `
 
   // --- Workflow controls ---
 
-  function renderWorkflowControls(paused, workflowNames, activeRunCount) {
+  function renderWorkflowControls(paused, workflowNames, activeRunCount, dispatchWindowBlocked, dispatchWindowOpensAt) {
     $workflowControls.innerHTML = "";
     var row = document.createElement("div");
     row.className = "wf-controls";
@@ -45,6 +45,22 @@ export const CLIENT_WORKFLOWS_JS = `
       }
     };
     row.appendChild(pauseBtn);
+
+    if (!paused && dispatchWindowBlocked) {
+      var windowBadge = document.createElement("span");
+      windowBadge.className = "wf-window-blocked-badge";
+      var opensLabel = "";
+      if (dispatchWindowOpensAt) {
+        var d = new Date(dispatchWindowOpensAt);
+        var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+        var hh = String(d.getHours()).padStart(2,"0");
+        var mm = String(d.getMinutes()).padStart(2,"0");
+        opensLabel = " (opens " + days[d.getDay()] + " " + hh + ":" + mm + ")";
+      }
+      windowBadge.textContent = "⏰ window blocked" + opensLabel;
+      windowBadge.title = "Dispatch is blocked by scheduler.dispatchWindow" + opensLabel;
+      row.appendChild(windowBadge);
+    }
 
     if (activeRunCount > 0) {
       var abortBtn = document.createElement("button");
@@ -339,7 +355,7 @@ export const CLIENT_WORKFLOWS_JS = `
       _runsOffset = 50;
       _canLoadMore = _allRecentRuns.length >= 50;
       var wfNames = Object.keys(statusData.workflows || {}).sort();
-      renderWorkflowControls(!!statusData.paused, wfNames, _allActiveRuns.length);
+      renderWorkflowControls(!!statusData.paused, wfNames, _allActiveRuns.length, !!statusData.dispatchWindowBlocked, statusData.dispatchWindowOpensAt || null);
       var historyNames = [];
       var seenWf = {};
       var historyTags = [];

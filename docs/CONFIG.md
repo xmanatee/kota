@@ -116,6 +116,11 @@ When a trigger fires outside the window, it is deferred: idle events are silentl
 
 Times use the daemon's local timezone. IANA timezone configuration is not supported in this field.
 
+When dispatch is blocked by the window, `GET /workflow/status` includes `dispatchWindowBlocked: true`
+and `dispatchWindowOpensAt` (ISO timestamp of when the window next opens). `kota workflow status`
+prints `Dispatch: blocked by window (opens Mon 09:00)` and the web UI shows a badge next to the
+Pause/Resume button.
+
 ## Extensions
 
 Extension config lives under the `extensions` key in your config file.

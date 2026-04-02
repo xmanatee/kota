@@ -5,6 +5,7 @@ import type { BusEnvelope } from "../event-bus.js";
 import { getRepoWorktreeStatus } from "../repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
+import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { formatRunId } from "./run-store-helpers.js";
@@ -208,6 +209,15 @@ export class WorkflowRuntime {
   setDispatchPaused(paused: boolean): void {
     this.dispatchPaused = paused;
     if (!paused) this.maybeStartNext();
+  }
+
+  getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {
+    const window = this.config?.scheduler?.dispatchWindow;
+    if (!window) return { blocked: false };
+    if (isWithinDispatchWindow(window)) return { blocked: false };
+    const msUntil = msUntilDispatchWindowOpens(window);
+    const opensAt = new Date(Date.now() + msUntil).toISOString();
+    return { blocked: true, opensAt };
   }
 
   abortActiveRuns(): { aborted: number } {

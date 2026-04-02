@@ -291,6 +291,7 @@ export const STYLES_PANELS_CSS = `
 .wf-ctrl-btn.retry { color: #a78bfa; border-color: #a78bfa55; }
 .wf-ctrl-btn.retry:hover { background: #a78bfa22; }
 .wf-ctrl-btn:disabled { opacity: 0.5; cursor: default; }
+.wf-window-blocked-badge { font-size: 0.78em; padding: 3px 8px; border-radius: 4px; border: 1px solid #f59e0b55; color: #f59e0b; background: #f59e0b11; white-space: nowrap; }
 .run-retry-btn { margin-left: auto; }
 
 /* Workflow history filter */

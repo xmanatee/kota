@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { loadConfig } from "../config.js";
 import { DaemonControlClient } from "../server/daemon-client.js";
+import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "../workflow/dispatch-window.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE } from "../workflow/runtime.js";
 import { formatDate, formatDuration, statusIcon } from "./utils.js";
@@ -203,6 +204,8 @@ export function registerControlCommands(wfCmd: Command): void {
             workflows: wf.workflows,
             dailySpend: undefined,
             dailyBudget: undefined,
+            dispatchWindowBlocked: wf.dispatchWindowBlocked,
+            dispatchWindowOpensAt: wf.dispatchWindowOpensAt,
           });
           return;
         }
@@ -211,6 +214,11 @@ export function registerControlCommands(wfCmd: Command): void {
       const store = new WorkflowRunStore();
       const state = store.readState();
       const config = loadConfig();
+      const dispatchWindow = config.scheduler?.dispatchWindow;
+      const windowBlocked = dispatchWindow ? !isWithinDispatchWindow(dispatchWindow) : false;
+      const windowOpensAt = windowBlocked && dispatchWindow
+        ? new Date(Date.now() + msUntilDispatchWindowOpens(dispatchWindow)).toISOString()
+        : undefined;
       printWorkflowStatus({
         activeRuns: state.activeRuns ?? [],
         pendingRuns: state.pendingRuns,
@@ -223,6 +231,8 @@ export function registerControlCommands(wfCmd: Command): void {
         workflows: state.workflows,
         dailySpend: store.getDailySpendUsd(),
         dailyBudget: config.dailyBudgetUsd,
+        dispatchWindowBlocked: windowBlocked || undefined,
+        dispatchWindowOpensAt: windowOpensAt,
       });
     });
 }
@@ -248,11 +258,18 @@ type StatusOptions = {
   >;
   dailySpend: number | undefined;
   dailyBudget: number | undefined;
+  dispatchWindowBlocked?: boolean;
+  dispatchWindowOpensAt?: string;
 };
 
 function printWorkflowStatus(opts: StatusOptions): void {
   if (opts.paused) {
     console.log("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
+  } else if (opts.dispatchWindowBlocked) {
+    const opensAt = opts.dispatchWindowOpensAt
+      ? ` (opens ${formatWindowTime(opts.dispatchWindowOpensAt)})`
+      : "";
+    console.log(`Dispatch: blocked by window${opensAt}`);
   }
 
   if (opts.activeRuns.length === 0) {
@@ -332,4 +349,14 @@ function printWorkflowStatus(opts: StatusOptions): void {
   if (opts.definitionsLoadedAt) {
     console.log(`Definitions loaded:   ${formatDate(opts.definitionsLoadedAt)}`);
   }
+}
+
+/** Format an ISO timestamp as a human-readable day+time string, e.g. "Mon 09:00". */
+function formatWindowTime(iso: string): string {
+  const d = new Date(iso);
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const day = days[d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${day} ${hh}:${mm}`;
 }

@@ -123,6 +123,7 @@ export class Daemon {
       getDaemonLiveState: () => ({ ...this.state, running: this.isRunning() }),
       getWorkflowLiveStatus: () => {
         const wfState = this.workflows.getState();
+        const windowStatus = this.workflows.getDispatchWindowStatus();
         return {
           activeRuns: wfState.activeRuns ?? [],
           pendingRuns: wfState.pendingRuns,
@@ -133,6 +134,10 @@ export class Daemon {
           definitionsLoadedAt: wfState.definitionsLoadedAt,
           workflows: wfState.workflows,
           paused: this.workflows.isDispatchPaused(),
+          ...(windowStatus.blocked && {
+            dispatchWindowBlocked: true,
+            dispatchWindowOpensAt: windowStatus.opensAt,
+          }),
         };
       },
       pauseWorkflowDispatch: () => {

@@ -46,6 +46,10 @@ export type WorkflowLiveStatus = {
   definitionsLoadedAt?: string;
   workflows: WorkflowRuntimeState["workflows"];
   paused: boolean;
+  /** True when a dispatchWindow is configured and the current time is outside it. */
+  dispatchWindowBlocked?: boolean;
+  /** ISO timestamp of the next time the dispatch window opens (when blocked). */
+  dispatchWindowOpensAt?: string;
 };
 
 export type DaemonLiveStatus = DaemonState & {

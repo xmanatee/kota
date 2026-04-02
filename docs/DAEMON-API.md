@@ -152,9 +152,16 @@ Returns live workflow runtime state only.
   "agentBackoff": null,
   "definitionsLoadedAt": "2026-03-27T12:00:00.000Z",
   "workflows": {},
-  "paused": false
+  "paused": false,
+  "dispatchWindowBlocked": true,
+  "dispatchWindowOpensAt": "2026-03-28T09:00:00.000Z"
 }
 ```
+
+`dispatchWindowBlocked` and `dispatchWindowOpensAt` are only present when
+`scheduler.dispatchWindow` is configured and the current time is outside the
+allowed window. When the window is open, or when no window is configured, these
+fields are absent.
 
 ### GET /workflow/definitions
 
