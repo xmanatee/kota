@@ -1,12 +1,12 @@
 ---
 id: task-workflow-output-schema-propagation
 title: Expose workflow outputSchema in definitions panel and validate trigger-step consumers
-status: backlog
+status: ready
 priority: p3
 area: workflow-runtime
 summary: Workflows can declare an outputSchema but the web UI does not surface it and the runtime does not validate that a trigger-step consumer's expected shape matches what the child workflow actually produces. Closing this gap catches mismatches early and makes contract-driven composition visible to operators.
 created_at: 2026-04-02T02:37:15Z
-updated_at: 2026-04-02T02:37:15Z
+updated_at: 2026-04-02T03:29:03Z
 ---
 
 ## Problem
