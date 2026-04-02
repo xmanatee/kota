@@ -1,12 +1,12 @@
 ---
 id: task-macos-client-task-queue
 title: Show task queue state in the macOS menu bar client
-status: backlog
+status: ready
 priority: p3
 area: operator-ux
 summary: The macOS menu bar client has no view of the task queue. Adding a compact task panel showing doing/ready counts and the current task lets operators quickly confirm the builder is working on the right thing without opening the web dashboard.
 created_at: 2026-04-01T07:36:00Z
-updated_at: 2026-04-01T07:36:00Z
+updated_at: 2026-04-02T05:47:58Z
 ---
 
 ## Problem

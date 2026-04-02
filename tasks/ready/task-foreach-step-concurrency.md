@@ -1,12 +1,12 @@
 ---
 id: task-foreach-step-concurrency
 title: Add optional concurrency limit to foreach workflow steps
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: Foreach steps iterate serially over each item. For CPU-light or I/O-bound inner steps (code steps, HTTP calls, non-agent work), serial execution leaves throughput on the table. An optional maxConcurrency field would let operators run foreach iterations in parallel up to a configured cap.
 created_at: 2026-04-02T00:34:41Z
-updated_at: 2026-04-02T00:34:41Z
+updated_at: 2026-04-02T05:47:58Z
 ---
 
 ## Problem
