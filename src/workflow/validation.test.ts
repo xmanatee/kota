@@ -858,4 +858,91 @@ describe("workflow validation", () => {
       warnSpy.mockRestore();
     }
   });
+
+  describe("approval steps", () => {
+    it("accepts a minimal approval step", () => {
+      const defs = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/wf.ts", {
+            name: "my-workflow",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{ id: "confirm", type: "approval" }],
+          }),
+        ],
+        projectDir,
+      );
+      expect(defs[0].steps[0]).toMatchObject({ id: "confirm", type: "approval" });
+    });
+
+    it("accepts an approval step with reason, timeoutMs, and defaultResolution", () => {
+      const defs = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/wf.ts", {
+            name: "my-workflow",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "confirm",
+                type: "approval",
+                reason: "Approve before deploying",
+                timeoutMs: 3600_000,
+                defaultResolution: "deny",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      );
+      expect(defs[0].steps[0]).toMatchObject({
+        id: "confirm",
+        type: "approval",
+        reason: "Approve before deploying",
+        timeoutMs: 3600_000,
+        defaultResolution: "deny",
+      });
+    });
+
+    it("rejects an invalid defaultResolution", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/wf.ts", {
+              name: "my-workflow",
+              triggers: [{ event: "runtime.idle" }],
+              steps: [
+                {
+                  id: "confirm",
+                  type: "approval",
+                  defaultResolution: "maybe" as never,
+                },
+              ],
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow('must be "deny" or "approve"');
+    });
+
+    it("rejects an approval step inside a branch arm", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/wf.ts", {
+              name: "my-workflow",
+              triggers: [{ event: "runtime.idle" }],
+              steps: [
+                {
+                  id: "gate",
+                  type: "branch",
+                  condition: () => true,
+                  ifTrue: [{ id: "confirm", type: "approval" }],
+                },
+              ],
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow("approval steps are not allowed inside branch arms");
+    });
+  });
 });

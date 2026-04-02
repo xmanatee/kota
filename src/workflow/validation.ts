@@ -1,5 +1,6 @@
 import type {
   RegisteredWorkflowDefinitionInput,
+  WorkflowApprovalStepInput,
   WorkflowBranchStepInput,
   WorkflowDefinition,
   WorkflowForeachStepInput,
@@ -21,6 +22,7 @@ import {
 } from "./validation-primitives.js";
 import {
   validateAgentStep,
+  validateApprovalStep,
   validateBranchStep,
   validateCodeStep,
   validateEmitStep,
@@ -79,9 +81,16 @@ function validateStep(
       projectDir,
     );
   }
+  if (step.type === "approval") {
+    return validateApprovalStep(
+      step as WorkflowApprovalStepInput,
+      definitionPath,
+      index,
+    );
+  }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", or "foreach"`,
+    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", "foreach", or "approval"`,
     definitionPath,
   );
 }

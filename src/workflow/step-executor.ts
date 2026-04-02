@@ -9,8 +9,10 @@ import {
   executeAgentStep,
   withRetry,
 } from "./step-executor-agent.js";
+import { executeApprovalStep } from "./step-executor-approval.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
 import type {
+  WorkflowApprovalStep,
   WorkflowCodeStep,
   WorkflowDefinition,
   WorkflowEmitStep,
@@ -163,6 +165,9 @@ export async function executeStep(
     throw new Error(
       `Foreach step "${step.id}" must be handled by the run executor, not executeStep`,
     );
+  }
+  if (step.type === "approval") {
+    return executeApprovalStep(step as WorkflowApprovalStep, context, abortController.signal);
   }
   return executeCodeStep(step, context);
 }

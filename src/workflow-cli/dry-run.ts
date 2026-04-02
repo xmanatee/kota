@@ -89,6 +89,8 @@ function stepConfig(step: WorkflowStep): string {
       return `branch (ifTrue: ${step.ifTrue.length} step(s), ifFalse: ${step.ifFalse.length} step(s))`;
     case "foreach":
       return `foreach (${step.steps.length} inner step(s), as: ${step.as})`;
+    case "approval":
+      return step.reason ? `approval: ${step.reason}` : "approval";
   }
 }
 

@@ -247,6 +247,21 @@ export type WorkflowForeachStepInput = WorkflowBaseStep & {
   steps: (WorkflowCodeStepInput | WorkflowAgentStepInput)[];
 };
 
+export type WorkflowApprovalStepInput = WorkflowBaseStep & {
+  type: "approval";
+  /**
+   * Human-readable description of what is being approved. Shown in `kota approval list`
+   * and the web UI alongside the workflow name, run ID, and step ID.
+   */
+  reason?: string;
+  /**
+   * What to do when timeoutMs elapses without a human decision.
+   * - "deny" (default): the approval expires and the run fails.
+   * - "approve": the approval auto-approves and the run continues.
+   */
+  defaultResolution?: "deny" | "approve";
+};
+
 export type WorkflowStepInput =
   | WorkflowToolStepInput
   | WorkflowAgentStepInput
@@ -256,7 +271,8 @@ export type WorkflowStepInput =
   | WorkflowTriggerStepInput
   | WorkflowParallelGroupInput
   | WorkflowBranchStepInput
-  | WorkflowForeachStepInput;
+  | WorkflowForeachStepInput
+  | WorkflowApprovalStepInput;
 
 export type WorkflowDefinitionInput = {
   name: string;
@@ -390,6 +406,12 @@ export type WorkflowForeachStep = WorkflowBaseStep & {
   steps: (WorkflowCodeStep | WorkflowAgentStep)[];
 };
 
+export type WorkflowApprovalStep = WorkflowBaseStep & {
+  type: "approval";
+  reason?: string;
+  defaultResolution?: "deny" | "approve";
+};
+
 export type WorkflowStep =
   | WorkflowToolStep
   | WorkflowAgentStep
@@ -399,7 +421,8 @@ export type WorkflowStep =
   | WorkflowTriggerStep
   | WorkflowParallelGroup
   | WorkflowBranchStep
-  | WorkflowForeachStep;
+  | WorkflowForeachStep
+  | WorkflowApprovalStep;
 
 export type WorkflowDefinition = {
   name: string;

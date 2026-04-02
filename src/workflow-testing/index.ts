@@ -379,6 +379,16 @@ export class WorkflowTestHarness {
               `Trigger step "${step.id}" requires either stepMocks["${step.id}"] or contextOverrides.triggerWorkflow.`,
             );
           }
+        } else if (step.type === "approval") {
+          const mock = stepMocks[step.id];
+          if (mock !== undefined && mock !== null && (mock as { approved?: unknown }).approved === false) {
+            const reason = (mock as { reason?: string }).reason;
+            throw new Error(
+              `Approval step "${step.id}" was rejected${reason ? `: ${reason}` : ""}`,
+            );
+          }
+          // Default: approve
+          output = { approvalId: "harness-approval", approved: true, resolutionSource: "harness" };
         }
       } catch (err) {
         stepError = err instanceof Error ? err.message : String(err);

@@ -60,6 +60,12 @@ export function validateBranchStep(
           definitionPath,
         );
       }
+      if (validated.type === "approval") {
+        throw new WorkflowDefinitionError(
+          `${armLabel}[${armIndex}] approval steps are not allowed inside branch arms`,
+          definitionPath,
+        );
+      }
       return validated;
     });
 

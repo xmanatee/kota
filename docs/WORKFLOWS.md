@@ -436,6 +436,45 @@ steps: [
 
 Iteration is **sequential** — each item completes before the next begins. Use a `parallel` step for concurrent fan-out. The foreach step result output contains `{ items: N, results: [...] }` with per-item status. Downstream steps can access the last iteration's inner step output via `context.stepOutputs["<innerStepId>"]`.
 
+### Approval Steps
+
+An `approval` step pauses workflow execution and waits for a human decision via the existing approval queue. Use it to insert explicit operator gates before consequential actions like deployments, bulk mutations, or financial transactions.
+
+```ts
+{
+  type: "approval",
+  id: "confirm-deploy",
+  reason: "Review the staged changes before deploying to production",
+  timeoutMs: 24 * 60 * 60 * 1000,   // 24 hours
+  defaultResolution: "deny",          // auto-deny if nobody responds
+}
+```
+
+When execution reaches an approval step the runtime:
+
+1. Writes a `source: "workflow-step"` entry to the approval queue (visible in `kota approval list` and the web UI).
+2. Blocks the workflow run — no further steps execute until the approval is resolved.
+3. On **approve**: records the step as `success` and continues to the next step.
+4. On **reject** or **expire** (with `defaultResolution: "deny"`): fails the run with a descriptive error and follows the normal failure path (`workflow.failure.alert` emitted if configured).
+5. On **expire** with `defaultResolution: "approve"`: auto-approves and continues.
+
+The approval queue entry includes the workflow name, run ID, step ID, and the optional `reason` string so operators can identify what they are approving.
+
+#### Approval step fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | `string` | — | Required. Step identifier. |
+| `reason` | `string` | — | Human-readable description shown in the approval UI and CLI. |
+| `timeoutMs` | `number` | 30 min | How long to wait before auto-resolving. Inherits the base step timeout. |
+| `defaultResolution` | `"deny" \| "approve"` | `"deny"` | Resolution applied when `timeoutMs` elapses without a human decision. |
+| `when` | predicate | — | Skip guard. If false, the approval step is skipped and execution continues. |
+| `continueOnFailure` | `boolean` | `false` | If true, a rejection does not abort the run. |
+
+Approval steps are **not allowed** inside `parallel`, `branch`, or `foreach` bodies. Placing one there is a definition-load-time error.
+
+Approval requests created by workflow steps have `source: "workflow-step"` in the approval record, distinguishing them from guardrail-generated requests (`source: "guardrail"`). Use `kota approval list` to see pending requests; both sources appear in the same list.
+
 ## Testing Workflow Definitions
 
 The `kota/testing` sub-path exports a `WorkflowTestHarness` that runs a workflow

@@ -1,12 +1,12 @@
 ---
 id: task-workflow-approval-step
 title: Add approval step type to workflow definitions
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Workflow definitions have no first-class way to pause and wait for human approval between steps. An `approval` step type would block execution until the operator approves or rejects via the existing approval queue, enabling human-gated pipelines without custom agent logic.
 created_at: 2026-04-02T03:58:38Z
-updated_at: 2026-04-02T03:58:38Z
+updated_at: 2026-04-02T05:15:00Z
 ---
 
 ## Problem
