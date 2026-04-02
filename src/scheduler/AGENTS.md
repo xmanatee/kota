@@ -17,7 +17,7 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 - `daemon-control-sessions.ts` — session list, register, and unregister endpoint handlers.
 - `daemon-control-workflow.ts` — workflow status, definitions, runs, pause/resume/abort/reload/trigger endpoint handlers.
 - `daemon-control-history.ts` — history list, show, and delete endpoint handlers.
-- `daemon-control-metrics.ts` — Prometheus metrics endpoint handler.
+- `daemon-control-metrics.ts` — Prometheus metrics endpoint handler; exposes workflow run counts/costs, session and approval counts, dispatch-paused flag, per-workflow active-run gauge (`kota_workflow_active_runs`), and total queue-depth gauge (`kota_workflow_queued_runs`).
 - `daemon-control-webhook.ts` — inbound webhook trigger endpoint handler.
 - `daemon-subscriptions.ts` — `subscribeDaemon`; sets up all event/bus/scheduler subscriptions and returns a single `unsubscribe()` function.
 - `daemon-state.ts` — `DaemonState` type and assertion helper.
