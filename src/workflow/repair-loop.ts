@@ -7,7 +7,7 @@ import {
 import type { SDKMessage } from "../agent-sdk/types.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, WorkflowStepOutput } from "./step-executor-agent.js";
-import { DEFAULT_MODEL } from "./step-executor-agent.js";
+import { resolveAgentModel } from "./step-executor-agent.js";
 import type { WorkflowAgentStep } from "./types.js";
 
 export type RepairCheckResult = {
@@ -97,11 +97,13 @@ async function executeRepairAgentIteration(
   const result = await executeWithAgentSDK(
     repairPrompt,
     {
-      model: step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
+      model: resolveAgentModel(step, agentConfig),
       cwd: agentConfig.projectDir,
       systemPrompt,
       maxTurns: step.maxTurns,
       maxBudgetUsd: step.maxBudgetUsd,
+      thinkingEnabled: step.thinkingEnabled,
+      thinkingBudget: step.thinkingBudget,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
       permissionMode: step.permissionMode,

@@ -8,5 +8,7 @@ This directory contains the builder workflow definition and its prompt.
   constraints, while builder decides the detailed implementation path.
 - Changes here shape the default autonomous development behavior.
 - Builder works directly in this repository — no worktrees. Sub-agents must also work without isolation.
-- `dirty-state-recovery.ts` — `autoResetDirtyWorktree`: detects a dirty worktree left by a previous failed run and resets to `HEAD` before `assertRepoWorktreeClean` fires, unblocking stranded autonomous runs.
-- `scope-guard.ts` — `runScopeGuard`: pre-execution heuristic that estimates task scope (word count, done-when item count) and blocks oversized tasks before the main build step; tasks with `allow_oversized: true` in frontmatter bypass the check.
+- Lightweight validation rails should do most of the consistency work here.
+- Builder should not rely on hardcoded pre-agent task moves or scope policing
+  when the same issue can be handled by honest task state and end-of-step
+  validation.

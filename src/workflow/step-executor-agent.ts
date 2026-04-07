@@ -47,6 +47,19 @@ export {
   withRetry,
 };
 
+export function resolveAgentModel(
+  step: WorkflowAgentStep,
+  agentConfig: AgentStepConfig,
+): string {
+  return (
+    (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ??
+    step.model ??
+    agentConfig.model ??
+    agentConfig.config?.model ??
+    DEFAULT_MODEL
+  );
+}
+
 function shouldExposeOutput(output: unknown): boolean {
   if (output === undefined) return false;
   if (
@@ -231,7 +244,7 @@ export async function executeAgentStep(
   const runAttempt = async () => {
     try {
       const result = await executeWithAgentSDK(agentPrompt.prompt, {
-        model: (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ?? step.model ?? agentConfig.model ?? agentConfig.config?.model ?? DEFAULT_MODEL,
+        model: resolveAgentModel(step, agentConfig),
         cwd: agentConfig.projectDir,
         systemPrompt,
         maxTurns: step.maxTurns,

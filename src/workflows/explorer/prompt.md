@@ -12,6 +12,9 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
   repo is still growing large shared core buckets instead of extension-owned
   capability packs, queue corrective architecture work instead of assuming the
   migration is complete because docs say so.
+- Until the repo visibly reads as a minimal host/runtime plus extension-owned
+  capability packs, prefer extension-boundary and core-shrinking work over
+  secondary feature expansion at the same priority.
 
 ## Workflow Contract
 

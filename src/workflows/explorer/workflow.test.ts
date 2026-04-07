@@ -26,10 +26,6 @@ vi.mock("../../repo-tasks.js", () => ({
   ],
 }));
 
-vi.mock("../builder/dirty-state-recovery.js", () => ({
-  autoResetDirtyWorktree: vi.fn(),
-}));
-
 vi.mock("../commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));

@@ -808,6 +808,60 @@ describe("executeStep repair loop", () => {
     expect(codeCheck).toHaveBeenCalledTimes(2);
     expect(result.content).toBe("fixed queue");
   });
+
+  it("reuses agent model overrides and thinking settings during repair attempts", async () => {
+    mockedExecuteWithAgentSDK
+      .mockResolvedValueOnce(SUCCESS_RESULT)
+      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed", turns: 2, totalCostUsd: 0.02 });
+
+    const runTool = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("lint failed"))
+      .mockResolvedValue({ content: "lint passed", is_error: false });
+
+    const context = makeRepairContext(runTool);
+    const step = makeStep({
+      agentName: "builder",
+      thinkingEnabled: true,
+      thinkingBudget: 4096,
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+      },
+    });
+
+    const cfg = {
+      ...agentConfig,
+      config: {
+        model: "fallback-model",
+        agentModels: { builder: "builder-model" },
+      } as never,
+    };
+
+    await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      new AbortController(),
+      () => {},
+      () => {},
+      cfg,
+    );
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    expect(mockedExecuteWithAgentSDK.mock.calls[0]?.[1]).toMatchObject({
+      model: "builder-model",
+      thinkingEnabled: true,
+      thinkingBudget: 4096,
+    });
+    expect(mockedExecuteWithAgentSDK.mock.calls[1]?.[1]).toMatchObject({
+      model: "builder-model",
+      thinkingEnabled: true,
+      thinkingBudget: 4096,
+    });
+  });
 });
 
 describe("classifyAgentRuntimeFailure", () => {

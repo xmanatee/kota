@@ -13,6 +13,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   capability logic to central buckets like `src/tools/`, `src/server/`, or
   other generic runtime surfaces when the same behavior could be owned by an
   extension, that is a steering problem to fix.
+- While the repo still reads as a flat core-heavy codebase, bias steering
+  toward clarifying extension ownership and shrinking shared buckets before
+  spending cycles on secondary polish.
 
 ## Workflow Contract
 
@@ -37,6 +40,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Treat repeated narrow task shapes as evidence of process drift. If recent runs cluster around split-only, rename-only, dedup-only, or test-only cleanup tasks, improve the queue-shaping guidance and task selection logic instead of just accepting the pattern.
 - Treat over-scaffolded context injection as process drift. Agents should be trusted to gather most of their own context; the runtime should inject only facts they cannot recover themselves.
 - Prefer lightweight end-of-step validations over bespoke orchestration. If a consistency check can run like a linter or hook after an agent step, prefer that to hardcoded workflow bookkeeping.
+- Remove hardcoded pre-agent task-moving or scope-policing logic when a
+  lightweight validation rail or clearer task/prompt contract can do the job.
 - If tasks or prompts start turning into procedural scripts, simplify them.
   Prefer clear goals, invariants, and lightweight validation over telling the
   other agents exactly how to think or in what order to inspect things.

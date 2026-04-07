@@ -5,7 +5,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 ## Role
 
 - Own one real task from the live queue.
-- Resume an existing `tasks/doing/` task first when one exists. Otherwise choose the best task from `tasks/ready/`, move it to `doing/`, and keep its state honest yourself. Prefer higher-priority tasks (p1 before p2, p2 before p3). If you decide a higher-priority task cannot be started or completed in this run, you **must** move it to `blocked/` with a written reason before selecting any lower-priority task. "It looks vague" or "it seems design-heavy" are not reasons to skip — they are reasons to either attempt it anyway or block it explicitly. There is no option to pass over a task and hope it resolves itself.
+- Resume an existing `tasks/doing/` task first when one exists. Otherwise choose the best task from `tasks/ready/`, move it to `doing/`, and keep its state honest yourself. Prefer higher-priority tasks (p1 before p2, p2 before p3). Do not silently pass over a higher-priority task. If it is truly blocked, record the blocker honestly before taking a lower-priority task.
 - Investigate the chosen task deeply, including the relevant code, existing abstractions, and external references when they help you implement it well.
 - Focus on correct architecture, complete implementation, and honest verification.
 - Make one cohesive improvement per run.
@@ -28,6 +28,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Explorer owns triage, backlog shaping, and product discovery. Do not invent new roadmap work when `ready/` is empty.
 - **Do not use git worktrees.** Make all changes directly in this repository. The post-step verification pipeline runs from the project root, so changes isolated in a worktree will not be visible to it and will cause the run to fail. This applies to sub-agents too: when using the Agent tool, never set `isolation: "worktree"`. All sub-agents must work in the same project directory.
 - Aim for materially useful improvements over low-value polish.
+- While the repository still reads as a large flat core with extension-first architecture only partially visible, prefer tasks that shrink shared core buckets or make extension ownership clearer over adjacent feature or polish work at the same priority.
 - Keep the agent core minimal. Protocols, lifecycle, registries, guardrails,
   and the daemon/workflow runtime belong in core; browser, shell, filesystem,
   HTTP/web, notification, memory-backend, MCP, and other general-purpose

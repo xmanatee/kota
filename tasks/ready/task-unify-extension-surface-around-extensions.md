@@ -5,7 +5,7 @@ status: ready
 priority: p1
 area: architecture
 summary: KOTA now has a real extension protocol, but discovery and packaging still span plugins, packages, manifests, and foreign extension config. Collapse those into one clear extension story instead of leaving multiple parallel surfaces.
-created_at: 2026-03-26
+created_at: 2026-03-26T00:00:00Z
 updated_at: 2026-04-07T12:00:00Z
 ---
 

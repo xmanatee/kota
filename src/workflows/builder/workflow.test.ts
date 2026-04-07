@@ -26,10 +26,6 @@ vi.mock("../../repo-tasks.js", () => ({
   ],
 }));
 
-vi.mock("./dirty-state-recovery.js", () => ({
-  autoResetDirtyWorktree: vi.fn(),
-}));
-
 vi.mock("../commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
@@ -39,10 +35,6 @@ vi.mock("./run-summary.js", () => ({
     runs: [],
     costByWorkflow: {},
   })),
-}));
-
-vi.mock("./scope-guard.js", () => ({
-  runScopeGuard: vi.fn(() => ({ blocked: false, taskId: "task-example" })),
 }));
 
 function makeEmptySnapshot() {
@@ -197,44 +189,6 @@ describe("builder workflow", () => {
       costUsd: 0.42,
       durationMs: 480000,
     });
-  });
-
-  it("skips build and commits scope-block when scope guard blocks a task", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
-
-    const { runScopeGuard } = await import("./scope-guard.js");
-    vi.mocked(runScopeGuard).mockReturnValue({
-      blocked: true,
-      taskId: "task-oversized",
-      taskFile: "task-oversized.md",
-      fromDir: "ready",
-      reason: "task-oversized exceeds execution budget (750 body words). Split into smaller tasks.",
-      wordCount: 750,
-      doneWhenItems: 2,
-    });
-
-    const { commitWorkflowChanges } = await import("../commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "explorer", status: "success" },
-      },
-      stepMocks: {
-        build: { turns: [], totalCostUsd: 0 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["scope-guard"].status).toBe("success");
-    expect(result.steps["scope-guard"].output).toMatchObject({ blocked: true, taskId: "task-oversized" });
-    expect(result.steps.build.status).toBe("skipped");
-    expect(result.steps["commit-scope-block"].status).toBe("success");
-    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {
