@@ -1,5 +1,5 @@
 /**
- * Knowledge module — file-based structured data layer.
+ * Knowledge extension — file-based structured data layer.
  *
  * Registers the `knowledge` tool in the `management` group.
  * Storage: .kota/data/ (project) and ~/.kota/data/ (global).

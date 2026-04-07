@@ -2,11 +2,11 @@
 id: task-daemon-config-hot-reload
 title: Reload daemon config and extensions without restart
 status: ready
-priority: p3
+priority: p2
 area: runtime
-summary: Adding or removing an extension requires stopping and restarting the daemon, interrupting active workflows. A config reload mechanism would let operators update extensions without downtime.
+summary: Adding or removing an extension still requires a daemon restart. A reload mechanism would let operators update extension config and contributions without interrupting unrelated work.
 created_at: 2026-03-30T18:28:41Z
-updated_at: 2026-03-31T03:42:35Z
+updated_at: 2026-04-07T12:00:00Z
 ---
 
 ## Problem

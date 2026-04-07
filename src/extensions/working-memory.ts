@@ -1,5 +1,5 @@
 /**
- * Working Memory module — explicit, agent-controlled scratchpad.
+ * Working Memory extension — explicit, agent-controlled scratchpad.
  *
  * Gives the agent a set of named entries that appear in the system prompt
  * every turn. Unlike the knowledge store (persistent cross-session data)

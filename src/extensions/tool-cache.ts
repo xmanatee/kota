@@ -1,9 +1,10 @@
 /**
- * Tool Cache module — registers caching middleware for deterministic read tools.
+ * Tool Cache extension — registers caching middleware for deterministic read
+ * tools.
  *
  * Caches results of idempotent tools (file_read, grep, glob, etc.) and
  * invalidates the cache when mutating tools (file_write, shell, etc.) run.
- * Session-scoped — cache resets when the module unloads.
+ * Session-scoped — cache resets when the extension unloads.
  */
 
 import type { KotaExtension } from "../extension-types.js";

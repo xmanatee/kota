@@ -1,5 +1,5 @@
 /**
- * MCP Server module — expose KOTA tools via the Model Context Protocol.
+ * MCP Server extension — expose KOTA tools via the Model Context Protocol.
  *
  * Registers:
  * - `kota mcp-server` CLI command (starts stdio MCP server)

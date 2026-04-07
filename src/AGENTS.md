@@ -3,6 +3,9 @@
 This directory contains KOTA's runtime, workflow, tool, and integration code.
 
 - Keep boundaries explicit and move code into the right domain directory instead of growing ambiguous shared buckets.
+- Keep the core small. Protocols, registries, lifecycle, guardrails, and the
+  daemon/workflow runtime belong here; general-purpose capabilities should
+  prefer `src/extensions/` when they can be owned as swappable units.
 - Use local `AGENTS.md` files to understand a subtree before changing it.
 - If a directory's role changes, update its `AGENTS.md` alongside the code.
 

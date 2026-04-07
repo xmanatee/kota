@@ -1,5 +1,6 @@
 /**
- * SQLite memory module — registers an alternative SQLite-backed memory provider.
+ * SQLite memory extension — registers an alternative SQLite-backed memory
+ * provider.
  *
  * When active, all memory operations (save/search/list/update/delete) go through
  * SQLite instead of the default JSON file. Activate via config:

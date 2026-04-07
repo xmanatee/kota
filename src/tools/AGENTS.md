@@ -1,12 +1,18 @@
 # Tools
 
-This directory contains core tool implementations and registrations.
+This directory contains shared tool runtime primitives and the remaining
+core-hosted tool implementations.
 
-- Keep tool behavior explicit, well-scoped, and self-registering where possible.
+- Keep tool behavior explicit, well-scoped, and self-registering where
+  possible.
+- Do not treat `src/tools/` as the default home for every new capability. If a
+  tool belongs to a cohesive built-in capability pack, prefer moving that pack
+  behind an extension boundary instead of growing this bucket further.
 - Cross-cutting tool composition should stay readable; avoid hiding tool semantics inside unrelated runtime code.
 
 ## Key Modules
 
+- `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`). This file should trend toward host/runtime concerns rather than remaining the long-term home of general-purpose built-in capabilities.
 - `web-search.ts` — `webSearchTool` schema, `runWebSearch` runner, Brave/DDG fetch logic, and registration.
 - `web-search-helpers.ts` — HTML parsing, result formatting, rate-limit detection, and URL resolution for web search.
 - `file-edit.ts` — `fileEditTool` schema, `runFileEdit` runner, and registration.

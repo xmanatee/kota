@@ -1,9 +1,11 @@
 /**
- * Registry module — install, remove, update, and list external tool packages.
+ * Registry extension — install, remove, update, and list external tool
+ * packages.
  *
  * Extracts the `tools` CLI command from cli.ts into a KotaExtension,
- * continuing the modular architecture plan. The actual registry logic
- * lives in src/registry.ts; this module wires it into the CLI as `kota tools`.
+ * continuing the extension-first architecture plan. The actual registry logic
+ * lives in src/registry.ts; this extension wires it into the CLI as
+ * `kota tools`.
  */
 
 import { Command } from "commander";

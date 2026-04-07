@@ -43,13 +43,43 @@ adding a parallel surface.
 - Add an external interaction transport: add a `channel`.
 - Add or ship an integration: add an `extension`.
 
-## Current To Target
+## Core Boundary
 
-- The module→extension migration is complete. Public APIs and internal names
-  now consistently use extension terminology throughout (`extension_factory`,
-  `getExtensionConfig`, `config.extensions`, `src/extensions/`, and all internal
-  variables and parameters in the extension loader, lifecycle, discovery, and
-  server layers).
+The core should stay small. It should mainly own:
+
+- the agent/session loop
+- tool and extension protocols
+- extension loading and lifecycle
+- workflow runtime and validation
+- daemon control API and session/channel hosting
+- guardrails and store/provider contracts
+
+General-purpose capabilities should not accumulate in the core by default.
+Browser use, shell/process access, filesystem actions, HTTP/web access,
+notifications, memory backends, MCP integration, and operator surfaces should
+prefer extension-owned capability packs unless a shared runtime primitive truly
+has to stay in core.
+
+## Current Gaps
+
+- The extension protocol is real, but the runtime is still too core-heavy.
+  `src/tools/index.ts` owns a large hardcoded built-in capability registry, and
+  many capabilities still live directly under `src/tools/` instead of inside
+  extension-owned packages.
+- Built-in extensions exist, but many are still thin wiring layers over large
+  core implementations instead of being the primary home of the capability.
+- Extension discovery and packaging are still too fragmented. The runtime can
+  discover from `.kota/plugins`, `.kota/packages`, `.kota/extensions`, and
+  `foreignExtensions`, which means the code still presents multiple extension
+  stories even though the docs say there is only one.
+- The repository layout is still flatter than the target model. Too much
+  capability code is concentrated in large shared buckets instead of clear
+  per-extension ownership directories.
+
+## Direction
+
+- Public naming should use `extension`, but naming cleanup is not proof that
+  the architectural migration is complete.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.
@@ -171,6 +201,10 @@ types and be contributed via `KotaExtension.channels`.
 - Prefer one daemon control protocol over platform-specific side channels.
 - Keep native UI wrappers thin. The macOS app should be a client of the daemon,
   not a second runtime host.
+- Prefer extension-owned capability packs over growing shared buckets like
+  `src/tools/`, `src/server/`, or other generic core directories. If a new
+  capability could plausibly be swapped, configured, or removed as a unit, it
+  likely belongs behind an extension boundary.
 
 ## External Anchors
 

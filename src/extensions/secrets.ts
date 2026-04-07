@@ -1,12 +1,12 @@
 /**
- * Secrets module — secure credential management with output masking.
+ * Secrets extension — secure credential management with output masking.
  *
  * Registers:
  * - `kota secrets set/get/list/remove` CLI commands
  * - `get_secret` agent tool (injects into env, returns placeholder to LLM)
  *
  * The agent tool uses ExtensionContext.getSecret() via closure — demonstrating
- * the self-contained module pattern where tool runners access services
+ * the self-contained extension pattern where tool runners access services
  * through the context rather than importing core singletons.
  */
 

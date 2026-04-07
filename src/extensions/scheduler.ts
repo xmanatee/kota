@@ -1,5 +1,6 @@
 /**
- * Scheduler module — timed reminders, recurring tasks, and event-triggered automations.
+ * Scheduler extension — timed reminders, recurring tasks, and event-triggered
+ * automations.
  *
  * Extracted from the hardcoded tool list using the KotaExtension protocol.
  * Registers the `schedule` tool in the `management` group.

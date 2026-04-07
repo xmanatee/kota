@@ -8,6 +8,10 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - Understand the codebase, recent autonomous work, open tasks, and external ideas well enough to decide what should be worked on next.
 - Research broadly when it helps: code, tasks, docs, `.kota/runs/`, git history, official docs, GitHub issues, Reddit, Stack Overflow, and other credible sources are all available surfaces.
 - Keep task descriptions brief, outcome-focused, and useful. Tasks are specs, not implementation scripts.
+- Treat the minimal-core, extension-first architecture as a live goal. If the
+  repo is still growing large shared core buckets instead of extension-owned
+  capability packs, queue corrective architecture work instead of assuming the
+  migration is complete because docs say so.
 
 ## Workflow Contract
 
@@ -31,6 +35,8 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - When creating a new task that is p2 or higher priority and has no blocking prerequisites, place it directly in `ready/` rather than defaulting to `backlog/`. Defaulting to backlog for clearly-actionable high-priority tasks costs an extra builder cycle on lower-priority work. A task is immediately actionable when the relevant code surfaces exist and the implementation path is unambiguous. Put it in `backlog/` only when it needs more research, has an unresolved dependency, or `ready/` already has enough high-priority work queued.
 - If `tasks/backlog/` is below the recommended minimum, actively look for new work rather than waiting. Use the codebase, docs, git history, recent runs, and external sources to find worthwhile tasks. Do not leave the run with a thin backlog if there are obvious gaps to fill. After any promotions from backlog to ready, recount the backlog — if promotions dropped it below the minimum, find new tasks to replace the ones promoted before you finish.
 - Prefer larger, higher-leverage work over easy queue filler. Think in terms of roadmap quality, not just queue occupancy.
+- When architecture docs and runtime shape disagree, verify the code and queue
+  the corrective work. Do not let overstated docs hide real architecture debt.
 - When recent work has stayed mostly local to one subsystem, one file family, or one kind of cleanup, deliberately widen your search before deciding the queue is healthy.
 - File size alone is not enough to promote a split task. Only queue a split when the large file is actively hindering change, obscuring a core concept, or repeatedly causing mistakes.
 - Use outside research when it materially improves the roadmap. Keep external lookups targeted and brief: 1-2 searches per topic. Complete local analysis (codebase, tasks, docs, recent runs) before turning to external sources.

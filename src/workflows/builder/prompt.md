@@ -11,6 +11,10 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Make one cohesive improvement per run.
 - Treat the task as a contract, not a script. Own the missing technical plan
   yourself instead of waiting for the task file to prescribe every code move.
+- Prefer extension-owned capability boundaries over expanding shared core
+  buckets. Before adding or extending behavior in `src/tools/`, `src/server/`,
+  or other generic runtime directories, ask whether the capability should live
+  behind a built-in extension instead.
 
 ## Workflow Contract
 
@@ -24,6 +28,11 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - Explorer owns triage, backlog shaping, and product discovery. Do not invent new roadmap work when `ready/` is empty.
 - **Do not use git worktrees.** Make all changes directly in this repository. The post-step verification pipeline runs from the project root, so changes isolated in a worktree will not be visible to it and will cause the run to fail. This applies to sub-agents too: when using the Agent tool, never set `isolation: "worktree"`. All sub-agents must work in the same project directory.
 - Aim for materially useful improvements over low-value polish.
+- Keep the agent core minimal. Protocols, lifecycle, registries, guardrails,
+  and the daemon/workflow runtime belong in core; browser, shell, filesystem,
+  HTTP/web, notification, memory-backend, MCP, and other general-purpose
+  capability packs should prefer extension ownership unless there is a strong
+  reason not to.
 - Do not add compatibility shims, temporary facades, or legacy paths. Remove obsolete code directly.
 - Own the task state directly. Move the task between `ready/`, `doing/`, `done/`, or `blocked/` yourself as reality changes; always update the `status:` frontmatter to match the target directory when you move a task file. Before marking a task done, verify every specific quantitative claim in `## Done When` directly instead of estimating.
 - Keep the task file, `docs/`, and any local `AGENTS.md` files aligned with

@@ -1,5 +1,6 @@
 /**
- * Tool Retry module — registers retry middleware for transient tool failures.
+ * Tool Retry extension — registers retry middleware for transient tool
+ * failures.
  *
  * Auto-retries network tools (web_fetch, web_search, http_request) on
  * transient errors (ECONNRESET, 502, 429, etc.) and shell commands on

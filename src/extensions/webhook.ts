@@ -8,7 +8,7 @@
  *   { urls: string[], events?: string[], retries?: number, retryDelayMs?: number }
  *
  * If `events` is omitted, all notification events are active.
- * If `urls` is empty or the extension is not configured, the module is a no-op.
+ * If `urls` is empty or the extension is not configured, the extension is a no-op.
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 

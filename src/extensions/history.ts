@@ -1,5 +1,5 @@
 /**
- * History module — conversation recall across sessions.
+ * History extension — conversation recall across sessions.
  *
  * Registers the `conversation_recall` tool in the `management` group.
  * Enables the agent to search and read past conversations.

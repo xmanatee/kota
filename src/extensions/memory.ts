@@ -1,7 +1,7 @@
 /**
- * Memory module — persistent memory across sessions.
+ * Memory extension — persistent memory across sessions.
  *
- * First built-in module extracted using the KotaExtension protocol.
+ * First built-in extension extracted using the KotaExtension protocol.
  * Registers the `memory` tool in the `management` group.
  */
 

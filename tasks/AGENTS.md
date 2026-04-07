@@ -47,6 +47,11 @@ outstanding work.
 - File length and local neatness are signals, not goals. Prefer tasks that improve capability, reliability, operator experience, or concept clarity over rote cleanup.
 - When the queue is thin, prefer one substantive task over several small cleanup fillers.
 - Keep some real range in the open queue over time: architecture/protocol work, operator or client-facing work, capability expansion, and reliability work should all be represented. Do not let one local theme crowd out the rest.
+- When the documented architecture and the live runtime shape diverge, prefer
+  tasks that close that gap over more p3 polish.
+- Keep at least one live task aimed at shrinking or clarifying the core when
+  capability code is obviously pooling in large shared buckets instead of clear
+  extension boundaries.
 - When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly.
 - Prefer `git mv <src> <dst>` for tracked task files, but do not treat it as a fragile ritual. If the queue is already inconsistent, fix the file layout directly and finish with `git add -A` so the staged state matches reality.
 - Before finishing, make sure task-file validations would pass: no duplicate task ids across states, no stale deleted task paths, no untracked task files, and no status/directory mismatches.

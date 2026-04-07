@@ -1,9 +1,10 @@
 /**
- * Web module — HTTP API server with SSE streaming and embedded web UI.
+ * Web extension — HTTP API server with SSE streaming and embedded web UI.
  *
  * Extracts the serve CLI command from cli.ts into a KotaExtension,
- * continuing the modular architecture plan. The actual server logic
- * lives in src/server.ts; this module wires it into the CLI as `kota serve`.
+ * continuing the extension-first architecture plan. The actual server logic
+ * lives in src/server.ts; this extension wires it into the CLI as
+ * `kota serve`.
  */
 
 import { Command } from "commander";

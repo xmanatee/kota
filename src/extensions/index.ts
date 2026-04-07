@@ -1,9 +1,11 @@
 /**
- * Built-in modules — ship with KOTA, use the same protocol as external ones.
+ * Built-in extensions — ship with KOTA and use the same protocol as external
+ * ones.
  *
- * Each module is a self-contained unit that registers its own tools,
- * commands, routes, and event subscriptions through the KotaExtension protocol.
- * Add new built-in modules here as they are extracted from the core.
+ * Each extension is a self-contained unit that registers its own tools,
+ * commands, routes, and event subscriptions through the KotaExtension
+ * protocol. Add new built-in extensions here as they are extracted from the
+ * core.
  */
 
 import type { KotaExtension } from "../extension-types.js";
@@ -27,7 +29,7 @@ import webModule from "./web.js";
 import webhookModule from "./webhook.js";
 import workingMemoryModule from "./working-memory.js";
 
-/** All built-in modules, in dependency order. */
+/** All built-in extensions, in dependency order. */
 export const builtinExtensions: KotaExtension[] = [
   toolCacheModule,
   toolRetryModule,
