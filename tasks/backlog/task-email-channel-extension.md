@@ -28,7 +28,7 @@ An `email` extension in `src/extensions/` that contributes a `ChannelDef`. The c
 - Configured via `config.extensions` with SMTP credentials, from/to addresses, and an
   optional IMAP/webhook config for inbound.
 
-Architecture reference: [Telegram extension](src/extensions/telegram.ts) for bus subscription
+Architecture reference: [Telegram extension](src/extensions/telegram/index.ts) for bus subscription
 pattern; [channel.ts](src/channel.ts) for `ChannelDef` contract.
 
 ## Constraints
