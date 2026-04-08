@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-memory-edit
 title: Add inline memory entry editing to the web UI memory panel
-status: backlog
+status: ready
 priority: p3
 area: web-ui
 summary: The memory panel supports adding and deleting entries but has no way to edit an existing entry's content or tags. Inline editing completes the memory CRUD surface and parallels the knowledge panel edit task.
 created_at: 2026-04-08T19:09:14Z
-updated_at: 2026-04-08T19:09:14Z
+updated_at: 2026-04-08T19:35:24Z
 ---
 
 ## Problem
