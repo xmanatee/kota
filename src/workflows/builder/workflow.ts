@@ -66,6 +66,19 @@ const builderWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             run: (ctx) => runCheck("npm test", ctx.projectDir, 300_000),
           },
+          {
+            id: "server-readme-sync",
+            type: "code" as const,
+            run: (ctx) =>
+              runCheck(
+                `node -e "const fs=require('fs'),path=require('path'),d=path.join(process.cwd(),'src/server');` +
+                  `const r=fs.readFileSync(path.join(d,'README.md'),'utf8');` +
+                  `const m=fs.readdirSync(d).filter(f=>f.endsWith('-routes.ts')&&f!=='server-routes.ts').filter(f=>!r.includes(f));` +
+                  `if(m.length){console.error('Missing from src/server/README.md: '+m.join(', '));process.exit(1);}` +
+                  `console.log('OK: server README covers all route files');"`,
+                ctx.projectDir,
+              ),
+          },
         ],
       },
     },
