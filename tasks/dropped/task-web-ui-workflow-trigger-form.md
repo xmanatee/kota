@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-workflow-trigger-form
 title: Show input form when manually triggering a parameterized workflow from the web UI
-status: backlog
+status: dropped
 priority: p3
 area: web-ui
 summary: The workflow controls trigger button fires with no payload. When a workflow definition has an inputSchema, clicking trigger should show a form so operators can supply required inputs without dropping to the CLI.
 created_at: 2026-04-08T19:09:14Z
-updated_at: 2026-04-08T19:09:14Z
+updated_at: 2026-04-08T19:30:00Z
 ---
 
 ## Problem
