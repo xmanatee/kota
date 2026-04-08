@@ -16,5 +16,3 @@ core-hosted tool implementations.
 - `runtime-check.ts` — `which` utility: checks whether a command exists on the system PATH; used by the execution extension's `code_exec` tool.
 - `custom-tool.ts` — `customToolTool` schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, persistence lifecycle, and registration.
 - `custom-tool-handlers.ts` — `handleCreate`, `handleList`, `handleRemove` action handlers and `buildRunner` execution builder for custom tools.
-- `knowledge-schema.ts` — `knowledgeTool` Anthropic tool schema definition (static, no runner logic).
-- `knowledge.ts` — `formatEntry`, `formatEntryFull` helpers and `runKnowledge` async runner; re-exports `knowledgeTool` from `knowledge-schema.ts`.

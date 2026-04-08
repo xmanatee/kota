@@ -5,9 +5,9 @@
  * Entries live in .kota/data/ (project) or ~/.kota/data/ (global).
  */
 
-import { tryEmit } from "../event-bus.js";
-import { getKnowledgeProvider } from "../providers.js";
-import type { ToolResult } from "./index.js";
+import { tryEmit } from "../../event-bus.js";
+import { getKnowledgeProvider } from "../../providers.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import { knowledgeTool } from "./knowledge-schema.js";
 
 export { knowledgeTool };

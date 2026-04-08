@@ -71,11 +71,10 @@ has to stay in core.
   registrations in `src/tools/index.ts` are core orchestration and meta tools
   (delegate, batch, pipe, map, todo, workspace, approval, checkpoint, etc.)
   that legitimately belong in core.
-- Several built-in extensions (`knowledge`, `memory`, `history`,
-  `working-memory`) are still thin wrappers: their extension `index.ts`
+- The `working-memory` extension is still a thin wrapper: its `index.ts`
   registers tools but the tool implementation remains in `src/tools/`. The
-  capability code should move into its extension directory alongside tests and
-  helpers, leaving `src/tools/` only for genuinely core orchestration.
+  `knowledge`, `memory`, and `history` extensions have been completed — their
+  capability code now lives in their extension directories alongside tests.
 - Extension directories added during the migrations lack `AGENTS.md`
   orientation docs. See `tasks/ready/task-extension-agents-md-coverage.md`.
 

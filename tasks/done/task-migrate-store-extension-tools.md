@@ -1,12 +1,12 @@
 ---
 id: task-migrate-store-extension-tools
 title: Move knowledge, memory, and history tool implementations into their extension directories
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The knowledge, memory, and history extensions are thin wrappers that import their tool runners from src/tools/. The capability code should move into each extension directory to complete the extension-first migration and shrink src/tools/.
 created_at: 2026-04-08T15:35:00Z
-updated_at: 2026-04-08T15:35:00Z
+updated_at: 2026-04-08T16:40:00Z
 ---
 
 ## Problem

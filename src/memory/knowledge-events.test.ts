@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type EventBus, initEventBus, resetEventBus } from "../event-bus.js";
-import { runKnowledge } from "../tools/knowledge.js";
+import { runKnowledge } from "../extensions/knowledge/knowledge.js";
 import { KnowledgeStore, resetKnowledgeStore } from "./knowledge-store.js";
 
 describe("knowledge events", () => {

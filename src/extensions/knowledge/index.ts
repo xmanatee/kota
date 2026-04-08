@@ -6,7 +6,7 @@
  */
 
 import type { KotaExtension } from "../../extension-types.js";
-import { knowledgeTool, runKnowledge } from "../../tools/knowledge.js";
+import { knowledgeTool, runKnowledge } from "./knowledge.js";
 
 const knowledgeModule: KotaExtension = {
 	name: "knowledge",

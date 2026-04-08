@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { runMemory } from "./extensions/memory/memory.js";
 import { MemoryStore } from "./memory/store.js";
-import { runMemory } from "./tools/memory.js";
 
 /**
  * Cross-module integration tests for the memory pipeline.
- * Tests that tools/memory.ts and memory.ts work together correctly,
+ * Tests that extensions/memory/memory.ts and memory/store.ts work together correctly,
  * especially the iter-339 features: tag filtering, since filtering, update.
  */
 
@@ -31,7 +31,7 @@ afterEach(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-describe("memory pipeline: tools/memory.ts → memory.ts", () => {
+describe("memory pipeline: extensions/memory/memory.ts → memory/store.ts", () => {
   describe("save → search with tag filter (cross-module)", () => {
     it("saves with tags and retrieves by tag filter", async () => {
       // Save two memories with different tags via tool layer

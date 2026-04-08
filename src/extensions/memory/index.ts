@@ -6,7 +6,7 @@
  */
 
 import type { KotaExtension } from "../../extension-types.js";
-import { memoryTool, runMemory } from "../../tools/memory.js";
+import { memoryTool, runMemory } from "./memory.js";
 
 const memoryModule: KotaExtension = {
   name: "memory",

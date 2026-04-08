@@ -9,7 +9,7 @@ import type { KotaExtension } from "../../extension-types.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
-} from "../../tools/conversation-recall.js";
+} from "./conversation-recall.js";
 
 const historyModule: KotaExtension = {
 	name: "history",

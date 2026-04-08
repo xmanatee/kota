@@ -20,9 +20,9 @@ This directory contains built-in extensions and extension-level wiring.
 
 - `daemon.ts` — `kota daemon` CLI command (with `status`, `pid`, `stop`, and `reload` subcommands), supervisor/child startup path, and built-in workflow/channel resolution passed into `scheduler/daemon.ts`.
 - `web.ts` — `kota serve` CLI command; starts the HTTP API/web UI server and injects extension routes discovered from the loader.
-- `history/index.ts` — `conversation_recall` management tool and matching history skill.
-- `memory/index.ts` — `memory` management tool and matching memory skill.
-- `knowledge/index.ts` — `knowledge` management tool and matching knowledge skill.
+- `history/index.ts` — `conversation_recall` management tool and matching history skill. Tool implementation in `history/conversation-recall.ts`.
+- `memory/index.ts` — `memory` management tool and matching memory skill. Tool implementation in `memory/memory.ts`.
+- `knowledge/index.ts` — `knowledge` management tool and matching knowledge skill. Tool schema in `knowledge/knowledge-schema.ts`, runner in `knowledge/knowledge.ts`.
 - `working-memory/index.ts` — session-scoped scratchpad tools plus prompt injection of named working-memory entries.
 - `sqlite-memory.ts` — alternative SQLite-backed memory provider selected through `providers.memory`.
 - `scheduler.ts` — `schedule` management tool and matching scheduler skill.
