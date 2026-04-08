@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ExtensionStorage } from "../extension-storage.js";
-import type { ExtensionContext } from "../extension-types.js";
-import vercelAdapterModule from "./vercel-adapter.js";
+import { ExtensionStorage } from "../../extension-storage.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import vercelAdapterModule from "./index.js";
 
 describe("vercel-adapter module", () => {
   it("has correct metadata", () => {
@@ -23,7 +23,7 @@ describe("vercel-adapter module", () => {
     const ctx: ExtensionContext = {
       cwd: "/tmp",
       verbose: false,
-      config: { model: "test-model" } as import("../config.js").KotaConfig,
+      config: { model: "test-model" } as import("../../config.js").KotaConfig,
       storage: new ExtensionStorage("/tmp", "vercel-adapter"),
       registerGroup: () => {},
       getRoutes: () => [],

@@ -7,8 +7,8 @@
  * timeout with doubled timeout_ms. Session-scoped stats reset on unload.
  */
 
-import type { KotaExtension } from "../extension-types.js";
-import { createRetryMiddleware, resetRetryStats } from "../tool-retry.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { createRetryMiddleware, resetRetryStats } from "../../tool-retry.js";
 
 const MIDDLEWARE_NAME = "tool-retry";
 const PRIORITY = 20; // After cache (10), before custom middleware (100+)

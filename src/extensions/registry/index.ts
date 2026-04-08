@@ -9,8 +9,8 @@
  */
 
 import { Command } from "commander";
-import type { KotaExtension } from "../extension-types.js";
-import { installTool, listTools, removeTool, updateTool } from "../registry.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { installTool, listTools, removeTool, updateTool } from "../../registry.js";
 
 const registryModule: KotaExtension = {
   name: "registry",

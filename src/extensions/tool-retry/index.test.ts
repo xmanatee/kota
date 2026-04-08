@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getToolMiddleware, resetToolMiddleware } from "../tool-middleware.js";
-import { resetRetryStats } from "../tool-retry.js";
-import toolRetryModule from "./tool-retry.js";
+import { getToolMiddleware, resetToolMiddleware } from "../../tool-middleware.js";
+import { resetRetryStats } from "../../tool-retry.js";
+import toolRetryModule from "./index.js";
 
 describe("tool-retry module", () => {
 	const ctx = {

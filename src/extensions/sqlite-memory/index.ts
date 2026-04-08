@@ -9,8 +9,8 @@
  * Data is stored in `.kota/memory.db`.
  */
 
-import type { ExtensionContext, KotaExtension } from "../extension-types.js";
-import { SQLiteMemoryProvider } from "../memory/sqlite-memory.js";
+import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import { SQLiteMemoryProvider } from "../../memory/sqlite-memory.js";
 
 const sqliteMemoryModule: KotaExtension = {
 	name: "sqlite-memory",

@@ -71,14 +71,11 @@ has to stay in core.
   registrations in `src/tools/index.ts` are core orchestration and meta tools
   (delegate, batch, pipe, map, todo, workspace, approval, checkpoint, etc.)
   that legitimately belong in core.
-- `src/extensions/` still contains several flat built-in extension entry files at
-  the top level (`daemon.ts`, `web.ts`, `scheduler.ts`, `mcp-server.ts`,
-  `secrets.ts`, `sqlite-memory.ts`, `tool-cache.ts`, `tool-retry.ts`,
-  `vercel-adapter.ts`, `registry.ts`). Until those move behind per-extension
-  directories or are explicitly justified as shared utilities, the repository
-  still reads flatter than the target extension-owned shape.
-- Extension directories added during the migrations now all have `AGENTS.md`
-  orientation docs.
+- All remaining flat built-in extension entry files have been moved behind
+  per-extension directories. `src/extensions/` now contains only extension
+  directories plus `notify-retry.ts` (an explicitly shared HTTP retry utility
+  used by the webhook and Slack extensions). Each extension directory has an
+  `index.ts` entrypoint and a local `AGENTS.md` orientation doc.
 
 ## Direction
 

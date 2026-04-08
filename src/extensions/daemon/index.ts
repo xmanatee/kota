@@ -1,14 +1,14 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { Command } from "commander";
-import type { KotaExtension } from "../extension-types.js";
-import { readOptionalJsonFile } from "../json-file.js";
-import type { LogFormat } from "../log-format.js";
-import { Daemon, RESTART_EXIT_CODE } from "../scheduler/daemon.js";
-import type { DaemonControlAddress } from "../scheduler/daemon-control.js";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
-import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import type { LogFormat } from "../../log-format.js";
+import { Daemon, RESTART_EXIT_CODE } from "../../scheduler/daemon.js";
+import type { DaemonControlAddress } from "../../scheduler/daemon-control.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { getRegisteredWorkflowDefinitions } from "../../workflow/registry.js";
+import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 

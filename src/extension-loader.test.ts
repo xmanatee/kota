@@ -439,7 +439,7 @@ describe("scheduler module integration", () => {
   });
 
   it("registers the schedule tool via module protocol", async () => {
-    const { default: schedulerModule } = await import("./extensions/scheduler.js");
+    const { default: schedulerModule } = await import("./extensions/scheduler/index.js");
     const loader = new ExtensionLoader({});
 
     await loader.load(schedulerModule);
@@ -455,7 +455,7 @@ describe("scheduler module integration", () => {
   });
 
   it("schedule tool is hidden until management group is enabled", async () => {
-    const { default: schedulerModule } = await import("./extensions/scheduler.js");
+    const { default: schedulerModule } = await import("./extensions/scheduler/index.js");
     const loader = new ExtensionLoader({});
     await loader.load(schedulerModule);
 

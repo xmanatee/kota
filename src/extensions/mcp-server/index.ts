@@ -9,7 +9,7 @@
  */
 
 import { Command } from "commander";
-import type { ExtensionContext, KotaExtension } from "../extension-types.js";
+import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
 
 const mcpServerModule: KotaExtension = {
 	name: "mcp-server",
@@ -25,12 +25,12 @@ const mcpServerModule: KotaExtension = {
 			)
 			.option("--name <name>", "Server name reported to MCP clients", "kota")
 			.action(async (opts) => {
-				const { McpServer } = await import("../mcp/server.js");
-				const { loadConfig } = await import("../config.js");
-				const { ExtensionLoader } = await import("../extension-loader.js");
-				const { builtinExtensions } = await import("./index.js");
+				const { McpServer } = await import("../../mcp/server.js");
+				const { loadConfig } = await import("../../config.js");
+				const { ExtensionLoader } = await import("../../extension-loader.js");
+				const { builtinExtensions } = await import("../index.js");
 				const { discoverExtensions } = await import(
-					"../extension-discovery.js"
+					"../../extension-discovery.js"
 				);
 
 				const config = loadConfig(process.cwd());
@@ -47,7 +47,7 @@ const mcpServerModule: KotaExtension = {
 				const samplingEnabled = config.mcp?.sampling?.enabled === true;
 				let modelClient;
 				if (samplingEnabled) {
-					const { AnthropicModelClient } = await import("../model/model-client.js");
+					const { AnthropicModelClient } = await import("../../model/model-client.js");
 					modelClient = new AnthropicModelClient();
 				}
 

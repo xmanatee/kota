@@ -1,12 +1,12 @@
 ---
 id: task-finish-flat-built-in-extension-migration
 title: Finish migrating remaining flat built-in extensions into per-extension directories
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: The repo still reads flatter than the target extension-owned shape because several built-in extensions still live as top-level files under src/extensions/. Move the remaining real extensions behind per-extension directories so src/extensions/ mostly contains directories plus explicitly shared utilities.
 created_at: 2026-04-08T16:30:00Z
-updated_at: 2026-04-08T16:30:00Z
+updated_at: 2026-04-08T17:15:29Z
 ---
 
 ## Problem

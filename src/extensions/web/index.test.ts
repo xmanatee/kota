@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ExtensionStorage } from "../extension-storage.js";
-import type { ExtensionContext } from "../extension-types.js";
-import webModule from "./web.js";
+import { ExtensionStorage } from "../../extension-storage.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import webModule from "./index.js";
 
 const stubCtx: ExtensionContext = {
   cwd: "/tmp/test",

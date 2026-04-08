@@ -8,8 +8,8 @@
  */
 
 import { Command } from "commander";
-import type { KotaExtension } from "../extension-types.js";
-import { startServer } from "../server/server.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { startServer } from "../../server/server.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);

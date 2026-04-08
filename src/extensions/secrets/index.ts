@@ -13,9 +13,9 @@
 import { createInterface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
-import type { ExtensionContext, KotaExtension } from "../extension-types.js";
-import { getSecretStore, initSecretStore, type SecretScope } from "../secrets.js";
-import type { ToolResult } from "../tools/index.js";
+import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import { getSecretStore, initSecretStore, type SecretScope } from "../../secrets.js";
+import type { ToolResult } from "../../tools/index.js";
 
 const getSecretTool: Anthropic.Tool = {
   name: "get_secret",

@@ -7,8 +7,8 @@
  * Session-scoped — cache resets when the extension unloads.
  */
 
-import type { KotaExtension } from "../extension-types.js";
-import { createCacheMiddleware, getToolCache, resetToolCache } from "../tool-cache.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { createCacheMiddleware, getToolCache, resetToolCache } from "../../tool-cache.js";
 
 const MIDDLEWARE_NAME = "tool-result-cache";
 const PRIORITY = 10; // Run early — before logging/audit middleware
