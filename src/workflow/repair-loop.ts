@@ -72,7 +72,12 @@ async function runRepairCheck(
     return { id: check.id, passed: true, output, severity };
   } catch (error) {
     const output = error instanceof Error ? error.message : String(error);
-    return { id: check.id, passed: false, output, severity };
+    // A tool check that fails because the tool is not available in this execution context
+    // (e.g. extension tools not loaded in daemon workflow runs) is not actionable by the
+    // repair agent — demote to warning so it does not block the repair loop.
+    const effectiveSeverity =
+      check.type !== "code" && output.startsWith("Unknown tool:") ? "warning" : severity;
+    return { id: check.id, passed: false, output, severity: effectiveSeverity };
   }
 }
 

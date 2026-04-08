@@ -4,7 +4,7 @@ import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
-import { stepCommitted, stepSucceeded } from "../shared.js";
+import { runCheck, stepCommitted, stepSucceeded } from "../shared.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 
@@ -42,50 +42,29 @@ const builderWorkflow: WorkflowDefinitionInput = {
         maxRepairAttempts: 3,
         checks: [
           {
+            id: "build-output",
+            type: "code" as const,
+            run: (ctx) => runCheck("npm run build", ctx.projectDir),
+          },
+          {
             id: "task-queue-valid",
-            tool: "shell",
-            input: (ctx) => ({
-              command: "npm run validate-tasks",
-              stream_output: false,
-              cwd: ctx.projectDir,
-            }),
+            type: "code" as const,
+            run: (ctx) => runCheck("npm run validate-tasks", ctx.projectDir),
           },
           {
             id: "typecheck",
-            tool: "shell",
-            input: (ctx) => ({
-              command: "npm run typecheck",
-              stream_output: false,
-              cwd: ctx.projectDir,
-            }),
+            type: "code" as const,
+            run: (ctx) => runCheck("npm run typecheck", ctx.projectDir),
           },
           {
             id: "lint",
-            tool: "shell",
-            input: (ctx) => ({
-              command: "npm run lint",
-              stream_output: false,
-              cwd: ctx.projectDir,
-            }),
+            type: "code" as const,
+            run: (ctx) => runCheck("npm run lint", ctx.projectDir),
           },
           {
             id: "test",
-            tool: "shell",
-            input: (ctx) => ({
-              command: "npm test",
-              stream_output: false,
-              timeout_ms: 300_000,
-              cwd: ctx.projectDir,
-            }),
-          },
-          {
-            id: "build-output",
-            tool: "shell",
-            input: (ctx) => ({
-              command: "npm run build",
-              stream_output: false,
-              cwd: ctx.projectDir,
-            }),
+            type: "code" as const,
+            run: (ctx) => runCheck("npm test", ctx.projectDir, 300_000),
           },
         ],
       },

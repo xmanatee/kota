@@ -1,5 +1,6 @@
 import { JsonFileError } from "../json-file.js";
 import type {
+  WorkflowAutonomousRecoveryState,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
   WorkflowRunStatus,
@@ -74,6 +75,25 @@ function isQueuedRun(value: unknown): value is WorkflowQueuedRun {
   );
 }
 
+function isWorkflowAutonomousRecoveryState(
+  value: unknown,
+): value is WorkflowAutonomousRecoveryState {
+  return (
+    isPlainObject(value) &&
+    typeof value.sourceRunId === "string" &&
+    value.sourceRunId.trim().length > 0 &&
+    typeof value.sourceWorkflow === "string" &&
+    value.sourceWorkflow.trim().length > 0 &&
+    typeof value.worktreeFingerprint === "string" &&
+    typeof value.worktreeSummary === "string" &&
+    typeof value.attempts === "number" &&
+    Number.isInteger(value.attempts) &&
+    value.attempts >= 0 &&
+    typeof value.updatedAt === "string" &&
+    value.updatedAt.trim().length > 0
+  );
+}
+
 export function assertWorkflowRuntimeState(
   path: string,
   value: unknown,
@@ -110,6 +130,16 @@ export function assertWorkflowRuntimeState(
       path,
       "parse",
       "workflow state has invalid agentBackoff",
+    );
+  }
+  if (
+    value.autonomousRecovery !== undefined &&
+    !isWorkflowAutonomousRecoveryState(value.autonomousRecovery)
+  ) {
+    throw new JsonFileError(
+      path,
+      "parse",
+      "workflow state has invalid autonomousRecovery",
     );
   }
   for (const [workflowName, entry] of Object.entries(value.workflows)) {

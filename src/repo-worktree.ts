@@ -4,6 +4,7 @@ export type RepoWorktreeStatus = {
   available: boolean;
   dirty: boolean;
   entries: string[];
+  fingerprint: string;
   summary: string;
 };
 
@@ -29,6 +30,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
       available: true,
       dirty: entries.length > 0,
       entries,
+      fingerprint: entries.join("\n"),
       summary: summarizeEntries(entries),
     };
   } catch (error) {
@@ -37,6 +39,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
       available: false,
       dirty: false,
       entries: [],
+      fingerprint: "",
       summary: `git status unavailable: ${message}`,
     };
   }

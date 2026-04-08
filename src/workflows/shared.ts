@@ -1,9 +1,17 @@
+import { spawnSync } from "node:child_process";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
   WorkflowRunWarning,
 } from "../workflow/run-types.js";
 import { loadRunsInWindow } from "../workflow-history.js";
+
+export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
+  const result = spawnSync(command, { shell: true, cwd, timeout: timeoutMs, encoding: "utf-8" });
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+  if (result.status !== 0) throw new Error(output || `Command failed: ${command}`);
+  return output;
+}
 
 export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;

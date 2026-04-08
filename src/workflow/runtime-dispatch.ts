@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
+import { getRepoWorktreeStatus } from "../repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
@@ -93,6 +94,72 @@ function nextUtcMidnightIso(now = new Date()): string {
     0,
   );
   return new Date(nextMidnight).toISOString();
+}
+
+function isAutonomousWorkflowName(name: string): boolean {
+  return name === "explorer" || name === "builder" || name === "improver";
+}
+
+function isAutonomousWorkflow(definition: WorkflowDefinition): boolean {
+  return isAutonomousWorkflowName(definition.name);
+}
+
+function handleDirtyAutonomousCompletion(
+  state: WorkflowRuntimeDispatchState,
+  definition: WorkflowDefinition,
+  metadata: WorkflowRunExecutionResult["metadata"],
+): void {
+  if (!isAutonomousWorkflow(definition)) return;
+
+  const worktree = getRepoWorktreeStatus(state.projectDir);
+  if (!worktree.available) return;
+
+  if (!worktree.dirty) {
+    if (state.store.getAutonomousRecovery()) {
+      state.store.setAutonomousRecovery(null);
+    }
+    return;
+  }
+
+  state.wfQueue.setRuns(
+    state.wfQueue.getRuns().filter((run) => !isAutonomousWorkflowName(run.workflowName)),
+  );
+  state.wfQueue.persist();
+
+  const existing = state.store.getAutonomousRecovery();
+  if (existing && existing.attempts >= 1) {
+    state.store.setAutonomousRecovery({
+      ...existing,
+      sourceRunId: metadata.id,
+      sourceWorkflow: definition.name,
+      worktreeFingerprint: worktree.fingerprint,
+      worktreeSummary: worktree.summary,
+      updatedAt: new Date().toISOString(),
+    });
+    state.dispatchPaused = true;
+    state.log(
+      `Autonomous recovery already attempted for dirty worktree left by "${definition.name}" (${metadata.id}). Dispatch paused: ${worktree.summary}`,
+    );
+    return;
+  }
+
+  state.store.setAutonomousRecovery({
+    sourceRunId: metadata.id,
+    sourceWorkflow: definition.name,
+    worktreeFingerprint: worktree.fingerprint,
+    worktreeSummary: worktree.summary,
+    attempts: existing?.attempts ?? 0,
+    updatedAt: new Date().toISOString(),
+  });
+  state.dispatchPaused = true;
+  state.log(
+    `Workflow "${definition.name}" completed with uncommitted changes. Restarting for autonomous recovery: ${worktree.summary}`,
+  );
+  state.runtimeConfig.bus.emit("runtime.restart_requested", {
+    reason: `workflow "${definition.name}" completed with dirty worktree`,
+    workflow: definition.name,
+    runId: metadata.id,
+  });
 }
 
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
@@ -264,6 +331,7 @@ export async function runWorkflow(
 
   try {
     const result = await promise;
+    handleDirtyAutonomousCompletion(state, definition, result.metadata);
     if (result.agentBackoff) {
       state.backoff.apply(result.agentBackoff);
       return;

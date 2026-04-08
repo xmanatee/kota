@@ -11,6 +11,7 @@ import { commitWorkflowChanges } from "../commit.js";
 import {
   BACKLOG_TASK_TARGET,
   READY_TASK_TARGET,
+  runCheck,
   stepSucceeded,
 } from "../shared.js";
 
@@ -84,12 +85,8 @@ const explorerWorkflow: WorkflowDefinitionInput = {
         checks: [
           {
             id: "task-queue-valid",
-            tool: "shell",
-            input: (ctx) => ({
-              command: "npm run validate-tasks -- --min-ready 1",
-              stream_output: false,
-              cwd: ctx.projectDir,
-            }),
+            type: "code" as const,
+            run: (ctx) => runCheck("npm run validate-tasks -- --min-ready 1", ctx.projectDir),
           },
           {
             id: "task-queue-range",

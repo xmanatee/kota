@@ -78,6 +78,21 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
   });
 
+  it("accepts autonomous recovery state", () => {
+    const state = {
+      ...validState,
+      autonomousRecovery: {
+        sourceRunId: "run-1",
+        sourceWorkflow: "improver",
+        worktreeFingerprint: "M README.md",
+        worktreeSummary: "M README.md",
+        attempts: 1,
+        updatedAt: "2026-01-01T01:30:00.000Z",
+      },
+    };
+    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
+  });
+
   it("accepts pending runs with valid queued run entries", () => {
     const state = {
       ...validState,
@@ -192,6 +207,22 @@ describe("assertWorkflowRuntimeState", () => {
           until: "2026-01-01T02:00:00.000Z",
           updatedAt: "2026-01-01T01:30:00.000Z",
           reason: "",
+        },
+      }),
+    ).toThrow(JsonFileError);
+  });
+
+  it("throws when autonomousRecovery is malformed", () => {
+    expect(() =>
+      assertWorkflowRuntimeState(path, {
+        ...validState,
+        autonomousRecovery: {
+          sourceRunId: "run-1",
+          sourceWorkflow: "improver",
+          worktreeFingerprint: "M README.md",
+          worktreeSummary: "M README.md",
+          attempts: -1,
+          updatedAt: "2026-01-01T01:30:00.000Z",
         },
       }),
     ).toThrow(JsonFileError);

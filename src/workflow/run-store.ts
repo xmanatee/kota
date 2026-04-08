@@ -13,6 +13,7 @@ import {
 } from "./run-store-helpers.js";
 import type {
   WorkflowActiveRun,
+  WorkflowAutonomousRecoveryState,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
   WorkflowRuntimeState,
@@ -51,6 +52,7 @@ export class WorkflowRunStore {
       ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
       ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
       ...(state?.agentBackoff ? { agentBackoff: state.agentBackoff } : {}),
+      ...(state?.autonomousRecovery ? { autonomousRecovery: state.autonomousRecovery } : {}),
     };
   }
 
@@ -117,6 +119,20 @@ export class WorkflowRunStore {
       state.agentBackoff = backoff;
     } else {
       delete state.agentBackoff;
+    }
+    this.writeState(state);
+  }
+
+  getAutonomousRecovery(): WorkflowAutonomousRecoveryState | null {
+    return this.readState().autonomousRecovery ?? null;
+  }
+
+  setAutonomousRecovery(recovery: WorkflowAutonomousRecoveryState | null): void {
+    const state = this.readState();
+    if (recovery) {
+      state.autonomousRecovery = recovery;
+    } else {
+      delete state.autonomousRecovery;
     }
     this.writeState(state);
   }

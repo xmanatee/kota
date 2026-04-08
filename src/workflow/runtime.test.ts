@@ -71,6 +71,7 @@ describe("WorkflowRuntime", () => {
       bus,
       projectDir,
       idleIntervalMs: 10,
+      codeConcurrency: 1,
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
@@ -173,6 +174,7 @@ describe("WorkflowRuntime", () => {
       bus,
       projectDir,
       idleIntervalMs: 10,
+      codeConcurrency: 1,
       workflows: [
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
@@ -327,6 +329,7 @@ describe("WorkflowRuntime", () => {
       bus,
       projectDir,
       idleIntervalMs: 10,
+      codeConcurrency: 1,
       workflows: [
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
@@ -748,6 +751,7 @@ describe("WorkflowRuntime", () => {
       bus,
       projectDir,
       idleIntervalMs: 10,
+      codeConcurrency: 1,
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
@@ -847,8 +851,9 @@ describe("WorkflowRuntime", () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
     writeFileSync(join(projectDir, "README.md"), "clean\n");
-    execFileSync("git", ["add", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
 
     const builderDefinition = validateWorkflowDefinitions(
@@ -915,6 +920,183 @@ describe("WorkflowRuntime", () => {
       readFileSync(join(runsDir, interruptedRunId!, "metadata.json"), "utf-8"),
     );
     expect(metadata.status).toBe("interrupted");
+  });
+
+  it("requests restart and records autonomous recovery when an autonomous run fails dirty", async () => {
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+    writeFileSync(join(projectDir, "README.md"), "clean\n");
+    execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+
+    const bus = new EventBus();
+    const started: string[] = [];
+    const restartReasons: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+    bus.on("runtime.restart_requested", (payload) => {
+      restartReasons.push(payload.reason ?? "");
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      codeConcurrency: 1,
+      workflows: [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "dirty-fail",
+              type: "code",
+              run: ({ projectDir }) => {
+                writeFileSync(join(projectDir, "README.md"), "dirty\n");
+                throw new Error("forced failure");
+              },
+            },
+          ],
+        }),
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toContain("improver");
+    expect(restartReasons).toContain(
+      'workflow "improver" completed with dirty worktree',
+    );
+
+    const recovery = new WorkflowRunStore(projectDir).getAutonomousRecovery();
+    expect(recovery).toMatchObject({
+      sourceWorkflow: "improver",
+      attempts: 0,
+    });
+  });
+
+  it("queues exactly one improver recovery on startup for a dirty failed run", async () => {
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+    writeFileSync(join(projectDir, "README.md"), "clean\n");
+    execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+
+    writeFileSync(join(projectDir, "README.md"), "dirty\n");
+
+    const store = new WorkflowRunStore(projectDir);
+    store.setAutonomousRecovery({
+      sourceRunId: "run-1",
+      sourceWorkflow: "builder",
+      worktreeFingerprint: "stale",
+      worktreeSummary: "stale",
+      attempts: 0,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 1_000,
+      workflows: [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: { workflow: "builder", status: ["failed", "interrupted"] },
+            },
+          ],
+          steps: [{ id: "repair", type: "emit", event: "improver.done" }],
+        }),
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toEqual(["improver"]);
+    expect(store.getAutonomousRecovery()).toMatchObject({
+      sourceWorkflow: "improver",
+      attempts: 1,
+    });
+  });
+
+  it("pauses dispatch instead of looping when dirty autonomous recovery already failed once", async () => {
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+    writeFileSync(join(projectDir, "README.md"), "clean\n");
+    execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+
+    writeFileSync(join(projectDir, "README.md"), "dirty\n");
+
+    const store = new WorkflowRunStore(projectDir);
+    store.setAutonomousRecovery({
+      sourceRunId: "run-2",
+      sourceWorkflow: "improver",
+      worktreeFingerprint: "dirty",
+      worktreeSummary: "dirty",
+      attempts: 1,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "repair", type: "emit", event: "improver.done" }],
+        }),
+        registerWorkflowDefinition("test/explorer.ts", {
+          name: "explorer",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toEqual([]);
+    expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(true);
   });
 
   it("fires interval-based schedule trigger immediately on first run", async () => {

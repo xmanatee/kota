@@ -45,6 +45,24 @@ See `builder/workflow.test.ts` and `explorer/workflow.test.ts` for representativ
 If a workflow has no `when` predicates or non-trivial skip logic, a unit test adds little value;
 rely on the integration test below instead.
 
+## Repair-Loop Checks
+
+Workflow repair-loop checks should use `type: "code"` with `spawnSync` rather than `tool: "shell"`.
+The `shell` tool lives in the execution extension and is not guaranteed to be available in every
+workflow execution context. `type: "code"` checks run inline in the workflow process and have no
+tool-availability dependency.
+
+When migrating a tool out of core into an extension, check whether any repair-loop checks in
+`src/workflows/` still reference that tool by name — if so, update them in the same commit.
+
+## Dirty Failure Recovery
+
+If a built-in autonomous workflow (`explorer`, `builder`, `improver`) fails and leaves the repo
+dirty, the runtime now treats that as a recovery condition, not as normal queue progression.
+The daemon restarts once, queues a single improver recovery on the next boot, and then pauses
+dispatch if the same dirty state still cannot be repaired. Do not reintroduce explorer/improver
+bounce loops around dirty-worktree failures.
+
 ## Integration Test
 
 `autonomous-loop.integration.test.ts` uses `getBuiltinWorkflowDefinitions()`, so every workflow

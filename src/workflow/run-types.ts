@@ -28,12 +28,22 @@ export type WorkflowQueuedRun = {
   notBeforeMs: number;
 };
 
+export type WorkflowAutonomousRecoveryState = {
+  sourceRunId: string;
+  sourceWorkflow: string;
+  worktreeFingerprint: string;
+  worktreeSummary: string;
+  attempts: number;
+  updatedAt: string;
+};
+
 export type WorkflowRuntimeState = {
   activeRuns?: WorkflowActiveRun[];
   completedRuns: number;
   totalCostUsd?: number;
   definitionsLoadedAt?: string;
   agentBackoff?: WorkflowAgentBackoffState;
+  autonomousRecovery?: WorkflowAutonomousRecoveryState;
   pendingRuns: WorkflowQueuedRun[];
   workflows: Record<
     string,

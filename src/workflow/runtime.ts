@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { BusEnvelope } from "../event-bus.js";
@@ -134,8 +134,9 @@ export class WorkflowRuntime {
     }
 
     this.definitions = this.loadDefinitions();
-    this.queueInterruptedRunRecovery(interrupted);
     this.wfQueue.restorePending();
+    this.queueInterruptedRunRecovery(interrupted);
+    this.queueAutonomousRecovery();
     const activeAgentBackoff = this.backoff.getActive();
     if (activeAgentBackoff) {
       this.log(
@@ -387,22 +388,124 @@ export class WorkflowRuntime {
       return;
     }
 
-    this.wfQueue.enqueue(
-      improver,
-      { event: "runtime.recovered", cooldownMs: 0 },
-      {
-        event: "runtime.recovered",
-        payload: {
-          recoveredRunIds: interrupted.map((run) => run.id),
-          recoveredWorkflows: interrupted.map((run) => run.workflow),
-          recoveredAt: new Date().toISOString(),
-          worktreeSummary: worktree.summary,
-        },
+    this.queueRunFirst(improver.name, {
+      event: "runtime.recovered",
+      payload: {
+        recoveredRunIds: interrupted.map((run) => run.id),
+        recoveredWorkflows: interrupted.map((run) => run.workflow),
+        recoveredAt: new Date().toISOString(),
+        worktreeSummary: worktree.summary,
       },
-    );
+    });
     this.log(
       `Queued improver recovery for interrupted run(s) with uncommitted changes: ${worktree.summary}`,
     );
+  }
+
+  private queueAutonomousRecovery(): void {
+    const recovery = this.store.getAutonomousRecovery();
+    if (!recovery) return;
+
+    const worktree = getRepoWorktreeStatus(this.projectDir);
+    if (!worktree.available) {
+      this.log(
+        `Autonomous recovery pending, but git status is unavailable: ${worktree.summary}`,
+      );
+      return;
+    }
+    if (!worktree.dirty) {
+      this.store.setAutonomousRecovery(null);
+      return;
+    }
+
+    const refreshedRecovery = {
+      ...recovery,
+      worktreeFingerprint: worktree.fingerprint,
+      worktreeSummary: worktree.summary,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (recovery.attempts >= 1) {
+      this.store.setAutonomousRecovery(refreshedRecovery);
+      this.pauseAutonomousDispatch(
+        `Autonomous recovery exhausted after a failed recovery attempt from "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+      );
+      return;
+    }
+
+    const improver = this.definitions.find(
+      (definition) => definition.name === "improver" && definition.enabled,
+    );
+    if (!improver) {
+      this.store.setAutonomousRecovery(refreshedRecovery);
+      this.pauseAutonomousDispatch(
+        `Autonomous recovery pending for dirty worktree, but no improver workflow is available: ${worktree.summary}`,
+      );
+      return;
+    }
+
+    this.store.setAutonomousRecovery({
+      ...refreshedRecovery,
+      attempts: recovery.attempts + 1,
+    });
+    this.queueRunFirst(improver.name, {
+      event: "runtime.recovered",
+      payload: {
+        recoveredAt: new Date().toISOString(),
+        sourceRunId: recovery.sourceRunId,
+        sourceWorkflow: recovery.sourceWorkflow,
+        worktreeSummary: worktree.summary,
+      },
+    });
+    this.log(
+      `Queued improver recovery for dirty worktree left by "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+    );
+  }
+
+  private queueRunFirst(
+    workflowName: string,
+    trigger: WorkflowRunTrigger,
+  ): void {
+    const runId =
+      typeof trigger.payload._runId === "string" && trigger.payload._runId.trim().length > 0
+        ? trigger.payload._runId
+        : formatRunId(workflowName);
+    const now = Date.now();
+    const remaining = this.wfQueue
+      .getRuns()
+      .filter((run) => run.workflowName !== workflowName);
+    this.wfQueue.setRuns([
+      {
+        runId,
+        workflowName,
+        trigger: {
+          ...trigger,
+          payload: {
+            ...trigger.payload,
+            _runId: runId,
+          },
+        },
+        enqueuedAtMs: 0,
+        notBeforeMs: now,
+      },
+      ...remaining,
+    ]);
+    this.wfQueue.persist();
+  }
+
+  private pauseAutonomousDispatch(reason: string): void {
+    this.dispatchPaused = true;
+    this.wfQueue.setRuns(
+      this.wfQueue
+        .getRuns()
+        .filter((run) =>
+          run.workflowName !== "explorer" &&
+          run.workflowName !== "builder" &&
+          run.workflowName !== "improver"),
+    );
+    this.wfQueue.persist();
+    writeFileSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
+    this.log(reason);
   }
 
   private async runWorkflow(
