@@ -1,7 +1,7 @@
 ---
 id: task-extension-agents-md-coverage
 title: Add AGENTS.md to built-in extensions missing directory documentation
-status: ready
+status: done
 priority: p3
 area: extensions
 summary: Ten built-in extensions were migrated to per-directory layout in commit 64cd04f but lack AGENTS.md files. Each extension directory should document its purpose, what belongs there, and key boundaries so contributors and agents know what lives where.
