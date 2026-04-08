@@ -1,12 +1,12 @@
 ---
 id: task-builder-task-prereq-check
 title: Builder reads blocked task context before selecting a task
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The builder picks the next task from ready/ without checking whether the task references a blocked predecessor. Adding a prereq-awareness step reduces wasted runs where the builder picks a task that implicitly depends on incomplete earlier work.
 created_at: 2026-04-02T10:41:13Z
-updated_at: 2026-04-08T14:20:00Z
+updated_at: 2026-04-08T15:40:00Z
 ---
 
 ## Problem

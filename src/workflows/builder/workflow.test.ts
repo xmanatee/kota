@@ -1,6 +1,11 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "../../workflow-testing/index.js";
 import builderWorkflow from "./workflow.js";
+
+const promptPath = fileURLToPath(new URL("./prompt.md", import.meta.url));
+const promptContent = readFileSync(promptPath, "utf-8");
 
 vi.mock("../../repo-worktree.js", () => ({
   assertRepoWorktreeClean: vi.fn(),
@@ -189,6 +194,12 @@ describe("builder workflow", () => {
       costUsd: 0.42,
       durationMs: 480000,
     });
+  });
+
+  it("prompt instructs agent to scan blocked/ and doing/ before selecting a task", () => {
+    expect(promptContent).toMatch(/tasks\/blocked\//);
+    expect(promptContent).toMatch(/tasks\/doing\//);
+    expect(promptContent).toMatch(/skip/i);
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {

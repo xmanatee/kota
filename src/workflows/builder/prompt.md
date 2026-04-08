@@ -6,6 +6,7 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 
 - Own one real task from the live queue.
 - Resume an existing `tasks/doing/` task first when one exists. Otherwise choose the best task from `tasks/ready/`, move it to `doing/`, and keep its state honest yourself. Prefer higher-priority tasks (p1 before p2, p2 before p3). Do not silently pass over a higher-priority task. If it is truly blocked, record the blocker honestly before taking a lower-priority task.
+- **Before committing to a ready task**, briefly scan `tasks/blocked/` and `tasks/doing/` for any tasks whose title or summary clearly overlaps with the candidate. If a related task is currently blocked or in progress, skip that candidate and pick the next best alternative from `tasks/ready/`. If no safe alternative exists, note the blocker in the run summary and exit cleanly without starting work. This is a lightweight heuristic — one scan of filenames and frontmatter summaries is sufficient; do not build a dependency graph.
 - Investigate the chosen task deeply, including the relevant code, existing abstractions, and external references when they help you implement it well.
 - Focus on correct architecture, complete implementation, and honest verification.
 - Make one cohesive improvement per run.
