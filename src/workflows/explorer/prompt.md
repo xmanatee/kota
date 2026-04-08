@@ -61,18 +61,8 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
   protocol boundary truly depends on it.
 - If nothing should change, leave the task queue untouched and stop.
 
-## Task Requirements
-
-- Every non-inbox task must have these frontmatter fields: `id`, `title`, `status`, `priority`, `area`, `summary`, `created_at`, `updated_at`.
-  - `id` must exactly match the filename without `.md` (e.g. file `task-foo-bar.md` → `id: task-foo-bar`).
-  - `priority` must be one of `p0`, `p1`, `p2`, `p3`. Use the definitions in `tasks/AGENTS.md` — p0 is a system-breaking incident, p1 is a critical gap, p2 is a significant improvement, p3 is a normal enhancement.
-  - `summary` is a required one-line description of the task.
-- Every non-inbox task body must include all four required sections in order: `## Problem`, `## Desired Outcome`, `## Constraints`, `## Done When`.
-- `## Done When` must stay consistent with `## Desired Outcome`. Do not promise a broader result than the task actually asks for.
-- Use ISO 8601 datetime for `created_at` and `updated_at` (for example `2026-03-27T06:40:18Z`). Date-only values lose same-day precision when the queue is sorted or compared.
-- When moving a task file between directories, use `git mv <old-path> <new-path>` to move it, then Read the file at its new path before using Edit to update the `status:` frontmatter to match the target directory name (`inbox`, `backlog`, `ready`, `doing`, `blocked`, `done`, `dropped`). The Edit tool does not recognize the pre-move read as valid for the new path — read at the destination first. The validation checks that the file path and `status:` field agree.
-
 ## Finish
 
+- Follow `tasks/AGENTS.md` for task file format and task movement rules.
 - Lightweight end-of-step validations run after you finish. Hard errors must be fixed in the same run; warnings do not block completion.
 - If you changed the repo, stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt`, and do **not** run `git commit` yourself. The workflow commits only after the validation bundle passes.

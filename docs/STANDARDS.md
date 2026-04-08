@@ -12,6 +12,7 @@
 - Keep docs concise, high-level, and current.
 - Do not duplicate code, tests, prompts, or other docs unless duplication changes decisions.
 - Prefer one clear source of truth per topic.
+- If you change a documented protocol, API surface, CLI behavior, or config behavior, update the corresponding docs in the same run.
 
 ## Engineering Rules
 
