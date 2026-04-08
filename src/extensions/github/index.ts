@@ -31,6 +31,8 @@
 import { execSync } from "node:child_process";
 import type { ExtensionContext, KotaExtension, ToolDef } from "../../extension-types.js";
 import type { ToolResult } from "../../tools/tool-result.js";
+import type { GitHubTaskProviderConfig } from "./task-provider.js";
+import { GitHubTaskProvider } from "./task-provider.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +43,8 @@ type GitHubConfig = {
   repo?: string;
   /** Tools requiring explicit approval before execution. Default: ["github_merge_pr", "github_close_pr", "github_create_issue", "github_update_issue", "github_add_label", "github_remove_label"]. */
   requireApproval?: string[];
+  /** Optional GitHub Issues task provider configuration. */
+  taskProvider?: GitHubTaskProviderConfig;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -692,6 +696,46 @@ const githubModule: KotaExtension = {
       makeAddLabel(token, defaultRepo),
       makeRemoveLabel(token, defaultRepo),
     ];
+  },
+
+  async onLoad(ctx: ExtensionContext): Promise<void> {
+    const config = ctx.getExtensionConfig<GitHubConfig>();
+    if (!config?.taskProvider?.enabled) return;
+
+    if (!config.token) {
+      ctx.log.warn(
+        "GitHub task provider: extensions.github.token is required but missing — provider inactive",
+      );
+      return;
+    }
+    const token = resolveToken(config.token);
+    if (!token) {
+      ctx.log.warn(
+        `GitHub task provider: token env var "${config.token}" is not set — provider inactive`,
+      );
+      return;
+    }
+    const repo = resolveRepo(config.repo);
+    if (!repo) {
+      ctx.log.warn(
+        "GitHub task provider: no repository configured — set extensions.github.repo or ensure git remote origin is a GitHub URL",
+      );
+      return;
+    }
+
+    const boundFetch = (method: string, path: string, body?: unknown) =>
+      githubFetch(token, method, path, body);
+
+    const provider = new GitHubTaskProvider(repo, config.taskProvider, boundFetch);
+    try {
+      await provider.init();
+      ctx.registerProvider("task", provider);
+      ctx.log.info("GitHub Issues task provider registered");
+    } catch (err) {
+      ctx.log.warn(
+        `GitHub task provider: init failed — ${(err as Error).message}`,
+      );
+    }
   },
 };
 

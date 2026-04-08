@@ -227,6 +227,32 @@ classified as dangerous and require operator approval in autonomous mode.
 | `token` | Yes | GitHub PAT or `$ENV_VAR` reference. Never logged. |
 | `repo` | No | Default `owner/repo`. Falls back to `git remote get-url origin`. |
 | `requireApproval` | No | Tool names requiring explicit approval. Default: all write tools (`github_merge_pr`, `github_close_pr`, `github_create_issue`, `github_update_issue`, `github_add_label`, `github_remove_label`). |
+| `taskProvider.enabled` | No | Set to `true` to register GitHub Issues as KOTA's task source. Default: disabled. |
+| `taskProvider.labelFilter` | No | Label filter applied when listing issues (e.g. `"kota-task"`). Default: no filter. |
+| `taskProvider.inProgressLabel` | No | Label added when a task is claimed. Default: `"in-progress"`. |
+| `taskProvider.doneLabel` | No | Label added when a task is completed. Default: `"kota-done"`. Issue is also closed. |
+| `taskProvider.priorityLabels` | No | Maps KOTA priority values (`"high"`, `"medium"`, `"low"`) to GitHub label names. |
+
+When `taskProvider.enabled` is `true`, the GitHub extension registers as a `TaskProvider`. Issues
+matching the label filter are fetched at startup and cached in memory. Claiming a task adds the
+`inProgressLabel`; completing a task closes the issue and adds the `doneLabel`. The GitHub token
+must have `issues:write` scope for mutations.
+
+```json
+{
+  "extensions": {
+    "github": {
+      "token": "$GITHUB_TOKEN",
+      "repo": "owner/repo",
+      "taskProvider": {
+        "enabled": true,
+        "labelFilter": "kota-task",
+        "priorityLabels": { "high": "priority:high", "medium": "priority:medium", "low": "priority:low" }
+      }
+    }
+  }
+}
+```
 
 If `token` is missing or the env var is unset, the extension loads but contributes no tools (warning logged).
 
