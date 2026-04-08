@@ -249,6 +249,9 @@ export const CLIENT_RUN_DETAIL_JS = `
         html += '<span class="run-badge ' + sb + '" id="step-badge-' + escapeHtml(step.id) + '">' + si + '</span>';
         html += '<span class="step-row-name">' + escapeHtml(step.id) + '</span>';
         html += '<span class="step-row-meta" id="step-meta-' + escapeHtml(step.id) + '">' + escapeHtml(sm) + '</span>';
+        if ((run.status === "failed" || run.status === "interrupted") && step.status === "success") {
+          html += '<button class="step-resume-btn" onclick="resumeFromStep(' + JSON.stringify(run.id) + ',' + JSON.stringify(step.id) + ',' + JSON.stringify(run.workflow) + ',this)">Resume from here</button>';
+        }
         html += '</div>';
         if (toolCallsLabel) {
           html += '<div class="step-tool-calls">Tools: ' + toolCallsLabel + '</div>';
@@ -382,6 +385,37 @@ export const CLIENT_RUN_DETAIL_JS = `
         }
       });
     });
+  }
+
+  async function resumeFromStep(runId, stepId, workflowName, btn) {
+    btn.disabled = true;
+    btn.textContent = "Queueing\\u2026";
+    try {
+      var r = await apiFetch(API + "/api/workflow/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: workflowName,
+          payload: {
+            resumedFromRunId: runId,
+            resumeFromStep: stepId,
+            resumeTriggeredAt: new Date().toISOString(),
+          },
+        }),
+      });
+      var d = await r.json();
+      if (r.ok) {
+        btn.textContent = "Queued";
+      } else {
+        btn.textContent = "Error";
+        btn.title = d.error || "Trigger failed";
+        btn.disabled = false;
+      }
+    } catch (err) {
+      btn.textContent = "Error";
+      btn.title = err.message;
+      btn.disabled = false;
+    }
   }
 
   function toggleThinking(stepId) {

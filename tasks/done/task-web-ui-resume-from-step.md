@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-resume-from-step
 title: Add resume-from-step action to web UI run detail panel
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The CLI has `kota workflow resume-run <id> --from-step <step-id>` but the web UI run detail panel only shows a Retry button (full re-run). Adding a resume-from-step action in the UI lets operators recover failed runs without a terminal.

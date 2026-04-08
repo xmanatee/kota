@@ -290,6 +290,19 @@ export const STYLES_RUNS_CSS = `
   font-size: 11px;
   white-space: nowrap;
 }
+.step-resume-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.step-resume-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.step-resume-btn:disabled { opacity: 0.6; cursor: default; }
 .step-tool-calls {
   color: var(--text-muted);
   font-size: 11px;
