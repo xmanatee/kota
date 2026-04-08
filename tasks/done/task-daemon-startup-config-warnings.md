@@ -1,12 +1,12 @@
 ---
 id: task-daemon-startup-config-warnings
 title: Log unknown config key warnings at daemon startup
-status: ready
+status: done
 priority: p3
 area: runtime
 summary: The daemon loads and sanitizes config at startup but silently discards unknown keys. Logging a warning when unrecognized top-level config keys are detected helps operators catch typos or stale field names early without running kota config validate manually.
 created_at: 2026-04-08T16:17:29Z
-updated_at: 2026-04-08T17:27:34Z
+updated_at: 2026-04-08T19:24:00Z
 ---
 
 ## Problem

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { getApprovalQueue } from "../approval-queue.js";
 import type { ChannelAdapter, ChannelDef } from "../channel.js";
 import type { KotaConfig } from "../config.js";
+import { warnUnknownConfigKeys } from "../config-warnings.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { discoverExtensions } from "../extension-discovery.js";
 import { initExtensionLogStore } from "../extension-log.js";
@@ -403,6 +404,7 @@ export class Daemon {
     this.restartReason = null;
 
     this.log("Daemon starting...");
+    warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg));
     this.saveState();
 
     // Register signal handlers before any awaits so callers can observe them immediately.

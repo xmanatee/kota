@@ -8,6 +8,7 @@
  */
 
 import { Command } from "commander";
+import { warnUnknownConfigKeys } from "../../config-warnings.js";
 import type { KotaExtension } from "../../extension-types.js";
 import { startServer } from "../../server/server.js";
 
@@ -47,6 +48,8 @@ const webModule: KotaExtension = {
           console.error("     export ANTHROPIC_API_KEY=sk-ant-...\n");
           process.exit(1);
         }
+
+        warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg));
 
         // Collect routes from all loaded extensions via ExtensionContext
         const extensionRoutes = ctx.getRoutes();

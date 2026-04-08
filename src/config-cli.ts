@@ -3,38 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
-import type { KotaConfig } from "./config.js";
 import { loadConfig, updateProjectConfig } from "./config.js";
-
-const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>([
-  "model",
-  "editorModel",
-  "maxTokens",
-  "architect",
-  "thinking",
-  "thinkingBudget",
-  "verbose",
-  "skipConfirmations",
-  "autoEnable",
-  "user",
-  "aliases",
-  "reflection",
-  "guardrails",
-  "extensions",
-  "foreignExtensions",
-  "providers",
-  "modelProvider",
-  "modelTiers",
-  "agentModels",
-  "webhooks",
-  "approvalTtlMs",
-  "dailyBudgetUsd",
-  "runsGc",
-  "serve",
-  "log",
-  "daemon",
-  "notifications",
-]);
+import { KNOWN_CONFIG_KEYS } from "./config-warnings.js";
 
 function readRawKeys(path: string): string[] | null {
   if (!existsSync(path)) return null;
