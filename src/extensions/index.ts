@@ -26,6 +26,7 @@ import schedulerModule from "./scheduler.js";
 import secretsModule from "./secrets.js";
 import slackModule from "./slack/index.js";
 import sqliteMemoryModule from "./sqlite-memory.js";
+import systemModule from "./system/index.js";
 import telegramModule from "./telegram/index.js";
 import toolCacheModule from "./tool-cache.js";
 import toolRetryModule from "./tool-retry.js";
@@ -55,6 +56,7 @@ export const builtinExtensions: KotaExtension[] = [
   vercelAdapterModule,
   executionModule,
   filesystemModule,
+  systemModule,
   gitModule,
   notebookModule,
   readDocumentModule,

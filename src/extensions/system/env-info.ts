@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolResult } from "../../tools/tool-result.js";
 import { queryOS, queryResources, queryRuntimes, queryServices } from "./env-probes.js";
-import type { ToolRegistration, ToolResult } from "./index.js";
 
 export const envInfoTool: Anthropic.Tool = {
 	name: "env_info",
@@ -55,7 +55,7 @@ export async function runEnvInfo(
 	return { content: await handler() };
 }
 
-export const registration: ToolRegistration = {
+export const registration = {
 	tool: envInfoTool,
 	runner: runEnvInfo,
 	risk: "safe" as const,

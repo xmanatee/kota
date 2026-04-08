@@ -1,7 +1,7 @@
 ---
 id: task-shrink-core-tool-registry-into-extensions
 title: Shrink the core tool registry so generic capabilities load from built-in extensions
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: src/tools/index.ts still acts as a large hardcoded registry for many tool implementations. KOTA should keep only minimal host/runtime tools in core and move generic capability tools behind built-in extensions or explicitly classify why they belong in core.

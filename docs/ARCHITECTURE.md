@@ -76,6 +76,7 @@ has to stay in core.
   The git capability pack (`git`) has been migrated to `src/extensions/git/` following the same pattern.
   The notebook capability pack (`notebook`) has been migrated to `src/extensions/notebook/` following the same pattern.
   The read-document capability pack (`read_document`) has been migrated to `src/extensions/read-document/` following the same pattern.
+  The system capability pack (`clipboard`, `view_image`, `env_info`, `sqlite`) has been migrated to `src/extensions/system/` following the same pattern.
 - Built-in extensions exist, but many are still thin wiring layers over large
   core implementations instead of being the primary home of the capability.
 - The repository layout is still flatter than the target model. Too much

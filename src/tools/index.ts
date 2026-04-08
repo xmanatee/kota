@@ -6,21 +6,17 @@ import { registration as askUser } from "./ask-user.js";
 import { registration as audit } from "./audit.js";
 import { registration as batch } from "./batch.js";
 import { registration as checkpoint } from "./checkpoint.js";
-import { registration as clipboard } from "./clipboard.js";
 import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
-import { registration as envInfo } from "./env-info.js";
 import { registration as extensionFactory } from "./extension-factory/index.js";
 import { registration as map } from "./map.js";
 import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
 import { registration as promptTemplate } from "./prompt.js";
 import { registration as repoMap } from "./repo-map.js";
-import { registration as sqlite } from "./sqlite.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
-import { registration as viewImage } from "./view-image.js";
 import { registration as workspace } from "./workspace.js";
 
 export type { ToolResult, ToolResultBlock };
@@ -59,16 +55,12 @@ const registrationImports = [
   () => todo,
   () => repoMap,
   () => delegate,
-  () => envInfo,
   () => askUser,
   () => confirm,
   () => customTool,
   () => checkpoint,
   () => extensionFactory,
   () => notify,
-  () => clipboard,
-  () => sqlite,
-  () => viewImage,
   () => batch,
   () => pipe,
   () => map,

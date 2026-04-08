@@ -99,26 +99,40 @@ describe("filterTools main-loop behavior with group state", () => {
   });
 
   it("enabling a group adds its tools to filterTools output", () => {
+    // sqlite is in the "code" group (system extension); register a mock to simulate extension load
+    const mockSqlite = {
+      name: "sqlite",
+      description: "Query SQLite databases",
+      input_schema: { type: "object" as const, properties: {} },
+    };
+    registerTool(mockSqlite, async () => ({ content: "ok" }), "test-system");
+
     const before = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(before.has("sqlite")).toBe(false);
 
-    // Enable "code" group — sqlite is a core tool registered in getAllTools()
-    // (notebook and code_exec are now in extensions, not in core)
+    // Enable "code" group — sqlite is registered in TOOL_GROUPS.code by the system extension
+    // (notebook and code_exec are also in extensions, not in core)
     enableGroup("code");
     const after = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(after.has("sqlite")).toBe(true);
     // web tools are in the web-access extension; only available after extension loads
-    // code_exec and notebook are in extensions; only available after extension loads
   });
 
   it("resetGroups removes all non-core tools from filterTools", () => {
+    // sqlite is in the "code" group (system extension); register a mock to simulate extension load
+    const mockSqlite = {
+      name: "sqlite",
+      description: "Query SQLite databases",
+      input_schema: { type: "object" as const, properties: {} },
+    };
+    registerTool(mockSqlite, async () => ({ content: "ok" }), "test-system");
+
     enableGroup("all");
     const withAll = filterTools(getAllTools()).map((t) => t.name);
-    // sqlite is a core-registered tool in the "code" group
-    // (notebook and code_exec are now in extensions, not in core)
+    // sqlite is in the "code" group via the system extension
+    // (notebook and code_exec are also in extensions, not in core)
     expect(withAll).toContain("sqlite");
     // web tools are in the web-access extension, only available after extension loads
-    // code_exec and notebook are in extensions, only available after extension loads
 
     resetGroups();
     const afterReset = new Set(filterTools(getAllTools()).map((t) => t.name));

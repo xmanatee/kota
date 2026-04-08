@@ -41,8 +41,8 @@ describe("agent_status", () => {
 		it("shows tool group", async () => {
 			const result = await runAgentStatus({ query: "tools" });
 			expect(result.content).toContain("[core]");
-			// code group tools (code_exec, notebook, sqlite) are still in core registrations
-			expect(result.content).toContain("[code]");
+			// management group tools (todo, notify, confirm, approval, audit, prompt_template) are in core
+			expect(result.content).toContain("[management]");
 		});
 
 		it("filters tools by name", async () => {

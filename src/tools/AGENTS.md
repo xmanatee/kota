@@ -12,7 +12,7 @@ core-hosted tool implementations.
 
 ## Key Modules
 
-- `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`, `getExtensionToolRisk`, `getToolKind`). Tracks risk/kind metadata for extension-registered tools in addition to core registrations. General-purpose capability packs belong in `src/extensions/`, not here.
+- `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`, `getExtensionToolRisk`, `getToolKind`). Tracks risk/kind metadata for extension-registered tools in addition to core registrations. Only agent-protocol and runtime-control tools live here; general-purpose capability packs (filesystem, execution, web, git, system, etc.) belong in `src/extensions/`.
 - `runtime-check.ts` — `which` utility: checks whether a command exists on the system PATH; used by the execution extension's `code_exec` tool.
 - `custom-tool.ts` — `customToolTool` schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, persistence lifecycle, and registration.
 - `custom-tool-handlers.ts` — `handleCreate`, `handleList`, `handleRemove` action handlers and `buildRunner` execution builder for custom tools.
