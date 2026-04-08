@@ -34,7 +34,7 @@ import {
   handleDeleteSession,
   handleListSessions,
 } from "./session-routes.js";
-import { handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
+import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowAbort,
   handleWorkflowAbortRun,
@@ -242,6 +242,14 @@ export function buildRequestHandler(ctx: ServerContext) {
     const taskStateMatch = path.match(/^\/api\/tasks\/([^/]+)\/state$/);
     if (req.method === "PATCH" && taskStateMatch) {
       handleTaskStateChange(req, res, taskStateMatch[1]).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    const taskBodyMatch = path.match(/^\/api\/tasks\/([^/]+)\/body$/);
+    if (req.method === "PATCH" && taskBodyMatch) {
+      handleTaskBodyUpdate(req, res, taskBodyMatch[1]).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

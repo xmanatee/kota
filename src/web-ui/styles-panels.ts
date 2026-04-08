@@ -240,6 +240,27 @@ export const STYLES_PANELS_CSS = `
 }
 .task-action-btn:hover { border-color: var(--accent); color: var(--text); }
 .task-action-btn.danger:hover { border-color: #f87171; color: #f87171; }
+.task-edit-textarea {
+  width: 100%;
+  min-height: 120px;
+  font-size: 11px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.task-edit-textarea:focus { outline: none; border-color: var(--accent); }
+.task-edit-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
 
 /* New task form */
 .new-task-form {

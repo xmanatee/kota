@@ -235,6 +235,83 @@ export async function handleTaskCreate(
   }
 }
 
+const TERMINAL_STATES = ["done", "dropped"] as const;
+
+export async function handleTaskBodyUpdate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+
+  const bodyText = typeof body.body === "string" ? body.body : null;
+  if (bodyText === null) {
+    jsonResponse(res, 400, { error: "body is required" });
+    return;
+  }
+
+  const tasksDir = join(projectDir, "tasks");
+
+  for (const state of TERMINAL_STATES) {
+    for (const file of listTaskFiles(tasksDir, state)) {
+      try {
+        const content = readFileSync(join(tasksDir, state, file), "utf-8");
+        const fm = parseFrontmatter(content);
+        if (fm.id === id) {
+          jsonResponse(res, 409, { error: "Task is in a terminal state and cannot be edited" });
+          return;
+        }
+      } catch {
+        // skip unreadable files
+      }
+    }
+  }
+
+  const found = findTaskInOpenStates(tasksDir, id);
+  if (!found) {
+    jsonResponse(res, 404, { error: "Task not found" });
+    return;
+  }
+
+  const fmMatch = found.content.match(/^(---\r?\n[\s\S]*?\r?\n---)\r?\n[\s\S]*$/);
+  if (!fmMatch) {
+    jsonResponse(res, 500, { error: "Could not parse task file" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const updatedFm = fmMatch[1].replace(/^(updated_at:\s*)\S+/m, `$1${now}`);
+  const newContent = `${updatedFm}\n\n${bodyText.trim()}\n`;
+
+  const filePath = join(tasksDir, found.state, found.filename);
+  try {
+    writeFileSync(filePath, newContent, "utf-8");
+    try {
+      execFileSync("git", ["add", filePath], { cwd: projectDir });
+    } catch {
+      // git staging failure is non-fatal
+    }
+    const fm = parseFrontmatter(newContent);
+    jsonResponse(res, 200, {
+      id: fm.id,
+      title: fm.title,
+      priority: fm.priority ?? "",
+      area: fm.area ?? "",
+      summary: fm.summary ?? "",
+      body: extractBody(newContent),
+    });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 export async function handleTaskStatus(
   res: ServerResponse,
   client: DaemonControlClient | null = null,

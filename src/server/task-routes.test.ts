@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
+import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -286,6 +286,73 @@ describe("task-routes", () => {
       const req = mockRequest({ summary: "No title here" });
       const { res, result } = mockResponse();
       await handleTaskCreate(req, res, projectDir);
+
+      expect(result.status).toBe(400);
+    });
+  });
+
+  describe("handleTaskBodyUpdate", () => {
+    it("updates the body of an open task while preserving frontmatter", async () => {
+      writeTaskFile(projectDir, "ready", "task-edit", {
+        id: "task-edit",
+        title: "Edit Me",
+        priority: "p2",
+        status: "ready",
+        updated_at: "2026-01-01T00:00:00Z",
+      });
+
+      const req = mockRequest({ body: "## New body\n\nUpdated content." });
+      const { res, result } = mockResponse();
+      await handleTaskBodyUpdate(req, res, "task-edit", projectDir);
+
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, string>;
+      expect(body.id).toBe("task-edit");
+      expect(body.body).toContain("Updated content.");
+
+      const filePath = join(projectDir, "tasks", "ready", "task-task-edit.md");
+      const content = readFileSync(filePath, "utf-8");
+      expect(content).toContain("id: task-edit");
+      expect(content).toContain("title: Edit Me");
+      expect(content).toContain("status: ready");
+      expect(content).toContain("Updated content.");
+      expect(content).not.toContain("2026-01-01T00:00:00Z");
+    });
+
+    it("returns 404 when task id is not found in open states", async () => {
+      const req = mockRequest({ body: "some content" });
+      const { res, result } = mockResponse();
+      await handleTaskBodyUpdate(req, res, "task-nonexistent", projectDir);
+
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 409 when task is in a terminal state", async () => {
+      writeTaskFile(projectDir, "done", "task-done", {
+        id: "task-done",
+        title: "Done",
+        priority: "p3",
+        status: "done",
+      });
+
+      const req = mockRequest({ body: "## Should fail" });
+      const { res, result } = mockResponse();
+      await handleTaskBodyUpdate(req, res, "task-done", projectDir);
+
+      expect(result.status).toBe(409);
+    });
+
+    it("returns 400 when body field is missing", async () => {
+      writeTaskFile(projectDir, "ready", "task-nob", {
+        id: "task-nob",
+        title: "No Body",
+        priority: "p3",
+        status: "ready",
+      });
+
+      const req = mockRequest({ notbody: "wrong field" });
+      const { res, result } = mockResponse();
+      await handleTaskBodyUpdate(req, res, "task-nob", projectDir);
 
       expect(result.status).toBe(400);
     });

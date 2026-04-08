@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-task-body-edit
 title: Add inline task body editing to the web UI task panel
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The task panel lets operators move tasks between states and expand task bodies (read-only markdown), but there is no way to edit the body from the UI. Adding inline editing completes the task management surface without leaving the dashboard.
