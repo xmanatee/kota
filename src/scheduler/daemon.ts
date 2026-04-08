@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { getApprovalQueue } from "../approval-queue.js";
 import type { ChannelAdapter, ChannelDef } from "../channel.js";
-import { type KotaConfig, loadConfig } from "../config.js";
+import type { KotaConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { discoverExtensions } from "../extension-discovery.js";
 import { initExtensionLogStore } from "../extension-log.js";
@@ -157,7 +157,6 @@ export class Daemon {
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
       reloadConfig: async () => {
         const userExtensions = await discoverExtensions(this.projectDir, this.config.verbose ?? false);
-        const newKotaConfig = loadConfig(this.projectDir);
         const contributed: RegisteredWorkflowDefinitionInput[] = userExtensions.flatMap((ext) =>
           (ext.workflows ?? []).map((w) => ({
             ...w,
@@ -171,7 +170,6 @@ export class Daemon {
         if (userExtensions.length > 0) {
           this.log(`  User extensions: ${userExtensions.map((e) => e.name).join(", ")}`);
         }
-        void newKotaConfig;
         return { workflows: count };
       },
       getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
