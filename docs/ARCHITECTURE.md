@@ -62,26 +62,22 @@ has to stay in core.
 
 ## Current Gaps
 
-- `src/tools/index.ts` still owns a hardcoded built-in capability registry for
-  many core tools. It is no longer the intended home of general-purpose
-  capability packs — new tools should go in extensions — but the existing
-  core-hosted tools have not all been migrated yet. The web capability pack
-  (`web_fetch`, `web_search`, `http_request`) was moved to the `web-access`
-  built-in extension as the reference implementation of the per-extension
-  directory pattern (tools, helpers, and tests co-located with the extension).
-  The filesystem capability pack (`file_read`, `file_write`, etc.) has since
-  been migrated to `src/extensions/filesystem/` following the same pattern.
-  The execution capability pack (`shell`, `process`, `code_exec`, `computer_use`,
-  `screenshot`) has been migrated to `src/extensions/execution/` following the same pattern.
-  The git capability pack (`git`) has been migrated to `src/extensions/git/` following the same pattern.
-  The notebook capability pack (`notebook`) has been migrated to `src/extensions/notebook/` following the same pattern.
-  The read-document capability pack (`read_document`) has been migrated to `src/extensions/read-document/` following the same pattern.
-  The system capability pack (`clipboard`, `view_image`, `env_info`, `sqlite`) has been migrated to `src/extensions/system/` following the same pattern.
-- Built-in extensions exist, but many are still thin wiring layers over large
-  core implementations instead of being the primary home of the capability.
-- The repository layout is still flatter than the target model. Too much
-  capability code is concentrated in large shared buckets instead of clear
-  per-extension ownership directories.
+- General-purpose capability packs have been extracted from `src/tools/index.ts`
+  into per-extension directories. Completed migrations: `web-access`
+  (`web_fetch`, `web_search`, `http_request`), `filesystem` (`file_read`,
+  `file_write`, etc.), `execution` (`shell`, `process`, `code_exec`,
+  `computer_use`, `screenshot`), `git`, `notebook`, `read-document`, and
+  `system` (`clipboard`, `view_image`, `env_info`, `sqlite`). The remaining
+  registrations in `src/tools/index.ts` are core orchestration and meta tools
+  (delegate, batch, pipe, map, todo, workspace, approval, checkpoint, etc.)
+  that legitimately belong in core.
+- Several built-in extensions (`knowledge`, `memory`, `history`,
+  `working-memory`) are still thin wrappers: their extension `index.ts`
+  registers tools but the tool implementation remains in `src/tools/`. The
+  capability code should move into its extension directory alongside tests and
+  helpers, leaving `src/tools/` only for genuinely core orchestration.
+- Extension directories added during the migrations lack `AGENTS.md`
+  orientation docs. See `tasks/ready/task-extension-agents-md-coverage.md`.
 
 ## Direction
 
