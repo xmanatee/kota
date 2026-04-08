@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  clearCustomGroups,
   enableGroup,
   getActiveToolNames,
   getEnabledGroups,
+  registerCustomGroup,
   resetGroups,
 } from "./tool-groups.js";
 import {
@@ -129,6 +131,13 @@ describe("verify-tracker × loop integration", () => {
 
 describe("tool-groups state reset on session close", () => {
   beforeEach(() => {
+    resetGroups();
+    registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
+    registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
+  });
+
+  afterEach(() => {
+    clearCustomGroups();
     resetGroups();
   });
 

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { runEnableTools } from "../tool-groups.js";
+import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "../tool-groups.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
 import { registration as askUser } from "./ask-user.js";
@@ -102,6 +102,7 @@ function ensureInit(): void {
   for (const reg of getCoreRegistrations()) {
     runners[reg.tool.name] = reg.runner;
     tools.push(reg.tool);
+    if (reg.group) registerCustomGroup(reg.group, [reg.tool.name]);
   }
 }
 
@@ -192,6 +193,7 @@ export function deregisterExtensionTools(extensionName: string): void {
     customToolNames.delete(name);
     extensionToolMeta.delete(name);
   }
+  deregisterToolsFromGroups(owned);
   extensionToolOwners.delete(extensionName);
 }
 

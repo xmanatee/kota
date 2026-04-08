@@ -1,19 +1,38 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CORE_TOOL_NAMES,
+  clearCustomGroups,
   detectToolGroups,
   enableGroup,
   enableToolsTool,
   filterTools,
   getActiveToolNames,
   getEnabledGroups,
+  registerCustomGroup,
   resetGroups,
   runEnableTools,
   TOOL_GROUPS,
 } from "./tool-groups.js";
 
+// Built-in groups registered by extensions and core tools at runtime.
+// These are re-registered here so group machinery tests work in isolation.
+function registerBuiltinGroups(): void {
+  registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
+  registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
+  registerCustomGroup("advanced_editing", ["multi_edit", "find_replace", "repo_map"]);
+  registerCustomGroup("management", ["todo", "process", "schedule", "notify", "confirm", "approval", "audit", "file_watch", "prompt_template"]);
+  registerCustomGroup("gui", ["computer_use", "screenshot", "view_image", "clipboard"]);
+  registerCustomGroup("orchestration", ["batch", "pipe", "map", "workspace"]);
+}
+
 describe("tool-groups", () => {
   beforeEach(() => {
+    registerBuiltinGroups();
+    resetGroups();
+  });
+
+  afterEach(() => {
+    clearCustomGroups();
     resetGroups();
   });
 
@@ -194,10 +213,17 @@ describe("tool-groups", () => {
   });
 
   describe("enableToolsTool", () => {
-    it("has correct name and lists groups", () => {
+    it("has correct name", () => {
       expect(enableToolsTool.name).toBe("enable_tools");
+    });
+
+    it("filterTools always includes a fresh enable_tools with current groups", () => {
+      // enable_tools description is rebuilt dynamically by filterTools, not from the static export
+      const filtered = filterTools([]);
+      const tool = filtered.find((t) => t.name === "enable_tools");
+      expect(tool).toBeDefined();
       for (const group of Object.keys(TOOL_GROUPS)) {
-        expect(enableToolsTool.description).toContain(group);
+        expect(tool!.description).toContain(group);
       }
     });
   });

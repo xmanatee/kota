@@ -71,10 +71,12 @@ has to stay in core.
   and packaged (`package.json` with `main`) variants. Foreign (KEMP) extensions
   remain config-declared via `foreignExtensions` in `.kota/config.json` as the
   explicit transport variant for out-of-process extensions.
-- Built-in capability packs now mostly live under `src/extensions/<name>/`, but
-  some extension-selection policy still sits in shared core files such as
-  `src/tool-groups.ts`. That remaining policy should keep shrinking so
-  extensions describe more of their own tool-group and capability metadata.
+- Built-in capability packs now mostly live under `src/extensions/<name>/`, and
+  tool-group membership is now declared by each extension via the `group` field
+  on `ToolDef`. `src/tool-groups.ts` owns only the activation machinery
+  (`enableGroup`, `filterTools`, `registerCustomGroup`, `CORE_TOOL_NAMES`) and
+  the prompt auto-detection signals (`GROUP_SIGNALS`); it no longer hardcodes
+  which tools belong to which group.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.

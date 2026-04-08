@@ -1,12 +1,12 @@
 ---
 id: task-move-tool-group-policy-into-extensions
 title: Move tool-group policy out of core and let extensions describe their own groups
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Tool-group activation and core tool allowlists still live in src/tool-groups.ts, which keeps extension capability policy centralized in core. Extension-owned group metadata would make capability packs more plug-and-play and reduce remaining core-heavy policy.
 created_at: 2026-04-08T19:43:33Z
-updated_at: 2026-04-08T19:43:33Z
+updated_at: 2026-04-08T22:05:00Z
 ---
 
 ## Problem

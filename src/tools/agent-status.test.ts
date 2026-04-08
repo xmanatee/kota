@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initProviderRegistry, resetProviderRegistry } from "../providers.js";
-import { enableGroup, resetGroups } from "../tool-groups.js";
+import { clearCustomGroups, enableGroup, registerCustomGroup, resetGroups } from "../tool-groups.js";
 import {
 	resetAgentStatusProviders,
 	runAgentStatus,
@@ -13,10 +13,17 @@ describe("agent_status", () => {
 		resetAgentStatusProviders();
 		resetGroups();
 		resetProviderRegistry();
+		registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
+		registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
+		registerCustomGroup("advanced_editing", ["multi_edit", "find_replace", "repo_map"]);
+		registerCustomGroup("management", ["todo", "process", "schedule", "notify", "confirm", "approval", "audit", "file_watch", "prompt_template"]);
+		registerCustomGroup("gui", ["computer_use", "screenshot", "view_image", "clipboard"]);
+		registerCustomGroup("orchestration", ["batch", "pipe", "map", "workspace"]);
 	});
 
 	afterEach(() => {
 		resetAgentStatusProviders();
+		clearCustomGroups();
 		resetGroups();
 		resetProviderRegistry();
 	});

@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { extractPlots, readPlotFiles } from "./data/plot-capture.js";
 import { detectPackageHint, extractMissingPackage } from "./extensions/execution/code-exec.js";
-import { detectToolGroups, enableGroup, getActiveToolNames, resetGroups } from "./tool-groups.js";
+import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./tool-groups.js";
 
 /**
  * Cross-module integration tests for the data analysis pipeline:
@@ -12,6 +12,12 @@ import { detectToolGroups, enableGroup, getActiveToolNames, resetGroups } from "
  */
 describe("data analysis pipeline integration", () => {
   beforeEach(() => {
+    resetGroups();
+    registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
+  });
+
+  afterEach(() => {
+    clearCustomGroups();
     resetGroups();
   });
 

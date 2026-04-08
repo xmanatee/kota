@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CORE_TOOL_NAMES,
+  clearCustomGroups,
   enableGroup,
   filterTools,
+  registerCustomGroup,
   resetGroups,
   TOOL_GROUPS,
 } from "../tool-groups.js";
@@ -17,8 +19,16 @@ import { EDITOR_TOOL_SET } from "./architect-editor.js";
  * for the main loop under various group configurations.
  */
 
-beforeEach(() => resetGroups());
-afterEach(() => clearCustomTools());
+beforeEach(() => {
+  resetGroups();
+  registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
+  registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
+});
+afterEach(() => {
+  clearCustomTools();
+  clearCustomGroups();
+  resetGroups();
+});
 
 describe("editor tool set independence from tool-group state", () => {
   // The editor uses getAllTools().filter(EDITOR_TOOL_SET) directly,

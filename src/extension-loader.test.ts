@@ -392,6 +392,32 @@ describe("ExtensionLoader", () => {
     expect(r3.content).toBe("result from tool_b");
   });
 
+  it("removes grouped tools from TOOL_GROUPS on unload", async () => {
+    const loader = new ExtensionLoader({});
+    await loader.load({
+      name: "grouped-unload-mod",
+      tools: [{ ...makeTool("grouped_unload_tool"), group: "test_unload_group" }],
+    });
+
+    expect(TOOL_GROUPS.test_unload_group).toContain("grouped_unload_tool");
+
+    await loader.unload("grouped-unload-mod");
+    expect(TOOL_GROUPS.test_unload_group).toBeUndefined();
+  });
+
+  it("removes grouped tools from TOOL_GROUPS on unloadAll", async () => {
+    const loader = new ExtensionLoader({});
+    await loader.load({
+      name: "grouped-unload-all-mod",
+      tools: [{ ...makeTool("grouped_unload_all_tool"), group: "test_unload_all_group" }],
+    });
+
+    expect(TOOL_GROUPS.test_unload_all_group).toContain("grouped_unload_all_tool");
+
+    await loader.unloadAll();
+    expect(TOOL_GROUPS.test_unload_all_group).toBeUndefined();
+  });
+
   it("unload returns false for unknown module", async () => {
     const loader = new ExtensionLoader({});
     expect(await loader.unload("nonexistent")).toBe(false);

@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runHttpRequest } from "./extensions/web-access/http-request.js";
-import { detectToolGroups, enableGroup, getActiveToolNames, resetGroups } from "./tool-groups.js";
+import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./tool-groups.js";
 
 /**
  * Cross-module integration tests for the http_request → code_exec data pipeline.
@@ -42,9 +42,15 @@ describe("http_request → code_exec data pipeline", () => {
   const originalFetch = globalThis.fetch;
   const tempFiles: string[] = [];
 
+  beforeEach(() => {
+    registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
+    registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
+  });
+
   afterEach(() => {
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
+    clearCustomGroups();
     resetGroups();
     for (const f of tempFiles) {
       try { unlinkSync(f); } catch { /* ignore */ }

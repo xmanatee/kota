@@ -1,13 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
-export const TOOL_GROUPS: Record<string, string[]> = {
-  web: ["web_search", "web_fetch", "http_request"],
-  code: ["code_exec", "notebook", "sqlite"],
-  advanced_editing: ["multi_edit", "find_replace", "repo_map"],
-  management: ["todo", "process", "schedule", "notify", "confirm", "approval", "audit", "file_watch", "prompt_template"],
-  gui: ["computer_use", "screenshot", "view_image", "clipboard"],
-  orchestration: ["batch", "pipe", "map", "workspace"],
-};
+export const TOOL_GROUPS: Record<string, string[]> = {};
 
 export const CORE_TOOL_NAMES = new Set([
   "agent_status",
@@ -62,21 +55,19 @@ export function getActiveToolNames(): Set<string> {
 }
 
 /** All tool names that belong to a group or are core — used to identify custom tools. */
-const KNOWN_TOOL_NAMES = new Set([
-  ...CORE_TOOL_NAMES,
-  ...Object.values(TOOL_GROUPS).flat(),
-]);
+const KNOWN_TOOL_NAMES = new Set<string>([...CORE_TOOL_NAMES]);
 
-// --- Plugin group registration ---
+// --- Group registration ---
 
-const customGroupNames = new Set<string>();
+const registeredGroupNames = new Set<string>();
+const registeredSignalNames = new Set<string>();
 
-/** Register a tool group (or extend an existing one) from a plugin. */
+/** Register a tool group (or extend an existing one). Used by extensions and core tool init. */
 export function registerCustomGroup(name: string, toolNames: string[], pattern?: RegExp): void {
   if (!TOOL_GROUPS[name]) {
     TOOL_GROUPS[name] = [];
-    customGroupNames.add(name);
   }
+  registeredGroupNames.add(name);
   for (const t of toolNames) {
     if (!TOOL_GROUPS[name].includes(t)) {
       TOOL_GROUPS[name].push(t);
@@ -85,16 +76,41 @@ export function registerCustomGroup(name: string, toolNames: string[], pattern?:
   }
   if (pattern) {
     GROUP_SIGNALS[name] = pattern;
+    registeredSignalNames.add(name);
   }
 }
 
-/** Remove all plugin-registered groups and rebuild KNOWN_TOOL_NAMES. */
+/** Remove specific tools from their groups. Called when an extension is unloaded. */
+export function deregisterToolsFromGroups(toolNames: Set<string>): void {
+  for (const names of Object.values(TOOL_GROUPS)) {
+    for (let i = names.length - 1; i >= 0; i--) {
+      if (toolNames.has(names[i])) names.splice(i, 1);
+    }
+  }
+  // Remove empty groups and any dynamically-registered signal for them
+  for (const name of Object.keys(TOOL_GROUPS)) {
+    if (TOOL_GROUPS[name].length === 0) {
+      delete TOOL_GROUPS[name];
+      registeredGroupNames.delete(name);
+      if (registeredSignalNames.has(name)) {
+        delete GROUP_SIGNALS[name];
+        registeredSignalNames.delete(name);
+      }
+    }
+  }
+  rebuildKnownNames();
+}
+
+/** Remove all dynamically registered groups and rebuild KNOWN_TOOL_NAMES. Used in tests. */
 export function clearCustomGroups(): void {
-  for (const name of customGroupNames) {
+  for (const name of registeredGroupNames) {
     delete TOOL_GROUPS[name];
+  }
+  for (const name of registeredSignalNames) {
     delete GROUP_SIGNALS[name];
   }
-  customGroupNames.clear();
+  registeredGroupNames.clear();
+  registeredSignalNames.clear();
   rebuildKnownNames();
 }
 
