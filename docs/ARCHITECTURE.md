@@ -132,6 +132,13 @@ has to stay in core.
   their `onLoad` hook and unsubscribe in `onUnload`. A second notification consumer
   (Slack, email, webhook) can now subscribe to these events without touching the
   workflow runtime.
+- Extensions can register per-turn system-prompt state contributors via
+  `ctx.registerDynamicStateProvider(name, fn)` in `onLoad`. The core turn loop
+  (`loop-send.ts`) calls `collectDynamicState()` each turn instead of importing from
+  specific extension modules. This is the correct pattern for any extension that
+  needs to inject state into the agent's context window without creating a direct
+  core-to-extension import. The working-memory extension uses this to surface the
+  session scratchpad.
 
 ## Protocol Boundaries
 
