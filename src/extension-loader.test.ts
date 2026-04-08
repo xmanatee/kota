@@ -67,6 +67,43 @@ describe("ExtensionLoader", () => {
     expect(after.some((t) => t.name === "grouped_tool")).toBe(true);
   });
 
+  it("warns when a tool has no risk annotation", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const loader = new ExtensionLoader({});
+    const mod: KotaExtension = {
+      name: "unannotated-mod",
+      tools: [makeTool("unannotated_tool")],
+    };
+
+    await loader.load(mod);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('unannotated-mod'),
+    );
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('unannotated_tool'),
+    );
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('no risk annotation'),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("does not warn when a tool has a risk annotation", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const loader = new ExtensionLoader({});
+    const mod: KotaExtension = {
+      name: "annotated-mod",
+      tools: [{ ...makeTool("annotated_tool"), risk: "safe", kind: "discovery" }],
+    };
+
+    await loader.load(mod);
+    const riskWarnings = errSpy.mock.calls.filter(
+      (args) => typeof args[0] === "string" && args[0].includes("no risk annotation"),
+    );
+    expect(riskWarnings).toHaveLength(0);
+    errSpy.mockRestore();
+  });
+
   it("rejects duplicate module names", async () => {
     const loader = new ExtensionLoader({});
     await loader.load({ name: "dup" });

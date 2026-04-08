@@ -7,7 +7,7 @@ import { EventBus } from "../event-bus.js";
 import { ExtensionLoader } from "../extension-loader.js";
 import filesystemModule from "../extensions/filesystem/index.js";
 import { getToolMcpAnnotations } from "../guardrails-classify.js";
-import { clearCustomTools } from "../tools/index.js";
+import { clearCustomTools, registerTool } from "../tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("../providers.js", () => ({
@@ -20,6 +20,16 @@ import { getKnowledgeProvider, getMemoryProvider } from "../providers.js";
 beforeAll(async () => {
 	const loader = new ExtensionLoader({});
 	await loader.loadAll([filesystemModule]);
+
+	// Register stub for github read tool so MCP annotation tests can verify
+	// that extension-declared safe network tools get readOnlyHint: true.
+	// This mirrors what the github extension does when loaded with a real token.
+	registerTool(
+		{ name: "github_list_prs", description: "stub", input_schema: { type: "object", properties: {} } },
+		async () => ({ content: "" }),
+		"github",
+		{ risk: "safe", kind: "discovery" },
+	);
 });
 
 afterAll(() => {

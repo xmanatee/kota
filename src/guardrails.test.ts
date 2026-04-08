@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   assess,
   classifyRisk,
@@ -8,17 +8,52 @@ import {
   resolvePolicy,
   sanitizeGuardrailsConfig,
 } from "./guardrails.js";
-import { getCoreRegistrations } from "./tools/index.js";
+import { clearCustomTools, getCoreRegistrations, registerTool } from "./tools/index.js";
 
 describe("classifyRisk", () => {
-  it("classifies read-only tools as safe", () => {
-    // Core tools with risk: "safe" in their registration
-    for (const tool of ["file_read", "grep", "glob", "repo_map", "todo", "ask_user", "memory"]) {
+  afterEach(() => clearCustomTools());
+
+  it("classifies read-only core tools as safe", () => {
+    // Core tools with risk: "safe" in their ToolRegistration
+    for (const tool of ["repo_map", "todo", "ask_user"]) {
       const { risk } = classifyRisk(tool, {});
       expect(risk).toBe("safe");
     }
-    // web_search is safe when the web-access extension is loaded (registers risk: "safe" metadata).
-    // Without the extension, it falls back to "unclassified tool" → moderate.
+    // Extension tools (file_read, grep, glob, memory, etc.) are safe when their
+    // extension is loaded and registers risk: "safe" metadata via registerTool.
+    // Without the extension loaded, they fall through to "unclassified tool" → moderate.
+  });
+
+  it("classifies extension-declared safe tool as safe", () => {
+    registerTool(
+      { name: "ext_readonly", description: "read-only ext tool", input_schema: { type: "object", properties: {} } },
+      async () => ({ content: "ok" }),
+      "test-ext",
+      { risk: "safe", kind: "discovery" },
+    );
+    const { risk } = classifyRisk("ext_readonly", {});
+    expect(risk).toBe("safe");
+  });
+
+  it("classifies extension-declared dangerous tool as dangerous", () => {
+    registerTool(
+      { name: "ext_mutate", description: "mutating ext tool", input_schema: { type: "object", properties: {} } },
+      async () => ({ content: "ok" }),
+      "test-ext",
+      { risk: "dangerous", kind: "action" },
+    );
+    const { risk } = classifyRisk("ext_mutate", {});
+    expect(risk).toBe("dangerous");
+  });
+
+  it("falls back to moderate for extension tool with no risk annotation", () => {
+    registerTool(
+      { name: "ext_unannotated", description: "unannotated ext tool", input_schema: { type: "object", properties: {} } },
+      async () => ({ content: "ok" }),
+      "test-ext",
+    );
+    const { risk } = classifyRisk("ext_unannotated", {});
+    expect(risk).toBe("moderate");
   });
 
   it("classifies file modification tools as moderate", () => {
@@ -161,7 +196,8 @@ describe("assess", () => {
   });
 
   it("allows safe tools by default", () => {
-    const result = assess("grep", { pattern: "foo" });
+    // Use a core tool (repo_map) to avoid needing extension loaded
+    const result = assess("repo_map", {});
     expect(result.risk).toBe("safe");
     expect(result.policy).toBe("allow");
   });

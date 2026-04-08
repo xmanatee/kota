@@ -23,19 +23,6 @@ export function safeTools(): Set<string> {
     _safeTools = new Set([
       ...getCoreRegistrations().filter((r) => r.risk === "safe").map((r) => r.tool.name),
       "enable_tools",
-      // Filesystem extension — read-only tools
-      "file_read",
-      "grep",
-      "glob",
-      "files_overview",
-      // Module-registered tools
-      "memory",
-      "conversation_recall",
-      "get_secret",
-      // GitHub read-only tools
-      "github_get_pr",
-      "github_list_issues",
-      "github_list_prs",
     ]);
   }
   return _safeTools;
@@ -46,8 +33,6 @@ export function moderateTools(): Set<string> {
   if (!_moderateTools) {
     _moderateTools = new Set([
       ...getCoreRegistrations().filter((r) => r.risk === "moderate").map((r) => r.tool.name),
-      // Module-registered tools
-      "schedule",
     ]);
   }
   return _moderateTools;
@@ -177,20 +162,6 @@ export function classifyRisk(
   // Known moderate tools
   if (moderateTools().has(name)) {
     return { risk: "moderate", reason: `${name} modifies state` };
-  }
-
-  // GitHub mutating tools — always dangerous (require approval in autonomous mode)
-  if (
-    name === "github_create_pr" ||
-    name === "github_comment" ||
-    name === "github_merge_pr" ||
-    name === "github_close_pr" ||
-    name === "github_create_issue" ||
-    name === "github_update_issue" ||
-    name === "github_add_label" ||
-    name === "github_remove_label"
-  ) {
-    return { risk: "dangerous", reason: "GitHub mutation tool" };
   }
 
   // Unknown tools (MCP, extension-registered) default to moderate.

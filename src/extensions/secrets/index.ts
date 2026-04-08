@@ -96,6 +96,8 @@ const secretsModule: KotaExtension = {
     {
       tool: getSecretTool,
       runner: makeGetSecretRunner(ctx),
+      risk: "safe",
+      kind: "discovery",
       group: "management",
     },
   ],

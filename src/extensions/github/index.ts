@@ -102,6 +102,8 @@ function apiError(action: string, status: number, data: unknown): ToolResult {
 
 function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_create_pr",
       description:
@@ -144,6 +146,8 @@ function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "safe",
+    kind: "discovery",
     tool: {
       name: "github_get_pr",
       description:
@@ -220,6 +224,8 @@ function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "safe",
+    kind: "discovery",
     tool: {
       name: "github_list_issues",
       description: "List GitHub issues with optional label filter.",
@@ -275,6 +281,8 @@ function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
 
 function makeComment(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_comment",
       description:
@@ -313,6 +321,8 @@ function makeComment(token: string, defaultRepo: string | null): ToolDef {
 
 function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_merge_pr",
       description:
@@ -368,6 +378,8 @@ function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "safe",
+    kind: "discovery",
     tool: {
       name: "github_list_prs",
       description:
@@ -430,6 +442,8 @@ function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
 
 function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_close_pr",
       description:
@@ -465,6 +479,8 @@ function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_create_issue",
       description:
@@ -513,6 +529,8 @@ function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
 
 function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_update_issue",
       description:
@@ -557,6 +575,8 @@ function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
 
 function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_add_label",
       description:
@@ -596,6 +616,8 @@ function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
 
 function makeRemoveLabel(token: string, defaultRepo: string | null): ToolDef {
   return {
+    risk: "dangerous",
+    kind: "action",
     tool: {
       name: "github_remove_label",
       description:

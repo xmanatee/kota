@@ -20,6 +20,8 @@ const historyModule: KotaExtension = {
 		{
 			tool: conversationRecallTool,
 			runner: runConversationRecall,
+			risk: "safe",
+			kind: "discovery",
 			group: "management",
 		},
 	],

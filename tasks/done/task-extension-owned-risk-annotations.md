@@ -1,7 +1,7 @@
 ---
 id: task-extension-owned-risk-annotations
 title: Let extensions declare tool risk levels instead of hardcoding them in guardrails-classify.ts
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extension-contributed tools that aren't in the core registry are manually listed in guardrails-classify.ts safeTools() and moderateTools(). The mechanism to declare risk per extension tool already exists (getExtensionToolRisk via extensionToolMeta) but built-in extensions don't use it, keeping extension risk policy centralized in core.

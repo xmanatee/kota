@@ -17,6 +17,8 @@ const schedulerModule: KotaExtension = {
     {
       tool: scheduleTool,
       runner: runSchedule,
+      risk: "moderate",
+      kind: "action",
       group: "management",
     },
   ],

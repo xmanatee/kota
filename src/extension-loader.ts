@@ -112,6 +112,9 @@ export class ExtensionLoader {
 
     if (tools && !this.commandsOnly) {
       for (const def of tools) {
+        if (!def.risk) {
+          console.error(`[kota] Extension "${ext.name}" tool "${def.tool.name}" has no risk annotation — defaulting to unclassified (moderate)`);
+        }
         registerTool(def.tool, def.runner, ext.name, { risk: def.risk, kind: def.kind });
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }

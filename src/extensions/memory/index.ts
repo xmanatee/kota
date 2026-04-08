@@ -16,6 +16,8 @@ const memoryModule: KotaExtension = {
     {
       tool: memoryTool,
       runner: runMemory,
+      risk: "safe",
+      kind: "discovery",
       group: "management",
     },
   ],
