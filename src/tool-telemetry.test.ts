@@ -1,5 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ExtensionLoader } from "./extension-loader.js";
+import filesystemModule from "./extensions/filesystem/index.js";
 import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
+import { clearCustomTools } from "./tools/index.js";
 
 describe("ToolTelemetry", () => {
   it("records a successful tool call", () => {
@@ -152,6 +155,15 @@ describe("ToolTelemetry", () => {
 });
 
 describe("Integration: telemetry populated via executeToolCalls", () => {
+  beforeAll(async () => {
+    const loader = new ExtensionLoader({});
+    await loader.loadAll([filesystemModule]);
+  });
+
+  afterAll(() => {
+    clearCustomTools();
+  });
+
   beforeEach(() => {
     resetToolTelemetry();
     vi.spyOn(console, "error").mockImplementation(() => {});

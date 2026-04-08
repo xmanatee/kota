@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { trackFileChange } from "../file-changes.js";
-import { recordModification } from "../file-tracker.js";
-import { lintFile } from "../lint.js";
+import { trackFileChange } from "../../file-changes.js";
+import { recordModification } from "../../file-tracker.js";
+import { lintFile } from "../../lint.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
-import type { ToolResult } from "./index.js";
 
 export const fileWriteTool: Anthropic.Tool = {
   name: "file_write",
@@ -80,9 +80,10 @@ export async function runFileWrite(
   }
   return { content: `Wrote ${lines} lines to ${path}` };
 }
+
 export const registration = {
-	tool: fileWriteTool,
-	runner: runFileWrite,
-	risk: "moderate" as const,
-	kind: "action" as const,
+  tool: fileWriteTool,
+  runner: runFileWrite,
+  risk: "moderate" as const,
+  kind: "action" as const,
 };

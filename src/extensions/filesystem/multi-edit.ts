@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { trackFileChange } from "../file-changes.js";
-import { recordModification } from "../file-tracker.js";
-import { lintFile } from "../lint.js";
+import { trackFileChange } from "../../file-changes.js";
+import { recordModification } from "../../file-tracker.js";
+import { lintFile } from "../../lint.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
-import type { ToolResult } from "./index.js";
 
 export const multiEditTool: Anthropic.Tool = {
   name: "multi_edit",
@@ -135,10 +135,11 @@ function revertAll(originals: Map<string, string>): string[] {
   }
   return failures;
 }
+
 export const registration = {
-	tool: multiEditTool,
-	runner: runMultiEdit,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "advanced_editing",
+  tool: multiEditTool,
+  runner: runMultiEdit,
+  risk: "moderate" as const,
+  kind: "action" as const,
+  group: "advanced_editing",
 };

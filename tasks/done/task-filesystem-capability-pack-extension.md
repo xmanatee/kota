@@ -1,12 +1,12 @@
 ---
 id: task-filesystem-capability-pack-extension
 title: Move filesystem tools into a built-in extension capability pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: file-read, file-write, file-edit, multi-edit, find-replace, glob, grep, file-watch, files-overview, and diff still live in src/tools/ as core-hosted tools. Migrating them to a src/extensions/filesystem/ capability pack continues the minimal-core migration started by the web-access extension.
 created_at: 2026-04-08T00:50:00Z
-updated_at: 2026-04-08T00:50:00Z
+updated_at: 2026-04-08T02:10:00Z
 ---
 
 ## Problem

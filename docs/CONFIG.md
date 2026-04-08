@@ -255,6 +255,14 @@ See `docs/GITHUB-WEBHOOK.md` for setup instructions and the full event payload r
 
 If `secret` is missing or the env var is unset, the route is not registered (warning logged).
 
+### Filesystem
+
+Built-in extension — always loaded. Provides `file_read`, `file_write`, `file_edit`, `multi_edit`, `find_replace`, `glob`, `grep`, `file_watch`, and `files_overview` tools.
+
+Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified safe in guardrails. Write tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`) are moderate risk. `file_watch` runs background watchers and is moderate risk.
+
+No config file keys are required.
+
 ### Web Access
 
 Built-in extension — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.

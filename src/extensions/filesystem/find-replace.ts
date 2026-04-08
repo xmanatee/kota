@@ -1,10 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob } from "glob";
-import { trackFileChange } from "../file-changes.js";
-import { recordModification } from "../file-tracker.js";
-import { lintFile } from "../lint.js";
-import type { ToolResult } from "./index.js";
+import { trackFileChange } from "../../file-changes.js";
+import { recordModification } from "../../file-tracker.js";
+import { lintFile } from "../../lint.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;
@@ -232,10 +232,11 @@ export async function runFindReplace(
     content: `Replaced ${total} occurrence(s) in ${modified.length} file(s):\n${lines}`,
   };
 }
+
 export const registration = {
-	tool: findReplaceTool,
-	runner: runFindReplace,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "advanced_editing",
+  tool: findReplaceTool,
+  runner: runFindReplace,
+  risk: "moderate" as const,
+  kind: "action" as const,
+  group: "advanced_editing",
 };

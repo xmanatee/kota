@@ -14,17 +14,8 @@ import { registration as customTool, initCustomToolRegistry } from "./custom-too
 import { registration as delegate } from "./delegate.js";
 import { registration as envInfo } from "./env-info.js";
 import { registration as extensionFactory } from "./extension-factory/index.js";
-import { registration as fileEdit } from "./file-edit.js";
-import { registration as fileRead } from "./file-read.js";
-import { registration as fileWatch } from "./file-watch.js";
-import { registration as fileWrite } from "./file-write.js";
-import { registration as filesOverview } from "./files-overview.js";
-import { registration as findReplace } from "./find-replace.js";
 import { registration as git } from "./git.js";
-import { registration as glob } from "./glob.js";
-import { registration as grep } from "./grep.js";
 import { registration as map } from "./map.js";
-import { registration as multiEdit } from "./multi-edit.js";
 import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
@@ -74,25 +65,16 @@ const registrationImports = [
   () => approval,
   () => audit,
   () => shell,
-  () => fileRead,
-  () => fileWrite,
-  () => fileEdit,
-  () => multiEdit,
-  () => grep,
-  () => glob,
   () => todo,
   () => repoMap,
   () => delegate,
   () => envInfo,
-  () => fileWatch,
   () => askUser,
   () => process_,
   () => codeExec,
   () => confirm,
   () => git,
-  () => findReplace,
   () => notebook,
-  () => filesOverview,
   () => customTool,
   () => checkpoint,
   () => extensionFactory,

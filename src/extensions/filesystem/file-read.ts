@@ -1,6 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { fileNotFoundError } from "../path-resolver.js";
+import { fileNotFoundError } from "../../path-resolver.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import {
   formatSize,
   getDocumentFormat,
@@ -11,7 +12,6 @@ import {
   readPdf,
   readText,
 } from "./file-read-formats.js";
-import type { ToolResult } from "./index.js";
 
 export const fileReadTool: Anthropic.Tool = {
   name: "file_read",

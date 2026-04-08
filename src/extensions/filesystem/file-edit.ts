@@ -1,15 +1,15 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { trackFileChange } from "../file-changes.js";
-import { checkFreshness, recordModification } from "../file-tracker.js";
-import { lintFile } from "../lint.js";
-import { fileNotFoundError } from "../path-resolver.js";
+import { trackFileChange } from "../../file-changes.js";
+import { checkFreshness, recordModification } from "../../file-tracker.js";
+import { lintFile } from "../../lint.js";
+import { fileNotFoundError } from "../../path-resolver.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
 import {
   buildNotFoundMessage,
   tryWhitespaceMatch,
 } from "./file-edit-helpers.js";
-import type { ToolResult } from "./index.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",
@@ -144,8 +144,8 @@ export async function runFileEdit(
 }
 
 export const registration = {
-	tool: fileEditTool,
-	runner: runFileEdit,
-	risk: "moderate" as const,
-	kind: "action" as const,
+  tool: fileEditTool,
+  runner: runFileEdit,
+  risk: "moderate" as const,
+  kind: "action" as const,
 };

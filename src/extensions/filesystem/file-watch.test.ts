@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type EventBus, initEventBus, resetEventBus } from "../event-bus.js";
-import { WatcherManager } from "../file-watcher.js";
+import { type EventBus, initEventBus, resetEventBus } from "../../event-bus.js";
+import { WatcherManager } from "../../file-watcher.js";
 import { runFileWatch } from "./file-watch.js";
 
 // Helper: wait for event bus emission with timeout
@@ -310,7 +310,7 @@ describe("runFileWatch tool", () => {
 
 	afterEach(async () => {
 		// Import singleton and clean up
-		const { resetWatcherManager } = await import("../file-watcher.js");
+		const { resetWatcherManager } = await import("../../file-watcher.js");
 		resetWatcherManager();
 		await rm(tmpDir, { recursive: true, force: true });
 	});

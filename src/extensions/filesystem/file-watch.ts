@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getWatcherManager } from "../file-watcher.js";
-import type { ToolRegistration, ToolResult } from "./index.js";
+import { getWatcherManager } from "../../file-watcher.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 export const fileWatchTool: Anthropic.Tool = {
 	name: "file_watch",
@@ -96,7 +96,7 @@ export async function runFileWatch(
 	}
 }
 
-export const registration: ToolRegistration = {
+export const registration = {
 	tool: fileWatchTool,
 	runner: runFileWatch,
 	risk: "moderate" as const,

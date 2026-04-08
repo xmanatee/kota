@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob as globFn } from "glob";
-import type { ToolResult } from "./index.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 export const globTool: Anthropic.Tool = {
   name: "glob",
@@ -72,9 +72,10 @@ export async function runGlob(
 
   return { content: result + suffix };
 }
+
 export const registration = {
-	tool: globTool,
-	runner: runGlob,
-	risk: "safe" as const,
-	kind: "discovery" as const,
+  tool: globTool,
+  runner: runGlob,
+  risk: "safe" as const,
+  kind: "discovery" as const,
 };

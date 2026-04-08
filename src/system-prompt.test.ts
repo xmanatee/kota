@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { grepTool } from "./extensions/filesystem/grep.js";
 import { httpRequestTool } from "./extensions/web-access/http-request.js";
 import { webFetchTool } from "./extensions/web-access/web-fetch.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
@@ -349,8 +350,8 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("grep tool schema has modes and options referenced in prompt", () => {
-    const grep = getAllTools().find((t) => t.name === "grep")!;
-    const props = grep.input_schema.properties as Record<string, unknown>;
+    // grep is now in the filesystem extension; import its schema directly
+    const props = grepTool.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("files_only");
     expect(props).toHaveProperty("count_only");
     expect(props).toHaveProperty("context_lines");

@@ -85,10 +85,11 @@ describe("approval tool", () => {
 		});
 
 		it("approves and executes a pending item", async () => {
-			const item = testQueue.enqueue("glob", { pattern: "*.ts" }, "dangerous", "test reason");
+			// Use "todo" (core tool) instead of "glob" (filesystem extension)
+			const item = testQueue.enqueue("todo", { action: "list" }, "dangerous", "test reason");
 			const result = await runner({ action: "approve", id: item.id });
-			expect(result.content).toContain("Approved and executed glob");
-			// glob returns file matches — just verify it ran without crashing
+			expect(result.content).toContain("Approved and executed todo");
+			// todo returns task list — just verify it ran without crashing
 			expect(result.is_error).toBeUndefined();
 		});
 

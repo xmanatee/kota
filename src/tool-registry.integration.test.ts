@@ -30,7 +30,8 @@ describe("registerTool × filterTools (cross-module)", () => {
     expect(names).toContain("calendar_check");
     // Core tools also present
     expect(names).toContain("shell");
-    expect(names).toContain("file_read");
+    // file_read is now in the filesystem extension, not in core
+    expect(names).not.toContain("file_read");
   });
 
   it("custom tools survive filterTools with group enabled", () => {

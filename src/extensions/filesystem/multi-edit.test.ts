@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { checkFreshness, recordRead } from "../file-tracker.js";
+import { checkFreshness, recordRead } from "../../file-tracker.js";
 import { runMultiEdit } from "./multi-edit.js";
 
 const TEST_DIR = join(process.cwd(), ".test-multi-edit");

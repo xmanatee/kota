@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 export const grepTool: Anthropic.Tool = {
   name: "grep",
@@ -139,9 +139,10 @@ export async function runGrep(
     return { content: `Search error: ${(err as Error).message}`, is_error: true };
   }
 }
+
 export const registration = {
-	tool: grepTool,
-	runner: runGrep,
-	risk: "safe" as const,
-	kind: "discovery" as const,
+  tool: grepTool,
+  runner: runGrep,
+  risk: "safe" as const,
+  kind: "discovery" as const,
 };

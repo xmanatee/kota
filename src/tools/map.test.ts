@@ -1,7 +1,10 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { ExtensionLoader } from "../extension-loader.js";
+import filesystemModule from "../extensions/filesystem/index.js";
+import { clearCustomTools } from "./index.js";
 import { runMap } from "./map.js";
 
 function makeTempDir(suffix: string): string {
@@ -9,6 +12,15 @@ function makeTempDir(suffix: string): string {
 	mkdirSync(dir, { recursive: true });
 	return dir;
 }
+
+beforeAll(async () => {
+	const loader = new ExtensionLoader({});
+	await loader.loadAll([filesystemModule]);
+});
+
+afterAll(() => {
+	clearCustomTools();
+});
 
 describe("map tool", () => {
 	describe("validation", () => {

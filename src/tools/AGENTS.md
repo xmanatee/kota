@@ -13,8 +13,6 @@ core-hosted tool implementations.
 ## Key Modules
 
 - `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`, `getExtensionToolRisk`, `getToolKind`). Tracks risk/kind metadata for extension-registered tools in addition to core registrations. General-purpose capability packs belong in `src/extensions/`, not here.
-- `file-edit.ts` — `fileEditTool` schema, `runFileEdit` runner, and registration.
-- `file-edit-helpers.ts` — Whitespace-tolerant matching, fuzzy not-found messaging, and similarity scoring for file edits.
 - `computer-use-actions.ts` — Re-exports all platform actions and `needCoords`; `resetComputerUseState` delegates to both platform reset functions.
 - `computer-use-actions-shared.ts` — `EXEC_OPTS`, `parseCombo`, `truncText`, `needCoords` shared by both platform files.
 - `computer-use-actions-mac.ts` — macOS click, type, key, scroll, drag, and cursor actions using cliclick/osascript.

@@ -10,8 +10,8 @@ const makeTool = (name: string) => ({
 });
 
 describe("getAllTools", () => {
-  it("contains built-in tool definitions (web tools moved to web-access extension)", () => {
-    expect(getAllTools()).toHaveLength(38);
+  it("contains built-in tool definitions (web and filesystem tools moved to extensions)", () => {
+    expect(getAllTools()).toHaveLength(29);
   });
 
   it("has unique names", () => {
@@ -32,23 +32,25 @@ describe("getAllTools", () => {
 
   it("contains the expected tool names", () => {
     const names = new Set(getAllTools().map((t) => t.name));
+    // Filesystem tools (file_read, file_write, file_edit, multi_edit, grep, glob,
+    // file_watch, find_replace, files_overview) are now in the filesystem extension.
     const expected = new Set([
-      "agent_status", "approval", "audit", "shell", "file_read", "file_write", "file_edit", "multi_edit",
-      "git", "grep", "glob", "todo", "repo_map", "delegate", "env_info",
+      "agent_status", "approval", "audit", "shell",
+      "git", "todo", "repo_map", "delegate", "env_info",
       "ask_user", "process",
-      "code_exec", "confirm", "find_replace", "notebook", "files_overview",
+      "code_exec", "confirm", "notebook",
       "custom_tool", "checkpoint", "extension_factory", "notify", "screenshot",
       "read_document", "clipboard", "computer_use", "sqlite", "view_image",
-      "batch", "pipe", "map", "workspace", "file_watch", "prompt_template",
+      "batch", "pipe", "map", "workspace", "prompt_template",
     ]);
     expect(names).toEqual(expected);
   });
 });
 
 describe("getCoreRegistrations", () => {
-  it("returns all core tool registrations (web tools moved to web-access extension)", () => {
+  it("returns all core tool registrations (web and filesystem tools moved to extensions)", () => {
     const regs = getCoreRegistrations();
-    expect(regs).toHaveLength(38);
+    expect(regs).toHaveLength(29);
   });
 
   it("each registration has tool, runner, and risk", () => {
@@ -74,13 +76,12 @@ describe("getCoreRegistrations", () => {
       .filter((r) => r.risk === "safe")
       .map((r) => r.tool.name)
       .sort();
-    expect(safeNames).toContain("file_read");
-    expect(safeNames).toContain("grep");
-    expect(safeNames).toContain("glob");
     expect(safeNames).toContain("ask_user");
     expect(safeNames).not.toContain("shell");
-    expect(safeNames).not.toContain("file_write");
-    // web tools are now in the web-access extension, not in core registrations
+    // web and filesystem tools are now in extensions, not in core registrations
+    expect(safeNames).not.toContain("file_read");
+    expect(safeNames).not.toContain("grep");
+    expect(safeNames).not.toContain("glob");
     expect(safeNames).not.toContain("web_search");
     expect(safeNames).not.toContain("web_fetch");
   });
@@ -99,7 +100,8 @@ describe("getCoreRegistrations", () => {
       .filter((r) => !r.group)
       .map((r) => r.tool.name);
     expect(coreNames).toContain("shell");
-    expect(coreNames).toContain("file_read");
+    // file_read is now in the filesystem extension, not in core
+    expect(coreNames).not.toContain("file_read");
     expect(coreNames).toContain("delegate");
     expect(coreNames).toContain("ask_user");
   });
@@ -154,7 +156,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(38);
+    expect(getAllTools()).toHaveLength(29);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 

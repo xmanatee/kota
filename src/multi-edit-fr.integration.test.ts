@@ -2,8 +2,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runFindReplace } from "./tools/find-replace.js";
-import { runMultiEdit } from "./tools/multi-edit.js";
+import { runFindReplace } from "./extensions/filesystem/find-replace.js";
+import { runMultiEdit } from "./extensions/filesystem/multi-edit.js";
 
 /**
  * Cross-module integration: multi-edit × lint × file-tracker × diff.

@@ -27,7 +27,8 @@ describe("agent_status", () => {
 			expect(result.content).toContain("## Tools");
 			expect(result.content).toContain("Core tools");
 			expect(result.content).toContain("shell");
-			expect(result.content).toContain("file_read");
+			// file_read is now in the filesystem extension, not in core
+			expect(result.content).not.toContain("file_read");
 			expect(result.content).toContain("delegate");
 		});
 
@@ -44,16 +45,17 @@ describe("agent_status", () => {
 		});
 
 		it("filters tools by name", async () => {
-			const result = await runAgentStatus({ query: "tools", filter: "grep" });
-			expect(result.content).toContain("grep");
-			expect(result.content).not.toContain("shell");
+			// grep is now in the filesystem extension; use a core tool like "shell"
+			const result = await runAgentStatus({ query: "tools", filter: "shell" });
+			expect(result.content).toContain("shell");
+			expect(result.content).not.toContain("delegate");
 		});
 
 		it("filters tools by description", async () => {
-			const result = await runAgentStatus({ query: "tools", filter: "file" });
+			// file_read is now in the filesystem extension; filter by "shell" instead
+			const result = await runAgentStatus({ query: "tools", filter: "shell" });
 			expect(result.content).toContain("## Tools");
-			// file_read and file_write are still core tools
-			expect(result.content).toContain("file_read");
+			expect(result.content).toContain("shell");
 		});
 
 		it("shows no match message when filter matches nothing", async () => {

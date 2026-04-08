@@ -23,6 +23,11 @@ export function safeTools(): Set<string> {
     _safeTools = new Set([
       ...getCoreRegistrations().filter((r) => r.risk === "safe").map((r) => r.tool.name),
       "enable_tools",
+      // Filesystem extension — read-only tools
+      "file_read",
+      "grep",
+      "glob",
+      "files_overview",
       // Module-registered tools
       "memory",
       "conversation_recall",

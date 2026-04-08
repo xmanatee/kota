@@ -2,8 +2,11 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
+import { ExtensionLoader } from "../extension-loader.js";
+import filesystemModule from "../extensions/filesystem/index.js";
+import { clearCustomTools } from "../tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("../providers.js", () => ({
@@ -12,6 +15,15 @@ vi.mock("../providers.js", () => ({
 }));
 
 import { getKnowledgeProvider, getMemoryProvider } from "../providers.js";
+
+beforeAll(async () => {
+	const loader = new ExtensionLoader({});
+	await loader.loadAll([filesystemModule]);
+});
+
+afterAll(() => {
+	clearCustomTools();
+});
 
 // --- Helper: send a JSON-RPC request and read the response ---
 

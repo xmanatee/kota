@@ -1,7 +1,10 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ExtensionLoader } from "./extension-loader.js";
+import filesystemModule from "./extensions/filesystem/index.js";
 import { executeToolCalls } from "./tool-runner.js";
+import { clearCustomTools } from "./tools/index.js";
 
 /**
  * Cross-module integration: grep output modes × tool-runner × truncateToolResult.
@@ -11,7 +14,9 @@ import { executeToolCalls } from "./tool-runner.js";
 
 const TEST_DIR = join(process.cwd(), ".test-grep-pipeline");
 
-beforeAll(() => {
+beforeAll(async () => {
+  const loader = new ExtensionLoader({});
+  await loader.loadAll([filesystemModule]);
   mkdirSync(TEST_DIR, { recursive: true });
   // Create enough files to produce a multi-line result
   for (let i = 0; i < 15; i++) {
@@ -24,6 +29,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  clearCustomTools();
   rmSync(TEST_DIR, { recursive: true, force: true });
 });
 
