@@ -32,7 +32,7 @@ Each event payload includes a human-readable `text` field plus structured fields
 | `reason` | `string` (optional) | Step `reason` field if present |
 | `text` | `string` | Human-readable summary for display |
 
-This event fires only when `timeoutMs` and `defaultResolution` are both set on the step and the timeout elapses. Manual approvals and rejections do not emit this event.
+This event fires when `timeoutMs` is set on the approval step and the timeout elapses without a human decision. If `defaultResolution` is omitted the step auto-denies (the default). Manual approvals and rejections do not emit this event.
 
 ## Telegram
 
