@@ -11,6 +11,7 @@ This directory contains built-in extensions and extension-level wiring.
 - All extensions follow the per-directory pattern: `<name>/index.ts` as the
   entry point, with co-located tests and helpers. Do not add new flat `.ts` extension
   files at the top level of this directory.
+- When adding a new extension directory, add an entry for it in the **Built-in Extensions** list below.
 
 ## Shared Utilities
 
@@ -32,6 +33,7 @@ This directory contains built-in extensions and extension-level wiring.
 - `registry/index.ts` — `kota tools` CLI surface for installing, updating, listing, and removing external tool packages.
 - `webhook/index.ts` — HTTP notification extension. POSTs a JSON payload to one or more configured URLs on each notification event. Subscribes to `approval.requested` unconditionally (bypasses the `events` filter); all other notification events are filtered by the optional `events` array. Uses `postWithRetry` for delivery. No tools, channels, or CLI commands.
 - `slack/index.ts` — Slack notification extension. POSTs Block Kit messages to a configured Incoming Webhook URL. Same event subscription pattern as `webhook/index.ts`: `approval.requested` always forwarded, others filtered by optional `events` array. Subscribes to five default notification events including `workflow.cost.anomaly`; `workflow.build.committed` is opt-in (not in the default set, must be listed in config `events`). No OAuth app or bot token required.
+- `slack-channel/index.ts` — Bidirectional Slack bot channel using Socket Mode (WebSocket). Contributes `slack-channel` ChannelDef: routes DMs to per-user AgentSessions, posts Block Kit Approve/Reject buttons on `approval.requested`, resolves approvals in-process via button clicks. Config: `extensions.slackChannel.{botToken, appToken, notifyChannel}`. No public HTTP endpoint required. Separate from the one-way `slack/` webhook extension.
 - `telegram/index.ts` — Telegram interactive extension. Contributes: `kota telegram` CLI command (interactive bot), `telegram-status` channel (daemon status poll responding to `/status`), and notification subscriptions for all workflow events including `approval.requested`. Supports opt-in events (e.g. `workflow.build.committed`) via `events` array in extension config.
 - `github/index.ts` — GitHub REST API tools: `github_create_pr`, `github_get_pr`, `github_list_issues`, `github_list_prs`, `github_comment`, `github_merge_pr`, `github_close_pr`, `github_create_issue`, `github_update_issue`, `github_add_label`, `github_remove_label`. Requires `extensions.github.token`. Write tools (`github_merge_pr`, `github_close_pr`, `github_create_issue`, `github_update_issue`, `github_add_label`, `github_remove_label`) are classified as dangerous in guardrails. Supports `$ENV_VAR` token references and falls back to `git remote` for repo resolution.
 - `github-webhook/index.ts` — GitHub webhook receiver. Registers `POST /api/webhooks/github`, validates `X-Hub-Signature-256` HMAC using `node:crypto`, and emits `github.push`, `github.pull_request`, or `github.check_run` bus events. Requires `extensions.github-webhook.secret`. Route is not registered when secret is missing.
