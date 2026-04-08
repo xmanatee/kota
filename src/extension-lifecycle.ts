@@ -1,3 +1,4 @@
+import { resetDynamicStateProviders } from "./dynamic-state.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { KotaExtension } from "./extension-types.js";
 import { getProviderRegistry } from "./providers.js";
@@ -89,4 +90,5 @@ export async function unloadAllExtensions(state: LifecycleState): Promise<void> 
   const reg = getProviderRegistry();
   if (reg) reg.clear();
   getToolMiddleware().clear();
+  resetDynamicStateProviders();
 }

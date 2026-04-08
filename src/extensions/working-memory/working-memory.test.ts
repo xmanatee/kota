@@ -229,6 +229,7 @@ function makeCtx(storage?: ReturnType<typeof makeMockStorage>) {
 		getProvider: () => null,
 		callTool: async () => ({ content: "" }),
 		registerMiddleware: () => {},
+		registerDynamicStateProvider: () => {},
 	} as never;
 }
 

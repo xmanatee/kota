@@ -34,6 +34,7 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ExtensionContext {
     getProvider: () => null,
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
+    registerDynamicStateProvider: () => {},
   };
 }
 

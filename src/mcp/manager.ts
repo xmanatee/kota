@@ -135,6 +135,9 @@ export class McpManager {
       const result = await entry.client.callTool(entry.originalName, input);
       return { content: result.content, is_error: result.isError };
     } catch (err) {
+      if (!entry.client.isConnected()) {
+        return { content: `MCP server disconnected for tool: ${name}`, is_error: true };
+      }
       return { content: `MCP tool error: ${(err as Error).message}`, is_error: true };
     }
   }

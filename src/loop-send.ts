@@ -1,11 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runArchitectStep } from "./architect/runner.js";
 import { CONTEXT_WINDOW } from "./context.js";
+import { collectDynamicState } from "./dynamic-state.js";
 import { tryEmit } from "./event-bus.js";
 import { getChangeTracker } from "./file-changes.js";
 import type { AgentLoopState } from "./loop-init.js";
 import { saveToHistoryImpl } from "./loop-init.js";
-import { getWorkingMemoryState } from "./memory/working-memory.js";
 import { streamMessage } from "./model/streaming.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
@@ -96,7 +96,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     const changesSummary = getChangeTracker()?.getSummary() ?? "";
     const telemetrySummary = getToolTelemetry().getSummary();
     const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
-    const dynamicState = state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + getWorkingMemoryState() + telemetryBlock;
+    const dynamicState = state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + collectDynamicState() + telemetryBlock;
     if (dynamicState) {
       system.push({ type: "text", text: dynamicState });
     }

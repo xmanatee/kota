@@ -23,6 +23,7 @@ const stubCtx: ExtensionContext = {
   getProvider: () => null,
   callTool: async () => ({ content: "" }),
   registerMiddleware: () => {},
+    registerDynamicStateProvider: () => {},
 };
 
 describe("webModule", () => {

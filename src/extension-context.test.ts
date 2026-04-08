@@ -317,6 +317,7 @@ describe("resolveExtensionTools", () => {
     getProvider: () => null,
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
+    registerDynamicStateProvider: () => {},
   } as ExtensionContext;
 
   it("returns empty array when tools is undefined", () => {

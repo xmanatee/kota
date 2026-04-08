@@ -19,6 +19,7 @@ import {
 	clearAll,
 	getEntry,
 	getPersistentEntries,
+	getWorkingMemoryState,
 	listEntries,
 	loadEntries,
 	removeEntry,
@@ -153,6 +154,7 @@ const workingMemoryModule: KotaExtension = {
 	onLoad: (ctx) => {
 		const count = loadPersistent(ctx.storage);
 		if (count > 0) ctx.log.info(`Restored ${count} persistent working memory entries`);
+		ctx.registerDynamicStateProvider("working-memory", getWorkingMemoryState);
 	},
 
 	skills: [{ name: "working-memory", promptPath: "src/extensions/skills/working-memory.md" }],

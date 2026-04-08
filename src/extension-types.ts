@@ -147,6 +147,13 @@ export type ExtensionContext = {
   registerMiddleware: (name: string, fn: ToolMiddlewareFn, priority?: number) => void;
   /** Get summaries of all loaded extensions (name, version, contribution counts). */
   getExtensionSummaries: () => ExtensionSummary[];
+  /**
+   * Register a per-turn dynamic system-prompt state provider.
+   * The function is called synchronously on every agent turn and its output
+   * is appended to the dynamic system-prompt block. Use this to contribute
+   * extension state (e.g. working memory contents) without modifying core.
+   */
+  registerDynamicStateProvider: (name: string, fn: () => string) => void;
 };
 
 /**

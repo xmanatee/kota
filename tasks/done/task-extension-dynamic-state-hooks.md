@@ -1,7 +1,7 @@
 ---
 id: task-extension-dynamic-state-hooks
 title: Allow extensions to register dynamic system-prompt state injectors
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: loop-send.ts hard-codes getWorkingMemoryState() alongside core loop state. Extensions should be able to register state injectors so the core loop iterates them rather than importing specific store modules directly.

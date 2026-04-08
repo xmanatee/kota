@@ -37,6 +37,7 @@ function makeStubCtx(
     getProvider: () => null,
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
+    registerDynamicStateProvider: () => {},
   };
 }
 

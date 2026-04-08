@@ -71,10 +71,6 @@ has to stay in core.
   registrations in `src/tools/index.ts` are core orchestration and meta tools
   (delegate, batch, pipe, map, todo, workspace, approval, checkpoint, etc.)
   that legitimately belong in core.
-- The `working-memory` extension is still a thin wrapper: its `index.ts`
-  registers tools but the tool implementation remains in `src/memory/`. The
-  `knowledge`, `memory`, and `history` extensions have been completed — their
-  capability code now lives in their extension directories alongside tests.
 - Extension directories added during the migrations now all have `AGENTS.md`
   orientation docs.
 

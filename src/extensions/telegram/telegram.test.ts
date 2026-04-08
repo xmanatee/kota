@@ -36,6 +36,7 @@ function makeStubCtx(bus?: EventBus): ExtensionContext {
     getProvider: () => null,
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
+    registerDynamicStateProvider: () => {},
   };
 }
 

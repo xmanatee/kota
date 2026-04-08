@@ -1,5 +1,6 @@
 import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
+import { registerDynamicStateProvider } from "./dynamic-state.js";
 import type { EventBus } from "./event-bus.js";
 import { getExtensionLogStore } from "./extension-log.js";
 import { ExtensionStorage } from "./extension-storage.js";
@@ -131,6 +132,9 @@ export function createExtensionContext(params: ExtensionContextParams, extension
     callTool,
     registerMiddleware: (name, fn, priority) => {
       getToolMiddleware().add(name, fn, { priority, owner: extensionName });
+    },
+    registerDynamicStateProvider: (name, fn) => {
+      registerDynamicStateProvider(name, fn);
     },
   };
 }

@@ -40,6 +40,7 @@ describe("vercel-adapter module", () => {
       getProvider: () => null,
       callTool: async () => ({ content: "" }),
       registerMiddleware: () => {},
+    registerDynamicStateProvider: () => {},
     };
 
     const routes = vercelAdapterModule.routes!(ctx);
