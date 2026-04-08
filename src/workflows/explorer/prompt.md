@@ -37,6 +37,10 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - Do not let `ready/` become all side-work while a visible architecture gap is
   still open. If the repo still looks flatter than the extension-first target,
   architecture tasks belong at the front of `ready/`, not only in `backlog/`.
+- Do not let the actionable queue collapse into only `p3` work by default.
+  Unless the repo is truly in maintenance mode, keep at least one substantive
+  `p1`/`p2` next bet in `ready/` instead of filling the front of the queue with
+  only normal polish.
 - Treat repeated narrow output as a queue failure. If recent builder work clusters around split-only, rename-only, dedup-only, or test-only cleanup, widen the portfolio before adding more of the same.
 - Avoid converging on only tiny maintenance work. Keep a healthy mix of capability work, reliability work, operator experience work, concept cleanup, and maintenance/refactor work.
 - Keep at most one pure mechanical split, rename, or dedup task in `ready/` unless multiple are clearly blocking a larger change.

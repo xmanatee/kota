@@ -66,6 +66,17 @@ function readTaskArea(entry: TaskFileEntry): string | null {
   return area.length > 0 ? area : null;
 }
 
+function readTaskPriority(entry: TaskFileEntry): string | null {
+  if (entry.state === "inbox") return null;
+  const { attrs } = parseFlatFrontMatter(entry.raw);
+  const priority = String(attrs.priority ?? "").trim();
+  return priority.length > 0 ? priority : null;
+}
+
+function isStrategicPriority(priority: string | null): boolean {
+  return priority === "p0" || priority === "p1" || priority === "p2";
+}
+
 export function listRootLevelBuiltInExtensionFiles(projectDir: string): string[] {
   const dir = join(projectDir, "src", "extensions");
   if (!existsSync(dir)) return [];
@@ -86,6 +97,24 @@ export function hasReadyArchitectureTask(projectDir: string): boolean {
 export function hasArchitectureReadyCoverageGap(projectDir: string): boolean {
   const remainingFlatExtensions = listRootLevelBuiltInExtensionFiles(projectDir);
   return remainingFlatExtensions.length > 0 && !hasReadyArchitectureTask(projectDir);
+}
+
+export function hasStrategicReadyCoverageGap(projectDir: string): boolean {
+  const entries = listTaskEntries(projectDir);
+  const readyEntries = entries.filter((entry) => entry.state === "ready");
+  if (readyEntries.length === 0) {
+    return false;
+  }
+  const hasReadyStrategicTask = readyEntries.some((entry) =>
+    isStrategicPriority(readTaskPriority(entry)),
+  );
+  if (hasReadyStrategicTask) {
+    return false;
+  }
+  const actionableEntries = entries.filter((entry) =>
+    entry.state === "ready" || entry.state === "backlog" || entry.state === "doing",
+  );
+  return !actionableEntries.some((entry) => isStrategicPriority(readTaskPriority(entry)));
 }
 
 function readTaskGitStatus(projectDir: string): {
@@ -297,6 +326,16 @@ export function assertArchitectureReadyCoverage(projectDir: string): string {
   throw new Error(
     "tasks/ready must keep at least one architecture task while built-in extensions still " +
       `live as flat root-level files: ${remainingFlatExtensions.join(", ")}`,
+  );
+}
+
+export function assertStrategicReadyCoverage(projectDir: string): string {
+  if (!hasStrategicReadyCoverageGap(projectDir)) {
+    return "strategic-ready-coverage-ok";
+  }
+  throw new Error(
+    "tasks/ready must keep at least one p0/p1/p2 task. The actionable queue has drifted " +
+      "to p3-only work, which is too weak for the front of the autonomous queue.",
   );
 }
 

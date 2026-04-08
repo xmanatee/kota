@@ -32,10 +32,12 @@ vi.mock("../commit.js", () => ({
 
 vi.mock("../../task-queue-validation.js", () => ({
   assertArchitectureReadyCoverage: vi.fn(),
+  assertStrategicReadyCoverage: vi.fn(),
   assertTaskQueueRecommendations: vi.fn(),
   assertNoHighPriorityBacklogStrandedTasks: vi.fn(),
   hasArchitectureReadyCoverageGap: vi.fn(() => false),
   hasHighPriorityBacklogTasks: vi.fn(() => false),
+  hasStrategicReadyCoverageGap: vi.fn(() => false),
 }));
 
 function makeHealthySnapshot() {
@@ -221,6 +223,38 @@ describe("explorer workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       hasArchitectureReadyGap: true,
+      needsAttention: true,
+    });
+    expect(result.steps.explore.status).toBe("success");
+  });
+
+  it("runs explore when the queue drifts to p3-only ready work", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeHealthySnapshot());
+
+    const { hasStrategicReadyCoverageGap } = await import("../../task-queue-validation.js");
+    vi.mocked(hasStrategicReadyCoverageGap).mockReturnValue(true);
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "runtime.idle", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.01 },
+      },
+      runtimeState: {
+        workflows: {
+          explorer: { lastCompletedAt: recentTimestamp() },
+        },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      hasStrategicReadyGap: true,
       needsAttention: true,
     });
     expect(result.steps.explore.status).toBe("success");

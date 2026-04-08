@@ -1,12 +1,12 @@
 ---
 id: task-github-issues-task-provider
 title: Add GitHub Issues task provider so teams can use their issue tracker as KOTA's task source
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: extensions
 summary: Add a TaskProvider implementation backed by GitHub Issues so teams can use their existing issue tracker as KOTA's task source without maintaining a parallel task queue.
 created_at: 2026-04-02T01:18:54Z
-updated_at: 2026-04-02T01:18:54Z
+updated_at: 2026-04-08T19:43:33Z
 ---
 
 ## Problem

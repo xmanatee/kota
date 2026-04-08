@@ -52,6 +52,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - If explorer lets side-work dominate `ready/` while remaining extension debt is
   still obvious from the repo shape, fix the queue rules or validation rails so
   architecture work stays at the front until the gap is genuinely closed.
+- Treat a `ready/` plus `backlog/` queue that has drifted to only `p3` work as
+  process failure unless the repo is genuinely in maintenance mode. Explorer
+  should keep at least one substantive `p1`/`p2` next bet alive.
 - Treat hard daily spend caps on the built-in core workflows as an exceptional last resort, not a normal steering tool. If the loop is wasteful, prefer better queue shaping, preflight gates, repair loops, backoff, and clearer operator controls before throttling explorer, builder, or improver themselves.
 - Do not keep stale mechanisms alive for compatibility. If a path is obsolete, remove it.
 - If the same problem resists repeated prompt tweaks, fix the protocol, data flow, or validation instead of layering more advice.

@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   assertArchitectureReadyCoverage,
+  assertStrategicReadyCoverage,
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
   hasArchitectureReadyCoverageGap,
+  hasStrategicReadyCoverageGap,
   validateTaskQueue,
 } from "./task-queue-validation.js";
 
@@ -256,6 +258,31 @@ Has an outcome.
         recommendedMinBacklog: 1,
       }),
     ).toThrow("ready-thin");
+  });
+
+  it("detects when the actionable queue has drifted to p3-only work", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
+    writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
+    execSync("git add tasks && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(hasStrategicReadyCoverageGap(projectDir)).toBe(true);
+    expect(() => assertStrategicReadyCoverage(projectDir)).toThrow(
+      "tasks/ready must keep at least one p0/p1/p2 task",
+    );
+  });
+
+  it("accepts a ready queue with a substantive p2 task", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p2" });
+    writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
+    execSync("git add tasks && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(hasStrategicReadyCoverageGap(projectDir)).toBe(false);
   });
 
   it("reports an architecture-ready coverage gap while flat built-in extensions remain", () => {

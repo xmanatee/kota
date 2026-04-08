@@ -55,6 +55,10 @@ outstanding work.
 - While that architecture gap is still obvious, keep the front of `ready/`
   pointed at extension-first/core-shrinking work rather than letting secondary
   client or polish tasks outrank it at the same priority.
+- Do not let the actionable queue degrade into only `p3` work by default. If
+  `ready/`, `doing/`, and `backlog/` together contain only `p3` tasks, create
+  or promote at least one real `p1`/`p2` next bet instead of accepting
+  maintenance mode prematurely.
 - If `src/extensions/` still contains flat built-in extension entry files at the
   top level, `ready/` should keep at least one p1/p2 architecture task aimed at
   finishing that migration. Do not let `ready/` become only side-work while the

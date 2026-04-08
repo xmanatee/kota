@@ -3,9 +3,11 @@ import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
   assertArchitectureReadyCoverage,
   assertNoHighPriorityBacklogStrandedTasks,
+  assertStrategicReadyCoverage,
   assertTaskQueueRecommendations,
   hasArchitectureReadyCoverageGap,
   hasHighPriorityBacklogTasks,
+  hasStrategicReadyCoverageGap,
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
@@ -27,6 +29,7 @@ type ExplorerAssessment = {
   strategicRefreshDue: boolean;
   hasHighPriorityBacklogTasks: boolean;
   hasArchitectureReadyGap: boolean;
+  hasStrategicReadyGap: boolean;
 };
 
 function buildExplorerAssessment(
@@ -39,18 +42,21 @@ function buildExplorerAssessment(
     Date.now() - new Date(lastCompletedAt).getTime() >= STRATEGIC_REFRESH_MS;
   const highPriorityInBacklog = hasHighPriorityBacklogTasks(projectDir);
   const architectureReadyGap = hasArchitectureReadyCoverageGap(projectDir);
+  const strategicReadyGap = hasStrategicReadyCoverageGap(projectDir);
 
   return {
     ...queue,
     hasHighPriorityBacklogTasks: highPriorityInBacklog,
     hasArchitectureReadyGap: architectureReadyGap,
+    hasStrategicReadyGap: strategicReadyGap,
     needsAttention:
       queue.counts.inbox > 0 ||
       queue.counts.ready < READY_TASK_TARGET ||
       queue.counts.backlog < BACKLOG_TASK_TARGET ||
       highPriorityInBacklog ||
       strategicRefreshDue ||
-      architectureReadyGap,
+      architectureReadyGap ||
+      strategicReadyGap,
     strategicRefreshDue,
   };
 }
@@ -116,6 +122,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "architecture-ready-coverage",
             type: "code",
             run: ({ projectDir }) => assertArchitectureReadyCoverage(projectDir),
+          },
+          {
+            id: "strategic-ready-coverage",
+            type: "code",
+            run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
           },
         ],
       },
