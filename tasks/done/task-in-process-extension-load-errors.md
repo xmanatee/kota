@@ -1,12 +1,12 @@
 ---
 id: task-in-process-extension-load-errors
 title: Surface in-process extension load failures in the web UI extensions panel
-status: ready
+status: done
 priority: p2
 area: reliability
 summary: When in-process extensions throw during onLoad or lifecycle hooks, errors go only to stderr. The web UI extensions panel shows only successfully loaded extensions, leaving operators blind to capability degradation from load failures.
 created_at: 2026-04-08T20:22:18Z
-updated_at: 2026-04-08T21:00:00Z
+updated_at: 2026-04-08T22:52:00Z
 ---
 
 ## Problem

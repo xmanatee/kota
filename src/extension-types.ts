@@ -40,6 +40,8 @@ export type ExtensionSummary = {
   commandNames: string[];
   routeSummaries: string[];
   health?: ExtensionHealth;
+  /** Set when the extension failed to load; absent for successfully loaded extensions. */
+  loadError?: string;
 };
 
 /** Scoped logger available to extensions via ExtensionContext. */

@@ -22,11 +22,14 @@ export type ExtensionLoaderOptions = {
   commandsOnly?: boolean;
 };
 
+type ExtensionLoadFailure = { message: string; timestamp: string };
+
 export class ExtensionLoader {
   private extensions: KotaExtension[] = [];
   private extensionStorages = new Map<string, ExtensionStorage>();
   private extensionRegistry = new Map<string, KotaExtension>();
   private extensionToolCounts = new Map<string, number>();
+  private loadFailures = new Map<string, ExtensionLoadFailure>();
   private skillContents: string[] = [];
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private contributedChannels: ChannelDef[] = [];
@@ -163,6 +166,7 @@ export class ExtensionLoader {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[kota] Extension "${ext.name}" failed to load: ${msg}`);
+        this.loadFailures.set(ext.name, { message: msg, timestamp: new Date().toISOString() });
       }
     }
     if (this.config.foreignExtensions && this.config.foreignExtensions.length > 0 && !this.commandsOnly) {
@@ -297,7 +301,7 @@ export class ExtensionLoader {
   }
 
   getExtensionSummaries(): ExtensionSummary[] {
-    return this.extensions.map((ext) => {
+    const loaded = this.extensions.map((ext) => {
       const commandNames: string[] = [];
       if (ext.commands) {
         try {
@@ -333,5 +337,23 @@ export class ExtensionLoader {
         health: ext.getHealth?.(),
       };
     });
+    const failed: ExtensionSummary[] = [];
+    for (const [name, failure] of this.loadFailures) {
+      failed.push({
+        name,
+        dependencies: [],
+        toolNames: [],
+        workflowNames: [],
+        channelNames: [],
+        skillNames: [],
+        agentNames: [],
+        agents: [],
+        skills: [],
+        commandNames: [],
+        routeSummaries: [],
+        loadError: failure.message.slice(0, 500),
+      });
+    }
+    return [...loaded, ...failed];
   }
 }

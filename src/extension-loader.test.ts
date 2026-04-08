@@ -325,6 +325,32 @@ describe("ExtensionLoader", () => {
     errSpy.mockRestore();
   });
 
+  it("records load failures in getExtensionSummaries", async () => {
+    const loader = new ExtensionLoader({});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await loader.loadAll([
+      {
+        name: "bad-mod",
+        onLoad: () => { throw new Error("it broke"); },
+      },
+      { name: "good-mod" },
+    ]);
+
+    const summaries = loader.getExtensionSummaries();
+    const goodSummary = summaries.find((s) => s.name === "good-mod");
+    const badSummary = summaries.find((s) => s.name === "bad-mod");
+
+    expect(goodSummary).toBeDefined();
+    expect(goodSummary?.loadError).toBeUndefined();
+
+    expect(badSummary).toBeDefined();
+    expect(badSummary?.loadError).toBe("it broke");
+    expect(badSummary?.toolNames).toEqual([]);
+
+    errSpy.mockRestore();
+  });
+
   it("commandsOnly mode skips tool registration and onLoad", async () => {
     const onLoad = vi.fn();
     const loader = new ExtensionLoader({}, false, { commandsOnly: true });

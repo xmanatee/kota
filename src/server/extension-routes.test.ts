@@ -90,4 +90,33 @@ describe("handleListExtensions", () => {
     expect(body.extensions).toHaveLength(3);
     expect(body.extensions.map((e) => e.name)).toEqual(["ext-a", "ext-b", "ext-c"]);
   });
+
+  it("returns failed extension with status failed and error field", () => {
+    const failed = makeSummary({ name: "bad-ext", loadError: "it broke during onLoad" });
+    const { res, result } = mockResponse();
+    handleListExtensions(res, [failed]);
+    const body = result.body as { extensions: Array<Record<string, unknown>> };
+    expect(body.extensions).toHaveLength(1);
+    const ext = body.extensions[0];
+    expect(ext.name).toBe("bad-ext");
+    expect(ext.status).toBe("failed");
+    expect(ext.error).toBe("it broke during onLoad");
+    expect(ext.toolCount).toBe(0);
+    expect(ext.agentCount).toBe(0);
+  });
+
+  it("includes both loaded and failed extensions in the response", () => {
+    const loaded = makeSummary({ name: "ok-ext", toolNames: ["tool-a"] });
+    const failed = makeSummary({ name: "bad-ext", loadError: "crash" });
+    const { res, result } = mockResponse();
+    handleListExtensions(res, [loaded, failed]);
+    const body = result.body as { extensions: Array<Record<string, unknown>> };
+    expect(body.extensions).toHaveLength(2);
+    const okExt = body.extensions.find((e) => e.name === "ok-ext");
+    const badExt = body.extensions.find((e) => e.name === "bad-ext");
+    expect(okExt?.status).toBe("loaded");
+    expect(okExt?.toolCount).toBe(1);
+    expect(badExt?.status).toBe("failed");
+    expect(badExt?.error).toBe("crash");
+  });
 });

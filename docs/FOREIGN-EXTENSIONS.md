@@ -230,6 +230,11 @@ restart timestamp) is tracked per extension and visible in two places:
   data is present.
 - **API**: `GET /api/extensions` includes a `health` field on each entry.
 
+In-process extensions that fail during `onLoad` also appear in `GET /api/extensions`
+with `status: "failed"` and an `error` field containing the truncated error message.
+The web UI extensions panel renders these with a red health badge and the error message
+as the contribution summary.
+
 ---
 
 ## Configuration
