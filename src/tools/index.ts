@@ -16,7 +16,6 @@ import { registration as map } from "./map.js";
 import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
 import { registration as promptTemplate } from "./prompt.js";
-import { registration as readDocument } from "./read-document.js";
 import { registration as repoMap } from "./repo-map.js";
 import { registration as sqlite } from "./sqlite.js";
 import { getTodoState, registration as todo } from "./todo.js";
@@ -67,7 +66,6 @@ const registrationImports = [
   () => checkpoint,
   () => extensionFactory,
   () => notify,
-  () => readDocument,
   () => clipboard,
   () => sqlite,
   () => viewImage,

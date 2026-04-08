@@ -13,7 +13,7 @@
 import { existsSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import {
 	extractText,
 	installHint,
@@ -99,10 +99,3 @@ export async function runReadDocument(
 		};
 	}
 }
-
-export const registration = {
-	tool: readDocumentTool,
-	runner: runReadDocument,
-	risk: "safe" as const,
-	kind: "discovery" as const,
-};

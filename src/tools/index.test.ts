@@ -10,8 +10,8 @@ const makeTool = (name: string) => ({
 });
 
 describe("getAllTools", () => {
-  it("contains built-in tool definitions (web, filesystem, execution, git, and notebook tools moved to extensions)", () => {
-    expect(getAllTools()).toHaveLength(22);
+  it("contains built-in tool definitions (web, filesystem, execution, git, notebook, and read-document tools moved to extensions)", () => {
+    expect(getAllTools()).toHaveLength(21);
   });
 
   it("has unique names", () => {
@@ -37,12 +37,13 @@ describe("getAllTools", () => {
     // Execution tools (shell, process, code_exec, computer_use, screenshot) are now
     // in the execution extension.
     // git is now in the git extension.
+    // read_document is now in the read-document extension.
     const expected = new Set([
       "agent_status", "approval", "audit",
       "todo", "repo_map", "delegate", "env_info",
       "ask_user", "confirm",
       "custom_tool", "checkpoint", "extension_factory", "notify",
-      "read_document", "clipboard", "sqlite", "view_image",
+      "clipboard", "sqlite", "view_image",
       "batch", "pipe", "map", "workspace", "prompt_template",
     ]);
     expect(names).toEqual(expected);
@@ -50,9 +51,9 @@ describe("getAllTools", () => {
 });
 
 describe("getCoreRegistrations", () => {
-  it("returns all core tool registrations (web, filesystem, execution, git, and notebook tools moved to extensions)", () => {
+  it("returns all core tool registrations (web, filesystem, execution, git, notebook, and read-document tools moved to extensions)", () => {
     const regs = getCoreRegistrations();
-    expect(regs).toHaveLength(22);
+    expect(regs).toHaveLength(21);
   });
 
   it("each registration has tool, runner, and risk", () => {
@@ -160,7 +161,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(22);
+    expect(getAllTools()).toHaveLength(21);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 

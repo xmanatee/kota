@@ -1,12 +1,12 @@
 ---
 id: task-read-document-capability-pack-extension
 title: Move read-document tool into a built-in extension capability pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The read-document tool (PDF, DOCX, EPUB, and other format extraction) lives in src/tools/read-document.ts with a co-located extractors file. Migrating to src/extensions/read-document/ continues the minimal-core migration after the notebook capability pack.
 created_at: 2026-04-08T13:25:00Z
-updated_at: 2026-04-08T13:25:00Z
+updated_at: 2026-04-08T14:54:00Z
 ---
 
 ## Problem
