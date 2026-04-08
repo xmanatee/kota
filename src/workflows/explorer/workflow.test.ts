@@ -31,8 +31,10 @@ vi.mock("../commit.js", () => ({
 }));
 
 vi.mock("../../task-queue-validation.js", () => ({
+  assertArchitectureReadyCoverage: vi.fn(),
   assertTaskQueueRecommendations: vi.fn(),
   assertNoHighPriorityBacklogStrandedTasks: vi.fn(),
+  hasArchitectureReadyCoverageGap: vi.fn(() => false),
   hasHighPriorityBacklogTasks: vi.fn(() => false),
 }));
 
@@ -185,6 +187,38 @@ describe("explorer workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       hasHighPriorityBacklogTasks: true,
+      needsAttention: true,
+    });
+    expect(result.steps.explore.status).toBe("success");
+  });
+
+  it("runs explore when ready queue loses architecture coverage while flat extensions remain", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeHealthySnapshot());
+
+    const { hasArchitectureReadyCoverageGap } = await import("../../task-queue-validation.js");
+    vi.mocked(hasArchitectureReadyCoverageGap).mockReturnValue(true);
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "runtime.idle", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.01 },
+      },
+      runtimeState: {
+        workflows: {
+          explorer: { lastCompletedAt: recentTimestamp() },
+        },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      hasArchitectureReadyGap: true,
       needsAttention: true,
     });
     expect(result.steps.explore.status).toBe("success");

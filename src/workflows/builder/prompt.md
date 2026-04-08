@@ -30,6 +30,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - **Do not use git worktrees.** Make all changes directly in this repository. The post-step verification pipeline runs from the project root, so changes isolated in a worktree will not be visible to it and will cause the run to fail. This applies to sub-agents too: when using the Agent tool, never set `isolation: "worktree"`. All sub-agents must work in the same project directory.
 - Aim for materially useful improvements over low-value polish.
 - While the repository still reads as a large flat core with extension-first architecture only partially visible, prefer tasks that shrink shared core buckets or make extension ownership clearer over adjacent feature or polish work at the same priority.
+- If `ready/` contains a live architecture task aimed at shrinking the flat core
+  or finishing extension ownership cleanup, do not skip it for same-priority
+  side-work unless the task is genuinely blocked.
 - Keep the agent core minimal. Protocols, lifecycle, registries, guardrails,
   and the daemon/workflow runtime belong in core; browser, shell, filesystem,
   HTTP/web, notification, memory-backend, MCP, and other general-purpose

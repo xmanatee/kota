@@ -11,6 +11,9 @@ This directory contains built-in extensions and extension-level wiring.
 - All extensions should follow the per-directory pattern: `<name>/index.ts` as the
   entry point, with co-located tests and helpers. Do not add new flat `.ts` extension
   files at the top level of this directory.
+- The remaining flat built-in extension files at the top level are migration
+  debt, not the desired end state. Prefer finishing that cleanup over adding new
+  side-work around the current shape.
 
 ## Shared Utilities
 

@@ -59,6 +59,35 @@ function listTaskEntries(projectDir: string): TaskFileEntry[] {
   return entries;
 }
 
+function readTaskArea(entry: TaskFileEntry): string | null {
+  if (entry.state === "inbox") return null;
+  const { attrs } = parseFlatFrontMatter(entry.raw);
+  const area = String(attrs.area ?? "").trim();
+  return area.length > 0 ? area : null;
+}
+
+export function listRootLevelBuiltInExtensionFiles(projectDir: string): string[] {
+  const dir = join(projectDir, "src", "extensions");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((fileName) => fileName.endsWith(".ts"))
+    .filter((fileName) => !fileName.endsWith(".test.ts"))
+    .filter((fileName) => !["index.ts", "notify-retry.ts"].includes(fileName))
+    .map((fileName) => join("src", "extensions", fileName))
+    .sort();
+}
+
+export function hasReadyArchitectureTask(projectDir: string): boolean {
+  return listTaskEntries(projectDir)
+    .filter((entry) => entry.state === "ready")
+    .some((entry) => readTaskArea(entry) === "architecture");
+}
+
+export function hasArchitectureReadyCoverageGap(projectDir: string): boolean {
+  const remainingFlatExtensions = listRootLevelBuiltInExtensionFiles(projectDir);
+  return remainingFlatExtensions.length > 0 && !hasReadyArchitectureTask(projectDir);
+}
+
 function readTaskGitStatus(projectDir: string): {
   untracked: string[];
   deleted: string[];
@@ -258,6 +287,17 @@ export function validateTaskQueue(
   const warningCount = findings.filter((finding) => finding.severity === "warning").length;
 
   return { findings, counts, errorCount, warningCount };
+}
+
+export function assertArchitectureReadyCoverage(projectDir: string): string {
+  const remainingFlatExtensions = listRootLevelBuiltInExtensionFiles(projectDir);
+  if (remainingFlatExtensions.length === 0 || hasReadyArchitectureTask(projectDir)) {
+    return "architecture-ready-coverage-ok";
+  }
+  throw new Error(
+    "tasks/ready must keep at least one architecture task while built-in extensions still " +
+      `live as flat root-level files: ${remainingFlatExtensions.join(", ")}`,
+  );
 }
 
 export function assertTaskQueueValid(

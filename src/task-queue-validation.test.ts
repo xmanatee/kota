@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  assertArchitectureReadyCoverage,
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
+  hasArchitectureReadyCoverageGap,
   validateTaskQueue,
 } from "./task-queue-validation.js";
 
@@ -254,6 +256,34 @@ Has an outcome.
         recommendedMinBacklog: 1,
       }),
     ).toThrow("ready-thin");
+  });
+
+  it("reports an architecture-ready coverage gap while flat built-in extensions remain", () => {
+    mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
+    writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
+    execSync("git add tasks src && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
+    expect(() => assertArchitectureReadyCoverage(projectDir)).toThrow(
+      "tasks/ready must keep at least one architecture task",
+    );
+  });
+
+  it("accepts architecture-ready coverage when a ready architecture task exists", () => {
+    mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
+    writeTask(projectDir, "ready", "task-architecture", { area: "architecture" });
+    execSync("git add tasks src && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(false);
+    expect(assertArchitectureReadyCoverage(projectDir)).toBe("architecture-ready-coverage-ok");
   });
 });
 

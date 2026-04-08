@@ -16,6 +16,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
 - While the repo still reads as a flat core-heavy codebase, bias steering
   toward clarifying extension ownership and shrinking shared buckets before
   spending cycles on secondary polish.
+- Treat a `ready/` queue with no architecture work as process drift whenever
+  visible extension-shape debt remains, such as flat built-in extension files
+  still living directly under `src/extensions/`.
 
 ## Workflow Contract
 
@@ -46,6 +49,9 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   Prefer clear goals, invariants, and lightweight validation over telling the
   other agents exactly how to think or in what order to inspect things.
 - If explorer is staying too local, not researching broadly enough, or keeping the queue too small or too timid, fix the guidance and workflow conditions around explorer.
+- If explorer lets side-work dominate `ready/` while remaining extension debt is
+  still obvious from the repo shape, fix the queue rules or validation rails so
+  architecture work stays at the front until the gap is genuinely closed.
 - Treat hard daily spend caps on the built-in core workflows as an exceptional last resort, not a normal steering tool. If the loop is wasteful, prefer better queue shaping, preflight gates, repair loops, backoff, and clearer operator controls before throttling explorer, builder, or improver themselves.
 - Do not keep stale mechanisms alive for compatibility. If a path is obsolete, remove it.
 - If the same problem resists repeated prompt tweaks, fix the protocol, data flow, or validation instead of layering more advice.
