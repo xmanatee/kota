@@ -1,12 +1,12 @@
 ---
 id: task-mobile-client-design
 title: Produce design specification for the KOTA mobile client
-status: ready
+status: done
 priority: p2
 area: client
 summary: Write the design spec, navigation structure, wireframes (as markdown), and daemon API surface requirements for the mobile client, unblocking task-build-mobile-client.
 created_at: 2026-04-08T22:45:00Z
-updated_at: 2026-04-08T22:45:00Z
+updated_at: 2026-04-09T00:00:00Z
 ---
 
 ## Problem
