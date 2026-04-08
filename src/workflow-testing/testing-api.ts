@@ -24,6 +24,9 @@
  *   Result output is `{ items: number, results: Array<{ index, status, steps }> }`.
  */
 
+
+export type { ExtensionHarnessOptions } from "../extension-testing/index.js";
+export { ExtensionTestHarness } from "../extension-testing/index.js";
 export type {
   HarnessOptions,
   HarnessRunResult,

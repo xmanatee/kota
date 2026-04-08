@@ -88,7 +88,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
                   `const src=fs.readFileSync(path.join(process.cwd(),'src/server/server-routes.ts'),'utf8');` +
                   `const doc=fs.readFileSync(path.join(process.cwd(),'docs/DAEMON-API.md'),'utf8');` +
                   `const webUiOnly=new Set(['/api/sessions','/api/chat','/api/schedules','/api/notifications']);` +
-                  `const paths=[...src.matchAll(/path\\s*===\\s*\\"(\\/api\\/[^"]+)\\"/g)].map(m=>m[1]).filter(p=>!webUiOnly.has(p));` +
+                  `const paths=[...src.matchAll(/path\\s*===\\s*\\x22(\\/api\\/[^\\x22]+)\\x22/g)].map(m=>m[1]).filter(p=>!webUiOnly.has(p));` +
                   `const undocumented=[...new Set(paths)].filter(p=>!doc.includes(p));` +
                   `if(undocumented.length){console.error('Missing from docs/DAEMON-API.md: '+undocumented.join(', '));process.exit(1);}` +
                   `console.log('OK: DAEMON-API.md covers all /api/ paths in server-routes.ts');"`,

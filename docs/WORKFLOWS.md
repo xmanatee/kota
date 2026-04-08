@@ -600,6 +600,62 @@ type HarnessStepResult = {
 };
 ```
 
+## Testing Extension Definitions
+
+The same `kota/testing` sub-path also exports `ExtensionTestHarness` — a lightweight
+in-process harness for testing `KotaExtension` definitions without a running daemon,
+real config, or network.
+
+```ts
+import { ExtensionTestHarness } from "kota/testing";
+import myExtension from "./index.js";
+
+test("registers the expected tool and it works", async () => {
+  const harness = await ExtensionTestHarness.create(myExtension);
+
+  const tool = harness.getTool("my_tool");
+  expect(tool).toBeDefined();
+
+  const result = await harness.callTool("my_tool", { action: "list" });
+  expect(result.is_error).toBeUndefined();
+
+  await harness.teardown();
+});
+```
+
+### How it works
+
+The harness accepts one or more `KotaExtension` objects. On `load()` (or `create()`):
+
+1. Tools are resolved — static arrays are used directly; factory functions receive a mock `ExtensionContext`.
+2. Routes are collected by calling `ext.routes(ctx)` when present.
+3. `onLoad` is called with the mock context.
+
+On `teardown()`, `onUnload` is called on each extension in reverse load order.
+
+| Method | Description |
+|--------|-------------|
+| `ExtensionTestHarness.create(ext, opts?)` | Static factory: constructs and loads. |
+| `harness.load()` | Explicitly load (if not using `create()`). |
+| `harness.teardown()` | Call `onUnload` on all extensions in reverse order. |
+| `harness.getTool(name)` | Return the `ToolDef` for the named tool, or `undefined`. |
+| `harness.callTool(name, input)` | Invoke the tool runner and return the result. |
+| `harness.getRoutes()` | Return HTTP routes contributed by the extension(s). |
+| `harness.getDynamicState()` | Call all `registerDynamicStateProvider` functions and return concatenated output. |
+| `harness.emitEvent(event, payload)` | Fire `ctx.events.subscribe` handlers registered for the event. |
+
+### ExtensionHarnessOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cwd` | `string` | Working directory passed to `ctx.cwd`. Defaults to `process.cwd()`. |
+| `config` | `Record<string, unknown>` | Config object passed to `ctx.config`. Defaults to `{}`. |
+| `secrets` | `Record<string, string>` | Named secrets returned by `ctx.getSecret()`. |
+
+The mock context stubs `createSession` (throws), `registerMiddleware` (no-op),
+and `getExtensionSummaries` (returns `[]`). Extensions that rely on these
+in their core paths will need additional test setup outside the harness.
+
 ## Operator Commands
 
 ### Inspect a run

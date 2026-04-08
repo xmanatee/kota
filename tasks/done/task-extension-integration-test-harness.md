@@ -1,7 +1,7 @@
 ---
 id: task-extension-integration-test-harness
 title: Add extension integration test harness so extensions can be tested as loaded units without a daemon
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extensions currently have unit tests for individual functions but no standard way to exercise them as fully loaded KotaExtension units (with onLoad, tools, routes, CLI commands). A lightweight ExtensionTestHarness would close this gap and follow the pattern already established by WorkflowTestHarness.
