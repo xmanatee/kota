@@ -46,10 +46,10 @@ describe("agent_status", () => {
 		});
 
 		it("filters tools by name", async () => {
-			// grep and shell are now in extensions; use a core tool like "git"
-			const result = await runAgentStatus({ query: "tools", filter: "git" });
-			expect(result.content).toContain("git");
-			expect(result.content).not.toContain("delegate");
+			// grep, shell, and git are now in extensions; use a core tool like "delegate"
+			const result = await runAgentStatus({ query: "tools", filter: "delegate" });
+			expect(result.content).toContain("delegate");
+			expect(result.content).not.toContain("ask_user");
 		});
 
 		it("filters tools by description", async () => {

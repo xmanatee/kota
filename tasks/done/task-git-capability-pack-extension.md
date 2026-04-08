@@ -1,7 +1,7 @@
 ---
 id: task-git-capability-pack-extension
 title: Move git tool into a built-in extension capability pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The git tool (git status, diff, log, add, commit, branch, push with guardrails) lives in src/tools/git.ts as a core-hosted tool. Migrating it to src/extensions/git/ continues the minimal-core migration after the execution capability pack.

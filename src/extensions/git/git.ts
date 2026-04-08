@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 export const gitTool: Anthropic.Tool = {
 	name: "git",
@@ -206,10 +206,3 @@ export async function runGit(input: Record<string, unknown>): Promise<ToolResult
 	}
 	return handler((input.args as string) ?? "");
 }
-
-export const registration = {
-	tool: gitTool,
-	runner: runGit,
-	risk: "moderate" as const,
-	kind: "action" as const,
-};

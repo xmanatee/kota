@@ -12,7 +12,6 @@ import { registration as customTool, initCustomToolRegistry } from "./custom-too
 import { registration as delegate } from "./delegate.js";
 import { registration as envInfo } from "./env-info.js";
 import { registration as extensionFactory } from "./extension-factory/index.js";
-import { registration as git } from "./git.js";
 import { registration as map } from "./map.js";
 import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
@@ -65,7 +64,6 @@ const registrationImports = [
   () => envInfo,
   () => askUser,
   () => confirm,
-  () => git,
   () => notebook,
   () => customTool,
   () => checkpoint,
