@@ -72,8 +72,7 @@ outstanding work.
 - Before creating a new task, scan related open work in `inbox/`, `backlog/`, `ready/`, `doing/`, and `blocked/`.
 - If a related task already exists, prefer updating its context over creating a duplicate.
 - If research or implementation uncovers a genuinely useful follow-up idea, capture it in `inbox/` or enrich an existing task, but do not turn every observation into process overhead.
-- If one investigation reveals several distinct, non-overlapping improvements, it is correct to create several task files. Do not collapse materially different next bets into one vague umbrella task just to keep the queue smaller.
-- Use `inbox/` for lightly captured ideas that still need triage. Use `backlog/` for work that is already clear and worth returning to, but should not jump straight to `ready/`.
+- Use common sense when capturing follow-up work: distinct next bets may become distinct tasks; lightly triaged ideas belong in `inbox/`; clearer but not-yet-actionable work belongs in `backlog/`.
 - Pull work from `ready/`.
 - Move a task to `doing/` when work actually starts.
 - Promote work from `backlog/` only when it is actionable.

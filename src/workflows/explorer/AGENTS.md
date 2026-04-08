@@ -7,8 +7,5 @@ This directory contains the explorer workflow definition and prompt.
 - Keep this workflow focused on queue quality, deduplication, meaningful future work selection, and strategic range.
 - Keep tasks outcome-focused and concise. Explorer owns the queue contract, not
   the file-by-file implementation plan.
-- If one research pass reveals multiple distinct next bets, Explorer should
-  create multiple tasks instead of compressing them into one vague umbrella
-  item.
 - Queue counts are lower bounds, not the goal. A healthy queue should not collapse into one repeated kind of local work.
 - Explorer should satisfy lightweight task-queue validations before the run ends, but warnings should stay advisory.
