@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { recordModification, recordRead } from "../file-tracker.js";
-import type { ToolResult } from "./index.js";
+import { recordModification, recordRead } from "../../file-tracker.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 interface NotebookCell {
   type: "code" | "markdown";
@@ -172,10 +172,3 @@ export async function runNotebook(
     is_error: true,
   };
 }
-export const registration = {
-	tool: notebookTool,
-	runner: runNotebook,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "code",
-};

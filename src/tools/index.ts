@@ -13,7 +13,6 @@ import { registration as delegate } from "./delegate.js";
 import { registration as envInfo } from "./env-info.js";
 import { registration as extensionFactory } from "./extension-factory/index.js";
 import { registration as map } from "./map.js";
-import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
 import { registration as promptTemplate } from "./prompt.js";
@@ -64,7 +63,6 @@ const registrationImports = [
   () => envInfo,
   () => askUser,
   () => confirm,
-  () => notebook,
   () => customTool,
   () => checkpoint,
   () => extensionFactory,

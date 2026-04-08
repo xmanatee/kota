@@ -191,8 +191,7 @@ describe("SYSTEM_PROMPT", () => {
     expect(dataSection).toContain("matplotlib");
     // code_exec is now in the execution extension (not core registry), verify it exists directly
     expect(codeExecTool.name).toBe("code_exec");
-    // notebook is still in core registry
-    expect(getAllTools().find((t) => t.name === "notebook")).toBeDefined();
+    // notebook is now in the notebook extension (not core registry)
   });
 
   it("data analysis references seaborn alongside matplotlib", () => {

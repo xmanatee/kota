@@ -19,6 +19,7 @@ import historyModule from "./history.js";
 import knowledgeModule from "./knowledge.js";
 import mcpServerModule from "./mcp-server.js";
 import memoryModule from "./memory.js";
+import notebookModule from "./notebook/index.js";
 import registryModule from "./registry.js";
 import schedulerModule from "./scheduler.js";
 import secretsModule from "./secrets.js";
@@ -54,6 +55,7 @@ export const builtinExtensions: KotaExtension[] = [
   executionModule,
   filesystemModule,
   gitModule,
+  notebookModule,
   webAccessModule,
   webModule,
   registryModule,

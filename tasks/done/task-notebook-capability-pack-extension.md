@@ -1,7 +1,7 @@
 ---
 id: task-notebook-capability-pack-extension
 title: Move notebook tool into a built-in extension capability pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The notebook tool (Jupyter notebook read/write/execute) lives in src/tools/notebook.ts as a core-hosted tool. Migrating it to src/extensions/notebook/ continues the minimal-core migration after the git capability pack.

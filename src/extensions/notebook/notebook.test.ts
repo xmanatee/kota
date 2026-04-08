@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkFreshness } from "../file-tracker.js";
+import { checkFreshness } from "../../file-tracker.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 
 function tmpPath(name: string): string {

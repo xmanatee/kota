@@ -44,8 +44,8 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("email_send");
-    // notebook is a core tool in the "code" group (code_exec is now in the execution extension)
-    expect(names).toContain("notebook");
+    // sqlite is a core tool in the "code" group (notebook and code_exec are now in extensions)
+    expect(names).toContain("sqlite");
   });
 
   it("custom tools survive filterTools with 'all' groups enabled", () => {
@@ -56,8 +56,8 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("smart_home");
-    // notebook is a core tool in the "code" group (code_exec is now in the execution extension)
-    expect(names).toContain("notebook");
+    // sqlite is a core tool in the "code" group (notebook and code_exec are now in extensions)
+    expect(names).toContain("sqlite");
   });
 
   it("cleared custom tools disappear from filterTools", () => {
