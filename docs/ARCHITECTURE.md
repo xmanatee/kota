@@ -72,7 +72,7 @@ has to stay in core.
   (delegate, batch, pipe, map, todo, workspace, approval, checkpoint, etc.)
   that legitimately belong in core.
 - The `working-memory` extension is still a thin wrapper: its `index.ts`
-  registers tools but the tool implementation remains in `src/tools/`. The
+  registers tools but the tool implementation remains in `src/memory/`. The
   `knowledge`, `memory`, and `history` extensions have been completed — their
   capability code now lives in their extension directories alongside tests.
 - Extension directories added during the migrations lack `AGENTS.md`
