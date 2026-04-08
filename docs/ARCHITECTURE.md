@@ -60,23 +60,6 @@ notifications, memory backends, MCP integration, and operator surfaces should
 prefer extension-owned capability packs unless a shared runtime primitive truly
 has to stay in core.
 
-## Current Gaps
-
-- General-purpose capability packs have been extracted from `src/tools/index.ts`
-  into per-extension directories. Completed migrations: `web-access`
-  (`web_fetch`, `web_search`, `http_request`), `filesystem` (`file_read`,
-  `file_write`, etc.), `execution` (`shell`, `process`, `code_exec`,
-  `computer_use`, `screenshot`), `git`, `notebook`, `read-document`, and
-  `system` (`clipboard`, `view_image`, `env_info`, `sqlite`). The remaining
-  registrations in `src/tools/index.ts` are core orchestration and meta tools
-  (delegate, batch, pipe, map, todo, workspace, approval, checkpoint, etc.)
-  that legitimately belong in core.
-- All remaining flat built-in extension entry files have been moved behind
-  per-extension directories. `src/extensions/` now contains only extension
-  directories plus `notify-retry.ts` (an explicitly shared HTTP retry utility
-  used by the webhook and Slack extensions). Each extension directory has an
-  `index.ts` entrypoint and a local `AGENTS.md` orientation doc.
-
 ## Direction
 
 - Public naming should use `extension`, but naming cleanup is not proof that
