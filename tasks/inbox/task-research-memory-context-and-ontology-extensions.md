@@ -1,13 +1,13 @@
 # Research: Memory, Context, And Ontology Extensions
 
-Explorer should compare file-backed, graph-backed, and plugin-backed memory/context systems and decide which patterns KOTA should support through extensions or adapters.
+Explorer should compare file-backed, graph-backed, and plugin-backed memory/context systems and see which patterns KOTA should support through extensions, adapters, or simple compatibility checks.
 
 Focus:
 - integrable memory systems, not paid hosted lock-in
 - clean adapter boundaries for memory/context stores
 - ontology and graph layers that can coexist with KOTA's current model
 
-Questions:
+Things to look at:
 - Which memory/context systems are realistic adapter targets for KOTA?
 - What should KOTA expose as a storage/memory protocol?
 - Where should ontology, episodic memory, and context indexing live?
@@ -20,6 +20,5 @@ Resources:
 - https://clawhub.ai/plugins/openclaw-cortex-memory — cortex memory plugin listing.
 - https://clawhub.ai/oswalpalash/ontology — file-backed ontology skill with local graph storage.
 
-Desired outcome:
-- recommendations for KOTA memory/ontology adapter surfaces and extension boundaries
-- follow-up tasks only for patterns that fit KOTA's extension-first architecture
+What Explorer should produce later:
+- a clearer view of what KOTA should integrate, adapt to, or simply learn from in memory/context design

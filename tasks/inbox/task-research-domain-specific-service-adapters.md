@@ -7,7 +7,7 @@ Focus:
 - optional domain packs for commerce, markets, travel, and specialized APIs
 - no paid lock-in as a baseline requirement
 
-Questions:
+Things to look at:
 - Which domain integrations are realistic extension candidates for KOTA?
 - Can KOTA support these through a common adapter pattern instead of one-off code paths?
 - Are any of these better treated as inspiration only?
@@ -18,6 +18,5 @@ Resources:
 - https://builders.gojinko.com/ — travel APIs for AI agents via MCP or CLI.
 - https://github.com/chrisvx-ctrl/xybernetex-sdk — public Python SDK for the Xybernetex API.
 
-Desired outcome:
-- recommendations for optional domain-specific extension adapters
-- no implementation unless a clean adapter or protocol opportunity is obvious
+What Explorer should produce later:
+- a grounded view of which domain-specific integrations are worth adapting, checking for compatibility, or just keeping on the radar

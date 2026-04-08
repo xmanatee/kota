@@ -7,7 +7,7 @@ Focus:
 - bounded proactive behavior
 - evolver patterns that fit extension-first architecture
 
-Questions:
+Things to look at:
 - Which self-improving patterns are actually useful versus just hype?
 - What should be protocol, what should be workflow policy, and what should remain optional?
 - How can KOTA keep improver powerful without making it brittle or over-procedural?
@@ -21,5 +21,5 @@ Resources:
 - https://clawhub.ai/halthelobster/proactive-agent — proactive-agent listing.
 - https://clawhub.ai/plugins/%40synergenius%2Fflow-weaver-openclaw — workflow/flow plugin that may influence orchestration design.
 
-Desired outcome:
-- recommendations for KOTA improver and explorer behavior that stay lightweight, strict where needed, and not overengineered
+What Explorer should produce later:
+- a better sense of which self-improving and proactive patterns are worth adapting, and which are better kept as inspiration

@@ -1,16 +1,16 @@
 # Research: Agent Runtimes, Harnesses, And Workspace Protocols
 
-Explorer should compare other agent runtimes, harnesses, and workspace conventions to sharpen KOTA's daemon, extension, and workspace protocol design.
+Explorer should compare other agent runtimes, harnesses, and workspace conventions to sharpen KOTA's daemon, extension, and workspace protocol design without assuming KOTA should mimic them closely.
 
 Focus:
 - minimal core with strong extension boundaries
 - workspace files as protocol, not ad-hoc clutter
 - multi-agent handoff, review, and interoperability patterns
 
-Questions:
+Things to look at:
 - What runtime boundaries are consistently handled outside core in these systems?
 - What should KOTA borrow for workspace layout, instruction loading, and interop?
-- Which ideas are reusable as adapters or plugins rather than rewrites?
+- Which ideas seem reusable as adapters or plugins rather than rewrites?
 
 Resources:
 - https://github.com/MaxGfeller/open-harness — code-first composable SDK for powerful AI agents.
@@ -23,6 +23,5 @@ Resources:
 - https://clawhub.ai/plugins/%40axonflow%2Fopenclaw — OpenClaw-related plugin listing; relevant to plugin/runtime packaging.
 - https://github.com/pbakaus/impeccable — design language for improving AI harness design quality.
 
-Desired outcome:
-- recommendations for KOTA runtime protocol, workspace structure, and interop surfaces
-- concrete follow-ups only where the comparison exposes a real architectural gap
+What Explorer should produce later:
+- a clearer sense of what KOTA should borrow, adapt around, or just watch from these runtimes
