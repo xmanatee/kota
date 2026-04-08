@@ -1,12 +1,12 @@
 ---
 id: task-workflow-run-resume-from-step
 title: Resume a failed workflow run from a specific step without full re-execution
-status: backlog
+status: ready
 priority: p2
 area: runtime
 summary: When a workflow fails partway through, operators must re-trigger the entire workflow from step one. A resume-from-step capability would replay only steps from the failure point onward, reusing already-completed step outputs and skipping upstream work.
 created_at: 2026-04-02T11:03:04Z
-updated_at: 2026-04-08T14:45:00Z
+updated_at: 2026-04-08T15:00:00Z
 ---
 
 ## Problem
