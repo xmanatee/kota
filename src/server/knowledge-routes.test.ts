@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { KnowledgeEntry } from "../memory/knowledge-store-helpers.js";
 import type { KnowledgeProvider } from "../provider-types.js";
-import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge } from "./knowledge-routes.js";
+import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -164,6 +164,52 @@ describe("knowledge-routes", () => {
       });
       const { res, result } = mockResponse();
       await handleAddKnowledge(makeRequest({ title: "T" }), res);
+      expect(result.status).toBe(500);
+    });
+  });
+
+  describe("handleUpdateKnowledge", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const data = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: Buffer | string) => void) => {
+          if (event === "data") cb(Buffer.from(data));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("returns 200 with updated entry on valid update", async () => {
+      const entry = makeEntry();
+      const updatedEntry = makeEntry({ title: "New Title", updated: "2026-02-01T00:00:00Z" });
+      const provider = makeProvider([entry]);
+      vi.mocked(provider.read)
+        .mockReturnValueOnce(entry)
+        .mockReturnValueOnce(updatedEntry);
+      vi.mocked(getKnowledgeProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+      await handleUpdateKnowledge(makeRequest({ title: "New Title" }), res, "entry-abc");
+      expect(result.status).toBe(200);
+      expect(provider.update).toHaveBeenCalledWith("entry-abc", expect.objectContaining({ title: "New Title" }));
+      expect((result.body as KnowledgeEntry).title).toBe("New Title");
+    });
+
+    it("returns 404 when entry not found", async () => {
+      const provider = makeProvider([]);
+      vi.mocked(getKnowledgeProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+      await handleUpdateKnowledge(makeRequest({ title: "Anything" }), res, "missing-id");
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 500 when provider throws", async () => {
+      const entry = makeEntry();
+      const provider = makeProvider([entry]);
+      vi.mocked(provider.update).mockImplementation(() => { throw new Error("update error"); });
+      vi.mocked(getKnowledgeProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+      await handleUpdateKnowledge(makeRequest({ title: "T" }), res, "entry-abc");
       expect(result.status).toBe(500);
     });
   });

@@ -19,7 +19,7 @@ import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
 import { handleListExtensions } from "./extension-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
-import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge } from "./knowledge-routes.js";
+import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory } from "./memory-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
@@ -289,6 +289,13 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "DELETE" && knowledgeEntryMatch) {
       handleDeleteKnowledge(res, knowledgeEntryMatch[1]);
+      return;
+    }
+
+    if (req.method === "PATCH" && knowledgeEntryMatch) {
+      handleUpdateKnowledge(req, res, knowledgeEntryMatch[1]).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 

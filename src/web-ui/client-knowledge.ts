@@ -7,6 +7,7 @@ export const CLIENT_KNOWLEDGE_JS = `
   var expandedKnowledge = {};
   var cachedKnowledge = [];
   var knowledgeAddFormOpen = false;
+  var knowledgeEditingId = null;
 
   async function refreshKnowledge() {
     try {
@@ -21,6 +22,19 @@ export const CLIENT_KNOWLEDGE_JS = `
     } catch {
       $knowledgeList.innerHTML = '<div class="run-empty">Failed to load knowledge</div>';
     }
+  }
+
+  async function submitEditKnowledge(id, title, content, type, tags) {
+    try {
+      var res = await apiFetch(API + "/api/knowledge/" + encodeURIComponent(id), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title, content: content, type: type, tags: tags }),
+      });
+      if (!res.ok) return;
+      knowledgeEditingId = null;
+      await refreshKnowledge();
+    } catch { /* ignore */ }
   }
 
   async function deleteKnowledge(id) {
@@ -120,26 +134,92 @@ export const CLIENT_KNOWLEDGE_JS = `
     for (var i = 0; i < filtered.length; i++) {
       var entry = filtered[i];
       var isExpanded = !!expandedKnowledge[entry.id];
+      var isEditing = knowledgeEditingId === entry.id;
       var item = document.createElement("div");
-      item.className = "task-item" + (isExpanded ? " expanded" : "");
+      item.className = "task-item" + (isExpanded || isEditing ? " expanded" : "");
       item.style.cssText = "position:relative;";
 
-      var header = '<div class="task-item-header" style="padding-right:20px;">' +
+      var header = '<div class="task-item-header" style="padding-right:' + (isExpanded ? '52px' : '20px') + ';">' +
         '<span class="task-item-title">' + escapeHtml(entry.title) + '</span>';
       if (entry.type) header += '<span class="task-item-area">' + escapeHtml(entry.type) + '</span>';
       header += '</div>';
 
       var body = "";
-      if (isExpanded) {
-        body = '<div class="task-item-body knowledge-content">' +
-          escapeHtml(entry.excerpt || "") + '</div>';
-      } else if (entry.excerpt) {
-        body = '<div class="task-item-summary">' + escapeHtml(entry.excerpt.slice(0, 120)) + (entry.excerpt.length > 120 ? "\\u2026" : "") + '</div>';
+      if (!isEditing) {
+        if (isExpanded) {
+          body = '<div class="task-item-body knowledge-content">' +
+            escapeHtml(entry.excerpt || "") + '</div>';
+        } else if (entry.excerpt) {
+          body = '<div class="task-item-summary">' + escapeHtml(entry.excerpt.slice(0, 120)) + (entry.excerpt.length > 120 ? "\\u2026" : "") + '</div>';
+        }
       }
 
       item.innerHTML = header + body;
 
-      // Delete button
+      if (isEditing) {
+        // Edit form — fetch full entry content first via closure
+        (function(eid, etitle, etype, etags) {
+          var editForm = document.createElement("div");
+          editForm.style.cssText = "padding:4px 0;";
+          var titleInput = document.createElement("input");
+          titleInput.type = "text";
+          titleInput.value = etitle;
+          titleInput.placeholder = "Title (required)";
+          titleInput.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:4px;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;";
+          var typeInput = document.createElement("input");
+          typeInput.type = "text";
+          typeInput.value = etype || "";
+          typeInput.placeholder = "Type (default: note)";
+          typeInput.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:4px;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;";
+          var tagsInput = document.createElement("input");
+          tagsInput.type = "text";
+          tagsInput.value = (etags || []).join(", ");
+          tagsInput.placeholder = "Tags (comma-separated)";
+          tagsInput.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:4px;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;";
+          var contentInput = document.createElement("textarea");
+          contentInput.placeholder = "Content";
+          contentInput.rows = 4;
+          contentInput.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:4px;padding:4px 6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;font-size:12px;resize:vertical;";
+          // Load full content async
+          apiFetch(API + "/api/knowledge/" + encodeURIComponent(eid)).then(function(r) {
+            return r.ok ? r.json() : null;
+          }).then(function(full) {
+            if (full) contentInput.value = full.content || "";
+          }).catch(function() {});
+          var btnRow = document.createElement("div");
+          btnRow.style.cssText = "display:flex;gap:4px;";
+          var saveBtn = document.createElement("button");
+          saveBtn.textContent = "Save";
+          saveBtn.style.cssText = "flex:1;padding:3px 0;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--accent);color:#fff;border-radius:4px;";
+          var cancelBtn = document.createElement("button");
+          cancelBtn.textContent = "Cancel";
+          cancelBtn.style.cssText = "flex:1;padding:3px 0;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:4px;";
+          saveBtn.onclick = function(ev) {
+            ev.stopPropagation();
+            var title = titleInput.value.trim();
+            if (!title) return;
+            var type = typeInput.value.trim() || "note";
+            var tags = tagsInput.value.split(",").map(function(t) { return t.trim(); }).filter(Boolean);
+            var content = contentInput.value;
+            void submitEditKnowledge(eid, title, content, type, tags);
+          };
+          cancelBtn.onclick = function(ev) {
+            ev.stopPropagation();
+            knowledgeEditingId = null;
+            renderKnowledge(cachedKnowledge, knowledgeFilter);
+          };
+          btnRow.appendChild(saveBtn);
+          btnRow.appendChild(cancelBtn);
+          editForm.appendChild(titleInput);
+          editForm.appendChild(typeInput);
+          editForm.appendChild(tagsInput);
+          editForm.appendChild(contentInput);
+          editForm.appendChild(btnRow);
+          item.appendChild(editForm);
+        })(entry.id, entry.title, entry.type, entry.tags);
+      }
+
+      // Delete button (always visible)
       var delBtn = document.createElement("button");
       delBtn.textContent = "\\u00d7";
       delBtn.title = "Delete";
@@ -149,9 +229,23 @@ export const CLIENT_KNOWLEDGE_JS = `
       })(entry.id);
       item.appendChild(delBtn);
 
-      item.onclick = (function(eid) {
-        return function() { expandedKnowledge[eid] = !expandedKnowledge[eid]; renderKnowledge(cachedKnowledge, knowledgeFilter); };
-      })(entry.id);
+      // Edit button (only when expanded and not already editing)
+      if (isExpanded && !isEditing) {
+        var editBtn = document.createElement("button");
+        editBtn.textContent = "Edit";
+        editBtn.title = "Edit";
+        editBtn.style.cssText = "position:absolute;top:4px;right:24px;background:none;border:none;color:var(--fg);opacity:0.6;cursor:pointer;font-size:11px;line-height:1;padding:0 2px;";
+        editBtn.onclick = (function(eid) {
+          return function(ev) { ev.stopPropagation(); knowledgeEditingId = eid; renderKnowledge(cachedKnowledge, knowledgeFilter); };
+        })(entry.id);
+        item.appendChild(editBtn);
+      }
+
+      if (!isEditing) {
+        item.onclick = (function(eid) {
+          return function() { expandedKnowledge[eid] = !expandedKnowledge[eid]; renderKnowledge(cachedKnowledge, knowledgeFilter); };
+        })(entry.id);
+      }
       $knowledgeList.appendChild(item);
     }
   }

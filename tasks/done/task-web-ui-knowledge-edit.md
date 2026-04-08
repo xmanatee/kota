@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-knowledge-edit
 title: Add inline knowledge entry editing to the web UI knowledge panel
-status: ready
+status: done
 priority: p3
 area: web-ui
 summary: The knowledge panel supports adding and deleting entries but has no way to edit an existing entry's title, content, or tags. Inline editing completes the knowledge CRUD surface without leaving the dashboard.

@@ -88,6 +88,41 @@ export async function handleAddKnowledge(
   }
 }
 
+export async function handleUpdateKnowledge(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  cwd = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  const changes: { title?: string; content?: string; type?: string; tags?: string[] } = {};
+  if (typeof body.title === "string") changes.title = body.title.trim();
+  if (typeof body.content === "string") changes.content = body.content;
+  if (typeof body.type === "string") changes.type = body.type.trim();
+  if (Array.isArray(body.tags)) {
+    changes.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string");
+  }
+  try {
+    const provider = getKnowledgeProvider(cwd);
+    const existing = provider.read(id);
+    if (!existing) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+    provider.update(id, changes);
+    const updated = provider.read(id);
+    jsonResponse(res, 200, updated);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 export function handleDeleteKnowledge(
   res: ServerResponse,
   id: string,
