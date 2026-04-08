@@ -10,8 +10,8 @@ const makeTool = (name: string) => ({
 });
 
 describe("getAllTools", () => {
-  it("contains built-in tool definitions (web and filesystem tools moved to extensions)", () => {
-    expect(getAllTools()).toHaveLength(29);
+  it("contains built-in tool definitions (web, filesystem, and execution tools moved to extensions)", () => {
+    expect(getAllTools()).toHaveLength(24);
   });
 
   it("has unique names", () => {
@@ -34,13 +34,14 @@ describe("getAllTools", () => {
     const names = new Set(getAllTools().map((t) => t.name));
     // Filesystem tools (file_read, file_write, file_edit, multi_edit, grep, glob,
     // file_watch, find_replace, files_overview) are now in the filesystem extension.
+    // Execution tools (shell, process, code_exec, computer_use, screenshot) are now
+    // in the execution extension.
     const expected = new Set([
-      "agent_status", "approval", "audit", "shell",
+      "agent_status", "approval", "audit",
       "git", "todo", "repo_map", "delegate", "env_info",
-      "ask_user", "process",
-      "code_exec", "confirm", "notebook",
-      "custom_tool", "checkpoint", "extension_factory", "notify", "screenshot",
-      "read_document", "clipboard", "computer_use", "sqlite", "view_image",
+      "ask_user", "confirm", "notebook",
+      "custom_tool", "checkpoint", "extension_factory", "notify",
+      "read_document", "clipboard", "sqlite", "view_image",
       "batch", "pipe", "map", "workspace", "prompt_template",
     ]);
     expect(names).toEqual(expected);
@@ -48,9 +49,9 @@ describe("getAllTools", () => {
 });
 
 describe("getCoreRegistrations", () => {
-  it("returns all core tool registrations (web and filesystem tools moved to extensions)", () => {
+  it("returns all core tool registrations (web, filesystem, and execution tools moved to extensions)", () => {
     const regs = getCoreRegistrations();
-    expect(regs).toHaveLength(29);
+    expect(regs).toHaveLength(24);
   });
 
   it("each registration has tool, runner, and risk", () => {
@@ -77,8 +78,9 @@ describe("getCoreRegistrations", () => {
       .map((r) => r.tool.name)
       .sort();
     expect(safeNames).toContain("ask_user");
+    // web, filesystem, and execution tools are now in extensions, not in core registrations
     expect(safeNames).not.toContain("shell");
-    // web and filesystem tools are now in extensions, not in core registrations
+    expect(safeNames).not.toContain("screenshot");
     expect(safeNames).not.toContain("file_read");
     expect(safeNames).not.toContain("grep");
     expect(safeNames).not.toContain("glob");
@@ -99,7 +101,8 @@ describe("getCoreRegistrations", () => {
     const coreNames = getCoreRegistrations()
       .filter((r) => !r.group)
       .map((r) => r.tool.name);
-    expect(coreNames).toContain("shell");
+    // shell is now in the execution extension, not in core
+    expect(coreNames).not.toContain("shell");
     // file_read is now in the filesystem extension, not in core
     expect(coreNames).not.toContain("file_read");
     expect(coreNames).toContain("delegate");
@@ -132,8 +135,8 @@ describe("registerTool", () => {
 
   it("rejects duplicate built-in tool name", () => {
     expect(() =>
-      registerTool(makeTool("shell"), async () => ({ content: "" })),
-    ).toThrow("Tool already registered: shell");
+      registerTool(makeTool("delegate"), async () => ({ content: "" })),
+    ).toThrow("Tool already registered: delegate");
   });
 
   it("rejects duplicate custom tool name", () => {
@@ -156,7 +159,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(29);
+    expect(getAllTools()).toHaveLength(24);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 

@@ -29,7 +29,9 @@ describe("registerTool × filterTools (cross-module)", () => {
     const names = filtered.map((t) => t.name);
     expect(names).toContain("calendar_check");
     // Core tools also present
-    expect(names).toContain("shell");
+    expect(names).toContain("delegate");
+    // shell is now in the execution extension, not in core
+    expect(names).not.toContain("shell");
     // file_read is now in the filesystem extension, not in core
     expect(names).not.toContain("file_read");
   });
@@ -42,9 +44,8 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("email_send");
-    // code_exec is a core tool in the "code" group
-    expect(names).toContain("code_exec");
-    expect(names).toContain("shell");
+    // notebook is a core tool in the "code" group (code_exec is now in the execution extension)
+    expect(names).toContain("notebook");
   });
 
   it("custom tools survive filterTools with 'all' groups enabled", () => {
@@ -55,8 +56,8 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("smart_home");
-    // code_exec is a core tool in the "code" group, always in getAllTools()
-    expect(names).toContain("code_exec");
+    // notebook is a core tool in the "code" group (code_exec is now in the execution extension)
+    expect(names).toContain("notebook");
   });
 
   it("cleared custom tools disappear from filterTools", () => {

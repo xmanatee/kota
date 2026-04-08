@@ -7,8 +7,6 @@ import { registration as audit } from "./audit.js";
 import { registration as batch } from "./batch.js";
 import { registration as checkpoint } from "./checkpoint.js";
 import { registration as clipboard } from "./clipboard.js";
-import { registration as codeExec } from "./code-exec.js";
-import { registration as computerUse } from "./computer-use.js";
 import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
@@ -19,12 +17,9 @@ import { registration as map } from "./map.js";
 import { registration as notebook } from "./notebook.js";
 import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
-import { registration as process_ } from "./process.js";
 import { registration as promptTemplate } from "./prompt.js";
 import { registration as readDocument } from "./read-document.js";
 import { registration as repoMap } from "./repo-map.js";
-import { registration as screenshot } from "./screenshot.js";
-import { registration as shell } from "./shell.js";
 import { registration as sqlite } from "./sqlite.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
@@ -64,14 +59,11 @@ const registrationImports = [
   () => agentStatus,
   () => approval,
   () => audit,
-  () => shell,
   () => todo,
   () => repoMap,
   () => delegate,
   () => envInfo,
   () => askUser,
-  () => process_,
-  () => codeExec,
   () => confirm,
   () => git,
   () => notebook,
@@ -79,10 +71,8 @@ const registrationImports = [
   () => checkpoint,
   () => extensionFactory,
   () => notify,
-  () => screenshot,
   () => readDocument,
   () => clipboard,
-  () => computerUse,
   () => sqlite,
   () => viewImage,
   () => batch,

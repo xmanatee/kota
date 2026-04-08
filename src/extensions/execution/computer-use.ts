@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolResult } from "../../tools/tool-result.js";
 import {
 	linuxClick, linuxCursorPosition, linuxDoubleClick, linuxDrag,
 	linuxKey, linuxMove, linuxRightClick, linuxScroll, linuxType,
@@ -6,7 +7,6 @@ import {
 	macKey, macMove, macRightClick, macScroll, macType,
 	needCoords,
 } from "./computer-use-actions.js";
-import type { ToolResult } from "./index.js";
 
 export { resetComputerUseState } from "./computer-use-actions.js";
 

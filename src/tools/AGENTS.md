@@ -13,10 +13,7 @@ core-hosted tool implementations.
 ## Key Modules
 
 - `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`, `getExtensionToolRisk`, `getToolKind`). Tracks risk/kind metadata for extension-registered tools in addition to core registrations. General-purpose capability packs belong in `src/extensions/`, not here.
-- `computer-use-actions.ts` — Re-exports all platform actions and `needCoords`; `resetComputerUseState` delegates to both platform reset functions.
-- `computer-use-actions-shared.ts` — `EXEC_OPTS`, `parseCombo`, `truncText`, `needCoords` shared by both platform files.
-- `computer-use-actions-mac.ts` — macOS click, type, key, scroll, drag, and cursor actions using cliclick/osascript.
-- `computer-use-actions-linux.ts` — Linux click, type, key, scroll, drag, and cursor actions using xdotool.
+- `runtime-check.ts` — `which` utility: checks whether a command exists on the system PATH; used by the execution extension's `code_exec` tool.
 - `custom-tool.ts` — `customToolTool` schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, persistence lifecycle, and registration.
 - `custom-tool-handlers.ts` — `handleCreate`, `handleList`, `handleRemove` action handlers and `buildRunner` execution builder for custom tools.
 - `knowledge-schema.ts` — `knowledgeTool` Anthropic tool schema definition (static, no runner logic).

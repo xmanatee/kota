@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { codeExecTool } from "./extensions/execution/code-exec.js";
 import { grepTool } from "./extensions/filesystem/grep.js";
 import { httpRequestTool } from "./extensions/web-access/http-request.js";
 import { webFetchTool } from "./extensions/web-access/web-fetch.js";
@@ -188,8 +189,9 @@ describe("SYSTEM_PROMPT", () => {
     expect(dataSection).toContain("code_exec");
     expect(dataSection).toContain("notebook");
     expect(dataSection).toContain("matplotlib");
-    // Verify referenced tools exist in registry
-    expect(getAllTools().find((t) => t.name === "code_exec")).toBeDefined();
+    // code_exec is now in the execution extension (not core registry), verify it exists directly
+    expect(codeExecTool.name).toBe("code_exec");
+    // notebook is still in core registry
     expect(getAllTools().find((t) => t.name === "notebook")).toBeDefined();
   });
 
@@ -366,8 +368,8 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("code_exec tool supports Python and Node.js languages", () => {
-    const codeExec = getAllTools().find((t) => t.name === "code_exec")!;
-    const props = codeExec.input_schema.properties as Record<string, unknown>;
+    // code_exec is now in the execution extension (not core registry); import directly
+    const props = codeExecTool.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("language");
     const lang = props.language as { enum?: string[] };
     expect(lang.enum).toContain("python");

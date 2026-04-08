@@ -10,6 +10,7 @@
 
 import type { KotaExtension } from "../extension-types.js";
 import daemonModule from "./daemon.js";
+import executionModule from "./execution/index.js";
 import filesystemModule from "./filesystem/index.js";
 import githubModule from "./github/index.js";
 import githubWebhookModule from "./github-webhook/index.js";
@@ -49,6 +50,7 @@ export const builtinExtensions: KotaExtension[] = [
   githubModule,
   githubWebhookModule,
   vercelAdapterModule,
+  executionModule,
   filesystemModule,
   webAccessModule,
   webModule,

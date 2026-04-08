@@ -71,8 +71,8 @@ has to stay in core.
   directory pattern (tools, helpers, and tests co-located with the extension).
   The filesystem capability pack (`file_read`, `file_write`, etc.) has since
   been migrated to `src/extensions/filesystem/` following the same pattern.
-  Execution tools (`shell`, `process`, `code_exec`, `computer_use`,
-  `screenshot`) still live in `src/tools/` and should follow next.
+  The execution capability pack (`shell`, `process`, `code_exec`, `computer_use`,
+  `screenshot`) has been migrated to `src/extensions/execution/` following the same pattern.
 - Built-in extensions exist, but many are still thin wiring layers over large
   core implementations instead of being the primary home of the capability.
 - The repository layout is still flatter than the target model. Too much

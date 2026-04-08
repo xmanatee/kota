@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
+import { runShell, shellTool } from "../extensions/execution/shell.js";
+import { clearCustomTools, registerTool } from "../tools/index.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
@@ -45,6 +47,7 @@ describe("WorkflowRuntime", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    clearCustomTools();
   });
 
   it("runs idle workflows and writes per-run artifacts", async () => {
@@ -377,6 +380,9 @@ describe("WorkflowRuntime", () => {
   });
 
   it("supports code steps that call KOTA tools before agent steps", async () => {
+    // Register the shell tool from the execution extension (normally loaded by builtinExtensions)
+    registerTool(shellTool, runShell, "execution");
+
     writeFileSync(
       join(projectDir, "src", "workflows", "builder", "prompt.md"),
       "Build.\n",

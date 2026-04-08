@@ -1,7 +1,7 @@
 ---
 id: task-execution-capability-pack-extension
 title: Move shell and process execution tools into a built-in extension capability pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: shell, process, code-exec, and computer-use still live in src/tools/ as core-hosted tools. Migrating them to a src/extensions/execution/ capability pack continues the minimal-core migration started by the web-access extension.

@@ -26,6 +26,14 @@ function getBuiltinToolNames(): Set<string> {
 	if (!_builtinToolNames) {
 		_builtinToolNames = new Set([
 			...getCoreRegistrations().map((r) => r.tool.name),
+			// Execution extension tools (always loaded as built-in)
+			"shell", "process", "code_exec", "computer_use", "screenshot",
+			// Filesystem extension tools (always loaded as built-in)
+			"file_read", "file_write", "file_edit", "multi_edit", "find_replace",
+			"glob", "grep", "file_watch", "files_overview",
+			// Web access extension tools (always loaded as built-in)
+			"web_fetch", "web_search", "http_request",
+			// Other built-in extension tools
 			"enable_tools",
 			"memory",
 			"schedule",

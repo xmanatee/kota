@@ -26,7 +26,8 @@ describe("agent_status", () => {
 			const result = await runAgentStatus({ query: "tools" });
 			expect(result.content).toContain("## Tools");
 			expect(result.content).toContain("Core tools");
-			expect(result.content).toContain("shell");
+			// shell is now in the execution extension, not in core
+			expect(result.content).not.toContain("shell");
 			// file_read is now in the filesystem extension, not in core
 			expect(result.content).not.toContain("file_read");
 			expect(result.content).toContain("delegate");
@@ -45,17 +46,17 @@ describe("agent_status", () => {
 		});
 
 		it("filters tools by name", async () => {
-			// grep is now in the filesystem extension; use a core tool like "shell"
-			const result = await runAgentStatus({ query: "tools", filter: "shell" });
-			expect(result.content).toContain("shell");
+			// grep and shell are now in extensions; use a core tool like "git"
+			const result = await runAgentStatus({ query: "tools", filter: "git" });
+			expect(result.content).toContain("git");
 			expect(result.content).not.toContain("delegate");
 		});
 
 		it("filters tools by description", async () => {
-			// file_read is now in the filesystem extension; filter by "shell" instead
-			const result = await runAgentStatus({ query: "tools", filter: "shell" });
+			// file_read and shell are now in extensions; filter by "delegate" instead
+			const result = await runAgentStatus({ query: "tools", filter: "delegate" });
 			expect(result.content).toContain("## Tools");
-			expect(result.content).toContain("shell");
+			expect(result.content).toContain("delegate");
 		});
 
 		it("shows no match message when filter matches nothing", async () => {

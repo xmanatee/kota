@@ -45,12 +45,12 @@ vi.mock("./tools/delegate.js", () => ({
   setDelegateConfig: vi.fn(),
   delegateTool: { name: "delegate", description: "", input_schema: { type: "object", properties: {} } },
 }));
-vi.mock("./tools/process.js", () => ({
+vi.mock("./extensions/execution/process.js", () => ({
   cleanupProcesses: vi.fn(),
   processTool: { name: "process", description: "", input_schema: { type: "object", properties: {} } },
   runProcess: vi.fn(),
 }));
-vi.mock("./tools/code-exec.js", () => ({
+vi.mock("./extensions/execution/code-exec.js", () => ({
   cleanupSessions: vi.fn(),
   codeExecTool: { name: "code_exec", description: "", input_schema: { type: "object", properties: {} } },
   runCodeExec: vi.fn(),
@@ -557,8 +557,8 @@ describe("AgentSession", () => {
 
   describe("close", () => {
     it("cleans up processes and sessions", async () => {
-      const { cleanupProcesses } = await import("./tools/process.js");
-      const { cleanupSessions } = await import("./tools/code-exec.js");
+      const { cleanupProcesses } = await import("./extensions/execution/process.js");
+      const { cleanupSessions } = await import("./extensions/execution/code-exec.js");
 
       session = new AgentSession();
       session.close();
