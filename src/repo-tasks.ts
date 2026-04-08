@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { getRepoHeadSha } from "./repo-worktree.js";
 
 export const REPO_TASK_STATES = [
   "inbox",
@@ -17,6 +18,7 @@ export type RepoTaskQueueSnapshot = {
   counts: Record<RepoTaskState, number>;
   openCount: number;
   actionableCount: number;
+  headSha: string;
 };
 
 export function isRepoTaskQueueSnapshot(
@@ -57,5 +59,6 @@ export function getRepoTaskQueueSnapshot(
       counts.doing +
       counts.blocked,
     actionableCount: counts.ready + counts.doing,
+    headSha: getRepoHeadSha(projectDir),
   };
 }

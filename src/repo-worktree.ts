@@ -6,7 +6,19 @@ export type RepoWorktreeStatus = {
   entries: string[];
   fingerprint: string;
   summary: string;
+  headSha: string;
 };
+
+export function getRepoHeadSha(projectDir: string): string {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: projectDir,
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return "";
+  }
+}
 
 function summarizeEntries(entries: string[]): string {
   if (entries.length === 0) {
@@ -32,6 +44,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
       entries,
       fingerprint: entries.join("\n"),
       summary: summarizeEntries(entries),
+      headSha: getRepoHeadSha(projectDir),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -41,6 +54,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
       entries: [],
       fingerprint: "",
       summary: `git status unavailable: ${message}`,
+      headSha: "",
     };
   }
 }

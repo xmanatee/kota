@@ -1,6 +1,6 @@
 import type { RepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
-import { assertRepoWorktreeClean } from "../../repo-worktree.js";
+import { assertRepoWorktreeClean, getRepoHeadSha } from "../../repo-worktree.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
@@ -70,9 +70,26 @@ const builderWorkflow: WorkflowDefinitionInput = {
       },
     },
     {
-      id: "commit",
+      id: "check-no-intermediate-commits",
       type: "code",
       when: stepSucceeded("build"),
+      run: (ctx) => {
+        const startSha = inspectReadyQueue.output(ctx).headSha;
+        const currentSha = getRepoHeadSha(ctx.projectDir);
+        if (startSha && currentSha && startSha !== currentSha) {
+          throw new Error(
+            `Builder agent committed directly during its run (${startSha.slice(0, 8)} → ${currentSha.slice(0, 8)}), bypassing the validation gate. ` +
+              `Intermediate commits circumvent the repair loop and must not occur. ` +
+              `The prompt instructs: stage changes and write commit-message.txt — never run git commit.`,
+          );
+        }
+        return { startSha, currentSha, clean: startSha === currentSha };
+      },
+    },
+    {
+      id: "commit",
+      type: "code",
+      when: stepSucceeded("check-no-intermediate-commits"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
     typedCodeStep<BuilderRunSummary>({

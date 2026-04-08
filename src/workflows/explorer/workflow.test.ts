@@ -53,6 +53,7 @@ function makeHealthySnapshot() {
     counts,
     openCount: counts.inbox + counts.backlog + counts.ready + counts.doing + counts.blocked,
     actionableCount: counts.ready + counts.doing,
+    headSha: "abc1234",
   };
 }
 
@@ -71,6 +72,7 @@ function makeAttentionSnapshot() {
     counts,
     openCount: counts.inbox + counts.backlog + counts.ready + counts.doing + counts.blocked,
     actionableCount: counts.ready + counts.doing,
+    headSha: "abc1234",
   };
 }
 

@@ -61,7 +61,7 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `registry.ts` — `installTool`, `removeTool`, `listTools`, `updateTool`, `loadManifest`, `saveManifest`: manages installed extensions tracked in `.kota/tools.json`; delegates per-source install mechanics to `registry-installers.ts`.
 - `registry-installers.ts` — `installNpm`, `installUrl`, `installGithub`, `getNpmVersion`, `resolveInstalledPackageName`, `resolveNpmEntry`: per-source-type install mechanics; all installs land under `.kota/extensions/<name>/`.
 - `repo-tasks.ts` — `getRepoTaskQueueSnapshot`, `REPO_TASK_STATES`, `RepoTaskState`, and `RepoTaskQueueSnapshot`; scans `tasks/` directories and returns counts by state; used by workflow `inspect-queue` and `inspect-ready-queue` steps.
-- `repo-worktree.ts` — `assertRepoWorktreeClean`, `getRepoWorktreeStatus`; validates that the git working tree is clean before a workflow agent step runs; used by builder and explorer workflows.
+- `repo-worktree.ts` — `assertRepoWorktreeClean`, `getRepoWorktreeStatus`, `getRepoHeadSha`; validates that the git working tree is clean before a workflow agent step runs; `getRepoHeadSha` returns the current HEAD commit SHA and is used by the builder workflow's intermediate-commit detection gate.
 - `task-queue-validation.ts` — `validateTaskQueue`, `assertTaskQueueValid`, `assertTaskQueueRecommendations`, `assertNoHighPriorityBacklogStrandedTasks`, `hasHighPriorityBacklogTasks`; structural and policy checks on the `tasks/` directory; used by builder, explorer, and improver repair-loop gates.
 - `workflow-history.ts` — `loadRunsInWindow`, `computeHistoryStats`; reads workflow run metadata from `.kota/runs/` filtered by time window; used by `shared.ts` and dashboard history routes.
 

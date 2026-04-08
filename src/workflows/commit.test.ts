@@ -114,13 +114,15 @@ describe("builder workflow commit and restart gates", () => {
   it("skips commit when build fails", async () => {
     const ctx = makeContext({
       build: "failed",
+      "check-no-intermediate-commits": "skipped",
     });
     expect(await commitStep!.when!(ctx)).toBe(false);
   });
 
-  it("runs commit when build passes", async () => {
+  it("runs commit when build passes and no intermediate commits", async () => {
     const ctx = makeContext({
       build: "success",
+      "check-no-intermediate-commits": "success",
     });
     expect(await commitStep!.when!(ctx)).toBe(true);
   });

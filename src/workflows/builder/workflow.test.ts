@@ -14,6 +14,7 @@ vi.mock("../../repo-worktree.js", () => ({
     dirty: false,
     entries: [],
   })),
+  getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
 
 vi.mock("../../repo-tasks.js", () => ({
@@ -55,6 +56,7 @@ function makeEmptySnapshot() {
     },
     openCount: 0,
     actionableCount: 0,
+    headSha: "abc1234",
   };
 }
 
@@ -72,6 +74,7 @@ function makeSnapshot(ready: number, doing: number) {
     counts,
     openCount: counts.inbox + counts.backlog + counts.ready + counts.doing + counts.blocked,
     actionableCount: ready + doing,
+    headSha: "abc1234",
   };
 }
 
@@ -99,6 +102,7 @@ describe("builder workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
     expect(result.steps.build.status).toBe("skipped");
+    expect(result.steps["check-no-intermediate-commits"].status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
     expect(result.steps["write-run-summary"].status).toBe("skipped");
     expect(result.steps["emit-build-committed"].status).toBe("skipped");
@@ -128,6 +132,7 @@ describe("builder workflow", () => {
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
     expect(result.steps.build.status).toBe("success");
     expect(result.steps.build.output).toMatchObject({ totalCostUsd: 0.05 });
+    expect(result.steps["check-no-intermediate-commits"].status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
   });
 
@@ -194,6 +199,33 @@ describe("builder workflow", () => {
       costUsd: 0.42,
       durationMs: 480000,
     });
+  });
+
+  it("fails when builder agent committed directly (intermediate commit detected)", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    // Snapshot captured "abc1234" at start; agent then committed, changing HEAD
+    vi.mocked(getRepoHeadSha).mockReturnValue("def5678");
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: {
+        event: "workflow.completed",
+        payload: { workflow: "explorer", status: "success" },
+      },
+      stepMocks: {
+        build: { turns: [], totalCostUsd: 0.1 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps.build.status).toBe("success");
+    expect(result.steps["check-no-intermediate-commits"].status).toBe("failed");
+    expect(result.steps["check-no-intermediate-commits"].error).toMatch(/committed directly/);
+    expect(result.steps.commit).toBeUndefined();
   });
 
   it("prompt instructs agent to scan blocked/ and doing/ before selecting a task", () => {

@@ -52,6 +52,7 @@ describe("repo task helpers", () => {
       },
       openCount: 3,
       actionableCount: 2,
+      headSha: expect.any(String),
     });
   });
 });
