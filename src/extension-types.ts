@@ -80,6 +80,20 @@ export type ToolDef = {
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;
   /** Tool group for progressive disclosure. Ungrouped tools are always available. */
   group?: string;
+  /**
+   * Risk classification for guardrails. When provided, the guardrails system
+   * uses this instead of the fallback "unclassified tool" default.
+   * - safe: read-only, no side effects
+   * - moderate: mutates local state in controlled ways
+   * - dangerous: destructive or high-impact operations
+   */
+  risk?: "safe" | "moderate" | "dangerous";
+  /**
+   * Capability category for phase-level safety checks.
+   * - discovery: read-only, no side effects (reads, search, listing)
+   * - action: can modify state (writes, execution, network mutations)
+   */
+  kind?: "discovery" | "action";
 };
 
 /** An HTTP route registered by an extension. */

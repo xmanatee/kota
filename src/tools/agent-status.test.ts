@@ -39,7 +39,8 @@ describe("agent_status", () => {
 		it("shows tool group", async () => {
 			const result = await runAgentStatus({ query: "tools" });
 			expect(result.content).toContain("[core]");
-			expect(result.content).toContain("[web]");
+			// code group tools (code_exec, notebook, sqlite) are still in core registrations
+			expect(result.content).toContain("[code]");
 		});
 
 		it("filters tools by name", async () => {
@@ -49,10 +50,10 @@ describe("agent_status", () => {
 		});
 
 		it("filters tools by description", async () => {
-			const result = await runAgentStatus({ query: "tools", filter: "search" });
+			const result = await runAgentStatus({ query: "tools", filter: "file" });
 			expect(result.content).toContain("## Tools");
-			// web_search should match
-			expect(result.content).toContain("web_search");
+			// file_read and file_write are still core tools
+			expect(result.content).toContain("file_read");
 		});
 
 		it("shows no match message when filter matches nothing", async () => {

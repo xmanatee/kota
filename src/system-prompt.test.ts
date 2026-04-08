@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { httpRequestTool } from "./extensions/web-access/http-request.js";
+import { webFetchTool } from "./extensions/web-access/web-fetch.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { CORE_TOOL_NAMES, TOOL_GROUPS } from "./tool-groups.js";
 import { getAllTools } from "./tools/index.js";
@@ -355,16 +357,9 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("web_fetch and http_request tools have save_to parameter", () => {
-    const webFetch = getAllTools().find((t) => t.name === "web_fetch")!;
-    const httpReq = getAllTools().find((t) => t.name === "http_request")!;
-    const fetchProps = webFetch.input_schema.properties as Record<
-      string,
-      unknown
-    >;
-    const httpProps = httpReq.input_schema.properties as Record<
-      string,
-      unknown
-    >;
+    // These tools are in the web-access extension; import schemas directly
+    const fetchProps = webFetchTool.input_schema.properties as Record<string, unknown>;
+    const httpProps = httpRequestTool.input_schema.properties as Record<string, unknown>;
     expect(fetchProps).toHaveProperty("save_to");
     expect(httpProps).toHaveProperty("save_to");
   });

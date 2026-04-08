@@ -39,12 +39,11 @@ describe("editor tool set independence from tool-group state", () => {
     // than filterTools path when groups are not enabled
     expect(direct.length).toBeGreaterThanOrEqual(viaFilterTools.length);
 
-    // Specifically, web_search/web_fetch/code_exec should be in direct
-    // but NOT in filterTools (since their groups aren't enabled)
-    expect(direct).toContain("web_search");
-    expect(direct).toContain("web_fetch");
+    // code_exec is in the "code" group and in core getAllTools() without extension loading.
+    // It should be in direct but NOT in filterTools (its group isn't enabled).
+    // Note: web_search/web_fetch are in the web-access extension and only in getAllTools()
+    // when the extension is loaded, so we test with code_exec instead.
     expect(direct).toContain("code_exec");
-    expect(viaFilterTools).not.toContain("web_search");
     expect(viaFilterTools).not.toContain("code_exec");
   });
 
@@ -95,24 +94,26 @@ describe("filterTools main-loop behavior with group state", () => {
 
   it("enabling a group adds its tools to filterTools output", () => {
     const before = new Set(filterTools(getAllTools()).map((t) => t.name));
-    expect(before.has("web_search")).toBe(false);
+    expect(before.has("code_exec")).toBe(false);
 
-    enableGroup("web");
+    // Enable "code" group — code_exec is a core tool registered in getAllTools()
+    enableGroup("code");
     const after = new Set(filterTools(getAllTools()).map((t) => t.name));
-    expect(after.has("web_search")).toBe(true);
-    expect(after.has("web_fetch")).toBe(true);
-    expect(after.has("http_request")).toBe(true);
+    expect(after.has("code_exec")).toBe(true);
+    expect(after.has("notebook")).toBe(true);
+    expect(after.has("sqlite")).toBe(true);
+    // web tools are in the web-access extension; only available after extension loads
   });
 
   it("resetGroups removes all non-core tools from filterTools", () => {
     enableGroup("all");
     const withAll = filterTools(getAllTools()).map((t) => t.name);
-    expect(withAll).toContain("web_search");
+    // code_exec is a core-registered tool in the "code" group
     expect(withAll).toContain("code_exec");
+    // web tools are in the web-access extension, only available after extension loads
 
     resetGroups();
     const afterReset = new Set(filterTools(getAllTools()).map((t) => t.name));
-    expect(afterReset.has("web_search")).toBe(false);
     expect(afterReset.has("code_exec")).toBe(false);
   });
 

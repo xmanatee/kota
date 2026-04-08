@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getProviderRegistry } from "../providers.js";
 import { getEnabledGroups, TOOL_GROUPS } from "../tool-groups.js";
-import { getCoreRegistrations, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
+import { getCoreRegistrations, getExtensionToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
 
 export const agentStatusTool: Anthropic.Tool = {
 	name: "agent_status",
@@ -111,7 +111,11 @@ function formatTools(filter: string): string {
 	if (extensionFiltered.length > 0) {
 		lines.push(`\nExtension tools (${extensionFiltered.length}):`);
 		for (const t of extensionFiltered) {
-			lines.push(`- ${t.name}: ${truncate(t.description || "(no description)", 80)}`);
+			const group = findToolGroup(t.name);
+			const risk = getExtensionToolRisk(t.name);
+			const groupTag = group ? ` [${group}]` : "";
+			const riskTag = risk && risk !== "safe" ? ` (${risk})` : "";
+			lines.push(`- ${t.name}${groupTag}${riskTag}: ${truncate(t.description || "(no description)", 80)}`);
 		}
 	}
 
@@ -120,6 +124,14 @@ function formatTools(filter: string): string {
 	}
 
 	return lines.join("\n");
+}
+
+/** Find the group name a tool belongs to by looking it up in TOOL_GROUPS. */
+function findToolGroup(toolName: string): string | undefined {
+	for (const [group, tools] of Object.entries(TOOL_GROUPS)) {
+		if (tools.includes(toolName)) return group;
+	}
+	return undefined;
 }
 
 function formatToolLine(r: ToolRegistration): string {

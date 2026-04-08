@@ -5,7 +5,7 @@
  * input. Consumed by guardrails.ts for policy resolution.
  */
 
-import { getCoreRegistrations } from "./tools/index.js";
+import { getCoreRegistrations, getExtensionToolRisk } from "./tools/index.js";
 
 export type RiskLevel = "safe" | "moderate" | "dangerous";
 
@@ -109,9 +109,21 @@ export function classifyRisk(
   name: string,
   input: Record<string, unknown>,
 ): { risk: RiskLevel; reason: string } {
-  // Explicit safe tools
+  // Explicit safe tools (core registry)
   if (safeTools().has(name)) {
     return { risk: "safe", reason: "read-only tool" };
+  }
+
+  // Extension-registered tools with explicit risk metadata
+  const extRisk = getExtensionToolRisk(name);
+  if (extRisk === "safe") {
+    return { risk: "safe", reason: "read-only tool" };
+  }
+  if (extRisk === "moderate") {
+    return { risk: "moderate", reason: `${name} modifies state` };
+  }
+  if (extRisk === "dangerous") {
+    return { risk: "dangerous", reason: `${name} is a high-risk operation` };
   }
 
   // Shell and process: check command content

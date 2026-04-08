@@ -12,9 +12,7 @@ core-hosted tool implementations.
 
 ## Key Modules
 
-- `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`). This file should trend toward host/runtime concerns rather than remaining the long-term home of general-purpose built-in capabilities.
-- `web-search.ts` — `webSearchTool` schema, `runWebSearch` runner, Brave/DDG fetch logic, and registration.
-- `web-search-helpers.ts` — HTML parsing, result formatting, rate-limit detection, and URL resolution for web search.
+- `index.ts` — central core tool registry and dispatch surface (`getCoreRegistrations`, `getAllTools`, `executeTool`, `registerTool`, `getExtensionToolRisk`, `getToolKind`). Tracks risk/kind metadata for extension-registered tools in addition to core registrations. General-purpose capability packs belong in `src/extensions/`, not here.
 - `file-edit.ts` — `fileEditTool` schema, `runFileEdit` runner, and registration.
 - `file-edit-helpers.ts` — Whitespace-tolerant matching, fuzzy not-found messaging, and similarity scoring for file edits.
 - `computer-use-actions.ts` — Re-exports all platform actions and `needCoords`; `resetComputerUseState` delegates to both platform reset functions.

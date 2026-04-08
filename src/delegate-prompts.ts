@@ -1,4 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { httpRequestTool, runHttpRequest } from "./extensions/web-access/http-request.js";
+import { runWebFetch, webFetchTool } from "./extensions/web-access/web-fetch.js";
+import { runWebSearch, webSearchTool } from "./extensions/web-access/web-search.js";
 import { detectProject, getDirectoryOverview } from "./project-detection.js";
 import { codeExecTool, runCodeExec } from "./tools/code-exec.js";
 import { fileEditTool, runFileEdit } from "./tools/file-edit.js";
@@ -9,14 +12,11 @@ import { findReplaceTool, runFindReplace } from "./tools/find-replace.js";
 import { gitTool, runGit } from "./tools/git.js";
 import { globTool, runGlob } from "./tools/glob.js";
 import { grepTool, runGrep } from "./tools/grep.js";
-import { httpRequestTool, runHttpRequest } from "./tools/http-request.js";
 import type { ToolResult } from "./tools/index.js";
 import { multiEditTool, runMultiEdit } from "./tools/multi-edit.js";
 import { processTool, runProcess } from "./tools/process.js";
 import { repoMapTool, runRepoMap } from "./tools/repo-map.js";
 import { runShell } from "./tools/shell.js";
-import { runWebFetch, webFetchTool } from "./tools/web-fetch.js";
-import { runWebSearch, webSearchTool } from "./tools/web-search.js";
 import { runWorkspace, workspaceTool } from "./tools/workspace.js";
 
 // --- Sub-agent system prompts ---

@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { extractPage, formatMetadataHeader } from "../data/html-page-extract.js";
-import type { ToolResult } from "./index.js";
+import { extractPage, formatMetadataHeader } from "../../data/html-page-extract.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 
 export const webFetchTool: Anthropic.Tool = {
   name: "web_fetch",
@@ -184,11 +184,3 @@ export async function runWebFetch(
     return { content: `Fetch error: ${msg}`, is_error: true };
   }
 }
-
-export const registration = {
-	tool: webFetchTool,
-	runner: runWebFetch,
-	risk: "moderate" as const,
-	kind: "discovery" as const,
-	group: "web",
-};

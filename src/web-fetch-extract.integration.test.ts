@@ -7,7 +7,7 @@
  * tables, blockquotes, entity-heavy content, and content-type edge cases.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runWebFetch } from "./tools/web-fetch.js";
+import { runWebFetch } from "./extensions/web-access/web-fetch.js";
 
 function mockHtmlResponse(body: string) {
   return {

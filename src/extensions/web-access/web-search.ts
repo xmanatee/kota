@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./index.js";
+import type { ToolResult } from "../../tools/tool-result.js";
 import {
   type BraveSearchResponse,
   formatResults,
@@ -133,11 +133,3 @@ async function fetchDuckDuckGo(
     return { content: `Search error: ${msg}`, is_error: true };
   }
 }
-
-export const registration = {
-	tool: webSearchTool,
-	runner: runWebSearch,
-	risk: "safe" as const,
-	kind: "discovery" as const,
-	group: "web",
-};

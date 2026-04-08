@@ -23,7 +23,6 @@ import { registration as findReplace } from "./find-replace.js";
 import { registration as git } from "./git.js";
 import { registration as glob } from "./glob.js";
 import { registration as grep } from "./grep.js";
-import { registration as httpRequest } from "./http-request.js";
 import { registration as map } from "./map.js";
 import { registration as multiEdit } from "./multi-edit.js";
 import { registration as notebook } from "./notebook.js";
@@ -39,8 +38,6 @@ import { registration as sqlite } from "./sqlite.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 import { registration as viewImage } from "./view-image.js";
-import { registration as webFetch } from "./web-fetch.js";
-import { registration as webSearch } from "./web-search.js";
 import { registration as workspace } from "./workspace.js";
 
 export type { ToolResult, ToolResultBlock };
@@ -88,10 +85,7 @@ const registrationImports = [
   () => delegate,
   () => envInfo,
   () => fileWatch,
-  () => webFetch,
-  () => webSearch,
   () => askUser,
-  () => httpRequest,
   () => process_,
   () => codeExec,
   () => confirm,
@@ -127,9 +121,15 @@ export function getCoreRegistrations(): readonly ToolRegistration[] {
   return _coreRegistrations;
 }
 
-/** Returns the kind of a tool by name, or undefined if not found. */
+/** Returns the kind of a tool by name, checking core then extension-registered tools. */
 export function getToolKind(name: string): "discovery" | "action" | undefined {
-  return getCoreRegistrations().find((r) => r.tool.name === name)?.kind;
+  return getCoreRegistrations().find((r) => r.tool.name === name)?.kind
+    ?? extensionToolMeta.get(name)?.kind;
+}
+
+/** Returns the risk level of an extension-registered tool by name. */
+export function getExtensionToolRisk(name: string): "safe" | "moderate" | "dangerous" | undefined {
+  return extensionToolMeta.get(name)?.risk;
 }
 
 // ─── Build runners and tools from registrations (lazy) ───────────────
@@ -175,11 +175,14 @@ export async function executeTool(
 const customToolNames = new Set<string>();
 /** Maps extension name → set of tool names it registered. */
 const extensionToolOwners = new Map<string, Set<string>>();
+/** Risk/kind metadata for extension-registered tools. */
+const extensionToolMeta = new Map<string, { risk: "safe" | "moderate" | "dangerous"; kind: "discovery" | "action" }>();
 
 export function registerTool(
   tool: Anthropic.Tool,
   runner: ToolRunner,
   extensionName?: string,
+  meta?: { risk?: "safe" | "moderate" | "dangerous"; kind?: "discovery" | "action" },
 ): void {
   ensureInit();
   if (runners[tool.name]) {
@@ -188,6 +191,9 @@ export function registerTool(
   tools.push(tool);
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
+  if (meta?.risk && meta?.kind) {
+    extensionToolMeta.set(tool.name, { risk: meta.risk, kind: meta.kind });
+  }
   if (extensionName) {
     let owned = extensionToolOwners.get(extensionName);
     if (!owned) {
@@ -206,6 +212,7 @@ export function deregisterTool(name: string): boolean {
   tools.splice(idx, 1);
   delete runners[name];
   customToolNames.delete(name);
+  extensionToolMeta.delete(name);
   // Remove from extension ownership tracking
   for (const [ext, owned] of extensionToolOwners) {
     if (owned.delete(name) && owned.size === 0) {
@@ -225,6 +232,7 @@ export function deregisterExtensionTools(extensionName: string): void {
     if (idx >= 0) tools.splice(idx, 1);
     delete runners[name];
     customToolNames.delete(name);
+    extensionToolMeta.delete(name);
   }
   extensionToolOwners.delete(extensionName);
 }
@@ -248,6 +256,7 @@ export function clearCustomTools(): void {
   }
   customToolNames.clear();
   extensionToolOwners.clear();
+  extensionToolMeta.clear();
 }
 
 // Inject registry functions into custom-tool module (breaks circular dependency)

@@ -26,6 +26,7 @@ import toolCacheModule from "./tool-cache.js";
 import toolRetryModule from "./tool-retry.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 import webModule from "./web.js";
+import webAccessModule from "./web-access/index.js";
 import webhookModule from "./webhook.js";
 import workingMemoryModule from "./working-memory.js";
 
@@ -47,6 +48,7 @@ export const builtinExtensions: KotaExtension[] = [
   githubModule,
   githubWebhookModule,
   vercelAdapterModule,
+  webAccessModule,
   webModule,
   registryModule,
   mcpServerModule,

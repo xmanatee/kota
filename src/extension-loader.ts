@@ -112,7 +112,7 @@ export class ExtensionLoader {
 
     if (tools && !this.commandsOnly) {
       for (const def of tools) {
-        registerTool(def.tool, def.runner, ext.name);
+        registerTool(def.tool, def.runner, ext.name, { risk: def.risk, kind: def.kind });
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }
       this.extensionToolCounts.set(ext.name, tools.length);

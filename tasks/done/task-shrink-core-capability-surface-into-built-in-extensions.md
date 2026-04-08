@@ -1,12 +1,12 @@
 ---
 id: task-shrink-core-capability-surface-into-built-in-extensions
 title: Shrink the core capability surface into built-in extensions
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: KOTA has a real extension protocol, but most capability implementation still pools in src/tools and other core buckets. Move cohesive built-in capability packs behind extension boundaries so the core is mainly a host/runtime.
 created_at: 2026-04-07T12:00:00Z
-updated_at: 2026-04-07T12:00:00Z
+updated_at: 2026-04-08T00:30:00Z
 ---
 
 ## Problem

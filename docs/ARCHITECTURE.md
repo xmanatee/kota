@@ -62,10 +62,15 @@ has to stay in core.
 
 ## Current Gaps
 
-- The extension protocol is real, but the runtime is still too core-heavy.
-  `src/tools/index.ts` owns a large hardcoded built-in capability registry, and
-  many capabilities still live directly under `src/tools/` instead of inside
-  extension-owned packages.
+- `src/tools/index.ts` still owns a hardcoded built-in capability registry for
+  many core tools. It is no longer the intended home of general-purpose
+  capability packs — new tools should go in extensions — but the existing
+  core-hosted tools have not all been migrated yet. The web capability pack
+  (`web_fetch`, `web_search`, `http_request`) was moved to the `web-access`
+  built-in extension as the reference implementation of the per-extension
+  directory pattern (tools, helpers, and tests co-located with the extension).
+  Other capability families (filesystem, execution, editing) still live in
+  `src/tools/` and should follow the same pattern over time.
 - Built-in extensions exist, but many are still thin wiring layers over large
   core implementations instead of being the primary home of the capability.
 - Extension discovery and packaging are still too fragmented. The runtime can

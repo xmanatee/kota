@@ -37,11 +37,12 @@ describe("registerTool × filterTools (cross-module)", () => {
     registerTool(makeTool("email_send"), async () => ({
       content: "sent",
     }));
-    enableGroup("web");
+    enableGroup("code");
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("email_send");
-    expect(names).toContain("web_search");
+    // code_exec is a core tool in the "code" group
+    expect(names).toContain("code_exec");
     expect(names).toContain("shell");
   });
 
@@ -53,9 +54,8 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("smart_home");
-    // All built-in groups also active
+    // code_exec is a core tool in the "code" group, always in getAllTools()
     expect(names).toContain("code_exec");
-    expect(names).toContain("web_search");
   });
 
   it("cleared custom tools disappear from filterTools", () => {

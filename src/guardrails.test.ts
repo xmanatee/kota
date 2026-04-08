@@ -12,10 +12,13 @@ import { getCoreRegistrations } from "./tools/index.js";
 
 describe("classifyRisk", () => {
   it("classifies read-only tools as safe", () => {
-    for (const tool of ["file_read", "grep", "glob", "repo_map", "todo", "ask_user", "web_search", "memory"]) {
+    // Core tools with risk: "safe" in their registration
+    for (const tool of ["file_read", "grep", "glob", "repo_map", "todo", "ask_user", "memory"]) {
       const { risk } = classifyRisk(tool, {});
       expect(risk).toBe("safe");
     }
+    // web_search is safe when the web-access extension is loaded (registers risk: "safe" metadata).
+    // Without the extension, it falls back to "unclassified tool" → moderate.
   });
 
   it("classifies file modification tools as moderate", () => {

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolResult } from "../../tools/tool-result.js";
 import {
   formatBytes,
   formatResponseHeaders,
@@ -11,7 +12,6 @@ import {
   looksLikeJson,
   safePositiveInt,
 } from "./http-request-utils.js";
-import type { ToolResult } from "./index.js";
 
 export const httpRequestTool: Anthropic.Tool = {
   name: "http_request",
@@ -213,11 +213,3 @@ export async function runHttpRequest(
     return { content: `Request error: ${msg}`, is_error: true };
   }
 }
-
-export const registration = {
-	tool: httpRequestTool,
-	runner: runHttpRequest,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "web",
-};
