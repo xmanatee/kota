@@ -299,6 +299,24 @@ passes it as the `config` field in the `init` message.
 
 ---
 
+## Scaffold
+
+Use `kota extension new` to generate a ready-to-run Python starter:
+
+```sh
+kota extension new myext --language python
+```
+
+This creates a directory `myext/` containing:
+- `main.py` — full KEMP message loop with a sample `hello_world` tool
+- `requirements.txt` — empty (stdlib only)
+- `README.md` — usage and smoke-test instructions
+- `.kota-config-snippet.json` — copy-pasteable `foreignExtensions` config fragment
+
+For a TypeScript in-process extension, omit `--language` (default).
+
+---
+
 ## Writing an Extension
 
 Minimal Python example:
