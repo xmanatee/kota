@@ -1,7 +1,7 @@
 ---
 id: task-telegram-extension-boundary
 title: Move telegram implementation files into the extension directory
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/telegram.ts, src/telegram-client.ts, and src/workflow/telegram-status-poll.ts are telegram-specific implementation files living outside the extension boundary in the core src/ root and workflow directory.

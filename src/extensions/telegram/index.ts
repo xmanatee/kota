@@ -16,9 +16,9 @@
 import { Command } from "commander";
 import type { ChannelDef } from "../../channel.js";
 import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
-import { TelegramBot } from "../../telegram.js";
-import { callTelegramApi } from "../../telegram-client.js";
-import { startTelegramStatusPoll } from "../../workflow/telegram-status-poll.js";
+import { TelegramBot } from "./bot.js";
+import { callTelegramApi } from "./client.js";
+import { startTelegramStatusPoll } from "./status-poll.js";
 
 async function sendTelegramMessage(
   token: string,

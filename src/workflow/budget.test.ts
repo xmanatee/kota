@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { callTelegramApi } from "../telegram-client.js";
+import { callTelegramApi } from "../extensions/telegram/client.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";
@@ -19,7 +19,7 @@ vi.mock("../agent-sdk/index.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-vi.mock("../telegram-client.js", () => ({
+vi.mock("../extensions/telegram/client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 

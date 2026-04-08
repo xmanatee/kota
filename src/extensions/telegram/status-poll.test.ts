@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { callTelegramApi } from "../telegram-client.js";
-import { buildStatusText, type StatusInfo, startTelegramStatusPoll } from "./telegram-status-poll.js";
+import { callTelegramApi } from "./client.js";
+import { buildStatusText, type StatusInfo, startTelegramStatusPoll } from "./status-poll.js";
 
-vi.mock("../telegram-client.js", () => ({
+vi.mock("./client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 
-vi.mock("../workflows/shared.js", () => ({
+vi.mock("../../workflows/shared.js", () => ({
   loadRecentRuns: vi.fn().mockReturnValue([]),
   computeCostByWorkflow: vi.fn().mockReturnValue({}),
 }));
