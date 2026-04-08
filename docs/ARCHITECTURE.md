@@ -74,9 +74,10 @@ has to stay in core.
 - Built-in capability packs now mostly live under `src/extensions/<name>/`, and
   tool-group membership is now declared by each extension via the `group` field
   on `ToolDef`. `src/tool-groups.ts` owns only the activation machinery
-  (`enableGroup`, `filterTools`, `registerCustomGroup`, `CORE_TOOL_NAMES`) and
-  the prompt auto-detection signals (`GROUP_SIGNALS`); it no longer hardcodes
-  which tools belong to which group.
+  (`enableGroup`, `filterTools`, `registerCustomGroup`, `deregisterToolsFromGroups`,
+  `CORE_TOOL_NAMES`) and the prompt auto-detection logic (`detectToolGroups`);
+  `TOOL_GROUPS` starts empty and is populated at runtime by extensions and core
+  tool init — it no longer hardcodes which tools belong to which group.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.
