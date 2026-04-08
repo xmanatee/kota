@@ -1,12 +1,12 @@
 ---
 id: task-builder-branch-per-task
 title: Builder opt-in branch-per-task with auto-PR creation
-status: backlog
+status: ready
 priority: p3
 area: runtime
 summary: The builder commits directly to the current branch, giving operators no natural review point. An opt-in mode that creates a task-scoped branch and opens a PR lets teams use standard code review without abandoning autonomous operation.
 created_at: 2026-03-30T20:20:00Z
-updated_at: 2026-04-07T12:00:00Z
+updated_at: 2026-04-08T18:02:39Z
 ---
 
 ## Problem
