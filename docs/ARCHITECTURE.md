@@ -74,6 +74,7 @@ has to stay in core.
   The execution capability pack (`shell`, `process`, `code_exec`, `computer_use`,
   `screenshot`) has been migrated to `src/extensions/execution/` following the same pattern.
   The git capability pack (`git`) has been migrated to `src/extensions/git/` following the same pattern.
+  The notebook capability pack (`notebook`) has been migrated to `src/extensions/notebook/` following the same pattern.
 - Built-in extensions exist, but many are still thin wiring layers over large
   core implementations instead of being the primary home of the capability.
 - The repository layout is still flatter than the target model. Too much
