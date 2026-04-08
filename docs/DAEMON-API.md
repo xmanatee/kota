@@ -263,6 +263,7 @@ Returns recent workflow run summaries.
 
 `tags` is optional; omitted when no tags were attached at trigger time.
 `causedBy` is present only when the run was triggered by `workflow.completed`; it records the upstream run (`runId`, `workflow`) that emitted the event, enabling operators to trace autonomous trigger chains.
+`resumedFromRunId` is present when the run was created via `kota workflow resume-run`; it references the original run that was resumed.
 See `GET /workflow/runs/:id` for the full list of possible `status` values including `completed-with-warnings`.
 
 ### GET /workflow/runs/:id
@@ -287,6 +288,7 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
   "totalCostUsd": 0.47,
   "triggerPayload": { "workflow": "explorer", "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "status": "success" },
   "causedBy": { "runId": "2026-03-30T18-07-52-809Z-explorer-45lcon", "workflow": "explorer" },
+  "resumedFromRunId": "2026-03-30T18-00-00-000Z-builder-abc000",
   "tags": ["ci", "pr-42"],
   "workflowSteps": [
     { "id": "inspect-ready-queue", "type": "code" },
@@ -298,7 +300,8 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
       "id": "inspect-ready-queue",
       "type": "code",
       "status": "success",
-      "durationMs": 120
+      "durationMs": 120,
+      "reused": true
     },
     {
       "id": "build",
@@ -317,6 +320,8 @@ and manual trigger runs). Absent for event-only triggers with no payload fields.
 ```
 
 `workflowSteps` is present when the workflow definition is available. Each entry has `id`, `type`, and for `type: "approval"` steps, an optional `reason` string from the step definition.
+`resumedFromRunId` is present when this run was created via `kota workflow resume-run`; it links back to the original run that was resumed.
+`reused: true` on a step entry means the step result was carried forward from the original run rather than re-executed during the resume.
 
 Run `status` is one of: `"success"`, `"failed"`, `"interrupted"`, `"completed-with-warnings"`. `completed-with-warnings` means the run finished all steps but one or more steps produced a warning (for example, a step output was truncated by the `workflow.maxStepOutputBytes` cap, or an `outputSchema` validation mismatch occurred). When `status` is `completed-with-warnings`, a `warnings` array is present:
 
