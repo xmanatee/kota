@@ -1,12 +1,12 @@
 ---
 id: task-approval-expiry-notification
 title: Notify operator via channel when approval step auto-resolves on timeout
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: When an approval step's timeoutMs elapses and defaultResolution fires, no channel notification is sent. Operators learn of the auto-resolution only by checking run status after the fact, which creates a silent operational gap.
 created_at: 2026-04-08T18:02:39Z
-updated_at: 2026-04-08T18:02:39Z
+updated_at: 2026-04-08T19:15:00Z
 ---
 
 ## Problem

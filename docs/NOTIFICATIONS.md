@@ -14,11 +14,25 @@ alerts to external services.
 | `workflow.cost.limit.reached` | The hard cost circuit breaker trips | No |
 | `workflow.cost.anomaly` | A run's cost significantly exceeds the historical baseline (requires `costAnomalyThreshold`) | Yes |
 | `workflow.build.committed` | Builder workflow successfully commits a task change | Yes |
+| `workflow.approval.expired` | An approval step auto-resolved (approved or denied) due to `timeoutMs` firing | No |
 
 Opt-in events are not forwarded by default. Add them to the extension's `events` config array to enable them (see per-extension sections below).
 
 Each event payload includes a human-readable `text` field plus structured fields
 (e.g. `workflow`, `runId`, `status`).
+
+### `workflow.approval.expired` payload
+
+| Field | Type | Description |
+|---|---|---|
+| `workflowName` | `string` | Name of the workflow that owns the approval step |
+| `runId` | `string` | Run ID |
+| `stepId` | `string` | ID of the approval step that timed out |
+| `resolution` | `"approve" \| "deny"` | How the step auto-resolved (from `defaultResolution`) |
+| `reason` | `string` (optional) | Step `reason` field if present |
+| `text` | `string` | Human-readable summary for display |
+
+This event fires only when `timeoutMs` and `defaultResolution` are both set on the step and the timeout elapses. Manual approvals and rejections do not emit this event.
 
 ## Telegram
 

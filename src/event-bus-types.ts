@@ -162,6 +162,14 @@ export type BusEvents = {
     tool: string;
     defaultResolution: "deny" | "approve";
   };
+  "workflow.approval.expired": {
+    workflowName: string;
+    runId: string;
+    stepId: string;
+    resolution: "approve" | "deny";
+    reason?: string;
+    text: string;
+  };
   "approval.changed": {
     id: string;
     pendingCount: number;

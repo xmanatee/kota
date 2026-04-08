@@ -1,4 +1,5 @@
 import { getApprovalQueue } from "../approval-queue.js";
+import { tryEmit } from "../event-bus.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
 import type { WorkflowApprovalStep } from "./types.js";
@@ -57,6 +58,17 @@ export async function executeApprovalStep(
 
       if (current.status === "approved") {
         resolved = true;
+        if (current.resolutionSource === "timeout") {
+          const text = `Approval auto-approved: workflow "${context.workflow.name}" step "${step.id}"${step.reason ? ` — ${step.reason}` : ""}`;
+          tryEmit("workflow.approval.expired", {
+            workflowName: context.workflow.name,
+            runId: context.workflow.runId,
+            stepId: step.id,
+            resolution: "approve",
+            ...(step.reason !== undefined && { reason: step.reason }),
+            text,
+          });
+        }
         return {
           approvalId: current.id,
           approved: true,
@@ -68,6 +80,17 @@ export async function executeApprovalStep(
 
       if (current.status === "rejected" || current.status === "expired") {
         resolved = true;
+        if (current.resolutionSource === "timeout") {
+          const text = `Approval auto-denied: workflow "${context.workflow.name}" step "${step.id}"${step.reason ? ` — ${step.reason}` : ""}`;
+          tryEmit("workflow.approval.expired", {
+            workflowName: context.workflow.name,
+            runId: context.workflow.runId,
+            stepId: step.id,
+            resolution: "deny",
+            ...(step.reason !== undefined && { reason: step.reason }),
+            text,
+          });
+        }
         const detail = current.rejectionReason ? `: ${current.rejectionReason}` : "";
         throw new Error(`${label} was ${current.status}${detail}`);
       }

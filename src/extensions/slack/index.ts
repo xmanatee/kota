@@ -22,6 +22,7 @@ const NOTIFICATION_EVENTS = [
   "workflow.attention.digest",
   "workflow.cost.limit.reached",
   "workflow.cost.anomaly",
+  "workflow.approval.expired",
 ] as const;
 
 /** Events that are off by default; subscribed only when explicitly listed in config `events`. */
@@ -124,6 +125,27 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
         header(`Builder committed: ${commitMessage ?? "—"}`),
         divider,
         ...(meta ? [section(meta)] : []),
+      ];
+    }
+    case "workflow.approval.expired": {
+      const workflowName = payload.workflowName as string | undefined;
+      const runId = payload.runId as string | undefined;
+      const stepId = payload.stepId as string | undefined;
+      const resolution = payload.resolution as string | undefined;
+      const reason = payload.reason as string | undefined;
+      const resolutionLabel = resolution === "approve" ? "Auto-approved" : "Auto-denied";
+      return [
+        header(`Approval ${resolutionLabel}: ${workflowName ?? "unknown"}`),
+        divider,
+        section(
+          [
+            stepId ? `*Step:* \`${stepId}\`` : null,
+            runId ? `*Run:* \`${runId}\`` : null,
+            reason ? `*Reason:* ${reason}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        ),
       ];
     }
     case "approval.requested": {

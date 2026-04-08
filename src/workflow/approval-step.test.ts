@@ -7,7 +7,8 @@ import { WorkflowTestHarness } from "../workflow-testing/index.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
 import type { WorkflowApprovalStepInput, WorkflowDefinitionInput } from "./types.js";
 
-vi.mock("../event-bus.js", () => ({ tryEmit: vi.fn() }));
+const { mockTryEmit } = vi.hoisted(() => ({ mockTryEmit: vi.fn() }));
+vi.mock("../event-bus.js", () => ({ tryEmit: mockTryEmit }));
 
 let testQueue: ApprovalQueue;
 vi.mock("../approval-queue.js", async (importOriginal) => {
@@ -20,6 +21,7 @@ let tmpDir: string;
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), "approval-step-test-"));
   testQueue = new ApprovalQueue(tmpDir);
+  mockTryEmit.mockClear();
 });
 
 afterEach(() => {
@@ -189,5 +191,86 @@ describe("approval step – WorkflowTestHarness", () => {
     const result = await harness.run();
     expect(result.status).toBe("success");
     expect(result.steps.confirm.status).toBe("skipped");
+  });
+});
+
+describe("executeApprovalStep – workflow.approval.expired event", () => {
+  it("emits workflow.approval.expired with resolution=deny when timeout auto-denies", async () => {
+    const ac = new AbortController();
+    const step = makeApprovalStep({ timeoutMs: 1, defaultResolution: "deny", reason: "Gate check" });
+    const ctx = makeContext();
+    const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
+
+    // Simulate timeout: expire the pending item
+    await new Promise((r) => setTimeout(r, 10));
+    const pending = testQueue.list("pending");
+    expect(pending).toHaveLength(1);
+    testQueue.expireStale(1); // ttl=1ms means everything is stale
+
+    await expect(stepPromise).rejects.toThrow(/expired/);
+
+    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    expect(expiredCalls).toHaveLength(1);
+    expect(expiredCalls[0][1]).toMatchObject({
+      workflowName: "test-wf",
+      runId: "run-1",
+      stepId: "gate",
+      resolution: "deny",
+      reason: "Gate check",
+    });
+  });
+
+  it("emits workflow.approval.expired with resolution=approve when timeout auto-approves", async () => {
+    const ac = new AbortController();
+    const step = makeApprovalStep({ timeoutMs: 1, defaultResolution: "approve" });
+    const ctx = makeContext();
+    const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
+
+    await new Promise((r) => setTimeout(r, 10));
+    testQueue.expireStale(1);
+
+    const output = await stepPromise;
+    expect((output as { approved: boolean }).approved).toBe(true);
+
+    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    expect(expiredCalls).toHaveLength(1);
+    expect(expiredCalls[0][1]).toMatchObject({
+      workflowName: "test-wf",
+      runId: "run-1",
+      stepId: "gate",
+      resolution: "approve",
+    });
+  });
+
+  it("does not emit workflow.approval.expired on manual approval", async () => {
+    const ac = new AbortController();
+    const step = makeApprovalStep();
+    const ctx = makeContext();
+    const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
+
+    await new Promise((r) => setTimeout(r, 10));
+    const pending = testQueue.list("pending");
+    testQueue.approve(pending[0].id);
+
+    await stepPromise;
+
+    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    expect(expiredCalls).toHaveLength(0);
+  });
+
+  it("does not emit workflow.approval.expired on manual rejection", async () => {
+    const ac = new AbortController();
+    const step = makeApprovalStep();
+    const ctx = makeContext();
+    const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
+
+    await new Promise((r) => setTimeout(r, 10));
+    const pending = testQueue.list("pending");
+    testQueue.reject(pending[0].id, "not now");
+
+    await expect(stepPromise).rejects.toThrow(/rejected/);
+
+    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    expect(expiredCalls).toHaveLength(0);
   });
 });
