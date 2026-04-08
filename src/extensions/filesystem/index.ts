@@ -23,6 +23,7 @@ import { findReplaceTool, runFindReplace } from "./find-replace.js";
 import { globTool, runGlob } from "./glob.js";
 import { grepTool, runGrep } from "./grep.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
+import { repoMapTool, runRepoMap } from "./repo-map.js";
 
 const tools: ToolDef[] = [
   {
@@ -82,13 +83,20 @@ const tools: ToolDef[] = [
     risk: "safe",
     kind: "discovery",
   },
+  {
+    tool: repoMapTool,
+    runner: runRepoMap,
+    risk: "safe",
+    kind: "discovery",
+    group: "advanced_editing",
+  },
 ];
 
 const filesystemModule: KotaExtension = {
   name: "filesystem",
   version: "1.0.0",
   description:
-    "Filesystem tools: file_read, file_write, file_edit, multi_edit, find_replace, glob, grep, file_watch, files_overview",
+    "Filesystem tools: file_read, file_write, file_edit, multi_edit, find_replace, glob, grep, file_watch, files_overview, repo_map",
   tools,
 };
 

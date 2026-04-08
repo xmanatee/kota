@@ -11,10 +11,8 @@ import { registration as customTool, initCustomToolRegistry } from "./custom-too
 import { registration as delegate } from "./delegate.js";
 import { registration as extensionFactory } from "./extension-factory/index.js";
 import { registration as map } from "./map.js";
-import { registration as notify } from "./notify.js";
 import { registration as pipe } from "./pipe.js";
 import { registration as promptTemplate } from "./prompt.js";
-import { registration as repoMap } from "./repo-map.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 import { registration as workspace } from "./workspace.js";
@@ -53,14 +51,12 @@ const registrationImports = [
   () => approval,
   () => audit,
   () => todo,
-  () => repoMap,
   () => delegate,
   () => askUser,
   () => confirm,
   () => customTool,
   () => checkpoint,
   () => extensionFactory,
-  () => notify,
   () => batch,
   () => pipe,
   () => map,

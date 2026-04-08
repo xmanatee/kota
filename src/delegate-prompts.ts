@@ -10,13 +10,13 @@ import { findReplaceTool, runFindReplace } from "./extensions/filesystem/find-re
 import { globTool, runGlob } from "./extensions/filesystem/glob.js";
 import { grepTool, runGrep } from "./extensions/filesystem/grep.js";
 import { multiEditTool, runMultiEdit } from "./extensions/filesystem/multi-edit.js";
+import { repoMapTool, runRepoMap } from "./extensions/filesystem/repo-map.js";
 import { gitTool, runGit } from "./extensions/git/git.js";
 import { httpRequestTool, runHttpRequest } from "./extensions/web-access/http-request.js";
 import { runWebFetch, webFetchTool } from "./extensions/web-access/web-fetch.js";
 import { runWebSearch, webSearchTool } from "./extensions/web-access/web-search.js";
 import { detectProject, getDirectoryOverview } from "./project-detection.js";
 import type { ToolResult } from "./tools/index.js";
-import { repoMapTool, runRepoMap } from "./tools/repo-map.js";
 import { runWorkspace, workspaceTool } from "./tools/workspace.js";
 
 // --- Sub-agent system prompts ---

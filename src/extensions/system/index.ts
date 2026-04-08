@@ -15,6 +15,7 @@
 import type { KotaExtension, ToolDef } from "../../extension-types.js";
 import { clipboardTool, runClipboard } from "./clipboard.js";
 import { envInfoTool, runEnvInfo } from "./env-info.js";
+import { notifyTool, runNotify } from "./notify.js";
 import { runSqlite, sqliteTool } from "./sqlite.js";
 import { runViewImage, viewImageTool } from "./view-image.js";
 
@@ -46,13 +47,20 @@ const tools: ToolDef[] = [
     kind: "action",
     group: "code",
   },
+  {
+    tool: notifyTool,
+    runner: runNotify,
+    risk: "safe",
+    kind: "action",
+    group: "management",
+  },
 ];
 
 const systemModule: KotaExtension = {
   name: "system",
   version: "1.0.0",
   description:
-    "System tools: clipboard, view_image, env_info, sqlite",
+    "System tools: clipboard, view_image, env_info, sqlite, notify",
   tools,
 };
 

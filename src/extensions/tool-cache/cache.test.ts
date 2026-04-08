@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { ToolResult } from "../../tools/index.js";
 import {
 	type CacheStats,
 	createCacheMiddleware,
 	getToolCache,
 	resetToolCache,
 	ToolCache,
-} from "./tool-cache.js";
-import type { ToolResult } from "./tools/index.js";
+} from "./cache.js";
 
 const ok = (content: string): ToolResult => ({ content });
 const err = (content: string): ToolResult => ({ content, is_error: true });

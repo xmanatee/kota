@@ -15,11 +15,11 @@ describe("classifyRisk", () => {
 
   it("classifies read-only core tools as safe", () => {
     // Core tools with risk: "safe" in their ToolRegistration
-    for (const tool of ["repo_map", "todo", "ask_user"]) {
+    for (const tool of ["todo", "ask_user"]) {
       const { risk } = classifyRisk(tool, {});
       expect(risk).toBe("safe");
     }
-    // Extension tools (file_read, grep, glob, memory, etc.) are safe when their
+    // Extension tools (file_read, grep, glob, repo_map, notify, memory, etc.) are safe when their
     // extension is loaded and registers risk: "safe" metadata via registerTool.
     // Without the extension loaded, they fall through to "unclassified tool" → moderate.
   });
@@ -196,8 +196,8 @@ describe("assess", () => {
   });
 
   it("allows safe tools by default", () => {
-    // Use a core tool (repo_map) to avoid needing extension loaded
-    const result = assess("repo_map", {});
+    // Use a core tool (ask_user) to avoid needing extension loaded
+    const result = assess("ask_user", {});
     expect(result.risk).toBe("safe");
     expect(result.policy).toBe("allow");
   });

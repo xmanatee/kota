@@ -1,7 +1,7 @@
 ---
 id: task-move-remaining-capability-tools-to-extensions
 title: Move remaining general-purpose capability tools from core into their owning extensions
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Three general-purpose capability implementations still live in core src/ despite being fully owned by specific extensions; moving them closes the last visible gap in the extension-first capability migration.
