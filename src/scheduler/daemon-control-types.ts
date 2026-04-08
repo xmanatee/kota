@@ -171,6 +171,7 @@ export type DaemonControlHandle = {
   abortActiveRuns(): { aborted: number };
   abortActiveRun(runId: string): { ok: boolean; notFound?: boolean; queued?: boolean };
   reloadWorkflowDefinitions(): { count: number };
+  reloadConfig(): Promise<{ workflows: number }>;
   getWorkflowDefinitions(): WorkflowDefinitionSummary[];
   enableWorkflow(name: string): { ok: boolean; notFound?: boolean };
   disableWorkflow(name: string): { ok: boolean; notFound?: boolean };

@@ -53,6 +53,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
+    reloadConfig: vi.fn(async () => ({ workflows: 3 })),
     ...overrides,
   };
 }
@@ -108,6 +109,7 @@ describe("DaemonControlServer", () => {
         { path: "/workflow/resume", method: "POST" },
         { path: "/workflow/abort", method: "POST" },
         { path: "/workflow/reload", method: "POST" },
+        { path: "/reload", method: "POST" },
       ];
       for (const { path, method } of controlRoutes) {
         const res = await fetchNoToken(port, path, { method });
@@ -319,6 +321,20 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, count: 3 });
+    });
+  });
+
+  describe("POST /reload", () => {
+    it("reloads config and returns workflow count", async () => {
+      const res = await fetchWithToken(port, "/reload", { method: "POST" });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ ok: true, workflows: 3 });
+    });
+
+    it("requires authentication", async () => {
+      const res = await fetchNoToken(port, "/reload", { method: "POST" });
+      expect(res.status).toBe(401);
     });
   });
 

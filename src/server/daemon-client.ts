@@ -126,6 +126,19 @@ export class DaemonControlClient {
     }
   }
 
+  async reloadConfig(): Promise<{ ok: boolean; workflows: number } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/reload`, {
+        method: "POST",
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { ok: boolean; workflows: number };
+    } catch {
+      return null;
+    }
+  }
+
   async enableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
     try {
       const res = await fetchWithTimeout(

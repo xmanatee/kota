@@ -73,6 +73,15 @@ export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerRes
   jsonResponse(res, 200, { ok: true, count });
 }
 
+export function handleReloadConfig(handle: DaemonControlHandle, res: ServerResponse): void {
+  handle.reloadConfig().then(({ workflows }) => {
+    jsonResponse(res, 200, { ok: true, workflows });
+  }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    jsonResponse(res, 500, { error: `Reload failed: ${msg}` });
+  });
+}
+
 export function handleCancelWorkflowRun(
   handle: DaemonControlHandle,
   res: ServerResponse,

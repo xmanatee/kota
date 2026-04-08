@@ -1,7 +1,7 @@
 ---
 id: task-extension-lifecycle-test-coverage
 title: Add test coverage for extension loading, lifecycle, and contribution wiring
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The extension loading and lifecycle system (onLoad, onUnload, contribution registration) has minimal test coverage. As the architecture migration moves more capability behind extension boundaries, gaps in lifecycle test coverage make safe refactoring harder.

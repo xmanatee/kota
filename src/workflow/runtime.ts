@@ -46,7 +46,7 @@ export class WorkflowRuntime {
   private readonly config?: KotaConfig;
   private readonly verbose: boolean;
   private readonly onLog?: (message: string) => void;
-  private readonly workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
+  private workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   private readonly backoff: AgentBackoffManager;
   private readonly scheduleTriggers: ScheduleTriggerManager;
   private readonly watchTriggers: WatchTriggerManager;
@@ -242,6 +242,10 @@ export class WorkflowRuntime {
     const isQueued = this.wfQueue.getRuns().some((r) => r.runId === runId);
     if (isQueued) return { ok: false, queued: true };
     return { ok: false, notFound: true };
+  }
+
+  setWorkflowInputs(inputs: readonly RegisteredWorkflowDefinitionInput[]): void {
+    this.workflowInputs = inputs;
   }
 
   reloadWorkflowDefinitions(): { count: number } {

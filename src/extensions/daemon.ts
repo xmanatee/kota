@@ -250,6 +250,25 @@ const daemonModule: KotaExtension = {
         process.exitCode = 1;
       });
 
+    cmd
+      .command("reload")
+      .description("Reload daemon config and re-register extension workflow contributions without restart")
+      .action(async () => {
+        const client = DaemonControlClient.fromStateDir();
+        if (!client) {
+          console.error("Daemon is not running.");
+          process.exitCode = 1;
+          return;
+        }
+        const result = await client.reloadConfig();
+        if (!result) {
+          console.error("Daemon reload failed or daemon is not reachable.");
+          process.exitCode = 1;
+          return;
+        }
+        console.log(`Reloaded. ${result.workflows} workflow definition(s) active.`);
+      });
+
     return [cmd];
   },
 };

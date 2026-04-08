@@ -43,6 +43,7 @@ Routes are tagged with a capability scope:
   `POST /workflow/reload`, `POST /workflow/trigger`,
   `POST /workflow/definitions/:name/disable`, `POST /workflow/definitions/:name/enable`,
   `DELETE /workflow/runs/:id`,
+  `POST /reload`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
   `POST /approvals/:id/reject`,
   `POST /sessions/register`, `DELETE /sessions/:id`
@@ -459,6 +460,21 @@ triggers are reconciled against the new definitions.
 ```
 
 `count` is the number of definitions after reload.
+
+### POST /reload
+
+Re-reads `config.json` from disk, rediscovers user extensions from `.kota/extensions/`,
+and re-registers their workflow contributions with the workflow runtime. Active workflow
+runs are not interrupted. Extensions that have not changed (same name, same workflows)
+are not re-initialized. Equivalent to `kota daemon reload`.
+
+**Response:**
+
+```json
+{ "ok": true, "workflows": 5 }
+```
+
+`workflows` is the total number of active workflow definitions (built-in plus extension-contributed) after reload.
 
 ### GET /events
 

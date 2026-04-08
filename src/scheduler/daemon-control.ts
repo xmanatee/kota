@@ -17,6 +17,7 @@ import {
   handleGetWorkflowStatus,
   handleListWorkflowRuns,
   handlePauseWorkflow,
+  handleReloadConfig,
   handleReloadWorkflow,
   handleResumeWorkflow,
   handleTriggerWorkflow,
@@ -58,6 +59,7 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "POST /workflow/resume": "control",
   "POST /workflow/abort": "control",
   "POST /workflow/reload": "control",
+  "POST /reload": "control",
   "GET /history": "read",
   "GET /history/:id": "read",
   "DELETE /history/:id": "control",
@@ -285,6 +287,7 @@ export class DaemonControlServer {
     if (method === "POST" && path === "/workflow/resume") { handleResumeWorkflow(h, res); return; }
     if (method === "POST" && path === "/workflow/abort") { handleAbortWorkflow(h, res); return; }
     if (method === "POST" && path === "/workflow/reload") { handleReloadWorkflow(h, res); return; }
+    if (method === "POST" && path === "/reload") { handleReloadConfig(h, res); return; }
     if (method === "POST" && path === "/workflow/trigger") { handleTriggerWorkflow(h, req, res); return; }
 
     if (method === "GET" && path === "/history") { handleListHistory(h, res, url); return; }

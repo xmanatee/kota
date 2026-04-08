@@ -3,12 +3,14 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { getApprovalQueue } from "../approval-queue.js";
 import type { ChannelAdapter, ChannelDef } from "../channel.js";
-import type { KotaConfig } from "../config.js";
+import { type KotaConfig, loadConfig } from "../config.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
+import { discoverExtensions } from "../extension-discovery.js";
 import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import type { LogFormat } from "../log-format.js";
 import { getHistory } from "../memory/history.js";
+import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
@@ -153,6 +155,25 @@ export class Daemon {
       abortActiveRuns: () => this.workflows.abortActiveRuns(),
       abortActiveRun: (runId: string) => this.workflows.abortActiveRun(runId),
       reloadWorkflowDefinitions: () => this.workflows.reloadWorkflowDefinitions(),
+      reloadConfig: async () => {
+        const userExtensions = await discoverExtensions(this.projectDir, this.config.verbose ?? false);
+        const newKotaConfig = loadConfig(this.projectDir);
+        const contributed: RegisteredWorkflowDefinitionInput[] = userExtensions.flatMap((ext) =>
+          (ext.workflows ?? []).map((w) => ({
+            ...w,
+            definitionPath: `extensions/${ext.name}`,
+          } as RegisteredWorkflowDefinitionInput)),
+        );
+        const allWorkflows = getRegisteredWorkflowDefinitions(contributed);
+        this.workflows.setWorkflowInputs(allWorkflows);
+        const { count } = this.workflows.reloadWorkflowDefinitions();
+        this.log(`Config reloaded: ${count} workflow definition(s) active`);
+        if (userExtensions.length > 0) {
+          this.log(`  User extensions: ${userExtensions.map((e) => e.name).join(", ")}`);
+        }
+        void newKotaConfig;
+        return { workflows: count };
+      },
       getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
         this.workflows.getDefinitions().map((def) => {
           const sourceEnabled = this.workflows.getDefinitionSourceEnabled(def.name);

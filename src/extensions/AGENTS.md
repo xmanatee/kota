@@ -15,7 +15,7 @@ This directory contains built-in extensions and extension-level wiring.
 
 ## Built-in Extensions
 
-- `daemon.ts` — `kota daemon` CLI command, supervisor/child startup path, and built-in workflow/channel resolution passed into `scheduler/daemon.ts`.
+- `daemon.ts` — `kota daemon` CLI command (with `status`, `pid`, `stop`, and `reload` subcommands), supervisor/child startup path, and built-in workflow/channel resolution passed into `scheduler/daemon.ts`.
 - `web.ts` — `kota serve` CLI command; starts the HTTP API/web UI server and injects extension routes discovered from the loader.
 - `history.ts` — `conversation_recall` management tool and matching history skill.
 - `memory.ts` — `memory` management tool and matching memory skill.
