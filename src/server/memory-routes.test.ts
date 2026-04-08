@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { Memory } from "../memory/store.js";
 import type { MemoryProvider } from "../provider-types.js";
-import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory } from "./memory-routes.js";
+import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./memory-routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -156,6 +156,53 @@ describe("memory-routes", () => {
       const { res, result } = mockResponse();
       await handleAddMemory(makeRequest({ content: "x" }), res);
       expect(result.status).toBe(500);
+    });
+  });
+
+  describe("handleUpdateMemory", () => {
+    function makeRequest(body: unknown): IncomingMessage {
+      const data = JSON.stringify(body);
+      const req = {
+        on: (event: string, cb: (chunk?: Buffer | string) => void) => {
+          if (event === "data") cb(Buffer.from(data));
+          if (event === "end") cb();
+        },
+      } as unknown as IncomingMessage;
+      return req;
+    }
+
+    it("returns 200 with updated entry on success", async () => {
+      const entry = makeMemory({ content: "original content", tags: ["old"] });
+      const provider = makeProvider([entry]);
+      provider.update = vi.fn(() => true);
+      // After update, list returns modified entry
+      provider.list = vi.fn()
+        .mockReturnValueOnce([entry])  // existence check
+        .mockReturnValueOnce([{ ...entry, content: "new content", tags: ["new"] }]);  // post-update fetch
+      vi.mocked(getMemoryProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+      await handleUpdateMemory(makeRequest({ content: "new content", tags: ["new"] }), res, "mem-abc");
+      expect(result.status).toBe(200);
+      expect(provider.update).toHaveBeenCalledWith("mem-abc", { content: "new content", tags: ["new"] });
+    });
+
+    it("returns 404 when entry not found", async () => {
+      vi.mocked(getMemoryProvider).mockReturnValue(makeProvider([]));
+      const { res, result } = mockResponse();
+      await handleUpdateMemory(makeRequest({ content: "x" }), res, "missing-id");
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 400 on invalid body", async () => {
+      vi.mocked(getMemoryProvider).mockReturnValue(makeProvider([]));
+      const { res, result } = mockResponse();
+      const badReq = {
+        on: (event: string, cb: (chunk?: Buffer | string) => void) => {
+          if (event === "error") cb();
+        },
+      } as unknown as IncomingMessage;
+      await handleUpdateMemory(badReq, res, "mem-abc");
+      expect(result.status).toBe(400);
     });
   });
 

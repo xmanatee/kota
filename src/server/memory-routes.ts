@@ -70,6 +70,34 @@ export async function handleAddMemory(req: IncomingMessage, res: ServerResponse)
   }
 }
 
+export async function handleUpdateMemory(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  const changes: { content?: string; tags?: string[] } = {};
+  if (typeof body.content === "string") changes.content = body.content;
+  if (Array.isArray(body.tags)) {
+    changes.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string");
+  }
+  try {
+    const provider = getMemoryProvider();
+    const existing = provider.list().find((m) => m.id === id) ?? null;
+    if (!existing) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+    provider.update(id, changes);
+    const updated = provider.list().find((m) => m.id === id) ?? null;
+    jsonResponse(res, 200, updated);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 export function handleDeleteMemory(res: ServerResponse, id: string): void {
   try {
     const provider = getMemoryProvider();

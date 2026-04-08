@@ -22,7 +22,7 @@ HTTP API server with session management and real-time notifications.
 | `extension-routes.ts` | `handleListExtensions` — returns loaded extension metadata for `GET /api/extensions` |
 | `config-routes.ts` | `handleGetConfig`, `maskConfig` — returns resolved config with sensitive fields masked for `GET /api/config` |
 | `knowledge-routes.ts` | Knowledge CRUD handlers: list, get, add (`POST`), update (`PATCH /api/knowledge/:id`), and delete |
-| `memory-routes.ts` | Memory CRUD handlers: list, get, add (`POST`), and delete |
+| `memory-routes.ts` | Memory CRUD handlers: list, get, add (`POST`), update (`PATCH /api/memory/:id`), and delete |
 | `audit-routes.ts` | `handleListAudit` — returns guardrail audit log entries for `GET /api/audit` |
 
 ## Proxy Pattern
