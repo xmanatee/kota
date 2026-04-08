@@ -69,8 +69,10 @@ has to stay in core.
   (`web_fetch`, `web_search`, `http_request`) was moved to the `web-access`
   built-in extension as the reference implementation of the per-extension
   directory pattern (tools, helpers, and tests co-located with the extension).
-  Other capability families (filesystem, execution, editing) still live in
-  `src/tools/` and should follow the same pattern over time.
+  The filesystem capability pack (`file_read`, `file_write`, etc.) has since
+  been migrated to `src/extensions/filesystem/` following the same pattern.
+  Execution tools (`shell`, `process`, `code_exec`, `computer_use`,
+  `screenshot`) still live in `src/tools/` and should follow next.
 - Built-in extensions exist, but many are still thin wiring layers over large
   core implementations instead of being the primary home of the capability.
 - The repository layout is still flatter than the target model. Too much
