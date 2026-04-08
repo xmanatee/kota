@@ -1,24 +1,23 @@
 /**
- * Remote tool registry — install, remove, and manage KOTA tools
+ * Remote tool registry — install, remove, and manage KOTA extensions
  * from external sources (npm packages, URLs, GitHub repos).
  *
- * Installed tools are tracked in `.kota/tools.json` and discovered by discoverExtensions().
- * - npm packages go to `.kota/packages/node_modules/`
- * - URL downloads go to `.kota/plugins/`
+ * Installed extensions are tracked in `.kota/tools.json` and discovered by
+ * discoverExtensions() via `.kota/extensions/<name>/`.
  *
  * Per-source-type install mechanics live in registry-installers.ts.
  * Source parsing (parseSource, ParsedSource, InstallResult) lives in registry-source.ts.
  */
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  EXTENSIONS_DIR,
   getNpmVersion,
   installGithub,
   installNpm,
   installUrl,
-  PACKAGES_DIR,
+  resolveInstalledPackageName,
 } from "./registry-installers.js";
 import {
   type InstallResult,
@@ -120,10 +119,24 @@ export async function installTool(
       break;
   }
 
+  // Resolve installed version for npm/github packages.
+  let version = "latest";
+  if (parsed.type === "npm" || parsed.type === "github") {
+    const actualPkg =
+      parsed.type === "npm"
+        ? parsed.identifier
+        : resolveInstalledPackageName(
+            join(dir, EXTENSIONS_DIR, parsed.name),
+            parsed.identifier,
+          );
+    const pkgDir = join(dir, EXTENSIONS_DIR, parsed.name, "node_modules", ...actualPkg.split("/"));
+    version = getNpmVersion(pkgDir);
+  }
+
   manifest.tools[result.name] = {
     source: parsed.type,
     uri: parsed.identifier,
-    version: parsed.type === "npm" ? getNpmVersion(parsed.identifier, dir) : "latest",
+    version,
     files: result.files,
     installedAt: new Date().toISOString(),
   };
@@ -141,25 +154,11 @@ export function removeTool(name: string, cwd?: string): boolean {
 
   const dir = kotaDir(cwd);
 
-  // Remove files
+  // Remove all files/directories tracked for this installation
   for (const file of tool.files) {
     const absPath = join(dir, file);
     if (existsSync(absPath)) {
       rmSync(absPath, { recursive: true, force: true });
-    }
-  }
-
-  // For npm packages, also remove from package.json dependencies
-  if (tool.source === "npm") {
-    const pkgDir = join(dir, PACKAGES_DIR);
-    try {
-      execFileSync("npm", ["uninstall", tool.uri], {
-        cwd: pkgDir,
-        stdio: "pipe",
-        timeout: 30_000,
-      });
-    } catch {
-      // Best effort — files already removed above
     }
   }
 
@@ -232,25 +231,4 @@ export async function updateTool(name: string, cwd?: string): Promise<InstallRes
     saveManifest(current, cwd);
     throw err;
   }
-}
-
-// --- Package loading support ---
-
-/**
- * Returns the list of npm package names installed in .kota/packages/.
- * Used by discoverExtensions() to find npm-installed tools.
- */
-export function getInstalledNpmPackages(cwd?: string): string[] {
-  const manifest = loadManifest(cwd);
-  return Object.values(manifest.tools)
-    .filter((t) => t.source === "npm" || t.source === "github")
-    .map((t) => t.uri);
-}
-
-/**
- * Returns the absolute path to .kota/packages/node_modules/ if it exists.
- */
-export function getPackagesNodeModulesDir(cwd?: string): string | null {
-  const dir = join(kotaDir(cwd), PACKAGES_DIR, "node_modules");
-  return existsSync(dir) ? dir : null;
 }

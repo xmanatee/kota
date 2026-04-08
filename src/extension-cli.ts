@@ -114,7 +114,7 @@ export function registerExtensionCommands(program: Command): void {
       console.log("  npm run typecheck    # verify types");
       console.log("  npm run build        # compile to dist/");
       console.log("");
-      console.log("To use without building, copy dist/index.js to .kota/plugins/");
+      console.log(`To use without building, copy dist/index.js to .kota/extensions/${safeName}/index.js`);
     });
 }
 
@@ -236,7 +236,7 @@ npm run build        # compile to dist/ for npm-based use
 \`\`\`
 
 For local drop-in use without npm, compile and copy \`dist/index.js\` to
-\`.kota/plugins/${safeName}.js\` in your KOTA project.
+\`.kota/extensions/${safeName}/index.js\` in your KOTA project.
 `;
 }
 

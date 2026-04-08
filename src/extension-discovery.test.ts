@@ -8,15 +8,16 @@ import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS }
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
 function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(tmpdir(), `kota-ext-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-function writePlugin(dir: string, name: string, code: string): void {
-  const pluginDir = join(dir, ".kota", "plugins");
-  mkdirSync(pluginDir, { recursive: true });
-  writeFileSync(join(pluginDir, name), code);
+/** Write a single-file code extension to .kota/extensions/<name>/index.mjs */
+function writeExtension(dir: string, name: string, code: string): void {
+  const extDir = join(dir, ".kota", "extensions", name);
+  mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, "index.mjs"), code);
 }
 
 describe("discoverExtensions", () => {
@@ -36,42 +37,42 @@ describe("discoverExtensions", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("discovers nothing when .kota/plugins/ does not exist", async () => {
+  it("discovers nothing when .kota/extensions/ does not exist", async () => {
     const modules = await discoverExtensions(tmpDir);
     expect(modules).toEqual([]);
   });
 
-  it("discovers and loads a simple plugin with one tool", async () => {
-    writePlugin(tmpDir, "hello.mjs", `
+  it("discovers and loads a simple extension with one tool", async () => {
+    writeExtension(tmpDir, "hello", `
       export default {
-        name: "hello-plugin",
+        name: "hello-extension",
         tools: [{
           tool: {
             name: "hello_world",
             description: "Says hello",
             input_schema: { type: "object", properties: {} },
           },
-          runner: async () => ({ content: "Hello from plugin!" }),
+          runner: async () => ({ content: "Hello from extension!" }),
         }],
       };
     `);
 
     const modules = await discoverExtensions(tmpDir);
     expect(modules).toHaveLength(1);
-    expect(modules[0].name).toBe("hello-plugin");
+    expect(modules[0].name).toBe("hello-extension");
 
     await loader.loadAll(modules);
     expect(loader.getExtensionCount()).toBe(1);
     expect(loader.getToolCount()).toBe(1);
 
     const result = await executeTool("hello_world", {});
-    expect(result.content).toBe("Hello from plugin!");
+    expect(result.content).toBe("Hello from extension!");
   });
 
   it("registers tool into a group when group is specified", async () => {
-    writePlugin(tmpDir, "grouped.mjs", `
+    writeExtension(tmpDir, "grouped", `
       export default {
-        name: "grouped-plugin",
+        name: "grouped-extension",
         tools: [{
           tool: {
             name: "custom_analyzer",
@@ -98,10 +99,10 @@ describe("discoverExtensions", () => {
     expect(afterEnable.some((t) => t.name === "custom_analyzer")).toBe(true);
   });
 
-  it("ungrouped plugin tools are always available", async () => {
-    writePlugin(tmpDir, "always.mjs", `
+  it("ungrouped extension tools are always available", async () => {
+    writeExtension(tmpDir, "always", `
       export default {
-        name: "always-plugin",
+        name: "always-extension",
         tools: [{
           tool: {
             name: "always_available",
@@ -121,10 +122,10 @@ describe("discoverExtensions", () => {
   });
 
   it("calls onLoad with ExtensionContext", async () => {
-    writePlugin(tmpDir, "lifecycle.mjs", `
+    writeExtension(tmpDir, "lifecycle", `
       let loaded = false;
       export default {
-        name: "lifecycle-plugin",
+        name: "lifecycle-extension",
         onLoad: (ctx) => {
           loaded = true;
           if (!ctx.cwd || typeof ctx.verbose !== "boolean" || typeof ctx.registerGroup !== "function") {
@@ -150,10 +151,10 @@ describe("discoverExtensions", () => {
 
   it("calls onUnload during unloadAll", async () => {
     const flagPath = join(tmpDir, "unloaded.flag");
-    writePlugin(tmpDir, "unload.mjs", `
+    writeExtension(tmpDir, "unload", `
       import { writeFileSync } from "node:fs";
       export default {
-        name: "unload-plugin",
+        name: "unload-extension",
         onUnload: () => {
           writeFileSync(${JSON.stringify(flagPath)}, "unloaded");
         },
@@ -171,8 +172,8 @@ describe("discoverExtensions", () => {
     expect(existsSync(flagPath)).toBe(true);
   });
 
-  it("skips plugins without a name", async () => {
-    writePlugin(tmpDir, "bad.mjs", `
+  it("skips extensions without a name", async () => {
+    writeExtension(tmpDir, "bad", `
       export default { tools: [] };
     `);
 
@@ -181,9 +182,9 @@ describe("discoverExtensions", () => {
     expect(modules).toHaveLength(0);
   });
 
-  it("rejects duplicate plugin names via ExtensionLoader", async () => {
-    writePlugin(tmpDir, "a.mjs", `export default { name: "dupe" };`);
-    writePlugin(tmpDir, "b.mjs", `export default { name: "dupe" };`);
+  it("rejects duplicate extension names via ExtensionLoader", async () => {
+    writeExtension(tmpDir, "a", `export default { name: "dupe" };`);
+    writeExtension(tmpDir, "b", `export default { name: "dupe" };`);
 
     const modules = await discoverExtensions(tmpDir);
     expect(modules).toHaveLength(2);
@@ -193,21 +194,21 @@ describe("discoverExtensions", () => {
     expect(loader.getExtensionCount()).toBe(1);
   });
 
-  it("discovers plugins in alphabetical order", async () => {
-    writePlugin(tmpDir, "z-last.mjs", `export default { name: "z-last" };`);
-    writePlugin(tmpDir, "a-first.mjs", `export default { name: "a-first" };`);
-    writePlugin(tmpDir, "m-middle.mjs", `export default { name: "m-middle" };`);
+  it("discovers extensions in alphabetical directory order", async () => {
+    writeExtension(tmpDir, "z-last", `export default { name: "z-last" };`);
+    writeExtension(tmpDir, "a-first", `export default { name: "a-first" };`);
+    writeExtension(tmpDir, "m-middle", `export default { name: "m-middle" };`);
 
     const modules = await discoverExtensions(tmpDir);
     expect(modules.map((m) => m.name)).toEqual(["a-first", "m-middle", "z-last"]);
   });
 
-  it("ignores non-JS files in plugins directory", async () => {
-    const pluginDir = join(tmpDir, ".kota", "plugins");
-    mkdirSync(pluginDir, { recursive: true });
-    writeFileSync(join(pluginDir, "readme.md"), "# Not a plugin");
-    writeFileSync(join(pluginDir, "data.json"), "{}");
-    writePlugin(tmpDir, "real.mjs", `export default { name: "real" };`);
+  it("ignores directories with no recognized extension format", async () => {
+    const extDir = join(tmpDir, ".kota", "extensions", "unknown");
+    mkdirSync(extDir, { recursive: true });
+    writeFileSync(join(extDir, "readme.md"), "# Not an extension");
+    writeFileSync(join(extDir, "data.json"), "{}");
+    writeExtension(tmpDir, "real", `export default { name: "real" };`);
 
     const modules = await discoverExtensions(tmpDir);
     expect(modules).toHaveLength(1);
@@ -215,9 +216,9 @@ describe("discoverExtensions", () => {
   });
 
   it("cleans up tools on ExtensionLoader.unloadAll", async () => {
-    writePlugin(tmpDir, "cleanup.mjs", `
+    writeExtension(tmpDir, "cleanup", `
       export default {
-        name: "cleanup-plugin",
+        name: "cleanup-extension",
         tools: [{
           tool: {
             name: "temp_tool",
@@ -245,9 +246,9 @@ describe("discoverExtensions", () => {
   });
 
   it("registerGroup from ExtensionContext creates groups with auto-detect pattern", async () => {
-    writePlugin(tmpDir, "custom-group.mjs", `
+    writeExtension(tmpDir, "custom-group", `
       export default {
-        name: "custom-group-plugin",
+        name: "custom-group-extension",
         onLoad: (ctx) => {
           ctx.registerGroup("email", ["send_email", "read_inbox"], /\\b(email|mail|inbox|send.?message)\\b/i);
         },
@@ -279,5 +280,38 @@ describe("discoverExtensions", () => {
 
     expect(TOOL_GROUPS.email).toContain("send_email");
     expect(TOOL_GROUPS.email).toContain("read_inbox");
+  });
+
+  it("discovers a manifest.json extension", async () => {
+    const extDir = join(tmpDir, ".kota", "extensions", "manifest-ext");
+    mkdirSync(extDir, { recursive: true });
+    writeFileSync(
+      join(extDir, "manifest.json"),
+      JSON.stringify({
+        name: "manifest-ext",
+        version: "1.0.0",
+      }),
+    );
+
+    const modules = await discoverExtensions(tmpDir);
+    expect(modules).toHaveLength(1);
+    expect(modules[0].name).toBe("manifest-ext");
+  });
+
+  it("discovers a packaged extension via package.json main field", async () => {
+    const extDir = join(tmpDir, ".kota", "extensions", "packaged-ext");
+    mkdirSync(join(extDir, "dist"), { recursive: true });
+    writeFileSync(
+      join(extDir, "package.json"),
+      JSON.stringify({ name: "packaged-ext", main: "dist/index.js" }),
+    );
+    writeFileSync(
+      join(extDir, "dist", "index.js"),
+      `export default { name: "packaged-ext", tools: [] };`,
+    );
+
+    const modules = await discoverExtensions(tmpDir);
+    expect(modules).toHaveLength(1);
+    expect(modules[0].name).toBe("packaged-ext");
   });
 });

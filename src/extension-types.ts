@@ -74,7 +74,7 @@ export type CreateSessionOptions = {
   noHistory?: boolean;
 };
 
-/** A tool definition — used by extensions and plugins alike. */
+/** A tool definition contributed by an extension. */
 export type ToolDef = {
   tool: Anthropic.Tool;
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;

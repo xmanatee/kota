@@ -1,8 +1,13 @@
-# Foreign-Language Extensions
+# Foreign-Language Extensions (KEMP Transport)
 
-KOTA supports extensions implemented outside the in-process TypeScript runtime.
-A foreign extension is a subprocess (any language) that communicates with KOTA
-over a simple JSON message protocol.
+KOTA extensions are normally in-process TypeScript modules discovered from
+`.kota/extensions/<name>/`. Foreign extensions are a transport variant for
+the same extension protocol: they run as subprocesses (in any language) and
+communicate with KOTA over a simple JSON message protocol.
+
+Use foreign extensions when you need to write an extension in a language other
+than TypeScript, or when the capability must run in a separate process. For
+everything else, use the standard `.kota/extensions/` directory.
 
 ## Protocol Overview
 

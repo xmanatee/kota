@@ -7,6 +7,7 @@ import {
   getNpmVersion,
   installUrl,
   resolveInstalledPackageName,
+  resolveNpmEntry,
 } from "./registry-installers.js";
 
 function makeTmpDir(): string {
@@ -15,7 +16,7 @@ function makeTmpDir(): string {
   return dir;
 }
 
-describe("installUrl filename derivation", () => {
+describe("installUrl extension directory", () => {
   let kotaDir: string;
 
   beforeEach(() => {
@@ -37,47 +38,47 @@ describe("installUrl filename derivation", () => {
     );
   }
 
-  it("preserves .js filename from URL path", async () => {
+  it("installs extension to extensions/<name>/index.mjs", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/path/to/weather.js");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["plugins/weather.js"]);
+    expect(result.files).toEqual(["extensions/weather"]);
   });
 
-  it("preserves .mjs filename from URL path", async () => {
+  it("installs URL extension using derived name", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/weather.mjs");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["plugins/weather.mjs"]);
+    expect(result.files).toEqual(["extensions/weather"]);
   });
 
-  it("uses derived name with .mjs for non-JS extensions", async () => {
+  it("uses derived name for non-JS extensions", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.ts");
     const result = await installUrl(parsed, kotaDir);
-    // URL "tool.ts" → name "tool" → filename "tool.mjs"
-    expect(result.files).toEqual(["plugins/tool.mjs"]);
+    // URL "tool.ts" → name "tool" → extensions/tool/index.mjs
+    expect(result.files).toEqual(["extensions/tool"]);
   });
 
-  it("uses derived name with .mjs for URLs without extension", async () => {
+  it("uses derived name for URLs without extension", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/api/module");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["plugins/module.mjs"]);
+    expect(result.files).toEqual(["extensions/module"]);
   });
 
-  it("strips query string from filename", async () => {
+  it("strips query string — uses name from parsed source", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.js?v=2&token=abc");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["plugins/tool.js"]);
+    expect(result.files).toEqual(["extensions/tool"]);
   });
 
-  it("strips fragment from filename", async () => {
+  it("strips fragment — uses name from parsed source", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.mjs#section");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["plugins/tool.mjs"]);
+    expect(result.files).toEqual(["extensions/tool"]);
   });
 
   it("handles URL with only root path", async () => {
@@ -85,57 +86,49 @@ describe("installUrl filename derivation", () => {
     const parsed = parseSource("https://example.com/");
     const result = await installUrl(parsed, kotaDir);
     // Root path → empty basename → falls back to name-derived filename
-    expect(result.files).toEqual(["plugins/tool.mjs"]);
+    expect(result.files).toEqual(["extensions/tool"]);
   });
 });
 
 describe("getNpmVersion", () => {
-  let kotaDir: string;
+  let tmpDir: string;
 
   beforeEach(() => {
-    kotaDir = join(makeTmpDir(), ".kota");
-    mkdirSync(kotaDir, { recursive: true });
+    tmpDir = makeTmpDir();
+    mkdirSync(tmpDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(kotaDir, { recursive: true, force: true });
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("reads version from regular package", () => {
-    const pkgPath = join(kotaDir, "packages", "node_modules", "my-tool", "package.json");
-    mkdirSync(join(kotaDir, "packages", "node_modules", "my-tool"), { recursive: true });
+  it("reads version from package directory", () => {
+    const pkgPath = join(tmpDir, "package.json");
     writeFileSync(pkgPath, JSON.stringify({ name: "my-tool", version: "2.3.1" }));
-
-    expect(getNpmVersion("my-tool", kotaDir)).toBe("2.3.1");
+    expect(getNpmVersion(tmpDir)).toBe("2.3.1");
   });
 
   it("reads version from scoped package", () => {
-    const pkgPath = join(kotaDir, "packages", "node_modules", "@scope", "my-tool", "package.json");
-    mkdirSync(join(kotaDir, "packages", "node_modules", "@scope", "my-tool"), { recursive: true });
+    const pkgPath = join(tmpDir, "package.json");
     writeFileSync(pkgPath, JSON.stringify({ name: "@scope/my-tool", version: "1.0.5" }));
-
-    expect(getNpmVersion("@scope/my-tool", kotaDir)).toBe("1.0.5");
+    expect(getNpmVersion(tmpDir)).toBe("1.0.5");
   });
 
-  it("returns unknown for missing package", () => {
-    mkdirSync(join(kotaDir, "packages", "node_modules"), { recursive: true });
-    expect(getNpmVersion("nonexistent", kotaDir)).toBe("unknown");
+  it("returns unknown for missing package.json", () => {
+    mkdirSync(join(tmpDir, "empty"), { recursive: true });
+    expect(getNpmVersion(join(tmpDir, "empty"))).toBe("unknown");
   });
 
   it("returns unknown when package.json has no version field", () => {
-    const pkgPath = join(kotaDir, "packages", "node_modules", "no-ver", "package.json");
-    mkdirSync(join(kotaDir, "packages", "node_modules", "no-ver"), { recursive: true });
+    const pkgPath = join(tmpDir, "package.json");
     writeFileSync(pkgPath, JSON.stringify({ name: "no-ver" }));
-
-    expect(getNpmVersion("no-ver", kotaDir)).toBe("unknown");
+    expect(getNpmVersion(tmpDir)).toBe("unknown");
   });
 
   it("returns unknown for corrupted package.json", () => {
-    const pkgPath = join(kotaDir, "packages", "node_modules", "bad", "package.json");
-    mkdirSync(join(kotaDir, "packages", "node_modules", "bad"), { recursive: true });
+    const pkgPath = join(tmpDir, "package.json");
     writeFileSync(pkgPath, "not json{{{");
-
-    expect(getNpmVersion("bad", kotaDir)).toBe("unknown");
+    expect(getNpmVersion(tmpDir)).toBe("unknown");
   });
 });
 
@@ -181,7 +174,7 @@ describe("resolveInstalledPackageName", () => {
   });
 
   it("falls back to repo name when dependencies is missing", () => {
-    writeFileSync(join(tmpDir, "package.json"), JSON.stringify({ name: "kota-packages" }));
+    writeFileSync(join(tmpDir, "package.json"), JSON.stringify({ name: "kota-ext" }));
     expect(resolveInstalledPackageName(tmpDir, "user/my-tool")).toBe("my-tool");
   });
 
@@ -202,5 +195,40 @@ describe("resolveInstalledPackageName", () => {
       }),
     );
     expect(resolveInstalledPackageName(tmpDir, "user/my-tool")).toBe("my-tool");
+  });
+});
+
+describe("resolveNpmEntry", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns main field from package.json", () => {
+    writeFileSync(join(tmpDir, "package.json"), JSON.stringify({ main: "dist/index.js" }));
+    expect(resolveNpmEntry(tmpDir)).toBe("dist/index.js");
+  });
+
+  it("prefers exports['.'] over main", () => {
+    writeFileSync(
+      join(tmpDir, "package.json"),
+      JSON.stringify({ exports: { ".": "./dist/index.js" }, main: "old.js" }),
+    );
+    expect(resolveNpmEntry(tmpDir)).toBe("./dist/index.js");
+  });
+
+  it("falls back to index.js when no main field", () => {
+    writeFileSync(join(tmpDir, "package.json"), JSON.stringify({ name: "my-pkg" }));
+    expect(resolveNpmEntry(tmpDir)).toBe("index.js");
+  });
+
+  it("returns null for missing package.json", () => {
+    mkdirSync(join(tmpDir, "empty"), { recursive: true });
+    expect(resolveNpmEntry(join(tmpDir, "empty"))).toBeNull();
   });
 });

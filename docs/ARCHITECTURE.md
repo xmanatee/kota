@@ -73,10 +73,12 @@ has to stay in core.
   `src/tools/` and should follow the same pattern over time.
 - Built-in extensions exist, but many are still thin wiring layers over large
   core implementations instead of being the primary home of the capability.
-- Extension discovery and packaging are still too fragmented. The runtime can
-  discover from `.kota/plugins`, `.kota/packages`, `.kota/extensions`, and
-  `foreignExtensions`, which means the code still presents multiple extension
-  stories even though the docs say there is only one.
+- Extension discovery is now unified: all user extensions are discovered from
+  `.kota/extensions/<name>/`. Each directory supports manifest-based (`manifest.json`),
+  single-file code (`index.js`/`index.mjs`), and packaged (`package.json` with `main`)
+  variants. The separate `.kota/plugins` and `.kota/packages` discovery paths have been
+  removed. Foreign (KEMP) extensions remain config-declared via `foreignExtensions` in
+  `.kota/config.json` as the explicit transport variant for out-of-process extensions.
 - The repository layout is still flatter than the target model. Too much
   capability code is concentrated in large shared buckets instead of clear
   per-extension ownership directories.

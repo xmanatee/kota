@@ -173,6 +173,30 @@ Pause/Resume button.
 
 ## Extensions
 
+### Installing user-defined extensions
+
+All user extensions live under `.kota/extensions/<name>/`. There is one canonical way
+to add an extension — place it in this directory. Three packaging variants are supported:
+
+| Variant | What to put in `.kota/extensions/<name>/` |
+|---------|------------------------------------------|
+| Single-file code | `index.js` or `index.mjs` — direct ESM export of `KotaExtension` |
+| Packaged (compiled TS) | `package.json` with `"main"` pointing to the compiled entry |
+| JSON manifest | `manifest.json` — declarative tool definitions without code |
+
+Install from npm, GitHub, or a URL with the CLI:
+
+```sh
+kota extension install kota-weather        # from npm
+kota extension install github:user/repo    # from GitHub
+kota extension install https://example.com/ext.mjs  # from URL
+```
+
+Installed extensions land in `.kota/extensions/<name>/` automatically.
+
+Foreign (out-of-process) extensions that communicate via the KEMP subprocess protocol
+are declared in `foreignExtensions` in `.kota/config.json`. See `docs/FOREIGN-EXTENSIONS.md`.
+
 Extension config lives under the `extensions` key in your config file.
 Notification extensions (Telegram, Slack, webhook) are documented in `docs/NOTIFICATIONS.md`.
 
