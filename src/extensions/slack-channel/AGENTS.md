@@ -1,0 +1,30 @@
+# Slack Channel Extension
+
+This directory owns the bidirectional Slack bot channel for KOTA.
+
+- Uses Slack Socket Mode (WebSocket) to receive messages without a public HTTP endpoint.
+- One `AgentSession` per Slack user — DMs go to that user's session.
+- Approval requests are posted as interactive Block Kit messages with Approve/Reject buttons.
+- Button clicks resolve the approval via `getApprovalQueue()` and update the Slack message.
+- Separate from `../slack/` (one-way incoming webhook notifications).
+
+## Config
+
+Config lives under `extensions.slackChannel` in `kota.config`:
+- `botToken` — Bot Token (`xoxb-`). Required.
+- `appToken` — App-Level Token (`xapp-`, Socket Mode). Required.
+- `notifyChannel` — Slack channel ID for posting approval notifications. Optional.
+
+See `docs/SLACK-CHANNEL.md` for Slack App setup instructions.
+
+## Files
+
+- `client.ts` — `callSlackApi`, `openSocketModeUrl`, `SlackTransport`, message splitting.
+- `bot.ts` — `SlackBot` class: Socket Mode WebSocket loop, session management, interactive actions.
+- `index.ts` — `KotaExtension` definition; wires config, ChannelDef, and approval event subscription.
+
+## Boundaries
+
+- Does not own the one-way Slack webhook notification path (that lives in `../slack/`).
+- Does not own the approval queue itself (`src/approval-queue.ts`).
+- Does not add HTTP routes — all inbound traffic comes through Socket Mode WebSocket.
