@@ -1,7 +1,7 @@
 ---
 id: task-slack-bot-channel
 title: Add Slack bot as a two-way ChannelDef for interactive KOTA conversations via Slack
-status: ready
+status: doing
 priority: p2
 area: extensions
 summary: The existing Slack extension sends one-way notifications via Incoming Webhook. A Slack bot channel using the Slack Events API and Socket Mode would let operators chat with KOTA and approve workflow requests directly in Slack, without switching to a terminal or web UI.
