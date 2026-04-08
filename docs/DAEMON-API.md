@@ -740,6 +740,20 @@ the server for run listing and streaming.
 These endpoints are handled directly by the HTTP server and do not proxy to the
 daemon control API.
 
+### GET /api/health
+
+Returns server liveness. Useful for readiness probes and smoke tests. No
+authentication required (auth check is bypassed for this path).
+
+**Response (200):**
+
+```json
+{ "status": "ok", "sessions": 2, "pendingSchedules": 0 }
+```
+
+`sessions` is the count of active interactive chat sessions. `pendingSchedules`
+is the number of scheduled actions pending delivery.
+
 ### GET /api/config
 
 Returns the resolved merged config (global `~/.kota/config.json` + project
@@ -770,6 +784,244 @@ Returns the resolved merged config (global `~/.kota/config.json` + project
 
 The web UI Config panel fetches this endpoint on load and displays each
 top-level key as a key/value row.
+
+### GET /api/extensions
+
+Returns the list of loaded extensions and their current status.
+
+**Response (200):**
+
+```json
+{
+  "extensions": [
+    {
+      "name": "filesystem",
+      "version": "1.0.0",
+      "description": "File system tools",
+      "status": "loaded",
+      "toolCount": 5,
+      "agentCount": 0,
+      "workflowCount": 0,
+      "skillCount": 0,
+      "channelCount": 0
+    },
+    {
+      "name": "my-extension",
+      "status": "failed",
+      "toolCount": 0,
+      "agentCount": 0,
+      "workflowCount": 0,
+      "skillCount": 0,
+      "channelCount": 0,
+      "error": "Cannot find module './missing-dep.js'"
+    }
+  ]
+}
+```
+
+`status` is `"loaded"` for successfully loaded in-process extensions or `"failed"` when `onLoad` threw.
+Failed entries include an `error` field (truncated to 500 chars) and zero contribution counts.
+Foreign extensions include a `health` field (`{ status, restartCount, lastRestartAt }`) when health data is available.
+
+### GET /api/audit
+
+Returns guardrail audit log entries.
+
+**Query parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `risk` | Filter by risk level (`low`, `medium`, `high`) |
+| `policy` | Filter by policy decision (`allow`, `block`, `approve`) |
+| `limit` | Maximum entries to return (default: 200) |
+
+**Response (200):**
+
+```json
+{
+  "entries": [
+    {
+      "timestamp": "2026-04-08T20:00:00.000Z",
+      "tool": "shell",
+      "risk": "high",
+      "policy": "approve",
+      "input": "rm -rf /tmp/old-data"
+    }
+  ]
+}
+```
+
+## Memory Endpoints
+
+These endpoints expose the agent memory store. All endpoints are handled
+directly by the HTTP server without proxying to the daemon.
+
+### GET /api/memory
+
+Returns all memory entries.
+
+**Response (200):**
+
+```json
+{
+  "entries": [
+    {
+      "id": "mem_abc123",
+      "tags": ["project", "typescript"],
+      "created": "2026-04-01T10:00:00.000Z",
+      "excerpt": "User prefers concise responses without trailing summaries..."
+    }
+  ]
+}
+```
+
+### POST /api/memory
+
+Creates a new memory entry.
+
+**Request body:**
+
+```json
+{ "content": "User prefers concise responses.", "tags": ["style"] }
+```
+
+`content` (required) — the memory text. `tags` (optional) — array of strings.
+
+**Response (201):**
+
+```json
+{ "id": "mem_abc123" }
+```
+
+### GET /api/memory/:id
+
+Returns a single memory entry by ID.
+
+**Response (200):** Full memory entry including `id`, `content`, `tags`, `created`.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Memory entry not found |
+
+### PATCH /api/memory/:id
+
+Updates an existing memory entry.
+
+**Request body:** Any subset of `{ "content": string, "tags": string[] }`.
+
+**Response (200):** Updated memory entry.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Memory entry not found |
+
+### DELETE /api/memory/:id
+
+Deletes a memory entry.
+
+**Response (200):**
+
+```json
+{ "deleted": "mem_abc123" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Memory entry not found |
+
+## Knowledge Endpoints
+
+These endpoints expose the knowledge store. All endpoints are handled
+directly by the HTTP server without proxying to the daemon.
+
+### GET /api/knowledge
+
+Returns all knowledge entries (summary view — `content` is truncated to 200 chars as `excerpt`).
+
+**Response (200):**
+
+```json
+{
+  "entries": [
+    {
+      "id": "know_abc123",
+      "title": "TypeScript strict mode setup",
+      "type": "note",
+      "tags": ["typescript", "tooling"],
+      "status": "active",
+      "excerpt": "Enable strict mode in tsconfig.json to catch..."
+    }
+  ]
+}
+```
+
+### POST /api/knowledge
+
+Creates a new knowledge entry.
+
+**Request body:**
+
+```json
+{
+  "title": "TypeScript strict mode setup",
+  "content": "Enable strict mode in tsconfig.json...",
+  "type": "note",
+  "tags": ["typescript"],
+  "status": "active"
+}
+```
+
+`title` (required). `content`, `type` (default `"note"`), `tags` (default `[]`), `status` (default `"active"`) are optional.
+
+**Response (201):**
+
+```json
+{ "id": "know_abc123" }
+```
+
+### GET /api/knowledge/:id
+
+Returns a single knowledge entry by ID including full `content`.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Knowledge entry not found |
+
+### PATCH /api/knowledge/:id
+
+Updates a knowledge entry. Any subset of `{ "title", "content", "type", "tags" }`.
+
+**Response (200):** Updated knowledge entry.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Knowledge entry not found |
+
+### DELETE /api/knowledge/:id
+
+Deletes a knowledge entry.
+
+**Response (200):**
+
+```json
+{ "deleted": "know_abc123" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Knowledge entry not found |
 
 ## Server-Handled Workflow Action Endpoints
 
