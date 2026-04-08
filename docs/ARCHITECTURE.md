@@ -75,8 +75,8 @@ has to stay in core.
   registers tools but the tool implementation remains in `src/memory/`. The
   `knowledge`, `memory`, and `history` extensions have been completed — their
   capability code now lives in their extension directories alongside tests.
-- Extension directories added during the migrations lack `AGENTS.md`
-  orientation docs. See `tasks/ready/task-extension-agents-md-coverage.md`.
+- Extension directories added during the migrations now all have `AGENTS.md`
+  orientation docs.
 
 ## Direction
 
