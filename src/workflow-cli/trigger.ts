@@ -284,6 +284,114 @@ export function registerTriggerCommands(wfCmd: Command): void {
     });
 
   wfCmd
+    .command("resume-run <run-id>")
+    .description("Resume a failed workflow run from a specific step, reusing prior step outputs")
+    .requiredOption("--from-step <step-id>", "Step ID to resume execution from")
+    .action(async (runId: string, opts: { fromStep: string }) => {
+      const store = new WorkflowRunStore();
+
+      let resolvedId = runId;
+      if (!runId.includes("Z-")) {
+        try {
+          const dirs = readdirSync(store.runsDir).sort().reverse();
+          const match = dirs.find((d) => d.startsWith(runId));
+          if (!match) {
+            console.error(`Run "${runId}" not found.`);
+            process.exit(1);
+          }
+          resolvedId = match;
+        } catch {
+          console.error(`Run "${runId}" not found.`);
+          process.exit(1);
+        }
+      }
+
+      const original = store.getRun(resolvedId);
+      if (!original) {
+        console.error(`Run "${resolvedId}" not found.`);
+        process.exit(1);
+      }
+
+      if (original.status === "running") {
+        console.error(`Run "${resolvedId}" is still active. Cannot resume a running run.`);
+        process.exit(1);
+      }
+
+      if (original.status === "success") {
+        console.error(`Run "${resolvedId}" completed successfully. Use "replay" to re-execute from the beginning.`);
+        process.exit(1);
+      }
+
+      const definitions = validateWorkflowDefinitions(
+        getBuiltinWorkflowDefinitions(),
+        process.cwd(),
+      );
+      const definition = definitions.find((d) => d.name === original.workflow);
+      if (!definition) {
+        console.error(`Workflow "${original.workflow}" is no longer defined.`);
+        process.exit(1);
+      }
+
+      const stepIdx = definition.steps.findIndex((s) => s.id === opts.fromStep);
+      if (stepIdx === -1) {
+        const stepIds = definition.steps.map((s) => s.id).join(", ");
+        console.error(`Step "${opts.fromStep}" not found in workflow "${original.workflow}". Available steps: ${stepIds}`);
+        process.exit(1);
+      }
+
+      for (let i = 0; i < stepIdx; i++) {
+        const defStep = definition.steps[i]!;
+        const result = original.steps.find((s) => s.id === defStep.id);
+        if (!result || result.status !== "success") {
+          console.error(
+            `Cannot resume from step "${opts.fromStep}": prerequisite step "${defStep.id}" did not complete successfully in run "${resolvedId}".`,
+          );
+          process.exit(1);
+        }
+      }
+
+      const state = store.readState();
+      const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === original.workflow);
+      if (alreadyQueued) {
+        console.error(`Workflow "${original.workflow}" is already queued.`);
+        process.exit(1);
+      }
+
+      const now = Date.now();
+      const resumePayload = {
+        resumedFromRunId: resolvedId,
+        resumeFromStep: opts.fromStep,
+        resumeTriggeredAt: new Date().toISOString(),
+      };
+
+      const client = DaemonControlClient.fromStateDir();
+      if (client) {
+        const result = await client.trigger(original.workflow, undefined, resumePayload);
+        if (result) {
+          if (result.alreadyQueued) {
+            console.error(`Workflow "${original.workflow}" is already queued.`);
+            process.exit(1);
+          }
+          console.log(`Resuming "${original.workflow}" from step "${opts.fromStep}" (source: ${resolvedId}).`);
+          if (result.queued && result.queued !== original.workflow) console.log(`New run ID: ${result.queued}`);
+          return;
+        }
+      }
+
+      const runId2 = formatRunId(original.workflow);
+      const trigger = {
+        event: "resume",
+        payload: { ...resumePayload, _runId: runId2 },
+      };
+      store.setPendingRuns([
+        ...state.pendingRuns,
+        { runId: runId2, workflowName: original.workflow, trigger, enqueuedAtMs: now, notBeforeMs: now },
+      ]);
+      console.log(`Resuming "${original.workflow}" from step "${opts.fromStep}" (source: ${resolvedId}).`);
+      console.log(`New run ID: ${runId2}`);
+    });
+
+  wfCmd
     .command("prune")
     .description("Remove old workflow run directories")
     .option("--days <n>", "Delete runs older than N days", "7")

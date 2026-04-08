@@ -84,6 +84,7 @@ export type WorkflowRunSummary = {
   triggeredByRunId?: string;
   causedBy?: { runId: string; workflow: string };
   retryOf?: string;
+  resumedFromRunId?: string;
   tags?: string[];
 };
 

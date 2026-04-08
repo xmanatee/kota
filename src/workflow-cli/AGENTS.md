@@ -13,7 +13,7 @@ This directory contains the per-subcommand modules for `kota workflow`.
 - `run-diff.ts` — `kota workflow diff <run-id-a> <run-id-b>` step-level comparison table; exports `buildRunDiff` and `formatRunDiff` for testing.
 - `logs.ts` — `kota workflow logs` log streaming.
 - `follow.ts` — `kota workflow follow [run-id]` live run output streaming with SSE and file-poll fallback.
-- `trigger.ts` — `kota workflow trigger` and manual-trigger commands.
+- `trigger.ts` — `kota workflow trigger`, `kota workflow retry`, `kota workflow replay`, `kota workflow resume-run`, and `kota workflow prune` commands.
 - `triggers.ts` — `kota workflow triggers`; lists all file-watch triggers (workflow name, enabled, glob patterns, debounce). Queries the daemon when running via `/workflow/definitions`; falls back to static definitions offline. Supports `--json`.
 - `run.ts` — `kota workflow run --dry-run` command registration.
 - `dry-run.ts` — `buildDryRunPlan` and `formatDryRunPlan`; evaluates `when` predicates against empty context and prints the step execution plan.

@@ -335,6 +335,8 @@ export class WorkflowRunStore {
         : undefined;
     const retryOf =
       typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
+    const resumedFromRunId =
+      typeof trigger.payload.resumedFromRunId === "string" ? trigger.payload.resumedFromRunId : undefined;
     const tags =
       Array.isArray(trigger.payload.tags) &&
       (trigger.payload.tags as unknown[]).every((t) => typeof t === "string")
@@ -349,6 +351,7 @@ export class WorkflowRunStore {
       ...(triggeredByRunId !== undefined && { triggeredByRunId }),
       ...(causedBy !== undefined && { causedBy }),
       ...(retryOf !== undefined && { retryOf }),
+      ...(resumedFromRunId !== undefined && { resumedFromRunId }),
       ...(tags !== undefined && tags.length > 0 && { tags }),
       startedAt: new Date().toISOString(),
       status: "running",

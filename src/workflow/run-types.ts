@@ -84,6 +84,8 @@ export type WorkflowStepResult = {
   error?: string;
   continueOnFailure?: boolean;
   toolCalls?: ToolCallSummaryEntry[];
+  /** True when this step result was reused from a prior run (resume-from-step). */
+  reused?: boolean;
 };
 
 export type WorkflowStepContext = {
@@ -166,6 +168,7 @@ export type WorkflowRunMetadata = {
   triggeredByRunId?: string;
   causedBy?: { runId: string; workflow: string };
   retryOf?: string;
+  resumedFromRunId?: string;
   tags?: string[];
   startedAt: string;
   completedAt?: string;

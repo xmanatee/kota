@@ -120,6 +120,93 @@ export function buildRetryInitialState(
   return state;
 }
 
+/**
+ * Returns the index of the step with the given ID in the definition, validating
+ * that all preceding steps completed successfully in the original run.
+ * Throws if the step is not found or a prerequisite step did not succeed.
+ */
+export function findResumeFromIndex(
+  stepId: string,
+  definitionSteps: ReadonlyArray<{ id: string }>,
+  originalSteps: WorkflowStepResult[],
+): number {
+  const idx = definitionSteps.findIndex((s) => s.id === stepId);
+  if (idx === -1) {
+    throw new Error(`Step "${stepId}" not found in workflow definition`);
+  }
+  for (let i = 0; i < idx; i++) {
+    const defStep = definitionSteps[i]!;
+    const result = originalSteps.find((s) => s.id === defStep.id);
+    if (!result || result.status !== "success") {
+      throw new Error(
+        `Cannot resume from step "${stepId}": prerequisite step "${defStep.id}" did not complete successfully in the source run`,
+      );
+    }
+  }
+  return idx;
+}
+
+export function buildResumeInitialState(
+  resumedFromRunId: string,
+  resumeFromStep: string,
+  definitionSteps: ReadonlyArray<{ id: string; type: string }>,
+  recordStep: (result: WorkflowStepResult) => void,
+  runsDir: string,
+): RetryInitialState {
+  const originalMeta = readOptionalJsonFile<WorkflowRunMetadata>(
+    join(runsDir, resumedFromRunId, "metadata.json"),
+  );
+  if (!originalMeta) {
+    throw new Error(`Source run "${resumedFromRunId}" not found`);
+  }
+
+  const resumeFromIndex = findResumeFromIndex(resumeFromStep, definitionSteps, originalMeta.steps);
+  const state: RetryInitialState = {
+    retryFromIndex: resumeFromIndex,
+    stepOutputsById: {},
+    stepResultsById: {},
+    stepOutputs: [],
+    previousOutput: null,
+    hadWarnings: false,
+  };
+
+  const replayedAt = new Date().toISOString();
+  for (let i = 0; i < resumeFromIndex; i++) {
+    const defStep = definitionSteps[i]!;
+    const result = originalMeta.steps.find((s) => s.id === defStep.id);
+    if (!result) { state.retryFromIndex = i; break; }
+    const replayed: WorkflowStepResult = {
+      ...result,
+      startedAt: replayedAt,
+      completedAt: replayedAt,
+      durationMs: 0,
+      reused: true,
+    };
+    recordStep(replayed);
+    state.stepResultsById[defStep.id] = replayed;
+    if (result.status === "success") {
+      state.stepOutputsById[defStep.id] = result.output;
+      state.stepOutputs.push(result.output);
+      state.previousOutput = result.output;
+      if (result.type === "parallel") {
+        const inner = result.output as { steps?: WorkflowStepResult[] } | null;
+        for (const childResult of inner?.steps ?? []) {
+          state.stepResultsById[childResult.id] = childResult;
+          if (childResult.status === "success") {
+            state.stepOutputsById[childResult.id] = childResult.output;
+          } else if (childResult.status === "skipped") {
+            state.stepOutputsById[childResult.id] = { skipped: true };
+          }
+        }
+      }
+    } else if (result.status === "skipped") {
+      state.stepOutputsById[defStep.id] = { skipped: true };
+      state.stepOutputs.push({ skipped: true });
+    }
+  }
+  return state;
+}
+
 export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
   return definition.steps.some((step) => step.type === "agent");
 }

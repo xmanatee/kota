@@ -649,6 +649,24 @@ original run ID so the two runs are traceable.
 The run detail view in the web UI also shows a **Replay** button for completed
 runs that performs the same action and shows the new run ID inline.
 
+### Resume a failed run from a specific step
+
+```
+kota workflow resume-run <run-id> --from-step <step-id>
+```
+
+Resumes a failed or interrupted run starting from a specific step, reusing the
+completed step outputs from the source run for all prior steps. The resumed run
+records reused steps with a `(reused)` marker in `kota workflow show` output and
+links back to the source run via `resumedFromRunId` in its metadata.
+
+- Requires all steps before `--from-step` to have completed successfully in the
+  source run; returns an error otherwise.
+- The source run must be in a terminal state (`failed`, `interrupted`, or
+  `completed-with-warnings`).
+- For-each and parallel steps are replayed but not re-executed; their prior
+  outputs are carried forward.
+
 ### Retry a failed run
 
 ```

@@ -155,6 +155,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
           ...(daemonRun.triggeredByRunId != null && { triggeredByRunId: daemonRun.triggeredByRunId }),
           ...(daemonRun.causedBy != null && { causedBy: daemonRun.causedBy }),
           ...(daemonRun.retryOf != null && { retryOf: daemonRun.retryOf }),
+          ...(daemonRun.resumedFromRunId != null && { resumedFromRunId: daemonRun.resumedFromRunId }),
           ...(daemonRun.warnings && daemonRun.warnings.length > 0 && { warnings: daemonRun.warnings }),
         };
       } else {
@@ -212,6 +213,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
       if (metadata.retryOf) {
         console.log(`Retry of: ${metadata.retryOf}`);
       }
+      if (metadata.resumedFromRunId) {
+        console.log(`Resumed from: ${metadata.resumedFromRunId}`);
+      }
       console.log(`Trigger:  ${metadata.trigger.event}`);
       if (showPayload && metadata.trigger.payload && Object.keys(metadata.trigger.payload).length > 0) {
         console.log(`Payload:\n${JSON.stringify(metadata.trigger.payload, null, 2).split("\n").map((l) => `  ${l}`).join("\n")}`);
@@ -265,7 +269,8 @@ export function registerRunShowCommand(wfCmd: Command): void {
         for (const step of metadata.steps) {
           const dur = formatDuration(step.durationMs);
           const icon = step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
-          const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : "";
+          const reusedSuffix = (step as { reused?: boolean }).reused ? " (reused)" : "";
+          const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : reusedSuffix;
 
           if (step.type === "parallel") {
             console.log(`  ${icon} ${step.id} [parallel] ${dur}${suffix}`);

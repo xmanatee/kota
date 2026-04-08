@@ -8,7 +8,7 @@ import {
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from "./run-executor-step.js";
-import { buildRetryInitialState } from "./run-executor-utils.js";
+import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
 import { createStepContext } from "./step-context.js";
@@ -72,25 +72,25 @@ export function executeWorkflowRun(
   const promise = (async (): Promise<WorkflowRunExecutionResult> => {
     let agentBackoff: WorkflowRunExecutionResult["agentBackoff"];
     const retryOfId = typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
-    const retryState = buildRetryInitialState(
-      retryOfId,
-      definition.steps,
-      (result) => run.recordStep(result),
-      deps.store.runsDir,
-    );
-    const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
-    let previousOutput = retryState.previousOutput;
-    let hadWarnings = retryState.hadWarnings;
-    const acc = { stepOutputsById, stepResultsById, stepOutputs, warnings: [] as WorkflowRunWarning[] };
-
-    // Inject webhook trigger payload so steps can access it via stepOutputs.trigger
-    if (trigger.event === "webhook") {
-      const { _runId: _ignored, ...webhookPayload } = trigger.payload as { _runId?: string; body: unknown; headers: Record<string, string>; timestamp: string };
-      stepOutputsById.trigger = webhookPayload;
-    }
+    const resumedFromRunId = typeof trigger.payload.resumedFromRunId === "string" ? trigger.payload.resumedFromRunId : undefined;
+    const resumeFromStep = typeof trigger.payload.resumeFromStep === "string" ? trigger.payload.resumeFromStep : undefined;
     const stepDeps = { bus: deps.bus, log: deps.log };
 
     try {
+      const retryState = resumedFromRunId && resumeFromStep
+        ? buildResumeInitialState(resumedFromRunId, resumeFromStep, definition.steps, (result) => run.recordStep(result), deps.store.runsDir)
+        : buildRetryInitialState(retryOfId, definition.steps, (result) => run.recordStep(result), deps.store.runsDir);
+      const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
+      let previousOutput = retryState.previousOutput;
+      let hadWarnings = retryState.hadWarnings;
+      const acc = { stepOutputsById, stepResultsById, stepOutputs, warnings: [] as WorkflowRunWarning[] };
+
+      // Inject webhook trigger payload so steps can access it via stepOutputs.trigger
+      if (trigger.event === "webhook") {
+        const { _runId: _ignored, ...webhookPayload } = trigger.payload as { _runId?: string; body: unknown; headers: Record<string, string>; timestamp: string };
+        stepOutputsById.trigger = webhookPayload;
+      }
+
       for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
         if (stepIdx < retryFromIndex) continue;
         const step = definition.steps[stepIdx];

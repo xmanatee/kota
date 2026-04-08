@@ -242,6 +242,7 @@ export class Daemon {
           ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
           ...(m.causedBy != null && { causedBy: m.causedBy }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
+          ...(m.resumedFromRunId != null && { resumedFromRunId: m.resumedFromRunId }),
           ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
         })),
       getWorkflowRun: (id: string): WorkflowRunDetail | null => {
@@ -259,6 +260,7 @@ export class Daemon {
           ...(m.triggeredByRunId != null && { triggeredByRunId: m.triggeredByRunId }),
           ...(m.causedBy != null && { causedBy: m.causedBy }),
           ...(m.retryOf != null && { retryOf: m.retryOf }),
+          ...(m.resumedFromRunId != null && { resumedFromRunId: m.resumedFromRunId }),
           ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
           ...(m.trigger.payload && Object.keys(m.trigger.payload).length > 0 && { triggerPayload: m.trigger.payload }),
           ...(m.warnings && m.warnings.length > 0 && { warnings: m.warnings }),
