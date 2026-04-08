@@ -197,7 +197,11 @@ export class TelegramBot {
       await transport.flush();
     } catch (err) {
       // Flush any partial output the agent produced before the error
-      try { await transport.flush(); } catch {}
+      try {
+        await transport.flush();
+      } catch (flushErr) {
+        console.error("[kota-telegram] Failed to flush partial output after error:", (flushErr as Error).message);
+      }
       throw err;
     } finally {
       const session = this.sessions.get(chatId);

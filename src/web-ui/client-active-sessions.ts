@@ -4,10 +4,19 @@ export const CLIENT_ACTIVE_SESSIONS_JS = `
   // --- Active sessions panel ---
 
   var _activeSessions = [];
+  var activeSessionsNotice = "";
+
+  function setActiveSessionsNotice(message) {
+    activeSessionsNotice = message;
+  }
 
   function renderActiveSessions(sessions) {
     _activeSessions = sessions;
     $activeSessionsList.innerHTML = "";
+    if (activeSessionsNotice) {
+      $activeSessionsList.innerHTML = '<div class="run-empty">' + escapeHtml(activeSessionsNotice) + '</div>';
+      return;
+    }
     if (!sessions.length) {
       $activeSessionsList.innerHTML = '<div class="run-empty">No active sessions</div>';
       return;
@@ -28,9 +37,17 @@ export const CLIENT_ACTIVE_SESSIONS_JS = `
   async function refreshActiveSessions() {
     try {
       var res = await apiFetch(API +"/api/daemon/status");
-      if (!res.ok) return;
+      if (!res.ok) {
+        setActiveSessionsNotice("Failed to load active sessions");
+        renderActiveSessions(_activeSessions);
+        return;
+      }
       var data = await res.json();
+      setActiveSessionsNotice("");
       renderActiveSessions((data.daemon && data.daemon.sessions) || []);
-    } catch {}
+    } catch {
+      setActiveSessionsNotice("Failed to load active sessions");
+      renderActiveSessions(_activeSessions);
+    }
   }
 `;

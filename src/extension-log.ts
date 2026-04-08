@@ -140,7 +140,9 @@ export class ExtensionLogStore {
 				const pruned = lines.slice(-PRUNE_TO);
 				writeFileSync(path, `${pruned.join("\n")}\n`, "utf-8");
 			}
-		} catch {}
+		} catch {
+			// Best-effort maintenance; log reads should still work even if pruning fails.
+		}
 	}
 }
 

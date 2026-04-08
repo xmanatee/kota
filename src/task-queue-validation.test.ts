@@ -285,7 +285,7 @@ Has an outcome.
     expect(hasStrategicReadyCoverageGap(projectDir)).toBe(false);
   });
 
-  it("reports an architecture-ready coverage gap while flat built-in extensions remain", () => {
+  it("reports an architecture-ready coverage gap while root-level built-in extension files remain", () => {
     mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
     writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
     writeTask(projectDir, "ready", "task-ops", { area: "runtime" });

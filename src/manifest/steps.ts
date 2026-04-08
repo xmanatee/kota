@@ -2,7 +2,7 @@
  * Step resolution and condition evaluation for manifest-based tool pipelines.
  *
  * Thin compatibility wrappers around the shared step language used by workflows.
- * Manifest step pipelines still expose the legacy payload-root API (`$payload`)
+ * Manifest step pipelines expose the payload-root API (`$payload`)
  * while sharing the same parser and condition semantics as workflows.
  */
 

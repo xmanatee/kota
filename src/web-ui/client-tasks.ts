@@ -17,6 +17,11 @@ export const CLIENT_TASKS_JS = `
   };
 
   var editingTasks = {};
+  var taskNotice = "";
+
+  function setTaskNotice(message) {
+    taskNotice = message;
+  }
 
   async function moveTaskState(id, newState) {
     try {
@@ -25,8 +30,17 @@ export const CLIENT_TASKS_JS = `
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ state: newState }),
       });
-      if (res.ok) refreshTasks();
-    } catch {}
+      if (!res.ok) {
+        setTaskNotice("Failed to update task state");
+        renderTasks(cachedTasks);
+        return;
+      }
+      setTaskNotice("");
+      refreshTasks();
+    } catch {
+      setTaskNotice("Failed to update task state");
+      renderTasks(cachedTasks);
+    }
   }
 
   async function saveTaskBody(id, bodyText) {
@@ -45,9 +59,16 @@ export const CLIENT_TASKS_JS = `
           }
         }
         editingTasks[id] = false;
+        setTaskNotice("");
         renderTasks(cachedTasks);
+        return;
       }
-    } catch {}
+      setTaskNotice("Failed to save task changes");
+      renderTasks(cachedTasks);
+    } catch {
+      setTaskNotice("Failed to save task changes");
+      renderTasks(cachedTasks);
+    }
   }
 
   function renderTaskActions(state, taskId, isExpanded) {
@@ -184,6 +205,13 @@ export const CLIENT_TASKS_JS = `
       })(cancelBtns[cb]);
     }
 
+    if (taskNotice) {
+      var notice = document.createElement("div");
+      notice.className = "run-empty";
+      notice.textContent = taskNotice;
+      $taskList.appendChild(notice);
+    }
+
     if (!anyTasks) {
       $taskList.innerHTML = '<div class="run-empty">No open tasks</div>';
     }
@@ -192,11 +220,19 @@ export const CLIENT_TASKS_JS = `
   async function refreshTasks() {
     try {
       var res = await apiFetch(API +"/api/tasks");
-      if (!res.ok) return;
+      if (!res.ok) {
+        setTaskNotice("Failed to load tasks");
+        $taskList.innerHTML = '<div class="run-empty">Failed to load tasks</div>';
+        return;
+      }
       var data = await res.json();
+      setTaskNotice("");
       cachedTasks = data.tasks || {};
       renderTasks(cachedTasks);
-    } catch {}
+    } catch {
+      setTaskNotice("Failed to load tasks");
+      $taskList.innerHTML = '<div class="run-empty">Failed to load tasks</div>';
+    }
   }
 
   function initNewTaskForm() {
@@ -212,14 +248,21 @@ export const CLIENT_TASKS_JS = `
         var res = await apiFetch(API + "/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title, summary: summaryEl ? summaryEl.value.trim() : "" }),
-        });
-        if (res.ok) {
-          if (titleEl) titleEl.value = "";
-          if (summaryEl) summaryEl.value = "";
-          refreshTasks();
-        }
-      } catch {}
+        body: JSON.stringify({ title: title, summary: summaryEl ? summaryEl.value.trim() : "" }),
+      });
+      if (res.ok) {
+        if (titleEl) titleEl.value = "";
+        if (summaryEl) summaryEl.value = "";
+        setTaskNotice("");
+        refreshTasks();
+        return;
+      }
+        setTaskNotice("Failed to create task");
+        renderTasks(cachedTasks);
+      } catch {
+        setTaskNotice("Failed to create task");
+        renderTasks(cachedTasks);
+      }
     };
   }
 `;

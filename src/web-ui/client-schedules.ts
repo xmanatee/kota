@@ -3,6 +3,12 @@
 export const CLIENT_SCHEDULES_JS = `
   // --- Schedules panel ---
 
+  var schedulesNotice = "";
+
+  function setSchedulesNotice(message) {
+    schedulesNotice = message;
+  }
+
   function fmtIntervalMs(ms) {
     var s = Math.round(ms / 1000);
     if (s < 60) return "every " + s + "s";
@@ -15,6 +21,10 @@ export const CLIENT_SCHEDULES_JS = `
 
   function renderSchedules(statusWorkflows, definitions) {
     $schedulesList.innerHTML = "";
+    if (schedulesNotice) {
+      $schedulesList.innerHTML = '<div class="run-empty">' + escapeHtml(schedulesNotice) + '</div>';
+      return;
+    }
 
     var scheduledNames = {};
     for (var i = 0; i < definitions.length; i++) {
@@ -73,10 +83,18 @@ export const CLIENT_SCHEDULES_JS = `
     try {
       var statusRes = await apiFetch(API + "/api/workflow/status");
       var defsRes = await apiFetch(API + "/api/workflow/definitions");
-      if (!statusRes.ok || !defsRes.ok) return;
+      if (!statusRes.ok || !defsRes.ok) {
+        setSchedulesNotice("Failed to load schedules");
+        renderSchedules({}, []);
+        return;
+      }
       var statusData = await statusRes.json();
       var defsData = await defsRes.json();
+      setSchedulesNotice("");
       renderSchedules(statusData.workflows || {}, defsData.definitions || []);
-    } catch {}
+    } catch {
+      setSchedulesNotice("Failed to load schedules");
+      renderSchedules({}, []);
+    }
   }
 `;

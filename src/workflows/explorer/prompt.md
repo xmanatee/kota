@@ -15,10 +15,8 @@ Read and follow `AGENTS.md`, `tasks/`, `docs/`, and any local `AGENTS.md` files 
 - Until the repo visibly reads as a minimal host/runtime plus extension-owned
   capability packs, prefer extension-boundary and core-shrinking work over
   secondary feature expansion at the same priority.
-- While `src/extensions/` still contains flat built-in extension entry files at
-  its top level, keep at least one p1/p2 architecture task in `ready/` aimed at
-  finishing that migration or shrinking the remaining shared buckets that make
-  the repo feel flat.
+- While visible extension-shape debt remains, keep at least one p1/p2
+  architecture task in `ready/` aimed at shrinking that remaining debt.
 
 ## Workflow Contract
 

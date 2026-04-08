@@ -4,6 +4,11 @@ export const CLIENT_COST_JS = `
   // --- Cost analytics panel ---
 
   var costWindowMs = 24 * 60 * 60 * 1000;
+  var costNotice = "";
+
+  function setCostNotice(message) {
+    costNotice = message;
+  }
 
   function renderCostWindowButtons() {
     var container = document.createElement("div");
@@ -83,6 +88,13 @@ export const CLIENT_COST_JS = `
     $costList.innerHTML = "";
     $costList.appendChild(renderCostWindowButtons());
 
+    if (costNotice) {
+      var notice = document.createElement("div");
+      notice.className = "run-empty";
+      notice.textContent = costNotice;
+      $costList.appendChild(notice);
+    }
+
     var chart = renderCostChart(runs || [], costWindowMs);
     if (chart) $costList.appendChild(chart);
 
@@ -135,8 +147,13 @@ export const CLIENT_COST_JS = `
     try {
       var since = Date.now() - costWindowMs;
       var res = await apiFetch(API + "/api/workflow/runs?since=" + since);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setCostNotice("Failed to load cost data");
+        renderCost({}, [], []);
+        return;
+      }
       var data = await res.json();
+      setCostNotice("");
       var totals = {};
       var costedRuns = (data.runs || []).filter(function(r) { return r.totalCostUsd != null; });
       for (var i = 0; i < costedRuns.length; i++) {
@@ -148,6 +165,9 @@ export const CLIENT_COST_JS = `
         .sort(function(a, b) { return b.totalCostUsd - a.totalCostUsd; })
         .slice(0, 5);
       renderCost(totals, topRuns, costedRuns);
-    } catch {}
+    } catch {
+      setCostNotice("Failed to load cost data");
+      renderCost({}, [], []);
+    }
   }
 `;

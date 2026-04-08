@@ -48,7 +48,10 @@ export async function runFileWrite(
       if (statSync(path).isDirectory()) {
         return { content: `Error: ${path} is a directory, not a file`, is_error: true };
       }
-    } catch {}
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { content: `Error: failed to inspect ${path}: ${message}`, is_error: true };
+    }
   }
   const previousContent = existed ? readFileSync(path, "utf-8") : null;
 

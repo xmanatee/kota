@@ -83,7 +83,9 @@ export const CLIENT_CHAT_JS = `
                 fullText += "\\n[Error: " + (data.message || "unknown") + "]";
                 assistantDiv.innerHTML = renderMarkdown(fullText);
               }
-            } catch {}
+            } catch (err) {
+              console.warn("[kota-web-ui] Failed to parse chat stream event", err);
+            }
           } else if (line.startsWith("event: session")) {
             // Session event
           } else if (line.startsWith("event: done")) {

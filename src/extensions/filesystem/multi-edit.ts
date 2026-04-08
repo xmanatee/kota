@@ -63,7 +63,10 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
       if (statSync(e.path).isDirectory()) {
         return { content: `Error: edit[${i}] ${e.path} is a directory, not a file`, is_error: true };
       }
-    } catch {}
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { content: `Error: edit[${i}] failed to inspect ${e.path}: ${message}`, is_error: true };
+    }
   }
 
   // Phase 2: Save originals for rollback

@@ -44,17 +44,23 @@ export const CLIENT_RUN_DETAIL_JS = `
       try {
         var aRes = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/artifacts");
         if (aRes.ok) artifacts = await aRes.json();
-      } catch {}
+      } catch (err) {
+        console.warn("[kota-web-ui] Failed to load run artifacts", err);
+      }
       var thinkingData = null;
       try {
         var tRes = await apiFetch(API + "/api/workflow/runs/" + encodeURIComponent(runId) + "/thinking");
         if (tRes.ok) { var td = await tRes.json(); thinkingData = td.thinking || null; }
-      } catch {}
+      } catch (err) {
+        console.warn("[kota-web-ui] Failed to load run thinking", err);
+      }
       var triggeredRuns = null;
       try {
         var trRes = await apiFetch(API + "/api/workflow/runs?causedByRunId=" + encodeURIComponent(runId));
         if (trRes.ok) { var trData = await trRes.json(); triggeredRuns = trData.runs || null; }
-      } catch {}
+      } catch (err) {
+        console.warn("[kota-web-ui] Failed to load triggered runs", err);
+      }
       renderRunDetail(run, artifacts, thinkingData, triggeredRuns);
       renderCompareSection(run);
       if (run.status === "running") {
@@ -477,17 +483,23 @@ export const CLIENT_RUN_DETAIL_JS = `
                 try {
                   var payload = JSON.parse(curData);
                   handleStreamEvent(curEvent, payload, stepsContainer, runId);
-                } catch {}
+                } catch (err) {
+                  console.warn("[kota-web-ui] Failed to parse run stream event", err);
+                }
                 curEvent = "";
                 curData = "";
               }
             }
             read();
-          }).catch(function() {});
+          }).catch(function(err) {
+            console.warn("[kota-web-ui] Run stream reader failed", err);
+          });
         }
         read();
       })
-      .catch(function() {});
+      .catch(function(err) {
+        console.warn("[kota-web-ui] Failed to connect run stream", err);
+      });
   }
 
   function handleStreamEvent(eventName, payload, stepsContainer, runId) {

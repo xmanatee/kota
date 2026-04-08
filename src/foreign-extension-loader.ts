@@ -229,7 +229,12 @@ async function startResilientStdioExtension(
     restarting = true;
     healthStatus = "restarting";
     clearPingTimer();
-    try { await session.close(); } catch {}
+    try {
+      await session.close();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[foreign:${config.command}] Failed to close stale session before restart: ${msg}\n`);
+    }
 
     while (restarts < maxRestarts) {
       restarts++;

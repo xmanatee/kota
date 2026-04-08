@@ -3,6 +3,12 @@
 export const CLIENT_WF_DEFINITIONS_JS = `
   // --- Workflow definitions panel ---
 
+  var wfDefinitionsNotice = "";
+
+  function setWfDefinitionsNotice(message) {
+    wfDefinitionsNotice = message;
+  }
+
   function fmtTriggerSummary(triggers) {
     if (!triggers || !triggers.length) return "manual";
     return triggers.map(function(t) {
@@ -24,6 +30,10 @@ export const CLIENT_WF_DEFINITIONS_JS = `
 
   function renderWfDefinitions(definitions, statusWorkflows) {
     $wfDefinitionsList.innerHTML = "";
+    if (wfDefinitionsNotice) {
+      $wfDefinitionsList.innerHTML = '<div class="run-empty">' + escapeHtml(wfDefinitionsNotice) + '</div>';
+      return;
+    }
     if (!definitions || !definitions.length) {
       $wfDefinitionsList.innerHTML = '<div class="run-empty">No workflow definitions</div>';
       return;
@@ -223,9 +233,11 @@ export const CLIENT_WF_DEFINITIONS_JS = `
                 btnRef.title = d.error || "Error";
                 btnRef.disabled = false;
               } else {
+                setWfDefinitionsNotice("");
                 await refreshWfDefinitions();
               }
             } catch {
+              setWfDefinitionsNotice("Failed to update workflow state");
               btnRef.disabled = false;
             }
           };
@@ -241,10 +253,18 @@ export const CLIENT_WF_DEFINITIONS_JS = `
     try {
       var statusRes = await apiFetch(API + "/api/workflow/status");
       var defsRes = await apiFetch(API + "/api/workflow/definitions");
-      if (!statusRes.ok || !defsRes.ok) return;
+      if (!statusRes.ok || !defsRes.ok) {
+        setWfDefinitionsNotice("Failed to load workflow definitions");
+        renderWfDefinitions([], {});
+        return;
+      }
       var statusData = await statusRes.json();
       var defsData = await defsRes.json();
+      setWfDefinitionsNotice("");
       renderWfDefinitions(defsData.definitions || [], statusData.workflows || {});
-    } catch {}
+    } catch {
+      setWfDefinitionsNotice("Failed to load workflow definitions");
+      renderWfDefinitions([], {});
+    }
   }
 `;

@@ -17,8 +17,8 @@ Read and follow the repo instructions from `AGENTS.md`, `tasks/`, `docs/`, and a
   toward clarifying extension ownership and shrinking shared buckets before
   spending cycles on secondary polish.
 - Treat a `ready/` queue with no architecture work as process drift whenever
-  visible extension-shape debt remains, such as flat built-in extension files
-  still living directly under `src/extensions/`.
+  visible extension-shape debt remains, such as shared capability policy still
+  sitting in core instead of the extension that owns it.
 
 ## Workflow Contract
 

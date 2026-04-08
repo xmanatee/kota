@@ -8,18 +8,26 @@ export const CLIENT_MEMORY_JS = `
   var cachedMemory = [];
   var memoryAddFormOpen = false;
   var memoryEditingId = null;
+  var memoryNotice = "";
+
+  function setMemoryNotice(message) {
+    memoryNotice = message;
+  }
 
   async function refreshMemory() {
     try {
       var res = await apiFetch(API + "/api/memory");
       if (!res.ok) {
+        setMemoryNotice("Failed to load memory");
         $memoryList.innerHTML = '<div class="run-empty">Failed to load memory</div>';
         return;
       }
       var data = await res.json();
+      setMemoryNotice("");
       cachedMemory = data.entries || [];
       renderMemory(cachedMemory, memoryFilter);
     } catch {
+      setMemoryNotice("Failed to load memory");
       $memoryList.innerHTML = '<div class="run-empty">Failed to load memory</div>';
     }
   }
@@ -31,18 +39,34 @@ export const CLIENT_MEMORY_JS = `
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: content, tags: tags }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setMemoryNotice("Failed to save memory changes");
+        renderMemory(cachedMemory, memoryFilter);
+        return;
+      }
+      setMemoryNotice("");
       memoryEditingId = null;
       await refreshMemory();
-    } catch { /* ignore */ }
+    } catch {
+      setMemoryNotice("Failed to save memory changes");
+      renderMemory(cachedMemory, memoryFilter);
+    }
   }
 
   async function deleteMemory(id) {
     try {
       var res = await apiFetch(API + "/api/memory/" + encodeURIComponent(id), { method: "DELETE" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setMemoryNotice("Failed to delete memory entry");
+        renderMemory(cachedMemory, memoryFilter);
+        return;
+      }
+      setMemoryNotice("");
       await refreshMemory();
-    } catch { /* ignore */ }
+    } catch {
+      setMemoryNotice("Failed to delete memory entry");
+      renderMemory(cachedMemory, memoryFilter);
+    }
   }
 
   async function submitAddMemory(content, tags) {
@@ -52,10 +76,18 @@ export const CLIENT_MEMORY_JS = `
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: content, tags: tags }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setMemoryNotice("Failed to add memory entry");
+        renderMemory(cachedMemory, memoryFilter);
+        return;
+      }
+      setMemoryNotice("");
       memoryAddFormOpen = false;
       await refreshMemory();
-    } catch { /* ignore */ }
+    } catch {
+      setMemoryNotice("Failed to add memory entry");
+      renderMemory(cachedMemory, memoryFilter);
+    }
   }
 
   function renderMemory(entries, filter) {
@@ -101,6 +133,13 @@ export const CLIENT_MEMORY_JS = `
       addSection.appendChild(addBtn);
     }
     $memoryList.appendChild(addSection);
+
+    if (memoryNotice) {
+      var notice = document.createElement("div");
+      notice.className = "run-empty";
+      notice.textContent = memoryNotice;
+      $memoryList.appendChild(notice);
+    }
 
     var filtered = filter
       ? entries.filter(function(e) {
@@ -163,7 +202,10 @@ export const CLIENT_MEMORY_JS = `
             return r.ok ? r.json() : null;
           }).then(function(full) {
             if (full) contentInput.value = full.content || "";
-          }).catch(function() {});
+            else contentInput.placeholder = "Failed to load full content";
+          }).catch(function() {
+            contentInput.placeholder = "Failed to load full content";
+          });
           var btnRow = document.createElement("div");
           btnRow.style.cssText = "display:flex;gap:4px;";
           var saveBtn = document.createElement("button");

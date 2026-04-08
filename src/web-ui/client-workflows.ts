@@ -377,7 +377,9 @@ export const CLIENT_WORKFLOWS_JS = `
       _canLoadMore = newRuns.length >= 50;
       _allRecentRuns = _allRecentRuns.concat(newRuns);
       applyHistoryFilter();
-    } catch {} finally {
+    } catch (err) {
+      console.warn("[kota-web-ui] Failed to load more workflow runs", err);
+    } finally {
       _runsLoading = false;
     }
   }
@@ -386,7 +388,10 @@ export const CLIENT_WORKFLOWS_JS = `
     try {
       var statusRes = await apiFetch(API +"/api/workflow/status");
       var runsRes = await apiFetch(API +"/api/workflow/runs?limit=50");
-      if (!statusRes.ok || !runsRes.ok) return;
+      if (!statusRes.ok || !runsRes.ok) {
+        console.warn("[kota-web-ui] Failed to refresh workflows", { statusOk: statusRes.ok, runsOk: runsRes.ok });
+        return;
+      }
       var statusData = await statusRes.json();
       var runsData = await runsRes.json();
       _allActiveRuns = statusData.activeRuns || [];
@@ -412,7 +417,9 @@ export const CLIENT_WORKFLOWS_JS = `
       historyTags.sort();
       renderHistoryFilter(historyNames, historyTags);
       applyHistoryFilter();
-    } catch {}
+    } catch (err) {
+      console.warn("[kota-web-ui] Failed to refresh workflows", err);
+    }
   }
 
   var _daemonEventsSource = null;
@@ -480,13 +487,17 @@ export const CLIENT_WORKFLOWS_JS = `
       try {
         var d = JSON.parse(e.data);
         if (d.pendingCount > 0) _notify("Approval required", "A workflow step is waiting for approval.");
-      } catch {}
+      } catch (err) {
+        console.warn("[kota-web-ui] Failed to parse approval.changed event", err);
+      }
     }));
     src.addEventListener("workflow.failure.alert", _trackEvent(function(e) {
       try {
         var d = JSON.parse(e.data);
         _notify("Workflow failed", d.workflow + " — " + d.runId);
-      } catch {}
+      } catch (err) {
+        console.warn("[kota-web-ui] Failed to parse workflow.failure.alert event", err);
+      }
     }));
     src.addEventListener("task.changed", _trackEvent(function() { refreshTasks(); }));
     src.addEventListener("session.registered", _trackEvent(function() { refreshActiveSessions(); }));

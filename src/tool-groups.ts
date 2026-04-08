@@ -171,7 +171,7 @@ function buildEnableToolsTool(): Anthropic.Tool {
   };
 }
 
-/** For backwards compat — static reference rebuilt lazily. */
+/** Exported singleton tool schema rebuilt from the current group table. */
 export const enableToolsTool: Anthropic.Tool = buildEnableToolsTool();
 
 export async function runEnableTools(

@@ -3,8 +3,18 @@
 export const CLIENT_APPROVALS_JS = `
   // --- Approval panel ---
 
+  var approvalsNotice = "";
+
+  function setApprovalsNotice(message) {
+    approvalsNotice = message;
+  }
+
   function renderApprovals(approvals) {
     $approvalList.innerHTML = "";
+    if (approvalsNotice) {
+      $approvalList.innerHTML = '<div class="run-empty">' + escapeHtml(approvalsNotice) + '</div>';
+      return;
+    }
     if (!approvals.length) {
       $approvalList.innerHTML = '<div class="run-empty">No pending approvals</div>';
       return;
@@ -46,13 +56,24 @@ export const CLIENT_APPROVALS_JS = `
           var note = window.prompt("Optional note for this approval (leave blank to skip):") || undefined;
           btn.disabled = true;
           try {
-            await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", {
+            var res = await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/approve", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ note: note }),
             });
+            if (!res.ok) {
+              setApprovalsNotice("Failed to approve request");
+              renderApprovals(approvals);
+              btn.disabled = false;
+              return;
+            }
+            setApprovalsNotice("");
             refreshApprovals();
-          } catch { btn.disabled = false; }
+          } catch {
+            setApprovalsNotice("Failed to approve request");
+            renderApprovals(approvals);
+            btn.disabled = false;
+          }
         };
       })(approveBtns[j]);
     }
@@ -61,9 +82,20 @@ export const CLIENT_APPROVALS_JS = `
         btn.onclick = async function() {
           btn.disabled = true;
           try {
-            await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/reject", { method: "POST" });
+            var res = await apiFetch(API +"/api/approvals/" + encodeURIComponent(btn.dataset.id) + "/reject", { method: "POST" });
+            if (!res.ok) {
+              setApprovalsNotice("Failed to reject request");
+              renderApprovals(approvals);
+              btn.disabled = false;
+              return;
+            }
+            setApprovalsNotice("");
             refreshApprovals();
-          } catch { btn.disabled = false; }
+          } catch {
+            setApprovalsNotice("Failed to reject request");
+            renderApprovals(approvals);
+            btn.disabled = false;
+          }
         };
       })(rejectBtns[k]);
     }
@@ -72,9 +104,17 @@ export const CLIENT_APPROVALS_JS = `
   async function refreshApprovals() {
     try {
       var res = await apiFetch(API +"/api/approvals");
-      if (!res.ok) return;
+      if (!res.ok) {
+        setApprovalsNotice("Failed to load approvals");
+        renderApprovals([]);
+        return;
+      }
       var data = await res.json();
+      setApprovalsNotice("");
       renderApprovals(data.approvals || []);
-    } catch {}
+    } catch {
+      setApprovalsNotice("Failed to load approvals");
+      renderApprovals([]);
+    }
   }
 `;

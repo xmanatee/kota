@@ -3,6 +3,17 @@
 export const CLIENT_SESSIONS_JS = `
   // --- Session labels (localStorage) ---
 
+  var sessionsNotice = "";
+  var historyNotice = "";
+
+  function setSessionsNotice(message) {
+    sessionsNotice = message;
+  }
+
+  function setHistoryNotice(message) {
+    historyNotice = message;
+  }
+
   function getSessionLabel(id) {
     return localStorage.getItem("kota-session-label:" + id) || "";
   }
@@ -34,9 +45,18 @@ export const CLIENT_SESSIONS_JS = `
   async function refreshSessions() {
     try {
       const res = await apiFetch(API +"/api/sessions");
+      if (!res.ok) {
+        setSessionsNotice("Failed to load sessions");
+        renderSessions([]);
+        return;
+      }
       const data = await res.json();
+      setSessionsNotice("");
       renderSessions(data.sessions || []);
-    } catch {}
+    } catch {
+      setSessionsNotice("Failed to load sessions");
+      renderSessions([]);
+    }
   }
 
   function startSessionLabelEdit(id, labelSpan) {
@@ -69,6 +89,10 @@ export const CLIENT_SESSIONS_JS = `
 
   function renderSessions(sessions) {
     $sessionList.innerHTML = "";
+    if (sessionsNotice) {
+      $sessionList.innerHTML = '<div class="run-empty">' + escapeHtml(sessionsNotice) + '</div>';
+      return;
+    }
     for (const s of sessions) {
       const div = document.createElement("div");
       div.className = "session-item" + (s.id === sessionId ? " active" : "");
@@ -121,13 +145,26 @@ export const CLIENT_SESSIONS_JS = `
   async function refreshHistory() {
     try {
       const res = await apiFetch(API +"/api/history?limit=15");
+      if (!res.ok) {
+        setHistoryNotice("Failed to load history");
+        renderHistory([]);
+        return;
+      }
       const data = await res.json();
+      setHistoryNotice("");
       renderHistory(data.conversations || []);
-    } catch {}
+    } catch {
+      setHistoryNotice("Failed to load history");
+      renderHistory([]);
+    }
   }
 
   function renderHistory(convos) {
     $historyList.innerHTML = "";
+    if (historyNotice) {
+      $historyList.innerHTML = '<div class="run-empty">' + escapeHtml(historyNotice) + '</div>';
+      return;
+    }
     for (const c of convos) {
       const div = document.createElement("div");
       div.className = "history-item" + (c.id === historyViewId ? " active" : "");

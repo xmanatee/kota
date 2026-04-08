@@ -8,18 +8,26 @@ export const CLIENT_KNOWLEDGE_JS = `
   var cachedKnowledge = [];
   var knowledgeAddFormOpen = false;
   var knowledgeEditingId = null;
+  var knowledgeNotice = "";
+
+  function setKnowledgeNotice(message) {
+    knowledgeNotice = message;
+  }
 
   async function refreshKnowledge() {
     try {
       var res = await apiFetch(API + "/api/knowledge");
       if (!res.ok) {
+        setKnowledgeNotice("Failed to load knowledge");
         $knowledgeList.innerHTML = '<div class="run-empty">Failed to load knowledge</div>';
         return;
       }
       var data = await res.json();
+      setKnowledgeNotice("");
       cachedKnowledge = data.entries || [];
       renderKnowledge(cachedKnowledge, knowledgeFilter);
     } catch {
+      setKnowledgeNotice("Failed to load knowledge");
       $knowledgeList.innerHTML = '<div class="run-empty">Failed to load knowledge</div>';
     }
   }
@@ -31,18 +39,34 @@ export const CLIENT_KNOWLEDGE_JS = `
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title, content: content, type: type, tags: tags }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setKnowledgeNotice("Failed to save knowledge changes");
+        renderKnowledge(cachedKnowledge, knowledgeFilter);
+        return;
+      }
+      setKnowledgeNotice("");
       knowledgeEditingId = null;
       await refreshKnowledge();
-    } catch { /* ignore */ }
+    } catch {
+      setKnowledgeNotice("Failed to save knowledge changes");
+      renderKnowledge(cachedKnowledge, knowledgeFilter);
+    }
   }
 
   async function deleteKnowledge(id) {
     try {
       var res = await apiFetch(API + "/api/knowledge/" + encodeURIComponent(id), { method: "DELETE" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setKnowledgeNotice("Failed to delete knowledge entry");
+        renderKnowledge(cachedKnowledge, knowledgeFilter);
+        return;
+      }
+      setKnowledgeNotice("");
       await refreshKnowledge();
-    } catch { /* ignore */ }
+    } catch {
+      setKnowledgeNotice("Failed to delete knowledge entry");
+      renderKnowledge(cachedKnowledge, knowledgeFilter);
+    }
   }
 
   async function submitAddKnowledge(title, content, type, tags) {
@@ -52,10 +76,18 @@ export const CLIENT_KNOWLEDGE_JS = `
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title, content: content, type: type, tags: tags }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setKnowledgeNotice("Failed to add knowledge entry");
+        renderKnowledge(cachedKnowledge, knowledgeFilter);
+        return;
+      }
+      setKnowledgeNotice("");
       knowledgeAddFormOpen = false;
       await refreshKnowledge();
-    } catch { /* ignore */ }
+    } catch {
+      setKnowledgeNotice("Failed to add knowledge entry");
+      renderKnowledge(cachedKnowledge, knowledgeFilter);
+    }
   }
 
   function renderKnowledge(entries, filter) {
@@ -113,6 +145,13 @@ export const CLIENT_KNOWLEDGE_JS = `
       addSection.appendChild(addBtn);
     }
     $knowledgeList.appendChild(addSection);
+
+    if (knowledgeNotice) {
+      var notice = document.createElement("div");
+      notice.className = "run-empty";
+      notice.textContent = knowledgeNotice;
+      $knowledgeList.appendChild(notice);
+    }
 
     var filtered = filter
       ? entries.filter(function(e) {
@@ -185,7 +224,10 @@ export const CLIENT_KNOWLEDGE_JS = `
             return r.ok ? r.json() : null;
           }).then(function(full) {
             if (full) contentInput.value = full.content || "";
-          }).catch(function() {});
+            else contentInput.placeholder = "Failed to load full content";
+          }).catch(function() {
+            contentInput.placeholder = "Failed to load full content";
+          });
           var btnRow = document.createElement("div");
           btnRow.style.cssText = "display:flex;gap:4px;";
           var saveBtn = document.createElement("button");

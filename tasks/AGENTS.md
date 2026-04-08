@@ -59,10 +59,11 @@ outstanding work.
   `ready/`, `doing/`, and `backlog/` together contain only `p3` tasks, create
   or promote at least one real `p1`/`p2` next bet instead of accepting
   maintenance mode prematurely.
-- If `src/extensions/` still contains flat built-in extension entry files at the
-  top level, `ready/` should keep at least one p1/p2 architecture task aimed at
-  finishing that migration. Do not let `ready/` become only side-work while the
-  repository still visibly reads flatter than the target extension-owned shape.
+- If the repository still visibly reads flatter than the target
+  extension-owned shape, or shared capability policy is still pooling in core,
+  `ready/` should keep at least one p1/p2 architecture task aimed at shrinking
+  that remaining debt. Do not let `ready/` become only side-work while that
+  gap is still obvious.
 - When moving any task between directories, update the `status` frontmatter field to match the target directory name exactly.
 - Prefer `git mv <src> <dst>` for tracked task files, but do not treat it as a fragile ritual. If the queue is already inconsistent, fix the file layout directly and finish with `git add -A` so the staged state matches reality.
 - Before finishing, make sure task-file validations would pass: no duplicate task ids across states, no stale deleted task paths, no untracked task files, and no status/directory mismatches.
