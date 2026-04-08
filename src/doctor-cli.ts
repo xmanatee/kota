@@ -119,8 +119,12 @@ function checkDisk(projectDir: string): CheckResult[] {
   const tmpFile = join(kotaDir, `.doctor-write-test-${Date.now()}`);
   try {
     writeFileSync(tmpFile, "");
-    try { unlinkSync(tmpFile); } catch { /* ignore */ }
     results.push(pass("Disk: .kota/ writable"));
+    try {
+      unlinkSync(tmpFile);
+    } catch (err) {
+      results.push(warn("Disk: .kota/ cleanup", err instanceof Error ? err.message : String(err)));
+    }
   } catch {
     results.push(fail("Disk: .kota/ writable", "Directory is not writable"));
   }

@@ -152,7 +152,7 @@ export function getCustomToolCount(): number {
 /** Clear all custom tool definitions (for testing). */
 export function resetCustomTools(): void {
   for (const name of customDefs.keys()) {
-    try { _deregister(name); } catch { /* ignore */ }
+    _deregister(name);
   }
   customDefs.clear();
 }

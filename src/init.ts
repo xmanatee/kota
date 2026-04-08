@@ -8,53 +8,53 @@ import { getScheduler } from "./scheduler/scheduler.js";
 
 const GIT_TIMEOUT = 5000;
 
+function runGitCommand(cwd: string, command: string): string | null {
+  try {
+    return execSync(command, { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
+  } catch {
+    return null;
+  }
+}
+
 /** Get git state: branch, status summary, recent commits. */
 function getGitContext(cwd: string): string | null {
-  try {
-    execSync("git rev-parse --is-inside-work-tree", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT });
-  } catch {
+  if (!runGitCommand(cwd, "git rev-parse --is-inside-work-tree")) {
     return null;
   }
 
   const parts: string[] = [];
-  try {
-    const branch = execSync("git branch --show-current", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
-    if (branch) parts.push(`Branch: ${branch}`);
-  } catch { /* ignore */ }
+  const branch = runGitCommand(cwd, "git branch --show-current");
+  if (branch) parts.push(`Branch: ${branch}`);
 
-  try {
-    const status = execSync("git status --porcelain", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
-    if (status) {
-      const lines = status.split("\n");
-      const counts = { modified: 0, deleted: 0, added: 0, untracked: 0, renamed: 0, other: 0 };
-      for (const l of lines) {
-        if (l.startsWith("??")) { counts.untracked++; continue; }
-        if (l.startsWith("!!")) continue;
-        const x = l[0];
-        const y = l[1];
-        if (x === "M" || y === "M") counts.modified++;
-        else if (x === "D" || y === "D") counts.deleted++;
-        else if (x === "A") counts.added++;
-        else if (x === "R") counts.renamed++;
-        else counts.other++;
-      }
-      const parts2: string[] = [];
-      if (counts.modified) parts2.push(`${counts.modified} modified`);
-      if (counts.deleted) parts2.push(`${counts.deleted} deleted`);
-      if (counts.added) parts2.push(`${counts.added} added`);
-      if (counts.untracked) parts2.push(`${counts.untracked} untracked`);
-      if (counts.renamed) parts2.push(`${counts.renamed} renamed`);
-      if (parts2.length === 0 && counts.other) parts2.push(`${counts.other} changed`);
-      if (parts2.length) parts.push(`Working tree: ${parts2.join(", ")}`);
-    } else {
-      parts.push("Working tree: clean");
+  const status = runGitCommand(cwd, "git status --porcelain");
+  if (status) {
+    const lines = status.split("\n");
+    const counts = { modified: 0, deleted: 0, added: 0, untracked: 0, renamed: 0, other: 0 };
+    for (const l of lines) {
+      if (l.startsWith("??")) { counts.untracked++; continue; }
+      if (l.startsWith("!!")) continue;
+      const x = l[0];
+      const y = l[1];
+      if (x === "M" || y === "M") counts.modified++;
+      else if (x === "D" || y === "D") counts.deleted++;
+      else if (x === "A") counts.added++;
+      else if (x === "R") counts.renamed++;
+      else counts.other++;
     }
-  } catch { /* ignore */ }
+    const parts2: string[] = [];
+    if (counts.modified) parts2.push(`${counts.modified} modified`);
+    if (counts.deleted) parts2.push(`${counts.deleted} deleted`);
+    if (counts.added) parts2.push(`${counts.added} added`);
+    if (counts.untracked) parts2.push(`${counts.untracked} untracked`);
+    if (counts.renamed) parts2.push(`${counts.renamed} renamed`);
+    if (parts2.length === 0 && counts.other) parts2.push(`${counts.other} changed`);
+    if (parts2.length) parts.push(`Working tree: ${parts2.join(", ")}`);
+  } else {
+    parts.push("Working tree: clean");
+  }
 
-  try {
-    const log = execSync("git log --oneline -5", { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
-    if (log) parts.push(`Recent commits:\n${log}`);
-  } catch { /* ignore */ }
+  const log = runGitCommand(cwd, "git log --oneline -5");
+  if (log) parts.push(`Recent commits:\n${log}`);
 
   return parts.length ? parts.join("\n") : null;
 }

@@ -383,14 +383,18 @@ export class DaemonControlClient {
                 type: eventType as DaemonSseEventType,
                 payload: JSON.parse(data) as Record<string, unknown>,
               };
-            } catch {
-              // skip malformed event
+            } catch (err) {
+              console.warn("[kota-daemon-client] Failed to parse daemon SSE event:", err instanceof Error ? err.message : String(err));
             }
           }
         }
       }
     } finally {
-      try { reader.cancel(); } catch { /* ignore */ }
+      try {
+        await reader.cancel();
+      } catch (err) {
+        console.warn("[kota-daemon-client] Failed to cancel daemon SSE reader:", err instanceof Error ? err.message : String(err));
+      }
     }
   }
 }

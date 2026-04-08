@@ -155,7 +155,7 @@ export class DaemonControlServer {
       this.unsubscribeEvents?.();
       this.unsubscribeEvents = null;
       for (const res of this.sseClients) {
-        try { res.end(); } catch { /* ignore */ }
+        if (!res.writableEnded) res.end();
       }
       this.sseClients.clear();
       if (!this.server) {

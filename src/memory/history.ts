@@ -237,10 +237,14 @@ export class ConversationHistory {
           try {
             unlinkSync(join(this.dir, f));
             cleaned++;
-          } catch { /* ignore */ }
+          } catch (err) {
+            console.warn(`[kota-history] Failed to remove orphaned conversation file ${f}:`, err instanceof Error ? err.message : String(err));
+          }
         }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.warn("[kota-history] Failed to scan history directory for orphaned files:", err instanceof Error ? err.message : String(err));
+    }
 
     return cleaned;
   }
