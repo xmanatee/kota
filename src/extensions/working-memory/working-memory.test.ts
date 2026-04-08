@@ -9,7 +9,7 @@ import {
 	removeEntry,
 	resetWorkingMemory,
 	setEntry,
-} from "../memory/working-memory.js";
+} from "../../memory/working-memory.js";
 
 afterEach(() => {
 	resetWorkingMemory();
@@ -233,7 +233,7 @@ function makeCtx(storage?: ReturnType<typeof makeMockStorage>) {
 }
 
 describe("working-memory module tool", async () => {
-	const { default: workingMemoryModule } = await import("./working-memory.js");
+	const { default: workingMemoryModule } = await import("./index.js");
 	const ctx = makeCtx();
 
 	const tools = typeof workingMemoryModule.tools === "function"
@@ -300,7 +300,7 @@ describe("working-memory module tool", async () => {
 });
 
 describe("working-memory persistence via module tool", async () => {
-	const { default: workingMemoryModule } = await import("./working-memory.js");
+	const { default: workingMemoryModule } = await import("./index.js");
 
 	it("write with persist=true saves to storage", async () => {
 		const storage = makeMockStorage();
@@ -390,7 +390,7 @@ describe("working-memory persistence via module tool", async () => {
 });
 
 describe("working-memory onLoad", async () => {
-	const { default: workingMemoryModule } = await import("./working-memory.js");
+	const { default: workingMemoryModule } = await import("./index.js");
 
 	it("loads persisted entries from storage on init", () => {
 		const storage = makeMockStorage();

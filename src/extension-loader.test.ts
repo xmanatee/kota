@@ -482,7 +482,7 @@ describe("memory module integration", () => {
   });
 
   it("registers the memory tool via module protocol", async () => {
-    const { default: memoryModule } = await import("./extensions/memory.js");
+    const { default: memoryModule } = await import("./extensions/memory/index.js");
     const loader = new ExtensionLoader({});
 
     await loader.load(memoryModule);
@@ -498,7 +498,7 @@ describe("memory module integration", () => {
   });
 
   it("memory tool is hidden until management group is enabled", async () => {
-    const { default: memoryModule } = await import("./extensions/memory.js");
+    const { default: memoryModule } = await import("./extensions/memory/index.js");
     const loader = new ExtensionLoader({});
     await loader.load(memoryModule);
 

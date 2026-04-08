@@ -15,25 +15,25 @@ import filesystemModule from "./filesystem/index.js";
 import gitModule from "./git/index.js";
 import githubModule from "./github/index.js";
 import githubWebhookModule from "./github-webhook/index.js";
-import historyModule from "./history.js";
-import knowledgeModule from "./knowledge.js";
+import historyModule from "./history/index.js";
+import knowledgeModule from "./knowledge/index.js";
 import mcpServerModule from "./mcp-server.js";
-import memoryModule from "./memory.js";
+import memoryModule from "./memory/index.js";
 import notebookModule from "./notebook/index.js";
 import readDocumentModule from "./read-document/index.js";
 import registryModule from "./registry.js";
 import schedulerModule from "./scheduler.js";
 import secretsModule from "./secrets.js";
-import slackModule from "./slack.js";
+import slackModule from "./slack/index.js";
 import sqliteMemoryModule from "./sqlite-memory.js";
-import telegramModule from "./telegram.js";
+import telegramModule from "./telegram/index.js";
 import toolCacheModule from "./tool-cache.js";
 import toolRetryModule from "./tool-retry.js";
 import vercelAdapterModule from "./vercel-adapter.js";
 import webModule from "./web.js";
 import webAccessModule from "./web-access/index.js";
-import webhookModule from "./webhook.js";
-import workingMemoryModule from "./working-memory.js";
+import webhookModule from "./webhook/index.js";
+import workingMemoryModule from "./working-memory/index.js";
 
 /** All built-in extensions, in dependency order. */
 export const builtinExtensions: KotaExtension[] = [

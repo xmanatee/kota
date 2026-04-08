@@ -5,8 +5,8 @@
  * Registers the `memory` tool in the `management` group.
  */
 
-import type { KotaExtension } from "../extension-types.js";
-import { memoryTool, runMemory } from "../tools/memory.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { memoryTool, runMemory } from "../../tools/memory.js";
 
 const memoryModule: KotaExtension = {
   name: "memory",

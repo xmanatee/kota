@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "../event-bus.js";
-import { ExtensionStorage } from "../extension-storage.js";
-import type { ExtensionContext } from "../extension-types.js";
-import { callTelegramApi } from "../telegram-client.js";
-import telegramModule from "./telegram.js";
+import { EventBus } from "../../event-bus.js";
+import { ExtensionStorage } from "../../extension-storage.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import { callTelegramApi } from "../../telegram-client.js";
+import telegramModule from "./index.js";
 
-vi.mock("../telegram-client.js", () => ({
+vi.mock("../../telegram-client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 

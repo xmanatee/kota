@@ -14,11 +14,11 @@
  */
 
 import { Command } from "commander";
-import type { ChannelDef } from "../channel.js";
-import type { ExtensionContext, KotaExtension } from "../extension-types.js";
-import { TelegramBot } from "../telegram.js";
-import { callTelegramApi } from "../telegram-client.js";
-import { startTelegramStatusPoll } from "../workflow/telegram-status-poll.js";
+import type { ChannelDef } from "../../channel.js";
+import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import { TelegramBot } from "../../telegram.js";
+import { callTelegramApi } from "../../telegram-client.js";
+import { startTelegramStatusPoll } from "../../workflow/telegram-status-poll.js";
 
 async function sendTelegramMessage(
   token: string,

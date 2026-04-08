@@ -1,7 +1,7 @@
 ---
 id: task-extension-per-directory-layout
 title: Migrate flat extension files to per-extension subdirectories
-status: ready
+status: done
 priority: p1
 area: extensions
 summary: Several built-in extensions in src/extensions/ are single flat files (slack.ts, telegram.ts, webhook.ts, memory.ts, etc.) rather than per-extension subdirectories. Migrating them to the directory pattern used by the recently migrated capability packs makes ownership, co-location, and future growth consistent.

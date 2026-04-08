@@ -12,8 +12,8 @@
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
-import type { KotaExtension } from "../extension-types.js";
-import { postWithRetry } from "./notify-retry.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { postWithRetry } from "../notify-retry.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",

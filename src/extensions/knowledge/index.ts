@@ -5,8 +5,8 @@
  * Storage: .kota/data/ (project) and ~/.kota/data/ (global).
  */
 
-import type { KotaExtension } from "../extension-types.js";
-import { knowledgeTool, runKnowledge } from "../tools/knowledge.js";
+import type { KotaExtension } from "../../extension-types.js";
+import { knowledgeTool, runKnowledge } from "../../tools/knowledge.js";
 
 const knowledgeModule: KotaExtension = {
 	name: "knowledge",

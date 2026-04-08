@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "../event-bus.js";
-import { ExtensionStorage } from "../extension-storage.js";
-import type { ExtensionContext } from "../extension-types.js";
-import slackModule from "./slack.js";
+import { EventBus } from "../../event-bus.js";
+import { ExtensionStorage } from "../../extension-storage.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import slackModule from "./index.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
