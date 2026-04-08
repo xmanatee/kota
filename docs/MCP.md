@@ -26,6 +26,19 @@ const server = new McpServer({
 
 Extension tools passed via `extensionTools` go through the same `toolFilter` as built-in tools and are routed through their own runners, not the global registry.
 
+### Tool annotations
+
+Each tool in the `tools/list` response includes an `annotations` object when the tier can be determined statically from KOTA's guardrail risk classification:
+
+| Risk tier | `readOnlyHint` | `destructiveHint` | `openWorldHint` |
+|-----------|---------------|-------------------|-----------------|
+| read      | `true`        | —                 | —               |
+| write     | `false`       | `false`           | —               |
+| destructive | `false`     | `true`            | —               |
+| network   | —             | —                 | `true`          |
+
+Tiers are not mutually exclusive: a destructive GitHub tool also has `openWorldHint: true`. Tools whose tier cannot be determined statically (e.g. unclassified extension tools) omit `annotations` entirely. The annotations are derived from `getToolMcpAnnotations` in `src/guardrails-classify.ts`.
+
 ## Resources
 
 The server implements `resources/list` and `resources/read`. Five read-only resources are available:

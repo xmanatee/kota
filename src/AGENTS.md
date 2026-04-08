@@ -21,7 +21,7 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `cost.ts` — `CostTracker` class; accumulates token usage per-model, computes dollar cost, and returns formatted summaries; used by the loop core to track per-turn and session-total cost.
 - `dynamic-state.ts` — `registerDynamicStateProvider`, `collectDynamicState`, `resetDynamicStateProviders`; module-level registry for per-turn system-prompt state contributors; extensions register via `ctx.registerDynamicStateProvider()`; `loop-send.ts` calls `collectDynamicState()` each turn.
 - `guardrails.ts` — policy enforcement: `assess`, `resolvePolicy`, config helpers, and exported types.
-- `guardrails-classify.ts` — risk classification: tool lists, pattern constants, and `classifyRisk`.
+- `guardrails-classify.ts` — risk classification: tool lists, pattern constants, `classifyRisk`, and `getToolMcpAnnotations` (derives MCP `tools/list` annotation hints from guardrail risk tier).
 - `guardrails-audit.ts` — persistent audit trail: appends every guardrail assessment to `.kota/audit.jsonl`; provides `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` type; read by `audit-cli.ts`.
 - `file-changes.ts` — `ChangeTracker` class and singleton utilities: records original file content before first modification and supports undo within a session.
 - `file-diff.ts` — `simpleDiff` utility: line-based diff formatter for agent context display.

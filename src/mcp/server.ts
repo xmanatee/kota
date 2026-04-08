@@ -14,6 +14,7 @@ import { CostTracker } from "../cost.js";
 import type { EventBus } from "../event-bus.js";
 import { getEventBus } from "../event-bus.js";
 import type { ToolDef } from "../extension-types.js";
+import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import type { MessageCreateParams, ModelClient } from "../model/model-client.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
 import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
@@ -508,7 +509,11 @@ export class McpServer {
 			return;
 		}
 
-		const tools = this.getExposedTools().map(anthropicToMcp);
+		const tools = this.getExposedTools().map((t) => {
+			const mcp = anthropicToMcp(t);
+			const annotations = getToolMcpAnnotations(t.name);
+			return annotations ? { ...mcp, annotations } : mcp;
+		});
 		this.sendResult(msg, { tools });
 	}
 

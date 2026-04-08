@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
 import { ExtensionLoader } from "../extension-loader.js";
 import filesystemModule from "../extensions/filesystem/index.js";
+import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import { clearCustomTools } from "../tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
@@ -296,6 +297,55 @@ describe("McpServer", () => {
 			expect(names).not.toContain("file_read"); // built-in filtered out too
 
 			server.stop();
+		});
+	});
+
+	describe("tools/list annotations", () => {
+		it("includes readOnlyHint: true for read-tier tools", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as { tools: Array<{ name: string; annotations?: Record<string, unknown> }> };
+			const fileRead = result.tools.find((t) => t.name === "file_read");
+			expect(fileRead).toBeDefined();
+			expect(fileRead?.annotations).toBeDefined();
+			expect(fileRead?.annotations?.readOnlyHint).toBe(true);
+
+			server.stop();
+		});
+
+		it("includes destructiveHint: true for destructive-tier tools", async () => {
+			const annotations = getToolMcpAnnotations("github_merge_pr");
+			expect(annotations).toBeDefined();
+			expect(annotations?.destructiveHint).toBe(true);
+			expect(annotations?.readOnlyHint).toBe(false);
+			expect(annotations?.openWorldHint).toBe(true);
+		});
+
+		it("includes openWorldHint: true for network tools", async () => {
+			const httpAnnotations = getToolMcpAnnotations("http_request");
+			expect(httpAnnotations).toBeDefined();
+			expect(httpAnnotations?.openWorldHint).toBe(true);
+
+			const githubAnnotations = getToolMcpAnnotations("github_list_prs");
+			expect(githubAnnotations?.openWorldHint).toBe(true);
+			expect(githubAnnotations?.readOnlyHint).toBe(true);
+		});
+
+		it("returns undefined for unknown tools", () => {
+			const annotations = getToolMcpAnnotations("completely_unknown_tool_xyz");
+			expect(annotations).toBeUndefined();
+		});
+
+		it("returns write-tier annotations for shell tool", () => {
+			const annotations = getToolMcpAnnotations("shell");
+			expect(annotations).toBeDefined();
+			expect(annotations?.readOnlyHint).toBe(false);
+			expect(annotations?.destructiveHint).toBe(false);
 		});
 	});
 

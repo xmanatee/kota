@@ -196,3 +196,94 @@ export function classifyRisk(
   // Unknown tools (MCP, extension-registered) default to moderate.
   return { risk: "moderate", reason: "unclassified tool" };
 }
+
+// ─── MCP tool annotations ─────────────────────────────────────────────
+
+/** MCP tool annotations derived from KOTA's guardrail risk tier. */
+export type McpToolAnnotations = {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  openWorldHint?: boolean;
+  idempotentHint?: boolean;
+};
+
+/** Tool names that communicate with external systems. */
+const NETWORK_TOOL_NAMES = new Set([
+  "http_request",
+  "github_get_pr",
+  "github_list_issues",
+  "github_list_prs",
+  "github_create_pr",
+  "github_comment",
+  "github_merge_pr",
+  "github_close_pr",
+  "github_create_issue",
+  "github_update_issue",
+  "github_add_label",
+  "github_remove_label",
+]);
+
+/** Tool names that are statically destructive (delete or overwrite external data). */
+const DESTRUCTIVE_TOOL_NAMES = new Set([
+  "github_create_pr",
+  "github_comment",
+  "github_merge_pr",
+  "github_close_pr",
+  "github_create_issue",
+  "github_update_issue",
+  "github_add_label",
+  "github_remove_label",
+]);
+
+/** Tool names that are write-tier (mutate local state, not inherently destructive). */
+const WRITE_TOOL_NAMES = new Set([
+  "shell",
+  "file_write",
+  "file_edit",
+  "multi_edit",
+  "find_replace",
+  "code_exec",
+]);
+
+/**
+ * Derive MCP tool annotations from KOTA's guardrail risk classification.
+ * Returns undefined when the tier cannot be determined statically (annotations omitted).
+ */
+export function getToolMcpAnnotations(toolName: string): McpToolAnnotations | undefined {
+  const annotations: McpToolAnnotations = {};
+  let hasAnnotation = false;
+
+  if (NETWORK_TOOL_NAMES.has(toolName)) {
+    annotations.openWorldHint = true;
+    hasAnnotation = true;
+  }
+
+  if (DESTRUCTIVE_TOOL_NAMES.has(toolName)) {
+    annotations.readOnlyHint = false;
+    annotations.destructiveHint = true;
+    hasAnnotation = true;
+  } else if (safeTools().has(toolName)) {
+    annotations.readOnlyHint = true;
+    hasAnnotation = true;
+  } else if (WRITE_TOOL_NAMES.has(toolName)) {
+    annotations.readOnlyHint = false;
+    annotations.destructiveHint = false;
+    hasAnnotation = true;
+  } else {
+    const extRisk = getExtensionToolRisk(toolName);
+    if (extRisk === "safe") {
+      annotations.readOnlyHint = true;
+      hasAnnotation = true;
+    } else if (extRisk === "moderate") {
+      annotations.readOnlyHint = false;
+      annotations.destructiveHint = false;
+      hasAnnotation = true;
+    } else if (extRisk === "dangerous") {
+      annotations.readOnlyHint = false;
+      annotations.destructiveHint = true;
+      hasAnnotation = true;
+    }
+  }
+
+  return hasAnnotation ? annotations : undefined;
+}
