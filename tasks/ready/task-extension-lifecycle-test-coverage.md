@@ -25,7 +25,7 @@ As the architecture migration moves more capability out of `src/tools/` and behi
 
 - Do not add tests for every tool implementation — focus on the lifecycle and registration surface, not tool behaviors.
 - Tests should run in-process without a real daemon or filesystem dependency where possible.
-- Coordinate test file placement with the built-in extension directory layout standard being established in `task-standardize-built-in-extension-directory-layout`.
+- Test file placement should follow the per-extension directory layout established in `src/extensions/web-access/` (the reference implementation).
 
 ## Done When
 

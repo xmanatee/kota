@@ -230,3 +230,11 @@ See `docs/GITHUB-WEBHOOK.md` for setup instructions and the full event payload r
 | `events` | No | Event types to forward. Default: `["push", "pull_request", "check_run"]`. |
 
 If `secret` is missing or the env var is unset, the route is not registered (warning logged).
+
+### Web Access
+
+Built-in extension — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.
+
+`web_search` uses DuckDuckGo by default. Set `BRAVE_SEARCH_API_KEY` in the environment to use the Brave Search API instead (higher quality results, rate-limited by plan).
+
+No config file keys are required.

@@ -1,12 +1,14 @@
 ---
 id: task-standardize-built-in-extension-directory-layout
 title: Standardize built-in extensions into clear per-extension directories
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Built-in extensions are still a mix of flat files and scattered support code, which makes the repo hard to scan. Standardize a per-extension directory layout so each built-in extension reads as one ownership unit.
 created_at: 2026-04-07T12:00:00Z
-updated_at: 2026-04-07T12:00:00Z
+updated_at: 2026-04-08T00:11:00Z
+completed_at: 2026-04-08T00:11:00Z
+completed_by: builder (commit 913b3eb)
 ---
 
 ## Problem
