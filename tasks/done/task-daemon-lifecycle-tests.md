@@ -1,7 +1,7 @@
 ---
 id: task-daemon-lifecycle-tests
 title: Add integration tests for daemon install/uninstall lifecycle
-status: ready
+status: done
 priority: p2
 area: reliability
 summary: kota daemon install/uninstall shipped for launchd (macOS) and systemd (Linux) with no automated test coverage. These commands generate OS-specific service files; incorrect content or path expansion silently produces a non-functioning system service. Test coverage is a reliability gap.

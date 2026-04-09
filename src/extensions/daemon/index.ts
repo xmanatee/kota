@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Command } from "commander";
 import type { KotaExtension } from "../../extension-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
@@ -179,10 +179,37 @@ export function buildSystemdUnit(projectDir: string): string {
     `WorkingDirectory=${projectDir}`,
     `Environment=KOTA_PROJECT_DIR=${projectDir}`,
     `Restart=on-failure`,
+    `StandardOutput=journal`,
+    `StandardError=journal`,
     ``,
     `[Install]`,
     `WantedBy=default.target`,
   ].join("\n");
+}
+
+/**
+ * Writes a service file to the given path, creating parent dirs as needed.
+ * Returns an error message if the file already exists, null on success.
+ */
+export function writeServiceFile(path: string, content: string): string | null {
+  if (existsSync(path)) {
+    return `KOTA daemon service is already installed at ${path}. Run 'kota daemon uninstall' first.`;
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content, "utf8");
+  return null;
+}
+
+/**
+ * Removes a service file at the given path.
+ * Returns an error message if the file does not exist, null on success.
+ */
+export function removeServiceFile(path: string): string | null {
+  if (!existsSync(path)) {
+    return "No KOTA daemon service found. Run 'kota daemon install' first.";
+  }
+  rmSync(path);
+  return null;
 }
 
 const daemonModule: KotaExtension = {
@@ -372,8 +399,12 @@ const daemonModule: KotaExtension = {
             console.log(content);
             return;
           }
-          mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
-          writeFileSync(plistPath, content, "utf8");
+          const writeErr = writeServiceFile(plistPath, content);
+          if (writeErr) {
+            console.error(writeErr);
+            process.exitCode = 1;
+            return;
+          }
           const result = spawnSync("launchctl", ["load", plistPath], { encoding: "utf8" });
           if (result.status !== 0) {
             console.error(`launchctl load failed:\n${result.stderr || result.stdout}`);
@@ -392,8 +423,12 @@ const daemonModule: KotaExtension = {
             console.log(content);
             return;
           }
-          mkdirSync(join(homedir(), ".config", "systemd", "user"), { recursive: true });
-          writeFileSync(servicePath, content, "utf8");
+          const writeErr = writeServiceFile(servicePath, content);
+          if (writeErr) {
+            console.error(writeErr);
+            process.exitCode = 1;
+            return;
+          }
           const daemon = spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
           if (daemon.status !== 0) {
             console.error(`systemctl daemon-reload failed:\n${daemon.stderr || daemon.stdout}`);
@@ -421,24 +456,24 @@ const daemonModule: KotaExtension = {
       .action(() => {
         if (process.platform === "darwin") {
           const plistPath = getLaunchdPlistPath();
-          if (!existsSync(plistPath)) {
-            console.error("No KOTA daemon service found. Run 'kota daemon install' first.");
+          spawnSync("launchctl", ["unload", plistPath], { encoding: "utf8" });
+          const removeErr = removeServiceFile(plistPath);
+          if (removeErr) {
+            console.error(removeErr);
             process.exitCode = 1;
             return;
           }
-          spawnSync("launchctl", ["unload", plistPath], { encoding: "utf8" });
-          rmSync(plistPath);
           console.log(`Daemon service removed.`);
           console.log(`  removed: ${plistPath}`);
         } else if (process.platform === "linux") {
           const servicePath = getSystemdServicePath();
-          if (!existsSync(servicePath)) {
-            console.error("No KOTA daemon service found. Run 'kota daemon install' first.");
+          spawnSync("systemctl", ["--user", "disable", "--now", SYSTEMD_SERVICE], { encoding: "utf8" });
+          const removeErr = removeServiceFile(servicePath);
+          if (removeErr) {
+            console.error(removeErr);
             process.exitCode = 1;
             return;
           }
-          spawnSync("systemctl", ["--user", "disable", "--now", SYSTEMD_SERVICE], { encoding: "utf8" });
-          rmSync(servicePath);
           spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
           console.log(`Daemon service removed.`);
           console.log(`  removed: ${servicePath}`);
