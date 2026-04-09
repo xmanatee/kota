@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { getAgent } from "../../agents/index.js";
+import { getAgent } from "../../extensions/agents/index.js";
 import type {
   WorkflowRepairLoopConfig,
   WorkflowStepContext,

@@ -1,7 +1,7 @@
 ---
 id: task-consolidate-agent-and-skill-registries
 title: Consolidate agent and skill registries into dedicated extensions
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Agent and skill discovery and registration is spread across core files. Consolidating into focused extensions would clarify ownership and reduce core responsibilities around contributor registration.

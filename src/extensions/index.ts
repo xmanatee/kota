@@ -9,6 +9,7 @@
  */
 
 import type { KotaExtension } from "../extension-types.js";
+import agentsModule from "./agents/index.js";
 import approvalQueueModule from "./approval-queue/index.js";
 import daemonModule from "./daemon/index.js";
 import executionModule from "./execution/index.js";
@@ -28,6 +29,7 @@ import registryModule from "./registry/index.js";
 import repoTasksModule from "./repo-tasks/index.js";
 import schedulerModule from "./scheduler/index.js";
 import secretsModule from "./secrets/index.js";
+import skillsModule from "./skills/index.js";
 import slackModule from "./slack/index.js";
 import sqliteMemoryModule from "./sqlite-memory/index.js";
 import systemModule from "./system/index.js";
@@ -42,6 +44,8 @@ import workingMemoryModule from "./working-memory/index.js";
 
 /** All built-in extensions, in dependency order. */
 export const builtinExtensions: KotaExtension[] = [
+  agentsModule,
+  skillsModule,
   toolCacheModule,
   toolRetryModule,
   workingMemoryModule,

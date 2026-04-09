@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { registerAgentCommands, registerSkillCommands } from "./agent-cli.js";
 import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
@@ -175,8 +174,6 @@ program
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
 registerSessionCommands(program);
-registerAgentCommands(program);
-registerSkillCommands(program);
 registerWebhookCommands(program);
 registerDoctorCommand(program);
 registerStatusCommand(program);
