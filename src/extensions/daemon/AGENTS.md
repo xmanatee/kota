@@ -10,5 +10,6 @@ This directory owns the `daemon` built-in extension — long-running KOTA proces
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; CLI command, supervisor loop, and `buildDaemonChildArgs`/`resolveDaemonWorkflowDefinitions` helpers.
+- `index.ts` — `KotaExtension` definition; CLI command, supervisor loop, and `buildDaemonChildArgs`/`resolveDaemonWorkflowDefinitions` helpers. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
 - `index.test.ts` — unit tests for daemon command registration and supervisor helpers.
+- `install.test.ts` — structural and lifecycle tests for `install`/`uninstall`: launchd plist and systemd unit content assertions, round-trip file lifecycle, and double-install/double-uninstall error cases. Writes to a temp directory; no `launchctl` or `systemctl` calls.
