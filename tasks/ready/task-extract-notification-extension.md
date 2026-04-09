@@ -1,12 +1,12 @@
 ---
 id: task-extract-notification-extension
 title: Extract notification gate and crash alert into a notifications extension
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: architecture
 summary: notification-gate.ts and extension-crash-alert.ts live in core but notifications are explicitly called out in AGENTS.md as extension territory. Moving them into src/extensions/notifications/ shrinks core and follows the established extraction pattern.
 created_at: 2026-04-09T07:00:00Z
-updated_at: 2026-04-09T07:00:00Z
+updated_at: 2026-04-09T07:21:47Z
 ---
 
 ## Problem
