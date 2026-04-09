@@ -1,12 +1,13 @@
 ---
 id: task-web-ui-run-comparison
 title: Add run comparison view to web UI for spotting regressions between runs
-status: backlog
+status: dropped
 priority: p3
 area: web-ui
 summary: Operators have no way to compare two runs of the same workflow side-by-side; a comparison view showing step diff, cost delta, and output changes would make regressions and improvements visible without manual log archaeology.
 created_at: 2026-04-02T12:44:00Z
-updated_at: 2026-04-02T12:44:00Z
+updated_at: 2026-04-09T04:20:00Z
+dropped_reason: Already implemented. src/web-ui/client-run-detail-compare.ts provides _compareRunId state, renderCompareSection dropdown, and renderDiffTable with step status, duration, and cost deltas.
 ---
 
 ## Problem
