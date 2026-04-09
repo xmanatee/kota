@@ -1,33 +1,38 @@
 ---
 id: task-create-approval-queue-extension
-title: Create dedicated approval-queue extension to own approval state and CLI
+title: Complete approval-queue extension to own approval state (CLI already migrated)
 status: ready
 priority: p2
 area: architecture
-summary: The approval queue is currently core logic in approval-queue.ts and approval-cli.ts. Creating a dedicated extension would consolidate ownership and follow the pattern of other state-owning extensions like memory and knowledge.
+summary: src/extensions/approval-queue/ exists with CLI commands. The remaining work is migrating approval state (ApprovalQueue class, singleton accessors) from src/approval-queue.ts into the extension so core tool-runner imports from the extension instead of a core file.
 created_at: 2026-04-09T06:32:00Z
-updated_at: 2026-04-09T06:32:00Z
+updated_at: 2026-04-09T05:45:00Z
 ---
 
 ## Problem
 
-The approval queue is a critical runtime state subsystem but lives split between core files:
-`approval-queue.ts` (state management), `approval-cli.ts` (operator CLI), and scattered references
-in the loop and tool runner. This violates the extension-first pattern established by memory and
-knowledge extensions which own their own state, CLI, and lifecycle.
+`src/approval-queue.ts` still owns the `ApprovalQueue` class and singleton accessors in core, even though the CLI commands have already moved to `src/extensions/approval-queue/`. This violates the extension ownership boundary: approval state should be fully owned by the extension, not split between core and the extension directory.
+
+## Current State
+
+`src/extensions/approval-queue/` exists with `cli.ts` (all `kota approval` subcommands) and
+`index.ts` (extension module). `approval-cli.ts` has been removed from `src/`. The CLI half of
+the migration is complete.
+
+The remaining gap: `src/approval-queue.ts` (ApprovalQueue class, singleton accessors, PendingApproval
+type) still lives in core. Tool-runner, the loop, and other subsystems import directly from there.
 
 ## Desired Outcome
 
-A new `src/extensions/approval-queue/` extension that:
+Complete the extension so it fully owns the approval subsystem:
 
-- Owns `ApprovalQueue` class and singleton accessors
-- Owns `registerApprovalCommands` and all `kota approval` subcommands
-- Registers the `enable_approvals` workflow step that gates tool execution based on approval status
-- Is loaded early (topologically) so tool-runner and other subsystems can depend on it
+- Move `ApprovalQueue` class and singleton accessors into the extension
+- Export `PendingApproval`, `ApprovalStatus`, and related types from the extension
+- Core tool-runner and loop import approval logic from the extension, not from `src/approval-queue.ts`
+- The extension loads early (topologically) so tool-runner can depend on it
 - Follows the same lifecycle pattern as memory and knowledge extensions
 
-The core loop and tool-runner import approval logic from the extension rather than from scattered
-root files. No behavior change; this is pure refactoring.
+No behavior change; this is pure refactoring.
 
 ## Constraints
 
@@ -37,8 +42,8 @@ root files. No behavior change; this is pure refactoring.
 
 ## Done When
 
-- `src/extensions/approval-queue/` exists with full implementation.
-- `approval-queue.ts` and `approval-cli.ts` are removed from `src/`.
+- `src/approval-queue.ts` is removed from `src/`.
+- `src/extensions/approval-queue/` has full state + CLI implementation.
 - Core files that use approval logic import from the extension.
 - `kota approval` commands work unchanged.
 - All approval-related tests pass.

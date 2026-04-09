@@ -1,34 +1,38 @@
 ---
 id: task-create-guardrails-audit-extension
-title: Create dedicated guardrails-audit extension to own audit trail and CLI
+title: Complete guardrails-audit extension to own audit state (CLI already migrated)
 status: ready
 priority: p2
 area: architecture
-summary: The audit trail is core logic in guardrails-audit.ts and audit-cli.ts. Creating a dedicated extension would consolidate ownership and allow the audit subsystem to be optionally disabled or extended without core changes.
+summary: src/extensions/guardrails-audit/ exists with CLI commands. The remaining work is migrating audit state from src/guardrails-audit.ts into the extension and wiring it to emit/subscribe on the event bus so the audit trail can be optionally disabled without core changes.
 created_at: 2026-04-09T06:33:00Z
-updated_at: 2026-04-09T06:33:00Z
+updated_at: 2026-04-09T05:45:00Z
 ---
 
 ## Problem
 
-The guardrails audit trail is a security-critical subsystem that logs all guardrail assessments.
-It lives split between core files (`guardrails-audit.ts` for implementation, `audit-cli.ts` for
-operator CLI). This creates core-level complexity when the audit trail could be treated as an
-optional observer that subscribes to guardrail events.
+`src/guardrails-audit.ts` still owns the audit log appender and query helpers in core, even though the CLI commands have already moved to `src/extensions/guardrails-audit/`. Core `guardrails.ts` calls the audit module directly, making it impossible to disable or swap the audit backend without touching core. Audit state should be fully owned by the extension.
+
+## Current State
+
+`src/extensions/guardrails-audit/` exists with `cli.ts` (all `kota audit` subcommands) and
+`index.ts` (extension module). `audit-cli.ts` has been removed from `src/`. The CLI half of
+the migration is complete.
+
+The remaining gap: `src/guardrails-audit.ts` (audit log appender, query helpers, AuditEntry type)
+still lives in core. Guardrails assessment logic in `guardrails.ts` calls it directly.
 
 ## Desired Outcome
 
-A new `src/extensions/guardrails-audit/` extension that:
+Complete the extension so it fully owns the audit subsystem:
 
-- Owns the persistent JSONL audit log and query helpers
-- Owns `registerAuditCommands` and all `kota audit` subcommands
-- Subscribes to guardrail assessment events from the core via the event bus
-- Can be disabled or replaced via config without touching core guardrails logic
-- Follows the same lifecycle pattern as event-subscribed extensions like slack/telegram
+- Move audit log storage, `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` into the extension
+- Core `guardrails.ts` emits assessment events to the event bus instead of calling the audit module directly
+- The extension subscribes to those events and writes to `.kota/audit.jsonl`
+- The extension can be disabled via config without touching core guardrails logic
 
-The core guardrails assessment logic remains in `guardrails.ts` and emits assessment events
-to the bus. The audit extension subscribes and logs. This decouples the core policy engine
-from its audit trail.
+The core guardrails assessment logic remains in `guardrails.ts`; only the logging output moves to the extension.
+No behavior change; this is a refactoring + decoupling.
 
 ## Constraints
 
@@ -38,9 +42,8 @@ from its audit trail.
 
 ## Done When
 
-- `src/extensions/guardrails-audit/` exists with full implementation.
-- `guardrails-audit.ts` is removed or minimal.
-- `audit-cli.ts` is removed from src/.
+- `src/guardrails-audit.ts` is removed or reduced to a minimal type re-export.
+- `src/extensions/guardrails-audit/` has full state + CLI implementation.
 - Core guardrails emit assessment events to the bus.
 - Audit extension subscribes and logs assessments to `.kota/audit.jsonl`.
 - `kota audit` commands work unchanged.
