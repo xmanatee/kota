@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { RepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean, getRepoHeadSha } from "../../repo-worktree.js";
@@ -80,6 +82,17 @@ const builderWorkflow: WorkflowDefinitionInput = {
                   `console.log('OK: server README covers all route files');"`,
                 ctx.projectDir,
               ),
+          },
+          {
+            id: "mobile-typecheck",
+            type: "code" as const,
+            run: (ctx) => {
+              const mobileDir = join(ctx.projectDir, "clients/mobile");
+              if (!existsSync(join(mobileDir, "package.json"))) {
+                return "OK: no mobile client present";
+              }
+              return runCheck("npm run typecheck", mobileDir, 60_000);
+            },
           },
           {
             id: "daemon-api-doc-sync",
