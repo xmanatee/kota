@@ -7,7 +7,7 @@
  */
 
 import type { KotaExtension } from "../../extension-types.js";
-import { runSchedule, scheduleTool } from "../../tools/schedule.js";
+import { runSchedule, scheduleTool } from "./schedule.js";
 
 const schedulerModule: KotaExtension = {
   name: "scheduler",

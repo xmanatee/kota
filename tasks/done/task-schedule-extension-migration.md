@@ -1,7 +1,7 @@
 ---
 id: task-schedule-extension-migration
 title: Move schedule tool implementation into the scheduler extension directory
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/tools/schedule.ts contains the schedule tool implementation but is only imported by src/extensions/scheduler/index.ts. The file belongs inside the extension directory alongside the other scheduler code, completing the extension-first migration for this remaining case.
