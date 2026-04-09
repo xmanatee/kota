@@ -1,23 +1,44 @@
 /**
- * Guardrails-audit extension — operator CLI for querying the guardrail audit trail.
+ * Guardrails-audit extension — owns the guardrail audit trail.
  *
- * Owns the `kota audit` subcommands. The underlying AuditStore state lives
- * in src/guardrails-audit.ts which is shared with core tool-runner and loop code.
+ * Initializes the audit store, subscribes to `guardrail.assessed` events from
+ * tool-runner, and writes entries to `.kota/audit.jsonl`. Also provides the
+ * `kota audit` CLI subcommands.
  */
 
 import { Command } from "commander";
 import type { KotaExtension } from "../../extension-types.js";
+import type { Policy, RiskLevel } from "../../guardrails.js";
 import { registerAuditCommands } from "./cli.js";
+import { initAuditStore, resetAuditStore } from "./store.js";
 
 const guardrailsAuditModule: KotaExtension = {
 	name: "guardrails-audit",
 	version: "1.0.0",
-	description: "Operator CLI for the guardrail audit trail",
+	description: "Guardrail audit trail — logs all tool assessments to .kota/audit.jsonl",
 
-	commands: () => {
+	commands: (_ctx) => {
 		const root = new Command("__root__");
 		registerAuditCommands(root);
 		return root.commands as Command[];
+	},
+
+	onLoad(ctx) {
+		const store = initAuditStore(ctx.cwd);
+		ctx.events.subscribe("guardrail.assessed", (payload) => {
+			const { tool, risk, policy, reason, session } = payload as {
+				tool: string;
+				risk: string;
+				policy: string;
+				reason: string;
+				session?: string;
+			};
+			store.record({ tool, risk: risk as RiskLevel, policy: policy as Policy, reason }, session);
+		});
+	},
+
+	onUnload() {
+		resetAuditStore();
 	},
 };
 

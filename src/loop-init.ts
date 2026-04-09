@@ -9,7 +9,6 @@ import { cleanupProcesses } from "./extensions/execution/process.js";
 import { builtinExtensions } from "./extensions/index.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { GuardrailsConfig } from "./guardrails.js";
-import { resetAuditStore } from "./guardrails-audit.js";
 import { listManifestExtensions } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
@@ -140,7 +139,6 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
   resetGroups();
   resetProviderRegistry();
   resetToolTelemetry();
-  resetAuditStore();
   resetAgentStatusProviders();
   state.extensionLoader.unloadAll().catch(() => {});
   state.mcpManager?.close().catch(() => {});

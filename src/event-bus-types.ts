@@ -183,6 +183,13 @@ export type BusEvents = {
     reason?: string;
     text: string;
   };
+  "guardrail.assessed": {
+    tool: string;
+    risk: string;
+    policy: string;
+    reason: string;
+    session?: string;
+  };
   "approval.changed": {
     id: string;
     pendingCount: number;

@@ -1,9 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
+import { tryEmit } from "./event-bus.js";
 import { getApprovalQueue } from "./extensions/approval-queue/queue.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
-import { getAuditStore } from "./guardrails-audit.js";
 import type { McpManager } from "./mcp/manager.js";
 import { getSecretStore } from "./secrets.js";
 import { getToolMiddleware } from "./tool-middleware.js";
@@ -90,7 +90,13 @@ export async function executeToolCalls(
       // Guardrails: assess risk and enforce policy before execution
       if (guardrailsConfig) {
         const assessment = assess(block.name, input, guardrailsConfig);
-        getAuditStore()?.record(assessment, sessionId);
+        tryEmit("guardrail.assessed", {
+          tool: assessment.tool,
+          risk: assessment.risk,
+          policy: assessment.policy,
+          reason: assessment.reason,
+          ...(sessionId && { session: sessionId }),
+        });
         if (transport) {
           transport.emit({
             type: "guardrail",

@@ -18,8 +18,9 @@ vi.mock("./guardrails.js", () => ({
 vi.mock("./confirm.js", () => ({
   confirmAction: vi.fn(),
 }));
-vi.mock("./guardrails-audit.js", () => ({
-  getAuditStore: vi.fn(() => null),
+const tryEmitMock = vi.hoisted(() => vi.fn());
+vi.mock("./event-bus.js", () => ({
+  tryEmit: tryEmitMock,
 }));
 vi.mock("./extensions/approval-queue/queue.js", () => ({
   getApprovalQueue: vi.fn(() => ({
@@ -34,7 +35,6 @@ import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
 import { getApprovalQueue } from "./extensions/approval-queue/queue.js";
 import { assess } from "./guardrails.js";
-import { getAuditStore } from "./guardrails-audit.js";
 import { executeTool } from "./tools/index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
@@ -42,7 +42,6 @@ const mockTruncate = vi.mocked(truncateToolResult);
 const mockAssess = vi.mocked(assess);
 const mockConfirmAction = vi.mocked(confirmAction);
 const mockGetApprovalQueue = vi.mocked(getApprovalQueue);
-const mockGetAuditStore = vi.mocked(getAuditStore);
 
 function toolBlock(
   name: string,
@@ -426,9 +425,7 @@ describe("guardrails confirm gate", () => {
     expect(contextArg as string).toContain("delete files in /tmp/old");
   });
 
-  it("records assessment to audit store", async () => {
-    const mockRecord = vi.fn();
-    mockGetAuditStore.mockReturnValue({ record: mockRecord } as any);
+  it("emits guardrail.assessed event with assessment and sessionId", async () => {
     mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "deny" as const });
 
     await executeToolCalls(
@@ -441,9 +438,9 @@ describe("guardrails confirm gate", () => {
       "session-42",
     );
 
-    expect(mockRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ tool: "shell", risk: "dangerous", policy: "deny" }),
-      "session-42",
+    expect(tryEmitMock).toHaveBeenCalledWith(
+      "guardrail.assessed",
+      expect.objectContaining({ tool: "shell", risk: "dangerous", policy: "deny", session: "session-42" }),
     );
   });
 });

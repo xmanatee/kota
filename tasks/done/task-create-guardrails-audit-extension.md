@@ -1,12 +1,12 @@
 ---
 id: task-create-guardrails-audit-extension
 title: Complete guardrails-audit extension to own audit state (CLI already migrated)
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/extensions/guardrails-audit/ exists with CLI commands. The remaining work is migrating audit state from src/guardrails-audit.ts into the extension and wiring it to emit/subscribe on the event bus so the audit trail can be optionally disabled without core changes.
 created_at: 2026-04-09T06:33:00Z
-updated_at: 2026-04-09T06:02:40Z
+updated_at: 2026-04-09T07:13:00Z
 ---
 
 ## Problem
