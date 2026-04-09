@@ -19,6 +19,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `payload-validator.ts` — `validatePayloadSchema`: minimal JSON Schema validator (type, required, properties, additionalProperties, items) used to validate trigger payloads against a workflow's optional `inputSchema` and completed run outputs against an optional `outputSchema`.
 - `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
 - `dispatch-window.ts` — `DispatchWindow` type, `isWithinDispatchWindow`, `msUntilDispatchWindowOpens`, `validateDispatchWindow`; time-of-day/day-of-week gate for idle and interval triggers.
+- `cron.ts` — `validateCronExpr`, `validateTimezone`, `getNextCronTime`: minimal 5-field cron parser with optional IANA timezone support; used by `schedule-triggers.ts` and `validation-trigger.ts`.
 - `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling; interval triggers respect `scheduler.dispatchWindow` from config.
 - `watch-triggers.ts` — `WatchTriggerManager`: file-watch trigger management; subscribes to `file.changed` bus events, matches glob patterns, and fires `files.changed` run triggers after debounce.
 - `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
