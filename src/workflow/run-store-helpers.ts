@@ -18,6 +18,7 @@ export const STATE_FILE = "workflow-state.json";
 export type WorkflowSnapshot = {
   name: string;
   description?: string;
+  tags?: string[];
   enabled: boolean;
   definitionPath: string;
   triggers: WorkflowDefinition["triggers"];
@@ -309,6 +310,7 @@ export function buildWorkflowSnapshot(workflow: WorkflowDefinition): WorkflowSna
   return {
     name: workflow.name,
     description: workflow.description,
+    ...(workflow.tags.length > 0 ? { tags: workflow.tags } : {}),
     enabled: workflow.enabled,
     definitionPath: workflow.definitionPath,
     triggers: workflow.triggers,

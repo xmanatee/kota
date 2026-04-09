@@ -58,6 +58,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty.",
+  tags: ["autonomous", "queue-source", "external-discovery"],
   triggers: [
     {
       event: "runtime.idle",

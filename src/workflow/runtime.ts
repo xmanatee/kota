@@ -6,7 +6,7 @@ import { getRepoWorktreeStatus } from "../repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
-import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
+import { enqueueMatchingWorkflows, workflowHasTag, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
@@ -391,6 +391,12 @@ export class WorkflowRuntime {
     maybeStartNext(this as unknown as WorkflowRuntimeDispatchState);
   }
 
+  private getEnabledWorkflowByTag(tag: string): WorkflowDefinition | undefined {
+    return this.definitions.find(
+      (definition) => definition.enabled && workflowHasTag(definition, tag),
+    );
+  }
+
   private queueInterruptedRunRecovery(
     interrupted: Array<{ id: string; workflow: string }>,
   ): void {
@@ -398,17 +404,15 @@ export class WorkflowRuntime {
     const worktree = getRepoWorktreeStatus(this.projectDir);
     if (!worktree.available || !worktree.dirty) return;
 
-    const improver = this.definitions.find(
-      (definition) => definition.name === "improver" && definition.enabled,
-    );
-    if (!improver) {
+    const recoveryWorkflow = this.getEnabledWorkflowByTag("recovery-handler");
+    if (!recoveryWorkflow) {
       this.log(
-        `Recovered interrupted run(s) left a dirty worktree, but no improver workflow is available: ${worktree.summary}`,
+        `Recovered interrupted run(s) left a dirty worktree, but no recovery workflow is available: ${worktree.summary}`,
       );
       return;
     }
 
-    this.queueRunFirst(improver.name, {
+    this.queueRunFirst(recoveryWorkflow.name, {
       event: "runtime.recovered",
       payload: {
         recoveredRunIds: interrupted.map((run) => run.id),
@@ -418,7 +422,7 @@ export class WorkflowRuntime {
       },
     });
     this.log(
-      `Queued improver recovery for interrupted run(s) with uncommitted changes: ${worktree.summary}`,
+      `Queued recovery workflow "${recoveryWorkflow.name}" for interrupted run(s) with uncommitted changes: ${worktree.summary}`,
     );
   }
 
@@ -453,13 +457,11 @@ export class WorkflowRuntime {
       return;
     }
 
-    const improver = this.definitions.find(
-      (definition) => definition.name === "improver" && definition.enabled,
-    );
-    if (!improver) {
+    const recoveryWorkflow = this.getEnabledWorkflowByTag("recovery-handler");
+    if (!recoveryWorkflow) {
       this.store.setAutonomousRecovery(refreshedRecovery);
       this.pauseAutonomousDispatch(
-        `Autonomous recovery pending for dirty worktree, but no improver workflow is available: ${worktree.summary}`,
+        `Autonomous recovery pending for dirty worktree, but no recovery workflow is available: ${worktree.summary}`,
       );
       return;
     }
@@ -468,7 +470,7 @@ export class WorkflowRuntime {
       ...refreshedRecovery,
       attempts: recovery.attempts + 1,
     });
-    this.queueRunFirst(improver.name, {
+    this.queueRunFirst(recoveryWorkflow.name, {
       event: "runtime.recovered",
       payload: {
         recoveredAt: new Date().toISOString(),
@@ -478,7 +480,7 @@ export class WorkflowRuntime {
       },
     });
     this.log(
-      `Queued improver recovery for dirty worktree left by "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+      `Queued recovery workflow "${recoveryWorkflow.name}" for dirty worktree left by "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
     );
   }
 
@@ -518,10 +520,10 @@ export class WorkflowRuntime {
     this.wfQueue.setRuns(
       this.wfQueue
         .getRuns()
-        .filter((run) =>
-          run.workflowName !== "explorer" &&
-          run.workflowName !== "builder" &&
-          run.workflowName !== "improver"),
+        .filter((run) => !workflowHasTag(
+          this.definitions.find((definition) => definition.name === run.workflowName) ?? { tags: [] },
+          "autonomous",
+        )),
     );
     this.wfQueue.persist();
     writeFileSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE), "");

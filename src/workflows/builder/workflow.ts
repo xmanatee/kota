@@ -24,11 +24,12 @@ const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
+  tags: ["autonomous", "delivery", "attention-source"],
   triggers: [
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["inbox-sorter", "explorer"],
+        workflowTags: "queue-source",
         status: "success",
       },
     },

@@ -163,6 +163,7 @@ export type WorkflowRunWarning = {
 export type WorkflowRunMetadata = {
   id: string;
   workflow: string;
+  workflowTags?: string[];
   definitionPath: string;
   trigger: WorkflowRunTrigger;
   triggeredByRunId?: string;

@@ -27,6 +27,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
   name: "inbox-sorter",
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
+  tags: ["autonomous", "queue-source"],
   triggers: [
     {
       event: "runtime.idle",

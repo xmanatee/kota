@@ -71,9 +71,9 @@ This is the right store for durable evidence of what automated workflows did.
 | Working Memory | Session | `setEntry` / `getEntry` (from `src/memory/working-memory.ts`) |
 | Run Artifacts | Project | `WorkflowRunStore`, direct file reads under `.kota/runs/` |
 
-## Durable State for Built-in Agents
+## Durable State for Autonomous Workflows
 
-Inbox-sorter, builder, explorer, and improver operate on repo-local durable state:
+The autonomous workflows operate on repo-local durable state:
 
 - **Inbox + task files** (`data/inbox/`, `data/tasks/`) — capture surface, work queue, and status.
 - **Git history** — implementation record.

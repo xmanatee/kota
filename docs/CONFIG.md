@@ -213,7 +213,7 @@ Control how many workflows may execute simultaneously.
 
 Both values must be positive integers. Zero or negative values produce a config warning at startup and fall back to the defaults.
 
-The built-in autonomous loop (explorer → builder → improver) is unaffected — each workflow runs independently and the default of 1 already serializes agent dispatch correctly.
+The built-in autonomous workflows are unaffected — each workflow runs independently and the default of 1 already serializes agent dispatch correctly.
 
 Active limits are shown in `kota workflow status` under `Concurrency: agent=N, code=N` when the daemon is running.
 

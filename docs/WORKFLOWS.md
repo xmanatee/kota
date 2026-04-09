@@ -71,6 +71,31 @@ const myWorkflow: WorkflowDefinitionInput = {
 
 ## Common Patterns
 
+### Workflow Tags
+
+Use workflow-level `tags` for routing and policy. Tags let workflows react to
+capabilities or roles without hardcoding a built-in name list elsewhere.
+
+```typescript
+const queueSourceWorkflow: WorkflowDefinitionInput = {
+  name: "my-extension/triage",
+  tags: ["queue-source"],
+  // ...
+};
+```
+
+Then another workflow can react to that generic role:
+
+```typescript
+triggers: [
+  { event: "workflow.completed", filter: { workflowTags: "queue-source", status: "success" } },
+]
+```
+
+Use tags for things like queue sources, delivery workflows, recovery handlers,
+or observer feeds. Keep routing intent in workflow definitions themselves
+instead of spreading workflow-name assumptions through prompts or runtime logic.
+
 ## Agent Step Contract
 
 Workflow agent steps should receive a thin runtime envelope, not a curated
@@ -88,7 +113,7 @@ If a step output truly must be passed forward, mark that step with
 
 Built-in autonomy workflows should default to no `dailyBudgetUsd`. Use
 preflight checks, backoff, repair loops, and better queue shaping before adding
-hard spend caps to explorer, builder, or improver.
+hard spend caps to the autonomy workflows themselves.
 
 ### Per-Run Cost Cap
 
@@ -272,13 +297,17 @@ React to a workflow completion:
 
 ```typescript
 triggers: [
-  { event: "workflow.completed", filter: { workflow: "builder", status: "success" } },
+  { event: "workflow.completed", filter: { workflowTags: "delivery", status: "success" } },
 ]
 ```
 
 Any event on the internal bus can be a trigger. The bus emits `workflow.started`,
 `workflow.completed`, `workflow.step.completed`, `file.changed`, and more.
 See `src/event-bus.ts` for the full list.
+
+Validation rejects any `workflow.completed` trigger whose filter could match the
+workflow's own completion payload. That includes both name-based filters and
+tag-based filters.
 
 ### File-watch trigger
 

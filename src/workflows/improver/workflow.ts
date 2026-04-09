@@ -7,18 +7,19 @@ const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   description:
     "Improve the autonomous development system itself using evidence from recent runs.",
+  tags: ["autonomous", "governance", "recovery-handler", "attention-source"],
   triggers: [
     {
       event: "workflow.completed",
       filter: {
-        workflow: "builder",
+        workflowTags: "delivery",
         status: ["success", "failed", "interrupted"],
       },
     },
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["explorer", "inbox-sorter"],
+        workflowTags: "queue-source",
         status: "failed",
       },
     },

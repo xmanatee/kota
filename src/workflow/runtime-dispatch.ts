@@ -7,7 +7,7 @@ import type { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { executeWorkflowRun } from "./run-executor.js";
-import { workflowUsesAgent } from "./run-executor-utils.js";
+import { workflowHasTag, workflowUsesAgent } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowRunExecutionResult } from "./run-types.js";
@@ -96,17 +96,16 @@ function nextUtcMidnightIso(now = new Date()): string {
   return new Date(nextMidnight).toISOString();
 }
 
-function isAutonomousWorkflowName(name: string): boolean {
-  return (
-    name === "inbox-sorter" ||
-    name === "explorer" ||
-    name === "builder" ||
-    name === "improver"
-  );
+function isAutonomousWorkflow(definition: WorkflowDefinition): boolean {
+  return workflowHasTag(definition, "autonomous");
 }
 
-function isAutonomousWorkflow(definition: WorkflowDefinition): boolean {
-  return isAutonomousWorkflowName(definition.name);
+function isAutonomousWorkflowRun(
+  state: WorkflowRuntimeDispatchState,
+  workflowName: string,
+): boolean {
+  const definition = state.definitions.find((candidate) => candidate.name === workflowName);
+  return definition ? isAutonomousWorkflow(definition) : false;
 }
 
 function handleDirtyAutonomousCompletion(
@@ -127,7 +126,7 @@ function handleDirtyAutonomousCompletion(
   }
 
   state.wfQueue.setRuns(
-    state.wfQueue.getRuns().filter((run) => !isAutonomousWorkflowName(run.workflowName)),
+    state.wfQueue.getRuns().filter((run) => !isAutonomousWorkflowRun(state, run.workflowName)),
   );
   state.wfQueue.persist();
 

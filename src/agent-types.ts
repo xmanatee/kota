@@ -5,9 +5,9 @@
  * and composable across agents.
  *
  * An `AgentDef` is a named autonomous worker with a declared role, model
- * defaults, skill set, and tool policy. Built-in agents (explorer, builder,
- * improver) are expressed as AgentDef objects rather than ad hoc prompt
- * conventions scattered across workflow files.
+ * defaults, skill set, and tool policy. Built-in and extension-contributed
+ * agents use the same model rather than ad hoc prompt conventions scattered
+ * across workflow files.
  */
 
 import type { SDKPermissionMode, SDKSettingSource } from "./agent-sdk/types.js";
@@ -44,7 +44,7 @@ export type AgentToolPolicy = {
  * spread across workflow step configurations.
  */
 export type AgentDef = {
-  /** Unique identifier (e.g. "explorer", "builder", "improver"). */
+  /** Unique identifier for this agent. */
   name: string;
   /** Short description of this agent's role and purpose. */
   role: string;

@@ -75,6 +75,7 @@ export function registerDefinitionsCommand(wfCmd: Command): void {
         console.log(`Name:        ${def.name}`);
         console.log(`Enabled:     ${def.enabled !== false ? "yes" : "no"}`);
         if (def.description) console.log(`Description: ${def.description}`);
+        if (def.tags?.length) console.log(`Tags:        ${def.tags.join(", ")}`);
         console.log(`Source:      ${def.definitionPath}`);
         if (def.dailyBudgetUsd != null) console.log(`Daily budget: $${def.dailyBudgetUsd}`);
         if (def.costLimitUsd != null) console.log(`Cost cap:     $${def.costLimitUsd}/run`);

@@ -5,13 +5,15 @@ This directory contains built-in workflow definitions and their co-located promp
 - Each workflow should live in its own subdirectory with code plus markdown prompt assets.
 - Keep workflows cohesive and typed in code; keep long-lived guidance in markdown.
 - Keep role boundaries sharp.
+- `catalog.ts` is the built-in workflow registry surface.
+- `builtin-agents.ts` holds built-in agent defaults used by those workflows.
 
 ## Self-Trigger Loop Risk
 
-Any workflow with a `workflow.completed` trigger **must** include a `workflow` filter that does not
-contain its own name. Omitting the filter (or including the workflow's own name) causes the workflow
-to re-trigger after its own completion, creating an infinite loop that hangs the runtime and the
-test suite. The validation layer enforces this at definition load time as a hard error.
+Any workflow with a `workflow.completed` trigger must narrow that trigger so it
+cannot match its own completion payload. A self-matching completion trigger
+creates an infinite loop that hangs the runtime and the test suite. The
+validation layer enforces this at definition load time as a hard error.
 
 ## Per-Step Timeout
 
@@ -45,14 +47,20 @@ See `builder/workflow.test.ts` and `explorer/workflow.test.ts` for representativ
 If a workflow has no `when` predicates or non-trivial skip logic, a unit test adds little value;
 rely on the integration test below instead.
 
-## Built-in Role Split
+## Workflow Tags
 
-- `inbox-sorter` owns `data/inbox/` and turns quick captures into normalized
-  tasks, concise doc updates, or other durable notes.
-- `explorer` owns external discovery and should only shape new roadmap work
-  when the local queue is otherwise empty.
-- `builder` owns implementation of normalized tasks from `data/tasks/`.
-- `improver` owns the autonomy/process layer itself.
+Use workflow-level `tags` for routing and policy instead of hardcoding built-in
+workflow names across prompts and runtime logic.
+
+- `autonomous` marks workflows that participate in the autonomous development loop.
+- `queue-source` marks workflows whose successful completion can feed the task implementation loop.
+- `delivery` marks workflows that implement normalized work.
+- `governance` marks workflows that improve or inspect the autonomy layer itself.
+- `attention-source` marks workflows whose completion should feed attention-digest style observers.
+- `recovery-handler` marks workflows that may be queued first during dirty-worktree recovery.
+
+Add routing tags in the workflow definition itself. Do not spread new workflow
+names through other prompts, docs, or registries just to make them discoverable.
 
 ## Repair-Loop Checks
 
@@ -66,11 +74,11 @@ When migrating a tool out of core into an extension, check whether any repair-lo
 
 ## Dirty Failure Recovery
 
-If a built-in autonomous workflow (`inbox-sorter`, `explorer`, `builder`, `improver`) fails and leaves the repo
-dirty, the runtime now treats that as a recovery condition, not as normal queue progression.
-The daemon restarts once, queues a single improver recovery on the next boot, and then pauses
-dispatch if the same dirty state still cannot be repaired. Do not reintroduce explorer/improver
-bounce loops around dirty-worktree failures.
+If an `autonomous` workflow fails and leaves the repo dirty, the runtime now
+treats that as a recovery condition, not as normal queue progression. The
+daemon restarts once, queues a single `recovery-handler` workflow on the next
+boot, and then pauses dispatch if the same dirty state still cannot be
+repaired. Do not reintroduce dirty-worktree bounce loops.
 
 ## Integration Test
 

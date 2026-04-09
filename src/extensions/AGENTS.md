@@ -19,7 +19,7 @@ This directory contains built-in extensions and extension-level wiring.
 
 ## Built-in Extensions
 
-- `agents/index.ts` — owns built-in agent definitions (`inbox-sorter`, `explorer`, `builder`, `improver`), the agent registry (`registerAgent`, `getAgent`, `listAgents`), and the `kota agent` CLI surface (`list`, `inspect <name>`). Registry is module-level and initialized with `BUILTIN_AGENTS`; `getAgent` is used by the workflow step validator to resolve agents by name.
+- `agents/index.ts` — owns the agent registry (`registerAgent`, `getAgent`, `listAgents`) and the `kota agent` CLI surface (`list`, `inspect <name>`). Registry is module-level and initialized from `src/workflows/builtin-agents.ts`; `getAgent` is used by the workflow step validator to resolve agents by name.
 - `skills/index.ts` — owns the `kota skill list` CLI surface for inspecting registered skills across all loaded extensions.
 - `approval-queue/index.ts` — owns `ApprovalQueue` state (file-backed store for tool calls awaiting human approval) and the `kota approval` CLI subcommands (list, approve, approve-all, reject, reject-all, count, history). Exports `ApprovalQueue`, `getApprovalQueue`, `resetApprovalQueue`, `PendingApproval`, and `ApprovalStatus`.
 - `guardrails-audit/index.ts` — owns the guardrail audit trail; subscribes to `guardrail.assessed` bus events and writes entries to `.kota/audit.jsonl` via `AuditStore`. Provides the `kota audit list` CLI command. State implementation in `guardrails-audit/store.ts`; CLI in `guardrails-audit/cli.ts`.

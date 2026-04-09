@@ -20,6 +20,14 @@ export function matchesFilter(
   if (!filter) return true;
   for (const [key, expected] of Object.entries(filter)) {
     const actual = payload[key];
+    if (Array.isArray(actual)) {
+      if (Array.isArray(expected)) {
+        if (!expected.some((value) => actual.includes(value))) return false;
+        continue;
+      }
+      if (!actual.includes(expected)) return false;
+      continue;
+    }
     if (Array.isArray(expected)) {
       if (!expected.includes(actual as string | number | boolean)) return false;
       continue;
@@ -209,6 +217,13 @@ export function buildResumeInitialState(
 
 export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
   return definition.steps.some((step) => step.type === "agent");
+}
+
+export function workflowHasTag(
+  definition: Pick<WorkflowDefinition, "tags">,
+  tag: string,
+): boolean {
+  return definition.tags.includes(tag);
 }
 
 export function enqueueMatchingWorkflows(

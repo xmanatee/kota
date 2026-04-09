@@ -178,6 +178,7 @@ reading config files directly.
   "definitions": [
     {
       "name": "builder",
+      "tags": ["autonomous", "delivery", "attention-source"],
       "enabled": true,
       "stepCount": 5,
       "triggers": [
@@ -200,6 +201,7 @@ Each trigger entry has a `type` discriminant:
 - `"watch"` — file-watch trigger; `patterns` is an array of glob patterns; `debounceMs` is the debounce window in milliseconds
 
 `enabled` reflects the static value from the workflow definition source. `runtimeEnabled` is present only when a runtime override differs from the static value (see `POST /workflow/definitions/:name/enable` and `disable` below).
+`tags` is the workflow's declared routing and policy tag list.
 
 **Client method:** `DaemonControlClient.getWorkflowDefinitions()`
 
@@ -535,7 +537,7 @@ Each event is formatted as standard SSE:
 
 ```
 event: workflow.started
-data: {"workflow":"builder","runId":"2026-03-28T...","triggerEvent":"runtime.idle",...}
+data: {"workflow":"builder","workflowTags":["autonomous","delivery","attention-source"],"runId":"2026-03-28T...","triggerEvent":"runtime.idle",...}
 
 ```
 
@@ -562,7 +564,12 @@ clients that want to catch up on recent events without opening an SSE stream.
   "events": [
     {
       "type": "workflow.completed",
-      "payload": { "workflow": "builder", "runId": "2026-03-28T...", "status": "success" },
+      "payload": {
+        "workflow": "builder",
+        "workflowTags": ["autonomous", "delivery", "attention-source"],
+        "runId": "2026-03-28T...",
+        "status": "success"
+      },
       "timestamp": "2026-03-28T10:05:00.123Z"
     }
   ]

@@ -2,12 +2,9 @@
 
 This directory contains the improver workflow definition and prompt.
 
-- Improver should improve the autonomous process itself using evidence from recent explorer, builder, and improver runs.
+- This workflow should improve the autonomous process itself using evidence from recent runs.
 - Keep this workflow focused on protocol, prompts, validation, and docs/process quality.
-- Improver should correct strategic drift, over-scaffolding, and bad incentives at the root instead of adding more local patches.
+- Correct strategic drift, over-scaffolding, and bad incentives at the root instead of adding more local patches.
 - Prefer lightweight validations and repair loops over brittle workflow-coded bookkeeping.
-- Keep the ownership split clean: `data/inbox/` belongs to `inbox-sorter`,
-  external discovery belongs to `explorer`, normalized task execution belongs
-  to `builder`.
-- If tasks or prompts become too procedural, improver should simplify them back
+- If tasks or prompts become too procedural, simplify them back
   to clear goals, constraints, and lightweight rails.

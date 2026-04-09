@@ -36,6 +36,8 @@ export type WorkflowFilterValue =
   | WorkflowFilterScalar
   | readonly WorkflowFilterScalar[];
 
+export type WorkflowTag = string;
+
 export type WorkflowTriggerInput = {
   event?: keyof BusEvents | string;
   filter?: Record<string, WorkflowFilterValue>;
@@ -330,6 +332,8 @@ export type WorkflowNotifyConfig = {
 export type WorkflowDefinitionInput = {
   name: string;
   description?: string;
+  /** Generic classification tags used for routing, discovery, and policy. */
+  tags?: WorkflowTag[];
   enabled?: boolean;
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
@@ -490,6 +494,7 @@ export type WorkflowStep =
 export type WorkflowDefinition = {
   name: string;
   description?: string;
+  tags: WorkflowTag[];
   enabled: boolean;
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */

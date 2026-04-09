@@ -17,9 +17,11 @@ import {
   expectOptionalInteger,
   expectOptionalPositiveNumber,
   expectOptionalString,
+  expectOptionalStringArray,
   expectRelativePath,
   WorkflowDefinitionError,
 } from "./validation-primitives.js";
+import { matchesFilter } from "./run-executor-utils.js";
 import {
   validateAgentStep,
   validateApprovalStep,
@@ -118,6 +120,14 @@ export function validateWorkflowDefinitions(
       `<workflow-${definitionIndex}>`,
     );
     const name = expectName(definition.name, "name", definitionPath);
+    const tags = expectOptionalStringArray(definition.tags, "tags", definitionPath) ?? [];
+    const uniqueTags = [...new Set(tags)];
+    if (uniqueTags.length !== tags.length) {
+      throw new WorkflowDefinitionError(
+        `workflow "${name}" has duplicate tags`,
+        definitionPath,
+      );
+    }
     if (seenWorkflowNames.has(name)) {
       throw new WorkflowDefinitionError(
         `duplicate workflow name "${name}"`,
@@ -280,6 +290,7 @@ export function validateWorkflowDefinitions(
 
     return {
       name,
+      tags: uniqueTags,
       description: expectOptionalString(
         definition.description,
         "description",
@@ -376,22 +387,27 @@ export function validateWorkflowDefinitions(
         );
         for (const trigger of triggers) {
           if (trigger.event === "workflow.completed") {
-            const workflowFilter = trigger.filter?.workflow;
-            if (!workflowFilter) {
-              throw new WorkflowDefinitionError(
-                `workflow "${name}" has a "workflow.completed" trigger with no "workflow" filter — ` +
-                  `this would trigger after the workflow's own completion and create an infinite loop. ` +
-                  `Add filter: { workflow: [...other workflow names...] } that excludes "${name}".`,
+            const selfMatches = [
+              "success",
+              "failed",
+              "interrupted",
+              "completed-with-warnings",
+            ].some((status) =>
+              matchesFilter(trigger.filter, {
+                workflow: name,
+                workflowTags: uniqueTags,
+                status,
+                triggerEvent: "manual",
+                durationMs: 0,
                 definitionPath,
-              );
-            }
-            const filterValues = Array.isArray(workflowFilter)
-              ? workflowFilter
-              : [workflowFilter];
-            if (filterValues.includes(name)) {
+                runDir: ".kota/runs/self",
+                runId: "self",
+              }),
+            );
+            if (selfMatches) {
               throw new WorkflowDefinitionError(
-                `workflow "${name}" has a "workflow.completed" trigger with a filter that includes ` +
-                  `its own name — this would trigger after its own completion and create an infinite loop.`,
+                `workflow "${name}" has a "workflow.completed" trigger that can match its own completion payload — ` +
+                  `this would trigger after the workflow's own completion and create an infinite loop.`,
                 definitionPath,
               );
             }

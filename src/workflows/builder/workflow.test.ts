@@ -233,7 +233,7 @@ describe("builder workflow", () => {
   it("prompt instructs agent to scan blocked/ and doing/ before selecting a task", () => {
     expect(promptContent).toMatch(/data\/tasks\/blocked\//);
     expect(promptContent).toMatch(/data\/tasks\/doing\//);
-    expect(promptContent).toMatch(/skip/i);
+    expect(promptContent).toMatch(/pick the next safe task/i);
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {

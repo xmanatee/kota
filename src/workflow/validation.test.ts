@@ -445,22 +445,23 @@ describe("workflow validation", () => {
     ).not.toThrow();
   });
 
-  it("exposes the built-in inbox-sorter, explorer, builder, improver, and attention-digest workflows", () => {
+  it("exposes the expected built-in workflows without pinning the full set", () => {
     const definitions = validateWorkflowDefinitions(
       getBuiltinWorkflowDefinitions(),
       process.cwd(),
     );
 
-    expect(definitions.map((definition) => definition.name)).toEqual([
+    const names = definitions.map((definition) => definition.name);
+    expect(names).toEqual(expect.arrayContaining([
       "inbox-sorter",
       "explorer",
       "builder",
       "improver",
       "attention-digest",
-    ]);
+    ]));
   });
 
-  it("keeps the built-in inbox-sorter, explorer, builder, and improver workflows uncapped by daily budgets", () => {
+  it("keeps the built-in autonomy workflows uncapped by daily budgets", () => {
     const definitions = validateWorkflowDefinitions(
       getBuiltinWorkflowDefinitions(),
       process.cwd(),
@@ -534,6 +535,27 @@ describe("workflow validation", () => {
     ).toThrow(/infinite loop/);
   });
 
+  it("rejects a workflow.completed trigger whose workflowTags filter includes its own tag", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/notifier.ts", {
+            name: "notifier",
+            tags: ["delivery"],
+            triggers: [
+              {
+                event: "workflow.completed",
+                filter: { workflowTags: "delivery" },
+              },
+            ],
+            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/infinite loop/);
+  });
+
   it("accepts a workflow.completed trigger with a workflow filter that excludes itself", () => {
     expect(() =>
       validateWorkflowDefinitions(
@@ -544,6 +566,27 @@ describe("workflow validation", () => {
               {
                 event: "workflow.completed",
                 filter: { workflow: ["explorer", "builder"] },
+              },
+            ],
+            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts a workflow.completed trigger whose workflowTags filter does not match itself", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/notifier.ts", {
+            name: "notifier",
+            tags: ["governance"],
+            triggers: [
+              {
+                event: "workflow.completed",
+                filter: { workflowTags: "delivery" },
               },
             ],
             steps: [{ id: "notify", type: "emit", event: "notifier.done" }],

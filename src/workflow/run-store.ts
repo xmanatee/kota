@@ -349,6 +349,7 @@ export class WorkflowRunStore {
     const metadata: WorkflowRunMetadata = {
       id,
       workflow: workflow.name,
+      ...(workflow.tags.length > 0 ? { workflowTags: workflow.tags } : {}),
       definitionPath: workflow.definitionPath,
       trigger,
       ...(triggeredByRunId !== undefined && { triggeredByRunId }),

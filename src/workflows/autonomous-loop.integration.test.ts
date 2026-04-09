@@ -206,11 +206,12 @@ describe("autonomous workflow loop integration", () => {
       runtime.start();
 
       // Wait for all three workflows to complete:
-      //   - Explorer: ~50ms (agent step skipped, all steps succeed or skip)
-      //   - Builder:  ~5015ms (build step fails on 2nd attempt after 5s retry)
-      //   - Improver: ~5015ms (improve step fails on 2nd attempt after 5s retry)
-      // Total: ~10.1s; 14s gives comfortable buffer.
-      await wait(14_000);
+      //   - inbox-sorter: ~50ms
+      //   - builder: ~5s (2 attempts with one 5s retry delay)
+      //   - improver: ~5s (2 attempts with one 5s retry delay)
+      // Keep extra slack because the runtime, filesystem, and test host all
+      // add jitter around event dispatch and artifact writes.
+      await wait(20_000);
 
       await runtime.stop();
 

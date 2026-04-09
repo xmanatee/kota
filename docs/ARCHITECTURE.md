@@ -11,8 +11,7 @@ adding a parallel surface.
 - `skill` = reusable guidance plus optional supporting files or scripts. Repo
   `AGENTS.md` and `CLAUDE.md` files are scoped skills.
 - `agent` = a named worker with a role, model defaults, skill set, tool scope,
-  and write boundaries. `explorer`, `builder`, and `improver` are built-in
-  agents.
+  and write boundaries.
 - `daemon` = the long-lived runtime host. When running, it owns workflows,
   channels, sessions, stores, extension runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
@@ -90,6 +89,15 @@ has to stay in core.
   now cover event, cron, interval, and idle work. Manifest-era `eventHandlers`
   and `scripts` have been removed. The `events` direct-subscription field has
   been removed from `KotaExtension`; automation uses contributed workflows.
+- Workflow routing should stay definition-driven. A workflow that needs to
+  participate in queue shaping, delivery, governance, recovery, or digest
+  observation should declare tags in its own definition. Other workflows should
+  react to those tags or to generic events, not to a hardcoded list of built-in
+  workflow names.
+- Built-in autonomy metadata should also stay close and single-purposed.
+  Built-in workflow definitions are registered in `src/workflows/catalog.ts`.
+  Built-in agent defaults live in `src/workflows/builtin-agents.ts`. Do not
+  duplicate the same built-in topology across scattered registries.
 - History, memory, working memory, knowledge, and run artifacts are now
   documented as stores in one runtime state subsystem (`docs/STORES.md`).
   They remain separate implementations sharing a provider registry, but the
@@ -110,8 +118,8 @@ has to stay in core.
   (`POST /sessions/register`, `DELETE /sessions/:id`) so the daemon is the
   single source of truth for all live sessions. `GET /status` returns active
   interactive sessions alongside workflow active runs. `kota serve` skips
-  starting its own disk-backed scheduler when the daemon is detected, falling
-  back to standalone mode (own scheduler and session pool) when no daemon is
+  starting its own disk-backed scheduler when the daemon is detected, and uses
+  standalone mode (own scheduler and session pool) only when no daemon is
   running. See `docs/DAEMON-API.md`.
 - `KotaExtension` now has a `channels` field following the same pattern as
   `workflows`, `tools`, and `agents`. A `ChannelDef` type in `src/channel.ts`

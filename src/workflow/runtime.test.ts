@@ -239,6 +239,66 @@ describe("WorkflowRuntime", () => {
     ]);
   });
 
+  it("supports tag-driven workflow handoff without hardcoded workflow-name filters", async () => {
+    const bus = new EventBus();
+    const seenWorkflows: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      seenWorkflows.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      codeConcurrency: 1,
+      workflows: [
+        registerWorkflowDefinition("test/triage.ts", {
+          name: "triage",
+          tags: ["queue-source"],
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "inspect", type: "emit", event: "triage.done" }],
+        }),
+        registerWorkflowDefinition("test/delivery.ts", {
+          name: "delivery",
+          tags: ["delivery"],
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflowTags: "queue-source",
+                status: "success",
+              },
+            },
+          ],
+          steps: [{ id: "deliver", type: "emit", event: "delivery.done" }],
+        }),
+        registerWorkflowDefinition("test/governance.ts", {
+          name: "governance",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: {
+                workflowTags: "delivery",
+                status: ["success", "failed"],
+              },
+            },
+          ],
+          steps: [{ id: "govern", type: "emit", event: "governance.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(180);
+    await runtime.stop();
+
+    expect(seenWorkflows.slice(0, 3)).toEqual([
+      "triage",
+      "delivery",
+      "governance",
+    ]);
+  });
+
   it("queues improver after failed builder completions but ignores interruptions", async () => {
     const bus = new EventBus();
     const seenWorkflows: string[] = [];
@@ -847,7 +907,7 @@ describe("WorkflowRuntime", () => {
     expect(metadata.steps[0].status).toBe("failed");
   });
 
-  it("queues improver recovery first when startup finds an interrupted run with a dirty worktree", async () => {
+  it("queues the recovery-handler workflow first when startup finds an interrupted run with a dirty worktree", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
@@ -888,6 +948,7 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
+          tags: ["autonomous", "recovery-handler"],
           triggers: [
             {
               event: "workflow.completed",
@@ -898,6 +959,7 @@ describe("WorkflowRuntime", () => {
         }),
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
+          tags: ["autonomous"],
           triggers: [{ event: "runtime.idle" }],
           steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
         }),
@@ -995,6 +1057,7 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
+          tags: ["autonomous"],
           triggers: [{ event: "runtime.idle" }],
           steps: [
             {
@@ -1031,7 +1094,7 @@ describe("WorkflowRuntime", () => {
     });
   });
 
-  it("queues exactly one improver recovery on startup for a dirty failed run", async () => {
+  it("queues exactly one recovery-handler run on startup for a dirty failed run", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
@@ -1065,6 +1128,7 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
+          tags: ["autonomous", "recovery-handler"],
           triggers: [
             {
               event: "workflow.completed",
@@ -1075,6 +1139,7 @@ describe("WorkflowRuntime", () => {
         }),
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
+          tags: ["autonomous"],
           triggers: [{ event: "runtime.idle" }],
           steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
         }),
