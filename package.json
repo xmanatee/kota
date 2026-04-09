@@ -5,7 +5,7 @@
   "description": "KOTA — Keep Only The Awesome. An AI coding agent.",
   "type": "module",
   "bin": {
-    "kota": "./dist/cli.js"
+    "kota": "./bin/kota.mjs"
   },
   "exports": {
     "./extension": {
@@ -19,10 +19,10 @@
   },
   "scripts": {
     "dev": "tsx src/cli.ts",
-    "build": "tsup",
+    "build": "rm -rf dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:workflow-critical": "vitest run src/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/modules/daemon.test.ts src/scheduler/daemon.test.ts src/task-files.test.ts src/workflow/runtime.test.ts src/workflow/validation.test.ts",
+    "test:workflow-critical": "vitest run src/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/extensions/daemon/index.test.ts src/scheduler/daemon.test.ts src/task-files.test.ts src/workflow/runtime.test.ts src/workflow/validation.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "validate-tasks": "node dist/validate-queue.js"
@@ -36,7 +36,6 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",
     "@types/node": "^22.0.0",
-    "tsup": "^8.4.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"

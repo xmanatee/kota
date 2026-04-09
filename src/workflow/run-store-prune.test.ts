@@ -173,6 +173,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
 const minimalWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "test",
+  tags: [],
   enabled: true,
   definitionPath: "src/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],

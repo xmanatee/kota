@@ -234,7 +234,7 @@ See [`workflow.maxStepOutputBytes` in CONFIG.md](CONFIG.md#maxstepoutputbytes) f
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `agentName` | `string` | — | Name of a registered `AgentDef`. Provides `promptPath`, `model`, `permissionMode`, and `settingSources` as defaults. |
+| `agentName` | `string` | — | Name of a contributed `AgentDef`. Provides `model` and other defaults when the named agent exists in the loaded extension set. |
 | `promptPath` | `string` | — | Path to the prompt markdown file (relative to project root). Required when `agentName` is not set. |
 | `model` | `string` | config default | Model to use for this step. Overrides `agentName` model default. |
 | `maxTurns` | `number` | unlimited | Maximum agent turns before the step is interrupted. |

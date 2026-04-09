@@ -23,8 +23,8 @@ registered.
 A new `src/extensions/completion/` extension that:
 
 - Owns `completion-cli.ts` logic (bash/zsh generators, shell detection, `registerCompletionCommands`)
-- Registers the `kota completion` command via `ctx.registerCliCommands()`
-- Is listed in `builtinExtensions` in `src/extensions/index.ts`
+- Contributes the `kota completion` command through the normal extension `commands` surface
+- Is automatically discovered from its extension directory without a central registry edit
 
 `src/completion-cli.ts` is removed and `src/cli.ts` no longer imports from it directly.
 

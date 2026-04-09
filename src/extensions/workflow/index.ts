@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaExtension } from "../../extension-types.js";
+import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
 import { registerControlCommands } from "./control.js";
 import { registerDefinitionLogCommand } from "./definition-log.js";
 import { registerDefinitionsCommand } from "./definitions.js";
@@ -25,8 +25,9 @@ import { registerStepInspectCommand } from "./step-inspect.js";
 import { registerTriggerCommands } from "./trigger.js";
 import { registerTriggersCommand } from "./triggers.js";
 import { registerValidateCommand } from "./validate.js";
+import { discoverBuiltinWorkflowAgents, discoverBuiltinWorkflowDefinitions } from "../../workflow/discovery.js";
 
-export function buildWorkflowCommand(): Command {
+export function buildWorkflowCommand(ctx: ExtensionContext): Command {
   const wfCmd = new Command("workflow")
     .alias("wf")
     .description(
@@ -38,22 +39,22 @@ export function buildWorkflowCommand(): Command {
         "  or static definitions directly.",
     );
 
-  registerRunListCommands(wfCmd);
+  registerRunListCommands(wfCmd, ctx);
   registerStatsCommand(wfCmd);
   registerExportCommand(wfCmd);
   registerRunShowCommand(wfCmd);
   registerStepInspectCommand(wfCmd);
   registerRunDiffCommand(wfCmd);
-  registerDefinitionsCommand(wfCmd);
-  registerDefinitionLogCommand(wfCmd);
+  registerDefinitionsCommand(wfCmd, ctx);
+  registerDefinitionLogCommand(wfCmd, ctx);
   registerCostCommand(wfCmd);
   registerLogsCommand(wfCmd);
   registerFollowCommand(wfCmd);
-  registerTriggerCommands(wfCmd);
-  registerTriggersCommand(wfCmd);
-  registerValidateCommand(wfCmd);
+  registerTriggerCommands(wfCmd, ctx);
+  registerTriggersCommand(wfCmd, ctx);
+  registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd);
-  registerRunCommand(wfCmd);
+  registerRunCommand(wfCmd, ctx);
   registerGcCommand(wfCmd);
 
   return wfCmd;
@@ -63,7 +64,9 @@ const workflowModule: KotaExtension = {
   name: "workflow",
   version: "1.0.0",
   description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/logs/gc/export/diff/cost/stats",
-  commands: () => [buildWorkflowCommand()],
+  commands: (ctx) => [buildWorkflowCommand(ctx)],
+  workflows: async () => await discoverBuiltinWorkflowDefinitions(),
+  agents: async () => await discoverBuiltinWorkflowAgents(),
 };
 
 export default workflowModule;

@@ -1,9 +1,19 @@
+import type { AgentDef } from "../../agent-types.js";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { runCheck, stepSucceeded } from "../shared.js";
+
+export const agent: AgentDef = {
+  name: "inbox-sorter",
+  role: "Turn quick inbox captures into the right durable project artifacts.",
+  promptPath: "src/workflows/inbox-sorter/prompt.md",
+  model: "claude-sonnet-4-6",
+  tools: { permissionMode: "bypassPermissions" },
+  settingSources: ["project"],
+};
 
 type InboxSorterAssessment = {
   inboxCount: number;
@@ -39,7 +49,11 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
     {
       id: "sort-inbox",
       type: "agent",
-      agentName: "inbox-sorter",
+      agentName: agent.name,
+      promptPath: agent.promptPath,
+      model: agent.model,
+      permissionMode: agent.tools?.permissionMode,
+      settingSources: agent.settingSources,
       timeoutMs: 45 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectInbox.output(ctx).needsAttention,

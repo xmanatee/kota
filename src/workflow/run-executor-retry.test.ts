@@ -12,6 +12,7 @@ import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
     name: "test",
+    tags: [],
     enabled: true,
     definitionPath: "src/workflows/test/workflow.ts",
     triggers: [],

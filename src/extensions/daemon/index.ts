@@ -9,8 +9,6 @@ import type { LogFormat } from "../../log-format.js";
 import { Daemon, RESTART_EXIT_CODE } from "../../scheduler/daemon.js";
 import type { DaemonControlAddress } from "../../scheduler/daemon-control.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
-import { getRegisteredWorkflowDefinitions } from "../../workflow/registry.js";
-import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { buildSessionCommand } from "./session-cli.js";
 import { buildStatusCommand } from "./status-cli.js";
@@ -47,12 +45,6 @@ export function buildDaemonChildArgs(opts: {
   if (opts.verbose) args.push("--verbose");
   if (opts.logFormat) args.push("--log-format", opts.logFormat);
   return args;
-}
-
-export function resolveDaemonWorkflowDefinitions(
-  contributedWorkflows: readonly RegisteredWorkflowDefinitionInput[] = [],
-): RegisteredWorkflowDefinitionInput[] {
-  return getRegisteredWorkflowDefinitions(contributedWorkflows);
 }
 
 async function runDaemonSupervisor(
@@ -260,7 +252,7 @@ const daemonModule: KotaExtension = {
           config: ctx.config,
           idleIntervalMs: parseIntOption(opts.idleInterval, "idle-interval") * 1000,
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
-          workflows: resolveDaemonWorkflowDefinitions(ctx.getContributedWorkflows()),
+          workflows: ctx.getContributedWorkflows(),
           channels: ctx.getContributedChannels(),
           logFormat,
         });

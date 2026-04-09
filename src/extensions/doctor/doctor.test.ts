@@ -4,29 +4,16 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
 
-vi.mock("../../workflow/registry.js", () => ({
-  getBuiltinWorkflowDefinitions: vi.fn(() => []),
-}));
-
 vi.mock("../../workflow/validation.js", () => ({
   validateWorkflowDefinitions: vi.fn(() => [{ name: "builder" }]),
   WorkflowDefinitionError: class WorkflowDefinitionError extends Error {},
 }));
 
-vi.mock("../../extension-discovery.js", () => ({
-  discoverExtensions: vi.fn(async () => []),
-}));
-
-vi.mock("../../extension-loader.js", () => ({
-  ExtensionLoader: vi.fn().mockImplementation(() => ({
-    setCwd: vi.fn(),
-    loadAll: vi.fn(async () => {}),
-    getExtensionSummaries: vi.fn(() => [{ name: "test-ext" }]),
+vi.mock("../../extension-metadata.js", () => ({
+  loadExtensionMetadata: vi.fn(async () => ({
+    getExtensionSummaries: () => [{ name: "test-ext" }],
+    getContributedWorkflows: () => [],
   })),
-}));
-
-vi.mock("../index.js", () => ({
-  builtinExtensions: [],
 }));
 
 vi.mock("../../config.js", () => ({

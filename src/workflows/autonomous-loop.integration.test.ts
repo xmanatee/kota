@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
+import { discoverBuiltinWorkflowDefinitions } from "../workflow/discovery.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 
 vi.mock("../agent-sdk/index.js", async () => {
@@ -198,7 +198,7 @@ describe("autonomous workflow loop integration", () => {
         bus,
         projectDir,
         idleIntervalMs: 10,
-        workflows: getBuiltinWorkflowDefinitions().filter((workflow) =>
+        workflows: (await discoverBuiltinWorkflowDefinitions()).filter((workflow) =>
           ["inbox-sorter", "builder", "improver"].includes(workflow.name),
         ),
       });
@@ -297,7 +297,7 @@ describe("autonomous workflow loop integration", () => {
         bus,
         projectDir,
         idleIntervalMs: 10,
-        workflows: getBuiltinWorkflowDefinitions().filter((w) => w.name === "explorer"),
+        workflows: (await discoverBuiltinWorkflowDefinitions()).filter((w) => w.name === "explorer"),
       });
 
       runtime.start();

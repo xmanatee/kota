@@ -15,7 +15,7 @@ import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
-import { builtinExtensions } from "./extensions/index.js";
+import { discoverBuiltinExtensions } from "./extensions/index.js";
 import { parseModelString } from "./extensions/model-clients/factory.js";
 import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
@@ -214,6 +214,7 @@ async function main() {
 
   const config = loadConfig();
   const loader = new ExtensionLoader(config, false, { commandsOnly: true });
+  const builtinExtensions = await discoverBuiltinExtensions();
   const extensions = await discoverExtensions(undefined, false);
   await loader.loadAll([...builtinExtensions, ...extensions]);
   for (const cmd of loader.getCommands()) {

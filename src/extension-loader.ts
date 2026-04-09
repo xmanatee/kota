@@ -8,12 +8,25 @@ import { createExtensionContext, type ExtensionContextParams } from "./extension
 import { topoSort } from "./extension-deps.js";
 import { getExtensionDependents, type LifecycleState, reloadExtension, unloadAllExtensions, unloadExtension } from "./extension-lifecycle.js";
 import type { ExtensionStorage } from "./extension-storage.js";
-import type { CreateSessionOptions, ExtensionContext, ExtensionSession, ExtensionSummary, KotaExtension, RouteRegistration, ToolDef } from "./extension-types.js";
+import {
+  resolveExtensionAgents,
+  resolveExtensionChannels,
+  resolveExtensionSkills,
+  resolveExtensionWorkflows,
+  type CreateSessionOptions,
+  type ExtensionContext,
+  type ExtensionSession,
+  type ExtensionSummary,
+  type KotaExtension,
+  type RouteRegistration,
+  type ToolDef,
+} from "./extension-types.js";
 import { getProviderRegistry } from "./extensions/providers/index.js";
 import { loadForeignExtensions } from "./foreign-extension-loader.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { executeTool, getExtensionToolNames, registerTool } from "./tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
+import type { AgentDef, SkillDef } from "./agent-types.js";
 
 export type { ExtensionSummary } from "./extension-types.js";
 
@@ -29,6 +42,10 @@ export class ExtensionLoader {
   private extensionStorages = new Map<string, ExtensionStorage>();
   private extensionRegistry = new Map<string, KotaExtension>();
   private extensionToolCounts = new Map<string, number>();
+  private extensionWorkflowDefs = new Map<string, readonly RegisteredWorkflowDefinitionInput[]>();
+  private extensionChannelDefs = new Map<string, readonly ChannelDef[]>();
+  private extensionSkillDefs = new Map<string, readonly SkillDef[]>();
+  private extensionAgentDefs = new Map<string, readonly AgentDef[]>();
   private loadFailures = new Map<string, ExtensionLoadFailure>();
   private skillContents: string[] = [];
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
@@ -64,6 +81,10 @@ export class ExtensionLoader {
       extensionStorages: this.extensionStorages,
       extensionToolCounts: this.extensionToolCounts,
       extensionRegistry: this.extensionRegistry,
+      extensionWorkflowDefs: this.extensionWorkflowDefs,
+      extensionChannelDefs: this.extensionChannelDefs,
+      extensionSkillDefs: this.extensionSkillDefs,
+      extensionAgentDefs: this.extensionAgentDefs,
       verbose: this.verbose,
     };
   }
@@ -124,30 +145,51 @@ export class ExtensionLoader {
       this.extensionToolCounts.set(ext.name, tools.length);
     }
 
-    if (ext.workflows && !this.commandsOnly) {
-      for (const def of ext.workflows) {
-        this.contributedWorkflows.push({ ...def, definitionPath: `extensions/${ext.name}` });
+    const workflows = await resolveExtensionWorkflows(ext, ctx);
+    if (workflows.length > 0) {
+      const resolvedWorkflows = workflows.map((def) =>
+        "definitionPath" in def
+          ? def
+          : {
+              ...def,
+              definitionPath: `extensions/${ext.name}`,
+            },
+      );
+      this.extensionWorkflowDefs.set(ext.name, resolvedWorkflows);
+      for (const def of resolvedWorkflows) {
+        this.contributedWorkflows.push(def);
       }
     }
 
-    if (ext.channels && !this.commandsOnly) {
-      for (const def of ext.channels) {
+    const channels = await resolveExtensionChannels(ext, ctx);
+    if (channels.length > 0) {
+      this.extensionChannelDefs.set(ext.name, channels);
+      for (const def of channels) {
         this.contributedChannels.push(def);
       }
     }
 
     if (ext.onLoad && !this.commandsOnly) await ext.onLoad(ctx);
 
-    if (ext.skills && !this.commandsOnly) {
-      for (const skill of ext.skills) {
-        try {
-          const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
-          if (content) this.skillContents.push(`### ${skill.name}\n${content}`);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Extension "${ext.name}" skill "${skill.name}" failed to load: ${msg}`);
+    const skills = await resolveExtensionSkills(ext, ctx);
+    if (skills.length > 0) {
+      this.extensionSkillDefs.set(ext.name, skills);
+      if (!this.commandsOnly) {
+        for (const skill of skills) {
+          try {
+            const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
+            if (content) this.skillContents.push(`### ${skill.name}\n${content}`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`[kota] Extension "${ext.name}" skill "${skill.name}" failed to load: ${msg}`);
+          }
         }
       }
+    }
+
+    const agents = await resolveExtensionAgents(ext, ctx);
+    if (agents.length > 0) {
+      this.extensionAgentDefs.set(ext.name, agents);
     }
 
     this.extensions.push(ext);
@@ -330,12 +372,12 @@ export class ExtensionLoader {
         description: ext.description,
         dependencies: ext.dependencies ?? [],
         toolNames: getExtensionToolNames(ext.name),
-        workflowNames: (ext.workflows ?? []).map((w) => w.name),
-        channelNames: (ext.channels ?? []).map((c) => c.name),
-        skillNames: (ext.skills ?? []).map((s) => s.name),
-        agentNames: (ext.agents ?? []).map((a) => a.name),
-        agents: ext.agents ?? [],
-        skills: ext.skills ?? [],
+        workflowNames: (this.extensionWorkflowDefs.get(ext.name) ?? []).map((w) => w.name),
+        channelNames: (this.extensionChannelDefs.get(ext.name) ?? []).map((c) => c.name),
+        skillNames: (this.extensionSkillDefs.get(ext.name) ?? []).map((s) => s.name),
+        agentNames: (this.extensionAgentDefs.get(ext.name) ?? []).map((a) => a.name),
+        agents: [...(this.extensionAgentDefs.get(ext.name) ?? [])],
+        skills: [...(this.extensionSkillDefs.get(ext.name) ?? [])],
         commandNames,
         routeSummaries,
         ...(commandError ? { commandError } : {}),

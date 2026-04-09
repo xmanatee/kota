@@ -1,7 +1,9 @@
 import type { Command } from "commander";
+import type { ExtensionContext } from "../../extension-types.js";
 import type { WorkflowDefinitionTriggerSummary } from "../../scheduler/daemon-control-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
+import { getWorkflowDefinitions } from "./definitions-source.js";
 
 type WatchTriggerRow = {
   workflow: string;
@@ -25,7 +27,7 @@ function collectFromSummary(
 }
 
 function collectFromDefinitions(
-  defs: ReturnType<typeof getBuiltinWorkflowDefinitions>,
+  defs: readonly RegisteredWorkflowDefinitionInput[],
 ): WatchTriggerRow[] {
   const rows: WatchTriggerRow[] = [];
   for (const def of defs) {
@@ -38,7 +40,10 @@ function collectFromDefinitions(
   return rows;
 }
 
-export function registerTriggersCommand(wfCmd: Command): void {
+export function registerTriggersCommand(
+  wfCmd: Command,
+  ctx: ExtensionContext,
+): void {
   wfCmd
     .command("triggers")
     .description("Show active file-watch triggers")
@@ -54,10 +59,10 @@ export function registerTriggersCommand(wfCmd: Command): void {
           rows = collectFromSummary(result.definitions);
           source = "daemon";
         } else {
-          rows = collectFromDefinitions(getBuiltinWorkflowDefinitions());
+          rows = collectFromDefinitions(getWorkflowDefinitions(ctx));
         }
       } else {
-        rows = collectFromDefinitions(getBuiltinWorkflowDefinitions());
+        rows = collectFromDefinitions(getWorkflowDefinitions(ctx));
       }
 
       if (opts.json) {

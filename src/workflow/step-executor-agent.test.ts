@@ -19,6 +19,7 @@ import type { WorkflowAgentStep, WorkflowDefinition } from "./types.js";
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
     name,
+    tags: [],
     enabled: true,
     definitionPath: "src/workflows/test/workflow.ts",
     triggers: [],

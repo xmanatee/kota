@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentDef } from "../../agent-types.js";
 import type { RepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean, getRepoHeadSha } from "../../repo-worktree.js";
@@ -11,6 +12,15 @@ import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
+
+export const agent: AgentDef = {
+  name: "builder",
+  role: "Ship one cohesive improvement per run by implementing tasks from the ready queue.",
+  promptPath: "src/workflows/builder/prompt.md",
+  model: "claude-sonnet-4-6",
+  tools: { permissionMode: "bypassPermissions" },
+  settingSources: ["project"],
+};
 
 const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
   id: "inspect-ready-queue",
@@ -39,7 +49,11 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "build",
       type: "agent",
-      agentName: "builder",
+      agentName: agent.name,
+      promptPath: agent.promptPath,
+      model: agent.model,
+      permissionMode: agent.tools?.permissionMode,
+      settingSources: agent.settingSources,
       timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectReadyQueue.output(ctx).actionableCount > 0,

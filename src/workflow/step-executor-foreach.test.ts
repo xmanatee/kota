@@ -14,6 +14,7 @@ function makeDefinition(
 ): WorkflowDefinition {
   return {
     name: "test",
+    tags: [],
     enabled: true,
     definitionPath: "src/workflows/test/workflow.ts",
     triggers: [],

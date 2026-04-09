@@ -5,7 +5,6 @@ import { getRepoWorktreeStatus } from "../repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
-import { getBuiltinWorkflowDefinitions } from "./registry.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowHasTag, workflowUsesAgent } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
@@ -167,7 +166,7 @@ function handleDirtyAutonomousCompletion(
 }
 
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
-  const definitions = state.workflowInputs ?? getBuiltinWorkflowDefinitions();
+  const definitions = state.workflowInputs ?? [];
   const validated = validateWorkflowDefinitions(definitions, state.projectDir);
   const clearedBudgetPauses = state.store.reconcileWorkflowBudgetPauses(validated);
   state.store.setDefinitionsLoadedAt(new Date().toISOString());

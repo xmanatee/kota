@@ -1,7 +1,8 @@
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import { getWorkflowDefinitions } from "./definitions-source.js";
 
 function runGit(args: string, cwd: string): string {
   try {
@@ -23,13 +24,16 @@ function getGitRoot(cwd: string): string | null {
   }
 }
 
-export function registerDefinitionLogCommand(wfCmd: Command): void {
+export function registerDefinitionLogCommand(
+  wfCmd: Command,
+  ctx: ExtensionContext,
+): void {
   wfCmd
     .command("definition-log <workflow-name>")
     .description("Show git commit history for a workflow's definition file")
     .option("--diff", "Show the file diff for each commit")
     .action((workflowName: string, opts: { diff?: boolean }) => {
-      const definitions = getBuiltinWorkflowDefinitions();
+      const definitions = getWorkflowDefinitions(ctx);
       const def = definitions.find((d) => d.name === workflowName);
       if (!def) {
         const names = definitions.map((d) => d.name).join(", ");

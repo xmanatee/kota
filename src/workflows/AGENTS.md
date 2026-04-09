@@ -5,8 +5,9 @@ This directory contains built-in workflow definitions and their co-located promp
 - Each workflow should live in its own subdirectory with code plus markdown prompt assets.
 - Keep workflows cohesive and typed in code; keep long-lived guidance in markdown.
 - Keep role boundaries sharp.
-- `catalog.ts` is the built-in workflow registry surface.
-- `builtin-agents.ts` holds built-in agent defaults used by those workflows.
+- `workflow.ts` in each workflow directory is the source of truth for that workflow.
+- If a built-in workflow uses a named built-in agent, export that agent from the same `workflow.ts`.
+- Built-in workflows are discovered from these directories at runtime and contributed through the workflow extension. Do not add a separate registry for them.
 
 ## Self-Trigger Loop Risk
 
@@ -82,7 +83,6 @@ repaired. Do not reintroduce dirty-worktree bounce loops.
 
 ## Integration Test
 
-`autonomous-loop.integration.test.ts` uses `getBuiltinWorkflowDefinitions()`, so every workflow
-registered in `src/workflow/registry.ts` runs in that test. When adding a new built-in workflow:
+`autonomous-loop.integration.test.ts` discovers the built-in workflow set from this directory. When adding a new built-in workflow:
 - Ensure its trigger and step behavior is safe against the sparse test fixture in that file.
 - Confirm the self-trigger loop guard above is satisfied.

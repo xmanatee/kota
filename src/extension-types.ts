@@ -114,6 +114,14 @@ export type RouteRegistration = {
   bypassAuth?: boolean;
 };
 
+export type ExtensionContribution<T> =
+  | readonly T[]
+  | ((ctx: ExtensionContext) => readonly T[] | Promise<readonly T[]>);
+
+export type ExtensionWorkflowContribution =
+  | WorkflowDefinitionInput
+  | RegisteredWorkflowDefinitionInput;
+
 /** Context provided to extensions during initialization. */
 export type ExtensionContext = {
   cwd: string;
@@ -208,7 +216,7 @@ export type KotaExtension = {
    * Use workflows to express hook-like reactions, heartbeat jobs, and scheduled
    * automation instead of subscribing to the event bus directly.
    */
-  workflows?: WorkflowDefinitionInput[];
+  workflows?: ExtensionContribution<ExtensionWorkflowContribution>;
 
   /**
    * Channel definitions this extension contributes.
@@ -216,19 +224,19 @@ export type KotaExtension = {
    * The daemon starts contributed channels at startup and stops them on shutdown.
    * A channel returns null from its factory if it cannot start (missing credentials).
    */
-  channels?: ChannelDef[];
+  channels?: ExtensionContribution<ChannelDef>;
 
   /**
    * Skills this extension contributes — named, file-backed guidance blocks.
    * Skills are the one way to teach the agent about extension capabilities.
    */
-  skills?: SkillDef[];
+  skills?: ExtensionContribution<SkillDef>;
 
   /**
    * Agent definitions this extension contributes.
    * Registered agents can be referenced by name in workflow agent steps.
    */
-  agents?: AgentDef[];
+  agents?: ExtensionContribution<AgentDef>;
 
   /** Called after the extension is loaded and tools are registered. */
   onLoad?: (ctx: ExtensionContext) => Promise<void> | void;
@@ -251,4 +259,43 @@ export function resolveExtensionTools(
     return mod.tools(ctx);
   }
   return mod.tools;
+}
+
+async function resolveContribution<T>(
+  value: ExtensionContribution<T> | undefined,
+  ctx: ExtensionContext,
+): Promise<readonly T[]> {
+  if (!value) return [];
+  if (typeof value === "function") {
+    return await value(ctx);
+  }
+  return value;
+}
+
+export async function resolveExtensionWorkflows(
+  mod: KotaExtension,
+  ctx: ExtensionContext,
+): Promise<readonly ExtensionWorkflowContribution[]> {
+  return resolveContribution(mod.workflows, ctx);
+}
+
+export async function resolveExtensionChannels(
+  mod: KotaExtension,
+  ctx: ExtensionContext,
+): Promise<readonly ChannelDef[]> {
+  return resolveContribution(mod.channels, ctx);
+}
+
+export async function resolveExtensionSkills(
+  mod: KotaExtension,
+  ctx: ExtensionContext,
+): Promise<readonly SkillDef[]> {
+  return resolveContribution(mod.skills, ctx);
+}
+
+export async function resolveExtensionAgents(
+  mod: KotaExtension,
+  ctx: ExtensionContext,
+): Promise<readonly AgentDef[]> {
+  return resolveContribution(mod.agents, ctx);
 }

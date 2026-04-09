@@ -1,7 +1,17 @@
+import type { AgentDef } from "../../agent-types.js";
 import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { runCheck, stepCommitted, stepSucceeded } from "../shared.js";
+
+export const agent: AgentDef = {
+  name: "improver",
+  role: "Improve the autonomous development system itself using evidence from recent runs.",
+  promptPath: "src/workflows/improver/prompt.md",
+  model: "claude-sonnet-4-6",
+  tools: { permissionMode: "bypassPermissions" },
+  settingSources: ["project"],
+};
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
@@ -28,7 +38,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       id: "improve",
       type: "agent",
-      agentName: "improver",
+      agentName: agent.name,
+      promptPath: agent.promptPath,
+      model: agent.model,
+      permissionMode: agent.tools?.permissionMode,
+      settingSources: agent.settingSources,
       timeoutMs: 60 * 60 * 1000, // 60 minutes — improver analysis can be thorough
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       repairLoop: {

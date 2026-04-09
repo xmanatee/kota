@@ -3,14 +3,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ExtensionStorage } from "../../extension-storage.js";
 import type { ExtensionContext } from "../../extension-types.js";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 import daemonModule, {
   buildDaemonChildArgs,
   buildLaunchdPlist,
   buildSystemdUnit,
   getLaunchdPlistPath,
   getSystemdServicePath,
-  resolveDaemonWorkflowDefinitions,
 } from "./index.js";
 
 const stubCtx: ExtensionContext = {
@@ -117,30 +115,6 @@ describe("daemonModule", () => {
     expect(args).toContain("json");
   });
 
-  it("includes built-in workflows when no extension workflows are contributed", () => {
-    const workflows = resolveDaemonWorkflowDefinitions([]);
-
-    expect(workflows.map((workflow) => workflow.name)).toEqual(
-      getBuiltinWorkflowDefinitions().map((workflow) => workflow.name),
-    );
-  });
-
-  it("merges contributed workflows on top of the built-in set", () => {
-    const workflows = resolveDaemonWorkflowDefinitions([
-      {
-        name: "extension/nightly",
-        definitionPath: "extensions/test",
-        triggers: [{ event: "runtime.idle" }],
-        steps: [{ id: "emit", type: "emit", event: "extension.done" }],
-      },
-    ]);
-
-    expect(workflows.map((workflow) => workflow.name)).toContain("explorer");
-    expect(workflows.map((workflow) => workflow.name)).toContain("builder");
-    expect(workflows.map((workflow) => workflow.name)).toContain("improver");
-    expect(workflows.map((workflow) => workflow.name)).toContain("inbox-sorter");
-    expect(workflows.map((workflow) => workflow.name)).toContain("extension/nightly");
-  });
 });
 
 describe("getLaunchdPlistPath", () => {

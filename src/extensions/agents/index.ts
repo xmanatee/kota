@@ -1,73 +1,61 @@
 /**
- * Agents extension — owns built-in agent definitions, the agent registry,
- * and the `kota agent` CLI surface.
+ * Agents extension — owns the `kota agent` inspection surface.
+ *
+ * Agent definitions are contributed by loaded extensions. This module does not
+ * maintain a separate registry; it reflects whatever the current extension set
+ * provides.
  */
 
 import { Command } from "commander";
 import type { AgentDef } from "../../agent-types.js";
 import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
-import { BUILTIN_AUTONOMY_AGENTS } from "../../workflows/builtin-agents.js";
 
-export const BUILTIN_AGENTS: readonly AgentDef[] = BUILTIN_AUTONOMY_AGENTS;
+function buildAgentEntries(ctx: ExtensionContext): Array<AgentDef & { source: string }> {
+  const agentModels = ctx.config.agentModels ?? {};
+  const entries: Array<AgentDef & { source: string }> = [];
 
-const registry = new Map<string, AgentDef>(BUILTIN_AGENTS.map((a) => [a.name, a]));
+  for (const summary of ctx.getExtensionSummaries()) {
+    for (const agent of summary.agents) {
+      if (entries.some((entry) => entry.name === agent.name)) continue;
+      entries.push({
+        ...agent,
+        model: agentModels[agent.name] ?? agent.model,
+        source: summary.name,
+      });
+    }
+  }
 
-/** Register an agent definition. Overwrites any existing definition with the same name. */
-export function registerAgent(def: AgentDef): void {
-  registry.set(def.name, def);
-}
-
-/** Look up a registered agent by name. Returns undefined if not found. */
-export function getAgent(name: string): AgentDef | undefined {
-  return registry.get(name);
-}
-
-/** List all registered agents (built-in and extension-contributed). */
-export function listAgents(): readonly AgentDef[] {
-  return Array.from(registry.values());
+  return entries;
 }
 
 function buildAgentCommand(ctx: ExtensionContext): Command {
-  const agentCmd = new Command("agent").description("Inspect registered agents");
+  const agentCmd = new Command("agent").description("Inspect available agents");
 
   agentCmd
     .command("list")
-    .description("List all registered agents (built-in and contributed)")
+    .description("List all contributed agents")
     .option("--json", "Output as JSON")
     .action((opts: { json?: boolean }) => {
-      const agentModels = ctx.config.agentModels ?? {};
-      const summaries = ctx.getExtensionSummaries();
-      type AgentEntry = AgentDef & { source: string };
-      const agents: AgentEntry[] = [];
-      for (const summary of summaries) {
-        for (const agent of summary.agents) {
-          if (!agents.find((a) => a.name === agent.name)) {
-            agents.push({
-              ...agent,
-              model: agentModels[agent.name] ?? agent.model,
-              source: summary.name,
-            });
-          }
-        }
-      }
+      const agents = buildAgentEntries(ctx);
       if (opts.json) {
         console.log(JSON.stringify(agents, null, 2));
         return;
       }
       if (agents.length === 0) {
-        console.log("No agents registered.");
+        console.log("No agents available.");
         return;
       }
-      const nameWidth = Math.max(...agents.map((a) => a.name.length), 4);
-      const modelWidth = Math.max(...agents.map((a) => (a.model ?? "").length), 5);
-      const srcWidth = Math.max(...agents.map((a) => a.source.length), 6);
+      const nameWidth = Math.max(...agents.map((agent) => agent.name.length), 4);
+      const modelWidth = Math.max(...agents.map((agent) => (agent.model ?? "").length), 5);
+      const sourceWidth = Math.max(...agents.map((agent) => agent.source.length), 6);
       console.log(
-        `${"Name".padEnd(nameWidth)}  ${"Model".padEnd(modelWidth)}  ${"Source".padEnd(srcWidth)}  Role`,
+        `${"Name".padEnd(nameWidth)}  ${"Model".padEnd(modelWidth)}  ${"Source".padEnd(sourceWidth)}  Role`,
       );
-      console.log("-".repeat(nameWidth + modelWidth + srcWidth + 10));
-      for (const a of agents) {
-        const model = (a.model ?? "").padEnd(modelWidth);
-        console.log(`${a.name.padEnd(nameWidth)}  ${model}  ${a.source.padEnd(srcWidth)}  ${a.role}`);
+      console.log("-".repeat(nameWidth + modelWidth + sourceWidth + 10));
+      for (const agent of agents) {
+        console.log(
+          `${agent.name.padEnd(nameWidth)}  ${(agent.model ?? "").padEnd(modelWidth)}  ${agent.source.padEnd(sourceWidth)}  ${agent.role}`,
+        );
       }
     });
 
@@ -76,18 +64,10 @@ function buildAgentCommand(ctx: ExtensionContext): Command {
     .description("Show full detail for one agent")
     .option("--json", "Output as JSON")
     .action((name: string, opts: { json?: boolean }) => {
-      const agentModels = ctx.config.agentModels ?? {};
-      const summaries = ctx.getExtensionSummaries();
-      const agents = summaries.flatMap((s) =>
-        s.agents.map((a) => ({
-          ...a,
-          model: agentModels[a.name] ?? a.model,
-          source: s.name,
-        })),
-      );
-      const agent = agents.find((a) => a.name === name);
+      const agents = buildAgentEntries(ctx);
+      const agent = agents.find((entry) => entry.name === name);
       if (!agent) {
-        const names = agents.map((a) => a.name).join(", ");
+        const names = agents.map((entry) => entry.name).join(", ");
         console.error(`Agent "${name}" not found. Registered: ${names || "(none)"}`);
         process.exit(1);
       }
@@ -107,10 +87,9 @@ function buildAgentCommand(ctx: ExtensionContext): Command {
         console.log(`WriteScope: ${agent.writeScope.join(", ")}`);
       }
       if (agent.tools) {
-        const policy = agent.tools;
-        if (policy.permissionMode) console.log(`Permission: ${policy.permissionMode}`);
-        if (policy.allowed) console.log(`Allowed:    ${policy.allowed.join(", ")}`);
-        if (policy.disallowed) console.log(`Blocked:    ${policy.disallowed.join(", ")}`);
+        if (agent.tools.permissionMode) console.log(`Permission: ${agent.tools.permissionMode}`);
+        if (agent.tools.allowed) console.log(`Allowed:    ${agent.tools.allowed.join(", ")}`);
+        if (agent.tools.disallowed) console.log(`Blocked:    ${agent.tools.disallowed.join(", ")}`);
       }
     });
 
@@ -120,8 +99,7 @@ function buildAgentCommand(ctx: ExtensionContext): Command {
 const agentsModule: KotaExtension = {
   name: "agents",
   version: "1.0.0",
-  description: "Built-in agent definitions and kota agent CLI",
-  agents: [...BUILTIN_AGENTS],
+  description: "Inspect available agents",
   commands: (ctx: ExtensionContext) => [buildAgentCommand(ctx)],
 };
 

@@ -1,7 +1,8 @@
 import type { Command } from "commander";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import type { ExtensionContext } from "../../extension-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "../../workflow/types.js";
 import { formatDuration } from "./utils.js";
+import { getWorkflowDefinitions } from "./definitions-source.js";
 
 function describeInputSchema(schema: Record<string, unknown>): string | null {
   const props = schema.properties as Record<string, Record<string, unknown>> | undefined;
@@ -52,14 +53,17 @@ function describeStep(step: WorkflowStepInput): string {
   return `[${step.type}] ${step.id}${suffix}`;
 }
 
-export function registerDefinitionsCommand(wfCmd: Command): void {
+export function registerDefinitionsCommand(
+  wfCmd: Command,
+  ctx: ExtensionContext,
+): void {
   wfCmd
     .command("definitions")
     .description("List loaded workflow definitions with triggers and configuration")
     .option("-n, --name <name>", "Show full detail for a single definition")
     .option("--json", "Output as JSON")
     .action((opts: { name?: string; json?: boolean }) => {
-      const definitions = getBuiltinWorkflowDefinitions();
+      const definitions = getWorkflowDefinitions(ctx);
 
       if (opts.name) {
         const def = definitions.find((d) => d.name === opts.name);

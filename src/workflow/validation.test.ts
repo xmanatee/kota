@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getBuiltinWorkflowDefinitions } from "./registry.js";
+import { discoverBuiltinWorkflowDefinitions } from "./discovery.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
 import { VALID_MODEL_IDS } from "./validation-steps.js";
 
@@ -21,7 +21,7 @@ describe("workflow validation", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("validates a code-defined workflow registry", () => {
+  it("validates a discovered workflow set", () => {
     writeFileSync(
       join(projectDir, "src", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -445,9 +445,9 @@ describe("workflow validation", () => {
     ).not.toThrow();
   });
 
-  it("exposes the expected built-in workflows without pinning the full set", () => {
+  it("exposes the expected built-in workflows without pinning the full set", async () => {
     const definitions = validateWorkflowDefinitions(
-      getBuiltinWorkflowDefinitions(),
+      await discoverBuiltinWorkflowDefinitions(),
       process.cwd(),
     );
 
@@ -461,9 +461,9 @@ describe("workflow validation", () => {
     ]));
   });
 
-  it("keeps the built-in autonomy workflows uncapped by daily budgets", () => {
+  it("keeps the built-in autonomy workflows uncapped by daily budgets", async () => {
     const definitions = validateWorkflowDefinitions(
-      getBuiltinWorkflowDefinitions(),
+      await discoverBuiltinWorkflowDefinitions(),
       process.cwd(),
     );
 

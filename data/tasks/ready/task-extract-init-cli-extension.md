@@ -20,8 +20,8 @@ with config, task directories, docs stubs, and `.kota/`. It is imported directly
 A new `src/extensions/init/` extension that:
 
 - Owns `init-cli.ts` logic (`runInit`, `registerInitCommand`)
-- Registers `kota init` via `ctx.registerCliCommands()`
-- Is listed in `builtinExtensions` in `src/extensions/index.ts`
+- Contributes `kota init` through the normal extension `commands` surface
+- Is automatically discovered from its extension directory without a central registry edit
 
 `src/init-cli.ts` is removed. `src/cli.ts` no longer imports from it.
 

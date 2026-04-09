@@ -3,14 +3,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
-import { discoverExtensions } from "../extension-discovery.js";
+import { loadExtensionMetadata } from "../extension-metadata.js";
 import { getApprovalQueue } from "../extensions/approval-queue/queue.js";
 import { getHistory } from "../memory/history.js";
 import { getRepoInboxDir, getRepoTasksDir } from "../repo-tasks.js";
-import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
 import type { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRuntime } from "../workflow/runtime.js";
-import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import type {
   DaemonControlHandle,
   DaemonTaskStatusResponse,
@@ -101,19 +99,20 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     abortActiveRun: (runId: string) => workflows.abortActiveRun(runId),
     reloadWorkflowDefinitions: () => workflows.reloadWorkflowDefinitions(),
     reloadConfig: async () => {
-      const userExtensions = await discoverExtensions(projectDir, config.verbose ?? false);
-      const contributed: RegisteredWorkflowDefinitionInput[] = userExtensions.flatMap((ext) =>
-        (ext.workflows ?? []).map((w) => ({
-          ...w,
-          definitionPath: `extensions/${ext.name}`,
-        } as RegisteredWorkflowDefinitionInput)),
+      const loader = await loadExtensionMetadata(
+        config.config ?? {},
+        projectDir,
+        config.verbose ?? false,
       );
-      const allWorkflows = getRegisteredWorkflowDefinitions(contributed);
-      workflows.setWorkflowInputs(allWorkflows);
+      workflows.setWorkflowInputs(loader.getContributedWorkflows());
       const { count } = workflows.reloadWorkflowDefinitions();
       log(`Config reloaded: ${count} workflow definition(s) active`);
+      const userExtensions = loader
+        .getExtensionSummaries()
+        .map((summary) => summary.name)
+        .filter((name) => name !== "workflow");
       if (userExtensions.length > 0) {
-        log(`  User extensions: ${userExtensions.map((e) => e.name).join(", ")}`);
+        log(`  Extensions: ${userExtensions.join(", ")}`);
       }
       return { workflows: count };
     },

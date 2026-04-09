@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
 import { loadConfig, updateProjectConfig } from "./config.js";
-import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
+import { loadExtensionMetadata } from "./extension-metadata.js";
 
 export function registerWebhookCommands(program: Command): void {
   const webhookCmd = program
@@ -13,8 +13,10 @@ export function registerWebhookCommands(program: Command): void {
     .description(
       "List workflows with webhook triggers and whether a secret is configured",
     )
-    .action(() => {
-      const definitions = getBuiltinWorkflowDefinitions();
+    .action(async () => {
+      const config = loadConfig();
+      const loader = await loadExtensionMetadata(config, process.cwd(), false);
+      const definitions = loader.getContributedWorkflows();
       const webhookDefs = definitions.filter((d) =>
         d.triggers.some((t) => t.webhook),
       );
@@ -24,7 +26,6 @@ export function registerWebhookCommands(program: Command): void {
         return;
       }
 
-      const config = loadConfig();
       const nameWidth = Math.max(...webhookDefs.map((d) => d.name.length), 8);
       console.log(`${"Workflow".padEnd(nameWidth)}  Secret`);
       console.log("-".repeat(nameWidth + 10));

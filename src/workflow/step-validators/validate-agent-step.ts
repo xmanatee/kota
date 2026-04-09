@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { getAgent } from "../../extensions/agents/index.js";
 import type {
   WorkflowRepairLoopConfig,
   WorkflowStepContext,
@@ -129,37 +128,17 @@ export function validateAgentStep(
   const stepLabel = childIndex !== undefined
     ? `steps[${index}].steps[${childIndex}]`
     : `steps[${index}]`;
-  // Resolve agent definition when agentName is provided.
-  let agentName: string | undefined;
-  let agentPromptPath: string | undefined;
-  let agentModel: string | undefined;
-  let agentPermissionMode: string | undefined;
-  let agentSettingSources: string[] | undefined;
+  const agentName = step.agentName !== undefined
+    ? expectNonEmptyString(step.agentName, `${stepLabel}.agentName`, definitionPath)
+    : undefined;
 
-  if (step.agentName !== undefined) {
-    agentName = expectNonEmptyString(step.agentName, `${stepLabel}.agentName`, definitionPath);
-    const agentDef = getAgent(agentName);
-    if (!agentDef) {
-      throw new WorkflowDefinitionError(
-        `${stepLabel}.agentName: unknown agent "${agentName}"`,
-        definitionPath,
-      );
-    }
-    agentPromptPath = agentDef.promptPath;
-    agentModel = agentDef.model;
-    agentPermissionMode = agentDef.tools?.permissionMode;
-    agentSettingSources = agentDef.settingSources;
-  }
-
-  // promptPath: step-level overrides agent def; one of the two must be present.
-  const rawPromptPath = step.promptPath ?? agentPromptPath;
-  if (!rawPromptPath) {
+  if (!step.promptPath) {
     throw new WorkflowDefinitionError(
-      `${stepLabel} must specify agentName or promptPath`,
+      `${stepLabel} must specify promptPath`,
       definitionPath,
     );
   }
-  const promptPath = expectRelativePath(rawPromptPath, `${stepLabel}.promptPath`, definitionPath);
+  const promptPath = expectRelativePath(step.promptPath, `${stepLabel}.promptPath`, definitionPath);
   if (!promptPath.endsWith(".md")) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.promptPath must point to a markdown file`,
@@ -173,15 +152,13 @@ export function validateAgentStep(
     );
   }
 
-  // permissionMode: step-level overrides agent def; default is "bypassPermissions".
+  // permissionMode defaults to bypassPermissions when not specified.
   const permissionMode =
     expectOptionalString(
       step.permissionMode,
       `${stepLabel}.permissionMode`,
       definitionPath,
-    ) ??
-    agentPermissionMode ??
-    "bypassPermissions";
+    ) ?? "bypassPermissions";
   if (!VALID_PERMISSION_MODES.has(permissionMode)) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.permissionMode must be one of ${Array.from(VALID_PERMISSION_MODES).join(", ")}`,
@@ -189,15 +166,13 @@ export function validateAgentStep(
     );
   }
 
-  // settingSources: step-level overrides agent def; default is ["project"].
+  // settingSources default to ["project"].
   const settingSources =
     expectOptionalStringArray(
       step.settingSources,
       `${stepLabel}.settingSources`,
       definitionPath,
-    ) ??
-    agentSettingSources ??
-    ["project"];
+    ) ?? ["project"];
   for (const source of settingSources) {
     if (!VALID_SETTING_SOURCES.has(source)) {
       throw new WorkflowDefinitionError(
@@ -207,9 +182,7 @@ export function validateAgentStep(
     }
   }
 
-  // model: step-level overrides agent def.
-  const model =
-    expectOptionalString(step.model, `${stepLabel}.model`, definitionPath) ?? agentModel;
+  const model = expectOptionalString(step.model, `${stepLabel}.model`, definitionPath);
   if (model !== undefined && !VALID_MODEL_IDS.has(model)) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.model: unknown model "${model}"`,

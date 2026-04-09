@@ -94,10 +94,12 @@ has to stay in core.
   observation should declare tags in its own definition. Other workflows should
   react to those tags or to generic events, not to a hardcoded list of built-in
   workflow names.
-- Built-in autonomy metadata should also stay close and single-purposed.
-  Built-in workflow definitions are registered in `src/workflows/catalog.ts`.
-  Built-in agent defaults live in `src/workflows/builtin-agents.ts`. Do not
-  duplicate the same built-in topology across scattered registries.
+- Workflows are extension contributions, not a separate registry surface.
+  User extensions contribute workflows from their normal extension entry points.
+  Built-in workflows live in `src/workflows/<name>/workflow.ts` and are
+  discovered by the built-in workflow extension at runtime. If a built-in
+  workflow needs a named agent, export that agent from the same `workflow.ts`
+  file so the workflow directory stays the source of truth.
 - History, memory, working memory, knowledge, and run artifacts are now
   documented as stores in one runtime state subsystem (`docs/STORES.md`).
   They remain separate implementations sharing a provider registry, but the

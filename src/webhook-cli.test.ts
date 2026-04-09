@@ -5,23 +5,25 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerWebhookCommands } from "./webhook-cli.js";
 
-vi.mock("./workflow/registry.js", () => ({
-  getBuiltinWorkflowDefinitions: vi.fn(() => [
-    {
-      name: "my-webhook-flow",
-      triggers: [{ event: "webhook", webhook: true }],
-      steps: [],
-      enabled: true,
-      definitionPath: "src/workflows/my-webhook-flow/workflow.ts",
-    },
-    {
-      name: "no-webhook-flow",
-      triggers: [{ event: "runtime.idle" }],
-      steps: [],
-      enabled: true,
-      definitionPath: "src/workflows/no-webhook-flow/workflow.ts",
-    },
-  ]),
+vi.mock("./extension-metadata.js", () => ({
+  loadExtensionMetadata: vi.fn(async () => ({
+    getContributedWorkflows: () => [
+      {
+        name: "my-webhook-flow",
+        triggers: [{ event: "webhook", webhook: true }],
+        steps: [],
+        enabled: true,
+        definitionPath: "src/workflows/my-webhook-flow/workflow.ts",
+      },
+      {
+        name: "no-webhook-flow",
+        triggers: [{ event: "runtime.idle" }],
+        steps: [],
+        enabled: true,
+        definitionPath: "src/workflows/no-webhook-flow/workflow.ts",
+      },
+    ],
+  })),
 }));
 
 function makeProjectDir(): string {
@@ -40,7 +42,9 @@ function makeProgram(): Command {
   return program;
 }
 
-function captureOutput(fn: () => void): { out: string; err: string } {
+async function captureOutput(
+  fn: () => Promise<void>,
+): Promise<{ out: string; err: string }> {
   const outLines: string[] = [];
   const errLines: string[] = [];
   const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
@@ -50,7 +54,7 @@ function captureOutput(fn: () => void): { out: string; err: string } {
     errLines.push(`${args.join(" ")}\n`);
   });
   try {
-    fn();
+    await fn();
   } finally {
     logSpy.mockRestore();
     warnSpy.mockRestore();
@@ -73,44 +77,44 @@ describe("kota webhook list", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("shows webhook-triggered workflows with no-secret status", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "list"]);
+  it("shows webhook-triggered workflows with no-secret status", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "list"]);
     });
     expect(out).toContain("my-webhook-flow");
     expect(out).toContain("✗ not configured");
   });
 
-  it("does not list workflows without webhook triggers", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "list"]);
+  it("does not list workflows without webhook triggers", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "list"]);
     });
     expect(out).not.toContain("no-webhook-flow");
   });
 
-  it("shows configured status when a secret exists in config", () => {
+  it("shows configured status when a secret exists in config", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "abc123" } } }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "list"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "list"]);
     });
     expect(out).toContain("my-webhook-flow");
     expect(out).toContain("✓ configured");
   });
 
-  it("never prints secret values", () => {
+  it("never prints secret values", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "supersecretvalue" } } }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "list"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "list"]);
     });
     expect(out).not.toContain("supersecretvalue");
   });
@@ -131,9 +135,9 @@ describe("kota webhook secret generate", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("generates a 64-char hex secret and writes it to .kota/config.json", () => {
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
+  it("generates a 64-char hex secret and writes it to .kota/config.json", async () => {
+    await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
     });
 
     const configPath = join(projectDir, ".kota", "config.json");
@@ -145,9 +149,9 @@ describe("kota webhook secret generate", () => {
     expect(/^[0-9a-f]+$/.test(secret)).toBe(true);
   });
 
-  it("prints the generated secret once", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
+  it("prints the generated secret once", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
     });
 
     const configPath = join(projectDir, ".kota", "config.json");
@@ -156,36 +160,36 @@ describe("kota webhook secret generate", () => {
     expect(out).toContain(secret);
   });
 
-  it("warns when overwriting an existing secret", () => {
+  it("warns when overwriting an existing secret", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "old-secret" } } }),
     );
 
-    const { err } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
+    const { err } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
     });
     expect(err).toContain("already exists");
     expect(err).toContain("overwritten");
   });
 
-  it("does not warn for a new workflow with no prior secret", () => {
-    const { err } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "generate", "brand-new"]);
+  it("does not warn for a new workflow with no prior secret", async () => {
+    const { err } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "generate", "brand-new"]);
     });
     expect(err).toBe("");
   });
 
-  it("preserves other config fields when writing", () => {
+  it("preserves other config fields when writing", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4", webhooks: {} }),
     );
 
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
+    await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "generate", "my-webhook-flow"]);
     });
 
     const saved = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
@@ -209,15 +213,15 @@ describe("kota webhook secret remove", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("removes webhook entry from config", () => {
+  it("removes webhook entry from config", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "todelete" }, other: { secret: "keep" } } }),
     );
 
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "remove", "my-webhook-flow"]);
+    await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "remove", "my-webhook-flow"]);
     });
 
     const saved = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
@@ -225,24 +229,24 @@ describe("kota webhook secret remove", () => {
     expect(saved.webhooks?.other?.secret).toBe("keep");
   });
 
-  it("removes webhooks key entirely when last entry is deleted", () => {
+  it("removes webhooks key entirely when last entry is deleted", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "only" } } }),
     );
 
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "remove", "my-webhook-flow"]);
+    await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "remove", "my-webhook-flow"]);
     });
 
     const saved = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
     expect(saved.webhooks).toBeUndefined();
   });
 
-  it("prints 'No webhook secret configured' when workflow not found", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "webhook", "secret", "remove", "nonexistent"]);
+  it("prints 'No webhook secret configured' when workflow not found", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram().parseAsync(["node", "kota", "webhook", "secret", "remove", "nonexistent"]);
     });
     expect(out).toContain("No webhook secret configured");
   });

@@ -38,12 +38,13 @@ vi.mock("./loop.js", () => {
 });
 
 import { ExtensionLoader } from "./extension-loader.js";
-import { builtinExtensions } from "./extensions/index.js";
+import { discoverBuiltinExtensions } from "./extensions/index.js";
 import { startServer } from "./server/server.js";
 
 let server: Server;
 let baseUrl: string;
 const TEST_AUTH_TOKEN = "test-e2e-auth-token-abc123";
+const builtinExtensions = await discoverBuiltinExtensions();
 
 /** Collect session IDs created during tests for cleanup. */
 const createdSessionIds: string[] = [];

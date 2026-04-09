@@ -378,6 +378,7 @@ describe("safeJsonStringify", () => {
 const baseWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "Autonomous improvement workflow",
+  tags: [],
   enabled: true,
   definitionPath: "src/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 30000 }],

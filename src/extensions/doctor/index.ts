@@ -18,14 +18,11 @@ import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
 import { loadConfig } from "../../config.js";
-import { discoverExtensions } from "../../extension-discovery.js";
-import { ExtensionLoader } from "../../extension-loader.js";
+import { loadExtensionMetadata } from "../../extension-metadata.js";
 import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
 import { createModelClient } from "../../model/model-client.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
-import { builtinExtensions } from "../index.js";
 import { resolveApiKey } from "../model-clients/factory.js";
 
 type CheckStatus = "pass" | "warn" | "fail";
@@ -193,27 +190,24 @@ function checkConfigFile(configPath: string, label: string): CheckResult {
   }
 }
 
-function checkWorkflowDefinitions(projectDir: string): CheckResult {
+async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult> {
   try {
-    const defs = getBuiltinWorkflowDefinitions();
+    const loader = await loadExtensionMetadata(loadConfig(projectDir), projectDir, false);
+    const defs = loader.getContributedWorkflows();
     const validated = validateWorkflowDefinitions(defs, projectDir);
-    return pass("Workflows: built-in definitions", `${validated.length} valid`);
+    return pass("Workflows: discoverable definitions", `${validated.length} valid`);
   } catch (err) {
     if (err instanceof WorkflowDefinitionError) {
-      return fail("Workflows: built-in definitions", err.message);
+      return fail("Workflows: discoverable definitions", err.message);
     }
-    return fail("Workflows: built-in definitions", String(err));
+    return fail("Workflows: discoverable definitions", String(err));
   }
 }
 
 async function checkExtensions(projectDir: string): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   try {
-    const config = loadConfig(projectDir);
-    const loader = new ExtensionLoader(config, false, { commandsOnly: true });
-    loader.setCwd(projectDir);
-    const discovered = await discoverExtensions(undefined, false);
-    await loader.loadAll([...builtinExtensions, ...discovered]);
+    const loader = await loadExtensionMetadata(loadConfig(projectDir), projectDir, false);
     const summaries = loader.getExtensionSummaries();
     results.push(pass("Extensions: loaded", `${summaries.length} extension(s)`));
   } catch (err) {
@@ -332,7 +326,7 @@ export async function runDoctorChecks(
       results.push(pass("Workflows", `${count} definition(s) loaded by daemon`));
     }
   } else {
-    results.push(checkWorkflowDefinitions(projectDir));
+    results.push(await checkWorkflowDefinitions(projectDir));
   }
 
   // Disk checks

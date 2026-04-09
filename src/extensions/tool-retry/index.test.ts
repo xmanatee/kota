@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveExtensionSkills } from "../../extension-types.js";
 import { getToolMiddleware, resetToolMiddleware } from "../../tool-middleware.js";
 import toolRetryModule from "./index.js";
 import { resetRetryStats } from "./tool-retry.js";
@@ -55,9 +56,9 @@ describe("tool-retry module", () => {
 		// Stats reset (middleware removal is handled by module loader)
 	});
 
-	it("declares a skill for retry guidance", () => {
-		expect(toolRetryModule.skills).toHaveLength(1);
-		expect(toolRetryModule.skills![0].name).toBe("tool-retry");
-		expect(toolRetryModule.skills![0].promptPath).toContain("tool-retry.md");
+	it("declares a skill for retry guidance", async () => {
+		const [skill] = await resolveExtensionSkills(toolRetryModule, ctx as any);
+		expect(skill.name).toBe("tool-retry");
+		expect(skill.promptPath).toContain("tool-retry.md");
 	});
 });

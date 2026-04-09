@@ -1,11 +1,16 @@
 import type { Command } from "commander";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
+import { getWorkflowDefinitions } from "./definitions-source.js";
 
 type ValidationResult = { name: string; valid: boolean; error?: string };
 
-export function validateDefinitions(workflowFilter?: string): ValidationResult[] {
-  const allDefs = getBuiltinWorkflowDefinitions();
+export function validateDefinitions(
+  definitions: readonly RegisteredWorkflowDefinitionInput[],
+  workflowFilter?: string,
+): ValidationResult[] {
+  const allDefs = [...definitions];
   const defs = workflowFilter ? allDefs.filter((d) => d.name === workflowFilter) : allDefs;
 
   if (workflowFilter && defs.length === 0) {
@@ -24,7 +29,10 @@ export function validateDefinitions(workflowFilter?: string): ValidationResult[]
   });
 }
 
-export function registerValidateCommand(wfCmd: Command): void {
+export function registerValidateCommand(
+  wfCmd: Command,
+  ctx: ExtensionContext,
+): void {
   wfCmd
     .command("validate")
     .description("Validate workflow definitions and exit non-zero if any fail")
@@ -33,7 +41,7 @@ export function registerValidateCommand(wfCmd: Command): void {
     .action((opts: { workflow?: string; json?: boolean }) => {
       let results: ValidationResult[];
       try {
-        results = validateDefinitions(opts.workflow);
+        results = validateDefinitions(getWorkflowDefinitions(ctx), opts.workflow);
       } catch (err) {
         console.error(String(err instanceof Error ? err.message : err));
         process.exit(1);

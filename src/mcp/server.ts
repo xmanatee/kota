@@ -10,14 +10,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
+import { loadConfig } from "../config.js";
 import { CostTracker } from "../cost.js";
 import type { EventBus } from "../event-bus.js";
 import { getEventBus } from "../event-bus.js";
+import { loadExtensionMetadata } from "../extension-metadata.js";
 import type { ToolDef } from "../extension-types.js";
 import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import type { MessageCreateParams, ModelClient } from "../model/model-client.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
@@ -595,7 +596,7 @@ export class McpServer {
 		});
 	}
 
-	private handleCompletionComplete(msg: JsonRpcRequest): void {
+	private async handleCompletionComplete(msg: JsonRpcRequest): Promise<void> {
 		if (!this.initialized) {
 			this.sendError(msg, -32002, "Server not initialized");
 			return;
@@ -616,7 +617,12 @@ export class McpServer {
 		if (ref.type === "ref/prompt") {
 			const promptName = ref.name ?? "";
 			if (promptName === "kota-trigger-workflow" && argName === "workflow") {
-				const defs = getBuiltinWorkflowDefinitions();
+				const loader = await loadExtensionMetadata(
+					loadConfig(this.projectDir),
+					this.projectDir,
+					false,
+				);
+				const defs = loader.getContributedWorkflows();
 				values = defs.map((d) => d.name).filter((n) => n.toLowerCase().startsWith(partial));
 			} else if (promptName === "kota-summarize-run" && argName === "run_id") {
 				try {

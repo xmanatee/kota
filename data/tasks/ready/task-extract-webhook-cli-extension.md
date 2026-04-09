@@ -15,7 +15,7 @@ updated_at: 2026-04-09T12:30:00Z
 
 ## Desired Outcome
 
-- `src/extensions/webhook/index.ts` registers the `kota webhook` CLI commands via `ctx.registerCliCommands()`
+- `src/extensions/webhook/index.ts` contributes the `kota webhook` CLI commands through the normal extension `commands` surface
 - `src/webhook-cli.ts` is removed
 - `src/cli.ts` no longer imports `registerWebhookCommands`
 

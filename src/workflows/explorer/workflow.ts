@@ -1,3 +1,4 @@
+import type { AgentDef } from "../../agent-types.js";
 import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
@@ -10,6 +11,15 @@ import {
   runCheck,
   stepSucceeded,
 } from "../shared.js";
+
+export const agent: AgentDef = {
+  name: "explorer",
+  role: "Find strong external ideas and promising new directions when the local queue is empty.",
+  promptPath: "src/workflows/explorer/prompt.md",
+  model: "claude-sonnet-4-6",
+  tools: { permissionMode: "bypassPermissions" },
+  settingSources: ["project"],
+};
 
 const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 
@@ -70,7 +80,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
     {
       id: "explore",
       type: "agent",
-      agentName: "explorer",
+      agentName: agent.name,
+      promptPath: agent.promptPath,
+      model: agent.model,
+      permissionMode: agent.tools?.permissionMode,
+      settingSources: agent.settingSources,
       timeoutMs: 45 * 60 * 1000, // 45 minutes — explorer can do broad external research
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectQueue.output(ctx).needsAttention,

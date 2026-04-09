@@ -5,6 +5,7 @@ import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
     name: "test-workflow",
+    tags: [],
     enabled: true,
     definitionPath: "src/workflows/test/workflow.ts",
     triggers: [{ event: "manual", cooldownMs: 0 }],

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../../event-bus.js";
 import { ExtensionStorage } from "../../extension-storage.js";
 import type { ExtensionContext } from "../../extension-types.js";
+import { resolveExtensionChannels } from "../../extension-types.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
 
@@ -73,19 +74,24 @@ describe("telegramModule", () => {
   });
 
   it("contributes a telegram-status channel", () => {
-    expect(telegramModule.channels).toBeDefined();
-    expect(telegramModule.channels).toHaveLength(1);
-    expect(telegramModule.channels![0].name).toBe("telegram-status");
-    expect(telegramModule.channels![0].description).toBeTruthy();
+    const channels = telegramModule.channels;
+    expect(channels).toBeDefined();
+    expect(Array.isArray(channels)).toBe(true);
+    expect(channels).toHaveLength(1);
+    if (!Array.isArray(channels)) {
+      throw new Error("expected telegram channels contribution to be static");
+    }
+    expect(channels[0].name).toBe("telegram-status");
+    expect(channels[0].description).toBeTruthy();
   });
 
-  it("telegram-status channel returns null when env vars are missing", () => {
+  it("telegram-status channel returns null when env vars are missing", async () => {
     const savedToken = process.env.TELEGRAM_BOT_TOKEN;
     const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
     try {
-      const channel = telegramModule.channels![0];
+      const [channel] = await resolveExtensionChannels(telegramModule, makeStubCtx());
       const adapter = channel.create({
         projectDir: "/tmp",
         log: () => {},

@@ -126,14 +126,14 @@ export type WorkflowToolStepInput = WorkflowBaseStep & {
 export type WorkflowAgentStepInput = WorkflowBaseStep & {
   type: "agent";
   /**
-   * Name of a registered AgentDef. Provides promptPath, model, permissionMode,
-   * and settingSources as defaults; step-level fields override them.
-   * Either agentName or promptPath must be provided.
+   * Optional logical agent label. Use this for model overrides and telemetry.
+   * Execution does not resolve workflow steps through a global agent registry.
    */
   agentName?: string;
   /**
    * Path to the prompt markdown file (relative to project root).
-   * Required when agentName is not set; overrides agent def promptPath when set.
+   * Required. Workflow steps are self-contained and do not inherit prompt paths
+   * from a separate agent registry.
    */
   promptPath?: string;
   model?: string;

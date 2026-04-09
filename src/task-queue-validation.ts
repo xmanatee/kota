@@ -65,14 +65,12 @@ function listTaskEntries(projectDir: string): TaskFileEntry[] {
 }
 
 function readTaskArea(entry: TaskFileEntry): string | null {
-  if (entry.state === "inbox") return null;
   const { attrs } = parseFlatFrontMatter(entry.raw);
   const area = String(attrs.area ?? "").trim();
   return area.length > 0 ? area : null;
 }
 
 function readTaskPriority(entry: TaskFileEntry): string | null {
-  if (entry.state === "inbox") return null;
   const { attrs } = parseFlatFrontMatter(entry.raw);
   const priority = String(attrs.priority ?? "").trim();
   return priority.length > 0 ? priority : null;
@@ -208,10 +206,6 @@ export function validateTaskQueue(
     const seenStates = seenTaskStates.get(entry.taskId) ?? [];
     seenStates.push(entry.state);
     seenTaskStates.set(entry.taskId, seenStates);
-
-    if (entry.state === "inbox") {
-      continue;
-    }
 
     const { attrs } = parseFlatFrontMatter(entry.raw);
     if (String(attrs.id || "") !== entry.taskId) {

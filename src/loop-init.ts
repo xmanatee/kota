@@ -4,9 +4,9 @@ import type { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import type { ExtensionLoader } from "./extension-loader.js";
+import { discoverBuiltinExtensions } from "./extensions/index.js";
 import { cleanupSessions } from "./extensions/execution/code-exec.js";
 import { cleanupProcesses } from "./extensions/execution/process.js";
-import { builtinExtensions } from "./extensions/index.js";
 import { resetProviderRegistry } from "./extensions/providers/index.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { GuardrailsConfig } from "./guardrails.js";
@@ -86,6 +86,7 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
     }
   }
 
+  const builtinExtensions = await discoverBuiltinExtensions();
   const extensions = await discoverExtensions(undefined, state.verbose);
   for (const { name } of listManifestExtensions()) markExtensionLoaded(name);
   await state.extensionLoader.loadAll([...builtinExtensions, ...extensions]);

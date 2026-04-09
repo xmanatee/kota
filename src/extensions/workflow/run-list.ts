@@ -1,12 +1,16 @@
 import type { Command } from "commander";
+import type { ExtensionContext } from "../../extension-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
 import type { HistoryStats } from "../../workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "../../workflow-history.js";
+import { getWorkflowDefinitions } from "./definitions-source.js";
 import { formatDate, formatDuration, listRuns, statusIcon } from "./utils.js";
 
-export function registerRunListCommands(wfCmd: Command): void {
+export function registerRunListCommands(
+  wfCmd: Command,
+  ctx: ExtensionContext,
+): void {
   wfCmd
     .command("list")
     .description("List recent workflow runs")
@@ -91,7 +95,7 @@ export function registerRunListCommands(wfCmd: Command): void {
         console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}${tagStr}`);
       }
 
-      const definitions = getBuiltinWorkflowDefinitions();
+      const definitions = getWorkflowDefinitions(ctx);
       const budgeted = definitions.filter((d) => d.dailyBudgetUsd != null);
       if (budgeted.length > 0) {
         console.log("\nToday's budget utilization:");

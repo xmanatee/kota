@@ -132,6 +132,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
   it("creates new runs only under .kota/runs", () => {
     const workflow: WorkflowDefinition = {
       name: "builder",
+      tags: [],
       definitionPath: "src/workflows/builder/workflow.ts",
       description: "test",
       enabled: true,

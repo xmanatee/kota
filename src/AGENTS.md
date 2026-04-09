@@ -53,9 +53,10 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `extension-api.ts` — public re-export surface for extension authors; consumed via `kota/extension` sub-path import; built to `dist/extension-api.js` + `dist/extension-api.d.ts`.
 - `workflow-testing/index.ts` — `WorkflowTestHarness` class; lightweight in-process harness for unit-testing workflow definitions without a daemon or real agent; exported via `kota/testing` sub-path import through `workflow-testing/testing-api.ts`.
 - `extension-testing/index.ts` — `ExtensionTestHarness` class; lightweight in-process harness for unit-testing `KotaExtension` definitions (load, tool call, dynamic state, teardown) without a daemon; exported via `kota/testing` through `workflow-testing/testing-api.ts`.
-- `workflows/builtin-agents.ts` — built-in agent defaults for the autonomy workflows.
-- `workflows/catalog.ts` — built-in workflow registry surface and the place where built-in workflow definitions are paired with definition paths.
-- `extensions/agents/index.ts` — agent registry (`registerAgent`, `getAgent`, `listAgents`) and the `kota agent` CLI surface (`list`, `inspect <name>`). Registered as a built-in extension and initialized from `workflows/builtin-agents.ts`.
+- `workflows/<name>/workflow.ts` — source of truth for each built-in workflow; may also export a named built-in agent used by that workflow.
+- `workflow/discovery.ts` — discovers built-in workflow directories and their optional exported agent metadata at runtime.
+- `extensions/workflow/index.ts` — built-in workflow extension; contributes built-in workflows and their built-in agents plus the `kota workflow` CLI surface.
+- `extensions/agents/index.ts` — `kota agent` inspection surface for agents contributed by loaded extensions.
 - `extensions/skills/index.ts` — `kota skill list` CLI surface for inspecting registered skills. Registered as a built-in extension.
 - `webhook-cli.ts` — `registerWebhookCommands`: CLI subcommands for managing inbound webhook secrets (`kota webhook list`, `kota webhook secret generate <workflow>`, `kota webhook secret remove <workflow>`).
 - `completion-cli.ts` — `registerCompletionCommands`: `kota completion [bash|zsh]` command; introspects the commander program at runtime and generates a shell completion script covering all subcommands and flags; auto-detects shell from `$SHELL` when no argument is given.

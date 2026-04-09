@@ -10,4 +10,4 @@ This extension contributes the `kota extension` CLI surface: `list`, `inspect`, 
 
 - Uses `ctx.getExtensionSummaries()` for live extension data; no independent loader.
 - Scaffold generators live in `scaffolds.ts` to keep `index.ts` focused.
-- Does not import from `../index.ts` to avoid a circular dependency with `builtinExtensions`.
+- Avoid importing the built-in extension discovery entrypoint from here; this command should inspect loaded state, not rebuild it.

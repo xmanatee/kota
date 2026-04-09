@@ -28,7 +28,7 @@ const mcpServerModule: KotaExtension = {
 				const { McpServer } = await import("../../mcp/server.js");
 				const { loadConfig } = await import("../../config.js");
 				const { ExtensionLoader } = await import("../../extension-loader.js");
-				const { builtinExtensions } = await import("../index.js");
+				const { discoverBuiltinExtensions } = await import("../index.js");
 				const { discoverExtensions } = await import(
 					"../../extension-discovery.js"
 				);
@@ -37,6 +37,7 @@ const mcpServerModule: KotaExtension = {
 
 				// Load modules to register their tools (commandsOnly=false)
 				const loader = new ExtensionLoader(config, false);
+				const builtinExtensions = await discoverBuiltinExtensions();
 				const extensions = await discoverExtensions(process.cwd());
 				await loader.loadAll([...builtinExtensions, ...extensions]);
 

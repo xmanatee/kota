@@ -1,15 +1,22 @@
 import { resetDynamicStateProviders } from "./dynamic-state.js";
 import type { ExtensionStorage } from "./extension-storage.js";
+import type { ChannelDef } from "./channel.js";
 import type { KotaExtension } from "./extension-types.js";
 import { getProviderRegistry } from "./extensions/providers/index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { deregisterExtensionTools } from "./tools/index.js";
+import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
+import type { AgentDef, SkillDef } from "./agent-types.js";
 
 export interface LifecycleState {
   extensions: KotaExtension[];
   extensionStorages: Map<string, ExtensionStorage>;
   extensionToolCounts: Map<string, number>;
   extensionRegistry: Map<string, KotaExtension>;
+  extensionWorkflowDefs: Map<string, readonly RegisteredWorkflowDefinitionInput[]>;
+  extensionChannelDefs: Map<string, readonly ChannelDef[]>;
+  extensionSkillDefs: Map<string, readonly SkillDef[]>;
+  extensionAgentDefs: Map<string, readonly AgentDef[]>;
   verbose: boolean;
 }
 
@@ -45,6 +52,10 @@ export async function unloadExtension(extensionName: string, state: LifecycleSta
   getToolMiddleware().removeByOwner(extensionName);
   state.extensionStorages.delete(extensionName);
   state.extensionToolCounts.delete(extensionName);
+  state.extensionWorkflowDefs.delete(extensionName);
+  state.extensionChannelDefs.delete(extensionName);
+  state.extensionSkillDefs.delete(extensionName);
+  state.extensionAgentDefs.delete(extensionName);
   state.extensions.splice(idx, 1);
 
   if (state.verbose) console.error(`[kota] Extension "${extensionName}" unloaded`);
@@ -86,6 +97,10 @@ export async function unloadAllExtensions(state: LifecycleState): Promise<void> 
   state.extensionRegistry.clear();
   state.extensionStorages.clear();
   state.extensionToolCounts.clear();
+  state.extensionWorkflowDefs.clear();
+  state.extensionChannelDefs.clear();
+  state.extensionSkillDefs.clear();
+  state.extensionAgentDefs.clear();
 
   const reg = getProviderRegistry();
   if (reg) reg.clear();

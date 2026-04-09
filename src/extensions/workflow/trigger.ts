@@ -1,16 +1,20 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
+import type { ExtensionContext } from "../../extension-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 import { getEligibleAtMs } from "../../workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
 import { formatRunId } from "../../workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
 import { validateWorkflowDefinitions } from "../../workflow/validation.js";
+import { getWorkflowDefinitions } from "./definitions-source.js";
 
-export function registerTriggerCommands(wfCmd: Command): void {
+export function registerTriggerCommands(
+  wfCmd: Command,
+  ctx: ExtensionContext,
+): void {
   wfCmd
     .command("trigger <name>")
     .description("Manually enqueue a workflow run")
@@ -34,7 +38,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
 
       const store = new WorkflowRunStore();
       const definitions = validateWorkflowDefinitions(
-        getBuiltinWorkflowDefinitions(),
+        getWorkflowDefinitions(ctx),
         process.cwd(),
       );
 
@@ -156,7 +160,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
       }
 
       const definitions = validateWorkflowDefinitions(
-        getBuiltinWorkflowDefinitions(),
+        getWorkflowDefinitions(ctx),
         process.cwd(),
       );
       const definition = definitions.find((d) => d.name === original.workflow);
@@ -219,7 +223,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
       }
 
       const definitions = validateWorkflowDefinitions(
-        getBuiltinWorkflowDefinitions(),
+        getWorkflowDefinitions(ctx),
         process.cwd(),
       );
       const definition = definitions.find((d) => d.name === original.workflow);
@@ -323,7 +327,7 @@ export function registerTriggerCommands(wfCmd: Command): void {
       }
 
       const definitions = validateWorkflowDefinitions(
-        getBuiltinWorkflowDefinitions(),
+        getWorkflowDefinitions(ctx),
         process.cwd(),
       );
       const definition = definitions.find((d) => d.name === original.workflow);
