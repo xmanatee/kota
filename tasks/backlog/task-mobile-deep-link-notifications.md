@@ -1,12 +1,12 @@
 ---
 id: task-mobile-deep-link-notifications
 title: Deep-link push notifications to the specific approval or run in the mobile client
-status: ready
+status: backlog
 priority: p3
 area: client
 summary: Push notifications for pending approvals open the app home rather than the specific approval item. Deep linking the notification tap directly to the relevant approval or run screen removes the navigation step and makes the mobile client more actionable.
 created_at: 2026-04-09T01:50:00Z
-updated_at: 2026-04-09T01:50:00Z
+updated_at: 2026-04-09T06:30:00Z
 ---
 
 ## Problem
@@ -39,3 +39,4 @@ manually switch tabs and find the relevant item.
 - If an `approvalId` is included in the payload, the list scrolls to that item.
 - Both foreground (in-app banner) and background (OS notification center) tap paths work.
 - Existing push notification tests pass; a test covers the navigation dispatch on tap.
+
