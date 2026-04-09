@@ -401,6 +401,7 @@ function emitCostAnomalyIfNeeded(
   deps: RunExecutorDeps,
 ): void {
   if (definition.costAnomalyThreshold === undefined) return;
+  if (definition.notify?.onCostAnomaly === false) return;
   const runCostUsd = typeof completed.totalCostUsd === "number" ? completed.totalCostUsd : 0;
   if (runCostUsd <= 0) return;
   const anomaly = detectCostAnomaly(

@@ -108,6 +108,40 @@ const myWorkflow: WorkflowDefinitionInput = {
 };
 ```
 
+### Per-Workflow Notification Suppression
+
+By default, KOTA emits notification events for every workflow — failure alerts, cost
+anomalies, and (optionally) commit notifications. As you add housekeeping or
+exploratory workflows that don't warrant operator attention, the notification volume
+grows. The `notify` block lets you suppress specific notification events per workflow
+without disabling the channel globally.
+
+```typescript
+const myWorkflow: WorkflowDefinitionInput = {
+  name: "my-extension/housekeeping",
+  notify: {
+    onFailure: false,      // suppress workflow.failure.alert (default: true — emit)
+    onCostAnomaly: false,  // suppress workflow.cost.anomaly (default: true — emit)
+    onSuccess: false,      // suppress workflow.build.committed (default: false — suppress)
+  },
+  // ...
+};
+```
+
+All flags default to current behavior so existing workflows require no changes:
+
+| Flag            | Default | Controls                      |
+|-----------------|---------|-------------------------------|
+| `onFailure`     | `true`  | `workflow.failure.alert`      |
+| `onCostAnomaly` | `true`  | `workflow.cost.anomaly`       |
+| `onSuccess`     | `false` | `workflow.build.committed`    |
+
+Suppression happens at the event bus emission layer — extensions (Telegram, Slack,
+webhook) never see suppressed events. No changes to channel extension config are needed.
+
+Only notification-class events are affected. Core bus events used by the scheduler or
+trigger system (`workflow.completed`, `workflow.started`, etc.) are never suppressed.
+
 ### Input and Output Schemas
 
 `inputSchema` validates incoming trigger payloads before queuing. Invalid payloads are rejected with a descriptive error and the run is not queued. Workflows without `inputSchema` accept any payload (existing behavior).

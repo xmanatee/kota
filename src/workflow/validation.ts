@@ -347,6 +347,28 @@ export function validateWorkflowDefinitions(
         }
         return { maxPerMinute };
       })(),
+      notify: (() => {
+        if (definition.notify == null) return undefined;
+        const n = definition.notify;
+        if (typeof n !== "object" || n === null) {
+          throw new WorkflowDefinitionError("notify must be an object", definitionPath);
+        }
+        const { onFailure, onSuccess, onCostAnomaly } = n as Record<string, unknown>;
+        if (onFailure !== undefined && typeof onFailure !== "boolean") {
+          throw new WorkflowDefinitionError("notify.onFailure must be a boolean", definitionPath);
+        }
+        if (onSuccess !== undefined && typeof onSuccess !== "boolean") {
+          throw new WorkflowDefinitionError("notify.onSuccess must be a boolean", definitionPath);
+        }
+        if (onCostAnomaly !== undefined && typeof onCostAnomaly !== "boolean") {
+          throw new WorkflowDefinitionError("notify.onCostAnomaly must be a boolean", definitionPath);
+        }
+        return {
+          ...(onFailure !== undefined ? { onFailure: onFailure as boolean } : {}),
+          ...(onSuccess !== undefined ? { onSuccess: onSuccess as boolean } : {}),
+          ...(onCostAnomaly !== undefined ? { onCostAnomaly: onCostAnomaly as boolean } : {}),
+        };
+      })(),
       definitionPath,
       triggers: (() => {
         const triggers = definition.triggers.map((trigger, triggerIndex) =>

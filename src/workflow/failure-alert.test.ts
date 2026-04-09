@@ -179,3 +179,71 @@ describe("subscribeWorkflowFailureAlert — cooldown", () => {
     expect(emittedAlerts).toHaveLength(3);
   });
 });
+
+describe("subscribeWorkflowFailureAlert — notify config", () => {
+  let projectDir: string;
+  let bus: EventBus;
+  let unsubscribe: () => void;
+  let emittedAlerts: BusEvents["workflow.failure.alert"][];
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    bus = new EventBus();
+    emittedAlerts = [];
+    bus.on("workflow.failure.alert", (payload) => {
+      emittedAlerts.push(payload);
+    });
+  });
+
+  afterEach(() => {
+    unsubscribe?.();
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("suppresses failure alert when onFailure is false for the workflow", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, {
+      getWorkflowNotify: (name) => name === "builder" ? { onFailure: false } : undefined,
+    });
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "builder" }));
+    expect(emittedAlerts).toHaveLength(0);
+  });
+
+  it("does not suppress failure alert for unaffected workflows", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, {
+      getWorkflowNotify: (name) => name === "builder" ? { onFailure: false } : undefined,
+    });
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "explorer" }));
+    expect(emittedAlerts).toHaveLength(1);
+    expect(emittedAlerts[0].workflow).toBe("explorer");
+  });
+
+  it("emits failure alert when onFailure is true (explicit default)", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, {
+      getWorkflowNotify: () => ({ onFailure: true }),
+    });
+    bus.emit("workflow.completed", makePayload("failed"));
+    expect(emittedAlerts).toHaveLength(1);
+  });
+
+  it("emits failure alert when notify config is undefined (default behavior)", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, {
+      getWorkflowNotify: () => undefined,
+    });
+    bus.emit("workflow.completed", makePayload("failed"));
+    expect(emittedAlerts).toHaveLength(1);
+  });
+
+  it("suppresses for one workflow but not another in the same run", () => {
+    unsubscribe = subscribeWorkflowFailureAlert(bus, projectDir, undefined, {
+      getWorkflowNotify: (name) => name === "housekeeping" ? { onFailure: false } : undefined,
+    });
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "housekeeping", runId: "h-1" }));
+    bus.emit("workflow.completed", makePayload("failed", { workflow: "builder", runId: "b-1" }));
+    expect(emittedAlerts).toHaveLength(1);
+    expect(emittedAlerts[0].workflow).toBe("builder");
+  });
+});

@@ -9,6 +9,7 @@ import {
   buildAgentPrompt,
   buildRepairPrompt,
   executeAgentStep,
+  executeEmitStep,
   executeStep,
   executeToolStep,
   withRetry,
@@ -17,6 +18,8 @@ import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
+  WorkflowEmitStep,
+  WorkflowNotifyConfig,
   WorkflowRunTrigger,
   WorkflowToolStep,
 } from "./types.js";
@@ -861,6 +864,54 @@ describe("executeStep repair loop", () => {
       thinkingEnabled: true,
       thinkingBudget: 4096,
     });
+  });
+});
+
+describe("executeEmitStep — notify config", () => {
+  function makeEmitContext(): Parameters<typeof executeEmitStep>[1] {
+    const emitted: Array<{ event: string; payload: unknown }> = [];
+    return {
+      emit: (event: string, payload: Record<string, unknown>) => emitted.push({ event, payload }),
+      _emitted: emitted,
+    } as unknown as Parameters<typeof executeEmitStep>[1] & { _emitted: typeof emitted };
+  }
+
+  function makeEmitStep(event: string): WorkflowEmitStep {
+    return { id: "emit-step", type: "emit", event };
+  }
+
+  it("emits workflow.build.committed by default (no notify config)", async () => {
+    const ctx = makeEmitContext();
+    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
+    await executeEmitStep(makeEmitStep("workflow.build.committed"), ctx);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].event).toBe("workflow.build.committed");
+  });
+
+  it("suppresses workflow.build.committed when onSuccess is false", async () => {
+    const ctx = makeEmitContext();
+    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
+    const notify: WorkflowNotifyConfig = { onSuccess: false };
+    const result = await executeEmitStep(makeEmitStep("workflow.build.committed"), ctx, notify);
+    expect(emitted).toHaveLength(0);
+    expect(result).toMatchObject({ event: "workflow.build.committed", suppressed: true });
+  });
+
+  it("does not suppress workflow.build.committed when onSuccess is true", async () => {
+    const ctx = makeEmitContext();
+    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
+    const notify: WorkflowNotifyConfig = { onSuccess: true };
+    await executeEmitStep(makeEmitStep("workflow.build.committed"), ctx, notify);
+    expect(emitted).toHaveLength(1);
+  });
+
+  it("does not suppress non-notification emit events even when notify config is set", async () => {
+    const ctx = makeEmitContext();
+    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
+    const notify: WorkflowNotifyConfig = { onSuccess: false };
+    await executeEmitStep(makeEmitStep("custom.event.done"), ctx, notify);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].event).toBe("custom.event.done");
   });
 });
 

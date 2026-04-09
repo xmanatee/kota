@@ -174,6 +174,7 @@ export class Daemon {
       approvalTtlMs: this.config.config?.approvalTtlMs,
       alertCooldownMs: this.config.config?.notifications?.alertCooldownMs,
       extensionCrashAlertOpts: this.config.config?.extensionMonitoring,
+      getWorkflowNotify: (name) => this.workflows.getDefinitions().find((d) => d.name === name)?.notify,
       onDueItems: (items) => this.handleDueItems(items),
       onWorkflowCompleted: (payload) => {
         this.state.completedRuns += 1;

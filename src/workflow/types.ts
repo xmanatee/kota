@@ -292,6 +292,24 @@ export type WorkflowStepInput =
   | WorkflowForeachStepInput
   | WorkflowApprovalStepInput;
 
+export type WorkflowNotifyConfig = {
+  /**
+   * When false, suppresses `workflow.failure.alert` for this workflow.
+   * Default: true (emit on failure).
+   */
+  onFailure?: boolean;
+  /**
+   * When false, suppresses `workflow.build.committed` emit steps for this workflow.
+   * Default: false (suppress by default — this event is opt-in at the channel level).
+   */
+  onSuccess?: boolean;
+  /**
+   * When false, suppresses `workflow.cost.anomaly` for this workflow.
+   * Default: true (emit when anomaly detected).
+   */
+  onCostAnomaly?: boolean;
+};
+
 export type WorkflowDefinitionInput = {
   name: string;
   description?: string;
@@ -342,6 +360,11 @@ export type WorkflowDefinitionInput = {
    * Default: no cap applied.
    */
   webhookRateLimit?: { maxPerMinute: number };
+  /**
+   * Per-event notification suppression for this workflow. Omit to use defaults
+   * (onFailure: true, onCostAnomaly: true, onSuccess: false).
+   */
+  notify?: WorkflowNotifyConfig;
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -479,6 +502,11 @@ export type WorkflowDefinition = {
    * Default: no cap applied.
    */
   webhookRateLimit?: { maxPerMinute: number };
+  /**
+   * Per-event notification suppression for this workflow.
+   * Omit to use defaults (onFailure: true, onCostAnomaly: true, onSuccess: false).
+   */
+  notify?: WorkflowNotifyConfig;
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

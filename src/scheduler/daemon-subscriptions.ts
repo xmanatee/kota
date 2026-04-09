@@ -2,6 +2,7 @@ import { getApprovalQueue } from "../approval-queue.js";
 import type { BusEvents, EventBus } from "../event-bus.js";
 import { type ExtensionCrashAlertOptions, subscribeExtensionCrashAlert } from "../extension-crash-alert.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
+import type { WorkflowNotifyConfig } from "../workflow/types.js";
 import type { ScheduledItem } from "./scheduler.js";
 import { getScheduler } from "./scheduler.js";
 
@@ -16,6 +17,8 @@ export type DaemonSubscriptionsOptions = {
   approvalTtlMs?: number;
   alertCooldownMs?: number;
   extensionCrashAlertOpts?: ExtensionCrashAlertOptions;
+  /** Returns the notify config for a workflow by name, if defined. */
+  getWorkflowNotify?: (workflowName: string) => WorkflowNotifyConfig | undefined;
 };
 
 export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
@@ -30,6 +33,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     approvalTtlMs,
     alertCooldownMs,
     extensionCrashAlertOpts,
+    getWorkflowNotify,
   } = opts;
 
   const scheduler = getScheduler();
@@ -45,7 +49,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onRestartRequested(payload.reason ?? "workflow requested restart");
   });
 
-  const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog, { alertCooldownMs });
+  const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog, { alertCooldownMs, getWorkflowNotify });
   const stopCrashAlert = subscribeExtensionCrashAlert(bus, extensionCrashAlertOpts);
 
   const approvalSweepTimer = setInterval(() => {

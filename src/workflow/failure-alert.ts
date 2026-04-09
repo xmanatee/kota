@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { EventBus } from "../event-bus.js";
+import type { WorkflowNotifyConfig } from "./types.js";
 
 const MAX_ERROR_LENGTH = 300;
 
@@ -37,6 +38,8 @@ function buildAlertText(
 
 export type FailureAlertOptions = {
   alertCooldownMs?: number;
+  /** Returns the notify config for a workflow by name, if defined. */
+  getWorkflowNotify?: (workflowName: string) => WorkflowNotifyConfig | undefined;
 };
 
 export function subscribeWorkflowFailureAlert(
@@ -50,6 +53,9 @@ export function subscribeWorkflowFailureAlert(
 
   return bus.on("workflow.completed", (payload) => {
     if (payload.status !== "failed" && payload.status !== "interrupted") return;
+
+    const notify = opts?.getWorkflowNotify?.(payload.workflow);
+    if (notify?.onFailure === false) return;
 
     if (cooldownMs > 0) {
       const last = lastAlertAt.get(payload.workflow);

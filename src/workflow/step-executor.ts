@@ -16,6 +16,7 @@ import type {
   WorkflowCodeStep,
   WorkflowDefinition,
   WorkflowEmitStep,
+  WorkflowNotifyConfig,
   WorkflowRestartStep,
   WorkflowRunTrigger,
   WorkflowStep,
@@ -67,10 +68,20 @@ export async function executeToolStep(
   return step.retry ? withRetry(run, step.retry) : run();
 }
 
+/** Maps notification emit events to the notify config flag that controls them. */
+const NOTIFICATION_EMIT_EVENT_FLAGS: Partial<Record<string, keyof WorkflowNotifyConfig>> = {
+  "workflow.build.committed": "onSuccess",
+};
+
 export async function executeEmitStep(
   step: WorkflowEmitStep,
   context: WorkflowStepContext,
+  notifyConfig?: WorkflowNotifyConfig,
 ): Promise<WorkflowStepOutput> {
+  const flag = NOTIFICATION_EMIT_EVENT_FLAGS[step.event];
+  if (flag !== undefined && notifyConfig?.[flag] === false) {
+    return { event: step.event, suppressed: true };
+  }
   const payload = await resolveValue(step.payload ?? {}, context);
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error(`Emit step "${step.id}" resolved to a non-object payload`);
@@ -146,7 +157,7 @@ export async function executeStep(
     if (!step.repairLoop) return result;
     return runAgentRepairLoop(step, result, context, abortController, appendMessage, agentConfig);
   }
-  if (step.type === "emit") return executeEmitStep(step, context);
+  if (step.type === "emit") return executeEmitStep(step, context, definition.notify);
   if (step.type === "restart") return executeRestartStep(step, context);
   if (step.type === "trigger") {
     return executeTriggerStep(step as WorkflowTriggerStep, context, abortController.signal);
