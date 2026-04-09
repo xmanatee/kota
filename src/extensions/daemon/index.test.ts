@@ -1,9 +1,15 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ExtensionStorage } from "../../extension-storage.js";
 import type { ExtensionContext } from "../../extension-types.js";
 import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 import daemonModule, {
   buildDaemonChildArgs,
+  buildLaunchdPlist,
+  buildSystemdUnit,
+  getLaunchdPlistPath,
+  getSystemdServicePath,
   resolveDaemonWorkflowDefinitions,
 } from "./index.js";
 
@@ -52,6 +58,21 @@ describe("daemonModule", () => {
     expect(optNames).toContain("--idle-interval");
     expect(optNames).toContain("--poll-interval");
     expect(optNames).toContain("--log-format");
+  });
+
+  it("daemon command has install and uninstall subcommands", () => {
+    const cmds = daemonModule.commands!(stubCtx);
+    const cmd = cmds[0];
+    const subNames = cmd.commands.map((c) => c.name());
+    expect(subNames).toContain("install");
+    expect(subNames).toContain("uninstall");
+  });
+
+  it("install subcommand has --dry-run option", () => {
+    const cmds = daemonModule.commands!(stubCtx);
+    const installCmd = cmds[0].commands.find((c) => c.name() === "install")!;
+    const optNames = installCmd.options.map((o) => o.long);
+    expect(optNames).toContain("--dry-run");
   });
 
   it("does not register tools or routes", () => {
@@ -115,5 +136,67 @@ describe("daemonModule", () => {
     expect(workflows.map((workflow) => workflow.name)).toContain("builder");
     expect(workflows.map((workflow) => workflow.name)).toContain("improver");
     expect(workflows.map((workflow) => workflow.name)).toContain("extension/nightly");
+  });
+});
+
+describe("getLaunchdPlistPath", () => {
+  it("returns path under ~/Library/LaunchAgents", () => {
+    const p = getLaunchdPlistPath();
+    expect(p).toBe(join(homedir(), "Library", "LaunchAgents", "com.kota.daemon.plist"));
+  });
+});
+
+describe("getSystemdServicePath", () => {
+  it("returns path under ~/.config/systemd/user", () => {
+    const p = getSystemdServicePath();
+    expect(p).toBe(join(homedir(), ".config", "systemd", "user", "kota-daemon.service"));
+  });
+});
+
+describe("buildLaunchdPlist", () => {
+  it("includes KOTA_PROJECT_DIR environment key", () => {
+    const content = buildLaunchdPlist("/my/project");
+    expect(content).toContain("KOTA_PROJECT_DIR");
+    expect(content).toContain("/my/project");
+  });
+
+  it("includes the label com.kota.daemon", () => {
+    const content = buildLaunchdPlist("/my/project");
+    expect(content).toContain("com.kota.daemon");
+  });
+
+  it("includes RunAtLoad and KeepAlive", () => {
+    const content = buildLaunchdPlist("/my/project");
+    expect(content).toContain("RunAtLoad");
+    expect(content).toContain("KeepAlive");
+  });
+
+  it("references the daemon log directory", () => {
+    const content = buildLaunchdPlist("/my/project");
+    expect(content).toContain("/my/project/.kota/daemon.log");
+    expect(content).toContain("/my/project/.kota/daemon.err");
+  });
+});
+
+describe("buildSystemdUnit", () => {
+  it("includes KOTA_PROJECT_DIR environment", () => {
+    const content = buildSystemdUnit("/my/project");
+    expect(content).toContain("KOTA_PROJECT_DIR=/my/project");
+  });
+
+  it("includes Restart=on-failure", () => {
+    const content = buildSystemdUnit("/my/project");
+    expect(content).toContain("Restart=on-failure");
+  });
+
+  it("sets WorkingDirectory to the project dir", () => {
+    const content = buildSystemdUnit("/my/project");
+    expect(content).toContain("WorkingDirectory=/my/project");
+  });
+
+  it("has [Install] section with WantedBy=default.target", () => {
+    const content = buildSystemdUnit("/my/project");
+    expect(content).toContain("[Install]");
+    expect(content).toContain("WantedBy=default.target");
   });
 });

@@ -1,4 +1,6 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import type { KotaExtension } from "../../extension-types.js";
@@ -11,6 +13,8 @@ import { getRegisteredWorkflowDefinitions } from "../../workflow/registry.js";
 import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
+const LAUNCHD_LABEL = "com.kota.daemon";
+const SYSTEMD_SERVICE = "kota-daemon.service";
 
 function parseIntOption(value: string, name: string): number {
   const parsed = Number.parseInt(value, 10);
@@ -101,6 +105,86 @@ async function runDaemonSupervisor(
   }
 }
 
+/** Returns the path to the launchd plist file for macOS. */
+export function getLaunchdPlistPath(): string {
+  return join(homedir(), "Library", "LaunchAgents", `${LAUNCHD_LABEL}.plist`);
+}
+
+/** Returns the path to the systemd user service file for Linux. */
+export function getSystemdServicePath(): string {
+  return join(homedir(), ".config", "systemd", "user", SYSTEMD_SERVICE);
+}
+
+/** Returns true if a service unit file exists for the current OS. */
+export function isServiceInstalled(): boolean {
+  if (process.platform === "darwin") {
+    return existsSync(getLaunchdPlistPath());
+  }
+  if (process.platform === "linux") {
+    return existsSync(getSystemdServicePath());
+  }
+  return false;
+}
+
+/** Generates the macOS launchd plist content. */
+export function buildLaunchdPlist(projectDir: string): string {
+  const kotaBin = process.argv[1]!;
+  const logDir = join(projectDir, ".kota");
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`,
+    `<plist version="1.0">`,
+    `<dict>`,
+    `  <key>Label</key>`,
+    `  <string>${LAUNCHD_LABEL}</string>`,
+    `  <key>ProgramArguments</key>`,
+    `  <array>`,
+    `    <string>${process.execPath}</string>`,
+    ...(process.execArgv.map((arg) => `    <string>${arg}</string>`)),
+    `    <string>${kotaBin}</string>`,
+    `    <string>daemon</string>`,
+    `  </array>`,
+    `  <key>EnvironmentVariables</key>`,
+    `  <dict>`,
+    `    <key>KOTA_PROJECT_DIR</key>`,
+    `    <string>${projectDir}</string>`,
+    `  </dict>`,
+    `  <key>WorkingDirectory</key>`,
+    `  <string>${projectDir}</string>`,
+    `  <key>RunAtLoad</key>`,
+    `  <true/>`,
+    `  <key>KeepAlive</key>`,
+    `  <true/>`,
+    `  <key>StandardOutPath</key>`,
+    `  <string>${logDir}/daemon.log</string>`,
+    `  <key>StandardErrorPath</key>`,
+    `  <string>${logDir}/daemon.err</string>`,
+    `</dict>`,
+    `</plist>`,
+  ].join("\n");
+}
+
+/** Generates the Linux systemd user service unit content. */
+export function buildSystemdUnit(projectDir: string): string {
+  const kotaBin = process.argv[1]!;
+  const execArgs = [...process.execArgv, kotaBin, "daemon"].join(" ");
+  return [
+    `[Unit]`,
+    `Description=KOTA Daemon`,
+    `After=default.target`,
+    ``,
+    `[Service]`,
+    `Type=simple`,
+    `ExecStart=${process.execPath} ${execArgs}`,
+    `WorkingDirectory=${projectDir}`,
+    `Environment=KOTA_PROJECT_DIR=${projectDir}`,
+    `Restart=on-failure`,
+    ``,
+    `[Install]`,
+    `WantedBy=default.target`,
+  ].join("\n");
+}
+
 const daemonModule: KotaExtension = {
   name: "daemon",
   version: "1.0.0",
@@ -159,12 +243,14 @@ const daemonModule: KotaExtension = {
       .description("Show daemon health summary (exits 0 if reachable)")
       .option("--json", "Output as JSON")
       .action(async (opts: { json?: boolean }) => {
+        const managed = isServiceInstalled();
         const client = DaemonControlClient.fromStateDir();
         if (!client) {
           if (opts.json) {
-            console.log(JSON.stringify({ running: false }));
+            console.log(JSON.stringify({ running: false, managed }));
           } else {
             console.error("Daemon is not running.");
+            if (managed) console.log("managed:  yes (OS service installed)");
           }
           process.exitCode = 1;
           return;
@@ -172,15 +258,16 @@ const daemonModule: KotaExtension = {
         const status = await client.getDaemonStatus();
         if (!status) {
           if (opts.json) {
-            console.log(JSON.stringify({ running: false }));
+            console.log(JSON.stringify({ running: false, managed }));
           } else {
             console.error("Daemon is not reachable.");
+            if (managed) console.log("managed:  yes (OS service installed)");
           }
           process.exitCode = 1;
           return;
         }
         if (opts.json) {
-          console.log(JSON.stringify(status));
+          console.log(JSON.stringify({ ...status, managed }));
           return;
         }
         const wf = status.workflow;
@@ -196,6 +283,7 @@ const daemonModule: KotaExtension = {
         console.log(`pending:  ${wf.pendingRuns.length} run(s)`);
         console.log(`sessions: ${status.sessions.length}`);
         console.log(`paused:   ${wf.paused}`);
+        console.log(`managed:  ${managed ? "yes (OS service installed)" : "no"}`);
       });
 
     cmd
@@ -267,6 +355,97 @@ const daemonModule: KotaExtension = {
           return;
         }
         console.log(`Reloaded. ${result.workflows} workflow definition(s) active.`);
+      });
+
+    cmd
+      .command("install")
+      .description("Register the KOTA daemon as a user-level OS service (launchd on macOS, systemd on Linux)")
+      .option("--dry-run", "Print the service unit without installing")
+      .action((opts: { dryRun?: boolean }) => {
+        const projectDir = process.cwd();
+
+        if (process.platform === "darwin") {
+          const plistPath = getLaunchdPlistPath();
+          const content = buildLaunchdPlist(projectDir);
+          if (opts.dryRun) {
+            console.log(`# Would write: ${plistPath}`);
+            console.log(content);
+            return;
+          }
+          mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
+          writeFileSync(plistPath, content, "utf8");
+          const result = spawnSync("launchctl", ["load", plistPath], { encoding: "utf8" });
+          if (result.status !== 0) {
+            console.error(`launchctl load failed:\n${result.stderr || result.stdout}`);
+            process.exitCode = 1;
+            return;
+          }
+          console.log(`Daemon service installed and started.`);
+          console.log(`  plist: ${plistPath}`);
+          console.log(`  label: ${LAUNCHD_LABEL}`);
+          console.log(`To stop: launchctl unload ${plistPath}`);
+        } else if (process.platform === "linux") {
+          const servicePath = getSystemdServicePath();
+          const content = buildSystemdUnit(projectDir);
+          if (opts.dryRun) {
+            console.log(`# Would write: ${servicePath}`);
+            console.log(content);
+            return;
+          }
+          mkdirSync(join(homedir(), ".config", "systemd", "user"), { recursive: true });
+          writeFileSync(servicePath, content, "utf8");
+          const daemon = spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+          if (daemon.status !== 0) {
+            console.error(`systemctl daemon-reload failed:\n${daemon.stderr || daemon.stdout}`);
+            process.exitCode = 1;
+            return;
+          }
+          const enable = spawnSync("systemctl", ["--user", "enable", "--now", SYSTEMD_SERVICE], { encoding: "utf8" });
+          if (enable.status !== 0) {
+            console.error(`systemctl enable failed:\n${enable.stderr || enable.stdout}`);
+            process.exitCode = 1;
+            return;
+          }
+          console.log(`Daemon service installed and started.`);
+          console.log(`  service: ${servicePath}`);
+          console.log(`To stop: systemctl --user stop ${SYSTEMD_SERVICE}`);
+        } else {
+          console.error(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
+          process.exitCode = 1;
+        }
+      });
+
+    cmd
+      .command("uninstall")
+      .description("Remove the KOTA daemon OS service installed by 'daemon install'")
+      .action(() => {
+        if (process.platform === "darwin") {
+          const plistPath = getLaunchdPlistPath();
+          if (!existsSync(plistPath)) {
+            console.error("No KOTA daemon service found. Run 'kota daemon install' first.");
+            process.exitCode = 1;
+            return;
+          }
+          spawnSync("launchctl", ["unload", plistPath], { encoding: "utf8" });
+          rmSync(plistPath);
+          console.log(`Daemon service removed.`);
+          console.log(`  removed: ${plistPath}`);
+        } else if (process.platform === "linux") {
+          const servicePath = getSystemdServicePath();
+          if (!existsSync(servicePath)) {
+            console.error("No KOTA daemon service found. Run 'kota daemon install' first.");
+            process.exitCode = 1;
+            return;
+          }
+          spawnSync("systemctl", ["--user", "disable", "--now", SYSTEMD_SERVICE], { encoding: "utf8" });
+          rmSync(servicePath);
+          spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+          console.log(`Daemon service removed.`);
+          console.log(`  removed: ${servicePath}`);
+        } else {
+          console.error(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
+          process.exitCode = 1;
+        }
       });
 
     return [cmd];
