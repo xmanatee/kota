@@ -12,7 +12,6 @@ import {
 } from "./cli-history.js";
 import { registerCompletionCommands } from "./completion-cli.js";
 import { expandAlias, loadConfig } from "./config.js";
-import { registerConfigCommands } from "./config-cli.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
@@ -171,7 +170,6 @@ program
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
 registerWebhookCommands(program);
-registerConfigCommands(program);
 registerInitCommand(program);
 registerCompletionCommands(program);
 

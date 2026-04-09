@@ -1,10 +1,17 @@
+/**
+ * Config extension — owns the `kota config` CLI surface.
+ *
+ * Registers subcommands: validate, get, set, schema.
+ */
+
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Command } from "commander";
-import { loadConfig, updateProjectConfig } from "./config.js";
-import { KNOWN_CONFIG_KEYS } from "./config-warnings.js";
+import { Command } from "commander";
+import { loadConfig, updateProjectConfig } from "../../config.js";
+import { KNOWN_CONFIG_KEYS } from "../../config-warnings.js";
+import type { KotaExtension } from "../../extension-types.js";
 
 function readRawKeys(path: string): string[] | null {
   if (!existsSync(path)) return null;
@@ -17,12 +24,10 @@ function readRawKeys(path: string): string[] | null {
   }
 }
 
-export function registerConfigCommands(program: Command): void {
-  const config = program
-    .command("config")
-    .description("Inspect and validate KOTA configuration");
+export function buildConfigCommand(): Command {
+  const cmd = new Command("config").description("Inspect and validate KOTA configuration");
 
-  config
+  cmd
     .command("validate")
     .description("Validate and print the resolved merged config")
     .option("--json", "Output only the resolved config as JSON")
@@ -74,7 +79,7 @@ export function registerConfigCommands(program: Command): void {
       console.log(JSON.stringify(resolved, null, 2));
     });
 
-  config
+  cmd
     .command("get <key>")
     .description("Print the value of a config key from the resolved merged config")
     .action((key: string) => {
@@ -97,7 +102,7 @@ export function registerConfigCommands(program: Command): void {
       }
     });
 
-  config
+  cmd
     .command("set <key> <value>")
     .description("Set a config key in the project-level .kota/config.json")
     .action((key: string, value: string) => {
@@ -124,16 +129,32 @@ export function registerConfigCommands(program: Command): void {
       });
     });
 
-  config
+  cmd
     .command("schema")
     .description("Print the path to the kota-config JSON Schema file")
     .option("--print", "Print the schema content instead of the path")
     .action((opts: { print?: boolean }) => {
-      const schemaPath = fileURLToPath(new URL("../schema/kota-config.schema.json", import.meta.url));
+      const schemaPath = fileURLToPath(new URL("../../../schema/kota-config.schema.json", import.meta.url));
       if (opts.print) {
         process.stdout.write(`${readFileSync(schemaPath, "utf-8")}\n`);
       } else {
         process.stdout.write(`${schemaPath}\n`);
       }
     });
+
+  return cmd;
 }
+
+/** @deprecated Use buildConfigCommand() instead — kept for test compatibility */
+export function registerConfigCommands(program: Command): void {
+  program.addCommand(buildConfigCommand());
+}
+
+const configModule: KotaExtension = {
+  name: "config",
+  version: "1.0.0",
+  description: "Config CLI surface — kota config get/set/validate/schema",
+  commands: () => [buildConfigCommand()],
+};
+
+export default configModule;

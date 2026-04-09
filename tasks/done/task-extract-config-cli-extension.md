@@ -1,12 +1,12 @@
 ---
 id: task-extract-config-cli-extension
 title: Move config-cli.ts into a dedicated config extension
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/config-cli.ts (139 lines) implements kota config get/set/list/validate and lives as a standalone core file. Moving it into a new src/extensions/config/ extension continues the operator CLI surface migration.
 created_at: 2026-04-09T07:40:09Z
-updated_at: 2026-04-09T10:34:06Z
+updated_at: 2026-04-09T11:42:00Z
 ---
 
 ## Problem
