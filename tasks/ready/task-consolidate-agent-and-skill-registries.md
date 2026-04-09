@@ -1,21 +1,22 @@
 ---
 id: task-consolidate-agent-and-skill-registries
 title: Consolidate agent and skill registries into dedicated extensions
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: architecture
 summary: Agent and skill discovery and registration is spread across core files. Consolidating into focused extensions would clarify ownership and reduce core responsibilities around contributor registration.
 created_at: 2026-04-09T06:34:00Z
-updated_at: 2026-04-09T06:34:00Z
+updated_at: 2026-04-09T06:19:00Z
 ---
 
 ## Problem
 
-KOTA has `SkillDef` and `AgentDef` contribution mechanisms but agent and skill discovery is
-scattered across core files (`agents/` directory, `extension-context.ts` for registration,
-`agent-cli.ts` for listing/inspection). The registry logic is decentralized, making it hard
-to understand the full flow and difficult to extend with new discovery sources (e.g., pulling
-agents/skills from an external registry).
+KOTA has `SkillDef` and `AgentDef` contribution mechanisms but agent and skill ownership
+is split across core files: `src/agents/index.ts` holds the built-in agent registry,
+`src/agent-cli.ts` provides `registerAgentCommands` and `registerSkillCommands` (both still
+imported by core `src/cli.ts`), and extension context wires registration. Recent builder work
+moved most operator CLI commands into owning extensions, but the agent and skill CLI surfaces
+remain in core. This is the remaining visible debt from that migration.
 
 ## Desired Outcome
 
