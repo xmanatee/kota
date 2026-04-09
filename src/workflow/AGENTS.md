@@ -9,7 +9,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 - `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, `typedCodeStep` factory, and related config.
 - `run-types.ts` — Runtime execution types: run status (`WorkflowRunStatus`, including `completed-with-warnings`), step status, active run, queued run, execution context, predicates, repair config, step/run results (`WorkflowStepResult` includes optional `toolCalls?: ToolCallSummaryEntry[]`), and `WorkflowRunWarning` (structured warning stored in `WorkflowRunMetadata.warnings`).
-- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. Includes `enableWorkflow`/`disableWorkflow` for runtime-only per-workflow enable/disable overrides; `getDispatchWindowStatus()` returns `{ blocked, opensAt? }` for the daemon `/status` response.
+- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. Includes `enableWorkflow`/`disableWorkflow` for runtime-only per-workflow enable/disable overrides; `getDispatchWindowStatus()` returns `{ blocked, opensAt? }` for the daemon `/status` response. On startup, emits `workflow.interrupted.alert` for each stale run recovered by `recoverInterruptedRuns()` and logs a startup summary.
 - `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface. Idle triggers respect `scheduler.dispatchWindow` from config.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
@@ -33,7 +33,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `validation-trigger.ts` — `validateTrigger` and trigger-type-specific validation helpers.
 - `validation-steps.ts` — Thin re-export barrel for `step-validators/`.
 - `step-validators/` — Per-step-type validator modules (agent, approval, branch, code, emit, foreach, restart, tool, parallel, trigger).
-- `run-store.ts` — `WorkflowRunStore`: directory management, list/load/delete runs. Re-exports `ActiveWorkflowRunHandle`.
+- `run-store.ts` — `WorkflowRunStore`: directory management, list/load/delete runs, `recoverInterruptedRuns()` (marks stale running runs as interrupted on daemon startup and writes `error.txt` with reason). Re-exports `ActiveWorkflowRunHandle`.
 - `active-run-handle.ts` — `ActiveWorkflowRunHandle` and `createActiveRunHandle`: append messages, record steps, finish runs.
 - `run-store-helpers.ts` — Runtime-state validation/assertion helpers, snapshot and summary builders. Re-exports from `run-io.ts`.
 - `run-io.ts` — Generic file IO utilities: `ensureDir`, `safeJsonStringify`, `writeJsonFile`, `formatRunId`.
