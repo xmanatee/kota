@@ -78,6 +78,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         definitionsLoadedAt: wfState.definitionsLoadedAt,
         workflows: wfState.workflows,
         paused: workflows.isDispatchPaused(),
+        agentConcurrency: wfState.agentConcurrency,
+        codeConcurrency: wfState.codeConcurrency,
         ...(windowStatus.blocked && {
           dispatchWindowBlocked: true,
           dispatchWindowOpensAt: windowStatus.opensAt,

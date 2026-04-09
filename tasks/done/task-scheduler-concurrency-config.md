@@ -1,7 +1,7 @@
 ---
 id: task-scheduler-concurrency-config
 title: Expose workflow agent and code concurrency limits in kota.json config
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The workflow runtime has agentConcurrency (default 1) and codeConcurrency (default 4) limits that control how many agent or code workflows run in parallel, but neither is configurable via kota.json. Operators building custom parallel workflows have no way to tune these without source changes.

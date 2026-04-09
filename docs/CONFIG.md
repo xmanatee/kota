@@ -112,6 +112,8 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `runsGc` — run artifact retention policy
 - `webhooks` — per-workflow webhook secrets
 - `scheduler.dispatchWindow` — restrict idle and interval triggers to specific hours/days (see below)
+- `scheduler.agentConcurrency` — maximum agent-step workflows running simultaneously (default: 1)
+- `scheduler.codeConcurrency` — maximum code-only workflows running simultaneously (default: 4)
 - `notifications.quietHours` — suppress non-critical channel notifications outside specified hours (see below)
 - `workflow.maxStepOutputBytes` — cap step output size to prevent large outputs flooding disk and agent context (see below)
 - `mcp.sampling.enabled` — allow MCP clients to delegate LLM completions to KOTA (default: `false`; see `docs/MCP.md`)
@@ -189,6 +191,30 @@ When dispatch is blocked by the window, `GET /workflow/status` includes `dispatc
 and `dispatchWindowOpensAt` (ISO timestamp of when the window next opens). `kota workflow status`
 prints `Dispatch: blocked by window (opens Mon 09:00)` and the web UI shows a badge next to the
 Pause/Resume button.
+
+### agentConcurrency and codeConcurrency
+
+Control how many workflows may execute simultaneously.
+
+```json
+{
+  "scheduler": {
+    "agentConcurrency": 2,
+    "codeConcurrency": 8
+  }
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `agentConcurrency` | `1` | Maximum number of agent-step workflows running at once. Raise to allow parallel custom agent workflows. |
+| `codeConcurrency` | `4` | Maximum number of code-only (no agent step) workflows running at once. |
+
+Both values must be positive integers. Zero or negative values produce a config warning at startup and fall back to the defaults.
+
+The built-in autonomous loop (explorer → builder → improver) is unaffected — each workflow runs independently and the default of 1 already serializes agent dispatch correctly.
+
+Active limits are shown in `kota workflow status` under `Concurrency: agent=N, code=N` when the daemon is running.
 
 ## Notifications
 

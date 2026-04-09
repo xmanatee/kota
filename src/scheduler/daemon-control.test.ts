@@ -18,6 +18,8 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     completedRuns: 0,
     workflows: {},
     paused: false,
+    agentConcurrency: 1,
+    codeConcurrency: 4,
   };
   return {
     getDaemonLiveState: vi.fn(() => ({
@@ -171,6 +173,8 @@ describe("DaemonControlServer", () => {
           completedRuns: 1,
           workflows: {},
           paused: true,
+          agentConcurrency: 1,
+          codeConcurrency: 4,
         })),
       });
       await server.stop();
@@ -1031,6 +1035,7 @@ describe("DaemonControlServer", () => {
         listApprovals: vi.fn(() => [{ id: "a1", tool: "Bash", input: {}, risk: "moderate" as const, reason: "test", createdAt: "2026-01-01T00:00:00Z", status: "pending" as const }]),
         getWorkflowLiveStatus: vi.fn(() => ({
           activeRuns: [], pendingRuns: [], queueLength: 0, completedRuns: 17, workflows: {}, paused: true,
+          agentConcurrency: 1, codeConcurrency: 4,
         })),
       });
       await server.stop();
@@ -1062,6 +1067,8 @@ describe("DaemonControlServer", () => {
           completedRuns: 0,
           workflows: {},
           paused: false,
+          agentConcurrency: 1,
+          codeConcurrency: 4,
         })),
       });
       await server.stop();

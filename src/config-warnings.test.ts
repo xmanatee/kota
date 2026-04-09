@@ -2,7 +2,7 @@ import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KNOWN_CONFIG_KEYS, warnUnknownConfigKeys } from "./config-warnings.js";
+import { KNOWN_CONFIG_KEYS, warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "./config-warnings.js";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -85,10 +85,103 @@ describe("KNOWN_CONFIG_KEYS", () => {
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "extensions", "foreignExtensions", "providers", "modelProvider",
       "modelTiers", "agentModels", "webhooks", "approvalTtlMs", "dailyBudgetUsd",
-      "runsGc", "serve", "log", "daemon", "notifications",
+      "runsGc", "serve", "log", "daemon", "notifications", "scheduler", "workflow",
     ];
     for (const key of expected) {
       expect(KNOWN_CONFIG_KEYS.has(key), `missing key: ${key}`).toBe(true);
     }
+  });
+});
+
+describe("warnInvalidConcurrencyConfig", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("emits no warnings for valid positive integer concurrency values", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: { agentConcurrency: 2, codeConcurrency: 8 } }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("warns for zero agentConcurrency", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: { agentConcurrency: 0 } }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("agentConcurrency");
+    expect(warnings[0]).toContain("positive integer");
+  });
+
+  it("warns for negative codeConcurrency", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: { codeConcurrency: -1 } }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("codeConcurrency");
+  });
+
+  it("warns for non-integer value", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: { agentConcurrency: 1.5 } }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("agentConcurrency");
+  });
+
+  it("warns for non-number value", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: { agentConcurrency: "two" } }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("agentConcurrency");
+  });
+
+  it("emits no warnings when config file does not exist", () => {
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("emits no warnings when scheduler key is absent", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ model: "claude-sonnet-4-6" }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("emits no warnings when concurrency keys are absent from scheduler", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: { dispatchWindow: { start: "09:00", end: "18:00" } } }),
+    );
+    const warnings: string[] = [];
+    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(0);
   });
 });

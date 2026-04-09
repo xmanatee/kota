@@ -3,7 +3,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { ChannelAdapter, ChannelDef } from "../channel.js";
 import type { KotaConfig } from "../config.js";
-import { warnUnknownConfigKeys } from "../config-warnings.js";
+import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "../config-warnings.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
@@ -100,6 +100,8 @@ export class Daemon {
       verbose: config.verbose,
       config: config.config,
       idleIntervalMs: config.idleIntervalMs,
+      agentConcurrency: config.config?.scheduler?.agentConcurrency,
+      codeConcurrency: config.config?.scheduler?.codeConcurrency,
       onLog: (message) => this.log(message),
       workflows: config.workflows,
     });
@@ -138,6 +140,7 @@ export class Daemon {
 
     this.log("Daemon starting...");
     warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg));
+    warnInvalidConcurrencyConfig(this.projectDir, (msg) => this.log(msg));
     this.saveState();
 
     // Register signal handlers before any awaits so callers can observe them immediately.

@@ -206,6 +206,8 @@ export function registerControlCommands(wfCmd: Command): void {
             dailyBudget: undefined,
             dispatchWindowBlocked: wf.dispatchWindowBlocked,
             dispatchWindowOpensAt: wf.dispatchWindowOpensAt,
+            agentConcurrency: wf.agentConcurrency,
+            codeConcurrency: wf.codeConcurrency,
           });
           return;
         }
@@ -260,6 +262,8 @@ type StatusOptions = {
   dailyBudget: number | undefined;
   dispatchWindowBlocked?: boolean;
   dispatchWindowOpensAt?: string;
+  agentConcurrency?: number;
+  codeConcurrency?: number;
 };
 
 function printWorkflowStatus(opts: StatusOptions): void {
@@ -345,6 +349,11 @@ function printWorkflowStatus(opts: StatusOptions): void {
     console.log(
       `Agent backoff:        ${opts.agentBackoff.kind} until ${formatDate(opts.agentBackoff.until)} (attempt ${opts.agentBackoff.failureCount})`,
     );
+  }
+  if (opts.agentConcurrency != null || opts.codeConcurrency != null) {
+    const agentLimit = opts.agentConcurrency ?? 1;
+    const codeLimit = opts.codeConcurrency ?? 4;
+    console.log(`Concurrency:          agent=${agentLimit}, code=${codeLimit}`);
   }
   if (opts.definitionsLoadedAt) {
     console.log(`Definitions loaded:   ${formatDate(opts.definitionsLoadedAt)}`);

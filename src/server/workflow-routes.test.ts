@@ -153,6 +153,8 @@ describe("workflow-routes", () => {
         completedRuns: 3,
         workflows: {},
         paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
       };
       const client = mockClient({ getWorkflowStatus: async () => liveStatus });
       const { res, result } = mockResponse();
@@ -173,6 +175,8 @@ describe("workflow-routes", () => {
           completedRuns: 0,
           workflows: {},
           paused: true,
+          agentConcurrency: 1,
+          codeConcurrency: 4,
         }),
       });
       const { res, result } = mockResponse();

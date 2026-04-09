@@ -50,6 +50,10 @@ export type WorkflowLiveStatus = {
   dispatchWindowBlocked?: boolean;
   /** ISO timestamp of the next time the dispatch window opens (when blocked). */
   dispatchWindowOpensAt?: string;
+  /** Active agent workflow concurrency limit (from scheduler.agentConcurrency or default 1). */
+  agentConcurrency: number;
+  /** Active code workflow concurrency limit (from scheduler.codeConcurrency or default 4). */
+  codeConcurrency: number;
 };
 
 export type DaemonLiveStatus = DaemonState & {

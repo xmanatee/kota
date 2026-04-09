@@ -171,6 +171,58 @@ describe("loadConfig", () => {
     const config = loadConfig(tmpDir);
     expect(config.autoEnable).toEqual(["web", "code"]); // filters invalid entries
   });
+
+  it("loads scheduler.agentConcurrency and scheduler.codeConcurrency", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ scheduler: { agentConcurrency: 2, codeConcurrency: 8 } }),
+    );
+
+    const config = loadConfig(tmpDir);
+    expect(config.scheduler?.agentConcurrency).toBe(2);
+    expect(config.scheduler?.codeConcurrency).toBe(8);
+  });
+
+  it("ignores scheduler.agentConcurrency when invalid (zero, negative, non-integer)", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+
+    for (const val of [0, -1, 1.5, "two"]) {
+      writeFileSync(
+        join(configDir, "config.json"),
+        JSON.stringify({ scheduler: { agentConcurrency: val } }),
+      );
+      const config = loadConfig(tmpDir);
+      expect(config.scheduler?.agentConcurrency).toBeUndefined();
+    }
+  });
+
+  it("ignores scheduler.codeConcurrency when invalid", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ scheduler: { codeConcurrency: 0 } }),
+    );
+
+    const config = loadConfig(tmpDir);
+    expect(config.scheduler?.codeConcurrency).toBeUndefined();
+  });
+
+  it("preserves other scheduler keys when concurrency values are invalid", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ scheduler: { agentConcurrency: 0, dispatchWindow: { start: "09:00", end: "18:00" } } }),
+    );
+
+    const config = loadConfig(tmpDir);
+    expect(config.scheduler?.agentConcurrency).toBeUndefined();
+    expect(config.scheduler?.dispatchWindow).toBeDefined();
+  });
 });
 
 describe("buildUserProfile", () => {

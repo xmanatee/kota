@@ -180,6 +180,16 @@ export type KotaConfig = {
      * { "start": "09:00", "end": "18:00", "days": ["mon","tue","wed","thu","fri"] }
      */
     dispatchWindow?: DispatchWindow;
+    /**
+     * Maximum number of agent-step workflows that may run simultaneously.
+     * Must be a positive integer. Default: 1 (serial agent dispatch).
+     */
+    agentConcurrency?: number;
+    /**
+     * Maximum number of code-only (no agent step) workflows that may run
+     * simultaneously. Must be a positive integer. Default: 4.
+     */
+    codeConcurrency?: number;
   };
 
   /** Workflow runtime settings. */
@@ -387,6 +397,12 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
         }
         s.dispatchWindow = window;
       }
+    }
+    if (typeof src.agentConcurrency === "number" && src.agentConcurrency > 0 && Number.isInteger(src.agentConcurrency)) {
+      s.agentConcurrency = src.agentConcurrency;
+    }
+    if (typeof src.codeConcurrency === "number" && src.codeConcurrency > 0 && Number.isInteger(src.codeConcurrency)) {
+      s.codeConcurrency = src.codeConcurrency;
     }
     if (Object.keys(s).length > 0) out.scheduler = s;
   }

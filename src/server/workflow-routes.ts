@@ -13,6 +13,8 @@ const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
   completedRuns: 0,
   workflows: {},
   paused: false,
+  agentConcurrency: 1,
+  codeConcurrency: 4,
 };
 
 export async function handleWorkflowStatus(

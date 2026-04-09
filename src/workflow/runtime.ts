@@ -362,11 +362,13 @@ export class WorkflowRuntime {
     return { ok: true };
   }
 
-  getState(): WorkflowRuntimeState & { queueLength: number } {
+  getState(): WorkflowRuntimeState & { queueLength: number; agentConcurrency: number; codeConcurrency: number } {
     const state = this.store.readState();
     return {
       ...state,
       queueLength: this.wfQueue.length,
+      agentConcurrency: this.agentConcurrency,
+      codeConcurrency: this.codeConcurrency,
     };
   }
 
