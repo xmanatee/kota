@@ -10,6 +10,7 @@ alerts to external services.
 |---|---|---|
 | `workflow.failure.alert` | A workflow run ends with status `failed` or `interrupted` | No |
 | `workflow.budget.exceeded` | Daily cost budget is exceeded | No |
+| `workflow.budget.warning` | Daily cost crosses the configured `budget.warnAt` soft-limit threshold | No |
 | `workflow.attention.digest` | The attention digest fires (configurable interval) | No |
 | `workflow.cost.limit.reached` | The hard cost circuit breaker trips | No |
 | `workflow.cost.anomaly` | A run's cost significantly exceeds the historical baseline (requires `costAnomalyThreshold`) | Yes |

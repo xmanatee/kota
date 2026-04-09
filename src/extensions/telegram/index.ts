@@ -91,6 +91,11 @@ const telegramModule: KotaExtension = {
         if (!creds) return;
         void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
       }),
+      ctx.events.subscribe("workflow.budget.warning", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
       ctx.events.subscribe("workflow.attention.digest", (payload) => {
         const creds = getCredentials();
         if (!creds) return;

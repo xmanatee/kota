@@ -108,11 +108,29 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `serve.noAuth` — disable bearer-token auth for `kota serve` (dev only)
 - `serve.showCost` — show per-turn cost line in terminal output (default: `true`; set to `false` to suppress, or pass `--no-cost` CLI flag)
 - `dailyBudgetUsd` — cap autonomous spend per UTC calendar day
+- `budget.warnAt` — soft-limit threshold (0–1 fraction); fires a one-time channel notification before the hard stop
 - `runsGc` — run artifact retention policy
 - `webhooks` — per-workflow webhook secrets
 - `scheduler.dispatchWindow` — restrict idle and interval triggers to specific hours/days (see below)
 - `workflow.maxStepOutputBytes` — cap step output size to prevent large outputs flooding disk and agent context (see below)
 - `mcp.sampling.enabled` — allow MCP clients to delegate LLM completions to KOTA (default: `false`; see `docs/MCP.md`)
+
+## Budget
+
+### budget.warnAt
+
+Fires a one-time channel notification (`workflow.budget.warning`) when daily spend crosses a configurable fraction of `dailyBudgetUsd`. The warning resets each UTC day alongside the budget.
+
+```json
+{
+  "dailyBudgetUsd": 10.0,
+  "budget": {
+    "warnAt": 0.8
+  }
+}
+```
+
+With this config, a notification fires when daily spend reaches $8.00 (80% of $10.00). The hard stop at $10.00 still applies. Omitting `budget.warnAt` disables soft-limit warnings.
 
 ## Workflow
 

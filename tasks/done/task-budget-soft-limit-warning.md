@@ -1,7 +1,7 @@
 ---
 id: task-budget-soft-limit-warning
 title: Add configurable budget soft-limit warning before hard stop
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The budget guard stops execution when the daily cost limit is hit with no advance warning. A configurable soft-limit threshold (e.g., 80%) that sends a channel notification before the hard stop lets operators intervene or adjust before workflows are terminated.

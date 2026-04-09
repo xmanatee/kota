@@ -121,6 +121,12 @@ export type BusEvents = {
     budget: number;
     text: string;
   };
+  "workflow.budget.warning": {
+    dailySpend: number;
+    budget: number;
+    warnAt: number;
+    text: string;
+  };
   "workflow.attention.digest": {
     items: { label: string; detail: string }[];
     text: string;

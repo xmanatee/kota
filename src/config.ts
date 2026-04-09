@@ -83,6 +83,16 @@ export type KotaConfig = {
   /** Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded. */
   dailyBudgetUsd?: number;
 
+  /** Budget warning settings. */
+  budget?: {
+    /**
+     * Fraction of dailyBudgetUsd at which a one-time soft-limit warning notification fires.
+     * Must be between 0 and 1 (exclusive). Example: 0.8 warns at 80% of the daily limit.
+     * Omitting this field disables soft-limit warnings.
+     */
+    warnAt?: number;
+  };
+
   /**
    * Run artifact retention policy for `.kota/runs/`.
    * Applied when `kota workflow gc` is run explicitly.
@@ -269,6 +279,13 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
   if (typeof raw.approvalTtlMs === "number" && raw.approvalTtlMs > 0) out.approvalTtlMs = raw.approvalTtlMs;
   if (typeof raw.dailyBudgetUsd === "number" && raw.dailyBudgetUsd > 0) out.dailyBudgetUsd = raw.dailyBudgetUsd;
 
+  if (typeof raw.budget === "object" && raw.budget !== null && !Array.isArray(raw.budget)) {
+    const src = raw.budget as Record<string, unknown>;
+    const b: KotaConfig["budget"] = {};
+    if (typeof src.warnAt === "number" && src.warnAt > 0 && src.warnAt < 1) b.warnAt = src.warnAt;
+    if (Object.keys(b).length > 0) out.budget = b;
+  }
+
   if (typeof raw.runsGc === "object" && raw.runsGc !== null && !Array.isArray(raw.runsGc)) {
     const gc: KotaConfig["runsGc"] = {};
     const src = raw.runsGc as Record<string, unknown>;
@@ -433,6 +450,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
     } else if (key === "foreignExtensions" && Array.isArray(val)) {
       // Project foreign extensions append to global
       merged.foreignExtensions = [...(a.foreignExtensions ?? []), ...(val as ForeignExtensionConfig[])];
+    } else if (key === "budget" && typeof val === "object") {
+      merged.budget = { ...a.budget, ...(val as KotaConfig["budget"]) };
     } else if (key === "notifications" && typeof val === "object") {
       merged.notifications = { ...a.notifications, ...(val as KotaConfig["notifications"]) };
     } else if (key === "scheduler" && typeof val === "object") {

@@ -18,6 +18,7 @@ import { postWithRetry } from "../notify-retry.js";
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
   "workflow.budget.exceeded",
+  "workflow.budget.warning",
   "workflow.attention.digest",
   "workflow.cost.limit.reached",
   "workflow.cost.anomaly",

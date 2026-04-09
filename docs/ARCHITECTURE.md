@@ -120,7 +120,7 @@ has to stay in core.
   internals.
 - Notification callers (`BudgetGuard`, `AttentionDigest`, `subscribeWorkflowFailureAlert`)
   emit typed bus events (`workflow.failure.alert`, `workflow.budget.exceeded`,
-  `workflow.attention.digest`, `workflow.cost.limit.reached`) rather than calling
+  `workflow.budget.warning`, `workflow.attention.digest`, `workflow.cost.limit.reached`) rather than calling
   Telegram directly. Extensions subscribe via `ExtensionEventProxy.subscribe()` in
   their `onLoad` hook and unsubscribe in `onUnload`. A second notification consumer
   (Slack, email, webhook) can now subscribe to these events without touching the

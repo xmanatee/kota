@@ -19,6 +19,7 @@ import { postWithRetry } from "../notify-retry.js";
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
   "workflow.budget.exceeded",
+  "workflow.budget.warning",
   "workflow.attention.digest",
   "workflow.cost.limit.reached",
   "workflow.cost.anomaly",
@@ -74,6 +75,25 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
         divider,
         section(
           [
+            budget !== undefined ? `*Budget:* $${budget.toFixed(2)}` : null,
+            dailySpend !== undefined ? `*Daily spend:* $${dailySpend.toFixed(2)}` : null,
+          ]
+            .filter(Boolean)
+            .join("  ·  ") || (payload.text as string) || "",
+        ),
+      ];
+    }
+    case "workflow.budget.warning": {
+      const dailySpend = payload.dailySpend as number | undefined;
+      const budget = payload.budget as number | undefined;
+      const warnAt = payload.warnAt as number | undefined;
+      const pct = warnAt !== undefined ? `${Math.round(warnAt * 100)}%` : undefined;
+      return [
+        header("Budget Soft-Limit Warning"),
+        divider,
+        section(
+          [
+            pct !== undefined ? `*Threshold:* ${pct}` : null,
             budget !== undefined ? `*Budget:* $${budget.toFixed(2)}` : null,
             dailySpend !== undefined ? `*Daily spend:* $${dailySpend.toFixed(2)}` : null,
           ]

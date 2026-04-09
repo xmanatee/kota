@@ -201,11 +201,14 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
   if (existsSync(join(state.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
 
   const budget = state.config?.dailyBudgetUsd;
+  const warnAt = state.config?.budget?.warnAt;
   if (budget != null && state.budgetGuard.check(
     state.store,
     budget,
     (msg) => state.log(msg),
     (dailySpend, budgetAmt, text) => state.runtimeConfig.bus.emit("workflow.budget.exceeded", { dailySpend, budget: budgetAmt, text }),
+    warnAt,
+    (dailySpend, budgetAmt, warnAtVal, text) => state.runtimeConfig.bus.emit("workflow.budget.warning", { dailySpend, budget: budgetAmt, warnAt: warnAtVal, text }),
   )) return;
 
   let queued: ReturnType<typeof state.wfQueue.pick>;

@@ -160,6 +160,193 @@ describe("WorkflowRunStore.getDailySpendUsd", () => {
   });
 });
 
+describe("BudgetGuard soft-limit warning", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-budget-warn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("emits warning when spend crosses the soft-limit threshold", async () => {
+    const bus = new EventBus();
+    const warningEvents: Record<string, unknown>[] = [];
+    bus.on("workflow.budget.warning", (payload) => warningEvents.push(payload));
+
+    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    // 0.9 spent of 1.0 budget = 90%, crosses 80% warnAt
+    writeRunMetadata(store.runsDir, "prior-run", 0.9, `${todayUtc}T06:00:00.000Z`);
+
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: "success",
+      isError: false,
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      config: { dailyBudgetUsd: 1.0, budget: { warnAt: 0.8 } },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(warningEvents.length).toBeGreaterThan(0);
+    const evt = warningEvents[0];
+    expect(evt.warnAt).toBe(0.8);
+    expect(evt.budget).toBe(1.0);
+    expect((evt.text as string)).toContain("80%");
+  });
+
+  it("does not emit warning when spend is below the soft-limit threshold", async () => {
+    const bus = new EventBus();
+    const warningEvents: Record<string, unknown>[] = [];
+    bus.on("workflow.budget.warning", (payload) => warningEvents.push(payload));
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    // 0.5 spent of 1.0 budget = 50%, below 80% warnAt
+    writeRunMetadata(store.runsDir, "prior-run", 0.5, `${todayUtc}T06:00:00.000Z`);
+
+    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: "success",
+      isError: false,
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      config: { dailyBudgetUsd: 1.0, budget: { warnAt: 0.8 } },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(warningEvents).toHaveLength(0);
+  });
+
+  it("emits soft-limit warning at most once per UTC day", async () => {
+    const bus = new EventBus();
+    const warningEvents: Record<string, unknown>[] = [];
+    bus.on("workflow.budget.warning", (payload) => warningEvents.push(payload));
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    writeRunMetadata(store.runsDir, "prior-run", 0.9, `${todayUtc}T06:00:00.000Z`);
+
+    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0.001,
+      subtype: "success",
+      isError: false,
+    });
+
+    // Run for long enough to trigger multiple dispatch cycles
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      config: { dailyBudgetUsd: 1.0, budget: { warnAt: 0.8 } },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(120);
+    await runtime.stop();
+
+    expect(warningEvents).toHaveLength(1);
+  });
+
+  it("omitting budget.warnAt causes no warning notifications", async () => {
+    const bus = new EventBus();
+    const warningEvents: Record<string, unknown>[] = [];
+    bus.on("workflow.budget.warning", (payload) => warningEvents.push(payload));
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const store = new WorkflowRunStore(projectDir);
+    writeRunMetadata(store.runsDir, "prior-run", 0.9, `${todayUtc}T06:00:00.000Z`);
+
+    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mockedExecuteWithAgentSDK.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: "success",
+      isError: false,
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      config: { dailyBudgetUsd: 1.0 },
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(warningEvents).toHaveLength(0);
+  });
+});
+
 describe("WorkflowRuntime budget enforcement", () => {
   let projectDir: string;
 
