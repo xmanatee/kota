@@ -1,12 +1,12 @@
 ---
 id: task-extract-daemon-cli-commands
 title: Move daemon-facing CLI commands (events, session, status) into the daemon extension
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: architecture
 summary: events-cli.ts, session-cli.ts, and status-cli.ts are standalone core files that each implement one daemon interaction command (kota events tail, kota session list, kota status). All three query the DaemonControlClient and have no business in core; they belong in src/extensions/daemon/.
 created_at: 2026-04-09T07:40:09Z
-updated_at: 2026-04-09T07:40:09Z
+updated_at: 2026-04-09T08:14:19Z
 ---
 
 ## Problem
