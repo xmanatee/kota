@@ -42,6 +42,7 @@ export const CLIENT_APPROVALS_JS = `
             (truncated ? '<button class="approval-input-full" onclick="var p=this.previousElementSibling;p.textContent=p.dataset.full;this.remove()">Show full input</button>' : '') +
             '</details>';
         })() +
+        (a.context ? '<details class="approval-context"><summary class="approval-input-toggle">Why?</summary><pre class="approval-input-pre">' + escapeHtml(a.context) + '</pre></details>' : '') +
         '<div class="approval-actions">' +
         '<button class="approval-btn approval-approve" data-id="' + escapeHtml(a.id) + '">\u2713 Approve</button>' +
         '<button class="approval-btn approval-reject" data-id="' + escapeHtml(a.id) + '">\u2717 Reject</button>' +

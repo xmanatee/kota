@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   executeToolCalls,
+  extractApprovalContext,
   FailureTracker,
   type ToolResultEntry,
 } from "./tool-runner.js";
@@ -369,6 +370,8 @@ describe("guardrails confirm gate", () => {
       "destructive command pattern detected",
       "session-1",
       undefined,
+      undefined,
+      undefined,
     );
   });
 
@@ -395,6 +398,34 @@ describe("guardrails confirm gate", () => {
     );
   });
 
+  it("passes conversation context to enqueue when messages provided", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q2" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "queue" as const });
+
+    const messages = [
+      { role: "user" as const, content: "Please delete old temp files" },
+      { role: "assistant" as const, content: "I will delete files in /tmp/old to free space" },
+    ];
+
+    await executeToolCalls(
+      [toolBlock("shell", { command: "rm -rf /tmp/old" })],
+      50000,
+      false,
+      undefined,
+      undefined,
+      { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+      "session-2",
+      messages,
+    );
+
+    const enqueueArgs: unknown[] = mockEnqueue.mock.calls[0] as unknown[];
+    const contextArg = enqueueArgs[7];
+    expect(typeof contextArg).toBe("string");
+    expect(contextArg as string).toContain("Please delete old temp files");
+    expect(contextArg as string).toContain("delete files in /tmp/old");
+  });
+
   it("records assessment to audit store", async () => {
     const mockRecord = vi.fn();
     mockGetAuditStore.mockReturnValue({ record: mockRecord } as any);
@@ -414,5 +445,69 @@ describe("guardrails confirm gate", () => {
       expect.objectContaining({ tool: "shell", risk: "dangerous", policy: "deny" }),
       "session-42",
     );
+  });
+});
+
+describe("extractApprovalContext", () => {
+  it("returns undefined for empty messages", () => {
+    expect(extractApprovalContext([])).toBeUndefined();
+  });
+
+  it("returns undefined when all messages have no text", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [{ type: "tool_result" as const, tool_use_id: "x", content: "result" }],
+      },
+    ];
+    expect(extractApprovalContext(messages)).toBeUndefined();
+  });
+
+  it("extracts text from string content messages", () => {
+    const messages = [
+      { role: "user" as const, content: "What is the weather?" },
+      { role: "assistant" as const, content: "I will check the weather for you." },
+    ];
+    const ctx = extractApprovalContext(messages);
+    expect(ctx).toContain("User: What is the weather?");
+    expect(ctx).toContain("Assistant: I will check the weather for you.");
+  });
+
+  it("extracts text blocks from array content", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "text" as const, text: "Processing your request" },
+          { type: "tool_use" as const, id: "t1", name: "shell", input: {} },
+        ],
+      },
+    ];
+    const ctx = extractApprovalContext(messages);
+    expect(ctx).toContain("Processing your request");
+  });
+
+  it("respects turns limit", () => {
+    const messages = [
+      { role: "user" as const, content: "message 1" },
+      { role: "assistant" as const, content: "response 1" },
+      { role: "user" as const, content: "message 2" },
+      { role: "assistant" as const, content: "response 2" },
+      { role: "user" as const, content: "message 3" },
+    ];
+    const ctx = extractApprovalContext(messages, 2);
+    expect(ctx).not.toContain("message 1");
+    expect(ctx).not.toContain("response 1");
+    expect(ctx).toContain("response 2");
+    expect(ctx).toContain("message 3");
+  });
+
+  it("truncates output at maxChars", () => {
+    const longText = "x".repeat(3000);
+    const messages = [{ role: "assistant" as const, content: longText }];
+    const ctx = extractApprovalContext(messages, 3, 100);
+    expect(ctx).toBeDefined();
+    expect(ctx!.length).toBeLessThanOrEqual(101); // 100 chars + ellipsis
+    expect(ctx).toMatch(/…$/);
   });
 });

@@ -114,6 +114,18 @@ describe("ApprovalQueue", () => {
 		expect(item.source).toBe("session-123");
 	});
 
+	it("stores context in enqueued item when provided", () => {
+		const ctx = "User: delete temp files\nAssistant: I will remove /tmp/old";
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, undefined, undefined, ctx);
+		expect(item.context).toBe(ctx);
+		expect(queue.get(item.id)!.context).toBe(ctx);
+	});
+
+	it("does not store context when not provided", () => {
+		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		expect(item.context).toBeUndefined();
+	});
+
 	describe("expireStale", () => {
 		function backdate(id: string, ageMs: number): void {
 			const stored = queue.get(id)!;

@@ -62,6 +62,10 @@ export function registerApprovalCommands(program: Command): void {
         console.log(`    Risk:   ${item.risk}`);
         console.log(`    Reason: ${item.reason}`);
         if (item.source) console.log(`    Source: ${item.source}`);
+        if (item.context) {
+          const lastLine = item.context.split("\n").filter(Boolean).at(-1) ?? "";
+          console.log(`    Why:    ${lastLine.slice(0, 120)}`);
+        }
         console.log();
       }
     });

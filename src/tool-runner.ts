@@ -1,3 +1,4 @@
+import type Anthropic from "@anthropic-ai/sdk";
 import { getApprovalQueue } from "./approval-queue.js";
 import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
@@ -18,6 +19,41 @@ type ToolUseBlock = {
   input: unknown;
 };
 
+const CONTEXT_MAX_CHARS = 2000;
+const CONTEXT_TURNS = 3;
+
+/**
+ * Extract the last N text-bearing turns from conversation messages as a plain
+ * string for operator context. Skips tool-result-only messages.
+ */
+export function extractApprovalContext(
+  messages: Anthropic.MessageParam[],
+  turns = CONTEXT_TURNS,
+  maxChars = CONTEXT_MAX_CHARS,
+): string | undefined {
+  const lines: string[] = [];
+  let collected = 0;
+  for (let i = messages.length - 1; i >= 0 && collected < turns; i--) {
+    const msg = messages[i];
+    let text = "";
+    if (typeof msg.content === "string") {
+      text = msg.content;
+    } else if (Array.isArray(msg.content)) {
+      text = msg.content
+        .filter((b): b is Anthropic.Messages.TextBlockParam => b.type === "text")
+        .map((b) => b.text)
+        .join(" ");
+    }
+    if (!text.trim()) continue;
+    const prefix = msg.role === "assistant" ? "Assistant" : "User";
+    lines.unshift(`${prefix}: ${text.trim()}`);
+    collected++;
+  }
+  if (lines.length === 0) return undefined;
+  const joined = lines.join("\n");
+  return joined.length > maxChars ? joined.slice(0, maxChars) + "…" : joined;
+}
+
 export type ToolResultEntry = {
   tool_use_id: string;
   content: string;
@@ -29,6 +65,7 @@ export type ToolResultEntry = {
  * Execute tool calls in parallel, with verbose logging and result truncation.
  * Routes MCP-namespaced tools through the McpManager when provided.
  * When guardrailsConfig is set, each tool call is assessed before execution.
+ * When messages are provided, the last few turns are captured as context on queued approvals.
  */
 export async function executeToolCalls(
   toolBlocks: ToolUseBlock[],
@@ -38,6 +75,7 @@ export async function executeToolCalls(
   transport?: Transport,
   guardrailsConfig?: GuardrailsConfig,
   sessionId?: string,
+  messages?: Anthropic.MessageParam[],
 ): Promise<ToolResultEntry[]> {
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
@@ -71,9 +109,10 @@ export async function executeToolCalls(
           };
         }
         if (assessment.policy === "queue") {
+          const approvalContext = messages ? extractApprovalContext(messages) : undefined;
           const queued = getApprovalQueue().enqueue(
             block.name, input, assessment.risk, assessment.reason, sessionId,
-            guardrailsConfig.approvalTimeoutMs,
+            guardrailsConfig.approvalTimeoutMs, undefined, approvalContext,
           );
           return {
             tool_use_id: block.id,

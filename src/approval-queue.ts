@@ -23,6 +23,8 @@ export type PendingApproval = {
 	risk: RiskLevel;
 	reason: string;
 	source?: string;
+	/** Last N agent conversation turns captured at enqueue time, for operator context. */
+	context?: string;
 	createdAt: string;
 	status: ApprovalStatus;
 	resolvedAt?: string;
@@ -48,6 +50,7 @@ export class ApprovalQueue {
 		source?: string,
 		timeoutMs?: number,
 		defaultResolution?: "deny" | "approve",
+		context?: string,
 	): PendingApproval {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
@@ -57,6 +60,7 @@ export class ApprovalQueue {
 			risk,
 			reason,
 			source,
+			...(context !== undefined && { context }),
 			createdAt: new Date().toISOString(),
 			status: "pending",
 			...(timeoutMs !== undefined && { timeoutMs }),
