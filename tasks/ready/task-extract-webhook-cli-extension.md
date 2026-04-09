@@ -1,12 +1,12 @@
 ---
 id: task-extract-webhook-cli-extension
 title: Move webhook-cli.ts into the existing webhook extension
-status: backlog
+status: ready
 priority: p3
 area: architecture
 summary: src/webhook-cli.ts (100 lines) implements kota webhook list/generate-secret/clear-secret and is imported directly by src/cli.ts. The webhook extension already exists at src/extensions/webhook/; the CLI commands belong there.
 created_at: 2026-04-09T08:00:00Z
-updated_at: 2026-04-09T08:00:00Z
+updated_at: 2026-04-09T10:47:41Z
 ---
 
 ## Problem
