@@ -41,7 +41,7 @@ describe("inbox-sorter workflow", () => {
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0));
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "autonomy.inbox.available", payload: {} },
     });
 
     const result = await harness.run();
@@ -63,7 +63,7 @@ describe("inbox-sorter workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "autonomy.inbox.available", payload: {} },
       stepMocks: {
         "sort-inbox": { turns: [], totalCostUsd: 0.01 },
       },

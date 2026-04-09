@@ -39,7 +39,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   triggers: [
     {
-      event: "runtime.idle",
+      event: "autonomy.inbox.available",
       cooldownMs: 30_000,
     },
   ],

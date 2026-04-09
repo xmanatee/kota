@@ -60,7 +60,7 @@ describe("explorer workflow", () => {
     );
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
     });
 
@@ -81,7 +81,7 @@ describe("explorer workflow", () => {
     );
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
     });
 
@@ -99,7 +99,7 @@ describe("explorer workflow", () => {
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: {
         workflows: {
           explorer: { lastCompletedAt: recentTimestamp() },
@@ -125,7 +125,7 @@ describe("explorer workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "autonomy.queue.empty", payload: {} },
       stepMocks: {
         explore: { turns: [], totalCostUsd: 0.02 },
       },

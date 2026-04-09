@@ -208,7 +208,7 @@ describe("autonomous workflow loop integration", () => {
         projectDir,
         idleIntervalMs: 10,
         workflows: (await loadAutonomyWorkflowDefinitions()).filter((workflow) =>
-          ["inbox-sorter", "builder", "improver"].includes(workflow.name),
+          ["dispatcher", "inbox-sorter", "builder", "improver"].includes(workflow.name),
         ),
       });
 
@@ -296,22 +296,37 @@ describe("autonomous workflow loop integration", () => {
   );
 
   it(
-    "writes explorer run artifacts and skips agent step when normalized work already exists",
+    "explorer skips agent step when exploration refresh is not due",
     { timeout: 10_000 },
     async () => {
-      // Explorer agent step must not be called because ready/backlog already
-      // contain normalized work.
+      // Clear ready tasks and inbox so the dispatcher emits autonomy.queue.empty,
+      // which triggers the explorer. The explorer then skips the agent step because
+      // lastCompletedAt was 10 minutes ago (within the 30-minute refresh window).
+      for (const f of readdirSync(join(projectDir, "data/tasks/ready"))) {
+        rmSync(join(projectDir, "data/tasks/ready", f));
+      }
+      for (const f of readdirSync(join(projectDir, "data/tasks/backlog"))) {
+        rmSync(join(projectDir, "data/tasks/backlog", f));
+      }
+      for (const f of readdirSync(join(projectDir, "data/inbox"))) {
+        rmSync(join(projectDir, "data/inbox", f));
+      }
+      execSync("git add -A && git -c user.email='t@t' -c user.name='T' commit -m 'clear'", {
+        cwd: projectDir,
+      });
+
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
         bus,
         projectDir,
         idleIntervalMs: 10,
-        workflows: (await loadAutonomyWorkflowDefinitions()).filter((w) => w.name === "explorer"),
+        workflows: (await loadAutonomyWorkflowDefinitions()).filter((w) =>
+          ["dispatcher", "explorer"].includes(w.name),
+        ),
       });
 
       runtime.start();
-      // Explorer should complete very quickly — no agent calls for explorer itself
-      await wait(200);
+      await wait(500);
       await runtime.stop();
 
       const runsDir = join(projectDir, ".kota", "runs");
@@ -334,10 +349,9 @@ describe("autonomous workflow loop integration", () => {
       );
       expect(inspectStep.status).toBe("success");
       expect(inspectStep.output.needsAttention).toBe(false);
-      expect(inspectStep.output.inboxCount).toBe(1);
-      expect(inspectStep.output.counts.ready).toBe(4);
+      expect(inspectStep.output.explorationRefreshDue).toBe(false);
 
-      // explore agent step was skipped (file exists but status is "skipped")
+      // explore agent step was skipped
       const exploreStep = JSON.parse(
         readFileSync(join(runsDir, explorerRunDir!, "steps", "explore.json"), "utf-8"),
       );

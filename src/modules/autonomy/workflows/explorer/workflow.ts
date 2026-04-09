@@ -71,7 +71,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
     "Search broadly for external ideas and promising improvements when the local queue is empty.",
   triggers: [
     {
-      event: "runtime.idle",
+      event: "autonomy.queue.empty",
       cooldownMs: 5 * 60 * 1000,
     },
   ],
