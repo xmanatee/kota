@@ -1,12 +1,12 @@
 ---
 id: task-per-workflow-notification-filter
 title: Add per-workflow notification suppression to reduce alert noise from low-priority workflows
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: runtime
 summary: Channel notifications (Telegram, Slack, webhook) fire for every workflow event. A per-workflow notify config block lets operators suppress notifications for specific workflows without disabling the channel globally.
 created_at: 2026-04-02T14:18:25Z
-updated_at: 2026-04-08T19:43:33Z
+updated_at: 2026-04-09T03:10:00Z
 ---
 
 ## Problem
