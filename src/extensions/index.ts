@@ -23,6 +23,7 @@ import historyModule from "./history/index.js";
 import knowledgeModule from "./knowledge/index.js";
 import mcpServerModule from "./mcp-server/index.js";
 import memoryModule from "./memory/index.js";
+import modelClientsModule from "./model-clients/index.js";
 import notebookModule from "./notebook/index.js";
 import readDocumentModule from "./read-document/index.js";
 import registryModule from "./registry/index.js";
@@ -44,6 +45,7 @@ import workingMemoryModule from "./working-memory/index.js";
 
 /** All built-in extensions, in dependency order. */
 export const builtinExtensions: KotaExtension[] = [
+  modelClientsModule,
   agentsModule,
   skillsModule,
   toolCacheModule,

@@ -1,6 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
-import type { ModelClient } from "./model/model-client.js";
 import {
 	buildAnthropicMessage,
 	mapFinishReason,
@@ -8,7 +7,8 @@ import {
 	systemToText,
 	toOpenAIMessages,
 	toOpenAITools,
-} from "./openai/index.js";
+} from "./extensions/model-clients/openai/index.js";
+import type { ModelClient } from "./model/model-client.js";
 
 // --- Translation function tests ---
 

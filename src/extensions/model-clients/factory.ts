@@ -6,8 +6,9 @@
  * no provider is specified.
  */
 
-import { OpenAIModelClient } from "../openai/client.js";
-import { AnthropicModelClient, type ModelClient } from "./model-client.js";
+import type { ProviderFactoryOptions, ResolvedProvider } from "../../model/model-client.js";
+import { AnthropicModelClient } from "./anthropic.js";
+import { OpenAIModelClient } from "./openai/client.js";
 
 /** Known provider presets: base URL and env var for the API key. */
 export const PROVIDER_PRESETS: Record<
@@ -55,23 +56,6 @@ export function resolveApiKey(
 	return process.env.OPENAI_API_KEY || "";
 }
 
-export type ProviderFactoryOptions = {
-	/** Model string — may include provider prefix (e.g., "ollama/llama3"). */
-	model: string;
-	/** Explicit provider name, overrides prefix in model string. */
-	provider?: string;
-	/** Explicit base URL, overrides preset. */
-	baseUrl?: string;
-	/** Explicit API key, overrides env var resolution. */
-	apiKey?: string;
-};
-
-export type ResolvedProvider = {
-	client: ModelClient;
-	model: string;
-	providerName: string;
-};
-
 /**
  * Create a ModelClient from combined CLI + config signals.
  *
@@ -80,7 +64,7 @@ export type ResolvedProvider = {
  * 2. Provider prefix in model string ("ollama/llama3")
  * 3. Default: "anthropic"
  */
-export function createModelClient(
+export function createModelClientImpl(
 	opts: ProviderFactoryOptions,
 ): ResolvedProvider {
 	const parsed = parseModelString(opts.model);
@@ -88,17 +72,6 @@ export function createModelClient(
 	const model = parsed.model;
 
 	if (providerName === "anthropic") {
-		const apiKey = resolveApiKey("anthropic", opts.apiKey);
-		if (!apiKey) {
-			throw new Error(
-				"ANTHROPIC_API_KEY is not set.\n\n" +
-					"To use a different provider, specify one:\n" +
-					"  kota run --model ollama/llama3 ...\n" +
-					"  kota run --provider openai --base-url https://api.openai.com/v1 ...\n\n" +
-					"Or set your Anthropic key:\n" +
-					"  export ANTHROPIC_API_KEY=sk-ant-...",
-			);
-		}
 		return {
 			client: new AnthropicModelClient({ maxRetries: 5 }),
 			model,

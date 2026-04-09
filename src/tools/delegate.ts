@@ -11,7 +11,7 @@ import {
   researchRunners,
   researchTools,
 } from "../delegate-prompts.js";
-import { AnthropicModelClient } from "../model/model-client.js";
+import { createModelClient } from "../model/model-client.js";
 import { routeModel } from "../model/model-router.js";
 import {
   EXECUTE_MAX_TURNS,
@@ -137,7 +137,7 @@ export async function runDelegate(
   const urlsFetched = new Set<string>();
   const searchQueries = new Set<string>();
 
-  const client = delegateConfig.client ?? new AnthropicModelClient();
+  const client = delegateConfig.client ?? createModelClient({ model: "claude-sonnet-4-6" }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;
   const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: task }];

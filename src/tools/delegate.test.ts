@@ -1,8 +1,26 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { runDelegate, setDelegateConfig } from "./delegate.js";
+
+vi.mock("../model/model-client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../model/model-client.js")>();
+  return {
+    ...actual,
+    createModelClient: vi.fn(() => ({
+      client: {
+        messages: {
+          stream: vi.fn(),
+          create: vi.fn(),
+        },
+      },
+      model: "claude-sonnet-4-6",
+      providerName: "anthropic",
+    })),
+  };
+});
+
 import type { DelegateMetadata } from "./delegate-format.js";
 import { assembleDelegateResult, buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 import type { ToolResultBlock } from "./index.js";

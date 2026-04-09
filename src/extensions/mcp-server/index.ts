@@ -47,8 +47,8 @@ const mcpServerModule: KotaExtension = {
 				const samplingEnabled = config.mcp?.sampling?.enabled === true;
 				let modelClient;
 				if (samplingEnabled) {
-					const { AnthropicModelClient } = await import("../../model/model-client.js");
-					modelClient = new AnthropicModelClient();
+					const { createModelClient } = await import("../../model/model-client.js");
+					modelClient = createModelClient({ model: config.model || "claude-sonnet-4-6" }).client;
 				}
 
 				const server = new McpServer({

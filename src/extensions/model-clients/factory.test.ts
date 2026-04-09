@@ -1,22 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpenAIModelClient } from "../openai/client.js";
-import { AnthropicModelClient } from "./model-client.js";
+import { AnthropicModelClient } from "./anthropic.js";
 import {
-	createModelClient,
+	createModelClientImpl,
 	PROVIDER_PRESETS,
 	parseModelString,
 	resolveApiKey,
-} from "./provider-factory.js";
+} from "./factory.js";
+import { OpenAIModelClient } from "./openai/client.js";
 
 // Mock the actual SDK constructors so no real HTTP clients are created
-vi.mock("./model-client.js", () => {
+vi.mock("./anthropic.js", () => {
 	const MockAnthropic = vi.fn(function (this: Record<string, unknown>) {
 		this.messages = { stream: vi.fn(), create: vi.fn() };
 	});
 	return { AnthropicModelClient: MockAnthropic };
 });
 
-vi.mock("../openai/client.js", () => {
+vi.mock("./openai/client.js", () => {
 	const MockOpenAI = vi.fn(function (this: Record<string, unknown>) {
 		this.messages = { stream: vi.fn(), create: vi.fn() };
 	});
@@ -112,7 +112,7 @@ describe("PROVIDER_PRESETS", () => {
 	});
 });
 
-describe("createModelClient", () => {
+describe("createModelClientImpl", () => {
 	const originalEnv = { ...process.env };
 
 	beforeEach(() => {
@@ -125,9 +125,8 @@ describe("createModelClient", () => {
 	});
 
 	describe("anthropic provider", () => {
-		it("creates AnthropicModelClient when ANTHROPIC_API_KEY is set", () => {
-			process.env.ANTHROPIC_API_KEY = "sk-ant-test";
-			const result = createModelClient({ model: "claude-sonnet-4-6" });
+		it("creates AnthropicModelClient", () => {
+			const result = createModelClientImpl({ model: "claude-sonnet-4-6" });
 			expect(result.providerName).toBe("anthropic");
 			expect(result.model).toBe("claude-sonnet-4-6");
 			expect(AnthropicModelClient).toHaveBeenCalledWith({
@@ -135,18 +134,9 @@ describe("createModelClient", () => {
 			});
 		});
 
-		it("throws when ANTHROPIC_API_KEY is missing and no provider specified", () => {
+		it("creates AnthropicModelClient even when ANTHROPIC_API_KEY is missing", () => {
 			delete process.env.ANTHROPIC_API_KEY;
-			expect(() =>
-				createModelClient({ model: "claude-sonnet-4-6" }),
-			).toThrow("ANTHROPIC_API_KEY");
-		});
-
-		it("uses explicit apiKey over env var", () => {
-			const result = createModelClient({
-				model: "claude-sonnet-4-6",
-				apiKey: "explicit-key",
-			});
+			const result = createModelClientImpl({ model: "claude-sonnet-4-6" });
 			expect(result.providerName).toBe("anthropic");
 			expect(AnthropicModelClient).toHaveBeenCalled();
 		});
@@ -154,7 +144,7 @@ describe("createModelClient", () => {
 
 	describe("provider/model notation", () => {
 		it("parses ollama/llama3 and creates OpenAIModelClient", () => {
-			const result = createModelClient({ model: "ollama/llama3" });
+			const result = createModelClientImpl({ model: "ollama/llama3" });
 			expect(result.providerName).toBe("ollama");
 			expect(result.model).toBe("llama3");
 			expect(OpenAIModelClient).toHaveBeenCalledWith({
@@ -165,7 +155,7 @@ describe("createModelClient", () => {
 
 		it("parses openai/gpt-4o with OPENAI_API_KEY", () => {
 			process.env.OPENAI_API_KEY = "sk-test";
-			const result = createModelClient({ model: "openai/gpt-4o" });
+			const result = createModelClientImpl({ model: "openai/gpt-4o" });
 			expect(result.providerName).toBe("openai");
 			expect(result.model).toBe("gpt-4o");
 			expect(OpenAIModelClient).toHaveBeenCalledWith({
@@ -176,7 +166,7 @@ describe("createModelClient", () => {
 
 		it("parses groq/llama-70b with GROQ_API_KEY", () => {
 			process.env.GROQ_API_KEY = "gsk-test";
-			const result = createModelClient({ model: "groq/llama-70b" });
+			const result = createModelClientImpl({ model: "groq/llama-70b" });
 			expect(result.providerName).toBe("groq");
 			expect(result.model).toBe("llama-70b");
 			expect(OpenAIModelClient).toHaveBeenCalledWith({
@@ -189,7 +179,7 @@ describe("createModelClient", () => {
 	describe("explicit --provider flag", () => {
 		it("overrides provider prefix in model string", () => {
 			process.env.OPENAI_API_KEY = "sk-test";
-			const result = createModelClient({
+			const result = createModelClientImpl({
 				model: "ollama/llama3",
 				provider: "openai",
 			});
@@ -202,7 +192,7 @@ describe("createModelClient", () => {
 		});
 
 		it("works with plain model name", () => {
-			const result = createModelClient({
+			const result = createModelClientImpl({
 				model: "llama3",
 				provider: "ollama",
 			});
@@ -213,7 +203,7 @@ describe("createModelClient", () => {
 
 	describe("explicit --base-url flag", () => {
 		it("overrides preset base URL", () => {
-			createModelClient({
+			createModelClientImpl({
 				model: "ollama/llama3",
 				baseUrl: "http://custom:8080/v1",
 			});
@@ -225,7 +215,7 @@ describe("createModelClient", () => {
 
 		it("enables unknown provider with custom URL", () => {
 			process.env.OPENAI_API_KEY = "sk-test";
-			const result = createModelClient({
+			const result = createModelClientImpl({
 				model: "my-model",
 				provider: "vllm",
 				baseUrl: "http://gpu-server:8000/v1",
@@ -242,13 +232,13 @@ describe("createModelClient", () => {
 	describe("error cases", () => {
 		it("throws for unknown provider without base-url", () => {
 			expect(() =>
-				createModelClient({
+				createModelClientImpl({
 					model: "my-model",
 					provider: "unknown-provider",
 				}),
 			).toThrow("Unknown provider");
 			expect(() =>
-				createModelClient({
+				createModelClientImpl({
 					model: "my-model",
 					provider: "unknown-provider",
 				}),

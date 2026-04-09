@@ -13,7 +13,7 @@ import { loadInstructionContext } from "./instruction-files.js";
 import type { LoopOptions } from "./loop.js";
 import { type AgentLoopState, runInitExtensions, saveToHistoryImpl } from "./loop-init.js";
 import { getHistory } from "./memory/history.js";
-import { AnthropicModelClient } from "./model/model-client.js";
+import { createModelClient } from "./model/model-client.js";
 import { loadProjectContext } from "./project-context.js";
 import { initProviderRegistry, registerDefaultProviders } from "./providers.js";
 import { initScheduler } from "./scheduler/scheduler.js";
@@ -55,7 +55,7 @@ export function initAgentSession(
     ? thinkingBudget + state.maxTokens
     : state.maxTokens;
 
-  state.client = options.client ?? new AnthropicModelClient({ maxRetries: 5 });
+  state.client = options.client ?? createModelClient({ model: state.model }).client;
   state.costTracker = new CostTracker();
 
   initTaskStore(process.cwd());

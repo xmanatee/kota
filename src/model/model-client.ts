@@ -1,9 +1,12 @@
 /**
- * Abstract LLM client interface, decoupling the agent from any specific SDK.
- * Enables provider swapping (Anthropic API, Claude Agent SDK, etc.).
+ * Abstract LLM client interface and model client registry.
+ *
+ * The interface and registry live in core. Implementations (Anthropic, OpenAI,
+ * etc.) live in the model-clients extension and register via
+ * `registerModelClientFactory` at module load time.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 
 /** Minimal stream interface matching the Anthropic SDK's MessageStream subset KOTA uses. */
 export interface MessageStream {
@@ -38,21 +41,43 @@ export interface ModelClient {
 	};
 }
 
-/** Default implementation wrapping the Anthropic SDK. */
-export class AnthropicModelClient implements ModelClient {
-	readonly messages: ModelClient["messages"];
+/** Options for creating a model client. */
+export type ProviderFactoryOptions = {
+	/** Model string — may include provider prefix (e.g., "ollama/llama3"). */
+	model: string;
+	/** Explicit provider name, overrides prefix in model string. */
+	provider?: string;
+	/** Explicit base URL, overrides preset. */
+	baseUrl?: string;
+	/** Explicit API key, overrides env var resolution. */
+	apiKey?: string;
+};
 
-	constructor(options?: { maxRetries?: number }) {
-		const sdk = new Anthropic(options);
-		this.messages = {
-			stream: (params) =>
-				sdk.messages.stream(
-					params as Parameters<typeof sdk.messages.stream>[0],
-				) as unknown as MessageStream,
-			create: (params) =>
-				sdk.messages.create(
-					params as Parameters<typeof sdk.messages.create>[0],
-				) as unknown as Promise<Anthropic.Message>,
-		};
+/** Result of resolving a model client. */
+export type ResolvedProvider = {
+	client: ModelClient;
+	model: string;
+	providerName: string;
+};
+
+export type ModelClientFactoryFn = (opts: ProviderFactoryOptions) => ResolvedProvider;
+
+let _factory: ModelClientFactoryFn | null = null;
+
+/** Register the model client factory (called by the model-clients extension at load time). */
+export function registerModelClientFactory(fn: ModelClientFactoryFn): void {
+	_factory = fn;
+}
+
+/**
+ * Create a ModelClient from provider options.
+ * Delegates to the factory registered by the model-clients extension.
+ */
+export function createModelClient(opts: ProviderFactoryOptions): ResolvedProvider {
+	if (!_factory) {
+		throw new Error(
+			"No model client factory registered. Ensure the model-clients extension is loaded.",
+		);
 	}
+	return _factory(opts);
 }

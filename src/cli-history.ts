@@ -2,7 +2,7 @@ import { createInterface } from "node:readline";
 import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./loop.js";
 import { type ConversationHistory, getHistory } from "./memory/history.js";
-import { createModelClient } from "./model/provider-factory.js";
+import { createModelClient } from "./model/model-client.js";
 import { getScheduler, resetScheduler } from "./scheduler/scheduler.js";
 
 export { registerHistoryCommands } from "./cli-history-commands.js";

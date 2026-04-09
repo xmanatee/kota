@@ -39,8 +39,7 @@ vi.mock("./server/daemon-client.js", () => ({
   },
 }));
 
-vi.mock("./model/provider-factory.js", () => ({
-  resolveApiKey: vi.fn(() => "sk-ant-test-key"),
+vi.mock("./model/model-client.js", () => ({
   createModelClient: vi.fn(() => ({
     client: {
       messages: {
@@ -50,6 +49,10 @@ vi.mock("./model/provider-factory.js", () => ({
     model: "claude-haiku-4-5-20251001",
     providerName: "anthropic",
   })),
+}));
+
+vi.mock("./extensions/model-clients/factory.js", () => ({
+  resolveApiKey: vi.fn(() => "sk-ant-test-key"),
 }));
 
 function makeTmpDir(): string {
@@ -207,7 +210,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("passes when the model client responds successfully", async () => {
-    const { createModelClient } = await import("./model/provider-factory.js");
+    const { createModelClient } = await import("./model/model-client.js");
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -225,7 +228,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("fails with authentication error on 401/403 response", async () => {
-    const { createModelClient } = await import("./model/provider-factory.js");
+    const { createModelClient } = await import("./model/model-client.js");
     const authErr = Object.assign(new Error("Authentication failed"), { status: 401 });
     // Mimic Anthropic SDK AuthenticationError check via message pattern
     vi.mocked(createModelClient).mockReturnValueOnce({
@@ -246,7 +249,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("fails with unreachable message on network error", async () => {
-    const { createModelClient } = await import("./model/provider-factory.js");
+    const { createModelClient } = await import("./model/model-client.js");
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -264,7 +267,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("warns when API key is not set", async () => {
-    const { resolveApiKey } = await import("./model/provider-factory.js");
+    const { resolveApiKey } = await import("./extensions/model-clients/factory.js");
     vi.mocked(resolveApiKey).mockReturnValueOnce("");
 
     const results = await checkProviderConnectivity(projectDir);
